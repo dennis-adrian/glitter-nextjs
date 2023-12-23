@@ -1,8 +1,7 @@
 import Image from 'next/image';
-import { londrinaSolid, roboto } from '@/app/ui/fonts';
-import Button from '@/app/ui/button';
 import { faInstagram } from '@fortawesome/free-brands-svg-icons';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { londrinaSolid, roboto } from '@/app/ui/fonts';
+import LinkButton from '@/app/ui/link-button';
 
 export default function Home() {
   return (
@@ -33,16 +32,13 @@ export default function Home() {
           El 2 y 3 de marzo tendremos nuestra siguiente edición de Glitter
           Publicaremos la convocatoria en nuestras redes en enero
         </p>
-        <a
-          className="btn btn-primary px-8 text-base text-white"
+        <LinkButton
           href="https://www.instagram.com/glitter.bo"
+          icon={faInstagram}
           target="_blank"
         >
           Síguenos en Instagram
-          <span>
-            <FontAwesomeIcon className="w-6 ml-2" icon={faInstagram} />
-          </span>
-        </a>
+        </LinkButton>
       </section>
       <section className="bg-base-100 w-screen py-8 px-2">
         <h1 className={`${londrinaSolid.className} text-4xl`}>

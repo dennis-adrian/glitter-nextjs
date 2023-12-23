@@ -1,6 +1,5 @@
-import { IconDefinition } from '@fortawesome/free-brands-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import React from 'react';
+import { IconDefinition } from '@fortawesome/free-brands-svg-icons';
 
 type Props = {
   icon?: IconDefinition;
@@ -11,7 +10,7 @@ type Props = {
 const Button = ({ children, icon, onClick }: Props) => {
   return (
     <button
-      className="m-auto flex h-14 items-center rounded-2xl bg-primary py-3 px-5 text-white drop-shadow-lg"
+      className="antialiased font-extrabold m-auto flex items-center rounded-2xl bg-primary py-3 px-8 leading-4 text-white drop-shadow-lg"
       onClick={onClick}
     >
       {children}
