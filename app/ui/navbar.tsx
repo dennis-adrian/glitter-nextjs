@@ -1,4 +1,3 @@
-import React from 'react'
 import Image from 'next/image';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBars } from '@fortawesome/free-solid-svg-icons/faBars';
@@ -9,7 +8,7 @@ const Navbar = () => {
     <div className="flex justify-between bg-gradient-darker py-2 px-3">
       <FontAwesomeIcon icon={faBars} className="text-white w-6" />
       <Image
-        src="/img/glitter_logo.png"
+        src="/img/glitter-logo.png"
         alt="Logo Glitter"
         width={150}
         height={56}

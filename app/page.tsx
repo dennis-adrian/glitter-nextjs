@@ -18,7 +18,7 @@ export default function Home() {
         </p>
         <Image
           className="m-auto"
-          src="/img/mascot_desktop.png"
+          src="/img/mascot.png"
           alt="Mascota Glitter"
           width={300}
           height={300}
