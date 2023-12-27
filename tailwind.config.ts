@@ -9,10 +9,16 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        accent: '#f6eabd',
+        'accent-dark': '#e9d9a9',
         'dark-blue': '#14252E',
         'gradient-darker': '#2D2156',
         'gradient-dark': '#4B3988',
         'gradient-light': '#DFBAE0',
+        primary: '#4b3988',
+        'primary-dark': '#2d2156',
+        secondary: '#f55da5',
+        'secondary-dark': '#d13e8f',
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
@@ -25,23 +31,5 @@ const config: Config = {
       heading: ['Junegull'],
     },
   },
-  daisyui: {
-    themes: [
-      {
-        mytheme: {
-          primary: '#4b3988',
-          secondary: '#f55da5',
-          accent: '#f6eabd',
-          neutral: '#2a323c',
-          'base-100': '#fff',
-          info: '#3abff8',
-          success: '#36d399',
-          warning: '#fbbd23',
-          error: '#f87272',
-        },
-      },
-    ],
-  },
-  plugins: [require('daisyui')],
 };
 export default config;
