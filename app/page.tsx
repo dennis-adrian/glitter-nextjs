@@ -2,6 +2,7 @@ import Image from 'next/image';
 import { faInstagram } from '@fortawesome/free-brands-svg-icons';
 import { londrinaSolid, roboto } from '@/app/ui/fonts';
 import LinkButton from '@/app/ui/link-button';
+import Button from '@/app/ui/button';
 
 export default function Home() {
   return (
@@ -40,7 +41,7 @@ export default function Home() {
           Síguenos en Instagram
         </LinkButton>
       </section>
-      <section className="bg-base-100 w-screen py-8 px-2">
+      <section className="bg-white w-screen py-8 px-2">
         <h1 className={`${londrinaSolid.className} text-4xl`}>
           ¿Quiénes somos?
         </h1>
