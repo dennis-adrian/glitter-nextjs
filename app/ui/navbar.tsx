@@ -2,7 +2,6 @@ import Image from 'next/image';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBars } from '@fortawesome/free-solid-svg-icons/faBars';
 import { faUser } from '@fortawesome/free-regular-svg-icons/faUser';
-import { UserButton } from '@clerk/nextjs';
 
 const Navbar = () => {
   return (
@@ -15,7 +14,6 @@ const Navbar = () => {
         height={56}
       />
       <FontAwesomeIcon icon={faUser} className="text-white w-6" />
-      <UserButton afterSignOutUrl='/' />
     </div>
   )
 }
