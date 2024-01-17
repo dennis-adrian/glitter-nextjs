@@ -1,8 +1,7 @@
 import Image from 'next/image';
 import { faInstagram } from '@fortawesome/free-brands-svg-icons';
-import { londrinaSolid, roboto } from '@/app/ui/fonts';
+import { londrinaSolid, roboto } from '@/ui/fonts';
 import LinkButton from '@/app/ui/link-button';
-import Button from '@/app/ui/button';
 
 export default function Home() {
   return (

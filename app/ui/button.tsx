@@ -4,7 +4,7 @@ import { IconDefinition } from '@fortawesome/free-brands-svg-icons';
 import { twMerge } from 'tailwind-merge';
 
 const button = cva(
-  'antialiased font-bold m-auto flex items-center rounded-2xl h-12 px-8 leading-4 drop-shadow-lg transition ease-in-out duration-300 hover:scale-105 active:translate-y-1',
+  'antialiased font-bold m-auto flex items-center rounded-2xl py-3 px-8 leading-4 drop-shadow-lg transition ease-in-out duration-300 hover:scale-105 active:translate-y-1',
   {
     variants: {
       intent: {
@@ -13,6 +13,7 @@ const button = cva(
         secondary: 'text-white bg-secondary hover:bg-secondary-dark',
         accent: 'text-dark-blue bg-accent hover:bg-accent-dark',
         light: 'text-dark-blue bg-white hover:bg-gray-100',
+        ghost: 'text-dark-blue bg-transparent hover:bg-gray-100',
       },
       outline: {
         true: 'border-2 bg-transparent',
@@ -80,8 +81,8 @@ const Button = ({
       onClick={onClick}
       {...props}
     >
+      {icon ? <FontAwesomeIcon className="w-4 mr-2" icon={icon} /> : null}
       {children}
-      {icon ? <FontAwesomeIcon className="w-6 ml-2" icon={icon} /> : null}
     </button>
   );
 };

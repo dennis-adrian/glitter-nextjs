@@ -101,3 +101,12 @@ export const ButtonWithIcon: Story = {
     icon: faPen,
   },
 };
+
+export const Ghost: Story = {
+  args: {
+    disabled: false,
+    intent: 'ghost',
+    outline: false,
+    children: 'Button',
+  },
+};
