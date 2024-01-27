@@ -1,17 +1,13 @@
 'use client';
 
-import * as React from 'react';
 import * as SheetPrimitive from '@radix-ui/react-dialog';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { X } from 'lucide-react';
+import * as React from 'react';
 
-import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
-
-// Some of these Sheet components are buttons under the hood,
-// So I added the buttonVariants to them to make them look like buttons
-type ExtendedProps<T extends React.ElementType> =
-  React.ComponentPropsWithRef<T> & VariantProps<typeof buttonVariants>;
+import { ExtendedProps } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
 const Sheet = SheetPrimitive.Root;
 
@@ -23,10 +19,7 @@ const SheetTrigger: React.FC<ExtendedProps<typeof SheetPrimitive.Trigger>> = ({
 }) => {
   const variants = variant ? buttonVariants({ variant, size }) : '';
   return (
-    <SheetPrimitive.Trigger
-      className={cn(variants, className)}
-      {...props}
-    />
+    <SheetPrimitive.Trigger className={cn(variants, className)} {...props} />
   );
 };
 
@@ -146,14 +139,7 @@ const SheetDescription = React.forwardRef<
 SheetDescription.displayName = SheetPrimitive.Description.displayName;
 
 export {
-  Sheet,
-  SheetPortal,
-  SheetOverlay,
-  SheetTrigger,
-  SheetClose,
-  SheetContent,
-  SheetHeader,
-  SheetFooter,
-  SheetTitle,
-  SheetDescription,
+  Sheet, SheetClose,
+  SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetOverlay, SheetPortal, SheetTitle, SheetTrigger
 };
+

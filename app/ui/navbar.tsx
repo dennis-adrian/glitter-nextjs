@@ -1,53 +1,19 @@
-'use client';
-
 import Link from 'next/link';
-
-import {
-  BadgePlusIcon,
-  CircleUserIcon,
-  LogInIcon,
-  MenuIcon,
-  SquareUserRoundIcon,
-} from 'lucide-react';
-
+import { MenuIcon } from 'lucide-react';
 import { londrinaSolid } from '@/app/ui/fonts';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuIndicator,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-  NavigationMenuViewport,
-  navigationMenuTriggerStyle,
-} from '@/components/ui/navigation-menu';
 
-import { Button } from '@/components/ui/button';
 import MobileSidebar from '@/components/ui/mobile-sidebar';
-import { currentUser, useUser } from '@clerk/nextjs';
+import UserDropdown from '@/components/ui/user-dropdown';
+import NavbarNavigationMenu from '@/app/ui/navbar-navigation-menu';
 
 const Navbar = () => {
-  const user = useUser();
-  console.log(user);
-
   return (
     <header>
-      <nav className="p-3 w-full">
+      <nav className="w-full p-3">
         <ul className="grid grid-cols-3 items-center">
           <li className="md:hidden">
             <MobileSidebar>
-              <Button variant="ghost" size="icon">
-                <MenuIcon className="h-6 w-6" />
-              </Button>
+              <MenuIcon className="h-6 w-6" />
             </MobileSidebar>
           </li>
           <li className="justify-self-center md:justify-self-start">
@@ -57,57 +23,12 @@ const Navbar = () => {
               </span>
             </Link>
           </li>
-          <li className="hidden md:block justify-self-center">
-            <NavigationMenu>
-              <NavigationMenuList>
-                <NavigationMenuItem>
-                  <Link href="/" legacyBehavior passHref>
-                    <NavigationMenuLink
-                      className={navigationMenuTriggerStyle()}
-                    >
-                      Inicio
-                    </NavigationMenuLink>
-                  </Link>
-                </NavigationMenuItem>
-                <NavigationMenuItem>
-                  <Link href="/next_event" legacyBehavior passHref>
-                    <NavigationMenuLink
-                      className={navigationMenuTriggerStyle()}
-                    >
-                      Próximo Evento
-                    </NavigationMenuLink>
-                  </Link>
-                </NavigationMenuItem>
-              </NavigationMenuList>
-            </NavigationMenu>
+          <li className="hidden justify-self-center md:block">
+            <NavbarNavigationMenu />
           </li>
-          {user.isSignedIn ? (
-            <li className="justify-self-end">
-              <DropdownMenu>
-                <DropdownMenuTrigger>
-                  <Button variant="ghost" size="icon">
-                    <CircleUserIcon className="h-6 w-6" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <Link href="/user_profile" className="flex align-middle">
-                      <SquareUserRoundIcon className="self-center mr-2 h-4 w-4" />
-                      <span>Perfil</span>
-                    </Link>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </li>
-          ) : (
-            <li className="justify-self-end">
-              <Button variant="outline">
-                <Link href="/sign_in">Ingresar</Link>
-              </Button>
-            </li>
-          )}
+          <li className="flex justify-self-end">
+            <UserDropdown />
+          </li>
         </ul>
       </nav>
     </header>
