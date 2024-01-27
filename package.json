@@ -11,7 +11,8 @@
     "build-storybook": "storybook build",
     "generate": "drizzle-kit generate:pg",
     "migrate": "npx tsx scripts/migrate.ts",
-    "push": "drizzle-kit push:pg"
+    "push": "drizzle-kit push:pg",
+    "postinstall": "npm run generate && npm run migrate"
   },
   "dependencies": {
     "@clerk/localizations": "^1.26.13",
