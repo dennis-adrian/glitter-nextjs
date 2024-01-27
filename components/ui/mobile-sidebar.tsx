@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 
 import { londrinaSolid } from '@/app/ui/fonts';
@@ -10,6 +12,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import { useUser } from '@clerk/nextjs';
 
 type MobileSidebarItemProps = {
   href: string;
@@ -20,7 +23,7 @@ const MobileSidebarItem = ({ href, children }: MobileSidebarItemProps) => {
   return (
     <li>
       <Link href={href}>
-        <SheetClose className="w-full text-left hover:bg-secondary rounded-md p-2">
+        <SheetClose className="hover:bg-secondary w-full rounded-md p-2 text-left">
           {children}
         </SheetClose>
       </Link>
@@ -33,16 +36,22 @@ type MobileSidebarProps = {
 };
 
 const MobileSidebar = ({ children }: MobileSidebarProps) => {
+  const user = useUser();
+
   return (
     <Sheet>
-      <SheetTrigger>{children}</SheetTrigger>
+      <SheetTrigger variant="ghost" size="icon">
+        {children}
+      </SheetTrigger>
       <SheetContent side="left">
         <SheetHeader>
           <SheetTitle>
             <SheetClose>
-              <span className={`${londrinaSolid.className} text-3xl`}>
-                Glitter
-              </span>
+              <Link href="/">
+                <span className={`${londrinaSolid.className} text-3xl`}>
+                  Glitter
+                </span>
+              </Link>
             </SheetClose>
           </SheetTitle>
         </SheetHeader>
@@ -50,8 +59,14 @@ const MobileSidebar = ({ children }: MobileSidebarProps) => {
         <ul className="flex flex-col">
           <MobileSidebarItem href="/">Inicio</MobileSidebarItem>
           <Separator className="my-2" />
-          <MobileSidebarItem href="/sign_in">Ingresar</MobileSidebarItem>
-          <MobileSidebarItem href="/sign_up">Registrarse</MobileSidebarItem>
+          {user.isSignedIn ? (
+            <MobileSidebarItem href="/">Cerrar Sesión</MobileSidebarItem>
+          ) : (
+            <>
+              <MobileSidebarItem href="/sign_in">Ingresar</MobileSidebarItem>
+              <MobileSidebarItem href="/sign_up">Registrarse</MobileSidebarItem>
+            </>
+          )}
         </ul>
       </SheetContent>
     </Sheet>
