@@ -12,7 +12,8 @@
     "generate": "drizzle-kit generate:pg",
     "migrate": "npx tsx scripts/migrate.ts",
     "push": "drizzle-kit push:pg",
-    "postinstall": "npm run generate && npm run migrate"
+    "seed": "npx tsx scripts/seed.ts",
+    "postinstall": "npm run generate && npm run migrate && npm run seed"
   },
   "dependencies": {
     "@clerk/localizations": "^1.26.13",
