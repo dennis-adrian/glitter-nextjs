@@ -9,7 +9,7 @@ import NavbarNavigationMenu from '@/app/ui/navbar-navigation-menu';
 const Navbar = () => {
   return (
     <header>
-      <nav className="w-full p-3">
+      <nav className="w-full p-3 h-16">
         <ul className="grid grid-cols-3 items-center">
           <li className="md:hidden">
             <MobileSidebar>
