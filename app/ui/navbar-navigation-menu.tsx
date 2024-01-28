@@ -8,7 +8,7 @@ import {
   NavigationMenuLink,
   NavigationMenuList,
   navigationMenuTriggerStyle,
-} from '@/components/ui/navigation-menu';
+} from '@/app/components/ui/navigation-menu';
 
 const NavbarNavigationMenu = () => {
   return (

@@ -1,4 +1,4 @@
-import { buttonVariants } from '@/components/ui/button';
+import { buttonVariants } from '@/app/components/ui/button';
 import { VariantProps } from 'class-variance-authority';
 
 // TODO: Remove this, I could use asChild from radix

@@ -5,9 +5,9 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { X } from 'lucide-react';
 import * as React from 'react';
 
-import { buttonVariants } from '@/components/ui/button';
-import { ExtendedProps } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import { buttonVariants } from '@/app/components/ui/button';
+import { ExtendedProps } from '@/app/lib/types';
+import { cn } from '@/app/lib/utils';
 
 const Sheet = SheetPrimitive.Root;
 

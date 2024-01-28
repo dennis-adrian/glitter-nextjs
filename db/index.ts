@@ -1,5 +1,5 @@
 import * as schema from '@/db/schema';
-import '@/lib/config';
+import '@/app/lib/config';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Client } from 'pg';
 

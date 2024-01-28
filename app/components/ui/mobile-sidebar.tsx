@@ -7,7 +7,7 @@ import { useClerk, useUser } from '@clerk/nextjs';
 
 import { londrinaSolid } from '@/app/ui/fonts';
 
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/app/components/ui/separator';
 import {
   Sheet,
   SheetClose,
@@ -15,8 +15,8 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from '@/components/ui/sheet';
-import { Button } from '@/components/ui/button';
+} from '@/app/components/ui/sheet';
+import { Button } from '@/app/components/ui/button';
 
 type MobileSidebarItemProps = {
   href: string;

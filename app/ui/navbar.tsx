@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { MenuIcon } from 'lucide-react';
 import { londrinaSolid } from '@/app/ui/fonts';
 
-import MobileSidebar from '@/components/ui/mobile-sidebar';
-import UserDropdown from '@/components/ui/user-dropdown';
+import MobileSidebar from '@/app/components/ui/mobile-sidebar';
+import UserDropdown from '@/app/components/ui/user-dropdown';
 import NavbarNavigationMenu from '@/app/ui/navbar-navigation-menu';
 
 const Navbar = () => {
