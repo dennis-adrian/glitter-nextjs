@@ -1,4 +1,4 @@
-import { db } from '@/db';
+import { db, client } from '@/db';
 import { users } from '@/db/schema';
 import { User } from '@clerk/nextjs/server';
 import { eq } from 'drizzle-orm';
@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { clerkClient } from '@clerk/nextjs';
 
 type NewUser = typeof users.$inferInsert;
-type ExistingUser = typeof users.$inferSelect;
+export type UserProfileType = typeof users.$inferSelect;
 
 export async function createUserProfile(user: User) {
   const newUser = {
@@ -32,7 +32,7 @@ export async function createUserProfile(user: User) {
 
 export async function fetchUserProfile(user: User) {
   try {
-    const result: ExistingUser[] = await db
+    const result: UserProfileType[] = await db
       .select()
       .from(users)
       .where(eq(users.clerkId, user.id));
