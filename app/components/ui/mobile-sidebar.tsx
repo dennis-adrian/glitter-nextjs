@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-import { useClerk, useUser } from '@clerk/nextjs';
+import { SignedIn, SignedOut, useClerk } from '@clerk/nextjs';
 
 import { londrinaSolid } from '@/app/ui/fonts';
 
@@ -17,6 +17,7 @@ import {
   SheetTrigger,
 } from '@/app/components/ui/sheet';
 import { Button } from '@/app/components/ui/button';
+import { HomeIcon, LogOutIcon } from 'lucide-react';
 
 type MobileSidebarItemProps = {
   href: string;
@@ -28,7 +29,7 @@ const MobileSidebarItem = ({ href, children }: MobileSidebarItemProps) => {
     <li>
       <SheetClose
         asChild
-        className="hover:bg-secondary w-full rounded-md p-2 text-left"
+        className="flex hover:bg-secondary w-full rounded-md p-2 text-left"
       >
         <Link href={href}>{children}</Link>
       </SheetClose>
@@ -42,7 +43,6 @@ type MobileSidebarProps = {
 
 const MobileSidebar = ({ children }: MobileSidebarProps) => {
   const { signOut } = useClerk();
-  const user = useUser();
   const router = useRouter();
 
   return (
@@ -64,26 +64,29 @@ const MobileSidebar = ({ children }: MobileSidebarProps) => {
         </SheetHeader>
         <Separator className="my-2" />
         <ul className="flex flex-col">
-          <MobileSidebarItem href="/">Inicio</MobileSidebarItem>
+          <MobileSidebarItem href="/">
+            <HomeIcon className="mr-2 h-6 w-6" />
+            Inicio
+          </MobileSidebarItem>
           <Separator className="my-2" />
-          {user.isSignedIn ? (
+          <SignedIn>
             <SheetClose asChild>
               <Button
                 className="p-2"
                 onClick={() => signOut(() => router.push('/'))}
                 variant="ghost"
               >
+                <LogOutIcon className="mr-2 h-6 w-6" />
                 <span className="w-full text-left text-base font-normal">
                   Cerrar Sesión
                 </span>
               </Button>
             </SheetClose>
-          ) : (
-            <>
-              <MobileSidebarItem href="/sign_in">Ingresar</MobileSidebarItem>
-              <MobileSidebarItem href="/sign_up">Registrarse</MobileSidebarItem>
-            </>
-          )}
+          </SignedIn>
+          <SignedOut>
+            <MobileSidebarItem href="/sign_in">Ingresar</MobileSidebarItem>
+            <MobileSidebarItem href="/sign_up">Registrarse</MobileSidebarItem>
+          </SignedOut>
         </ul>
       </SheetContent>
     </Sheet>
