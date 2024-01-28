@@ -5,6 +5,7 @@ import { londrinaSolid } from '@/app/ui/fonts';
 import MobileSidebar from '@/app/components/ui/mobile-sidebar';
 import UserDropdown from '@/app/components/ui/user-dropdown';
 import NavbarNavigationMenu from '@/app/ui/navbar-navigation-menu';
+import Image from 'next/image';
 
 const Navbar = () => {
   return (
@@ -18,9 +19,12 @@ const Navbar = () => {
           </li>
           <li className="justify-self-center md:justify-self-start">
             <Link href="/">
-              <span className={`${londrinaSolid.className} text-3xl`}>
-                Glitter
-              </span>
+              <Image
+                src="/img/logo-dark.png"
+                alt="Glitter Logo"
+                height={40}
+                width={96}
+              />
             </Link>
           </li>
           <li className="hidden justify-self-center md:block">

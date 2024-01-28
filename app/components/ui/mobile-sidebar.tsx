@@ -18,6 +18,7 @@ import {
 } from '@/app/components/ui/sheet';
 import { Button } from '@/app/components/ui/button';
 import { HomeIcon, LogOutIcon } from 'lucide-react';
+import Image from 'next/image';
 
 type MobileSidebarItemProps = {
   href: string;
@@ -55,9 +56,12 @@ const MobileSidebar = ({ children }: MobileSidebarProps) => {
           <SheetTitle>
             <SheetClose>
               <Link href="/">
-                <span className={`${londrinaSolid.className} text-3xl`}>
-                  Glitter
-                </span>
+                <Image
+                  src="/img/logo-dark.png"
+                  alt="Glitter Logo"
+                  height={40}
+                  width={96}
+                />
               </Link>
             </SheetClose>
           </SheetTitle>
