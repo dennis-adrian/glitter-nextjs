@@ -15,6 +15,7 @@ export const users = pgTable(
   'users',
   {
     id: serial('id').primaryKey(),
+    bio: text('bio'),
     clerkId: text('clerk_id').unique().notNull(),
     displayName: text('display_name'),
     firstName: text('first_name'),
