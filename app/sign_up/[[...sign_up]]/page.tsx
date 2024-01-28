@@ -1,12 +1,10 @@
 import { SignUp } from '@clerk/nextjs';
 
 export default function Page() {
+  const afterActionUrl = '/user_profile/create';
   return (
     <div className="flex justify-center p-4">
-      <SignUp
-        afterSignInUrl="/user_profile"
-        afterSignUpUrl="/user_profile/create"
-      />
+      <SignUp afterSignInUrl={afterActionUrl} afterSignUpUrl={afterActionUrl} />
     </div>
   );
 }

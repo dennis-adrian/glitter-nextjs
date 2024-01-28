@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-import { redirect } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 import {
   Drawer,
@@ -10,9 +10,22 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
+import { useClerk } from '@clerk/nextjs';
 
-export function RedirectDrawer() {
-  const [counter, setCounter] = useState(5);
+type RedirectDrawerProps = {
+  counterValue?: number;
+  title?: string;
+  message?: string;
+};
+
+export function RedirectDrawer({
+  counterValue,
+  title,
+  message,
+}: RedirectDrawerProps) {
+  const { signOut } = useClerk();
+  const router = useRouter();
+  const [counter, setCounter] = useState(counterValue || 5);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -22,22 +35,19 @@ export function RedirectDrawer() {
     return () => clearInterval(interval);
   }, []);
 
-  if (counter <= 0) return redirect('/sign_up');
+  if (counter <= 0) {
+    signOut(() => router.push('/sign_up'));
+  }
 
   return (
     <Drawer open>
       <DrawerContent>
         <div className="mx-auto w-full max-w-sm">
           <DrawerHeader>
-            <DrawerTitle className="text-center">
-              ¡Ups! Tuvimos un error
-            </DrawerTitle>
+            <DrawerTitle className="text-center">{title}</DrawerTitle>
           </DrawerHeader>
           <div className="p-4">
-            <h1 className="text-center mb-8">
-              No pudimos encontrar o crear tu perfil. Te redirigiremos para que
-              vuelvas a intentarlo
-            </h1>
+            <h1 className="text-center mb-8">{message}</h1>
             <div className="text-7xl font-bold tracking-tighter text-center">
               {counter}
             </div>

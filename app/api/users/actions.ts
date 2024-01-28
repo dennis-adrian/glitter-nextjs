@@ -11,6 +11,7 @@ type ExistingUser = typeof users.$inferSelect;
 export async function createUserProfile(user: User) {
   const newUser = {
     clerkId: user.id,
+    email: user.emailAddresses[0].emailAddress,
     firstName: user.firstName,
     imageUrl: user.imageUrl,
     lastName: user.lastName,
@@ -20,7 +21,7 @@ export async function createUserProfile(user: User) {
   try {
     await db.insert(users).values(newUser);
   } catch (error) {
-    // await deleteClerkUser(user);
+    await deleteClerkUser(user);
     return {
       message: 'Error creating user profile',
     };
