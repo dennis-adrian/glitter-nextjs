@@ -3,6 +3,7 @@ import { EditUserModal } from '@/app/components/edit-user-modal';
 import { Separator } from '@/app/components/ui/separator';
 import { UserProfileField } from '@/app/components/user-profile-field';
 import UserRoleBadge from '@/app/components/user-role-badge';
+import NameField from '@/app/components/user_profile/name/field';
 import { Button } from '@/components/ui/button';
 import { currentUser, SignedIn } from '@clerk/nextjs';
 import {
@@ -30,7 +31,7 @@ async function UserProfile() {
     <div className="mx-auto w-full max-w-lg p-5">
       <div className="flex justify-between items-center">
         <h1 className="text-xl font-bold">Mi Perfil</h1>
-        <EditUserModal>
+        <EditUserModal title="Editar Perfil">
           <Button variant="ghost">
             <FilePenLineIcon className="w-4 h-4 mr-1" />
             Editar
@@ -68,11 +69,11 @@ async function UserProfile() {
           <h1 className="text-xl font-bold">Información Personal</h1>
         </div>
         <div className="flex flex-col gap-2 w-full">
-          <UserProfileField
-            label="Nombre"
-            value={`${profile.firstName} ${profile.lastName}`}
+          <NameField
+            firstName={profile.firstName || ''}
+            lastName={profile.lastName || ''}
           />
-          <UserProfileField
+          {/* <UserProfileField
             label="Fecha de nacimiento"
             value={profile.birthdate?.toDateString()}
           />
@@ -81,7 +82,7 @@ async function UserProfile() {
             label="Correo electrónico"
             value={profile.email}
           />
-          <UserProfileField label="Teléfono" value={profile.phoneNumber} />
+          <UserProfileField label="Teléfono" value={profile.phoneNumber} /> */}
         </div>
       </SignedIn>
     </div>

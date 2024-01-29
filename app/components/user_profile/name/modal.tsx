@@ -12,15 +12,14 @@ import {
   DrawerDialogTitle,
   DrawerDialogTrigger
 } from '@/components/ui/drawer-dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import Form from '@/app/components/user_profile/name/form';
 
 type EditUserModalProps ={
   children: React.ReactNode;
   title: string;
 };
 
-export function EditUserModal({ children, title }: EditUserModalProps) {
+export default function EditUserModal({ children, title }: EditUserModalProps) {
   const [open, setOpen] = useState(false);
   const isDesktop = useMediaQuery('(min-width: 768px)');
 
@@ -37,21 +36,7 @@ export function EditUserModal({ children, title }: EditUserModalProps) {
         </DrawerDialogHeader>
 
         <div className={`${isDesktop ? '' : 'px-4'}`}>
-          <form className={'grid items-start gap-4'}>
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                type="email"
-                id="email"
-                defaultValue="shadcn@example.com"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="username">Username</Label>
-              <Input id="username" defaultValue="@shadcn" />
-            </div>
-            <Button type="submit">Guardar cambios</Button>
-          </form>
+          <Form />
         </div>
         {isDesktop ? null : (
           <DrawerDialogFooter isDesktop={isDesktop} className="pt-2">
