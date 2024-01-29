@@ -8,6 +8,7 @@ import { Inter } from 'next/font/google';
 import Navbar from '@/app/ui/navbar';
 
 import './globals.css';
+import { EdgeStoreProvider } from '@/app/lib/edgestore';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -25,8 +26,10 @@ export default function RootLayout({
     <ClerkProvider localization={esES}>
       <html lang="es">
         <body className={inter.className}>
-          <Navbar />
-          {children}
+          <EdgeStoreProvider>
+            <Navbar />
+            {children}
+          </EdgeStoreProvider>
         </body>
       </html>
     </ClerkProvider>

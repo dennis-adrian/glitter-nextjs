@@ -1,4 +1,5 @@
 import { fetchUserProfile, UserProfileType } from '@/app/api/users/actions';
+import EdgeStoreUpload from '@/app/components/edgestore-upload';
 import { Separator } from '@/app/components/ui/separator';
 import UserRoleBadge from '@/app/components/user-role-badge';
 import BirthdateField from '@/app/components/user_profile/birthdate.tsx/field';
@@ -73,6 +74,7 @@ async function UserProfile() {
           <EmailField profile={profile} />
           <PhoneField profile={profile} />
         </div>
+        <EdgeStoreUpload />
       </SignedIn>
     </div>
   );
