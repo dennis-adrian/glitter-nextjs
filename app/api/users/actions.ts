@@ -7,7 +7,7 @@ import { User } from '@clerk/nextjs/server';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { client, db } from '@/db';
+import { pool, db } from '@/db';
 import { users } from '@/db/schema';
 import { revalidatePath } from 'next/cache';
 
@@ -15,6 +15,8 @@ type NewUser = typeof users.$inferInsert;
 export type UserProfileType = typeof users.$inferSelect;
 
 export async function createUserProfile(user: User) {
+  const client = await pool.connect();
+
   const newUser = {
     clerkId: user.id,
     email: user.emailAddresses[0].emailAddress,
@@ -31,12 +33,16 @@ export async function createUserProfile(user: User) {
     return {
       message: 'Error creating user profile',
     };
+  } finally {
+    client.release();
   }
 
   redirect('/user_profile');
 }
 
 export async function fetchUserProfile(user: User) {
+  const client = await pool.connect();
+
   try {
     const result: UserProfileType[] = await db
       .select()
@@ -51,6 +57,8 @@ export async function fetchUserProfile(user: User) {
       message: 'Error fetching user profile',
       error,
     };
+  } finally {
+    client.release();
   }
 }
 
@@ -97,6 +105,7 @@ export async function updateProfile(
   prevState: State,
   formData: FormData,
 ) {
+  const client = await pool.connect();
   console.log('updating profile', formData);
   const validateFields = UpdateName.safeParse({
     firstName: formData.get('firstName'),
@@ -125,6 +134,8 @@ export async function updateProfile(
     return {
       message: 'Error de Base de Datos: No se pudo actualizar el perfil',
     };
+  } finally {
+    client.release();
   }
 
   revalidatePath('/user_profile');
@@ -134,6 +145,7 @@ export async function updateProfileWithValidatedData(
   id: number,
   data: UserProfileType,
 ) {
+  const client = await pool.connect();
   // console.log('updating profile', data);
   const { firstName, lastName, birthdate, phoneNumber } = data;
   try {
@@ -150,6 +162,8 @@ export async function updateProfileWithValidatedData(
     return {
       message: 'Error de Base de Datos: No se pudo actualizar el perfil',
     };
+  } finally {
+    client.release();
   }
 
   revalidatePath('/user_profile');

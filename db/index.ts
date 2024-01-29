@@ -1,15 +1,10 @@
 import * as schema from '@/db/schema';
 import '@/app/lib/config';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { Client } from 'pg';
+import { Pool } from 'pg';
 
-export const client = new Client({
+export const pool = new Pool({
   connectionString: process.env.POSTGRES_URL!,
 });
 
-async function connect() {
-  await client.connect();
-}
-
-connect();
-export const db = drizzle(client, { schema });
+export const db = drizzle(pool, { schema });
