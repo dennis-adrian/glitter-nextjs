@@ -1,10 +1,10 @@
 import { fetchUserProfile, UserProfileType } from '@/app/api/users/actions';
-import { Badge } from '@/app/components/ui/badge';
+import { EditUserModal } from '@/app/components/edit-user-modal';
 import { Separator } from '@/app/components/ui/separator';
 import { UserProfileField } from '@/app/components/user-profile-field';
 import UserRoleBadge from '@/app/components/user-role-badge';
 import { Button } from '@/components/ui/button';
-import { SignedIn, SignedOut, currentUser } from '@clerk/nextjs';
+import { currentUser, SignedIn } from '@clerk/nextjs';
 import {
   faFacebook,
   faInstagram,
@@ -30,10 +30,12 @@ async function UserProfile() {
     <div className="mx-auto w-full max-w-lg p-5">
       <div className="flex justify-between items-center">
         <h1 className="text-xl font-bold">Mi Perfil</h1>
-        <Button variant="ghost">
-          <FilePenLineIcon className="w-4 h-4 mr-1" />
-          Editar
-        </Button>
+        <EditUserModal>
+          <Button variant="ghost">
+            <FilePenLineIcon className="w-4 h-4 mr-1" />
+            Editar
+          </Button>
+        </EditUserModal>
       </div>
       <SignedIn>
         <div className="flex gap-3 flex-col items-center my-4">
@@ -70,8 +72,15 @@ async function UserProfile() {
             label="Nombre"
             value={`${profile.firstName} ${profile.lastName}`}
           />
-          <UserProfileField label="Fecha de nacimiento" value={profile.birthdate?.toDateString()} />
-          <UserProfileField editable={false} label="Correo electrónico" value={profile.email} />
+          <UserProfileField
+            label="Fecha de nacimiento"
+            value={profile.birthdate?.toDateString()}
+          />
+          <UserProfileField
+            editable={false}
+            label="Correo electrónico"
+            value={profile.email}
+          />
           <UserProfileField label="Teléfono" value={profile.phoneNumber} />
         </div>
       </SignedIn>
