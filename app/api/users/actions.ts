@@ -132,16 +132,16 @@ export async function updateProfile(
 
 export async function updateProfileWithValidatedData(
   id: number,
-  data: { firstName: string; lastName: string },
+  data: UserProfileType,
 ) {
-  console.log('updating profile', data);
-  const { firstName, lastName } = data;
+  const { firstName, lastName, birthdate } = data;
   try {
     await db
       .update(users)
       .set({
         firstName,
         lastName,
+        birthdate,
       })
       .where(eq(users.id, id));
   } catch (error) {
@@ -151,7 +151,7 @@ export async function updateProfileWithValidatedData(
   }
 
   revalidatePath('/user_profile');
-  return { success: true }
+  return { success: true };
 }
 
 const ExampleSchema = FormSchema.omit({ id: true });

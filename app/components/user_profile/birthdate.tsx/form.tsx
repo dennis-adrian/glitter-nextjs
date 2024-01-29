@@ -8,9 +8,9 @@ import {
   UserProfileType,
   updateProfileWithValidatedData,
 } from '@/app/api/users/actions';
+import { formatDateOnlyToISO } from '@/app/lib/utils';
 
-import { Input } from '@/app/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/app/components/ui/button';
 import {
   Form,
   FormControl,
@@ -18,18 +18,14 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form';
+} from '@/app/components/ui/form';
+import { Input } from '@/app/components/ui/input';
 
 const FormSchema = z.object({
-  firstName: z
-    .string()
-    .min(2, { message: 'El nombre tiene que tener al menos dos letras' }),
-  lastName: z
-    .string()
-    .min(2, { message: 'El apellido tiene que tener al menos dos letras' }),
+  birthdate: z.string(),
 });
 
-export default function EditNameForm({
+export default function BirthdateForm({
   profile,
   onSuccess,
 }: {
@@ -39,15 +35,14 @@ export default function EditNameForm({
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      firstName: profile.firstName || '',
-      lastName: profile.lastName || '',
+      birthdate: formatDateOnlyToISO(profile?.birthdate) || '',
     },
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
     const result = await updateProfileWithValidatedData(profile.id, {
       ...profile,
-      ...data,
+      birthdate: new Date(data.birthdate),
     });
     if (result.success) onSuccess();
   });
@@ -57,27 +52,15 @@ export default function EditNameForm({
       <form action={action} className="grid items-start gap-4">
         <FormField
           control={form.control}
-          name="firstName"
+          name="birthdate"
           render={({ field }) => (
-            <FormItem className="grid gap-2">
-              <FormLabel>Nombre</FormLabel>
-              <FormControl>
-                <Input type="text" placeholder="Ingresa tu nombre" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="lastName"
-          render={({ field }) => (
-            <FormItem className="grid gap-2">
-              <FormLabel>Apellido</FormLabel>
+            <FormItem>
+              <FormLabel>Fecha de nacimiento</FormLabel>
               <FormControl>
                 <Input
-                  type="text"
-                  placeholder="Ingresa tu apellido"
+                  type="date"
+                  max={formatDateOnlyToISO(new Date())}
+                  required
                   {...field}
                 />
               </FormControl>

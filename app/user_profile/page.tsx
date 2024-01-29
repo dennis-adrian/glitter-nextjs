@@ -1,6 +1,8 @@
 import { fetchUserProfile, UserProfileType } from '@/app/api/users/actions';
 import { Separator } from '@/app/components/ui/separator';
 import UserRoleBadge from '@/app/components/user-role-badge';
+import BirthdateField from '@/app/components/user_profile/birthdate.tsx/field';
+import EmailField from '@/app/components/user_profile/email/field';
 import NameField from '@/app/components/user_profile/name/field';
 import { Button } from '@/components/ui/button';
 import { currentUser, SignedIn } from '@clerk/nextjs';
@@ -66,6 +68,8 @@ async function UserProfile() {
         </div>
         <div className="flex flex-col gap-2 w-full">
           <NameField profile={profile} />
+          <BirthdateField profile={profile} />
+          <EmailField profile={profile} />
           {/* <UserProfileField
             label="Fecha de nacimiento"
             value={profile.birthdate?.toDateString()}

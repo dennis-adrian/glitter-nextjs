@@ -4,19 +4,23 @@ import {
   UserProfileFieldButton,
 } from '@/components/user_profile/user-profile-field';
 import Modal from '@/components/user_profile/modal';
-import Form from '@/components/user_profile/name/form';
+import Form from './form';
 
-const NameField = ({ profile }: { profile: UserProfileType }) => {
+const BirthdateField = ({ profile }: { profile: UserProfileType }) => {
   return (
     <UserProfileField
-      label="Nombre"
-      value={`${profile.firstName} ${profile.lastName}`}
+      label="Fecha de nacimiento"
+      value={profile.birthdate?.toLocaleDateString('es-ES')}
     >
-      <Modal profile={profile} title="Editar Nombre" FormComponent={Form}>
+      <Modal
+        profile={profile}
+        title="Editar Fecha de Nacimiento"
+        FormComponent={Form}
+      >
         <UserProfileFieldButton />
       </Modal>
     </UserProfileField>
   );
 };
 
-export default NameField;
+export default BirthdateField;
