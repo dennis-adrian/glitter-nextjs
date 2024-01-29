@@ -73,34 +73,85 @@ export async function deleteClerkUser(user: User) {
 
 const FormSchema = z.object({
   id: z.number(),
-  firstName: z.string().min(3, { message: 'El nombre es requerido' }),
-  lastName: z.string().min(3, { message: 'El apellido es requerido' }),
+  firstName: z
+    .string()
+    .min(2, { message: 'El nombre tiene que tener al menos dos letras' }),
+  lastName: z
+    .string()
+    .min(2, { message: 'El apellido tiene que tener al menos dos letras' }),
 });
 
-// export type State = {
-//   errors?: {
-//     firstName?: string;
-//     lastName?: string;
-//   }
-//   message: string | null;
-// }
+export type State =
+  | {
+      errors?: {
+        firstName?: string[];
+        lastName?: string[];
+      };
+      message: string;
+    }
+  | undefined;
 
 const UpdateName = FormSchema.omit({ id: true });
-export async function updateProfile(id: number, formData: FormData) {
-  const { firstName, lastName } = UpdateName.parse({
+export async function updateProfile(
+  id: number,
+  prevState: State,
+  formData: FormData,
+) {
+  console.log('updating profile', formData);
+  const validateFields = UpdateName.safeParse({
     firstName: formData.get('firstName'),
     lastName: formData.get('lastName'),
   });
 
-  await db
-    .update(users)
-    .set({
-      firstName,
-      lastName,
-    })
-    .where(eq(users.id, id));
+  if (!validateFields.success) {
+    return {
+      errors: validateFields.error.flatten().fieldErrors,
+      message: 'Error de validación',
+    };
+  }
+
+  // preparte data for insertion
+  const { firstName, lastName } = validateFields.data;
+
+  try {
+    await db
+      .update(users)
+      .set({
+        firstName,
+        lastName,
+      })
+      .where(eq(users.id, id));
+  } catch (error) {
+    return {
+      message: 'Error de Base de Datos: No se pudo actualizar el perfil',
+    };
+  }
 
   revalidatePath('/user_profile');
+}
+
+export async function updateProfileWithValidatedData(
+  id: number,
+  data: { firstName: string; lastName: string },
+) {
+  console.log('updating profile', data);
+  const { firstName, lastName } = data;
+  try {
+    await db
+      .update(users)
+      .set({
+        firstName,
+        lastName,
+      })
+      .where(eq(users.id, id));
+  } catch (error) {
+    return {
+      message: 'Error de Base de Datos: No se pudo actualizar el perfil',
+    };
+  }
+
+  revalidatePath('/user_profile');
+  return { success: true }
 }
 
 const ExampleSchema = FormSchema.omit({ id: true });

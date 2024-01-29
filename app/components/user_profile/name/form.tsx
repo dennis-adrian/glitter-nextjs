@@ -1,54 +1,89 @@
 'use client';
 
-import { UserProfileType, updateProfile } from '@/app/api/users/actions';
-import { Button } from '@/app/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { HTMLAttributes } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 
-const EditNameForm = ({
+import {
+  UserProfileType,
+  updateProfileWithValidatedData,
+} from '@/app/api/users/actions';
+
+import { Input } from '@/app/components/ui/input';
+import { Button } from '@/components/ui/button';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+
+const FormSchema = z.object({
+  firstName: z
+    .string()
+    .min(2, { message: 'El nombre tiene que tener al menos dos letras' }),
+  lastName: z
+    .string()
+    .min(2, { message: 'El apellido tiene que tener al menos dos letras' }),
+});
+
+export default function EditNameForm({
   profile,
-  onSubmit,
-}: { profile: UserProfileType } & HTMLAttributes<HTMLFormElement>) => {
-  const initialState = {
-    message: null,
-    errors: {},
-  };
+  onSuccess,
+}: {
+  profile: UserProfileType;
+  onSuccess: () => void;
+}) {
+  const form = useForm<z.infer<typeof FormSchema>>({
+    resolver: zodResolver(FormSchema),
+    defaultValues: {
+      firstName: profile.firstName || '',
+      lastName: profile.lastName || '',
+    },
+  });
 
-  const updateUserWithId = updateProfile.bind(null, profile.id);
-  // const [state, dispatch] = useFormState(updateUserWithId, initialState);
-  // const [state, dispatch] = useFormState(createExample, initialState);
+  const action: () => void = form.handleSubmit(async (data) => {
+    const result = await updateProfileWithValidatedData(profile.id, data);
+    if (result.success) onSuccess();
+  });
 
   return (
-    <form
-      action={updateUserWithId}
-      className={'grid items-start gap-4'}
-      onSubmit={onSubmit}
-    >
-      <div className="grid gap-2">
-        <Label htmlFor="firstName">Nombre</Label>
-        <Input
-          id="firstName"
-          defaultValue={profile.firstName || ''}
+    <Form {...form}>
+      <form action={action} className="grid items-start gap-4">
+        <FormField
+          control={form.control}
           name="firstName"
-          placeholder="Ingresa tu nombre"
-          type="text"
-          // aria-describedby="amount-error"
+          render={({ field }) => (
+            <FormItem className="grid gap-2">
+              <FormLabel>Nombre</FormLabel>
+              <FormControl>
+                <Input type="text" placeholder="Ingresa tu nombre" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="lastName">Apellido</Label>
-        <Input
-          id="lastName"
-          defaultValue={profile.lastName || ''}
+        <FormField
+          control={form.control}
           name="lastName"
-          placeholder="Ingresa tu apellido"
-          type="text"
+          render={({ field }) => (
+            <FormItem className="grid gap-2">
+              <FormLabel>Apellido</FormLabel>
+              <FormControl>
+                <Input
+                  type="text"
+                  placeholder="Ingresa tu apellido"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
-      </div>
-      <Button type="submit">Guardar cambios</Button>
-    </form>
+        <Button type="submit">Guardar cambios</Button>
+      </form>
+    </Form>
   );
-};
-
-export default EditNameForm;
+}
