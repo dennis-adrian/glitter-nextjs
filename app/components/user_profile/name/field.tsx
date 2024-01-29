@@ -1,19 +1,17 @@
-import { UserProfileField, UserProfileFieldButton } from '@/app/components/user-profile-field';
+import { UserProfileType } from '@/app/api/users/actions';
+import {
+  UserProfileField,
+  UserProfileFieldButton,
+} from '@/app/components/user-profile-field';
 import Modal from './modal';
 
-const NameField = ({
-  firstName,
-  lastName,
-}: {
-  firstName: string;
-  lastName: string;
-}) => {
+const NameField = ({ profile }: { profile: UserProfileType }) => {
   return (
     <UserProfileField
       label="Nombre"
-      value={`${firstName} ${lastName}`}
+      value={`${profile.firstName} ${profile.lastName}`}
     >
-      <Modal title="Editar Nombre">
+      <Modal profile={profile} title="Editar Nombre">
         <UserProfileFieldButton />
       </Modal>
     </UserProfileField>

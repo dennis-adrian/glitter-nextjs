@@ -13,13 +13,15 @@ import {
   DrawerDialogTrigger
 } from '@/components/ui/drawer-dialog';
 import Form from '@/app/components/user_profile/name/form';
+import { UserProfileType } from '@/app/api/users/actions';
 
 type EditUserModalProps ={
   children: React.ReactNode;
+  profile: UserProfileType;
   title: string;
 };
 
-export default function EditUserModal({ children, title }: EditUserModalProps) {
+export default function EditUserModal({ children, profile, title }: EditUserModalProps) {
   const [open, setOpen] = useState(false);
   const isDesktop = useMediaQuery('(min-width: 768px)');
 
@@ -36,7 +38,7 @@ export default function EditUserModal({ children, title }: EditUserModalProps) {
         </DrawerDialogHeader>
 
         <div className={`${isDesktop ? '' : 'px-4'}`}>
-          <Form />
+          <Form profile={profile} onSubmit={() => setOpen(false)} />
         </div>
         {isDesktop ? null : (
           <DrawerDialogFooter isDesktop={isDesktop} className="pt-2">

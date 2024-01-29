@@ -33,10 +33,16 @@ type DrawerDialogProps = {
 const DrawerDialog = ({
   children,
   isDesktop = false,
+  open,
+  onOpenChange,
 }: DrawerDialogProps & DialogProps) => {
   const Component = isDesktop ? Dialog : Drawer;
 
-  return <Component>{children}</Component>;
+  return (
+    <Component open={open} onOpenChange={onOpenChange}>
+      {children}
+    </Component>
+  );
 };
 
 const DrawerDialogTrigger = ({
@@ -85,7 +91,7 @@ const DrawerDialogFooter = ({
 }: DrawerDialogProps) => {
   const Component = isDesktop ? DialogHeader : DrawerHeader;
   return <Component>{children}</Component>;
-}
+};
 
 const DrawerDialogClose = ({
   children,
@@ -93,7 +99,7 @@ const DrawerDialogClose = ({
 }: DrawerDialogProps) => {
   const Component = isDesktop ? DialogClose : DrawerClose;
   return <Component asChild>{children}</Component>;
-}
+};
 
 export {
   DrawerDialog,

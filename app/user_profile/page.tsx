@@ -1,7 +1,5 @@
 import { fetchUserProfile, UserProfileType } from '@/app/api/users/actions';
-import { EditUserModal } from '@/app/components/edit-user-modal';
 import { Separator } from '@/app/components/ui/separator';
-import { UserProfileField } from '@/app/components/user-profile-field';
 import UserRoleBadge from '@/app/components/user-role-badge';
 import NameField from '@/app/components/user_profile/name/field';
 import { Button } from '@/components/ui/button';
@@ -31,12 +29,10 @@ async function UserProfile() {
     <div className="mx-auto w-full max-w-lg p-5">
       <div className="flex justify-between items-center">
         <h1 className="text-xl font-bold">Mi Perfil</h1>
-        <EditUserModal title="Editar Perfil">
-          <Button variant="ghost">
-            <FilePenLineIcon className="w-4 h-4 mr-1" />
-            Editar
-          </Button>
-        </EditUserModal>
+        <Button variant="ghost">
+          <FilePenLineIcon className="w-4 h-4 mr-1" />
+          Editar
+        </Button>
       </div>
       <SignedIn>
         <div className="flex gap-3 flex-col items-center my-4">
@@ -69,10 +65,7 @@ async function UserProfile() {
           <h1 className="text-xl font-bold">Información Personal</h1>
         </div>
         <div className="flex flex-col gap-2 w-full">
-          <NameField
-            firstName={profile.firstName || ''}
-            lastName={profile.lastName || ''}
-          />
+          <NameField profile={profile} />
           {/* <UserProfileField
             label="Fecha de nacimiento"
             value={profile.birthdate?.toDateString()}
