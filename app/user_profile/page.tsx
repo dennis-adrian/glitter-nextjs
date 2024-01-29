@@ -4,6 +4,7 @@ import UserRoleBadge from '@/app/components/user-role-badge';
 import BirthdateField from '@/app/components/user_profile/birthdate.tsx/field';
 import EmailField from '@/app/components/user_profile/email/field';
 import NameField from '@/app/components/user_profile/name/field';
+import PhoneField from '@/app/components/user_profile/phone/field';
 import { Button } from '@/components/ui/button';
 import { currentUser, SignedIn } from '@clerk/nextjs';
 import {
@@ -70,16 +71,7 @@ async function UserProfile() {
           <NameField profile={profile} />
           <BirthdateField profile={profile} />
           <EmailField profile={profile} />
-          {/* <UserProfileField
-            label="Fecha de nacimiento"
-            value={profile.birthdate?.toDateString()}
-          />
-          <UserProfileField
-            editable={false}
-            label="Correo electrónico"
-            value={profile.email}
-          />
-          <UserProfileField label="Teléfono" value={profile.phoneNumber} /> */}
+          <PhoneField profile={profile} />
         </div>
       </SignedIn>
     </div>

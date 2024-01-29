@@ -134,7 +134,8 @@ export async function updateProfileWithValidatedData(
   id: number,
   data: UserProfileType,
 ) {
-  const { firstName, lastName, birthdate } = data;
+  // console.log('updating profile', data);
+  const { firstName, lastName, birthdate, phoneNumber } = data;
   try {
     await db
       .update(users)
@@ -142,6 +143,7 @@ export async function updateProfileWithValidatedData(
         firstName,
         lastName,
         birthdate,
+        phoneNumber,
       })
       .where(eq(users.id, id));
   } catch (error) {
