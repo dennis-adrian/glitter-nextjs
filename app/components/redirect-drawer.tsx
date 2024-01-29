@@ -29,13 +29,19 @@ export function RedirectDrawer({
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCounter((counter) => counter - 1);
+      setCounter((counter) => {
+        if (counter <= 0) {
+          return 0;
+        }
+
+        return counter - 1;
+      });
     }, 1000);
 
     return () => clearInterval(interval);
   }, []);
 
-  if (counter <= 0) {
+  if (counter <= 1) {
     signOut(() => router.push('/sign_up'));
   }
 
