@@ -1,25 +1,23 @@
 import { UserProfileType } from "@/app/api/users/actions";
-import { fetchActiveFestival } from "@/app/api/festivals/actions";
 import ParticipationForm from "./participation-form";
 import BaseCard from "./base-card";
+import { Festival } from "@/app/api/festivals/actions";
 
 export default async function ParticipationCard({
   profile,
+  festival,
 }: {
+  festival: Festival;
   profile: UserProfileType;
 }) {
-  const festival = await fetchActiveFestival();
-  if (!(profile && festival)) return null;
-
   return (
     <BaseCard
-      title="Glitter Vol. 2 Se Acerca"
+      title={`${festival.name} Se Acerca`}
       content={
-        <>
-          La siguiente versión de Glitter se viene el 2 y 3 de marzo. Si quieres
-          participar primero necesitas ser un artista parte de la comunidad de
-          Glitter
-        </>
+        <p>
+          La siguiente versión de Glitter será el 2 y 3 de marzo. Si deseas
+          participar postula dándole click al botón.
+        </p>
       }
       footer={
         <ParticipationForm userId={profile.id} festivalId={festival.id} />

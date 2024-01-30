@@ -10,13 +10,13 @@ export async function fetchActiveFestival() {
   const client = await pool.connect();
 
   try {
-    const result: Festival[] = await db
+    const rows: Festival[] = await db
       .select()
       .from(festivals)
       .where(eq(festivals.status, "active"))
       .orderBy(desc(festivals.endDate));
 
-    return result[0];
+    return { festival: rows[0] };
   } catch (error) {
     return {
       message: "Error fetching active festival",
