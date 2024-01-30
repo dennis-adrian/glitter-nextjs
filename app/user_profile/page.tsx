@@ -12,7 +12,7 @@ import { FilePenLineIcon } from "lucide-react";
 import {
   fetchUserProfile,
   UserProfileType,
-  UserProfileWithParticipationRequests,
+  UserProfileWithRequests,
 } from "@/app/api/users/actions";
 
 import { Separator } from "@/app/components/ui/separator";
@@ -27,7 +27,7 @@ import AnnouncementCard from "@/components/user_profile/announcements_cards/card
 
 async function UserProfile() {
   const user = await currentUser();
-  let profile: UserProfileWithParticipationRequests | null = null;
+  let profile: UserProfileWithRequests | null = null;
   if (user) {
     const data = await fetchUserProfile(user.id);
     profile = data.user!;

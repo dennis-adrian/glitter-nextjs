@@ -13,8 +13,8 @@ import { revalidatePath } from "next/cache";
 
 type NewUser = typeof users.$inferInsert;
 export type UserProfileType = typeof users.$inferSelect;
-export type UserProfileWithParticipationRequests = UserProfileType & {
-  participationRequests: (typeof participationRequests.$inferSelect)[];
+export type UserProfileWithRequests = UserProfileType & {
+  userRequests: (typeof userRequests.$inferSelect)[];
 };
 
 export async function createUserProfile(user: User) {
@@ -47,13 +47,12 @@ export async function fetchUserProfile(id: string) {
   const client = await pool.connect();
 
   try {
-    const user: UserProfileWithParticipationRequests =
-      await db.query.users.findFirst({
-        with: {
-          participationRequests: true,
-        },
-        where: eq(users.clerkId, id),
-      });
+    const user = await db.query.users.findFirst({
+      with: {
+        userRequests: true,
+      },
+      where: eq(users.clerkId, id),
+    });
 
     return {
       user,
