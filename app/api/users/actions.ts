@@ -35,7 +35,44 @@ export async function createUserProfile(user: User) {
   };
 
   try {
-    await db.insert(users).values(newUser);
+    await db.transaction(async (tx) => {
+      const newUsers = await tx
+        .insert(users)
+        .values(newUser)
+        .returning({ userId: users.id });
+
+      const userId = newUsers[0].userId;
+
+      if (user) {
+        await tx.insert(userSocials).values([
+          {
+            userId: userId,
+            type: "instagram",
+            username: "",
+          },
+          {
+            userId: userId,
+            type: "tiktok",
+            username: "",
+          },
+          {
+            userId: userId,
+            type: "facebook",
+            username: "",
+          },
+          {
+            userId: userId,
+            type: "twitter",
+            username: "",
+          },
+          {
+            userId: userId,
+            type: "youtube",
+            username: "",
+          },
+        ]);
+      }
+    });
   } catch (error) {
     await deleteClerkUser(user);
     return {
