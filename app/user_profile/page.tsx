@@ -1,5 +1,16 @@
+import { currentUser, SignedIn } from '@clerk/nextjs';
+
+import {
+  faFacebook,
+  faInstagram,
+  faTiktok,
+} from '@fortawesome/free-brands-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+
+import { FilePenLineIcon } from 'lucide-react';
+
 import { fetchUserProfile, UserProfileType } from '@/app/api/users/actions';
-import EdgeStoreUpload from '@/app/components/edgestore-upload';
+
 import { Separator } from '@/app/components/ui/separator';
 import UserRoleBadge from '@/app/components/user-role-badge';
 import BirthdateField from '@/app/components/user_profile/birthdate.tsx/field';
@@ -8,15 +19,6 @@ import NameField from '@/app/components/user_profile/name/field';
 import PhoneField from '@/app/components/user_profile/phone/field';
 import ProfilePicField from '@/app/components/user_profile/profile_pic/field';
 import { Button } from '@/components/ui/button';
-import { currentUser, SignedIn } from '@clerk/nextjs';
-import {
-  faFacebook,
-  faInstagram,
-  faTiktok,
-} from '@fortawesome/free-brands-svg-icons';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { FilePenLineIcon } from 'lucide-react';
-import Image from 'next/image';
 
 async function UserProfile() {
   const user = await currentUser();
@@ -34,7 +36,7 @@ async function UserProfile() {
     <div className="mx-auto w-full max-w-lg p-5">
       <div className="flex justify-between items-center">
         <h1 className="text-xl font-bold">Mi Perfil</h1>
-        <Button variant="ghost">
+        <Button disabled variant="ghost">
           <FilePenLineIcon className="w-4 h-4 mr-1" />
           Editar
         </Button>
@@ -67,7 +69,6 @@ async function UserProfile() {
           <EmailField profile={profile} />
           <PhoneField profile={profile} />
         </div>
-        {/* <EdgeStoreUpload /> */}
       </SignedIn>
     </div>
   );

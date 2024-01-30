@@ -157,6 +157,7 @@ export async function updateProfileWithValidatedData(
         birthdate,
         phoneNumber,
         imageUrl,
+        updatedAt: new Date(),
       })
       .where(eq(users.id, id));
   } catch (error) {
