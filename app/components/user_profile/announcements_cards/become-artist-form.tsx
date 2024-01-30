@@ -16,7 +16,6 @@ export default function BecomeArtistForm({
   function handleSubmit() {
     createUserRequest({ userId: profile.id }).then((res) => {
       if (res.success) {
-        console.log("success");
         toast("Tu solicitud ha sido enviada", {
           description: "Te avisaremos si cumples con el perfil de artista",
         });

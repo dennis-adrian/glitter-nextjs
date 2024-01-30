@@ -1,7 +1,8 @@
 import { fetchActiveFestival } from "@/app/api/festivals/actions";
 import { UserProfileWithRequests } from "@/app/api/users/actions";
-import BecomeArtistCard from "./become-artist";
-import PendingArtistCard from "./pending-artist";
+import BecomeArtistCard from "./become-artist-card";
+import PendingArtistCard from "./pending-artist-card";
+import ParticipationCard from "./participation-card";
 
 export default async function Card({
   profile,
@@ -21,6 +22,14 @@ export default async function Card({
     return (
       <div className="my-4">
         <BecomeArtistCard profile={profile} />
+      </div>
+    );
+  }
+
+  if (profile.role === "artist") {
+    return (
+      <div className="my-4">
+        <ParticipationCard profile={profile} />
       </div>
     );
   }
