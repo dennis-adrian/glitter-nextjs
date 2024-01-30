@@ -50,6 +50,13 @@
       "when": 1706595161854,
       "tag": "0006_bitter_gravity",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1706602508572,
+      "tag": "0007_burly_lilandra",
+      "breakpoints": true
     }
   ]
 }
