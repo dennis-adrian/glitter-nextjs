@@ -10,9 +10,9 @@ export default async function PendingArtistCard({}) {
       </CardHeader>
       <CardContent className="">
         <p className="text-sm">
-          Estamos considerando tu solicitud para ser parte de la comunidad de{" "}
-          <strong>Glitter</strong> como artista. Te notificaremos cuando
-          tengamos una respuesta.
+          Gracias por querer ser parte de la comunidad de{" "}
+          <strong>Glitter</strong> como artista. Cuando tu solicitud sea
+          aceptada podrás postularte a cualquier evento
         </p>
       </CardContent>
     </Card>

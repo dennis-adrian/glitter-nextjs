@@ -1,12 +1,20 @@
 "use client";
 
-import { createUserRequest } from "@/app/api/users/actions";
+import {
+  UserProfileWithRequests,
+  createUserRequest,
+} from "@/app/api/users/actions";
+import { isProfileComplete } from "@/app/lib/utils";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
-export default function BecomeArtistForm({ userId }: { userId: number }) {
+export default function BecomeArtistForm({
+  profile,
+}: {
+  profile: UserProfileWithRequests;
+}) {
   function handleSubmit() {
-    createUserRequest({ userId }).then((res) => {
+    createUserRequest({ userId: profile.id }).then((res) => {
       if (res.success) {
         console.log("success");
         toast("Tu solicitud ha sido enviada", {
@@ -15,9 +23,10 @@ export default function BecomeArtistForm({ userId }: { userId: number }) {
       }
     });
   }
+
   return (
     <form action={() => handleSubmit()} className="flex w-full justify-center">
-      <Button>¡Soy artista!</Button>
+      <Button disabled={!isProfileComplete(profile)}>¡Soy artista!</Button>
     </form>
   );
 }
