@@ -35,6 +35,7 @@ export const users = pgTable(
 export const usersRelations = relations(users, ({ many }) => ({
   socials: many(usersToSocials),
   userRequests: many(userRequests),
+  userSocials: many(userSocials),
 }));
 
 export const socials = pgTable("socials", {
@@ -133,5 +134,29 @@ export const userRequestsRelations = relations(userRequests, ({ one }) => ({
   festival: one(festivals, {
     fields: [userRequests.festivalId],
     references: [festivals.id],
+  }),
+}));
+
+export const userSocialTypeEnum = pgEnum("user_social_type", [
+  "instagram",
+  "facebook",
+  "tiktok",
+  "twitter",
+  "youtube",
+]);
+export const userSocials = pgTable("user_socials", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  type: userSocialTypeEnum("type").notNull(),
+  username: text("username").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const userSocialsRelations = relations(userSocials, ({ one }) => ({
+  user: one(users, {
+    fields: [userSocials.userId],
+    references: [users.id],
   }),
 }));
