@@ -147,7 +147,7 @@ export async function updateProfileWithValidatedData(
 ) {
   const client = await pool.connect();
   // console.log('updating profile', data);
-  const { firstName, lastName, birthdate, phoneNumber } = data;
+  const { firstName, lastName, birthdate, phoneNumber, imageUrl } = data;
   try {
     await db
       .update(users)
@@ -156,6 +156,7 @@ export async function updateProfileWithValidatedData(
         lastName,
         birthdate,
         phoneNumber,
+        imageUrl,
       })
       .where(eq(users.id, id));
   } catch (error) {

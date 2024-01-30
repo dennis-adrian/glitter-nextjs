@@ -6,6 +6,7 @@ import BirthdateField from '@/app/components/user_profile/birthdate.tsx/field';
 import EmailField from '@/app/components/user_profile/email/field';
 import NameField from '@/app/components/user_profile/name/field';
 import PhoneField from '@/app/components/user_profile/phone/field';
+import ProfilePicField from '@/app/components/user_profile/profile_pic/field';
 import { Button } from '@/components/ui/button';
 import { currentUser, SignedIn } from '@clerk/nextjs';
 import {
@@ -40,15 +41,7 @@ async function UserProfile() {
       </div>
       <SignedIn>
         <div className="flex gap-3 flex-col items-center my-4">
-          <div className="w-32 h-32 rounded-full bg-gray-200 mr-4">
-            <Image
-              src={profile.imageUrl || `img/profile-avatar.png`}
-              alt="Imagen de perfil"
-              width={136}
-              height={136}
-              className="rounded-full"
-            />
-          </div>
+          <ProfilePicField profile={profile} />
           <div className="flex flex-col text-center gap-1">
             <div className="text-xl font-bold">{profile.displayName}</div>
             <div>
@@ -74,7 +67,7 @@ async function UserProfile() {
           <EmailField profile={profile} />
           <PhoneField profile={profile} />
         </div>
-        <EdgeStoreUpload />
+        {/* <EdgeStoreUpload /> */}
       </SignedIn>
     </div>
   );
