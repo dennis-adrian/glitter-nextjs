@@ -47,7 +47,7 @@ async function seedFestivals() {
         name: 'Glitter Vol 2',
         startDate: new Date('2024-03-02'),
         endDate: new Date('2024-03-03'),
-        status: 'published',
+        status: 'active',
       },
     ])
     .onConflictDoNothing({ target: festivals.name });

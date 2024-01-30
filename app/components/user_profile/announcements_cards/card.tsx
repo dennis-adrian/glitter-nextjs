@@ -12,7 +12,6 @@ export default async function Card({
   if (!(profile && festival)) return null;
 
   if (profile.role === "user") {
-    console.log(profile);
     const becomeArtistRequest = profile.userRequests.find(
       (request) => request.type === "become_artist",
     );
