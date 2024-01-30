@@ -8,8 +8,13 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { pool, db } from "@/db";
-import { participationRequests, userRequests, users } from "@/db/schema";
+import {
+  userRequests,
+  users,
+  usersToSocials,
+} from "@/db/schema";
 import { revalidatePath } from "next/cache";
+import { formatSocialsForInsertion } from "../socials/actions";
 
 type NewUser = typeof users.$inferInsert;
 export type UserProfileType = typeof users.$inferSelect;
@@ -116,7 +121,7 @@ export async function updateProfile(
   formData: FormData,
 ) {
   const client = await pool.connect();
-  console.log("updating profile", formData);
+  // console.log("updating profile", formData);
   const validateFields = UpdateName.safeParse({
     firstName: formData.get("firstName"),
     lastName: formData.get("lastName"),
@@ -153,49 +158,55 @@ export async function updateProfile(
 
 export async function updateProfileWithValidatedData(
   id: number,
-  data: UserProfileType,
+  data: UserProfileType & {
+    instagramProfile: string;
+    facebookProfile: string;
+    tiktokProfile: string;
+  },
 ) {
   const client = await pool.connect();
-  // console.log('updating profile', data);
-  const { firstName, lastName, birthdate, phoneNumber, imageUrl } = data;
+  // console.log("updating profile", data);
+  const {
+    firstName,
+    lastName,
+    birthdate,
+    phoneNumber,
+    imageUrl,
+    displayName,
+    bio,
+    instagramProfile,
+    facebookProfile,
+    tiktokProfile,
+  } = data;
   try {
-    await db
-      .update(users)
-      .set({
-        firstName,
-        lastName,
-        birthdate,
-        phoneNumber,
-        imageUrl,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, id));
+    const socialsData = { instagramProfile, facebookProfile, tiktokProfile };
+    const socials = await formatSocialsForInsertion(socialsData, id);
+    await db.transaction(async (tx) => {
+      await tx
+        .update(users)
+        .set({
+          bio,
+          birthdate,
+          displayName,
+          firstName,
+          imageUrl,
+          lastName,
+          phoneNumber,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, id));
+
+      if (socials && socials.length > 0) {
+        await tx
+          .insert(usersToSocials)
+          .values(
+            socials as { userId: number; socialId: number; username: string }[],
+          );
+      }
+    });
   } catch (error) {
     return {
       message: "Error de Base de Datos: No se pudo actualizar el perfil",
-    };
-  } finally {
-    client.release();
-  }
-
-  revalidatePath("/user_profile");
-  return { success: true };
-}
-
-export async function createParticipationRequest(
-  festivalId: number,
-  userId: number,
-) {
-  const client = await pool.connect();
-
-  try {
-    await db.insert(participationRequests).values({
-      festivalId,
-      userId,
-    });
-  } catch {
-    return {
-      message: "Error de Base de Datos: No se pudo crear la solicitud",
     };
   } finally {
     client.release();
