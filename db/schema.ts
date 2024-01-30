@@ -34,7 +34,6 @@ export const users = pgTable(
 );
 export const usersRelations = relations(users, ({ many }) => ({
   socials: many(usersToSocials),
-  participationRequests: many(participationRequests),
   userRequests: many(userRequests),
 }));
 
@@ -58,7 +57,7 @@ export const usersToSocials = pgTable(
       .references(() => users.id),
     socialId: integer("social_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => socials.id),
     username: text("username").notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -102,7 +101,6 @@ export const festivals = pgTable(
   }),
 );
 export const festivalsRelations = relations(festivals, ({ many }) => ({
-  participationRequests: many(participationRequests),
   userRequests: many(userRequests),
 }));
 
@@ -111,40 +109,6 @@ export const requestStatusEnum = pgEnum("participation_request_status", [
   "accepted",
   "rejected",
 ]);
-export const participationRequests = pgTable(
-  "participation_requests",
-  {
-    id: serial("id").primaryKey(),
-    festivalId: integer("festival_id")
-      .notNull()
-      .references(() => festivals.id),
-    userId: integer("user_id")
-      .notNull()
-      .references(() => users.id),
-    status: requestStatusEnum("status").default("pending").notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-  },
-  (participationRequests) => ({
-    unique: index("unique").on(
-      participationRequests.festivalId,
-      participationRequests.userId,
-    ),
-  }),
-);
-export const particiPationRequestsRelations = relations(
-  participationRequests,
-  ({ one }) => ({
-    user: one(users, {
-      fields: [participationRequests.userId],
-      references: [users.id],
-    }),
-    festival: one(festivals, {
-      fields: [participationRequests.festivalId],
-      references: [festivals.id],
-    }),
-  }),
-);
 
 export const requestTypeEnum = pgEnum("user_request_type", [
   "become_artist",
