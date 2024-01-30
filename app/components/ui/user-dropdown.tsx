@@ -1,11 +1,15 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+
 import Image from 'next/image';
 import Link from 'next/link';
 
 import { useUser } from '@clerk/nextjs';
 import { CircleUserIcon, UserIcon } from 'lucide-react';
 
+import { UserProfileType, fetchUserProfile } from '@/app/api/users/actions';
+import SignOutButton from '@/app/components/user_dropdown/sign-out-button';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -15,19 +19,27 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import SignOutButton from '@/app/components/user_dropdown/sign-out-button';
 
 export default function UserDropdown() {
   const user = useUser();
+  const [profile, setProfile] = useState<UserProfileType>();
 
-  if (user.isSignedIn) {
+  useEffect(() => {
+    if (user.user) {
+      fetchUserProfile(user.user.id).then((data) => {
+        setProfile(data.user);
+      });
+    }
+  }, [user]);
+
+  if (user.isSignedIn && profile) {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger className="cursor-default">
-          {user.user.imageUrl ? (
+          {profile.imageUrl ? (
             <Image
-              src={user.user.imageUrl}
-              alt={user.user.fullName!}
+              src={profile.imageUrl}
+              alt={profile.displayName || 'nombre del usuario'}
               width={32}
               height={32}
               className="rounded-full"
@@ -38,10 +50,10 @@ export default function UserDropdown() {
         </DropdownMenuTrigger>
         <DropdownMenuContent className="mr-4">
           <DropdownMenuLabel>
-            {user.user.fullName}
+            {profile.displayName}
             <br />
             <span className="text-muted-foreground font-normal">
-              {user.user.emailAddresses[0].emailAddress}
+              {profile.email}
             </span>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
