@@ -44,12 +44,9 @@ export const socials = pgTable('socials', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
-export const socialsRelations = relations(
-  socials,
-  ({ many }) => ({
-    users: many(usersToSocials),
-  }),
-);
+export const socialsRelations = relations(socials, ({ many }) => ({
+  users: many(usersToSocials),
+}));
 
 export const usersToSocials = pgTable(
   'users_to_socials',
@@ -80,6 +77,12 @@ export const usersToSocialsRelations = relations(usersToSocials, ({ one }) => ({
   }),
 }));
 
+export const festivalStatusEnum = pgEnum('festival_status', [
+  'draft',
+  'published',
+  'active',
+  'archived',
+]);
 export const festivals = pgTable(
   'festivals',
   {
@@ -87,6 +90,7 @@ export const festivals = pgTable(
     name: text('name').unique().notNull(),
     description: text('description'),
     startDate: timestamp('start_date').notNull(),
+    status: festivalStatusEnum('status').default('draft').notNull(),
     endDate: timestamp('end_date').notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),

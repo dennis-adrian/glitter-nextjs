@@ -35,16 +35,19 @@ async function seedFestivals() {
         name: 'Glitter Demo',
         startDate: new Date('2023-08-17'),
         endDate: new Date('2023-08-17'),
+        status: 'archived',
       },
       {
         name: 'Glitter Vol 1',
         startDate: new Date('2023-12-01'),
         endDate: new Date('2023-12-02'),
+        status: 'archived',
       },
       {
         name: 'Glitter Vol 2',
         startDate: new Date('2024-03-02'),
         endDate: new Date('2024-03-03'),
+        status: 'published',
       },
     ])
     .onConflictDoNothing({ target: festivals.name });
