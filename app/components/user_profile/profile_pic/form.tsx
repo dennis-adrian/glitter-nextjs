@@ -24,10 +24,18 @@ export default function ProfilePictureForm({
   const [showProgress, setShowProgress] = useState(false);
   const [progress, setProgress] = useState(0);
 
+  let uploadOptions = {};
+  if (profile.imageUrl && profile.imageUrl.includes('edgestore')) {
+    uploadOptions = {
+      replaceTargetUrl: profile.imageUrl,
+    };
+  }
+
   async function handleImageUpload() {
     if (file) {
       const res = await edgestore.publicFiles.upload({
         file,
+        options: uploadOptions,
         onProgressChange: (progress) => {
           setShowProgress(true);
           setProgress(progress);
