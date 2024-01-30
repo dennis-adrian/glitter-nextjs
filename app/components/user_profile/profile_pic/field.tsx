@@ -4,12 +4,12 @@ import Image from 'next/image';
 
 import { CameraIcon, FilePenLineIcon } from 'lucide-react';
 
-import { UserProfileType } from '@/app/api/users/actions';
+import { ProfileType } from '@/app/api/users/definitions';
 
 import Modal from '@/components/user_profile/modal';
 import Form from './form';
 
-const ProfilePictureField = ({ profile }: { profile: UserProfileType }) => {
+const ProfilePictureField = ({ profile }: { profile: ProfileType }) => {
   return (
     <div className="relative group">
       <div className="w-32 h-32 rounded-full bg-gray-200">

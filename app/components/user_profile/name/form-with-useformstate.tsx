@@ -1,6 +1,8 @@
 'use client';
 
-import { UserProfileType, updateProfile } from '@/app/api/users/actions';
+import { updateProfile } from '@/app/api/users/actions';
+import { ProfileType } from '@/app/api/users/definitions';
+
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +13,7 @@ const EditNameForm = ({
   profile,
   onSuccess,
 }: {
-  profile: UserProfileType;
+  profile: ProfileType;
   onSuccess: () => void;
 }) => {
   const initialState = {

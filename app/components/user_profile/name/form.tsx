@@ -4,10 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-import {
-  UserProfileType,
-  updateProfileWithValidatedData,
-} from '@/app/api/users/actions';
+import { updateProfileWithValidatedData } from '@/app/api/users/actions';
+import { ProfileType } from '@/app/api/users/definitions';
 
 import { Input } from '@/app/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -33,7 +31,7 @@ export default function EditNameForm({
   profile,
   onSuccess,
 }: {
-  profile: UserProfileType;
+  profile: ProfileType;
   onSuccess: () => void;
 }) {
   const form = useForm<z.infer<typeof FormSchema>>({

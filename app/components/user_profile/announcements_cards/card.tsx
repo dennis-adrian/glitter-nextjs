@@ -1,5 +1,5 @@
 import { fetchActiveFestival } from "@/app/api/festivals/actions";
-import { UserProfileWithRequests } from "@/app/api/users/actions";
+import { ProfileType } from "@/app/api/users/definitions";
 import BecomeArtistCard from "./become-artist-card";
 import PendingArtistCard from "./pending-artist-card";
 import ParticipationCard from "./participation-card";
@@ -8,7 +8,7 @@ import PendingParticipationCard from "./pending-participation";
 export default async function Card({
   profile,
 }: {
-  profile: UserProfileWithRequests;
+  profile: ProfileType;
 }) {
   if (!profile) return null;
 

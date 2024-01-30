@@ -1,4 +1,4 @@
-import { UserProfileType } from '@/app/api/users/actions';
+import { ProfileType } from '@/app/api/users/definitions';
 import {
   UserProfileField,
   UserProfileFieldButton,
@@ -6,7 +6,7 @@ import {
 import Modal from '@/components/user_profile/modal';
 import Form from '@/components/user_profile/name/form';
 
-const NameField = ({ profile }: { profile: UserProfileType }) => {
+const NameField = ({ profile }: { profile: ProfileType }) => {
   return (
     <UserProfileField
       label="Nombre"

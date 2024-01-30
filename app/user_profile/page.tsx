@@ -9,11 +9,8 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 import { FilePenLineIcon } from "lucide-react";
 
-import {
-  fetchUserProfile,
-  UserProfileType,
-  UserProfileWithRequests,
-} from "@/app/api/users/actions";
+import { fetchUserProfile } from "@/app/api/users/actions";
+import { ProfileType } from "@/app/api/users/definitions";
 
 import { Separator } from "@/app/components/ui/separator";
 import UserRoleBadge from "@/app/components/user-role-badge";
@@ -27,7 +24,7 @@ import AnnouncementCard from "@/components/user_profile/announcements_cards/card
 
 async function UserProfile() {
   const user = await currentUser();
-  let profile: UserProfileWithRequests | null = null;
+  let profile: ProfileType | null = null;
   if (user) {
     const data = await fetchUserProfile(user.id);
     profile = data.user!;

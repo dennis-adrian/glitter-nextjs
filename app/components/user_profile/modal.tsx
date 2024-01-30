@@ -13,14 +13,14 @@ import {
   DrawerDialogTitle,
   DrawerDialogTrigger,
 } from '@/components/ui/drawer-dialog';
-import { UserProfileType } from '@/app/api/users/actions';
+import { ProfileType } from '@/app/api/users/definitions';
 
 type EditUserModalProps = {
   children: React.ReactNode;
-  profile: UserProfileType;
+  profile: ProfileType;
   title: string;
   FormComponent: React.ComponentType<{
-    profile: UserProfileType;
+    profile: ProfileType;
     onSuccess: () => void;
   }>;
 };

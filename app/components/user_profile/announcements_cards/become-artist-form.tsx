@@ -1,9 +1,9 @@
 "use client";
 
 import {
-  UserProfileWithRequests,
   createUserRequest,
 } from "@/app/api/users/actions";
+import { ProfileType } from "@/app/api/users/definitions";
 import { isProfileComplete } from "@/app/lib/utils";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -11,7 +11,7 @@ import { toast } from "sonner";
 export default function BecomeArtistForm({
   profile,
 }: {
-  profile: UserProfileWithRequests;
+  profile: ProfileType;
 }) {
   function handleSubmit() {
     createUserRequest({ userId: profile.id }).then((res) => {

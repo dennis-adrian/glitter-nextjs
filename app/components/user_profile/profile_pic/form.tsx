@@ -3,9 +3,9 @@
 import { useState } from 'react';
 
 import {
-  UserProfileType,
   updateProfileWithValidatedData,
 } from '@/app/api/users/actions';
+import { ProfileType } from '@/app/api/users/definitions';
 import { useEdgeStore } from '@/app/lib/edgestore';
 
 import { SingleImageDropzone } from '@/components/single-image-dropzone';
@@ -16,7 +16,7 @@ export default function ProfilePictureForm({
   profile,
   onSuccess,
 }: {
-  profile: UserProfileType;
+  profile: ProfileType;
   onSuccess: () => void;
 }) {
   const [file, setFile] = useState<File>();

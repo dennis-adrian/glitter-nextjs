@@ -50,6 +50,11 @@ export async function fetchUserProfile(id: string) {
     const user = await db.query.users.findFirst({
       with: {
         userRequests: true,
+        socials: {
+          with: {
+            social: true,
+          },
+        },
       },
       where: eq(users.clerkId, id),
     });

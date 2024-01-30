@@ -1,12 +1,12 @@
 import BecomeArtistForm from "./become-artist-form";
-import { UserProfileWithRequests } from "@/app/api/users/actions";
+import { ProfileType } from "@/app/api/users/definitions";
 import { isProfileComplete } from "@/app/lib/utils";
 import BaseCard from "./base-card";
 
 export default function BecomeArtistCard({
   profile,
 }: {
-  profile: UserProfileWithRequests;
+  profile: ProfileType;
 }) {
   return (
     <BaseCard

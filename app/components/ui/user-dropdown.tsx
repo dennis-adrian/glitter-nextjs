@@ -8,7 +8,9 @@ import Link from 'next/link';
 import { useUser } from '@clerk/nextjs';
 import { CircleUserIcon, UserIcon } from 'lucide-react';
 
-import { UserProfileType, fetchUserProfile } from '@/app/api/users/actions';
+import { fetchUserProfile } from '@/app/api/users/actions';
+import { ProfileType } from '@/app/api/users/definitions';
+
 import SignOutButton from '@/app/components/user_dropdown/sign-out-button';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,7 +24,7 @@ import {
 
 export default function UserDropdown() {
   const user = useUser();
-  const [profile, setProfile] = useState<UserProfileType>();
+  const [profile, setProfile] = useState<ProfileType>();
 
   useEffect(() => {
     if (user.user) {
