@@ -37,13 +37,15 @@ export default function UserDropdown() {
       <DropdownMenu>
         <DropdownMenuTrigger className="cursor-default">
           {profile.imageUrl ? (
-            <Image
-              src={profile.imageUrl}
-              alt={profile.displayName || 'nombre del usuario'}
-              width={32}
-              height={32}
-              className="rounded-full"
-            />
+            <div className="relative w-8 h-8 rounded-full bg-gray-200">
+              <Image
+                src={profile.imageUrl}
+                alt={profile.displayName || 'nombre del usuario'}
+                width={32}
+                height={32}
+                className="rounded-full object-cover absolute inset-0 w-full h-full"
+              />
+            </div>
           ) : (
             <CircleUserIcon className="h-6 w-6" />
           )}
