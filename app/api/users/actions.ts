@@ -1,18 +1,21 @@
-'use server';
+"use server";
 
-import { redirect } from 'next/navigation';
+import { redirect } from "next/navigation";
 
-import { clerkClient } from '@clerk/nextjs';
-import { User } from '@clerk/nextjs/server';
-import { eq } from 'drizzle-orm';
-import { z } from 'zod';
+import { clerkClient } from "@clerk/nextjs";
+import { User } from "@clerk/nextjs/server";
+import { eq } from "drizzle-orm";
+import { z } from "zod";
 
-import { pool, db } from '@/db';
-import { users } from '@/db/schema';
-import { revalidatePath } from 'next/cache';
+import { pool, db } from "@/db";
+import { participationRequests, userRequests, users } from "@/db/schema";
+import { revalidatePath } from "next/cache";
 
 type NewUser = typeof users.$inferInsert;
 export type UserProfileType = typeof users.$inferSelect;
+export type UserProfileWithParticipationRequests = UserProfileType & {
+  participationRequests: (typeof participationRequests.$inferSelect)[];
+};
 
 export async function createUserProfile(user: User) {
   const client = await pool.connect();
@@ -20,10 +23,10 @@ export async function createUserProfile(user: User) {
   const newUser: NewUser = {
     clerkId: user.id,
     email: user.emailAddresses[0].emailAddress,
-    firstName: user.firstName || '',
-    imageUrl: user.imageUrl || '',
-    lastName: user.lastName || '',
-    displayName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+    firstName: user.firstName || "",
+    imageUrl: user.imageUrl || "",
+    lastName: user.lastName || "",
+    displayName: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
   };
 
   try {
@@ -31,30 +34,33 @@ export async function createUserProfile(user: User) {
   } catch (error) {
     await deleteClerkUser(user);
     return {
-      message: 'Error creating user profile',
+      message: "Error creating user profile",
     };
   } finally {
     client.release();
   }
 
-  redirect('/user_profile');
+  redirect("/user_profile");
 }
 
 export async function fetchUserProfile(id: string) {
   const client = await pool.connect();
 
   try {
-    const result: UserProfileType[] = await db
-      .select()
-      .from(users)
-      .where(eq(users.clerkId, id));
+    const user: UserProfileWithParticipationRequests =
+      await db.query.users.findFirst({
+        with: {
+          participationRequests: true,
+        },
+        where: eq(users.clerkId, id),
+      });
 
     return {
-      user: result[0],
+      user,
     };
   } catch (error) {
     return {
-      message: 'Error fetching user profile',
+      message: "Error fetching user profile",
       error,
     };
   } finally {
@@ -70,10 +76,10 @@ export async function isProfileCreated(user: User) {
 export async function deleteClerkUser(user: User) {
   try {
     await clerkClient.users.deleteUser(user.id);
-    redirect('/sign_up');
+    redirect("/sign_up");
   } catch (error) {
     return {
-      message: 'Error deleting user',
+      message: "Error deleting user",
       error,
     };
   }
@@ -83,10 +89,10 @@ const FormSchema = z.object({
   id: z.number(),
   firstName: z
     .string()
-    .min(2, { message: 'El nombre tiene que tener al menos dos letras' }),
+    .min(2, { message: "El nombre tiene que tener al menos dos letras" }),
   lastName: z
     .string()
-    .min(2, { message: 'El apellido tiene que tener al menos dos letras' }),
+    .min(2, { message: "El apellido tiene que tener al menos dos letras" }),
 });
 
 export type State =
@@ -106,16 +112,16 @@ export async function updateProfile(
   formData: FormData,
 ) {
   const client = await pool.connect();
-  console.log('updating profile', formData);
+  console.log("updating profile", formData);
   const validateFields = UpdateName.safeParse({
-    firstName: formData.get('firstName'),
-    lastName: formData.get('lastName'),
+    firstName: formData.get("firstName"),
+    lastName: formData.get("lastName"),
   });
 
   if (!validateFields.success) {
     return {
       errors: validateFields.error.flatten().fieldErrors,
-      message: 'Error de validación',
+      message: "Error de validación",
     };
   }
 
@@ -132,13 +138,13 @@ export async function updateProfile(
       .where(eq(users.id, id));
   } catch (error) {
     return {
-      message: 'Error de Base de Datos: No se pudo actualizar el perfil',
+      message: "Error de Base de Datos: No se pudo actualizar el perfil",
     };
   } finally {
     client.release();
   }
 
-  revalidatePath('/user_profile');
+  revalidatePath("/user_profile");
 }
 
 export async function updateProfileWithValidatedData(
@@ -162,23 +168,53 @@ export async function updateProfileWithValidatedData(
       .where(eq(users.id, id));
   } catch (error) {
     return {
-      message: 'Error de Base de Datos: No se pudo actualizar el perfil',
+      message: "Error de Base de Datos: No se pudo actualizar el perfil",
     };
   } finally {
     client.release();
   }
 
-  revalidatePath('/user_profile');
+  revalidatePath("/user_profile");
   return { success: true };
 }
 
-const ExampleSchema = FormSchema.omit({ id: true });
+export async function createParticipationRequest(
+  festivalId: number,
+  userId: number,
+) {
+  const client = await pool.connect();
 
-export async function createExample(formData: FormData) {
-  const { firstName, lastName } = ExampleSchema.parse({
-    firstName: formData.get('firstName'),
-    lastName: formData.get('lastName'),
-  });
+  try {
+    await db.insert(participationRequests).values({
+      festivalId,
+      userId,
+    });
+  } catch {
+    return {
+      message: "Error de Base de Datos: No se pudo crear la solicitud",
+    };
+  } finally {
+    client.release();
+  }
 
-  console.log(firstName, lastName);
+  revalidatePath("/user_profile");
+  return { success: true };
+}
+
+type UserRequest = typeof userRequests.$inferInsert;
+export async function createUserRequest(request: UserRequest) {
+  const client = await pool.connect();
+
+  try {
+    await db.insert(userRequests).values(request);
+  } catch {
+    return {
+      message: "Error de Base de Datos: No se pudo crear la solicitud",
+    };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/user_profile");
+  return { success: true };
 }

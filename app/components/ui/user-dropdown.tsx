@@ -30,7 +30,7 @@ export default function UserDropdown() {
         setProfile(data.user);
       });
     }
-  }, [user]);
+  }, [user.user]);
 
   if (user.isSignedIn && profile) {
     return (
