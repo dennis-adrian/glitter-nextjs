@@ -35,6 +35,7 @@ export const users = pgTable(
 export const usersRelations = relations(users, ({ many }) => ({
   socials: many(usersToSocials),
   participationRequests: many(participationRequests),
+  userRequests: many(userRequests),
 }));
 
 export const socials = pgTable("socials", {
@@ -102,6 +103,7 @@ export const festivals = pgTable(
 );
 export const festivalsRelations = relations(festivals, ({ many }) => ({
   participationRequests: many(participationRequests),
+  userRequests: many(userRequests),
 }));
 
 export const requestStatusEnum = pgEnum("participation_request_status", [
@@ -155,7 +157,17 @@ export const userRequests = pgTable("user_requests", {
     .references(() => users.id),
   festivalId: integer("festival_id").references(() => festivals.id),
   type: requestTypeEnum("type").notNull().default("become_artist"),
-  status: requestStatusEnum("status"),
+  status: requestStatusEnum("status").default("pending").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+export const userRequestsRelations = relations(userRequests, ({ one }) => ({
+  user: one(users, {
+    fields: [userRequests.userId],
+    references: [users.id],
+  }),
+  festival: one(festivals, {
+    fields: [userRequests.festivalId],
+    references: [festivals.id],
+  }),
+}));
