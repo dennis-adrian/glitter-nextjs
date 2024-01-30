@@ -40,14 +40,14 @@ export async function createUserProfile(user: User) {
   redirect('/user_profile');
 }
 
-export async function fetchUserProfile(user: User) {
+export async function fetchUserProfile(id: string) {
   const client = await pool.connect();
 
   try {
     const result: UserProfileType[] = await db
       .select()
       .from(users)
-      .where(eq(users.clerkId, user.id));
+      .where(eq(users.clerkId, id));
 
     return {
       user: result[0],
@@ -63,7 +63,7 @@ export async function fetchUserProfile(user: User) {
 }
 
 export async function isProfileCreated(user: User) {
-  const data = await fetchUserProfile(user);
+  const data = await fetchUserProfile(user.id);
   return !!data.user;
 }
 

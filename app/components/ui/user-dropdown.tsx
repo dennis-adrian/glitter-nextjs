@@ -2,10 +2,9 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 
-import { useClerk, useUser } from '@clerk/nextjs';
-import { CircleUserIcon, LogOutIcon, UserIcon } from 'lucide-react';
+import { useUser } from '@clerk/nextjs';
+import { CircleUserIcon, UserIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -16,11 +15,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import SignOutButton from '@/app/components/user_dropdown/sign-out-button';
 
 export default function UserDropdown() {
-  const { signOut } = useClerk();
   const user = useUser();
-  const router = useRouter();
 
   if (user.isSignedIn) {
     return (
@@ -53,10 +51,7 @@ export default function UserDropdown() {
               <span>Perfil</span>
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => signOut(() => router.push('/'))}>
-            <LogOutIcon className="mr-2 h-4 w-4" />
-            <span>Cerrar Sesión</span>
-          </DropdownMenuItem>
+          <SignOutButton />
         </DropdownMenuContent>
       </DropdownMenu>
     );

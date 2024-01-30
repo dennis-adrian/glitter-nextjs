@@ -24,7 +24,7 @@ async function UserProfile() {
   const user = await currentUser();
   let profile: UserProfileType | null = null;
   if (user) {
-    const data = await fetchUserProfile(user);
+    const data = await fetchUserProfile(user.id);
     profile = data.user!;
   }
 
