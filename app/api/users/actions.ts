@@ -17,14 +17,14 @@ export type UserProfileType = typeof users.$inferSelect;
 export async function createUserProfile(user: User) {
   const client = await pool.connect();
 
-  const newUser = {
+  const newUser: NewUser = {
     clerkId: user.id,
     email: user.emailAddresses[0].emailAddress,
-    firstName: user.firstName,
-    imageUrl: user.imageUrl,
-    lastName: user.lastName,
-    displayName: `${user.firstName} ${user.lastName}`,
-  } as NewUser;
+    firstName: user.firstName || '',
+    imageUrl: user.imageUrl || '',
+    lastName: user.lastName || '',
+    displayName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+  };
 
   try {
     await db.insert(users).values(newUser);
