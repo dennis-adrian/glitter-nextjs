@@ -34,6 +34,7 @@ export const users = pgTable(
 );
 export const usersRelations = relations(users, ({ many }) => ({
   socials: many(usersToSocials),
+  participationRequests: many(participationRequests),
 }));
 
 export const socials = pgTable('socials', {
@@ -97,5 +98,49 @@ export const festivals = pgTable(
   },
   (festivals) => ({
     nameIdx: index('name_idx').on(festivals.name),
+  }),
+);
+export const festivalsRelations = relations(festivals, ({ many }) => ({
+  participationRequests: many(participationRequests),
+}));
+
+export const participationRequestStatusEnum = pgEnum(
+  'participation_request_status',
+  ['pending', 'accepted', 'rejected'],
+);
+export const participationRequests = pgTable(
+  'participation_requests',
+  {
+    id: serial('id').primaryKey(),
+    festivalId: integer('festival_id')
+      .notNull()
+      .references(() => festivals.id),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id),
+    status: participationRequestStatusEnum('status')
+      .default('pending')
+      .notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (participationRequests) => ({
+    unique: index('unique').on(
+      participationRequests.festivalId,
+      participationRequests.userId,
+    ),
+  }),
+);
+export const particiPationRequestsRelations = relations(
+  participationRequests,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [participationRequests.userId],
+      references: [users.id],
+    }),
+    festival: one(festivals, {
+      fields: [participationRequests.festivalId],
+      references: [festivals.id],
+    }),
   }),
 );
