@@ -79,3 +79,19 @@ export const usersToSocialsRelations = relations(usersToSocials, ({ one }) => ({
     references: [socials.id],
   }),
 }));
+
+export const festivals = pgTable(
+  'festivals',
+  {
+    id: serial('id').primaryKey(),
+    name: text('name').unique().notNull(),
+    description: text('description'),
+    startDate: timestamp('start_date').notNull(),
+    endDate: timestamp('end_date').notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (festivals) => ({
+    nameIdx: index('name_idx').on(festivals.name),
+  }),
+);
