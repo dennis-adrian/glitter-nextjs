@@ -1,13 +1,17 @@
-import { HTMLAttributes } from 'react';
+import { HTMLAttributes } from "react";
 
-import { FilePenLineIcon } from 'lucide-react';
+import { FilePenLineIcon } from "lucide-react";
 
-import { Button } from '@/app/components/ui/button';
+import { Button } from "@/app/components/ui/button";
 
-export function UserProfileFieldButton({ disabled = false }: { disabled?: boolean }) {
+export function UserProfileFieldButton({
+  disabled = false,
+}: {
+  disabled?: boolean;
+}) {
   return (
     <Button disabled={disabled} variant="ghost">
-      <FilePenLineIcon className="w-4 h-4 mr-1" />
+      <FilePenLineIcon className="mr-1 h-4 w-4" />
       Editar
     </Button>
   );
@@ -24,12 +28,14 @@ export function UserProfileField({
   label,
   value,
 }: UserProfileFieldProps) {
-  value = value || 'No especificado';
+  value = value || "No especificado";
   return (
-    <div className="w-full flex justify-between">
+    <div className="flex w-full justify-between">
       <div>
         <h3 className="font-bold">{label}</h3>
-        <span className="text-muted-foreground">{value}</span>
+        <div className="text-muted-foreground max-w-48 truncate sm:max-w-80">
+          {value}
+        </div>
       </div>
       {children}
     </div>
