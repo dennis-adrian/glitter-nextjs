@@ -78,7 +78,12 @@ export default function UserDropdown() {
   return (
     <Link href="/sign_in">
       {pathname === "/" ? (
-        <Button className="bg-blue-900" variant="outline">Ingresar</Button>
+        <Button
+          className="hover:bg-secondary hover:text-secondary-foreground bg-blue-900"
+          variant="outline"
+        >
+          Ingresar
+        </Button>
       ) : (
         <Button variant="outline">Ingresar</Button>
       )}
