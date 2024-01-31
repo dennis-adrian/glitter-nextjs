@@ -11,7 +11,9 @@ export default function Home() {
       className={`${roboto.className} via-gradient-dark flex min-h-screen flex-col items-center bg-gradient-to-b from-blue-900 from-10% via-30% to-amber-50 to-50% pt-6 text-center`}
     >
       <section className="bg-hero-pattern p-2">
-        <h1 className={`${junegull.className} text-5xl text-white`}>
+        <h1
+          className={`${junegull.className} inline-block bg-gradient-to-r from-pink-50 via-fuchsia-200 to-amber-200 bg-clip-text text-5xl text-transparent text-white`}
+        >
           ¡Brillemos juntos!
         </h1>
         <p
