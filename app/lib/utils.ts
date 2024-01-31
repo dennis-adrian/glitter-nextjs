@@ -14,6 +14,8 @@ export function formatDateOnlyToISO(date?: string | Date | null): string {
 export function isProfileComplete(profile: ProfileType) {
   if (!profile) return false;
 
+  const socials = profile.userSocials.filter((social) => !!social.username);
+
   return (
     !!profile.bio &&
     !!profile.imageUrl &&
@@ -22,6 +24,7 @@ export function isProfileComplete(profile: ProfileType) {
     !!profile.birthdate &&
     !!profile.phoneNumber &&
     !!profile.displayName &&
-    !!profile.email
+    !!profile.email &&
+    socials.length > 0
   );
 }
