@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { MenuIcon } from 'lucide-react';
-import { londrinaSolid } from '@/app/ui/fonts';
 
 import MobileSidebar from '@/app/components/ui/mobile-sidebar';
 import UserDropdown from '@/app/components/ui/user-dropdown';
@@ -10,7 +9,7 @@ import Image from 'next/image';
 const Navbar = () => {
   return (
     <header>
-      <nav className="w-full p-3 h-16">
+      <nav className="w-full shadow-sm p-3 h-16">
         <ul className="grid grid-cols-3 items-center">
           <li className="md:hidden">
             <MobileSidebar>

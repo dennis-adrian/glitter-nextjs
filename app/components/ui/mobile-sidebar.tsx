@@ -30,7 +30,7 @@ const MobileSidebarItem = ({ href, children }: MobileSidebarItemProps) => {
     <li>
       <SheetClose
         asChild
-        className="flex hover:bg-secondary w-full rounded-md p-2 text-left"
+        className="flex hover:bg-accent w-full rounded-md p-2 text-left hover:text-accent-foreground"
       >
         <Link href={href}>{children}</Link>
       </SheetClose>

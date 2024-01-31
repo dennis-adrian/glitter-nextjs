@@ -24,7 +24,7 @@ export default function Home() {
           height={300}
         />
       </section>
-      <section className="bg-secondary text-dark-blue p-8">
+      <section className="bg-secondary text-secondary-foreground p-8">
         <h1 className={`${londrinaSolid.className} text-4xl`}>
           Próximo Evento
         </h1>
