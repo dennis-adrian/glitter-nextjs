@@ -20,14 +20,27 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { findUserSocial, formatUserSocialsForInsertion } from "./utils";
 
+const usernameRegex = new RegExp(/^[a-zA-Z0-9_]+$/);
 const FormSchema = z.object({
   displayName: z.string().min(2, {
     message: "El nombre de artista tiene que tener al menos dos letras",
   }),
   bio: z.string().min(10, { message: "Escribe una bio un poco más larga" }),
-  instagramProfile: z.string(),
-  facebookProfile: z.string(),
-  tiktokProfile: z.string(),
+  instagramProfile: z
+    .string()
+    .refine((value) => value === "" || usernameRegex.test(value), {
+      message: "El nombre de usuario no puede tener caracteres especiales",
+    }),
+  facebookProfile: z
+    .string()
+    .refine((value) => value === "" || usernameRegex.test(value), {
+      message: "El nombre de usuario no puede tener caracteres especiales",
+    }),
+  tiktokProfile: z
+    .string()
+    .refine((value) => value === "" || usernameRegex.test(value), {
+      message: "El nombre de usuario no puede tener caracteres especiales",
+    }),
 });
 
 export default function PublicProfileForm({
@@ -54,7 +67,6 @@ export default function PublicProfileForm({
 
   const action: () => void = form.handleSubmit(async (data) => {
     const socials = formatUserSocialsForInsertion(data, profile);
-    console.log(socials);
     const result = await updateProfileWithValidatedData(profile.id, {
       ...profile,
       ...data,
