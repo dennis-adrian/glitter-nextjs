@@ -20,7 +20,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { findUserSocial, formatUserSocialsForInsertion } from "./utils";
 
-const usernameRegex = new RegExp(/^[a-zA-Z0-9_]+$/);
+const usernameRegex = new RegExp(/^[a-zA-Z0-9_.-]+$/);
 const FormSchema = z.object({
   displayName: z.string().min(2, {
     message: "El nombre de artista tiene que tener al menos dos letras",
@@ -143,7 +143,7 @@ export default function PublicProfileForm({
                   <span className="mx-2">@</span>
                   <Input
                     type="text"
-                    placeholder="Tu usuario de Tik Tok"
+                    placeholder="Tu usuario de TikTok"
                     {...field}
                   />
                 </div>

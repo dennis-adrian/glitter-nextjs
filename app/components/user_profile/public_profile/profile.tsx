@@ -1,8 +1,3 @@
-import {
-  faFacebook,
-  faInstagram,
-  faTiktok,
-} from "@fortawesome/free-brands-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 import { FilePenLineIcon } from "lucide-react";
@@ -11,6 +6,7 @@ import { ProfileType } from "@/app/api/users/definitions";
 
 import UserRoleBadge from "@/app/components/user-role-badge";
 import ProfilePicField from "@/app/components/user_profile/profile_pic/field";
+import { socialsIcons, socialsUrls } from "@/app/lib/config";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/user_profile/modal";
 import Form from "./form";
@@ -37,9 +33,22 @@ export default function PublicProfile({ profile }: { profile: ProfileType }) {
           <div className="text-muted-foreground text-sm">{profile.bio}</div>
         </div>
         <div className="flex gap-2">
-          <FontAwesomeIcon className="h-5 w-5" icon={faInstagram} />
-          <FontAwesomeIcon className="h-5 w-5" icon={faFacebook} />
-          <FontAwesomeIcon className="h-5 w-5" icon={faTiktok} />
+          {profile.userSocials
+            .filter((social) => social.username)
+            .map((social) => {
+              const url = socialsUrls[social.type];
+              const icon = socialsIcons[social.type];
+              return (
+                <a
+                  key={social.id}
+                  href={`${url}/${social.username}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <FontAwesomeIcon className="h-5 w-5" icon={icon} />
+                </a>
+              );
+            })}
         </div>
       </div>
     </>
