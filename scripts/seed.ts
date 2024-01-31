@@ -1,5 +1,5 @@
 const { pool, db } = require('@/db');
-const { socials, festivals } = require('@/db/schema');
+const { festivals } = require('@/db/schema');
 
 async function seedFestivals() {
   await db

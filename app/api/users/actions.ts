@@ -187,7 +187,7 @@ export async function updateProfile(
 
 export async function updateProfileWithValidatedData(
   id: number,
-  data: ProfileType & { socials: NewUserSocial[] },
+  data: ProfileType & { socials?: NewUserSocial[] },
 ) {
   const client = await pool.connect();
   // console.log("updating profile", data);
@@ -217,7 +217,7 @@ export async function updateProfileWithValidatedData(
         })
         .where(eq(users.id, id));
 
-      socials.forEach(async (social) => {
+      socials?.forEach(async (social) => {
         await tx
           .update(userSocials)
           .set({ username: social.username })

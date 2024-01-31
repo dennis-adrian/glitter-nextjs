@@ -1,4 +1,4 @@
-import { users, socials, userRequests, userSocials } from "@/db/schema";
+import { users, userRequests, userSocials } from "@/db/schema";
 
 type UserSocial = typeof userSocials.$inferSelect;
 type UserRequest = typeof userRequests.$inferSelect;
