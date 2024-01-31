@@ -1,9 +1,9 @@
 import Image from "next/image";
+import Link from "next/link";
 
-import { faInstagram } from "@fortawesome/free-brands-svg-icons";
 import { londrinaSolid, roboto, junegull } from "@/ui/fonts";
 
-import LinkButton from "@/app/ui/link-button";
+import Button from "@/ui/button";
 
 export default function Home() {
   return (
@@ -38,13 +38,9 @@ export default function Home() {
           El 2 y 3 de marzo tendremos nuestra siguiente edición de Glitter
           Publicaremos la convocatoria en nuestras redes en enero
         </p>
-        <LinkButton
-          href="https://www.instagram.com/glitter.bo"
-          icon={faInstagram}
-          target="_blank"
-        >
-          Síguenos en Instagram
-        </LinkButton>
+        <Button>
+          <Link href="/sign_up">¡Quiero participar!</Link>
+        </Button>
       </section>
       <section className="w-screen bg-white px-2 py-8">
         <h1 className={`${londrinaSolid.className} text-4xl`}>
