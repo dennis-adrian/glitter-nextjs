@@ -8,7 +8,7 @@ import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { pool, db } from "@/db";
-import { userRequests, userSocials, users, usersToSocials } from "@/db/schema";
+import { userRequests, userSocials, users } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { NewUserSocial, ProfileType } from "./definitions";
 

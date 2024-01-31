@@ -1,32 +1,6 @@
 const { pool, db } = require('@/db');
 const { socials, festivals } = require('@/db/schema');
 
-async function seedSocialMedia() {
-  await db
-    .insert(socials)
-    .values([
-      {
-        name: 'facebook',
-        url: 'https://www.facebook.com/',
-        updatedAt: new Date(),
-      },
-      {
-        name: 'instagram',
-        url: 'https://www.instagram.com/',
-        updatedAt: new Date(),
-      },
-      {
-        name: 'twitter',
-        url: 'https://www.twitter.com/',
-        updatedAt: new Date(),
-      },
-      { name: 'tiktok', url: 'https://www.tiktok.com/', updated: new Date() },
-    ])
-    .onConflictDoNothing({ target: socials.name });
-
-  console.log('Social media profiles seeded');
-}
-
 async function seedFestivals() {
   await db
     .insert(festivals)
@@ -57,7 +31,6 @@ async function seedFestivals() {
 
 async function main() {
   const client = await pool.connect();
-  await seedSocialMedia();
   await seedFestivals();
   client.release();
 }
