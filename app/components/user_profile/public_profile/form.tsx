@@ -18,7 +18,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
-import { findUserSocial } from "./utils";
+import { findUserSocial, formatUserSocialsForInsertion } from "./utils";
 
 const FormSchema = z.object({
   displayName: z.string().min(2, {
@@ -53,9 +53,12 @@ export default function PublicProfileForm({
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
+    const socials = formatUserSocialsForInsertion(data, profile);
+    console.log(socials);
     const result = await updateProfileWithValidatedData(profile.id, {
       ...profile,
       ...data,
+      socials: socials.filter(Boolean) as ProfileType["userSocials"],
     });
     if (result.success) onSuccess();
   });

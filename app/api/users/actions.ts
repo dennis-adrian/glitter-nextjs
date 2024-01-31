@@ -4,17 +4,13 @@ import { redirect } from "next/navigation";
 
 import { clerkClient } from "@clerk/nextjs";
 import { User } from "@clerk/nextjs/server";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { pool, db } from "@/db";
-import {
-  userRequests,
-  users,
-  usersToSocials,
-} from "@/db/schema";
+import { userRequests, userSocials, users, usersToSocials } from "@/db/schema";
 import { revalidatePath } from "next/cache";
-import { formatSocialsForInsertion } from "../socials/actions";
+import { NewUserSocial, ProfileType } from "./definitions";
 
 type NewUser = typeof users.$inferInsert;
 export type UserProfileType = typeof users.$inferSelect;
@@ -92,11 +88,7 @@ export async function fetchUserProfile(id: string) {
     const user = await db.query.users.findFirst({
       with: {
         userRequests: true,
-        socials: {
-          with: {
-            social: true,
-          },
-        },
+        userSocials: true,
       },
       where: eq(users.clerkId, id),
     });
@@ -195,11 +187,7 @@ export async function updateProfile(
 
 export async function updateProfileWithValidatedData(
   id: number,
-  data: UserProfileType & {
-    instagramProfile: string;
-    facebookProfile: string;
-    tiktokProfile: string;
-  },
+  data: ProfileType & { socials: NewUserSocial[] },
 ) {
   const client = await pool.connect();
   // console.log("updating profile", data);
@@ -211,13 +199,9 @@ export async function updateProfileWithValidatedData(
     imageUrl,
     displayName,
     bio,
-    instagramProfile,
-    facebookProfile,
-    tiktokProfile,
+    socials,
   } = data;
   try {
-    const socialsData = { instagramProfile, facebookProfile, tiktokProfile };
-    const socials = await formatSocialsForInsertion(socialsData, id);
     await db.transaction(async (tx) => {
       await tx
         .update(users)
@@ -233,13 +217,12 @@ export async function updateProfileWithValidatedData(
         })
         .where(eq(users.id, id));
 
-      if (socials && socials.length > 0) {
+      socials.forEach(async (social) => {
         await tx
-          .insert(usersToSocials)
-          .values(
-            socials as { userId: number; socialId: number; username: string }[],
-          );
-      }
+          .update(userSocials)
+          .set({ username: social.username })
+          .where(sql`${userSocials.id} = ${social.id}`);
+      });
     });
   } catch (error) {
     return {

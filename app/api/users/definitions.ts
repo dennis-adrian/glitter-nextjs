@@ -1,9 +1,10 @@
-import { usersToSocials, users, socials, userRequests } from '@/db/schema';
+import { users, socials, userRequests, userSocials } from "@/db/schema";
 
-type Social = typeof socials.$inferSelect;
-type UserSocial = typeof usersToSocials.$inferSelect & { social: Social };
+type UserSocial = typeof userSocials.$inferSelect;
 type UserRequest = typeof userRequests.$inferSelect;
 export type ProfileType = typeof users.$inferSelect & {
-  socials: UserSocial[];
+  userSocials: UserSocial[];
   userRequests: UserRequest[];
 };
+
+export type NewUserSocial = typeof userSocials.$inferInsert;
