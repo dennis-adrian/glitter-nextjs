@@ -15,11 +15,11 @@ export default async function PendingParticipationCard({
       content={
         <>
           <p>
-            Hemos recibido tu solicitud para participar de{" "}
-            <strong>{festival.name}</strong>. Recibirás un correo para saber si{" "}
-            fuiste seleccionado o no.
+            Hemos recibido tu solicitud para reservar tu espacio en{" "}
+            <strong>{festival.name}</strong>. Recibirás un correo notificándote
+            que ya puedes reservar
           </p>
-          <p className="text-primary mt-1">
+          <p className="text-primary mt-2">
             <strong>¡Gracias por postular!</strong>
           </p>
         </>

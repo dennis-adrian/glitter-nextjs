@@ -28,7 +28,7 @@ export default function ParticipationForm({
 
   return (
     <form action={() => handleSubmit()} className="flex w-full justify-center">
-      <Button className="m-auto">¡Quiero participar!</Button>
+      <Button className="m-auto">¡Quiero reservar!</Button>
     </form>
   );
 }

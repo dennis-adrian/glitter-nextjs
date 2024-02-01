@@ -10,13 +10,20 @@ export default async function ParticipationCard({
   festival: Festival;
   profile: ProfileType;
 }) {
+  const startDateDay = festival.startDate.getDate() + 1;
+  const endDateDay = festival.endDate.getDate() + 1;
+  const startDateMonth = festival.startDate.toLocaleString("es-ES", {
+    month: "long",
+  });
+
   return (
     <BaseCard
       title={`${festival.name} Se Acerca`}
       content={
         <p>
-          La siguiente versión de Glitter será el 2 y 3 de marzo. Si deseas
-          participar postula dándole click al botón.
+          La siguiente versión de <strong>Glitter</strong> será el{" "}
+          {startDateDay} y {endDateDay} de {startDateMonth}. Para reservar tu
+          espacio haz click en el botón
         </p>
       }
       footer={
