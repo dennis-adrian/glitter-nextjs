@@ -1,18 +1,17 @@
-import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/react";
+import type { Metadata } from "next";
 
-import { ClerkProvider } from "@clerk/nextjs";
 import { esES } from "@clerk/localizations";
+import { ClerkProvider } from "@clerk/nextjs";
 
-import { Inter } from "next/font/google";
+import { EdgeStoreProvider } from "@/app/lib/edgestore";
 
 import Navbar from "@/app/ui/navbar";
 import { Toaster } from "@/components/ui/sonner";
+import { inter } from "@/ui/fonts";
 
 import "./globals.css";
-import { EdgeStoreProvider } from "@/app/lib/edgestore";
 
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Festival Glitter",
@@ -30,7 +29,9 @@ export default function RootLayout({
         <body className={inter.className}>
           <EdgeStoreProvider>
             <Navbar />
-            {children}
+            <main className={`${inter.className}`}>
+              {children}
+            </main>
             <Toaster />
             <Analytics />
           </EdgeStoreProvider>

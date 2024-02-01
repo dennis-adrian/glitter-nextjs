@@ -1,4 +1,4 @@
-import { Londrina_Solid, Roboto } from 'next/font/google';
+import { Inter, Londrina_Solid, Roboto } from 'next/font/google';
 import localFont from 'next/font/local';
 
 export const londrinaSolid = Londrina_Solid({
@@ -13,4 +13,9 @@ export const roboto = Roboto({
 
 export const junegull = localFont({
   src: '../fonts/junegull.otf',
+});
+
+export const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
 });

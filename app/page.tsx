@@ -1,21 +1,34 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { londrinaSolid, roboto, junegull } from "@/ui/fonts";
+import { londrinaSolid, junegull } from "@/ui/fonts";
 
 import Button from "@/ui/button";
+import bg_image from "../public/img/bg_w_1280.png";
 
 export default function Home() {
   return (
-    <main
-      className={`${roboto.className} via-gradient-dark flex min-h-screen flex-col items-center bg-gradient-to-b from-blue-900 from-10% via-30% to-amber-50 to-50% pt-6 text-center`}
-    >
-      <section className="bg-hero-pattern max-w-screen-md p-2">
-        <h1
-          className={`${junegull.className} inline-block bg-gradient-to-r from-pink-50 via-fuchsia-200 to-amber-200 bg-clip-text text-5xl text-transparent text-white`}
-        >
-          ¡Brillemos juntos!
-        </h1>
+    <div className="text-center">
+      <section className="relative flex flex-col items-center justify-center">
+        <div className="-z-10">
+          <Image
+            alt="background image"
+            src={bg_image}
+            placeholder="blur"
+            quality={100}
+            fill
+            style={{
+              objectFit: "cover",
+            }}
+          />
+        </div>
+        <div className="m-auto flex max-w-md flex-col justify-center">
+          <h1
+            className={`${junegull.className} inline-block bg-gradient-to-r from-pink-50 via-fuchsia-200 to-amber-200 bg-clip-text text-5xl text-transparent text-white`}
+          >
+            ¡Brillemos juntos!
+          </h1>
+        </div>
         <p
           className={`${londrinaSolid.className} m-auto max-w-xs py-4 text-xl leading-6 text-white`}
         >
@@ -30,7 +43,7 @@ export default function Home() {
           height={300}
         />
       </section>
-      <section className="text-secondary-foreground max-w-screen-md bg-amber-50 p-8">
+      <section className="text-secondary-foreground m-auto max-w-screen-md bg-amber-50 p-8">
         <h1 className={`${londrinaSolid.className} text-4xl`}>
           Próximo Evento
         </h1>
@@ -42,7 +55,7 @@ export default function Home() {
           <Link href="/sign_up">¡Quiero participar!</Link>
         </Button>
       </section>
-      <section className="w-screen bg-white px-2 py-8">
+      <section className="m-auto max-w-screen-md bg-white px-2 py-8">
         <h1 className={`${londrinaSolid.className} text-4xl`}>
           ¿Quiénes somos?
         </h1>
@@ -52,6 +65,6 @@ export default function Home() {
           amet.
         </p>
       </section>
-    </main>
+    </div>
   );
 }
