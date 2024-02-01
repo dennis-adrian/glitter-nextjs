@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/react";
 
 import { ClerkProvider } from "@clerk/nextjs";
 import { esES } from "@clerk/localizations";
@@ -31,6 +32,7 @@ export default function RootLayout({
             <Navbar />
             {children}
             <Toaster />
+            <Analytics />
           </EdgeStoreProvider>
         </body>
       </html>
