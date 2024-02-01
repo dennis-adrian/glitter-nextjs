@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import clsx from "clsx";
-
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -21,10 +19,7 @@ const NavbarNavigationMenu = () => {
         <NavigationMenuItem>
           <Link href="/" legacyBehavior passHref>
             <NavigationMenuLink
-              className={clsx(navigationMenuTriggerStyle(), {
-                "hover:bg-secondary hover:text-secondary-foreground bg-blue-900":
-                  pathname === "/",
-              })}
+              className={navigationMenuTriggerStyle()}
             >
               Inicio
             </NavigationMenuLink>
@@ -33,10 +28,7 @@ const NavbarNavigationMenu = () => {
         <NavigationMenuItem>
           <Link href="/next_event" legacyBehavior passHref>
             <NavigationMenuLink
-              className={clsx(navigationMenuTriggerStyle(), {
-                "hover:bg-secondary hover:text-secondary-foreground bg-blue-900":
-                  pathname === "/",
-              })}
+              className={navigationMenuTriggerStyle()}
             >
               Próximo Evento
             </NavigationMenuLink>

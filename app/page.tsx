@@ -22,7 +22,7 @@ export default function Home() {
             }}
           />
         </div>
-        <div className="m-auto flex max-w-md flex-col justify-center">
+        <div className="m-auto mt-8 flex max-w-md flex-col justify-center">
           <h1
             className={`${junegull.className} inline-block bg-gradient-to-r from-pink-50 via-fuchsia-200 to-amber-200 bg-clip-text text-5xl text-transparent text-white`}
           >
@@ -32,8 +32,7 @@ export default function Home() {
         <p
           className={`${londrinaSolid.className} m-auto max-w-xs py-4 text-xl leading-6 text-white`}
         >
-          Crea experiencias que te inspiren, conecta con otros artistas y
-          celebra lo que eres{" "}
+          Festival para que los artistas brillen
         </p>
         <Image
           className="m-auto"
@@ -49,7 +48,6 @@ export default function Home() {
         </h1>
         <p className="py-4 text-xl leading-6">
           El 2 y 3 de marzo tendremos nuestra siguiente edición de Glitter.
-          Publicaremos la convocatoria en nuestras redes en enero
         </p>
         <Button>
           <Link href="/sign_up">¡Quiero participar!</Link>
@@ -60,9 +58,9 @@ export default function Home() {
           ¿Quiénes somos?
         </h1>
         <p className="m-auto max-w-screen-md py-4 text-center text-xl leading-6">
-          Lorem ipsum dolor sit amet consectetur. Mauris dictumst quis bibendum
-          a porttitor ut. Platea at ac nisi massa. Nec in lobortis nunc vel
-          amet.
+          Glitter es una productora de eventos artistísticos dedicada a
+          proporcionar un espacio seguro y acogedor para que ilustradores,
+          artistas y autores de comics puedan mostrar y vender su arte
         </p>
       </section>
     </div>

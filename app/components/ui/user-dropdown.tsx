@@ -75,18 +75,13 @@ export default function UserDropdown() {
     );
   }
 
-  return (
-    <Link href="/sign_in">
-      {pathname === "/" ? (
-        <Button
-          className="hover:bg-secondary hover:text-secondary-foreground bg-blue-900"
-          variant="outline"
-        >
-          Ingresar
-        </Button>
-      ) : (
+  if (!(pathname === "/sign_in" || pathname === "/sign_up")) {
+    return (
+      <Link href="/sign_in">
         <Button variant="outline">Ingresar</Button>
-      )}
-    </Link>
-  );
+      </Link>
+    );
+  }
+
+  return null;
 }
