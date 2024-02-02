@@ -106,6 +106,25 @@ export async function fetchUserProfile(id: string) {
   }
 }
 
+export async function fetchProfiles(): Promise<ProfileType[]> {
+  const client = await pool.connect();
+
+  try {
+    const users = await db.query.users.findMany({
+      with: {
+        userRequests: true,
+        userSocials: true,
+      },
+    });
+    return users;
+  } catch (error) {
+    console.log(error);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
 export async function isProfileCreated(user: User) {
   const data = await fetchUserProfile(user.id);
   return !!data.user;

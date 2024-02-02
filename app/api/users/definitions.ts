@@ -1,6 +1,6 @@
 import { users, userRequests, userSocials } from "@/db/schema";
 
-type UserSocial = typeof userSocials.$inferSelect;
+export type UserSocial = typeof userSocials.$inferSelect;
 type UserRequest = typeof userRequests.$inferSelect;
 export type ProfileType = typeof users.$inferSelect & {
   userSocials: UserSocial[];
