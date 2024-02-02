@@ -36,12 +36,16 @@ export function ActionsCell({ user }: { user: ProfileType }) {
             Ver perfil
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Link href={`/dashboard/requests`}>
-            Ver solicitudes
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem> Volver admin</DropdownMenuItem>
+        {user.userRequests.length > 0 && (
+          <DropdownMenuItem>
+            <Link href={`/dashboard/users/${user.id}/requests`}>
+              Ver solicitudes
+            </Link>
+          </DropdownMenuItem>
+        )}
+        {user.role !== "admin" && (
+          <DropdownMenuItem> Volver admin</DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

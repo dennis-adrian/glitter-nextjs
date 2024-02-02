@@ -5,6 +5,7 @@ import EmailField from "@/app/components/user_profile/email/field";
 import NameField from "@/app/components/user_profile/name/field";
 import PhoneField from "@/app/components/user_profile/phone/field";
 import PublicProfile from "@/app/components/user_profile/public_profile/profile";
+import AnnouncementCard from "@/components/user_profile/announcements_cards/card";
 
 export default async function Page({ params }: { params: { id: string } }) {
   const id = params.id;
@@ -18,6 +19,7 @@ export default async function Page({ params }: { params: { id: string } }) {
   return (
     <div className="mx-auto w-full max-w-lg p-5">
       <PublicProfile profile={profile} title="Perfil de Usuario" />
+      <AnnouncementCard profile={profile} />
       <Separator />
 
       <div className="my-4">

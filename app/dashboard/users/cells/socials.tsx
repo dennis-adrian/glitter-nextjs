@@ -28,8 +28,8 @@ export const socialsIcons = {
 };
 
 export default function SocialsCell({ socials }: { socials: UserSocial[] }) {
-  if (socials?.length === 0) return "--";
   const filteredSocials = socials.filter((social) => social.username);
+  if (filteredSocials?.length === 0) return "--";
 
   return (
     <div className="flex flex-col justify-center gap-1">
