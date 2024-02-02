@@ -1,5 +1,7 @@
 import { MoreHorizontal } from "lucide-react";
 
+import { ProfileType } from "@/app/api/users/definitions";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,8 +10,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-import { ProfileType } from "@/app/api/users/definitions";
 import Link from "next/link";
 
 export function ActionsCell({ user }: { user: ProfileType }) {

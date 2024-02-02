@@ -1,12 +1,14 @@
 import { fetchUserProfileById } from "@/app/api/users/actions";
+
+import { Badge } from "@/app/components/ui/badge";
+import Form from "@/app/dashboard/users/[id]/requests/form";
 import {
   Card,
+  CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
-  CardFooter,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 
 export default async function Page({ params }: { params: { id: string } }) {
   const userId = params.id;
@@ -31,24 +33,22 @@ export default async function Page({ params }: { params: { id: string } }) {
         <Card key={request.id}>
           <CardHeader>
             <CardTitle>
-              {request.type === "become_artist"
-                ? "Solicitud para ser artista"
-                : "Solicitud para participar de evento"}
+              <div className="flex justify-between">
+                <span>
+                  {request.type === "become_artist"
+                    ? "Solicitud para ser artista"
+                    : "Solicitud para participar de evento"}
+                </span>
+                <Badge>{request.status}</Badge>
+              </div>
             </CardTitle>
             <CardDescription>
               Creación: {request.createdAt.toLocaleString()}
             </CardDescription>
           </CardHeader>
-          <CardFooter>
-            <div className="flex w-full justify-end">
-              <Button className="mr-2" variant="outline">
-                Rechazar
-              </Button>
-              <form>
-                <Button type="submit">Aceptar</Button>
-              </form>
-            </div>
-          </CardFooter>
+          <CardContent>
+            <Form request={request} userRole={data.user!.role} />
+          </CardContent>
         </Card>
       ))}
     </div>
