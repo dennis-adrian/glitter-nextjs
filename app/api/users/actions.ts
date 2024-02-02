@@ -81,6 +81,31 @@ export async function createUserProfile(user: User) {
   redirect("/user_profile");
 }
 
+export async function fetchUserProfileById(id: number) {
+  const client = await pool.connect();
+
+  try {
+    const user = await db.query.users.findFirst({
+      with: {
+        userRequests: true,
+        userSocials: true,
+      },
+      where: eq(users.id, id),
+    });
+
+    return {
+      user,
+    };
+  } catch (error) {
+    return {
+      message: "Error fetching user profile",
+      error,
+    };
+  } finally {
+    client.release();
+  }
+}
+
 export async function fetchUserProfile(id: string) {
   const client = await pool.connect();
 

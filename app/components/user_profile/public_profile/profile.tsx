@@ -11,12 +11,18 @@ import { Button } from "@/components/ui/button";
 import Modal from "@/components/user_profile/modal";
 import Form from "./form";
 
-export default function PublicProfile({ profile }: { profile: ProfileType }) {
+export default function PublicProfile({
+  profile,
+  title = "Mi Perfil",
+}: {
+  profile: ProfileType;
+  title?: string;
+}) {
   const socials = profile.userSocials.filter((social) => social.username);
   return (
     <>
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Mi Perfil</h1>
+        <h1 className="text-xl font-bold">{title}</h1>
       </div>
       <div className="my-4 flex flex-col items-center gap-3">
         <ProfilePicField profile={profile} />

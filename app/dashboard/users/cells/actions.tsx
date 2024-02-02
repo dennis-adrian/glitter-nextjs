@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { ProfileType } from "@/app/api/users/definitions";
+import Link from "next/link";
 
 export function ActionsCell({ user }: { user: ProfileType }) {
   return (
@@ -21,7 +22,7 @@ export function ActionsCell({ user }: { user: ProfileType }) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Actiones</DropdownMenuLabel>
+        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
         {/* <DropdownMenuItem
               onClick={() =>
                 navigator.clipboard.writeText(user.id.toString())
@@ -30,9 +31,17 @@ export function ActionsCell({ user }: { user: ProfileType }) {
               Copy payment ID
             </DropdownMenuItem> */}
         <DropdownMenuSeparator />
-        <DropdownMenuItem>Ver perfil</DropdownMenuItem>
-        <DropdownMenuItem>Ver solicitudes</DropdownMenuItem>
-        <DropdownMenuItem>Volver admin</DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={`/dashboard/users/${user.id}`}>
+            Ver perfil
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem>
+          <Link href={`/dashboard/requests`}>
+            Ver solicitudes
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem> Volver admin</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
