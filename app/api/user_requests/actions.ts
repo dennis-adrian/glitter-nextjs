@@ -35,6 +35,6 @@ export async function updateUserRequest(
     client.release();
   }
 
-  revalidatePath("/dashboard/users/[id]/requests");
+  revalidatePath("/dashboard", "layout");
   return { success: true };
 }

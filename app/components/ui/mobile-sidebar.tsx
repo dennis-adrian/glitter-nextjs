@@ -1,13 +1,11 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-import { SignedIn, SignedOut, useClerk } from '@clerk/nextjs';
+import { SignedIn, SignedOut, useClerk, useUser } from "@clerk/nextjs";
 
-import { londrinaSolid } from '@/app/ui/fonts';
-
-import { Separator } from '@/app/components/ui/separator';
+import { Separator } from "@/app/components/ui/separator";
 import {
   Sheet,
   SheetClose,
@@ -15,10 +13,13 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from '@/app/components/ui/sheet';
-import { Button } from '@/app/components/ui/button';
-import { HomeIcon, LogOutIcon } from 'lucide-react';
-import Image from 'next/image';
+} from "@/app/components/ui/sheet";
+import { Button } from "@/app/components/ui/button";
+import { HomeIcon, LogOutIcon, UsersIcon } from "lucide-react";
+import Image from "next/image";
+import { useEffect, useState } from "react";
+import { ProfileType } from "@/app/api/users/definitions";
+import { fetchUserProfile } from "@/app/api/users/actions";
 
 type MobileSidebarItemProps = {
   href: string;
@@ -30,7 +31,7 @@ const MobileSidebarItem = ({ href, children }: MobileSidebarItemProps) => {
     <li>
       <SheetClose
         asChild
-        className="flex hover:bg-accent w-full rounded-md p-2 text-left hover:text-accent-foreground"
+        className="hover:bg-accent hover:text-accent-foreground flex w-full rounded-md p-2 text-left"
       >
         <Link href={href}>{children}</Link>
       </SheetClose>
@@ -45,6 +46,19 @@ type MobileSidebarProps = {
 const MobileSidebar = ({ children }: MobileSidebarProps) => {
   const { signOut } = useClerk();
   const router = useRouter();
+  const [profile, setProfile] = useState<ProfileType | null>(null);
+
+  const user = useUser();
+
+  useEffect(() => {
+    if (user.user) {
+      fetchUserProfile(user.user.id).then((data) => {
+        if (data.user) {
+          setProfile(data.user);
+        }
+      });
+    }
+  }, [user.user]);
 
   return (
     <Sheet>
@@ -72,12 +86,18 @@ const MobileSidebar = ({ children }: MobileSidebarProps) => {
             <HomeIcon className="mr-2 h-6 w-6" />
             Inicio
           </MobileSidebarItem>
+          {profile && profile.role === "admin" && (
+            <MobileSidebarItem href="/dashboard/useres">
+              <UsersIcon className="mr-2 h-6 w-6" />
+              Users
+            </MobileSidebarItem>
+          )}
           <Separator className="my-2" />
           <SignedIn>
             <SheetClose asChild>
               <Button
                 className="p-2"
-                onClick={() => signOut(() => router.push('/'))}
+                onClick={() => signOut(() => router.push("/"))}
                 variant="ghost"
               >
                 <LogOutIcon className="mr-2 h-6 w-6" />
