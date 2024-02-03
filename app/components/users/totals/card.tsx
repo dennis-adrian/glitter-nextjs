@@ -6,14 +6,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
+import { desc } from "drizzle-orm";
 
 export default function TotalsCard({
   amount,
+  description,
   title,
   Icon,
 }: {
   amount: number;
   title: string;
+  description?: string;
   Icon: LucideIcon;
 }) {
   return (
@@ -28,7 +31,7 @@ export default function TotalsCard({
         <div className="p-2">
           <div className="font-bold text-2xl text-center">{amount}</div>
           <div className="text-muted-foreground text-sm text-center">
-            Solicitudes {title}
+            {description}
           </div>
         </div>
       </CardContent>
