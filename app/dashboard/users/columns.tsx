@@ -28,17 +28,14 @@ export const columns: ColumnDef<ProfileType>[] = [
   {
     accessorKey: "displayName",
     header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        Nombre de artista
-        <ArrowUpDownIcon className="ml-2 h-4 w-4" />
-      </Button>
+      <DataTableColumnHeader column={column} title="Nombre de artista" />
     ),
   },
   {
-    header: "Nombre",
+    accessorKey: "firstName",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Nombre" />
+    ),
     cell: ({ row }) => {
       const name = `${row.original.firstName || ""} ${
         row.original.lastName || ""
@@ -47,7 +44,9 @@ export const columns: ColumnDef<ProfileType>[] = [
     },
   },
   {
-    header: "Email",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Email" />
+    ),
     accessorKey: "email",
   },
   {
@@ -59,7 +58,10 @@ export const columns: ColumnDef<ProfileType>[] = [
   },
   {
     id: "role",
-    header: "Rol",
+    accessorKey: "role",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Rol" />
+    ),
     cell: ({ row }) => {
       const role = row.original.role;
       return <UserRoleBadge role={role} />;
