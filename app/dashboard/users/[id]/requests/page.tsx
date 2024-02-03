@@ -1,3 +1,4 @@
+import { fetchRequestsByUserId } from "@/app/api/user_requests/actions";
 import { fetchUserProfileById } from "@/app/api/users/actions";
 
 import { Badge } from "@/app/components/ui/badge";
@@ -12,22 +13,18 @@ import {
 
 export default async function Page({ params }: { params: { id: string } }) {
   const userId = params.id;
-  const data = await fetchUserProfileById(parseInt(userId));
-
-  if (!data.user) {
-    return <div>User not found</div>;
-  }
-
-  const requests = data.user.userRequests;
+  const requests = await fetchRequestsByUserId(parseInt(userId));
 
   if (requests.length === 0) {
     return <div>No requests</div>;
   }
 
+  const user = requests[0].user;
+
   return (
     <div className="m-auto max-w-screen-sm">
       <h1 className="mb-6 mt-8 text-2xl font-bold">
-        Solicitudes de {data.user.displayName}
+        Solicitudes de {user.displayName}
       </h1>
       {requests.map((request) => (
         <Card key={request.id}>
@@ -47,7 +44,7 @@ export default async function Page({ params }: { params: { id: string } }) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Form request={request} userRole={data.user!.role} />
+            <Form request={request} />
           </CardContent>
         </Card>
       ))}

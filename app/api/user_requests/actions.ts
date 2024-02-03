@@ -1,18 +1,40 @@
 "use server";
 
 import { db, pool } from "@/db";
-import { userRequests, users } from "@/db/schema";
+import { userRequests, users, festivals } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-export type UserRequest = typeof userRequests.$inferSelect;
+export type UserRequest = typeof userRequests.$inferSelect & {
+  user: typeof users.$inferSelect;
+  festival: typeof festivals.$inferSelect | null;
+};
 
-export async function updateUserRequest(
-  id: number,
-  data: UserRequest & { userRole: string },
-) {
+export async function fetchRequestsByUserId(userId: number) {
   const client = await pool.connect();
-  const { status, userRole } = data;
+
+  try {
+    const requests = await db.query.userRequests.findMany({
+      where: eq(userRequests.userId, userId),
+      with: {
+        user: true,
+        festival: true,
+      },
+    });
+
+    return requests;
+  } catch (error) {
+    console.error("Error fetching user requests", error);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
+export async function updateUserRequest(id: number, data: UserRequest) {
+  const client = await pool.connect();
+  const { status, user } = data;
+  const userRole = user.role;
   const newRole = status === "accepted" ? "artist" : "user";
   try {
     db.transaction(async (tx) => {

@@ -30,7 +30,7 @@ const FormSchema = z.object({
   status: z.enum(["pending", "accepted", "rejected"]),
 });
 
-export default function UserRequestForm({ request, userRole }: { request: UserRequest; userRole: string }) {
+export default function UserRequestForm({ request }: { request: UserRequest }) {
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -39,7 +39,7 @@ export default function UserRequestForm({ request, userRole }: { request: UserRe
   });
 
   async function onSubmit(data: z.infer<typeof FormSchema>) {
-    const res = await updateUserRequest(request.id, { ...request, ...data, userRole });
+    const res = await updateUserRequest(request.id, { ...request, ...data });
     if (res.success) {
       toast("La solicitud ha sido actualizada.");
     }
