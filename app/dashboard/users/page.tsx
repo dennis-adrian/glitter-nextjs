@@ -21,7 +21,7 @@ export default async function DemoPage() {
         />
         <TotalsCard
           amount={artists.length}
-          description="Usuarions que son artistas"
+          description="Usuarios que son artistas"
           title="artistas"
           Icon={UsersIcon}
         />
