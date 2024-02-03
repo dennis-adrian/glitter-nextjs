@@ -5,6 +5,7 @@ import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-hea
 import { RequestStatusBadge } from "@/app/components/user_requests/status-badge";
 import { ActionsCell } from "@/components/user_requests/cells/actions";
 import { ColumnDef } from "@tanstack/react-table";
+import Link from "next/link";
 
 export const columnTitles = {
   id: "ID",
@@ -24,6 +25,14 @@ export const columns: ColumnDef<UserRequest>[] = [
     accessorFn: (row) => row.user.displayName,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.user} />
+    ),
+    cell: ({ row }) => (
+      <Link
+        className="hover:underline text-blue-500"
+        href={`/dashboard/users/${row.original.user.id}`}
+      >
+        {row.original.user.displayName}
+      </Link>
     ),
   },
   {

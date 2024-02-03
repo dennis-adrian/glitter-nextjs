@@ -1,5 +1,5 @@
 import { fetchRequests } from "@/app/api/user_requests/actions";
-import TotalsCard from "@/app/components/user_requests/totals/card";
+import TotalsCard from "@/components/user_requests/totals/card";
 import { DataTable } from "@/components/ui/data_table/data-table";
 import { columns, columnTitles } from "@/components/user_requests/columns";
 import { BanIcon, CheckIcon, HourglassIcon } from "lucide-react";

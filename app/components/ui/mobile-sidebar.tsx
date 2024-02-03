@@ -15,7 +15,7 @@ import {
   SheetTrigger,
 } from "@/app/components/ui/sheet";
 import { Button } from "@/app/components/ui/button";
-import { HomeIcon, LogOutIcon, UsersIcon } from "lucide-react";
+import { HomeIcon, InboxIcon, LogOutIcon, UsersIcon } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { ProfileType } from "@/app/api/users/definitions";
@@ -87,10 +87,16 @@ const MobileSidebar = ({ children }: MobileSidebarProps) => {
             Inicio
           </MobileSidebarItem>
           {profile && profile.role === "admin" && (
-            <MobileSidebarItem href="/dashboard/users">
-              <UsersIcon className="mr-2 h-6 w-6" />
-              Users
-            </MobileSidebarItem>
+            <>
+              <MobileSidebarItem href="/dashboard/users">
+                <UsersIcon className="mr-2 h-6 w-6" />
+                Usuarios
+              </MobileSidebarItem>
+              <MobileSidebarItem href="/dashboard/requests">
+                <InboxIcon className="mr-2 h-6 w-6" />
+                Solicitudes
+              </MobileSidebarItem>
+            </>
           )}
           <Separator className="my-2" />
           <SignedIn>

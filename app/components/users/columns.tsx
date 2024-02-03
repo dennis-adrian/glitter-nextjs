@@ -89,7 +89,6 @@ const columnsExample: ColumnDef<ProfileType>[] = [
     accessorKey: "name",
     header: "Name",
     cell: ({ row }) => {
-      debugger;
       row.getValue("");
       return <div>hello</div>;
     },

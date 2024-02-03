@@ -46,7 +46,7 @@ export default function SocialsCell({ socials }: { socials: UserSocial[] }) {
           >
             <span className="flex items-center">
               <FontAwesomeIcon className="mr-1 h-4 w-4" icon={icon} />
-              {social.username}
+              <span className="text-blue-500">{social.username}</span>
             </span>
           </a>
         );
