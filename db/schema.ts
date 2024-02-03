@@ -49,6 +49,8 @@ export const festivals = pgTable(
     id: serial("id").primaryKey(),
     name: text("name").unique().notNull(),
     description: text("description"),
+    locationLabel: text("location_label"),
+    locationUrl: text("location_url"),
     startDate: timestamp("start_date").notNull(),
     status: festivalStatusEnum("status").default("draft").notNull(),
     endDate: timestamp("end_date").notNull(),
