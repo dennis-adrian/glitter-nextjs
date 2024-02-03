@@ -68,6 +68,7 @@ export const festivals = pgTable(
 export const festivalsRelations = relations(festivals, ({ many }) => ({
   userRequests: many(userRequests),
   standReservations: many(standReservations),
+  stands: many(stands),
 }));
 
 export const requestStatusEnum = pgEnum("participation_request_status", [
@@ -145,6 +146,7 @@ export const stands = pgTable(
       .default("landscape")
       .notNull(),
     standNumber: integer("stand_number").notNull(),
+    festivalId: integer("festival_id").notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -152,8 +154,12 @@ export const stands = pgTable(
     nameIdx: index("stand_label_idx").on(stands.label),
   }),
 );
-export const standRelations = relations(stands, ({ many }) => ({
+export const standRelations = relations(stands, ({ many, one }) => ({
   standReservations: many(standReservations),
+  festivals: one(festivals, {
+    fields: [stands.festivalId],
+    references: [festivals.id],
+  }),
 }));
 
 export const standReservations = pgTable("stand_reservations", {
