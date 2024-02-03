@@ -13,7 +13,12 @@ import { useUser } from "@clerk/nextjs";
 import { fetchUserProfile } from "../api/users/actions";
 import { useEffect, useState } from "react";
 import { ProfileType } from "../api/users/definitions";
-import { HomeIcon, InboxIcon, UsersIcon } from "lucide-react";
+import {
+  CalendarCheck2Icon,
+  HomeIcon,
+  InboxIcon,
+  UsersIcon,
+} from "lucide-react";
 
 const NavbarNavigationMenu = () => {
   const [profile, setProfile] = useState<ProfileType | null>(null);
@@ -39,6 +44,16 @@ const NavbarNavigationMenu = () => {
               <div className="flex items-center">
                 <HomeIcon className="w-4 h-4 mr-1" />
                 Inicio
+              </div>
+            </NavigationMenuLink>
+          </Link>
+        </NavigationMenuItem>
+        <NavigationMenuItem>
+          <Link href="/next_event" legacyBehavior passHref>
+            <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+              <div className="flex items-center">
+                <CalendarCheck2Icon className="w-4 h-4 mr-1" />
+                Próximo Evento
               </div>
             </NavigationMenuLink>
           </Link>
