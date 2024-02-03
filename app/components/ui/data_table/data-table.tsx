@@ -14,7 +14,8 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 
-import { Button } from "@/components/ui/button";
+import { DataTableViewOptions } from "@/app/components/ui/data_table/column-toggle";
+import { DataTablePagination } from "@/app/components/ui/data_table/pagination";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -24,17 +25,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { DataTablePagination } from "@/app/components/ui/data_table/pagination";
-import { DataTableViewOptions } from "@/app/components/ui/data_table/column-toggle";
+import { columnTitles } from "@/app/components/users/columns";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  searchPlaceholder?: string;
+  searchField: string;
+  columnTitles: Record<string, string>;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
+  searchPlaceholder,
+  searchField,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -59,17 +64,17 @@ export function DataTable<TData, TValue>({
       <div className="flex justify-between items-center">
         <div className="flex items-center py-4 min-w-60 sm:min-w-80">
           <Input
-            placeholder="Filtrar por nombre de artista"
+            placeholder={searchPlaceholder ?? "Buscar..."}
             value={
-              (table.getColumn("displayName")?.getFilterValue() as string) ?? ""
+              (table.getColumn(searchField)?.getFilterValue() as string) ?? ""
             }
             onChange={(e) =>
-              table.getColumn("displayName")?.setFilterValue(e.target.value)
+              table.getColumn(searchField)?.setFilterValue(e.target.value)
             }
             className="max-w-sm"
           />
         </div>
-        <DataTableViewOptions table={table} />
+        <DataTableViewOptions table={table} columnTitles={columnTitles} />
       </div>
       <div className="rounded-md border mb-4">
         <Table>

@@ -5,8 +5,8 @@ import { ArrowUpDownIcon, MoreHorizontal } from "lucide-react";
 
 import { ProfileType } from "@/app/api/users/definitions";
 import UserRoleBadge from "@/app/components/user-role-badge";
-import { ActionsCell } from "@/app/dashboard/users/cells/actions";
-import SocialsCell from "@/app/dashboard/users/cells/socials";
+import { ActionsCell } from "@/app/components/users/cells/actions";
+import SocialsCell from "@/app/components/users/cells/socials";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,32 +16,35 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
+import { DataTableColumnHeader } from "@/components/ui/data_table/column-header";
+
+export const columnTitles = {
+  id: "ID",
+  displayName: "Nombre de artista",
+  fullName: "Nombre",
+  email: "Email",
+  role: "Rol",
+};
 
 export const columns: ColumnDef<ProfileType>[] = [
   {
     accessorKey: "id",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="ID" />
+      <DataTableColumnHeader column={column} title={columnTitles.id} />
     ),
   },
   {
     accessorKey: "displayName",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Nombre de artista" />
+      <DataTableColumnHeader column={column} title={columnTitles.displayName} />
     ),
   },
   {
-    accessorKey: "firstName",
+    id: "fullName",
+    accessorFn: (row) => `${row.firstName} ${row.lastName}`,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Nombre" />
     ),
-    cell: ({ row }) => {
-      const name = `${row.original.firstName || ""} ${
-        row.original.lastName || ""
-      }`;
-      return <div>{name}</div>;
-    },
   },
   {
     header: ({ column }) => (
