@@ -35,6 +35,10 @@ export const users = pgTable(
 export const usersRelations = relations(users, ({ many }) => ({
   userRequests: many(userRequests),
   userSocials: many(userSocials),
+  reservations: many(standReservations, {
+    relationName: "reservations",
+  }),
+  participations: many(participations),
 }));
 
 export const festivalStatusEnum = pgEnum("festival_status", [
@@ -63,6 +67,7 @@ export const festivals = pgTable(
 );
 export const festivalsRelations = relations(festivals, ({ many }) => ({
   userRequests: many(userRequests),
+  standReservations: many(standReservations),
 }));
 
 export const requestStatusEnum = pgEnum("participation_request_status", [
@@ -118,5 +123,81 @@ export const userSocialsRelations = relations(userSocials, ({ one }) => ({
   user: one(users, {
     fields: [userSocials.userId],
     references: [users.id],
+  }),
+}));
+
+export const standStatusEnum = pgEnum("stand_status", [
+  "available",
+  "reserved",
+  "confirmed",
+]);
+export const standOrientationEnum = pgEnum("stand_orientation", [
+  "portrait",
+  "landscape",
+]);
+export const stands = pgTable(
+  "stands",
+  {
+    id: serial("id").primaryKey(),
+    label: text("label"),
+    status: standStatusEnum("status").default("available").notNull(),
+    orientation: standOrientationEnum("orientation")
+      .default("landscape")
+      .notNull(),
+    standNumber: integer("stand_number").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (stands) => ({
+    nameIdx: index("stand_label_idx").on(stands.label),
+  }),
+);
+export const standRelations = relations(stands, ({ many }) => ({
+  standReservations: many(standReservations),
+}));
+
+export const standReservations = pgTable("stand_reservations", {
+  id: serial("id").primaryKey(),
+  reservationHolderId: integer("reservation_holder_id").notNull(),
+  standId: integer("stand_id").notNull(),
+  festivalId: integer("festival_id").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const standReservationsRelations = relations(
+  standReservations,
+  ({ one, many }) => ({
+    stand: one(stands, {
+      fields: [standReservations.standId],
+      references: [stands.id],
+    }),
+    festival: one(festivals, {
+      fields: [standReservations.festivalId],
+      references: [festivals.id],
+    }),
+    reservationHolder: one(users, {
+      fields: [standReservations.reservationHolderId],
+      references: [users.id],
+      relationName: "reservations",
+    }),
+    participations: many(participations),
+  }),
+);
+
+export const participations = pgTable("participations", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  reservationId: integer("reservation_id").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const participationsRelations = relations(participations, ({ one }) => ({
+  user: one(users, {
+    fields: [participations.userId],
+    references: [users.id],
+  }),
+  reservation: one(standReservations, {
+    fields: [participations.reservationId],
+    references: [standReservations.id],
   }),
 }));

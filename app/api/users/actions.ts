@@ -39,6 +39,7 @@ export async function createUserProfile(user: User) {
 
       const userId = newUsers[0].userId;
 
+      debugger;
       if (user) {
         await tx.insert(userSocials).values([
           {
@@ -114,10 +115,19 @@ export async function fetchUserProfile(id: string) {
       with: {
         userRequests: true,
         userSocials: true,
+        reservations: {
+          with: {
+            stand: true,
+          },
+        },
+        participations: {
+          with: {
+            reservation: true,
+          },
+        },
       },
       where: eq(users.clerkId, id),
     });
-
     return {
       user,
     };
