@@ -13,6 +13,7 @@ export default async function Page() {
         columnTitles={columnTitles}
         data={requests}
         searchField="user"
+        searchPlaceholder="Buscar por usuario"
       />
     </div>
   );

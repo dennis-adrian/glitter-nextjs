@@ -26,6 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { columnTitles } from "@/app/components/users/columns";
+import { SearchIcon } from "lucide-react";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -73,6 +74,9 @@ export function DataTable<TData, TValue>({
             }
             className="max-w-sm"
           />
+          <span className="relative -left-8">
+            <SearchIcon className="w-6 h-6 text-gray-500" />
+          </span>
         </div>
         <DataTableViewOptions table={table} columnTitles={columnTitles} />
       </div>
