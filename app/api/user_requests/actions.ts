@@ -60,3 +60,23 @@ export async function updateUserRequest(id: number, data: UserRequest) {
   revalidatePath("/dashboard", "layout");
   return { success: true };
 }
+
+export async function fetchRequests(): Promise<UserRequest[]> {
+  const client = await pool.connect();
+
+  try {
+    const requests = await db.query.userRequests.findMany({
+      with: {
+        user: true,
+        festival: true,
+      },
+    });
+
+    return requests;
+  } catch (error) {
+    console.error("Error fetching user requests", error);
+    return [];
+  } finally {
+    client.release();
+  }
+}

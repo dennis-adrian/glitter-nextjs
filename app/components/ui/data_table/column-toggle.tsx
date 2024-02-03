@@ -15,7 +15,7 @@ import {
 
 interface DataTableViewOptionsProps<TData> {
   table: Table<TData>;
-  columnTitles: Record<string, string>;
+  columnTitles?: Record<string, string>;
 }
 
 export function DataTableViewOptions<TData>({
@@ -46,7 +46,7 @@ export function DataTableViewOptions<TData>({
                 checked={column.getIsVisible()}
                 onCheckedChange={(value) => column.toggleVisibility(!!value)}
               >
-                {columnTitles[column.id]}
+                {columnTitles ? columnTitles[column.id] : column.id}
               </DropdownMenuCheckboxItem>
             );
           })}
