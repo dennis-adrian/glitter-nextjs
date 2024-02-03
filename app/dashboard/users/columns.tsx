@@ -1,8 +1,12 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal } from "lucide-react";
+import { ArrowUpDownIcon, MoreHorizontal } from "lucide-react";
 
+import { ProfileType } from "@/app/api/users/definitions";
+import UserRoleBadge from "@/app/components/user-role-badge";
+import { ActionsCell } from "@/app/dashboard/users/cells/actions";
+import SocialsCell from "@/app/dashboard/users/cells/socials";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,19 +16,31 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ProfileType } from "@/app/api/users/definitions";
-import SocialsCell from "@/app/dashboard/users/cells/socials";
-import { ActionsCell } from "@/app/dashboard/users/cells/actions";
-import UserRoleBadge from "@/app/components/user-role-badge";
 
 export const columns: ColumnDef<ProfileType>[] = [
   {
     accessorKey: "id",
-    header: "ID",
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        ID
+        <ArrowUpDownIcon className="ml-2 h-4 w-4" />
+      </Button>
+    ),
   },
   {
-    header: "Nombre de artista",
     accessorKey: "displayName",
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Nombre de artista
+        <ArrowUpDownIcon className="ml-2 h-4 w-4" />
+      </Button>
+    ),
   },
   {
     header: "Nombre",
