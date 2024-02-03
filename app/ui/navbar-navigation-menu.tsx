@@ -50,7 +50,7 @@ const NavbarNavigationMenu = () => {
         </NavigationMenuItem> */}
         {profile && profile.role === "admin" && (
           <NavigationMenuItem>
-            <Link href="/dashboard/users">
+            <Link href="/dashboard/users" legacyBehavior passHref>
               <NavigationMenuLink className={navigationMenuTriggerStyle()}>
                 Users
               </NavigationMenuLink>

@@ -16,18 +16,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 
 export const columns: ColumnDef<ProfileType>[] = [
   {
     accessorKey: "id",
     header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        ID
-        <ArrowUpDownIcon className="ml-2 h-4 w-4" />
-      </Button>
+      <DataTableColumnHeader column={column} title="ID" />
     ),
   },
   {

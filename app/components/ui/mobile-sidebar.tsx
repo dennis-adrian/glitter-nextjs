@@ -87,7 +87,7 @@ const MobileSidebar = ({ children }: MobileSidebarProps) => {
             Inicio
           </MobileSidebarItem>
           {profile && profile.role === "admin" && (
-            <MobileSidebarItem href="/dashboard/useres">
+            <MobileSidebarItem href="/dashboard/users">
               <UsersIcon className="mr-2 h-6 w-6" />
               Users
             </MobileSidebarItem>
