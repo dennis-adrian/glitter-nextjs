@@ -2,6 +2,7 @@
 
 import { UserRequest } from "@/app/api/user_requests/actions";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
+import { RequestStatusBadge } from "@/app/components/user_requests/status-badge";
 import { ActionsCell } from "@/components/user_requests/cells/actions";
 import { ColumnDef } from "@tanstack/react-table";
 
@@ -31,6 +32,10 @@ export const columns: ColumnDef<UserRequest>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.status} />
     ),
+    cell: ({ row }) => {
+      const status = row.original.status;
+      return <RequestStatusBadge status={status} />;
+    },
   },
   {
     id: "festival",
