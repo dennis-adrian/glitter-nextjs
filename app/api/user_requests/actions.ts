@@ -1,14 +1,10 @@
 "use server";
 
+import { UserRequest } from "@/app/api/user_requests/definitions";
 import { db, pool } from "@/db";
 import { userRequests, users, festivals } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-
-export type UserRequest = typeof userRequests.$inferSelect & {
-  user: typeof users.$inferSelect;
-  festival: typeof festivals.$inferSelect | null;
-};
 
 export async function fetchRequestsByUserId(userId: number) {
   const client = await pool.connect();

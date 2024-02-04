@@ -1,4 +1,5 @@
 import { Festival } from "@/app/api/festivals/actions";
+import { SearchOption } from "@/app/components/ui/search-input/search-content";
 
 export function getFestivalDateLabel(festival: Festival) {
   const startDateDay = festival.startDate.getDate() + 1;
@@ -8,4 +9,11 @@ export function getFestivalDateLabel(festival: Festival) {
   });
 
   return `${startDateDay} y ${endDateDay} de ${startDateMonth}`;
+}
+
+export function getSearchArtistOptions(festival: Festival): SearchOption[] {
+  return festival.userRequests.map(({ user: artist }) => ({
+    displayName: artist.displayName!,
+    id: artist.id,
+  }));
 }

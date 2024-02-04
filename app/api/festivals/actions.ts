@@ -1,27 +1,39 @@
 "use server";
 
-import { desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { pool, db } from "@/db";
-import { festivals } from "@/db/schema";
+import { festivals, userRequests } from "@/db/schema";
+import { UserRequest } from "@/app/api/user_requests/definitions";
 
-export type Festival = typeof festivals.$inferSelect;
-export async function fetchActiveFestival() {
+export type Festival = typeof festivals.$inferSelect & {
+  userRequests: Omit<UserRequest, "festival">[];
+};
+export async function fetchActiveFestival({
+  acceptedUsersOnly = false,
+}: {
+  acceptedUsersOnly?: boolean;
+}): Promise<Festival | null | undefined> {
   const client = await pool.connect();
 
+  const whereCondition = acceptedUsersOnly
+    ? { where: eq(userRequests.status, "accepted") }
+    : {};
   try {
-    const rows: Festival[] = await db
-      .select()
-      .from(festivals)
-      .where(eq(festivals.status, "active"))
-      .orderBy(desc(festivals.endDate));
-
-    return { festival: rows[0] };
+    return await db.query.festivals.findFirst({
+      where: eq(festivals.status, "active"),
+      with: {
+        userRequests: {
+          with: {
+            user: true,
+          },
+          ...whereCondition,
+        },
+      },
+    });
   } catch (error) {
-    return {
-      message: "Error fetching active festival",
-      error,
-    };
+    console.error("Error fetching active festival", error);
+    return null;
   } finally {
     client.release();
   }

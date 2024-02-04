@@ -13,19 +13,23 @@ import {
 import { Stand } from "@/app/api/stands/actions";
 import ReservationForm from "@/app/components/next_event/reservation/form";
 import { Button } from "@/app/components/ui/button";
+import { ReservationModalContent } from "@/app/components/next_event/reservation/modal-content";
+import { ProfileType } from "@/app/api/users/definitions";
 
 export function ReservationModal({
   open,
+  profile,
   stand,
   onOpenChange,
 }: {
   open: boolean;
+  profile?: ProfileType | null;
   stand: Stand | null;
   onOpenChange: (open: boolean) => void;
 }) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
-  if (!stand) {
+  if (!stand || !profile) {
     return null;
   }
 
@@ -39,9 +43,11 @@ export function ReservationModal({
               : "Reservar stand"}
           </DrawerDialogTitle>
         </DrawerDialogHeader>
-        <div className={`${isDesktop ? "" : "px-4"}`}>
-          <ReservationForm stand={stand} />
-        </div>
+        <ReservationModalContent
+          isDesktop={isDesktop}
+          profile={profile}
+          stand={stand}
+        />
         {isDesktop ? null : (
           <DrawerDialogFooter isDesktop={isDesktop} className="pt-2">
             <DrawerDialogClose isDesktop={isDesktop}>

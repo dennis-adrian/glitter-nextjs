@@ -9,7 +9,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { UserRequest, updateUserRequest } from "@/api/user_requests/actions";
+import { updateUserRequest } from "@/api/user_requests/actions";
+import { UserRequest } from "@/app/api/user_requests/definitions";
 import { toast } from "sonner";
 
 export function ActionsCell({ request }: { request: UserRequest }) {

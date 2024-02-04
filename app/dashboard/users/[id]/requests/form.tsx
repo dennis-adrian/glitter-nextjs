@@ -2,10 +2,8 @@
 
 import { z } from "zod";
 
-import {
-  UserRequest,
-  updateUserRequest,
-} from "@/app/api/user_requests/actions";
+import { updateUserRequest } from "@/app/api/user_requests/actions";
+import { UserRequest } from "@/app/api/user_requests/definitions";
 import {
   Form,
   FormControl,

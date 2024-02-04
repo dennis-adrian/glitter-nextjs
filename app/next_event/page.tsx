@@ -1,6 +1,7 @@
 import { fetchActiveFestival } from "@/app/api/festivals/actions";
 import { fetchStandsByFestivalId } from "@/app/api/stands/actions";
 import { fetchUserProfile } from "@/app/api/users/actions";
+import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { Map } from "@/app/components/next_event/map";
 import NextFestival from "@/app/components/next_event/next-festival";
 import { Badge } from "@/app/components/ui/badge";
@@ -17,7 +18,7 @@ import { CalendarIcon, ClockIcon, LocateIcon } from "lucide-react";
 import Image from "next/image";
 
 export default async function Page() {
-  const { festival } = await fetchActiveFestival();
+  const festival = await fetchActiveFestival({ acceptedUsersOnly: true });
   const user = await currentUser();
 
   let profile = null;
@@ -36,9 +37,7 @@ export default async function Page() {
     );
   }
 
-  const isProfileInFestival = profile?.userRequests?.some(
-    (request) => request.festivalId === festival.id,
-  );
+  const inFestival = isProfileInFestival(festival.id, profile);
   const stands = await fetchStandsByFestivalId(festival.id);
 
   return (
@@ -97,13 +96,13 @@ export default async function Page() {
                 Mapa del Evento
               </h2>
               <p className="max-w-[600px] text-gray-500 md:text-xl dark:text-gray-400">
-                {isProfileInFestival
+                {inFestival
                   ? "Elige tu ubicación en el mapa para reservar tu espacio."
                   : "Explora el mapa para ver los artistas que estarán presentes."}
               </p>
             </div>
             <div className="mt-8">
-              <NextFestival stands={stands} />
+              <NextFestival profile={profile} stands={stands} />
             </div>
           </div>
         </div>

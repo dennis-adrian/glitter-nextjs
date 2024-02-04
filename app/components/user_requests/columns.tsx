@@ -1,6 +1,6 @@
 "use client";
 
-import { UserRequest } from "@/app/api/user_requests/actions";
+import { UserRequest } from "@/app/api/user_requests/definitions";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { RequestStatusBadge } from "@/app/components/user_requests/status-badge";
 import { ActionsCell } from "@/components/user_requests/cells/actions";

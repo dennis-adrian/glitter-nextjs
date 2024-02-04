@@ -1,3 +1,4 @@
+import { Festival } from "@/app/api/festivals/actions";
 import { db, pool } from "@/db";
 import { participations, standReservations, stands, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -10,6 +11,7 @@ type StandReservation = typeof standReservations.$inferSelect & {
 };
 export type Stand = typeof stands.$inferSelect & {
   reservations: StandReservation[];
+  festival: Festival;
 };
 
 export async function fetchStandsByFestivalId(
@@ -18,9 +20,18 @@ export async function fetchStandsByFestivalId(
   const client = await pool.connect();
 
   try {
-    const res = await db.query.stands.findMany({
+    const standsRes = await db.query.stands.findMany({
       where: eq(stands.festivalId, festivalId),
       with: {
+        festival: {
+          with: {
+            userRequests: {
+              with: {
+                user: true,
+              },
+            },
+          },
+        },
         reservations: {
           with: {
             participations: {
@@ -33,7 +44,7 @@ export async function fetchStandsByFestivalId(
       },
     });
 
-    return res;
+    return standsRes;
   } catch (error) {
     console.error("Error fetching stands", error);
     return [];

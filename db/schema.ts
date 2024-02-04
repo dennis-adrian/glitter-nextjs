@@ -156,7 +156,7 @@ export const stands = pgTable(
 );
 export const standRelations = relations(stands, ({ many, one }) => ({
   reservations: many(standReservations),
-  festivals: one(festivals, {
+  festival: one(festivals, {
     fields: [stands.festivalId],
     references: [festivals.id],
   }),

@@ -5,11 +5,7 @@ import PendingArtistCard from "./pending-artist-card";
 import ParticipationCard from "./participation-card";
 import PendingParticipationCard from "./pending-participation";
 
-export default async function Card({
-  profile,
-}: {
-  profile: ProfileType;
-}) {
+export default async function Card({ profile }: { profile: ProfileType }) {
   if (!profile) return null;
 
   if (profile.role === "user") {
@@ -28,23 +24,23 @@ export default async function Card({
     );
   }
 
-  const data = await fetchActiveFestival();
-  if (!data.festival) return null;
+  const festival = await fetchActiveFestival({});
+  if (!festival) return null;
 
   if (profile.role === "artist") {
     const participationRequest = profile.userRequests.find(
       (request) =>
         request.type === "festival_participation" &&
-        request.festivalId === data.festival.id,
+        request.festivalId === festival.id,
     );
 
     if (participationRequest) {
-      return <PendingParticipationCard festival={data.festival} />;
+      return <PendingParticipationCard festival={festival} />;
     }
 
     return (
       <div className="my-4">
-        <ParticipationCard festival={data.festival} profile={profile} />
+        <ParticipationCard festival={festival} profile={profile} />
       </div>
     );
   }
