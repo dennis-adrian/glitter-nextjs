@@ -10,7 +10,13 @@ import { StandShape } from "@/app/components/stands/stand";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
-export function Map({ stands }: { stands: Stand[] }) {
+export function Map({
+  stands,
+  onStandClick,
+}: {
+  stands: Stand[];
+  onStandClick: (stand: Stand) => void;
+}) {
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const imgRef = useRef<HTMLImageElement>(null);
@@ -61,6 +67,7 @@ export function Map({ stands }: { stands: Stand[] }) {
             proportions={standProportions}
             position={position}
             stand={stand}
+            onClick={onStandClick}
           />
         );
       })}

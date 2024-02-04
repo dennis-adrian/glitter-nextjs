@@ -9,11 +9,13 @@ export function StandShape({
   position,
   proportions,
   stand,
+  onClick,
 }: {
   imageSize: { width: number; height: number };
   position: { left: number; top: number };
   proportions: { wide: number; narrow: number };
   stand: Stand;
+  onClick: (stand: Stand) => void;
 }) {
   const { orientation, label, standNumber, status } = stand;
   const size = getStandSize(imageSize, proportions);
@@ -36,8 +38,17 @@ export function StandShape({
     bgColor += "hover:bg-amber-100 hover:bg-opacity-60";
   }
 
+  const handleClick = () => {
+    onClick(stand);
+  };
+
   return (
-    <div className={`${bgColor} bg-opacity-50`} key={standNumber} style={style}>
+    <div
+      className={`${bgColor} bg-opacity-50`}
+      key={standNumber}
+      style={style}
+      onClick={handleClick}
+    >
       <StandContent
         stand={stand}
         standPosition={{ top: position.top || 0, left: position.left || 0 }}

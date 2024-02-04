@@ -2,6 +2,7 @@ import { fetchActiveFestival } from "@/app/api/festivals/actions";
 import { fetchStandsByFestivalId } from "@/app/api/stands/actions";
 import { fetchUserProfile } from "@/app/api/users/actions";
 import { Map } from "@/app/components/next_event/map";
+import NextFestival from "@/app/components/next_event/next-festival";
 import { Badge } from "@/app/components/ui/badge";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
 import {
@@ -102,7 +103,7 @@ export default async function Page() {
               </p>
             </div>
             <div className="mt-8">
-              <Map stands={stands} />
+              <NextFestival stands={stands} />
             </div>
           </div>
         </div>
