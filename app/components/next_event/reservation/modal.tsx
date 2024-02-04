@@ -13,7 +13,6 @@ import {
 import { Stand } from "@/app/api/stands/actions";
 import ReservationForm from "@/app/components/next_event/reservation/form";
 import { Button } from "@/app/components/ui/button";
-import { ReservationModalContent } from "@/app/components/next_event/reservation/modal-content";
 import { ProfileType } from "@/app/api/users/definitions";
 
 export function ReservationModal({
@@ -43,11 +42,7 @@ export function ReservationModal({
               : "Reservar stand"}
           </DrawerDialogTitle>
         </DrawerDialogHeader>
-        <ReservationModalContent
-          isDesktop={isDesktop}
-          profile={profile}
-          stand={stand}
-        />
+        <ReservationForm profile={profile} stand={stand} />
         {isDesktop ? null : (
           <DrawerDialogFooter isDesktop={isDesktop} className="pt-2">
             <DrawerDialogClose isDesktop={isDesktop}>

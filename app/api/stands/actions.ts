@@ -1,13 +1,18 @@
 import { Festival } from "@/app/api/festivals/actions";
 import { db, pool } from "@/db";
-import { participations, standReservations, stands, users } from "@/db/schema";
+import {
+  reservationParticipants,
+  standReservations,
+  stands,
+  users,
+} from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-type Participation = typeof participations.$inferSelect & {
+type Participation = typeof reservationParticipants.$inferSelect & {
   user: typeof users.$inferSelect;
 };
 type StandReservation = typeof standReservations.$inferSelect & {
-  participations: Participation[];
+  participants: Participation[];
 };
 export type Stand = typeof stands.$inferSelect & {
   reservations: StandReservation[];
@@ -34,7 +39,7 @@ export async function fetchStandsByFestivalId(
         },
         reservations: {
           with: {
-            participations: {
+            participants: {
               with: {
                 user: true,
               },

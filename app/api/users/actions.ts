@@ -39,7 +39,6 @@ export async function createUserProfile(user: User) {
 
       const userId = newUsers[0].userId;
 
-      debugger;
       if (user) {
         await tx.insert(userSocials).values([
           {
@@ -71,6 +70,7 @@ export async function createUserProfile(user: User) {
       }
     });
   } catch (error) {
+    console.error("Error creating user profile", error);
     await deleteClerkUser(user);
     return {
       message: "Error creating user profile",
@@ -98,6 +98,7 @@ export async function fetchUserProfileById(id: number) {
       user,
     };
   } catch (error) {
+    console.error("Error fetching user profile", error);
     return {
       message: "Error fetching user profile",
       error,
@@ -149,7 +150,7 @@ export async function fetchProfiles(): Promise<ProfileType[]> {
     });
     return users;
   } catch (error) {
-    console.log(error);
+    console.error(error);
     return [];
   } finally {
     client.release();
@@ -166,6 +167,7 @@ export async function deleteClerkUser(user: User) {
     await clerkClient.users.deleteUser(user.id);
     redirect("/sign_up");
   } catch (error) {
+    console.error("Error deleting user", error);
     return {
       message: "Error deleting user",
       error,
@@ -225,6 +227,7 @@ export async function updateProfile(
       })
       .where(eq(users.id, id));
   } catch (error) {
+    console.error("Error updating profile", error);
     return {
       message: "Error de Base de Datos: No se pudo actualizar el perfil",
     };
@@ -275,6 +278,7 @@ export async function updateProfileWithValidatedData(
       });
     });
   } catch (error) {
+    console.error("Error updating profile", error);
     return {
       message: "Error de Base de Datos: No se pudo actualizar el perfil",
     };

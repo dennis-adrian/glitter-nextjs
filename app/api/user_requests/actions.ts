@@ -2,7 +2,13 @@
 
 import { UserRequest } from "@/app/api/user_requests/definitions";
 import { db, pool } from "@/db";
-import { userRequests, users, festivals } from "@/db/schema";
+import {
+  userRequests,
+  users,
+  festivals,
+  standReservations,
+  reservationParticipants,
+} from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -75,4 +81,41 @@ export async function fetchRequests(): Promise<UserRequest[]> {
   } finally {
     client.release();
   }
+}
+
+// TODO: Move this to its own file
+export type NewStandReservation = typeof standReservations.$inferInsert & {
+  participantIds: number[];
+};
+export async function createReservation(reservation: NewStandReservation) {
+  const client = await pool.connect();
+  try {
+    const { festivalId, standId, participantIds } = reservation;
+    await db.transaction(async (tx) => {
+      const rows = await tx
+        .insert(standReservations)
+        .values({
+          festivalId,
+          standId,
+        })
+        .returning({ reservationId: standReservations.id });
+
+      const reservationId = rows[0].reservationId;
+
+      const participantValues = participantIds.map((userId) => ({
+        userId,
+        reservationId,
+      }));
+
+      await tx.insert(reservationParticipants).values(participantValues);
+    });
+  } catch (error) {
+    console.error("Error creating reservation", error);
+    return { success: false };
+  } finally {
+    client.release();
+  }
+
+  return { success: true };
+  revalidatePath("next_event");
 }
