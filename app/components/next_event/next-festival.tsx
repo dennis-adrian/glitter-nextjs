@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
+
+import { Festival } from "@/app/api/festivals/actions";
 import { Stand } from "@/app/api/stands/actions";
 import { ProfileType } from "@/app/api/users/definitions";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
+
 import { Map } from "@/app/components/next_event/map";
 import { ReservationModal } from "@/app/components/next_event/reservation/modal";
-import { useState } from "react";
 
 export default function NextFestival({
   profile,
@@ -23,6 +26,11 @@ export default function NextFestival({
     const inFestival = isProfileInFestival(stand.festivalId, profile);
     if (!inFestival && profile.role !== "admin") return;
 
+    const hasReservation = profile?.participations?.some((participation) => {
+      return participation.reservation.festivalId === stand.festival.id;
+    });
+    if (hasReservation) return;
+
     setSelectedStand(stand);
     setOpenModal(true);
   }
@@ -34,7 +42,7 @@ export default function NextFestival({
 
   return (
     <>
-      <Map stands={stands} onStandClick={handleStandClick} />
+      <Map profile={profile} stands={stands} onStandClick={handleStandClick} />
       <ReservationModal
         profile={profile}
         open={openModal}

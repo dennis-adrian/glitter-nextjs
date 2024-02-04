@@ -2,6 +2,7 @@
 
 import { Stand } from "@/app/api/stands/actions";
 import { StandPosition } from "@/app/api/stands/definitions";
+import { ProfileType } from "@/app/api/users/definitions";
 import {
   standProportions,
   standsPositions,
@@ -11,9 +12,11 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
 export function Map({
+  profile,
   stands,
   onStandClick,
 }: {
+  profile?: ProfileType | null;
   stands: Stand[];
   onStandClick: (stand: Stand) => void;
 }) {
@@ -64,6 +67,7 @@ export function Map({
           <StandShape
             key={stand.id}
             imageSize={dimensions}
+            profile={profile}
             proportions={standProportions}
             position={position}
             stand={stand}

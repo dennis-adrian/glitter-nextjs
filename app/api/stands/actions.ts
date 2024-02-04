@@ -8,11 +8,11 @@ import {
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-type Participation = typeof reservationParticipants.$inferSelect & {
+export type Participant = typeof reservationParticipants.$inferSelect & {
   user: typeof users.$inferSelect;
 };
 type StandReservation = typeof standReservations.$inferSelect & {
-  participants: Participation[];
+  participants: Participant[];
 };
 export type Stand = typeof stands.$inferSelect & {
   reservations: StandReservation[];

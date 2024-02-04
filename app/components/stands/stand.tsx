@@ -3,16 +3,19 @@ import { CSSProperties } from "react";
 import { Stand } from "@/app/api/stands/actions";
 import { getStandSize } from "@/app/components/next_event/helpers";
 import StandContent from "@/app/components/stands/stand-content";
+import { ProfileType } from "@/app/api/users/definitions";
 
 export function StandShape({
   imageSize,
   position,
+  profile,
   proportions,
   stand,
   onClick,
 }: {
   imageSize: { width: number; height: number };
   position: { left: number; top: number };
+  profile?: ProfileType | null;
   proportions: { wide: number; narrow: number };
   stand: Stand;
   onClick: (stand: Stand) => void;
@@ -39,6 +42,7 @@ export function StandShape({
   }
 
   const handleClick = () => {
+    if (stand.status !== "available") return;
     onClick(stand);
   };
 

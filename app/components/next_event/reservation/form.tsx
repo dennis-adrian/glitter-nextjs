@@ -15,14 +15,12 @@ import {
   NewStandReservation,
   createReservation,
 } from "@/app/api/user_requests/actions";
-import { useForm } from "react-hook-form";
-import {
-  fetchRequests,
-  updateUserRequest,
-} from "@/app/api/user_requests/actions";
 import { toast } from "sonner";
 
-type Profile = Omit<ProfileType, "userSocials" | "userRequests">;
+type Profile = Omit<
+  ProfileType,
+  "userSocials" | "userRequests" | "participations"
+>;
 export default function ReservationForm({
   isDesktop,
   profile,
@@ -34,7 +32,6 @@ export default function ReservationForm({
   stand: Stand;
   onModalClose: () => void;
 }) {
-  const form = useForm();
   const searchOptions = getSearchArtistOptions(stand.festival);
   const [selectedArtist, setSelectedArtist] = useState<Profile | undefined>();
 
@@ -77,6 +74,7 @@ export default function ReservationForm({
     const res = await createReservation(reservation);
     if (res.success) {
       onModalClose();
+      setSelectedArtist(undefined);
       confetti({
         particleCount: 100,
         spread: 70,
