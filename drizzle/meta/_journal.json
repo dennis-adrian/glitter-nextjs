@@ -120,6 +120,13 @@
       "when": 1707002507949,
       "tag": "0016_quick_king_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1707018351066,
+      "tag": "0017_far_victor_mancha",
+      "breakpoints": true
     }
   ]
 }

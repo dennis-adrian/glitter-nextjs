@@ -155,7 +155,7 @@ export const stands = pgTable(
   }),
 );
 export const standRelations = relations(stands, ({ many, one }) => ({
-  standReservations: many(standReservations),
+  reservations: many(standReservations),
   festivals: one(festivals, {
     fields: [stands.festivalId],
     references: [festivals.id],
@@ -167,6 +167,7 @@ export const standReservations = pgTable("stand_reservations", {
   reservationHolderId: integer("reservation_holder_id").notNull(),
   standId: integer("stand_id").notNull(),
   festivalId: integer("festival_id").notNull(),
+  status: requestStatusEnum("status").default("pending").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
