@@ -27,6 +27,11 @@ export default function NextFestival({
     setOpenModal(true);
   }
 
+  function handleModalClose() {
+    setSelectedStand(null);
+    setOpenModal(false);
+  }
+
   return (
     <>
       <Map stands={stands} onStandClick={handleStandClick} />
@@ -35,6 +40,7 @@ export default function NextFestival({
         open={openModal}
         stand={selectedStand}
         onOpenChange={setOpenModal}
+        onClose={handleModalClose}
       />
     </>
   );

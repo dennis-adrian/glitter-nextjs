@@ -20,10 +20,12 @@ export function ReservationModal({
   profile,
   stand,
   onOpenChange,
+  onClose,
 }: {
   open: boolean;
   profile?: ProfileType | null;
   stand: Stand | null;
+  onClose: () => void;
   onOpenChange: (open: boolean) => void;
 }) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
@@ -42,7 +44,12 @@ export function ReservationModal({
               : "Reservar stand"}
           </DrawerDialogTitle>
         </DrawerDialogHeader>
-        <ReservationForm profile={profile} stand={stand} />
+        <ReservationForm
+          isDesktop={isDesktop}
+          profile={profile}
+          stand={stand}
+          onModalClose={onClose}
+        />
         {isDesktop ? null : (
           <DrawerDialogFooter isDesktop={isDesktop} className="pt-2">
             <DrawerDialogClose isDesktop={isDesktop}>

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import confetti from "canvas-confetti";
+
 import { Stand } from "@/app/api/stands/actions";
 import { ProfileType } from "@/app/api/users/definitions";
 
@@ -18,14 +20,19 @@ import {
   fetchRequests,
   updateUserRequest,
 } from "@/app/api/user_requests/actions";
+import { toast } from "sonner";
 
 type Profile = Omit<ProfileType, "userSocials" | "userRequests">;
 export default function ReservationForm({
+  isDesktop,
   profile,
   stand,
+  onModalClose,
 }: {
+  isDesktop: boolean;
   profile: ProfileType;
   stand: Stand;
+  onModalClose: () => void;
 }) {
   const form = useForm();
   const searchOptions = getSearchArtistOptions(stand.festival);
@@ -68,13 +75,24 @@ export default function ReservationForm({
     } as NewStandReservation;
 
     const res = await createReservation(reservation);
-    debugger;
-    console.log(res);
+    if (res.success) {
+      onModalClose();
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+      });
+      toast.success("Reserva confirmada");
+    } else {
+      toast.error("No se pudo confirmar la reserva", {
+        description: "Inténtalo de nuevo",
+      });
+    }
   }
 
   return (
-    <>
-      <div className="flex flex-col items-center">
+    <div className={`${isDesktop ? "" : "px-4"}`}>
+      <div className="flex flex-col items-center mb-4">
         <AvatarGroup avatarsInfo={avatarsInfo} />
         <span className="text-sm text-muted-foreground mt-2">
           {selectedArtist
@@ -89,10 +107,10 @@ export default function ReservationForm({
           placeholder="Ingresa el nombre de tu compañero"
           onSelect={handleSelectArtist}
         />
-        <form onSubmit={form.handleSubmit(handleConfirm)}>
-          <Button type="submit">Confirmar reserva</Button>
-        </form>
+        <Button className="mt-4" type="submit" onClick={handleConfirm}>
+          Confirmar reserva
+        </Button>
       </div>
-    </>
+    </div>
   );
 }
