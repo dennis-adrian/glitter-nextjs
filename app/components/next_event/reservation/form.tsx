@@ -12,22 +12,17 @@ import {
 } from "@/app/components/ui/form";
 import SearchInput from "@/app/components/ui/search-input/input";
 import { getSearchArtistOptions } from "@/app/helpers/next_event";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 
-type Profile = Omit<ProfileType, "userSocials" | "userRequests">;
-
-export default function ReservationForm({ stand }: { stand: Stand }) {
-  const [selectedArtist, setSelectedArtist] = useState<Profile | undefined>();
+export default function ReservationForm({
+  stand,
+  onSelectArtist,
+}: {
+  stand: Stand;
+  onSelectArtist: (artistId: number) => void;
+}) {
   const form = useForm();
-
   const searchOptions = getSearchArtistOptions(stand.festival);
-  function handleSelectArtist(artistId: number) {
-    const requests = stand.festival.userRequests;
-    const artists = requests.map(({ user }) => user);
-    const foundArtist = artists.find((artist) => artist.id === artistId);
-    setSelectedArtist(foundArtist);
-  }
 
   return (
     <Form {...form}>
@@ -42,7 +37,7 @@ export default function ReservationForm({ stand }: { stand: Stand }) {
                 <SearchInput
                   options={searchOptions}
                   placeholder="Ingresa el nombre de tu compañero"
-                  onSelect={handleSelectArtist}
+                  onSelect={onSelectArtist}
                   {...field}
                 />
               </FormControl>
