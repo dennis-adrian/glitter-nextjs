@@ -2,7 +2,7 @@
 
 import { Stand } from "@/app/api/stands/actions";
 import { Map } from "@/app/components/next_event/map";
-import { ReservationModal } from "@/app/components/next_event/modal";
+import { ReservationModal } from "@/app/components/next_event/reservation/modal";
 import { useState } from "react";
 
 export default function NextFestival({ stands }: { stands: Stand[] }) {
@@ -17,7 +17,11 @@ export default function NextFestival({ stands }: { stands: Stand[] }) {
   return (
     <>
       <Map stands={stands} onStandClick={handleStandClick} />
-      <ReservationModal open={openModal} onOpenChange={setOpenModal} />
+      <ReservationModal
+        open={openModal}
+        stand={selectedStand}
+        onOpenChange={setOpenModal}
+      />
     </>
   );
 }
