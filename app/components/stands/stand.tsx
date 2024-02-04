@@ -1,8 +1,8 @@
 import { CSSProperties } from "react";
 
 import { Stand } from "@/app/api/stands/actions";
-import { StandPosition } from "@/app/api/stands/definitions";
 import { getStandSize } from "@/app/components/next_event/helpers";
+import StandContent from "@/app/components/stands/stand-content";
 
 export function StandShape({
   imageSize,
@@ -31,16 +31,17 @@ export function StandShape({
   if (status === "reserved") {
     bgColor += "bg-emerald-200 hover:bg-emerald-400";
   } else if (status === "confirmed") {
-    bgColor += "bg-fuchsia-600 hover:bg-fuchsia-800";
+    bgColor += "bg-rose-600 hover:bg-rose-700";
   } else {
     bgColor += "hover:bg-amber-100 hover:bg-opacity-60";
   }
 
   return (
-    <div
-      className={`${bgColor} bg-opacity-50`}
-      key={`${label}${standNumber}`}
-      style={style}
-    ></div>
+    <div className={`${bgColor} bg-opacity-50`} key={standNumber} style={style}>
+      <StandContent
+        stand={stand}
+        standPosition={{ top: position.top || 0, left: position.left || 0 }}
+      />
+    </div>
   );
 }
