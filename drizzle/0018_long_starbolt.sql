@@ -1,0 +1,1 @@
+ALTER TABLE "stand_reservations" DROP COLUMN IF EXISTS "reservation_holder_id";

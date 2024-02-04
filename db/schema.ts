@@ -35,10 +35,7 @@ export const users = pgTable(
 export const usersRelations = relations(users, ({ many }) => ({
   userRequests: many(userRequests),
   userSocials: many(userSocials),
-  reservations: many(standReservations, {
-    relationName: "reservations",
-  }),
-  participations: many(participations),
+  participations: many(reservationParticipants),
 }));
 
 export const festivalStatusEnum = pgEnum("festival_status", [
@@ -164,7 +161,6 @@ export const standRelations = relations(stands, ({ many, one }) => ({
 
 export const standReservations = pgTable("stand_reservations", {
   id: serial("id").primaryKey(),
-  reservationHolderId: integer("reservation_holder_id").notNull(),
   standId: integer("stand_id").notNull(),
   festivalId: integer("festival_id").notNull(),
   status: requestStatusEnum("status").default("pending").notNull(),
@@ -182,29 +178,27 @@ export const standReservationsRelations = relations(
       fields: [standReservations.festivalId],
       references: [festivals.id],
     }),
-    reservationHolder: one(users, {
-      fields: [standReservations.reservationHolderId],
-      references: [users.id],
-      relationName: "reservations",
-    }),
-    participations: many(participations),
+    participants: many(reservationParticipants),
   }),
 );
 
-export const participations = pgTable("participations", {
+export const reservationParticipants = pgTable("participations", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
   reservationId: integer("reservation_id").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
-export const participationsRelations = relations(participations, ({ one }) => ({
-  user: one(users, {
-    fields: [participations.userId],
-    references: [users.id],
+export const participationsRelations = relations(
+  reservationParticipants,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [reservationParticipants.userId],
+      references: [users.id],
+    }),
+    reservation: one(standReservations, {
+      fields: [reservationParticipants.reservationId],
+      references: [standReservations.id],
+    }),
   }),
-  reservation: one(standReservations, {
-    fields: [participations.reservationId],
-    references: [standReservations.id],
-  }),
-}));
+);

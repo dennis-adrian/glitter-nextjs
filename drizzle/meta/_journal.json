@@ -127,6 +127,13 @@
       "when": 1707018351066,
       "tag": "0017_far_victor_mancha",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1707079093819,
+      "tag": "0018_long_starbolt",
+      "breakpoints": true
     }
   ]
 }

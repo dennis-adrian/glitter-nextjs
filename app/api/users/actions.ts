@@ -115,11 +115,6 @@ export async function fetchUserProfile(id: string) {
       with: {
         userRequests: true,
         userSocials: true,
-        reservations: {
-          with: {
-            stand: true,
-          },
-        },
         participations: {
           with: {
             reservation: true,
@@ -132,6 +127,7 @@ export async function fetchUserProfile(id: string) {
       user,
     };
   } catch (error) {
+    console.error(error);
     return {
       message: "Error fetching user profile",
       error,
