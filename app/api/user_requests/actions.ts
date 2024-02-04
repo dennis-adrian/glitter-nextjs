@@ -8,6 +8,7 @@ import {
   festivals,
   standReservations,
   reservationParticipants,
+  stands,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -108,6 +109,11 @@ export async function createReservation(reservation: NewStandReservation) {
       }));
 
       await tx.insert(reservationParticipants).values(participantValues);
+
+      await tx
+        .update(stands)
+        .set({ status: "reserved" })
+        .where(eq(stands.id, standId));
     });
   } catch (error) {
     console.error("Error creating reservation", error);
@@ -116,6 +122,6 @@ export async function createReservation(reservation: NewStandReservation) {
     client.release();
   }
 
-  return { success: true };
   revalidatePath("next_event");
+  return { success: true };
 }
