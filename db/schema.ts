@@ -128,6 +128,7 @@ export const standStatusEnum = pgEnum("stand_status", [
   "available",
   "reserved",
   "confirmed",
+  "disabled",
 ]);
 export const standOrientationEnum = pgEnum("stand_orientation", [
   "portrait",

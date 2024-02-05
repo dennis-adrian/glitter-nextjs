@@ -134,6 +134,13 @@
       "when": 1707079093819,
       "tag": "0018_long_starbolt",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1707143002950,
+      "tag": "0019_smart_piledriver",
+      "breakpoints": true
     }
   ]
 }

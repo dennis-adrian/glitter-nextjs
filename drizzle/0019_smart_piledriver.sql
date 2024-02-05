@@ -1,0 +1,1 @@
+ALTER TYPE "stand_status" ADD VALUE 'disabled';
