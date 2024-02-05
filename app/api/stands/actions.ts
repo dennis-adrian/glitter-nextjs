@@ -1,9 +1,11 @@
 import { Festival } from "@/app/api/festivals/actions";
 import { db, pool } from "@/db";
 import {
+  festivals,
   reservationParticipants,
   standReservations,
   stands,
+  userRequests,
   users,
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -32,7 +34,16 @@ export async function fetchStandsByFestivalId(
           with: {
             userRequests: {
               with: {
-                user: true,
+                user: {
+                  with: {
+                    participations: {
+                      with: {
+                        reservation: true,
+                      },
+                    },
+                    userRequests: true,
+                  },
+                },
               },
             },
           },

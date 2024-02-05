@@ -90,6 +90,11 @@ export async function fetchUserProfileById(id: number) {
       with: {
         userRequests: true,
         userSocials: true,
+        participations: {
+          with: {
+            reservation: true,
+          },
+        },
       },
       where: eq(users.id, id),
     });
@@ -146,6 +151,11 @@ export async function fetchProfiles(): Promise<ProfileType[]> {
       with: {
         userRequests: true,
         userSocials: true,
+        participations: {
+          with: {
+            reservation: true,
+          },
+        },
       },
     });
     return users;
