@@ -11,7 +11,13 @@ type UserRequest = typeof userRequests.$inferSelect;
 type Participation = typeof reservationParticipants.$inferSelect & {
   reservation: typeof standReservations.$inferSelect;
 };
-export type ProfileType = typeof users.$inferSelect & {
+
+export type BaseProfile = typeof users.$inferSelect;
+export type ProfileWithSocials = BaseProfile & {
+  userSocials: UserSocial[];
+};
+
+export type ProfileType = BaseProfile & {
   userSocials: UserSocial[];
   userRequests: UserRequest[];
   participations: Participation[];

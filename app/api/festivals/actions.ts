@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 
 import { pool, db } from "@/db";
-import { festivals, userRequests } from "@/db/schema";
+import { festivals, standReservations, userRequests } from "@/db/schema";
 import { ProfileWithParticipationsAndRequests } from "@/app/api/users/definitions";
 
 type UserRequest = typeof userRequests.$inferSelect & {
@@ -11,6 +11,7 @@ type UserRequest = typeof userRequests.$inferSelect & {
 };
 export type Festival = typeof festivals.$inferSelect & {
   userRequests: UserRequest[];
+  standReservations: (typeof standReservations.$inferSelect)[];
 };
 export async function fetchActiveFestival({
   acceptedUsersOnly = false,
@@ -41,6 +42,7 @@ export async function fetchActiveFestival({
           },
           ...whereCondition,
         },
+        standReservations: true,
       },
     });
   } catch (error) {

@@ -25,7 +25,7 @@ export function profileHasReservation(
   });
 }
 export function getSearchArtistOptions(
-  festival: Festival,
+  festival: Omit<Festival, "standReservations">,
   profile: ProfileType,
 ): SearchOption[] {
   const festivalArtists = festival.userRequests.map((request) => request.user);

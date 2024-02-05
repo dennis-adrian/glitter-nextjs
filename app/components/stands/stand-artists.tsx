@@ -1,6 +1,6 @@
 import { Stand } from "@/app/api/stands/actions";
 import AvatarGroup from "@/app/components/ui/avatar-group";
-import { Avatar, AvatarImage } from "@/app/components/ui/avatar-radix";
+import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 
 type Props = {
   stand: Stand;

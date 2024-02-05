@@ -18,7 +18,7 @@ type StandReservation = typeof standReservations.$inferSelect & {
 };
 export type Stand = typeof stands.$inferSelect & {
   reservations: StandReservation[];
-  festival: Festival;
+  festival: Omit<Festival, "standReservations">;
 };
 
 export async function fetchStandsByFestivalId(

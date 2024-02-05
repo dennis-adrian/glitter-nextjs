@@ -42,7 +42,7 @@ export default function PublicProfile({
               <div className="text-muted-foreground text-xl">Sin nombre</div>
             )}
             <div>
-              <UserRoleBadge role={profile.role} />
+              <UserRoleBadge role={profile.role!} />
             </div>
             {profile.bio ? (
               <div className="text-sm">{profile.bio}</div>

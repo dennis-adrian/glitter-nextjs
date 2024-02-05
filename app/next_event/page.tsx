@@ -1,21 +1,16 @@
+import { currentUser } from "@clerk/nextjs";
+
+import { CalendarIcon, ClockIcon, LocateIcon } from "lucide-react";
+import Image from "next/image";
+
 import { fetchActiveFestival } from "@/app/api/festivals/actions";
 import { fetchStandsByFestivalId } from "@/app/api/stands/actions";
 import { fetchUserProfile } from "@/app/api/users/actions";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
-import { Map } from "@/app/components/next_event/map";
 import NextFestival from "@/app/components/next_event/next-festival";
+import { Participants } from "@/app/components/next_event/participants/grid";
 import { Badge } from "@/app/components/ui/badge";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
-import {
-  CardTitle,
-  CardHeader,
-  CardContent,
-  CardFooter,
-  Card,
-} from "@/components/ui/card";
-import { currentUser } from "@clerk/nextjs";
-import { CalendarIcon, ClockIcon, LocateIcon } from "lucide-react";
-import Image from "next/image";
 
 export default async function Page() {
   const festival = await fetchActiveFestival({ acceptedUsersOnly: true });
@@ -29,8 +24,8 @@ export default async function Page() {
 
   if (!festival) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-2xl font-bold text-center text-gray-500">
+      <div className="flex h-full items-center justify-center">
+        <p className="text-center text-2xl font-bold text-gray-500">
           No festival found.
         </p>
       </div>
@@ -39,16 +34,19 @@ export default async function Page() {
 
   const inFestival = isProfileInFestival(festival.id, profile);
   const stands = await fetchStandsByFestivalId(festival.id);
+  const confirmedReservations = festival.standReservations.filter(
+    (reservation) => reservation.status === "accepted",
+  );
 
   return (
     <div className="w-full">
-      <section className="max-w-screen-xl w-full py-6 sm:py-12 m-auto">
+      <section className="m-auto w-full max-w-screen-xl py-6 sm:py-12">
         <div className="container px-4 md:px-6">
           <div className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
             <div className="flex flex-col justify-center space-y-4">
               <div>
                 <Badge
-                  className="sm:text-base font-normal mb-1 sm:mb-2"
+                  className="mb-1 font-normal sm:mb-2 sm:text-base"
                   variant="secondary"
                 >
                   Siguiente evento
@@ -57,7 +55,7 @@ export default async function Page() {
                   <h1 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none">
                     {festival.name}
                   </h1>
-                  <p className="max-w-[600px] text-muted-foreground md:text-xl dark:text-gray-400">
+                  <p className="text-muted-foreground max-w-[600px] md:text-xl dark:text-gray-400">
                     Nueva edición con más sorpresas, más artitas y más
                     diversión.
                   </p>
@@ -89,9 +87,9 @@ export default async function Page() {
         </div>
       </section>
       <section className="w-full bg-gray-100 py-12">
-        <div className="max-w-screen-xl m-auto">
-          <div className="w-full px-4 md:px-6 flex flex-col justify-center items-center">
-            <div className="text-left w-full">
+        <div className="m-auto max-w-screen-xl">
+          <div className="flex w-full flex-col items-center justify-center px-4 md:px-6">
+            <div className="w-full text-left">
               <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none">
                 Mapa del Evento
               </h2>
@@ -107,88 +105,18 @@ export default async function Page() {
           </div>
         </div>
       </section>
-      {/* <section className="w-full py-12">
-        <div className="container px-4 md:px-6">
-          <div className="grid gap-6 lg:grid-cols-3 lg:gap-12 xl:grid-cols-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Exhibitor 1</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm/relaxed">
-                  A brief description about Exhibitor 1.
-                </p>
-              </CardContent>
-              <CardFooter>
-                <img
-                  alt="Logo"
-                  className="aspect-[2/1] overflow-hidden rounded-lg object-contain object-center"
-                  height="70"
-                  src="/placeholder.svg"
-                  width="140"
-                />
-              </CardFooter>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Exhibitor 2</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm/relaxed">
-                  A brief description about Exhibitor 2.
-                </p>
-              </CardContent>
-              <CardFooter>
-                <img
-                  alt="Logo"
-                  className="aspect-[2/1] overflow-hidden rounded-lg object-contain object-center"
-                  height="70"
-                  src="/placeholder.svg"
-                  width="140"
-                />
-              </CardFooter>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Exhibitor 3</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm/relaxed">
-                  A brief description about Exhibitor 3.
-                </p>
-              </CardContent>
-              <CardFooter>
-                <img
-                  alt="Logo"
-                  className="aspect-[2/1] overflow-hidden rounded-lg object-contain object-center"
-                  height="70"
-                  src="/placeholder.svg"
-                  width="140"
-                />
-              </CardFooter>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Exhibitor 4</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm/relaxed">
-                  A brief description about Exhibitor 4.
-                </p>
-              </CardContent>
-              <CardFooter>
-                <img
-                  alt="Logo"
-                  className="aspect-[2/1] overflow-hidden rounded-lg object-contain object-center"
-                  height="70"
-                  src="/placeholder.svg"
-                  width="140"
-                />
-              </CardFooter>
-            </Card>
+      {confirmedReservations.length > 0 && (
+        <section className="m-auto max-w-screen-xl py-12">
+          <div className="container px-4 md:px-6">
+            <div className="mb-4 w-full text-left">
+              <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none">
+                Participantes
+              </h2>
+            </div>
+            <Participants festivalId={festival.id} />
           </div>
-        </div>
-      </section> */}
+        </section>
+      )}
     </div>
   );
 }

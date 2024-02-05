@@ -1,4 +1,4 @@
-import { Avatar, AvatarImage } from "@/app/components/ui/avatar-radix";
+import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 
 export default function AvatarGroup({
   avatarsInfo,
