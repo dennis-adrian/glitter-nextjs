@@ -68,3 +68,21 @@ export async function fetchStandsByFestivalId(
     client.release();
   }
 }
+
+export type StandBase = typeof stands.$inferSelect;
+export async function fetchStandById(
+  id: number,
+): Promise<StandBase | undefined | null> {
+  const client = await pool.connect();
+
+  try {
+    return await db.query.stands.findFirst({
+      where: eq(stands.id, id),
+    });
+  } catch (error) {
+    console.error("Error fetching stand", error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
