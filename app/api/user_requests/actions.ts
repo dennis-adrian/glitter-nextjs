@@ -36,7 +36,7 @@ export async function fetchRequestsByUserId(userId: number) {
 
 export async function updateUserRequest(id: number, data: UserRequest) {
   const client = await pool.connect();
-  const { status, user } = data;
+  const { status, user, type } = data;
   const userRole = user.role;
   const newRole = status === "accepted" ? "artist" : "user";
   try {
@@ -46,7 +46,7 @@ export async function updateUserRequest(id: number, data: UserRequest) {
         .set({ status, updatedAt: new Date() })
         .where(eq(userRequests.id, id));
 
-      if (userRole !== "admin") {
+      if (userRole !== "admin" && type === "become_artist") {
         await tx
           .update(users)
           .set({ role: newRole, updatedAt: new Date() })
