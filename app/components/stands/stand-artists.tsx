@@ -1,6 +1,6 @@
 import { Stand } from "@/app/api/stands/actions";
 import AvatarGroup from "@/app/components/ui/avatar-group";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarImage } from "@/app/components/ui/avatar-radix";
 
 type Props = {
   stand: Stand;
@@ -17,7 +17,6 @@ const StandArtists = ({ stand }: Props) => {
     cardBody = (
       <Avatar>
         <AvatarImage src="/img/profile-avatar.png" alt="Espacio Disponible" />
-        <AvatarFallback>DS</AvatarFallback>
       </Avatar>
     );
     label = "Espacio disponible";
@@ -28,7 +27,6 @@ const StandArtists = ({ stand }: Props) => {
       key: artist.id,
       src: artist.imageUrl || "/img/profile-avatar.png",
       alt: "imagen de usuario",
-      fallback: `${artist.firstName}${artist.lastName}`,
     }));
 
     cardBody = (

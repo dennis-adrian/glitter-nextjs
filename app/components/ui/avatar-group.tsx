@@ -1,5 +1,4 @@
-import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
-import { AvatarFallback } from "@radix-ui/react-avatar";
+import { Avatar, AvatarImage } from "@/app/components/ui/avatar-radix";
 
 export default function AvatarGroup({
   avatarsInfo,
@@ -8,7 +7,6 @@ export default function AvatarGroup({
     key: string | number;
     src: string;
     alt: string;
-    fallback?: string;
   }[];
 }) {
   return (
@@ -17,7 +15,6 @@ export default function AvatarGroup({
         return (
           <Avatar key={info.key}>
             <AvatarImage src={info.src} alt={info.alt} />
-            <AvatarFallback>{info.fallback}</AvatarFallback>
           </Avatar>
         );
       })}

@@ -50,7 +50,6 @@ export default function ReservationForm({
       key: profile.id,
       src: profile.imageUrl || "/img/profile-avatar.png",
       alt: "imagen de usuario",
-      fallback: `${profile.firstName}${profile.lastName}`,
     },
   ];
 
@@ -59,7 +58,6 @@ export default function ReservationForm({
       key: selectedArtist.id,
       src: selectedArtist.imageUrl || "/img/profile-avatar.png",
       alt: "imagen de usuario",
-      fallback: `${selectedArtist.firstName}${selectedArtist.lastName}`,
     });
   }
 
