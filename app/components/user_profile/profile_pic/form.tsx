@@ -1,16 +1,14 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 
-import {
-  updateProfileWithValidatedData,
-} from '@/app/api/users/actions';
-import { ProfileType } from '@/app/api/users/definitions';
-import { useEdgeStore } from '@/app/lib/edgestore';
+import { updateProfileWithValidatedData } from "@/app/api/users/actions";
+import { ProfileType } from "@/app/api/users/definitions";
+import { useEdgeStore } from "@/app/lib/edgestore";
 
-import { SingleImageDropzone } from '@/components/single-image-dropzone';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
+import { SingleImageDropzone } from "@/components/single-image-dropzone";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 
 export default function ProfilePictureForm({
   profile,
@@ -25,7 +23,7 @@ export default function ProfilePictureForm({
   const [progress, setProgress] = useState(0);
 
   let uploadOptions = {};
-  if (profile.imageUrl && profile.imageUrl.includes('edgestore')) {
+  if (profile.imageUrl && profile.imageUrl.includes("edgestore")) {
     uploadOptions = {
       replaceTargetUrl: profile.imageUrl,
     };
@@ -66,6 +64,9 @@ export default function ProfilePictureForm({
             width={200}
             height={200}
             value={file}
+            dropzoneOptions={{
+              maxSize: 1024 * 1024 * 3, // 3MB,
+            }}
             onChange={(file) => {
               setFile(file);
             }}

@@ -19,11 +19,11 @@ export function ParticipantCard({ profile }: { profile: ProfileWithSocials }) {
         <CardTitle className="text-lg">{profile.displayName}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-3">
-        <div className="rounded-full bg-gray-200">
+        <div className="relative w-24 h-24 rounded-full bg-gray-200">
           <Image
             src={profile.imageUrl || "img/profile-avatar.png"}
             alt="Imagen de perfil"
-            className="rounded-full object-cover"
+            className="rounded-full object-cover absolute inset-0 w-full h-full"
             width={100}
             height={100}
             blurDataURL="img/profile-avatar.png"
