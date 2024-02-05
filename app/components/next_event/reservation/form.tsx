@@ -16,6 +16,8 @@ import {
   createReservation,
 } from "@/app/api/user_requests/actions";
 import { toast } from "sonner";
+import { Separator } from "@/app/components/ui/separator";
+import { Label } from "@/app/components/ui/label";
 
 type Profile = Omit<
   ProfileType,
@@ -34,6 +36,7 @@ export default function ReservationForm({
 }) {
   const searchOptions = getSearchArtistOptions(stand.festival, profile);
   const [selectedArtist, setSelectedArtist] = useState<Profile | undefined>();
+  const [addPartner, setAddPartner] = useState(false);
 
   function handleSelectArtist(artistId: number) {
     const requests = stand.festival.userRequests;
@@ -90,6 +93,7 @@ export default function ReservationForm({
 
   return (
     <div className={`${isDesktop ? "" : "px-4"}`}>
+      <h1 className="mb-4">Reservando para:</h1>
       <div className="flex flex-col items-center mb-4">
         <AvatarGroup avatarsInfo={avatarsInfo} />
         <span className="text-sm text-muted-foreground mt-2">
@@ -99,12 +103,28 @@ export default function ReservationForm({
         </span>
       </div>
 
-      <div className="grid items-start gap-4">
-        <SearchInput
-          options={searchOptions}
-          placeholder="Ingresa el nombre de tu compañero"
-          onSelect={handleSelectArtist}
-        />
+      <div className="grid items-start gap-2">
+        {addPartner ? (
+          <>
+            <Label htmlFor="search-input">Busca a tu compañero</Label>
+            <SearchInput
+              id="search-input"
+              options={searchOptions}
+              placeholder="Ingresa un nombre de artista..."
+              onSelect={handleSelectArtist}
+            />
+          </>
+        ) : (
+          <>
+            <Separator />
+            <div className="flex items-center mb-2 mt-6 sm:mb-0 sm:mt-4">
+              <span>¿Compartes espacio?</span>
+              <Button variant="link" onClick={() => setAddPartner(true)}>
+                ¡Haz click aquí!
+              </Button>
+            </div>
+          </>
+        )}
         <Button className="mt-4" type="submit" onClick={handleConfirm}>
           Confirmar reserva
         </Button>

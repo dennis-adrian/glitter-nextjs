@@ -2,8 +2,10 @@ import { FormEvent, SyntheticEvent, useState } from "react";
 
 import SearchContent, { SearchOption } from "./search-content";
 import { Input } from "@/app/components/ui/input";
+import { SearchIcon } from "lucide-react";
 
 type Props = {
+  id: string;
   label?: string;
   labelStyles?: string;
   options: SearchOption[];
@@ -12,6 +14,7 @@ type Props = {
 };
 
 const SearchInput = ({
+  id,
   label,
   labelStyles,
   options,
@@ -40,18 +43,25 @@ const SearchInput = ({
   };
 
   return (
-    <div aria-label="search input" className="form-control">
+    <div aria-label="search input">
       {label && (
         <label className="label">
           <span className={`${labelStyles} label-text`}>{label}</span>
         </label>
       )}
-      <Input
-        type="search"
-        placeholder={placeholder}
-        value={inputText}
-        onChange={handleSearch}
-      />
+      <div className="relative inline-block w-full">
+        <span>
+          <SearchIcon className="w-4 h-4 absolute top-1/2 left-3 transform -translate-y-1/2" />
+        </span>
+        <Input
+          className="pl-10"
+          id={id}
+          type="search"
+          placeholder={placeholder}
+          value={inputText}
+          onChange={handleSearch}
+        />
+      </div>
       <SearchContent
         show={!!inputText}
         options={searchedOptions}
