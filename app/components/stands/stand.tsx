@@ -27,7 +27,7 @@ export function StandShape({
     position: "absolute",
     left: `${position.left}%`,
     top: `${position.top}%`,
-    cursor: "pointer",
+    cursor: `${status === "available" ? "pointer" : "not-allowed"}`,
     height: `${orientation === "landscape" ? size.narrow : size.wide}px`,
     width: `${orientation === "landscape" ? size.wide : size.narrow}px`,
   };

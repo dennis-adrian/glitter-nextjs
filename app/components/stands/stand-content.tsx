@@ -12,6 +12,7 @@ import {
 } from "@/app/components/ui/card";
 import StandArtists from "@/app/components/stands/stand-artists";
 import { StandStatusBadge } from "@/app/components/stands/status-badge";
+import clsx from "clsx";
 
 type Props = {
   stand: Stand;
@@ -66,8 +67,12 @@ const StandContent = ({ stand, standPosition }: Props) => {
               <StandStatusBadge status={status} />
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-4 pt-2">
-            <StandArtists stand={stand} />
+          <CardContent
+            className={clsx("p-2", {
+              "pb-4": status !== "disabled",
+            })}
+          >
+            {status !== "disabled" && <StandArtists stand={stand} />}
           </CardContent>
         </Card>
       )}
