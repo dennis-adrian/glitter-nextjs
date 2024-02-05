@@ -106,11 +106,11 @@ export default function ReservationForm({
       <div className="grid items-start gap-2">
         {addPartner ? (
           <>
-            <Label htmlFor="search-input">Busca a tu compañero</Label>
+            <Label htmlFor="search-input">Elige a tu compañero</Label>
             <SearchInput
               id="search-input"
               options={searchOptions}
-              placeholder="Ingresa un nombre de artista..."
+              placeholder="Ingresa el nombre..."
               onSelect={handleSelectArtist}
             />
           </>

@@ -64,6 +64,9 @@ export function DataTable<TData, TValue>({
     <div>
       <div className="flex justify-between items-center">
         <div className="flex items-center py-4 min-w-60 sm:min-w-80">
+          <span className="relative w-0 left-3 top-1/2">
+            <SearchIcon className="w-4 h-4 text-gray-500" />
+          </span>
           <Input
             placeholder={searchPlaceholder ?? "Buscar..."}
             value={
@@ -72,11 +75,8 @@ export function DataTable<TData, TValue>({
             onChange={(e) =>
               table.getColumn(searchField)?.setFilterValue(e.target.value)
             }
-            className="max-w-sm"
+            className="max-w-sm pl-10"
           />
-          <span className="relative -left-8">
-            <SearchIcon className="w-6 h-6 text-gray-500" />
-          </span>
         </div>
         <DataTableViewOptions table={table} columnTitles={columnTitles} />
       </div>

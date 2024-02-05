@@ -37,7 +37,7 @@ export default async function DemoPage() {
         columnTitles={columnTitles}
         data={users}
         searchField="displayName"
-        searchPlaceholder="Buscar por nombre de artista"
+        searchPlaceholder="Buscar por nombre..."
       />
     </div>
   );

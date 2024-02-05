@@ -20,7 +20,25 @@ export function ActionsCell({ request }: { request: UserRequest }) {
       status: "accepted",
     });
     if (res.success) {
-      toast("La solicitud ha sido aprobada.");
+      toast.success("La solicitud ha sido aprobada.", {
+        duration: 3000,
+        action: {
+          label: "Cerrar",
+          onClick: () => {
+            toast.dismiss();
+          },
+        },
+      });
+    } else {
+      toast.error("Error al aprobar la solicitud.", {
+        duration: 3000,
+        action: {
+          label: "Cerrar",
+          onClick: () => {
+            toast.dismiss();
+          },
+        },
+      });
     }
   }
 
@@ -30,7 +48,25 @@ export function ActionsCell({ request }: { request: UserRequest }) {
       status: "rejected",
     });
     if (res.success) {
-      toast("La solicitud ha sido rechazada.");
+      toast.warning("La solicitud ha sido rechazada.", {
+        duration: 3000,
+        action: {
+          label: "Cerrar",
+          onClick: () => {
+            toast.dismiss();
+          },
+        },
+      });
+    } else {
+      toast.error("Error al rechazar la solicitud.", {
+        duration: 3000,
+        action: {
+          label: "Cerrar",
+          onClick: () => {
+            toast.dismiss();
+          },
+        },
+      });
     }
   }
 
