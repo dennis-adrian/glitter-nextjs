@@ -9,6 +9,7 @@ import { ActionsCell } from "@/app/components/users/cells/actions";
 import SocialsCell from "@/app/components/users/cells/socials";
 import { DataTableColumnHeader } from "@/components/ui/data_table/column-header";
 import { toast } from "sonner";
+import { Checkbox } from "@/app/components/ui/checkbox";
 
 export const columnTitles = {
   id: "ID",
@@ -20,6 +21,28 @@ export const columnTitles = {
 };
 
 export const columns: ColumnDef<ProfileType>[] = [
+  {
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && "indeterminate")
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Select row"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
   {
     accessorKey: "id",
     header: ({ column }) => (

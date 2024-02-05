@@ -1,6 +1,7 @@
 "use client";
 
 import { UserRequest } from "@/app/api/user_requests/definitions";
+import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { RequestStatusBadge } from "@/app/components/user_requests/status-badge";
 import { ActionsCell } from "@/components/user_requests/cells/actions";
@@ -18,6 +19,28 @@ export const columnTitles = {
 };
 
 export const columns: ColumnDef<UserRequest>[] = [
+  {
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && "indeterminate")
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Select row"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
   {
     accessorKey: "id",
     header: ({ column }) => (
