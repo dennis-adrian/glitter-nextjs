@@ -5,8 +5,11 @@ import { londrinaSolid, junegull } from "@/ui/fonts";
 
 import Button from "@/ui/button";
 import bg_image from "../public/img/bg_w_1280.png";
+import { currentUser } from "@clerk/nextjs";
 
-export default function Home() {
+export default async function Home() {
+  const user = await currentUser();
+
   return (
     <div className="text-center">
       <section className="relative flex flex-col items-center justify-center p-8">
@@ -50,7 +53,9 @@ export default function Home() {
           El 2 y 3 de marzo tendremos nuestra siguiente edición de Glitter
         </p>
         <Button>
-          <Link href="/sign_up">¡Quiero participar!</Link>
+          <Link href={`${user ? "/next_event" : "/sign_up"}`}>
+            ¡Quiero participar!
+          </Link>
         </Button>
       </section>
       <section className="m-auto max-w-screen-md bg-white p-8 sm:mt-8">
@@ -58,7 +63,7 @@ export default function Home() {
           ¿Quiénes somos?
         </h1>
         <p className="m-auto max-w-screen-sm py-4 text-center text-xl leading-6">
-          <strong>Glitter</strong> es una productora de eventos artistísticos
+          <strong>Glitter</strong> es una productora de eventos artísticos
           dedicada a proporcionar un espacio seguro y acogedor para que
           ilustradores, artistas y autores de cómics puedan mostrar y vender su
           arte
