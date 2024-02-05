@@ -1,4 +1,9 @@
 import { Festival } from "@/app/api/festivals/actions";
+import {
+  ProfileType,
+  ProfileWithParticipationsAndRequests,
+} from "@/app/api/users/definitions";
+import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
 
 export function getFestivalDateLabel(festival: Festival) {
@@ -11,9 +16,30 @@ export function getFestivalDateLabel(festival: Festival) {
   return `${startDateDay} y ${endDateDay} de ${startDateMonth}`;
 }
 
-export function getSearchArtistOptions(festival: Festival): SearchOption[] {
-  return festival.userRequests.map(({ user: artist }) => ({
-    displayName: artist.displayName!,
-    id: artist.id,
-  }));
+export function profileHasReservation(
+  profile: ProfileType | ProfileWithParticipationsAndRequests,
+  festivalId: number,
+) {
+  return profile?.participations?.some((participation) => {
+    return participation?.reservation?.festivalId === festivalId;
+  });
+}
+export function getSearchArtistOptions(
+  festival: Festival,
+  profile: ProfileType,
+): SearchOption[] {
+  const festivalArtists = festival.userRequests.map((request) => request.user);
+  const filteredArtists = festivalArtists.filter((artist) => {
+    return (
+      !profileHasReservation(artist, festival.id) &&
+      isProfileInFestival(festival.id, artist)
+    );
+  });
+
+  return filteredArtists
+    .filter((artist) => artist.id !== profile.id)
+    .map((artist) => ({
+      displayName: artist.displayName!,
+      id: artist.id,
+    }));
 }

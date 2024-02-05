@@ -4,10 +4,13 @@ import { eq } from "drizzle-orm";
 
 import { pool, db } from "@/db";
 import { festivals, userRequests } from "@/db/schema";
-import { UserRequest } from "@/app/api/user_requests/definitions";
+import { ProfileWithParticipationsAndRequests } from "@/app/api/users/definitions";
 
+type UserRequest = typeof userRequests.$inferSelect & {
+  user: ProfileWithParticipationsAndRequests;
+};
 export type Festival = typeof festivals.$inferSelect & {
-  userRequests: Omit<UserRequest, "festival">[];
+  userRequests: UserRequest[];
 };
 export async function fetchActiveFestival({
   acceptedUsersOnly = false,
@@ -25,7 +28,16 @@ export async function fetchActiveFestival({
       with: {
         userRequests: {
           with: {
-            user: true,
+            user: {
+              with: {
+                participations: {
+                  with: {
+                    reservation: true,
+                  },
+                },
+                userRequests: true,
+              },
+            },
           },
           ...whereCondition,
         },

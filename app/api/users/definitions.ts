@@ -16,5 +16,9 @@ export type ProfileType = typeof users.$inferSelect & {
   userRequests: UserRequest[];
   participations: Participation[];
 };
+export type ProfileWithParticipationsAndRequests = typeof users.$inferSelect & {
+  participations: Participation[];
+  userRequests: (typeof userRequests.$inferSelect)[];
+};
 
 export type NewUserSocial = typeof userSocials.$inferInsert;

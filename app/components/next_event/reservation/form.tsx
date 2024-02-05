@@ -32,7 +32,7 @@ export default function ReservationForm({
   stand: Stand;
   onModalClose: () => void;
 }) {
-  const searchOptions = getSearchArtistOptions(stand.festival);
+  const searchOptions = getSearchArtistOptions(stand.festival, profile);
   const [selectedArtist, setSelectedArtist] = useState<Profile | undefined>();
 
   function handleSelectArtist(artistId: number) {

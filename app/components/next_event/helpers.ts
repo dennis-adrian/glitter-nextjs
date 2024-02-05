@@ -1,5 +1,8 @@
 import { ElementSize } from "@/app/api/stands/definitions";
-import { ProfileType } from "@/app/api/users/definitions";
+import {
+  ProfileType,
+  ProfileWithParticipationsAndRequests,
+} from "@/app/api/users/definitions";
 
 export const getStandSize = (
   imageSize: { width: number; height: number },
@@ -11,11 +14,12 @@ export const getStandSize = (
 
 export function isProfileInFestival(
   festivalId: number,
-  profile?: ProfileType | null,
+  profile?: ProfileType | ProfileWithParticipationsAndRequests | null,
 ) {
   if (!profile) return false;
 
   return profile?.userRequests?.some(
-    (request) => request.festivalId === festivalId,
+    (request) =>
+      request.festivalId === festivalId && request.status === "accepted",
   );
 }

@@ -9,6 +9,7 @@ import { isProfileInFestival } from "@/app/components/next_event/helpers";
 
 import { Map } from "@/app/components/next_event/map";
 import { ReservationModal } from "@/app/components/next_event/reservation/modal";
+import { profileHasReservation } from "@/app/helpers/next_event";
 
 export default function NextFestival({
   profile,
@@ -23,13 +24,11 @@ export default function NextFestival({
   function handleStandClick(stand: Stand) {
     if (!profile) return;
 
-    const inFestival = isProfileInFestival(stand.festivalId, profile);
-    if (!inFestival && profile.role !== "admin") return;
-
-    const hasReservation = profile?.participations?.some((participation) => {
-      return participation.reservation.festivalId === stand.festival.id;
-    });
-    if (hasReservation) return;
+    if (profile.role !== "admin") {
+      const inFestival = isProfileInFestival(stand.festivalId, profile);
+      if (!inFestival) return;
+      if (profileHasReservation(profile, stand.festivalId)) return;
+    }
 
     setSelectedStand(stand);
     setOpenModal(true);
