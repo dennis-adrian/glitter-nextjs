@@ -4,6 +4,8 @@ import BecomeArtistCard from "./become-artist-card";
 import PendingArtistCard from "./pending-artist-card";
 import ParticipationCard from "./participation-card";
 import PendingParticipationCard from "./pending-participation";
+import { isProfileInFestival } from "@/app/components/next_event/helpers";
+import { ReserveStandCard } from "@/app/components/user_profile/announcements_cards/reserve-stand-card";
 
 export default async function Card({ profile }: { profile: ProfileType }) {
   if (!profile) return null;
@@ -26,6 +28,10 @@ export default async function Card({ profile }: { profile: ProfileType }) {
 
   const festival = await fetchActiveFestival({});
   if (!festival) return null;
+
+  if (isProfileInFestival(festival.id, profile)) {
+    return <ReserveStandCard />;
+  }
 
   if (profile.role === "artist") {
     const participationRequest = profile.userRequests.find(

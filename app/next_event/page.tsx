@@ -97,7 +97,7 @@ export default async function Page() {
               </h2>
               <p className="max-w-[600px] text-gray-500 md:text-xl dark:text-gray-400">
                 {inFestival
-                  ? "Elige tu ubicación en el mapa para reservar tu espacio."
+                  ? "Elige tu ubicación en el mapa para reservar tu espacio o explora los participantes"
                   : "Explora el mapa para ver los artistas que estarán presentes."}
               </p>
             </div>
