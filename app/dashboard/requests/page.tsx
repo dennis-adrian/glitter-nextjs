@@ -5,16 +5,14 @@ import { columns, columnTitles } from "@/components/user_requests/columns";
 import { BanIcon, CheckIcon, HourglassIcon } from "lucide-react";
 
 const statusOptions = [
-  { value: "", label: "Todas" },
   { value: "pending", label: "Pendientes" },
   { value: "accepted", label: "Aceptadas" },
   { value: "rejected", label: "Rechazadas" },
 ];
 
 const typeOptions = [
-  { value: "", label: "Todas" },
   { value: "become_artist", label: "Ser Artista" },
-  { value: "festival_Participation", label: "Participación en Festival" },
+  { value: "festival_participation", label: "Participación en Festival" },
 ];
 
 export default async function Page() {

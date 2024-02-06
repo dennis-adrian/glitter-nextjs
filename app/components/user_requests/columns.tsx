@@ -76,6 +76,11 @@ export const columns: ColumnDef<UserRequest>[] = [
       const status = row.original.status;
       return <RequestStatusBadge status={status} />;
     },
+    filterFn: (row, columnId, filterStatus) => {
+      if (filterStatus.length === 0) return true;
+      const status = row.getValue(columnId);
+      return filterStatus.includes(status);
+    },
   },
   {
     id: "email",
@@ -112,6 +117,11 @@ export const columns: ColumnDef<UserRequest>[] = [
       return (
         <span key={requestTypeLabels[type]}>{requestTypeLabels[type]}</span>
       );
+    },
+    filterFn: (row, columnId, filterTypes) => {
+      if (filterTypes.length === 0) return true;
+      const type = row.getValue(columnId);
+      return filterTypes.includes(type);
     },
   },
   {

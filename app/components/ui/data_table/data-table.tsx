@@ -6,10 +6,8 @@ import { SearchIcon } from "lucide-react";
 
 import {
   ColumnDef,
-  ColumnFilter,
   ColumnFiltersState,
   SortingState,
-  Table as TableType,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -68,6 +66,7 @@ export function DataTable<TData, TValue>({
       globalFilter: searchFilter,
     },
   });
+  console.log("columnFilters", columnFilters);
 
   return (
     <div>
@@ -91,7 +90,6 @@ export function DataTable<TData, TValue>({
                   key={index}
                   columnId={columnId}
                   options={options}
-                  columnFilters={columnFilters}
                   table={table}
                 />
               ))}

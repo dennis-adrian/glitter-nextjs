@@ -1,21 +1,23 @@
 "use client";
 
-import { ColumnFilter, Table } from "@tanstack/react-table";
+import { Table } from "@tanstack/react-table";
 
 import {
   DropdownMenuCheckboxItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  buildFilterValue,
+  isFilterActive,
+} from "@/app/components/ui/data_table/helpers";
 
 interface DataTableFilterProps<TData> {
-  columnFilters: ColumnFilter[];
   columnId: string;
   table: Table<TData>;
   options: { value: string; label: string }[];
 }
 export function DataTableFilter<TData>({
-  columnFilters,
   columnId,
   table,
   options,
@@ -28,17 +30,26 @@ export function DataTableFilter<TData>({
         return (
           <DropdownMenuCheckboxItem
             key={option.value}
-            checked={columnFilters.some(
-              (filter) =>
-                filter.id === columnId && filter.value === option.value,
+            checked={isFilterActive(
+              table.getState().columnFilters,
+              columnId,
+              option.value,
             )}
-            onCheckedChange={(value) => {
-              table.setColumnFilters([
-                {
-                  id: columnId,
-                  value: option.value,
-                },
-              ]);
+            onCheckedChange={() => {
+              table.setColumnFilters((state) => {
+                const filter = state.find((f) => f.id === columnId);
+                if (!filter) {
+                  return [...state, { id: columnId, value: [option.value] }];
+                }
+
+                return [
+                  ...state.filter((f) => f.id !== columnId),
+                  {
+                    id: columnId,
+                    value: buildFilterValue(filter, option.value),
+                  },
+                ];
+              });
             }}
           >
             {option.label}

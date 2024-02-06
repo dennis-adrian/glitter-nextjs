@@ -97,6 +97,11 @@ export const columns: ColumnDef<ProfileType>[] = [
       const role = row.original.role;
       return <UserRoleBadge role={role} />;
     },
+    filterFn: (row, columnId, filterRoles) => {
+      if (filterRoles.length === 0) return true;
+      const role = row.getValue(columnId);
+      return filterRoles.includes(role);
+    },
   },
   {
     id: "actions",

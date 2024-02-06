@@ -7,7 +7,6 @@ import { columnTitles, columns } from "@/app/components/reservations/columns";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 
 const statusOptions = [
-  { value: "", label: "Todos" },
   { value: "pending", label: "Pendiente" },
   { value: "accepted", label: "Aceptada" },
   { value: "rejected", label: "Rechazada" },

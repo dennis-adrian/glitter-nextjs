@@ -40,7 +40,6 @@ export default async function DemoPage() {
           {
             columnId: "role",
             options: [
-              { value: "", label: "Todos" },
               { value: "admin", label: "Admins" },
               { value: "artist", label: "Artistas" },
               { value: "user", label: "Usuarios" },

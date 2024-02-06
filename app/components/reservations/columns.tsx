@@ -113,6 +113,11 @@ export const columns: ColumnDef<ReservationWithParticipantsAndUsersAndStand>[] =
         <DataTableColumnHeader column={column} title={columnTitles.status} />
       ),
       cell: ({ row }) => <ReservationStatus reservation={row.original} />,
+      filterFn: (row, columnId, filterStatus) => {
+        if (filterStatus.length === 0) return true;
+        const status = row.getValue(columnId);
+        return filterStatus.includes(status);
+      },
     },
     {
       accessorKey: "createdAt",
