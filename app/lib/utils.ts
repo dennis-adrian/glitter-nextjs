@@ -28,3 +28,8 @@ export function isProfileComplete(profile: ProfileType) {
     socials.length > 0
   );
 }
+
+export const requestTypeLabels = {
+  become_artist: "Ser artista",
+  festival_participation: "Participar en festival",
+};

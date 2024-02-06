@@ -4,12 +4,19 @@ import { DataTableStatusFilter } from "@/app/components/dashboard/data_table/fil
 import { DataTable } from "@/components/ui/data_table/data-table";
 import { columns, columnTitles } from "@/components/user_requests/columns";
 import { BanIcon, CheckIcon, HourglassIcon } from "lucide-react";
+import { DataTableTypeFilter } from "@/app/components/dashboard/data_table/filters/type";
 
 const statusOptions = [
   { value: "", label: "Todas" },
   { value: "pending", label: "Pendientes" },
   { value: "accepted", label: "Aceptadas" },
   { value: "rejected", label: "Rechazadas" },
+];
+
+const typeOptions = [
+  { value: "", label: "Todas" },
+  { value: "become_artist", label: "Ser Artista" },
+  { value: "festival_Participation", label: "Participación en Festival" },
 ];
 
 export default async function Page() {
@@ -57,6 +64,10 @@ export default async function Page() {
           {
             component: DataTableStatusFilter,
             props: { statusOptions },
+          },
+          {
+            component: DataTableTypeFilter,
+            props: { options: typeOptions },
           },
         ]}
       />

@@ -5,6 +5,7 @@ import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { RequestStatusBadge } from "@/app/components/user_requests/status-badge";
+import { requestTypeLabels } from "@/app/lib/utils";
 import { ActionsCell } from "@/components/user_requests/cells/actions";
 import { ColumnDef } from "@tanstack/react-table";
 import { CopyIcon } from "lucide-react";
@@ -18,6 +19,7 @@ export const columnTitles = {
   phoneNumber: "Teléfono",
   email: "Correo electrónico",
   festival: "Festival",
+  type: "Tipo de solicitud",
 };
 
 export const columns: ColumnDef<UserRequest>[] = [
@@ -97,6 +99,19 @@ export const columns: ColumnDef<UserRequest>[] = [
     cell: ({ row }) => {
       const phoneNumber = row.original.user.phoneNumber;
       return <span>{phoneNumber}</span>;
+    },
+  },
+  {
+    id: "type",
+    accessorFn: (row) => row.type,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.type} />
+    ),
+    cell: ({ row }) => {
+      const type = row.original.type;
+      return (
+        <span key={requestTypeLabels[type]}>{requestTypeLabels[type]}</span>
+      );
     },
   },
   {
