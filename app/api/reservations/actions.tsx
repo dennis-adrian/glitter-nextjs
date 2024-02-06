@@ -6,6 +6,7 @@ import {
   stands,
 } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 
 export type Participant = typeof reservationParticipants.$inferSelect & {
   user: ProfileWithSocials;
@@ -77,4 +78,35 @@ export async function fetchConfirmedReservationsByFestival(
   } finally {
     client.release();
   }
+}
+
+export async function updateReservation(
+  id: number,
+  data: ReservationWithParticipantsAndUsersAndStand,
+): Promise<{ success: boolean; message: string }> {
+  const client = await pool.connect();
+
+  try {
+    const { status, standId } = data;
+    await db.transaction(async (tx) => {
+      await tx
+        .update(standReservations)
+        .set({ status })
+        .where(eq(standReservations.id, id));
+
+      const standStatus = status === "accepted" ? "confirmed" : "available";
+      await tx
+        .update(stands)
+        .set({ status: standStatus })
+        .where(eq(stands.id, standId));
+    });
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al actualizar la reserva" };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/reservations");
+  return { success: true, message: "Reserva actualizada" };
 }

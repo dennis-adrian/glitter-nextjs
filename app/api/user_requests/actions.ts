@@ -1,11 +1,11 @@
 "use server";
 
+import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/actions";
 import { UserRequest } from "@/app/api/user_requests/definitions";
 import { db, pool } from "@/db";
 import {
   userRequests,
   users,
-  festivals,
   standReservations,
   reservationParticipants,
   stands,
@@ -124,4 +124,38 @@ export async function createReservation(reservation: NewStandReservation) {
 
   revalidatePath("next_event");
   return { success: true };
+}
+
+// TODO: Move this to its own file once I ƒigure out that 'fs' error
+export type ReservationStatus =
+  (typeof standReservations.$inferSelect)["status"];
+export async function updateReservation(
+  id: number,
+  data: ReservationWithParticipantsAndUsersAndStand,
+) {
+  const client = await pool.connect();
+
+  try {
+    const { status, standId } = data;
+    await db.transaction(async (tx) => {
+      await tx
+        .update(standReservations)
+        .set({ status })
+        .where(eq(standReservations.id, id));
+
+      const standStatus = status === "accepted" ? "confirmed" : "available";
+      await tx
+        .update(stands)
+        .set({ status: standStatus })
+        .where(eq(stands.id, standId));
+    });
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al actualizar la reserva" };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/reservations");
+  return { success: true, message: "Reserva actualizada" };
 }

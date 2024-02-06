@@ -111,7 +111,7 @@ const MobileSidebar = ({ children }: MobileSidebarProps) => {
                   <InboxIcon className="mr-2 h-6 w-6" />
                   Solicitudes
                 </MobileSidebarItem>
-                <MobileSidebarItem href="/dashboard/requests">
+                <MobileSidebarItem href="/dashboard/reservations">
                   <AlbumIcon className="mr-2 h-6 w-6" />
                   Reservas
                 </MobileSidebarItem>
