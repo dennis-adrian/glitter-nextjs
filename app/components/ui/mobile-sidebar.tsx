@@ -16,6 +16,7 @@ import {
 } from "@/app/components/ui/sheet";
 import { Button } from "@/app/components/ui/button";
 import {
+  AlbumIcon,
   CalendarCheck2Icon,
   HomeIcon,
   InboxIcon,
@@ -98,14 +99,23 @@ const MobileSidebar = ({ children }: MobileSidebarProps) => {
           </MobileSidebarItem>
           {profile && profile.role === "admin" && (
             <>
-              <MobileSidebarItem href="/dashboard/users">
-                <UsersIcon className="mr-2 h-6 w-6" />
-                Usuarios
+              <MobileSidebarItem href="/dashboard">
+                <h4 className="text-lg">Dashboard</h4>
               </MobileSidebarItem>
-              <MobileSidebarItem href="/dashboard/requests">
-                <InboxIcon className="mr-2 h-6 w-6" />
-                Solicitudes
-              </MobileSidebarItem>
+              <div className="ml-4">
+                <MobileSidebarItem href="/dashboard/users">
+                  <UsersIcon className="mr-2 h-6 w-6" />
+                  Usuarios
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/requests">
+                  <InboxIcon className="mr-2 h-6 w-6" />
+                  Solicitudes
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/requests">
+                  <AlbumIcon className="mr-2 h-6 w-6" />
+                  Reservas
+                </MobileSidebarItem>
+              </div>
             </>
           )}
           <Separator className="my-2" />
