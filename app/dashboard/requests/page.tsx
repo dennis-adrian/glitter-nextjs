@@ -1,5 +1,5 @@
 import { fetchRequests } from "@/app/api/user_requests/actions";
-import TotalsCard from "@/app/components/user_requests/totals/card";
+import TotalsCard from "@/app/components/dashboard/totals/card";
 import { DataTable } from "@/components/ui/data_table/data-table";
 import { columns, columnTitles } from "@/components/user_requests/columns";
 import { BanIcon, CheckIcon, HourglassIcon } from "lucide-react";
@@ -24,16 +24,19 @@ export default async function Page() {
         <TotalsCard
           amount={pendingRequests.length}
           title="pendientes"
+          description="Solicitudes pendientes de revisión"
           Icon={HourglassIcon}
         />
         <TotalsCard
           amount={approvedRequests.length}
           title="aceptadas"
+          description="Solicitudes aceptadas"
           Icon={CheckIcon}
         />
         <TotalsCard
           amount={rejectedRequests.length}
           title="rechazadas"
+          description="Solicitudes rechazadas"
           Icon={BanIcon}
         />
       </div>

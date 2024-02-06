@@ -1,7 +1,7 @@
 import { fetchProfiles } from "@/app/api/users/actions";
 import { columnTitles, columns } from "@/components/users/columns";
 import { DataTable } from "@/components/ui/data_table/data-table";
-import TotalsCard from "@/app/components/users/totals/card";
+import TotalsCard from "@/app/components/dashboard/totals/card";
 import { UsersIcon } from "lucide-react";
 
 export default async function DemoPage() {

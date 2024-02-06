@@ -37,6 +37,8 @@ export function StandShape({
     bgColor += "bg-emerald-200 hover:bg-emerald-400";
   } else if (status === "confirmed") {
     bgColor += "bg-rose-600 hover:bg-rose-700";
+  } else if (status === "disabled") {
+    bgColor += "bg-zinc-800";
   } else {
     bgColor += "hover:bg-amber-100 hover:bg-opacity-60";
   }
