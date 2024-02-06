@@ -27,7 +27,6 @@ import {
 } from "@/components/ui/table";
 import { SearchIcon } from "lucide-react";
 import { DataTableStatusFilter } from "@/app/components/ui/data_table/status-filter";
-import { DataTableFilters } from "@/app/components/ui/data_table/filters";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
@@ -54,6 +53,7 @@ export function DataTable<TData, TValue>({
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    onColumnFiltersChange: setColumnFilters,
     state: {
       sorting,
       columnFilters,
@@ -64,16 +64,25 @@ export function DataTable<TData, TValue>({
   return (
     <div>
       <div className="flex justify-between items-center">
-        <div className="flex items-center py-4 min-w-60 sm:min-w-80">
-          <span className="relative w-0 left-3 top-1/2">
-            <SearchIcon className="w-4 h-4 text-gray-500" />
-          </span>
-          <Input
-            placeholder={"Buscar..."}
-            value={searchFilter}
-            onChange={(e) => setSearchFilter(e.target.value)}
-            className="max-w-sm pl-10"
-          />
+        <div className="flex items-center gap-2">
+          <div className="flex items-center py-4 min-w-60 sm:min-w-80">
+            <span className="relative w-0 left-3 top-1/2">
+              <SearchIcon className="w-4 h-4 text-gray-500" />
+            </span>
+            <Input
+              placeholder={"Buscar..."}
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              className="max-w-sm pl-10"
+            />
+          </div>
+          {statusOptions && statusOptions.length > 0 && (
+            <DataTableStatusFilter
+              columnFilters={columnFilters}
+              table={table}
+              statusOptions={statusOptions}
+            />
+          )}
         </div>
         <DataTableViewOptions table={table} columnTitles={columnTitles} />
       </div>

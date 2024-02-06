@@ -45,6 +45,12 @@ export default async function Page() {
         columns={columns}
         columnTitles={columnTitles}
         data={requests}
+        statusOptions={[
+          { value: "", label: "Todas" },
+          { value: "pending", label: "Pendientes" },
+          { value: "accepted", label: "Aceptadas" },
+          { value: "rejected", label: "Rechazadas" },
+        ]}
       />
     </div>
   );
