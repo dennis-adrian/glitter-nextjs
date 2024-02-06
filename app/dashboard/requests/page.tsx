@@ -45,8 +45,6 @@ export default async function Page() {
         columns={columns}
         columnTitles={columnTitles}
         data={requests}
-        searchField="user"
-        searchPlaceholder="Buscar por nombre..."
       />
     </div>
   );

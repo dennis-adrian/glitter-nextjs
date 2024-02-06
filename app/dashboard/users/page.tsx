@@ -32,13 +32,7 @@ export default async function DemoPage() {
           Icon={UsersIcon}
         />
       </div>
-      <DataTable
-        columns={columns}
-        columnTitles={columnTitles}
-        data={users}
-        searchField="displayName"
-        searchPlaceholder="Buscar por nombre..."
-      />
+      <DataTable columns={columns} columnTitles={columnTitles} data={users} />
     </div>
   );
 }

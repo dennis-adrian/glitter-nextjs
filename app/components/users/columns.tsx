@@ -65,10 +65,12 @@ export const columns: ColumnDef<ProfileType>[] = [
   },
   {
     header: "Redes",
-    cell: ({ row }) => {
-      const socials = row.original.userSocials;
-      return <SocialsCell socials={socials} />;
-    },
+    accessorFn: (row) =>
+      row.userSocials
+        .map((social) => social.username)
+        .filter(Boolean)
+        .join(", "),
+    cell: ({ row }) => <SocialsCell socials={row.original.userSocials} />,
   },
   {
     header: ({ column }) => (

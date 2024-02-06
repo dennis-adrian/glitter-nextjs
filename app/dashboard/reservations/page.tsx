@@ -55,7 +55,6 @@ export default async function Page() {
         columns={columns}
         columnTitles={columnTitles}
         data={reservations}
-        searchField="id"
       />
     </div>
   );
