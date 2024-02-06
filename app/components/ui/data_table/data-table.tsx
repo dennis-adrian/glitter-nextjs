@@ -19,7 +19,8 @@ import {
 } from "@tanstack/react-table";
 
 import { DataTableViewOptions } from "@/app/components/ui/data_table/column-toggle";
-import { DataTableStatusFilter } from "@/app/components/dashboard/data_table/filters/status";
+import { DataTableFilter } from "@/app/components/ui/data_table/filter";
+import { DataTableFilters } from "@/app/components/ui/data_table/filters";
 import { DataTablePagination } from "@/app/components/ui/data_table/pagination";
 import { Input } from "@/components/ui/input";
 import {
@@ -30,21 +31,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { DataTableFilters } from "@/app/components/ui/data_table/filters";
 
-interface DataTableFilterProps<TData> {
-  component: React.FC<{
-    columnFilters: ColumnFilter[];
-    table: TableType<TData>;
-  }>;
-  props: Record<string, unknown>;
+interface DataTableFiltersProps {
+  options: { value: string; label: string }[];
+  columnId: string;
 }
-
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   columnTitles: Record<string, string>;
-  filters?: DataTableFilterProps<TData>[];
+  filters?: DataTableFiltersProps[];
 }
 
 export function DataTable<TData, TValue>({
@@ -90,10 +86,11 @@ export function DataTable<TData, TValue>({
           </div>
           {filters.length > 0 && (
             <DataTableFilters>
-              {filters.map(({ component: FilterComponent, props }, index) => (
-                <FilterComponent
+              {filters.map(({ columnId, options }, index) => (
+                <DataTableFilter
                   key={index}
-                  {...props}
+                  columnId={columnId}
+                  options={options}
                   columnFilters={columnFilters}
                   table={table}
                 />

@@ -8,39 +8,40 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
-interface DataTableTypeFilterProps<TData> {
+interface DataTableFilterProps<TData> {
   columnFilters: ColumnFilter[];
+  columnId: string;
   table: Table<TData>;
-  options?: { value: string; label: string }[];
+  options: { value: string; label: string }[];
 }
-export function DataTableTypeFilter<TData>({
+export function DataTableFilter<TData>({
   columnFilters,
+  columnId,
   table,
   options,
-}: DataTableTypeFilterProps<TData>) {
-  if (!options) return null;
-
+}: DataTableFilterProps<TData>) {
   return (
     <>
       <DropdownMenuLabel>Tipo de Solicitud</DropdownMenuLabel>
       <DropdownMenuSeparator />
-      {options.map((type) => {
+      {options.map((option) => {
         return (
           <DropdownMenuCheckboxItem
-            key={type.value}
+            key={option.value}
             checked={columnFilters.some(
-              (filter) => filter.id === "type" && filter.value === type.value,
+              (filter) =>
+                filter.id === columnId && filter.value === option.value,
             )}
             onCheckedChange={(value) => {
               table.setColumnFilters([
                 {
-                  id: "type",
-                  value: type.value,
+                  id: columnId,
+                  value: option.value,
                 },
               ]);
             }}
           >
-            {type.label}
+            {option.label}
           </DropdownMenuCheckboxItem>
         );
       })}

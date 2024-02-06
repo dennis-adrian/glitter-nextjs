@@ -5,7 +5,6 @@ import { fetchReservations } from "@/app/api/reservations/actions";
 import TotalsCard from "@/app/components/dashboard/totals/card";
 import { columnTitles, columns } from "@/app/components/reservations/columns";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
-import { DataTableStatusFilter } from "@/app/components/dashboard/data_table/filters/status";
 
 const statusOptions = [
   { value: "", label: "Todos" },
@@ -66,8 +65,8 @@ export default async function Page() {
         data={reservations}
         filters={[
           {
-            component: DataTableStatusFilter,
-            props: { statusOptions },
+            columnId: "status",
+            options: statusOptions,
           },
         ]}
       />

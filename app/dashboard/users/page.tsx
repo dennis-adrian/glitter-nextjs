@@ -32,7 +32,22 @@ export default async function DemoPage() {
           Icon={UsersIcon}
         />
       </div>
-      <DataTable columns={columns} columnTitles={columnTitles} data={users} />
+      <DataTable
+        columns={columns}
+        columnTitles={columnTitles}
+        data={users}
+        filters={[
+          {
+            columnId: "role",
+            options: [
+              { value: "", label: "Todos" },
+              { value: "admin", label: "Admins" },
+              { value: "artist", label: "Artistas" },
+              { value: "user", label: "Usuarios" },
+            ],
+          },
+        ]}
+      />
     </div>
   );
 }
