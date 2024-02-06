@@ -21,8 +21,6 @@ export function ReservationStatus({
   };
 
   return (
-    <Badge className={`${statusColors[status]} bg-opacity-50`}>
-      {statusLabels[status]}
-    </Badge>
+    <Badge className={`${statusColors[status]}`}>{statusLabels[status]}</Badge>
   );
 }

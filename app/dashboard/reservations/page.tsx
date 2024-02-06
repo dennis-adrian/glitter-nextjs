@@ -5,6 +5,14 @@ import { fetchReservations } from "@/app/api/reservations/actions";
 import TotalsCard from "@/app/components/dashboard/totals/card";
 import { columnTitles, columns } from "@/app/components/reservations/columns";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
+import { DataTableStatusFilter } from "@/app/components/dashboard/data_table/filters/status";
+
+const statusOptions = [
+  { value: "", label: "Todos" },
+  { value: "pending", label: "Pendiente" },
+  { value: "accepted", label: "Aceptada" },
+  { value: "rejected", label: "Rechazada" },
+];
 
 export default async function Page() {
   const reservations = await fetchReservations();
@@ -51,15 +59,16 @@ export default async function Page() {
           Icon={BanIcon}
         />
       </div>
+
       <DataTable
         columns={columns}
         columnTitles={columnTitles}
         data={reservations}
-        statusOptions={[
-          { value: "", label: "Todas" },
-          { value: "pending", label: "Pendientes" },
-          { value: "accepted", label: "Aceptadas" },
-          { value: "rejected", label: "Rechazadas" },
+        filters={[
+          {
+            component: DataTableStatusFilter,
+            props: { statusOptions },
+          },
         ]}
       />
     </div>

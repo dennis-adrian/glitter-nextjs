@@ -1,8 +1,16 @@
 import { fetchRequests } from "@/app/api/user_requests/actions";
 import TotalsCard from "@/app/components/dashboard/totals/card";
+import { DataTableStatusFilter } from "@/app/components/dashboard/data_table/filters/status";
 import { DataTable } from "@/components/ui/data_table/data-table";
 import { columns, columnTitles } from "@/components/user_requests/columns";
 import { BanIcon, CheckIcon, HourglassIcon } from "lucide-react";
+
+const statusOptions = [
+  { value: "", label: "Todas" },
+  { value: "pending", label: "Pendientes" },
+  { value: "accepted", label: "Aceptadas" },
+  { value: "rejected", label: "Rechazadas" },
+];
 
 export default async function Page() {
   const requests = await fetchRequests();
@@ -45,11 +53,11 @@ export default async function Page() {
         columns={columns}
         columnTitles={columnTitles}
         data={requests}
-        statusOptions={[
-          { value: "", label: "Todas" },
-          { value: "pending", label: "Pendientes" },
-          { value: "accepted", label: "Aceptadas" },
-          { value: "rejected", label: "Rechazadas" },
+        filters={[
+          {
+            component: DataTableStatusFilter,
+            props: { statusOptions },
+          },
         ]}
       />
     </div>

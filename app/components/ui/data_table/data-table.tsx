@@ -2,10 +2,14 @@
 
 import { useState } from "react";
 
+import { SearchIcon } from "lucide-react";
+
 import {
   ColumnDef,
+  ColumnFilter,
   ColumnFiltersState,
   SortingState,
+  Table as TableType,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -15,6 +19,7 @@ import {
 } from "@tanstack/react-table";
 
 import { DataTableViewOptions } from "@/app/components/ui/data_table/column-toggle";
+import { DataTableStatusFilter } from "@/app/components/dashboard/data_table/filters/status";
 import { DataTablePagination } from "@/app/components/ui/data_table/pagination";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,21 +30,28 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { SearchIcon } from "lucide-react";
-import { DataTableStatusFilter } from "@/app/components/ui/data_table/status-filter";
+import { DataTableFilters } from "@/app/components/ui/data_table/filters";
+
+interface DataTableFilterProps<TData> {
+  component: React.FC<{
+    columnFilters: ColumnFilter[];
+    table: TableType<TData>;
+  }>;
+  props: Record<string, unknown>;
+}
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   columnTitles: Record<string, string>;
-  statusOptions?: { value: string; label: string }[];
+  filters?: DataTableFilterProps<TData>[];
 }
 
 export function DataTable<TData, TValue>({
   columns,
   columnTitles,
   data,
-  statusOptions,
+  filters = [],
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchFilter, setSearchFilter] = useState<string>("");
@@ -76,12 +88,17 @@ export function DataTable<TData, TValue>({
               className="max-w-sm pl-10"
             />
           </div>
-          {statusOptions && statusOptions.length > 0 && (
-            <DataTableStatusFilter
-              columnFilters={columnFilters}
-              table={table}
-              statusOptions={statusOptions}
-            />
+          {filters.length > 0 && (
+            <DataTableFilters>
+              {filters.map(({ component: FilterComponent, props }, index) => (
+                <FilterComponent
+                  key={index}
+                  {...props}
+                  columnFilters={columnFilters}
+                  table={table}
+                />
+              ))}
+            </DataTableFilters>
           )}
         </div>
         <DataTableViewOptions table={table} columnTitles={columnTitles} />
