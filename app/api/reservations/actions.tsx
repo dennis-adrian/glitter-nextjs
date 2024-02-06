@@ -1,6 +1,10 @@
 import { ProfileWithSocials } from "@/app/api/users/definitions";
 import { db, pool } from "@/db";
-import { reservationParticipants, standReservations } from "@/db/schema";
+import {
+  reservationParticipants,
+  standReservations,
+  stands,
+} from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 
 export type Participant = typeof reservationParticipants.$inferSelect & {
@@ -11,8 +15,13 @@ export type ReservationWithParticipantsAndUsers =
     participants: Participant[];
   };
 
+export type ReservationWithParticipantsAndUsersAndStand =
+  ReservationWithParticipantsAndUsers & {
+    stand: typeof stands.$inferSelect;
+  };
+
 export async function fetchReservations(): Promise<
-  ReservationWithParticipantsAndUsers[]
+  ReservationWithParticipantsAndUsersAndStand[]
 > {
   const client = await pool.connect();
 
@@ -28,6 +37,7 @@ export async function fetchReservations(): Promise<
             },
           },
         },
+        stand: true,
       },
     });
   } catch (error) {

@@ -10,6 +10,7 @@ import SocialsCell from "@/app/components/users/cells/socials";
 import { DataTableColumnHeader } from "@/components/ui/data_table/column-header";
 import { toast } from "sonner";
 import { Checkbox } from "@/app/components/ui/checkbox";
+import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
 
 export const columnTitles = {
   id: "ID",
@@ -74,23 +75,9 @@ export const columns: ColumnDef<ProfileType>[] = [
       <DataTableColumnHeader column={column} title="Email" />
     ),
     accessorKey: "email",
-    cell: ({ row }) => {
-      const email = row.original.email;
-      return (
-        <div className="flex max-w-48 sm:max-w-full">
-          <span className="truncate">{email}</span>
-          <CopyIcon
-            onClick={() => {
-              navigator.clipboard.writeText(email);
-              toast.success("Copiado", {
-                duration: 1000,
-              });
-            }}
-            className="h-4 w-4 text-muted-foreground cursor-pointer ml-1"
-          />
-        </div>
-      );
-    },
+    cell: ({ row }) => (
+      <EmailCell email={row.original.email} key={row.original.email} />
+    ),
   },
   {
     header: ({ column }) => (

@@ -1,6 +1,7 @@
 "use client";
 
 import { UserRequest } from "@/app/api/user_requests/definitions";
+import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { RequestStatusBadge } from "@/app/components/user_requests/status-badge";
@@ -16,6 +17,7 @@ export const columnTitles = {
   status: "Estado",
   phoneNumber: "Teléfono",
   email: "Correo electrónico",
+  festival: "Festival",
 };
 
 export const columns: ColumnDef<UserRequest>[] = [
@@ -79,23 +81,12 @@ export const columns: ColumnDef<UserRequest>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.email} />
     ),
-    cell: ({ row }) => {
-      const email = row.original.user.email;
-      return (
-        <div className="flex max-w-48 sm:max-w-full">
-          <span className="truncate">{email}</span>
-          <CopyIcon
-            onClick={() => {
-              navigator.clipboard.writeText(email);
-              toast.success("Copiado", {
-                duration: 1000,
-              });
-            }}
-            className="h-4 w-4 text-muted-foreground cursor-pointer ml-1"
-          />
-        </div>
-      );
-    },
+    cell: ({ row }) => (
+      <EmailCell
+        email={row.original.user.email}
+        key={row.original.user.email}
+      />
+    ),
   },
   {
     id: "phoneNumber",
@@ -112,7 +103,7 @@ export const columns: ColumnDef<UserRequest>[] = [
     id: "festival",
     accessorFn: (row) => row.festival?.name,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Festival" />
+      <DataTableColumnHeader column={column} title={columnTitles.festival} />
     ),
   },
   {

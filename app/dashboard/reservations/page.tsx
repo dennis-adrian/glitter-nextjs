@@ -1,6 +1,10 @@
-import { fetchReservations } from "@/app/api/reservations/actions";
-import TotalsCard from "@/app/components/dashboard/totals/card";
 import { BanIcon, CheckIcon, HourglassIcon } from "lucide-react";
+
+import { fetchReservations } from "@/app/api/reservations/actions";
+
+import TotalsCard from "@/app/components/dashboard/totals/card";
+import { columnTitles, columns } from "@/app/components/reservations/columns";
+import { DataTable } from "@/app/components/ui/data_table/data-table";
 
 export default async function Page() {
   const reservations = await fetchReservations();
@@ -47,6 +51,12 @@ export default async function Page() {
           Icon={BanIcon}
         />
       </div>
+      <DataTable
+        columns={columns}
+        columnTitles={columnTitles}
+        data={reservations}
+        searchField="id"
+      />
     </div>
   );
 }
