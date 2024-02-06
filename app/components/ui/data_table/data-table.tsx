@@ -26,20 +26,25 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { SearchIcon } from "lucide-react";
+import { DataTableStatusFilter } from "@/app/components/ui/data_table/status-filter";
+import { DataTableFilters } from "@/app/components/ui/data_table/filters";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   columnTitles: Record<string, string>;
+  statusOptions?: { value: string; label: string }[];
 }
 
 export function DataTable<TData, TValue>({
   columns,
   columnTitles,
   data,
+  statusOptions,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState("");
+  const [searchFilter, setSearchFilter] = useState<string>("");
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
   const table = useReactTable({
     data,
@@ -49,10 +54,10 @@ export function DataTable<TData, TValue>({
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    onGlobalFilterChange: setColumnFilters,
     state: {
       sorting,
-      globalFilter: columnFilters,
+      columnFilters,
+      globalFilter: searchFilter,
     },
   });
 
@@ -65,8 +70,8 @@ export function DataTable<TData, TValue>({
           </span>
           <Input
             placeholder={"Buscar..."}
-            value={columnFilters}
-            onChange={(e) => setColumnFilters(e.target.value)}
+            value={searchFilter}
+            onChange={(e) => setSearchFilter(e.target.value)}
             className="max-w-sm pl-10"
           />
         </div>
