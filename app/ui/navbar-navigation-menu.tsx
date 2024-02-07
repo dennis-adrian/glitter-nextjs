@@ -64,16 +64,26 @@ const NavbarNavigationMenu = () => {
         </NavigationMenuItem>
         {profile && profile.role === "admin" && (
           <NavigationMenuItem>
-            <Link href="/dashboard">
-              <NavigationMenuTrigger>
-                <div className="flex items-center">
-                  <LayoutDashboardIcon className="w-4 h-4 mr-1" />
-                  Dashboard
-                </div>
-              </NavigationMenuTrigger>
-            </Link>
+            <NavigationMenuTrigger>
+              <div className="flex items-center">
+                <LayoutDashboardIcon className="w-4 h-4 mr-1" />
+                Dashboard
+              </div>
+            </NavigationMenuTrigger>
             <NavigationMenuContent>
-              <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-3 lg:w-[600px]">
+              <ul className="grid p-4 w-[550px] md:grid-cols-4 lg:w-[600px]">
+                <li>
+                  <Link href="/dashboard" legacyBehavior passHref>
+                    <NavigationMenuLink
+                      className={navigationMenuTriggerStyle()}
+                    >
+                      <div className="flex items-center">
+                        <LayoutDashboardIcon className="w-4 h-4 mr-1" />
+                        Dashboard
+                      </div>
+                    </NavigationMenuLink>
+                  </Link>
+                </li>
                 <li>
                   <Link href="/dashboard/users" legacyBehavior passHref>
                     <NavigationMenuLink
