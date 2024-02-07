@@ -1,14 +1,13 @@
 "use server";
 
-import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/actions";
 import { UserRequest } from "@/app/api/user_requests/definitions";
 import { db, pool } from "@/db";
 import {
+  reservationParticipants,
+  standReservations,
+  stands,
   userRequests,
   users,
-  standReservations,
-  reservationParticipants,
-  stands,
 } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -129,6 +128,7 @@ export async function createReservation(reservation: NewStandReservation) {
 // TODO: Move this to its own file once I ƒigure out that 'fs' error
 export type ReservationStatus =
   (typeof standReservations.$inferSelect)["status"];
+export type StandStatus = (typeof stands.$inferSelect)["status"];
 export type ReservationUpdate = typeof standReservations.$inferInsert & {
   updatedParticipants?: {
     participationId: number | undefined;
@@ -146,7 +146,13 @@ export async function updateReservation(id: number, data: ReservationUpdate) {
         .set({ status })
         .where(eq(standReservations.id, id));
 
-      const standStatus = status === "accepted" ? "confirmed" : "available";
+      let standStatus: StandStatus = "available";
+      if (status === "accepted") {
+        standStatus = "confirmed";
+      }
+      if (status === "pending") {
+        standStatus = "reserved";
+      }
       await tx
         .update(stands)
         .set({ status: standStatus })
