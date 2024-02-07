@@ -169,7 +169,6 @@ export async function updateReservation(id: number, data: ReservationUpdate) {
             ),
           );
 
-        debugger;
         if (updatedParticipants[1].userId) {
           if (updatedParticipants[1].participationId) {
             await tx
@@ -181,17 +180,13 @@ export async function updateReservation(id: number, data: ReservationUpdate) {
                   updatedParticipants[1].participationId,
                 ),
               );
-          }
-
-          if (!updatedParticipants[1].participationId) {
+          } else {
             await tx.insert(reservationParticipants).values({
               userId: updatedParticipants[1].userId as number,
               reservationId: id,
             });
           }
-        }
-
-        if (updatedParticipants[1].participationId) {
+        } else if (updatedParticipants[1].participationId) {
           await tx
             .delete(reservationParticipants)
             .where(
