@@ -80,6 +80,36 @@ export async function fetchConfirmedReservationsByFestival(
   }
 }
 
+export async function fetchReservation(
+  id: number,
+): Promise<ReservationWithParticipantsAndUsersAndStand | undefined | null> {
+  const client = await pool.connect();
+  try {
+    return await db.query.standReservations.findFirst({
+      where: eq(standReservations.id, id),
+      with: {
+        participants: {
+          with: {
+            user: {
+              with: {
+                userSocials: true,
+              },
+            },
+          },
+        },
+        stand: true,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return null;
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/reservations");
+}
+
 export async function updateReservation(
   id: number,
   data: ReservationWithParticipantsAndUsersAndStand,
