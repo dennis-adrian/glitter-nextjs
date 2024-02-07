@@ -26,7 +26,7 @@ export function profileHasReservation(
 }
 export function getSearchArtistOptions(
   festival: Omit<Festival, "standReservations">,
-  profile?: ProfileType,
+  profile: ProfileType,
 ): SearchOption[] {
   const festivalArtists = festival.userRequests.map((request) => request.user);
   const filteredArtists = festivalArtists.filter((artist) => {
@@ -36,11 +36,10 @@ export function getSearchArtistOptions(
     );
   });
 
-  let artists = filteredArtists;
-  if (profile) artists = artists.filter((artist) => artist.id !== profile.id);
-
-  return artists.map((artist) => ({
-    value: artist.displayName!,
-    id: artist.id,
-  }));
+  return filteredArtists
+    .filter((artist) => artist.id !== profile.id)
+    .map((artist) => ({
+      displayName: artist.displayName!,
+      id: artist.id,
+    }));
 }
