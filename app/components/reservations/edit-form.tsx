@@ -26,6 +26,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { updateReservation } from "@/app/api/user_requests/actions";
+import { toast } from "sonner";
+import { redirect } from "next/navigation";
 
 export default function EditReservationForm({
   artistsOptions,
@@ -51,11 +54,45 @@ export default function EditReservationForm({
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    // const result = await updateProfileWithValidatedData(profile.id, {
-    //   ...profile,
-    //   ...data,
-    // });
-    // if (result.success) onSuccess();
+    const participants = [
+      {
+        participationId: reservation.participants[0]?.id,
+        userId: firstParticipant,
+      },
+      {
+        participationId: reservation.participants[1]?.id,
+        userId: secondParticipant,
+      },
+    ];
+
+    const res = await updateReservation(reservation.id, {
+      ...reservation,
+      ...data,
+      updatedParticipants: participants.filter(Boolean),
+    });
+
+    if (res.success) {
+      toast.success(res.message, {
+        duration: 3000,
+        action: {
+          label: "Cerrar",
+          onClick: () => {
+            toast.dismiss();
+          },
+        },
+      });
+      redirect("/dashboard/reservations");
+    } else {
+      toast.error(res.message, {
+        duration: 3000,
+        action: {
+          label: "Cerrar",
+          onClick: () => {
+            toast.dismiss();
+          },
+        },
+      });
+    }
   });
 
   return (

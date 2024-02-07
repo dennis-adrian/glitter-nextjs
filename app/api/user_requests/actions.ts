@@ -10,7 +10,7 @@ import {
   reservationParticipants,
   stands,
 } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function fetchRequestsByUserId(userId: number) {
@@ -129,14 +129,17 @@ export async function createReservation(reservation: NewStandReservation) {
 // TODO: Move this to its own file once I ƒigure out that 'fs' error
 export type ReservationStatus =
   (typeof standReservations.$inferSelect)["status"];
-export async function updateReservation(
-  id: number,
-  data: ReservationWithParticipantsAndUsersAndStand,
-) {
+export type ReservationUpdate = typeof standReservations.$inferInsert & {
+  updatedParticipants?: {
+    participationId: number | undefined;
+    userId: number | undefined;
+  }[];
+};
+export async function updateReservation(id: number, data: ReservationUpdate) {
   const client = await pool.connect();
 
   try {
-    const { status, standId } = data;
+    const { status, standId, updatedParticipants } = data;
     await db.transaction(async (tx) => {
       await tx
         .update(standReservations)
@@ -148,6 +151,54 @@ export async function updateReservation(
         .update(stands)
         .set({ status: standStatus })
         .where(eq(stands.id, standId));
+
+      if (updatedParticipants && updatedParticipants?.length > 0) {
+        await tx
+          .update(reservationParticipants)
+          .set({ userId: updatedParticipants[0].userId })
+          .where(
+            eq(
+              reservationParticipants.id,
+              updatedParticipants[0].participationId!,
+            ),
+          );
+
+        debugger;
+        if (updatedParticipants[1].userId) {
+          if (updatedParticipants[1].participationId) {
+            await tx
+              .update(reservationParticipants)
+              .set({ userId: updatedParticipants[1].userId })
+              .where(
+                eq(
+                  reservationParticipants.id,
+                  updatedParticipants[1].participationId,
+                ),
+              );
+          }
+
+          if (!updatedParticipants[1].participationId) {
+            await tx.insert(reservationParticipants).values({
+              userId: updatedParticipants[1].userId as number,
+              reservationId: id,
+            });
+          }
+        }
+
+        if (updatedParticipants[1].participationId) {
+          await tx
+            .delete(reservationParticipants)
+            .where(
+              and(
+                eq(reservationParticipants.reservationId, id),
+                eq(
+                  reservationParticipants.id,
+                  updatedParticipants[1].participationId,
+                ),
+              ),
+            );
+        }
+      }
     });
   } catch (error) {
     console.error(error);

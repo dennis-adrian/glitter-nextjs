@@ -66,7 +66,6 @@ export function DataTable<TData, TValue>({
       globalFilter: searchFilter,
     },
   });
-  console.log("columnFilters", columnFilters);
 
   return (
     <div>
