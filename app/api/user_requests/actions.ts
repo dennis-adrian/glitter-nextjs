@@ -159,46 +159,31 @@ export async function updateReservation(id: number, data: ReservationUpdate) {
         .where(eq(stands.id, standId));
 
       if (updatedParticipants && updatedParticipants?.length > 0) {
-        await tx
-          .update(reservationParticipants)
-          .set({ userId: updatedParticipants[0].userId })
-          .where(
-            eq(
-              reservationParticipants.id,
-              updatedParticipants[0].participationId!,
-            ),
-          );
-
-        if (updatedParticipants[1].userId) {
-          if (updatedParticipants[1].participationId) {
-            await tx
-              .update(reservationParticipants)
-              .set({ userId: updatedParticipants[1].userId })
-              .where(
-                eq(
-                  reservationParticipants.id,
-                  updatedParticipants[1].participationId,
-                ),
-              );
+        updatedParticipants.forEach(async (participant) => {
+          if (participant.participationId) {
+            if (participant.userId) {
+              await tx
+                .update(reservationParticipants)
+                .set({ userId: participant.userId })
+                .where(
+                  eq(reservationParticipants.id, participant.participationId),
+                );
+            } else {
+              await tx
+                .delete(reservationParticipants)
+                .where(
+                  eq(reservationParticipants.id, participant.participationId),
+                );
+            }
           } else {
-            await tx.insert(reservationParticipants).values({
-              userId: updatedParticipants[1].userId as number,
-              reservationId: id,
-            });
+            if (participant.userId) {
+              await tx.insert(reservationParticipants).values({
+                userId: participant.userId,
+                reservationId: id,
+              });
+            }
           }
-        } else if (updatedParticipants[1].participationId) {
-          await tx
-            .delete(reservationParticipants)
-            .where(
-              and(
-                eq(reservationParticipants.reservationId, id),
-                eq(
-                  reservationParticipants.id,
-                  updatedParticipants[1].participationId,
-                ),
-              ),
-            );
-        }
+        });
       }
     });
   } catch (error) {

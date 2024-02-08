@@ -43,9 +43,6 @@ export default function EditReservationForm({
   const [participants, setParticipants] = useState<(Artist | undefined)[]>(
     reservation.participants.map((p) => p.user),
   );
-  // const [showSecondParticipant, setShowSecondParticipant] = useState(
-  //   participants.length > 1,
-  // );
 
   const form = useForm({
     defaultValues: {
@@ -54,43 +51,43 @@ export default function EditReservationForm({
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    // const participants = [
-    //   {
-    //     participationId: reservation.participants[0]?.id,
-    //     userId: firstParticipant,
-    //   },
-    //   {
-    //     participationId: reservation.participants[1]?.id,
-    //     userId: secondParticipant,
-    //   },
-    // ];
-    // const res = await updateReservation(reservation.id, {
-    //   ...reservation,
-    //   ...data,
-    //   updatedParticipants: participants.filter(Boolean),
-    // });
-    // if (res.success) {
-    //   toast.success(res.message, {
-    //     duration: 3000,
-    //     action: {
-    //       label: "Cerrar",
-    //       onClick: () => {
-    //         toast.dismiss();
-    //       },
-    //     },
-    //   });
-    //   redirect("/dashboard/reservations");
-    // } else {
-    //   toast.error(res.message, {
-    //     duration: 3000,
-    //     action: {
-    //       label: "Cerrar",
-    //       onClick: () => {
-    //         toast.dismiss();
-    //       },
-    //     },
-    //   });
-    // }
+    const updatedParticipants = [
+      {
+        participationId: reservation.participants[0]?.id,
+        userId: participants[0]?.id,
+      },
+      {
+        participationId: reservation.participants[1]?.id,
+        userId: participants[1]?.id,
+      },
+    ];
+    const res = await updateReservation(reservation.id, {
+      ...reservation,
+      ...data,
+      updatedParticipants: updatedParticipants.filter(Boolean),
+    });
+    if (res.success) {
+      toast.success(res.message, {
+        duration: 3000,
+        action: {
+          label: "Cerrar",
+          onClick: () => {
+            toast.dismiss();
+          },
+        },
+      });
+      redirect("/dashboard/reservations");
+    } else {
+      toast.error(res.message, {
+        duration: 3000,
+        action: {
+          label: "Cerrar",
+          onClick: () => {
+            toast.dismiss();
+          },
+        },
+      });
+    }
   });
 
   const handleParticipantChange = (
