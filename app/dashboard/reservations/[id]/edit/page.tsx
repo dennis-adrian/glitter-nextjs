@@ -52,6 +52,7 @@ export default async function Page({ params }: { params: { id: string } }) {
         </CardHeader>
         <CardContent>
           <EditReservationForm
+            artists={filteredArtists}
             artistsOptions={options}
             reservation={reservation!}
           />
