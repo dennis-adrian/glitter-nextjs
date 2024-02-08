@@ -26,7 +26,7 @@ export default async function Page() {
 
   if (reservations.length === 0) {
     return (
-      <div className="container mx-auto py-10">
+      <div className="container mx-auto px-4 md:px-6">
         <h1 className="mb-2 text-3xl font-bold">Reservas</h1>
         <p>No hay reservas</p>
       </div>
@@ -34,7 +34,7 @@ export default async function Page() {
   }
 
   return (
-    <div className="container mx-auto py-10">
+    <div className="container mx-auto px-4 md:px-6">
       <h1 className="mb-2 text-3xl font-bold">Reservas</h1>
 
       <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">

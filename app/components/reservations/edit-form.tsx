@@ -29,7 +29,12 @@ import { toast } from "sonner";
 import { redirect } from "next/navigation";
 import { FormParticipantCard } from "@/app/components/reservations/form/participant-card";
 import { BaseProfile } from "@/app/api/users/definitions";
-import { Card, CardContent, CardHeader } from "@/app/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/app/components/ui/card";
 
 type Artist = Omit<BaseProfile, "userRequests" | "participations">;
 export default function EditReservationForm({
@@ -140,31 +145,40 @@ export default function EditReservationForm({
       <Separator className="my-4" />
       <Form {...form}>
         <form action={action} className="grid items-start gap-4">
-          <FormField
-            control={form.control}
-            name="status"
-            render={({ field }) => (
-              <FormItem className="grid gap-2">
-                <FormLabel>Estado de la reserva</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Elige una opción" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="pending">Pendiente</SelectItem>
-                    <SelectItem value="accepted">Aceptada</SelectItem>
-                    <SelectItem value="rejected">Rechazada</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <span className="text-lg sm:text-xl">Estado de la reserva</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem className="grid gap-2">
+                    <FormLabel>Elige una opción</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Elige una opción" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="pending">Pendiente</SelectItem>
+                        <SelectItem value="accepted">Aceptada</SelectItem>
+                        <SelectItem value="rejected">Rechazada</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
           <Button type="submit">Guardar cambios</Button>
         </form>
       </Form>

@@ -43,7 +43,7 @@ export default async function Page({ params }: { params: { id: string } }) {
       <Card>
         <CardHeader>
           <CardTitle>
-            Reserva del espacio{" "}
+            Espacio{" "}
             {`${reservation?.stand.label}${reservation?.stand.standNumber}`}
           </CardTitle>
           <CardDescription>
