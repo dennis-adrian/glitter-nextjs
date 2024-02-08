@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { redirect } from "next/navigation";
 import { FormParticipantCard } from "@/app/components/reservations/form/participant-card";
 import { BaseProfile } from "@/app/api/users/definitions";
+import { Card, CardContent, CardHeader } from "@/app/components/ui/card";
 
 type Artist = Omit<BaseProfile, "userRequests" | "participations">;
 export default function EditReservationForm({
@@ -107,22 +108,29 @@ export default function EditReservationForm({
   return (
     <>
       <section className="flex flex-col gap-4">
-        <FormParticipantCard
-          options={artistsOptions}
-          participant={participants[0]}
-          participantIndex={0}
-          onParticipantChange={handleParticipantChange}
-          onParticipantRemove={() => handleParticipantChange(0)}
-        />
-        {participants.length > 1 ? (
-          <FormParticipantCard
-            options={artistsOptions}
-            participant={participants[1]}
-            participantIndex={1}
-            onParticipantChange={handleParticipantChange}
-            onParticipantRemove={() => setParticipants([participants[0]])}
-          />
+        {participants.length > 0 ? (
+          participants.map((participant, index) => (
+            <FormParticipantCard
+              key={index}
+              options={artistsOptions}
+              participant={participant}
+              participantIndex={index}
+              onParticipantChange={handleParticipantChange}
+              onParticipantRemove={() =>
+                setParticipants([...participants.toSpliced(index, 1)])
+              }
+            />
+          ))
         ) : (
+          <Card>
+            <CardHeader className="flex items-center">
+              <h2 className="text-muted-foreground text-2xl text-center">
+                Sin participantes
+              </h2>
+            </CardHeader>
+          </Card>
+        )}
+        {participants.length < 2 && (
           <Button variant="link" onClick={() => handleParticipantChange()}>
             <PlusCircleIcon className="h-4 w-4 mr-2" />
             Agregar participante
