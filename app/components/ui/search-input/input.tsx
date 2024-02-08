@@ -18,7 +18,7 @@ const SearchInput = ({
   label,
   labelStyles,
   options,
-  placeholder,
+  placeholder = "Buscar...",
   onSelect,
 }: Props) => {
   const [inputText, setInputText] = useState("");

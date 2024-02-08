@@ -124,7 +124,7 @@ export default function EditReservationForm({
         ) : (
           <Card>
             <CardHeader className="flex items-center">
-              <h2 className="text-muted-foreground text-2xl text-center">
+              <h2 className="text-muted-foreground text-xl sm:text-2xl text-center">
                 Sin participantes
               </h2>
             </CardHeader>

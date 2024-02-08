@@ -64,7 +64,7 @@ export function FormParticipantCard({
                 <h3 className="font-semibold text-sm">
                   {participant.displayName}
                 </h3>
-                <p className="text-sm max-w-[200px] sm:max-w-full truncate text-muted-foreground">
+                <p className="text-sm max-w-[160px] sm:max-w-full truncate text-muted-foreground">
                   {participant.email}
                 </p>
               </div>
@@ -73,13 +73,10 @@ export function FormParticipantCard({
         )}
       </CardHeader>
       <CardContent>
-        <Label htmlFor="first-participant">
-          Agrega o remplaza al artista buscando un nombre
-        </Label>
+        <Label htmlFor="first-participant">Busca un nombre</Label>
         <SearchInput
           id="first-participant"
           options={options}
-          placeholder="Ingresa el nombre..."
           onSelect={(id) => onParticipantChange(participantIndex, id)}
         />
       </CardContent>
