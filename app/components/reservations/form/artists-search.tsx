@@ -58,7 +58,11 @@ export function ArtistsSearch({
         </Card>
       )}
       {participants.length < 2 && (
-        <Button variant="link" onClick={() => handleParticipantChange()}>
+        <Button
+          variant="link"
+          type="button"
+          onClick={() => handleParticipantChange()}
+        >
           <PlusCircleIcon className="h-4 w-4 mr-2" />
           Agregar participante
         </Button>
