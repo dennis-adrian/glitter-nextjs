@@ -1,15 +1,16 @@
 "use server";
 
-import { BaseProfile, ProfileWithSocials } from "@/app/api/users/definitions";
+import { and, eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+
 import { db, pool } from "@/db";
 import {
   reservationParticipants,
   standReservations,
   stands,
 } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+
+import { BaseProfile, ProfileWithSocials } from "@/app/api/users/definitions";
 
 export type Participant = typeof reservationParticipants.$inferSelect & {
   user: ProfileWithSocials;
@@ -144,10 +145,14 @@ export async function updateReservation(
   return { success: true, message: "Reserva actualizada" };
 }
 
+type FormState = {
+  success: boolean;
+  message: string;
+};
 export async function createReservation(
   festivalId: number,
   participants: BaseProfile[],
-  prevState: {} | null,
+  prevState: FormState,
   data: FormData,
 ) {
   const client = await pool.connect();
@@ -178,23 +183,5 @@ export async function createReservation(
   }
 
   revalidatePath("/dashboard/reservations");
-  redirect("/dashboard/reservations");
-}
-
-export async function logHello(
-  currentState: { message: string; success: boolean } | undefined,
-  formData: FormData,
-) {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  if (formData.get("test") === "hello") {
-    return {
-      message: "Your submission was correct",
-      success: true,
-    };
-  } else {
-    return {
-      message: "There was a problem with your submission",
-      success: false,
-    };
-  }
+  return { success: true, message: "Reserva creada" };
 }

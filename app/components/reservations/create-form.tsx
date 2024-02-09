@@ -15,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
+import { Label } from "@/app/components/ui/label";
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
 import {
   Select,
@@ -23,7 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select";
-import { Label } from "@/app/components/ui/label";
 
 export function CreateReservationForm({
   artists,
@@ -44,7 +44,10 @@ export function CreateReservationForm({
     participants.filter(Boolean) as BaseProfile[],
   );
 
-  const [state, action] = useFormState(createReservationWithParticipants, null);
+  const [state, action] = useFormState(createReservationWithParticipants, {
+    success: false,
+    message: "",
+  });
 
   return (
     <Card>
@@ -55,7 +58,6 @@ export function CreateReservationForm({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="text-red-500 text-sm mb-2">{state?.message}</div>
         <form className="flex flex-col gap-4" action={action}>
           <div>
             <Label htmlFor="stand">Espacio</Label>
@@ -81,7 +83,11 @@ export function CreateReservationForm({
             participants={participants}
             setParticipants={setParticipants}
           />
-          <SubmitButton />
+          <SubmitButton
+            formState={state}
+            redirectOnSuccess
+            redirectUrl="/dashboard/reservations"
+          />
         </form>
       </CardContent>
     </Card>

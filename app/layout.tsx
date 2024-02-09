@@ -12,7 +12,6 @@ import { inter } from "@/ui/fonts";
 
 import "./globals.css";
 
-
 export const metadata: Metadata = {
   title: "Festival Glitter",
   description: "Un festival para que los artistas brillen",
@@ -29,10 +28,8 @@ export default function RootLayout({
         <body className={inter.className}>
           <EdgeStoreProvider>
             <Navbar />
-            <main className={`${inter.className}`}>
-              {children}
-            </main>
-            <Toaster />
+            <main className={`${inter.className}`}>{children}</main>
+            <Toaster richColors />
             <Analytics />
           </EdgeStoreProvider>
         </body>
