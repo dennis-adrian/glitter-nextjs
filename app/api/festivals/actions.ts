@@ -1,9 +1,9 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 import { db, pool } from "@/db";
-import { userRequests } from "@/db/schema";
+import { userRequests, festivals, stands } from "@/db/schema";
 import { Festival } from "./definitions";
 
 export async function fetchActiveFestival({
@@ -36,7 +36,9 @@ export async function fetchActiveFestival({
           ...whereCondition,
         },
         standReservations: true,
-        stands: true,
+        stands: {
+          orderBy: (stands.label, stands.standNumber),
+        },
       },
     });
   } catch (error) {

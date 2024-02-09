@@ -1,5 +1,6 @@
 "use server";
 
+import { StandBase } from "@/app/api/stands/actions";
 import { ProfileWithParticipationsAndRequests } from "@/app/api/users/definitions";
 import {
   festivals,
@@ -15,7 +16,7 @@ type UserRequest = typeof userRequests.$inferSelect & {
 export type Festival = FestivalBase & {
   userRequests: UserRequest[];
   standReservations: (typeof standReservations.$inferSelect)[];
-  stands: (typeof stands.$inferSelect)[];
+  stands: StandBase[];
 };
 
 export type FestivalWithUserRequests = Omit<

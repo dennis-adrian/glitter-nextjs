@@ -1,10 +1,22 @@
-import { fetchActiveFestival } from "@/app/api/festivals/actions";
+import { fetchActiveFestival } from "@/api/festivals/actions";
+import { StandBase } from "@/app/api/stands/actions";
+import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { CreateReservationForm } from "@/app/components/reservations/create-form";
 import Breadcrumbs from "@/app/components/ui/breadcrumbs";
+import { SearchOption } from "@/app/components/ui/search-input/search-content";
 
 export default async function Page() {
   const festival = await fetchActiveFestival({ acceptedUsersOnly: true });
-  const stands = festival?.stands || [];
+  const stands = festival?.stands as StandBase[];
+  const artists = festival?.userRequests.map((r) => r.user) || [];
+  const filteredArtists = artists.filter((artist) => {
+    return isProfileInFestival(festival!.id, artist);
+  });
+  const options: SearchOption[] = filteredArtists.map((artist) => ({
+    displayName: artist.displayName || "",
+    id: artist.id,
+  }));
+
   return (
     <div className="container px-4 md:px-6 m-auto">
       <Breadcrumbs
@@ -19,7 +31,11 @@ export default async function Page() {
       />
       <h1 className="mb-2 text-3xl font-bold">Nueva Reserva</h1>
 
-      <CreateReservationForm />
+      <CreateReservationForm
+        artists={artists}
+        artistsOptions={options}
+        stands={stands}
+      />
     </div>
   );
 }

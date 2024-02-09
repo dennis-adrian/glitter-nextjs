@@ -1,14 +1,11 @@
-import { Button } from "@/app/components/ui/button";
-import { Loader2Icon } from "lucide-react";
 import { useFormStatus } from "react-dom";
-import { toast } from "sonner";
+
+import { Loader2Icon } from "lucide-react";
+
+import { Button } from "@/app/components/ui/button";
 
 export function SubmitButton() {
-  const { pending, data } = useFormStatus();
-
-  // if (data?.success) {
-  //   toast.success(data.message);
-  // }
+  const { pending } = useFormStatus();
 
   return (
     <Button disabled={pending} type="submit">

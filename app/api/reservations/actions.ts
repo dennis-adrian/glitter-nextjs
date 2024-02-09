@@ -1,6 +1,6 @@
 "use server";
 
-import { ProfileWithSocials } from "@/app/api/users/definitions";
+import { BaseProfile, ProfileWithSocials } from "@/app/api/users/definitions";
 import { db, pool } from "@/db";
 import {
   reservationParticipants,
@@ -9,6 +9,7 @@ import {
 } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 export type Participant = typeof reservationParticipants.$inferSelect & {
   user: ProfileWithSocials;
@@ -141,6 +142,43 @@ export async function updateReservation(
 
   revalidatePath("/dashboard/reservations");
   return { success: true, message: "Reserva actualizada" };
+}
+
+export async function createReservation(
+  festivalId: number,
+  participants: BaseProfile[],
+  prevState: {} | null,
+  data: FormData,
+) {
+  const client = await pool.connect();
+  try {
+    const standId = parseInt(data.get("stand") as string);
+    await db.transaction(async (tx) => {
+      const newReservation = await tx
+        .insert(standReservations)
+        .values({ standId, festivalId })
+        .returning({ reservationId: standReservations.id });
+
+      const reservationId = newReservation[0].reservationId;
+
+      if (participants.length > 0) {
+        const participantsValues = participants.map((participant) => ({
+          userId: participant.id,
+          reservationId,
+        }));
+
+        await tx.insert(reservationParticipants).values(participantsValues);
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al crear la reserva" };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/reservations");
+  redirect("/dashboard/reservations");
 }
 
 export async function logHello(
