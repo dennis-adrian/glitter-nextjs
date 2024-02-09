@@ -111,7 +111,7 @@ export async function createReservation(reservation: NewStandReservation) {
 
       await tx
         .update(stands)
-        .set({ status: "reserved" })
+        .set({ status: "reserved", updatedAt: new Date() })
         .where(eq(stands.id, standId));
     });
   } catch (error) {
@@ -143,7 +143,7 @@ export async function updateReservation(id: number, data: ReservationUpdate) {
     await db.transaction(async (tx) => {
       await tx
         .update(standReservations)
-        .set({ status })
+        .set({ status, updatedAt: new Date() })
         .where(eq(standReservations.id, id));
 
       let standStatus: StandStatus = "available";
@@ -155,7 +155,7 @@ export async function updateReservation(id: number, data: ReservationUpdate) {
       }
       await tx
         .update(stands)
-        .set({ status: standStatus })
+        .set({ status: standStatus, updatedAt: new Date() })
         .where(eq(stands.id, standId));
 
       if (updatedParticipants && updatedParticipants?.length > 0) {
@@ -164,7 +164,7 @@ export async function updateReservation(id: number, data: ReservationUpdate) {
             if (participant.userId) {
               await tx
                 .update(reservationParticipants)
-                .set({ userId: participant.userId })
+                .set({ userId: participant.userId, updatedAt: new Date() })
                 .where(
                   eq(reservationParticipants.id, participant.participationId),
                 );

@@ -10,9 +10,14 @@ export async function Participants({ festivalId }: { festivalId: number }) {
 
   return (
     <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4 lg:gap-6 xl:grid-cols-4">
-      {participants.map(({ user }) => (
-        <ParticipantCard key={user.id} profile={user} />
-      ))}
+      {participants
+        .sort(
+          (a, b) =>
+            a.user.displayName?.localeCompare(b.user.displayName || "") || 0,
+        )
+        .map(({ user }) => (
+          <ParticipantCard key={user.id} profile={user} />
+        ))}
     </div>
   );
 }

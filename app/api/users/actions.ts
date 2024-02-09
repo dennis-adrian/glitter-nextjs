@@ -234,6 +234,7 @@ export async function updateProfile(
       .set({
         firstName,
         lastName,
+        updatedAt: new Date(),
       })
       .where(eq(users.id, id));
   } catch (error) {
@@ -283,7 +284,7 @@ export async function updateProfileWithValidatedData(
       socials?.forEach(async (social) => {
         await tx
           .update(userSocials)
-          .set({ username: social.username })
+          .set({ username: social.username, updatedAt: new Date() })
           .where(sql`${userSocials.id} = ${social.id}`);
       });
     });
