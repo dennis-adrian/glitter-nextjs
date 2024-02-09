@@ -87,7 +87,9 @@ export function CreateReservationForm({
             formState={state}
             redirectOnSuccess
             redirectUrl="/dashboard/reservations"
-          />
+          >
+            Crear reserva
+          </SubmitButton>
         </form>
       </CardContent>
     </Card>

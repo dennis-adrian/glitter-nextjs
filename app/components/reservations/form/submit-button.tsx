@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { HtmlHTMLAttributes, useEffect } from "react";
 import { useFormStatus } from "react-dom";
 
 import { redirect } from "next/navigation";
@@ -6,17 +6,23 @@ import { redirect } from "next/navigation";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/app/components/ui/button";
+import { Button, buttonVariants } from "@/app/components/ui/button";
+import { VariantProps } from "class-variance-authority";
 
 export function SubmitButton({
+  children,
+  className,
   formState,
   redirectOnSuccess = false,
   redirectUrl,
+  variant,
+  size,
 }: {
   formState: { message: string; success?: boolean };
   redirectOnSuccess?: boolean;
   redirectUrl?: string;
-}) {
+} & HtmlHTMLAttributes<HTMLButtonElement> &
+  VariantProps<typeof buttonVariants>) {
   const { pending } = useFormStatus();
 
   useEffect(() => {
@@ -39,9 +45,21 @@ export function SubmitButton({
   ]);
 
   return (
-    <Button disabled={pending} type="submit">
-      {pending && <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />}
-      Submit
+    <Button
+      className={className}
+      disabled={pending}
+      type="submit"
+      variant={variant}
+      size={size}
+    >
+      {pending ? (
+        <>
+          <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+          Cargando
+        </>
+      ) : (
+        children
+      )}
     </Button>
   );
 }
