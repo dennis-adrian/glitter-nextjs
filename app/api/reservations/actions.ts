@@ -165,6 +165,11 @@ export async function createReservation(
         .values({ standId, festivalId })
         .returning({ reservationId: standReservations.id });
 
+      await tx
+        .update(stands)
+        .set({ status: "reserved", updatedAt: new Date() })
+        .where(eq(stands.id, standId));
+
       const reservationId = newReservation[0].reservationId;
 
       if (participants.length > 0) {

@@ -18,7 +18,7 @@ export default async function Page() {
   }));
 
   return (
-    <div className="container px-4 md:px-6 m-auto">
+    <div className="max-w-screen-md px-4 md:px-6 m-auto">
       <Breadcrumbs
         breadcrumbs={[
           { label: "Reservas", href: "/dashboard/reservations" },
