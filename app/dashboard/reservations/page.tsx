@@ -5,6 +5,8 @@ import { fetchReservations } from "@/app/api/reservations/actions";
 import TotalsCard from "@/app/components/dashboard/totals/card";
 import { columnTitles, columns } from "@/app/components/reservations/columns";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
+import { Button } from "@/app/components/ui/button";
+import Link from "next/link";
 
 const statusOptions = [
   { value: "pending", label: "Pendiente" },
@@ -35,7 +37,12 @@ export default async function Page() {
 
   return (
     <div className="container mx-auto px-4 md:px-6">
-      <h1 className="mb-2 text-3xl font-bold">Reservas</h1>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="mb-2 text-3xl font-bold">Reservas</h1>
+        <Button>
+          <Link href="/dashboard/reservations/new">Nueva Reserva</Link>
+        </Button>
+      </div>
 
       <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
         <TotalsCard
