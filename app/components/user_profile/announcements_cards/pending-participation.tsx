@@ -1,13 +1,12 @@
 "use server";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Festival } from "@/app/api/festivals/actions";
+import { FestivalBase } from "@/app/api/festivals/definitions";
 import BaseCard from "./base-card";
 
 export default async function PendingParticipationCard({
   festival,
 }: {
-  festival: Festival;
+  festival: FestivalBase;
 }) {
   return (
     <BaseCard

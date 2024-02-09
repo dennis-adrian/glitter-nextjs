@@ -1,4 +1,6 @@
-import { Festival } from "@/app/api/festivals/actions";
+"use server";
+
+import { FestivalWithUserRequests } from "@/app/api/festivals/definitions";
 import { db, pool } from "@/db";
 import {
   festivals,
@@ -18,7 +20,7 @@ type StandReservation = typeof standReservations.$inferSelect & {
 };
 export type Stand = typeof stands.$inferSelect & {
   reservations: StandReservation[];
-  festival: Omit<Festival, "standReservations">;
+  festival: FestivalWithUserRequests;
 };
 
 export async function fetchStandsByFestivalId(

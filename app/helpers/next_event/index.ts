@@ -1,4 +1,7 @@
-import { Festival } from "@/app/api/festivals/actions";
+import {
+  FestivalBase,
+  FestivalWithUserRequests,
+} from "@/app/api/festivals/definitions";
 import {
   ProfileType,
   ProfileWithParticipationsAndRequests,
@@ -6,7 +9,7 @@ import {
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
 
-export function getFestivalDateLabel(festival: Festival) {
+export function getFestivalDateLabel(festival: FestivalBase) {
   const startDateDay = festival.startDate.getDate() + 1;
   const endDateDay = festival.endDate.getDate() + 1;
   const startDateMonth = festival.startDate.toLocaleString("es-ES", {
@@ -25,7 +28,7 @@ export function profileHasReservation(
   });
 }
 export function getSearchArtistOptions(
-  festival: Omit<Festival, "standReservations">,
+  festival: FestivalWithUserRequests,
   profile: ProfileType,
 ): SearchOption[] {
   const festivalArtists = festival.userRequests.map((request) => request.user);

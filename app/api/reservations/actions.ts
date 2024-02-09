@@ -1,3 +1,5 @@
+"use server";
+
 import { ProfileWithSocials } from "@/app/api/users/definitions";
 import { db, pool } from "@/db";
 import {
@@ -139,4 +141,22 @@ export async function updateReservation(
 
   revalidatePath("/dashboard/reservations");
   return { success: true, message: "Reserva actualizada" };
+}
+
+export async function logHello(
+  currentState: { message: string; success: boolean } | undefined,
+  formData: FormData,
+) {
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  if (formData.get("test") === "hello") {
+    return {
+      message: "Your submission was correct",
+      success: true,
+    };
+  } else {
+    return {
+      message: "There was a problem with your submission",
+      success: false,
+    };
+  }
 }

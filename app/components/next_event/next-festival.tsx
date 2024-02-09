@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 
-import { Festival } from "@/app/api/festivals/actions";
 import { Stand } from "@/app/api/stands/actions";
 import { ProfileType } from "@/app/api/users/definitions";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";

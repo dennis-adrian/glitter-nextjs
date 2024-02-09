@@ -1,14 +1,14 @@
 import { ProfileType } from "@/app/api/users/definitions";
 import ParticipationForm from "./participation-form";
 import BaseCard from "./base-card";
-import { Festival } from "@/app/api/festivals/actions";
+import { FestivalBase } from "@/api/festivals/definitions";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
 
 export default async function ParticipationCard({
   profile,
   festival,
 }: {
-  festival: Festival;
+  festival: FestivalBase;
   profile: ProfileType;
 }) {
   return (

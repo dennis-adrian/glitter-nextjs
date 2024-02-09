@@ -1,7 +1,10 @@
+import { fetchActiveFestival } from "@/app/api/festivals/actions";
 import { CreateReservationForm } from "@/app/components/reservations/create-form";
 import Breadcrumbs from "@/app/components/ui/breadcrumbs";
 
 export default async function Page() {
+  const festival = await fetchActiveFestival({ acceptedUsersOnly: true });
+  const stands = festival?.stands || [];
   return (
     <div className="container px-4 md:px-6 m-auto">
       <Breadcrumbs
