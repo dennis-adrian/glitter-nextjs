@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db, pool } from "@/db";
@@ -44,6 +44,7 @@ export async function fetchReservations(): Promise<
         },
         stand: true,
       },
+      orderBy: desc(standReservations.updatedAt),
     });
   } catch (error) {
     console.error(error);
@@ -184,4 +185,37 @@ export async function createReservation(
 
   revalidatePath("/dashboard/reservations");
   return { success: true, message: "Reserva creada" };
+}
+
+export async function deleteReservation(
+  reservationId: number,
+  standId: number,
+  prevState: FormState,
+) {
+  const client = await pool.connect();
+
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(reservationParticipants)
+        .where(eq(reservationParticipants.reservationId, reservationId));
+
+      await tx
+        .delete(standReservations)
+        .where(eq(standReservations.id, reservationId));
+
+      await tx
+        .update(stands)
+        .set({ status: "available" })
+        .where(eq(stands.id, standId));
+    });
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al eliminar la reserva" };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/reservations");
+  return { success: true, message: "Reserva eliminada" };
 }
