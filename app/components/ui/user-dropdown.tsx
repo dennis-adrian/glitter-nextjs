@@ -4,14 +4,16 @@ import { useEffect, useState } from "react";
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { useUser } from "@clerk/nextjs";
-import { CircleUserIcon, UserIcon } from "lucide-react";
+import { CircleUserIcon, User, UserIcon } from "lucide-react";
 
 import { fetchUserProfile } from "@/app/api/users/actions";
 import { ProfileType } from "@/app/api/users/definitions";
 
 import SignOutButton from "@/app/components/user_dropdown/sign-out-button";
+import { UserDropdownSkeleton } from "@/app/components/user_dropdown/skeleton";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,7 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { usePathname } from "next/navigation";
+import { RedirectButton } from "@/app/components/redirect-button";
 
 export default function UserDropdown() {
   const user = useUser();
@@ -35,6 +37,10 @@ export default function UserDropdown() {
       });
     }
   }, [user.user]);
+
+  if (!user.isLoaded || (user.isLoaded && !profile)) {
+    return <UserDropdownSkeleton />;
+  }
 
   if (user.isSignedIn && profile) {
     return (
@@ -77,9 +83,9 @@ export default function UserDropdown() {
 
   if (!(pathname === "/sign_in" || pathname === "/sign_up")) {
     return (
-      <Link href="/sign_in">
-        <Button variant="outline">Ingresar</Button>
-      </Link>
+      <RedirectButton href="/sign_in" variant="outline">
+        Ingresar
+      </RedirectButton>
     );
   }
 
