@@ -56,8 +56,7 @@ export default async function Page() {
                     {festival.name}
                   </h1>
                   <p className="text-muted-foreground max-w-[600px] md:text-xl dark:text-gray-400">
-                    Nueva edición con más sorpresas, más artitas y más
-                    diversión.
+                    {festival.description}
                   </p>
                 </div>
               </div>
