@@ -1,9 +1,9 @@
-import { currentUser } from '@clerk/nextjs';
+import { currentUser } from "@clerk/nextjs";
 
-import { londrinaSolid } from '@/ui/fonts';
-import { createUserProfile, isProfileCreated } from '@/app/api/users/actions';
-import { redirect } from 'next/navigation';
-import { RedirectDrawer } from '@/app/components/redirect-drawer';
+import { londrinaSolid } from "@/ui/fonts";
+import { createUserProfile, isProfileCreated } from "@/app/api/users/actions";
+import { redirect } from "next/navigation";
+import { RedirectDrawer } from "@/app/components/redirect-drawer";
 
 export default async function UserProfileCreate() {
   let user = null;
@@ -21,7 +21,7 @@ export default async function UserProfileCreate() {
 
   if (user) {
     if (await isProfileCreated(user)) {
-      redirect('/user_profile');
+      redirect("/user_profile");
     } else {
       await createUserProfile(user);
     }
