@@ -14,7 +14,6 @@ import { ProfileType } from "@/app/api/users/definitions";
 
 import SignOutButton from "@/app/components/user_dropdown/sign-out-button";
 import { UserDropdownSkeleton } from "@/app/components/user_dropdown/skeleton";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,23 +25,23 @@ import {
 import { RedirectButton } from "@/app/components/redirect-button";
 
 export default function UserDropdown() {
-  const user = useUser();
+  const clerk = useUser();
   const pathname = usePathname();
   const [profile, setProfile] = useState<ProfileType>();
 
   useEffect(() => {
-    if (user.user) {
-      fetchUserProfile(user.user.id).then((data) => {
+    if (clerk.user) {
+      fetchUserProfile(clerk.user.id).then((data) => {
         setProfile(data.user);
       });
     }
-  }, [user.user]);
+  }, [clerk.user]);
 
-  if (!user.isLoaded || (user.isLoaded && !profile)) {
+  if (!clerk.isLoaded || (clerk.isSignedIn && !profile)) {
     return <UserDropdownSkeleton />;
   }
 
-  if (user.isSignedIn && profile) {
+  if (clerk.isSignedIn && profile) {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger className="cursor-default">
