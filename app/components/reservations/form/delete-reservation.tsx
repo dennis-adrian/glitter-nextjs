@@ -1,12 +1,12 @@
+"use client";
+
+import { useFormState } from "react-dom";
 import {
   ReservationWithParticipantsAndUsersAndStand,
   deleteReservation,
 } from "@/app/api/reservations/actions";
-import { SubmitButton } from "@/app/components/reservations/form/submit-button";
-import { DropdownMenuItem } from "@/app/components/ui/dropdown-menu";
-import { Trash2Icon } from "lucide-react";
-import { useEffect } from "react";
-import { useFormState } from "react-dom";
+
+import { SubmitButton } from "@/components/submit-button";
 
 export function DeleteReservationForm({
   reservation,
