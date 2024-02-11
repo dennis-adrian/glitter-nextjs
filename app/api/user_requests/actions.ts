@@ -201,11 +201,15 @@ type FormState = {
   success: boolean;
   message: string;
 };
-export async function createUserRequest(userId: number, prevState: FormState) {
+type NewUserRequest = typeof userRequests.$inferInsert;
+export async function createUserRequest(
+  request: NewUserRequest,
+  prevState: FormState,
+) {
   const client = await pool.connect();
 
   try {
-    await db.insert(userRequests).values({ userId });
+    await db.insert(userRequests).values(request);
   } catch (error) {
     console.error(error);
     return { message: "No se pudo crear la solicitud", success: false };

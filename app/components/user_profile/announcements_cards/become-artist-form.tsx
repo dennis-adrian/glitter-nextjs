@@ -17,15 +17,18 @@ export default function BecomeArtistForm({
     message: "",
     success: false,
   };
-  const createUserRequestWithId = createUserRequest.bind(null, profile.id);
-  const [state, action] = useFormState(createUserRequestWithId, initialState);
+  const createUserRequestWithRequest = createUserRequest.bind(null, {
+    userId: profile.id,
+  });
+  const [state, action] = useFormState(
+    createUserRequestWithRequest,
+    initialState,
+  );
 
   return (
     <form action={action} className="flex w-full justify-center">
       {isProfileComplete(profile) ? (
-        <SubmitButton formState={state} size="sm">
-          ¡Soy artista!
-        </SubmitButton>
+        <SubmitButton formState={state}>¡Soy artista!</SubmitButton>
       ) : (
         <Button disabled>¡Soy artista!</Button>
       )}
