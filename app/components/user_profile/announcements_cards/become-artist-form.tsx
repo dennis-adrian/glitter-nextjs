@@ -1,31 +1,34 @@
 "use client";
 
-import {
-  createUserRequest,
-} from "@/app/api/users/actions";
+import { createUserRequest } from "@/api/user_requests/actions";
 import { ProfileType } from "@/app/api/users/definitions";
+import { SubmitButton } from "@/app/components/submit-button";
 import { isProfileComplete } from "@/app/lib/utils";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
+import { revalidatePath } from "next/cache";
+import { useFormState } from "react-dom";
 
 export default function BecomeArtistForm({
   profile,
 }: {
   profile: ProfileType;
 }) {
-  function handleSubmit() {
-    createUserRequest({ userId: profile.id }).then((res) => {
-      if (res.success) {
-        toast("Tu solicitud ha sido enviada", {
-          description: "Te avisaremos si cumples con el perfil de artista",
-        });
-      }
-    });
-  }
+  const initialState = {
+    message: "",
+    success: false,
+  };
+  const createUserRequestWithId = createUserRequest.bind(null, profile.id);
+  const [state, action] = useFormState(createUserRequestWithId, initialState);
 
   return (
-    <form action={() => handleSubmit()} className="flex w-full justify-center">
-      <Button disabled={!isProfileComplete(profile)}>¡Soy artista!</Button>
+    <form action={action} className="flex w-full justify-center">
+      {isProfileComplete(profile) ? (
+        <SubmitButton formState={state} size="sm">
+          ¡Soy artista!
+        </SubmitButton>
+      ) : (
+        <Button disabled>¡Soy artista!</Button>
+      )}
     </form>
   );
 }

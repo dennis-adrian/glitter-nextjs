@@ -300,21 +300,3 @@ export async function updateProfileWithValidatedData(
   revalidatePath("/user_profile");
   return { success: true };
 }
-
-type UserRequest = typeof userRequests.$inferInsert;
-export async function createUserRequest(request: UserRequest) {
-  const client = await pool.connect();
-
-  try {
-    await db.insert(userRequests).values(request);
-  } catch {
-    return {
-      message: "Error de Base de Datos: No se pudo crear la solicitud",
-    };
-  } finally {
-    client.release();
-  }
-
-  revalidatePath("/user_profile");
-  return { success: true };
-}

@@ -196,3 +196,23 @@ export async function updateReservation(id: number, data: ReservationUpdate) {
   revalidatePath("/dashboard/reservations");
   return { success: true, message: "Reserva actualizada" };
 }
+
+type FormState = {
+  success: boolean;
+  message: string;
+};
+export async function createUserRequest(userId: number, prevState: FormState) {
+  const client = await pool.connect();
+
+  try {
+    await db.insert(userRequests).values({ userId });
+  } catch (error) {
+    console.error(error);
+    return { message: "No se pudo crear la solicitud", success: false };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/user_profile");
+  return { success: true, message: "Solicitud enviada correctamente" };
+}
