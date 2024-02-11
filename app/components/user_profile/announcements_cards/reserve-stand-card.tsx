@@ -1,6 +1,8 @@
-import { Button } from "@/app/components/ui/button";
-import BaseCard from "@/app/components/user_profile/announcements_cards/base-card";
-import Link from "next/link";
+"use client";
+
+import { RedirectButton } from "@/components/redirect-button";
+
+import BaseCard from "@/components/user_profile/announcements_cards/base-card";
 
 export function ReserveStandCard() {
   return (
@@ -14,9 +16,7 @@ export function ReserveStandCard() {
       }
       footer={
         <div className="flex justify-center w-full">
-          <Button>
-            <Link href="/next_event">¡Quiero reservar!</Link>
-          </Button>
+          <RedirectButton href="/next_event">¡Quiero reservar!</RedirectButton>
         </div>
       }
     />

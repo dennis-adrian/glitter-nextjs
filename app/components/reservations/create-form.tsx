@@ -7,7 +7,7 @@ import { createReservation } from "@/api/reservations/actions";
 import { StandBase } from "@/app/api/stands/actions";
 import { BaseProfile } from "@/app/api/users/definitions";
 import { ArtistsSearch } from "@/app/components/reservations/form/artists-search";
-import { SubmitButton } from "@/app/components/reservations/form/submit-button";
+import { SubmitButton } from "@/components/submit-button";
 import {
   Card,
   CardContent,
