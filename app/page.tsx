@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-import { londrinaSolid, junegull } from "@/ui/fonts";
+import { junegull } from "@/ui/fonts";
 
 import bg_image from "../public/img/bg_w_1280.png";
 import { currentUser } from "@clerk/nextjs";
@@ -9,13 +9,6 @@ import LandingRedirectButton from "@/app/components/landing/redirect-button";
 import { FestivalInfo } from "@/app/components/landing/festival-info-card";
 import Carousel from "@/app/components/landing/carousel";
 import EventFeatures from "@/app/components/landing/event-features";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/app/components/ui/card";
 
 export default async function Home() {
   const user = await currentUser();
