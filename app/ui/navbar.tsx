@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
+import { usePathname } from "next/navigation";
 
 import { MenuIcon } from "lucide-react";
 
 import MobileSidebar from "@/app/components/ui/mobile-sidebar";
 import UserDropdown from "@/app/components/ui/user-dropdown";
 import NavbarNavigationMenu from "@/app/ui/navbar-navigation-menu";
-import { usePathname, useSearchParams } from "next/navigation";
 import GlitterLogo from "@/app/components/landing/glitter-logo";
 
 const Navbar = () => {
@@ -17,7 +16,7 @@ const Navbar = () => {
   return (
     <header
       className={
-        pathname.includes("events") && pathname.includes("registration")
+        pathname.includes("festivals") && pathname.includes("registration")
           ? "hidden"
           : ""
       }

@@ -1,4 +1,4 @@
-import { fetchTicket } from "@/app/api/tickets/actions";
+import { fetchTicket } from "@/app/data/tickets/actions";
 import Image from "next/image";
 
 export default async function Page({ params }: { params: { id: string } }) {

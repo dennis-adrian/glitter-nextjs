@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
 
-import { useMediaQuery } from '@/hooks/use-media-query';
-import { Button } from '@/components/ui/button';
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogClose,
@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
   Drawer,
   DrawerClose,
@@ -22,8 +22,8 @@ import {
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
-} from '@/components/ui/drawer';
-import { DialogProps } from '@radix-ui/react-dialog';
+} from "@/components/ui/drawer";
+import { DialogProps } from "@radix-ui/react-dialog";
 
 type DrawerDialogProps = {
   children: React.ReactNode;
@@ -88,9 +88,9 @@ const DrawerDialogHeader = ({
 const DrawerDialogFooter = ({
   children,
   isDesktop = false,
+  ...props
 }: DrawerDialogProps) => {
-  const Component = isDesktop ? DialogHeader : DrawerHeader;
-  return <Component>{children}</Component>;
+  return isDesktop ? null : <DrawerFooter {...props}>{children}</DrawerFooter>;
 };
 
 const DrawerDialogClose = ({
