@@ -7,14 +7,15 @@ import { RedirectButton } from "@/app/components/redirect-button";
 
 const LandingRedirectButton = ({
   className,
+  festivalId,
 }: {
-  userId: number | string | undefined;
+  festivalId?: number | string | undefined;
 } & HTMLAttributes<HTMLButtonElement>) => {
   return (
     <RedirectButton
       variant="cta"
       className={`${cn("text-lg p-6 max-w-52", className)}`}
-      href="/festivals/8/registration"
+      href={`/festivals/${festivalId}/registration`}
     >
       ¡Quiero registrarme!
     </RedirectButton>

@@ -7,7 +7,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { EdgeStoreProvider } from "@/app/lib/edgestore";
 
 import { Toaster } from "@/components/ui/sonner";
-import { inter, roboto } from "@/ui/fonts";
+import { inter } from "@/ui/fonts";
 
 import Navbar from "@/app/ui/navbar";
 import Footer from "@/app/components/footer";
@@ -30,7 +30,7 @@ export default function RootLayout({
   return (
     <ClerkProvider localization={esES}>
       <html lang="es">
-        <body>
+        <body className={`${inter.variable} font-sans`}>
           <EdgeStoreProvider>
             <Navbar />
             <main className="h-[calc(100vh-64px-200px)] md:h-[calc(100vh-80px-148px)]">

@@ -41,6 +41,7 @@ export async function createTickets(data: {
 
       let qrcodeUrl = "";
       if (!(firstDayTicket || secondDayTicket || qrcode.error)) {
+        console.log("does the error happen before the uploader?");
         qrcodeUrl = await uploadQrCode(qrcode.qrCodeUrl);
       } else {
         const qrcodeUrls = [firstDayTicket, secondDayTicket]

@@ -65,7 +65,7 @@ export default async function Home() {
               </div>
               <LandingRedirectButton
                 className="hidden md:flex"
-                userId={user?.id}
+                festivalId={festival?.id}
               />
             </div>
             <Image
@@ -93,7 +93,10 @@ export default async function Home() {
           </p>
         </div>
         {festival && <FestivalInfo festival={festival} />}
-        <LandingRedirectButton className="md:hidden" userId={user?.id} />
+        <LandingRedirectButton
+          className="md:hidden"
+          festivalId={festival?.id}
+        />
       </section>
       <section className="px-3 pt-8 md:pt-14 md:px-6">
         <h1 className="text-4xl font-bold md:text-6xl">
