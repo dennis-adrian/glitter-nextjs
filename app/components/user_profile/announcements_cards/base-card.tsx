@@ -1,3 +1,4 @@
+import { cn } from "@/app/lib/utils";
 import {
   Card,
   CardContent,
@@ -11,18 +12,27 @@ export default async function BaseCard({
   title,
   content,
   footer,
+  className,
 }: {
+  className?: string;
   title: ReactNode;
   content: ReactNode;
   footer?: ReactNode;
 }) {
   return (
-    <Card className="my-4 p-2 text-center">
-      <CardHeader className="p-3 pb-2">
-        <CardTitle className="text-lg leading-6">{title}</CardTitle>
+    <Card
+      className={cn(
+        "text-white bg-gradient-to-r from-violet-600 to-indigo-600",
+        className,
+      )}
+    >
+      <CardHeader className="pb-3 md:pb-6">
+        <CardTitle className="text-xl md:text-2xl">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="p-3 pt-2 text-sm">{content}</CardContent>
-      {footer && <CardFooter className="p-3 pt-1">{footer}</CardFooter>}
+      <CardContent className="pb-3 text-sm md:pb-6 md:text-base">
+        {content}
+      </CardContent>
+      {footer && <CardFooter>{footer}</CardFooter>}
     </Card>
   );
 }

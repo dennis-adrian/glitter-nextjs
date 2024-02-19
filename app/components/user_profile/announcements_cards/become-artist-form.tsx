@@ -5,7 +5,6 @@ import { ProfileType } from "@/app/api/users/definitions";
 import { SubmitButton } from "@/app/components/submit-button";
 import { isProfileComplete } from "@/app/lib/utils";
 import { Button } from "@/components/ui/button";
-import { revalidatePath } from "next/cache";
 import { useFormState } from "react-dom";
 
 export default function BecomeArtistForm({
@@ -25,13 +24,13 @@ export default function BecomeArtistForm({
     initialState,
   );
 
-  return (
+  return isProfileComplete(profile) ? (
     <form action={action} className="flex w-full justify-center">
-      {isProfileComplete(profile) ? (
-        <SubmitButton formState={state}>¡Soy artista!</SubmitButton>
-      ) : (
-        <Button disabled>¡Soy artista!</Button>
-      )}
+      <SubmitButton formState={state}>¡Soy artista!</SubmitButton>
     </form>
+  ) : (
+    <div className="flex w-full justify-center">
+      <Button disabled>¡Soy artista!</Button>
+    </div>
   );
 }

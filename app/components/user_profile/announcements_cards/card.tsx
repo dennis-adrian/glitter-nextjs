@@ -21,11 +21,7 @@ export default async function Card({ profile }: { profile: ProfileType }) {
       return <PendingArtistCard />;
     }
 
-    return (
-      <div className="my-4">
-        <BecomeArtistCard profile={profile} />
-      </div>
-    );
+    return <BecomeArtistCard profile={profile} />;
   }
 
   const festival = await fetchActiveFestival({});
