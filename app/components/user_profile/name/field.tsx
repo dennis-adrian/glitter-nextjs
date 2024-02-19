@@ -1,15 +1,15 @@
-import { ProfileType } from '@/app/api/users/definitions';
+import { ProfileType } from "@/app/api/users/definitions";
+import Modal from "@/components/user_profile/modal";
+import Form from "@/components/user_profile/name/form";
 import {
   UserProfileField,
   UserProfileFieldButton,
-} from '@/components/user_profile/user-profile-field';
-import Modal from '@/components/user_profile/modal';
-import Form from '@/components/user_profile/name/form';
+} from "@/components/user_profile/user-profile-field";
 
 const NameField = ({ profile }: { profile: ProfileType }) => {
   return (
     <UserProfileField
-      label="Nombre"
+      label="Nombre completo"
       value={`${profile.firstName} ${profile.lastName}`}
     >
       <Modal profile={profile} title="Editar Nombre" FormComponent={Form}>

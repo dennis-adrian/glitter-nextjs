@@ -10,6 +10,13 @@ import NameField from "@/app/components/user_profile/name/field";
 import PhoneField from "@/app/components/user_profile/phone/field";
 import AnnouncementCard from "@/components/user_profile/announcements_cards/card";
 import PublicProfile from "@/components/user_profile/public_profile/profile";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/app/components/ui/card";
 
 async function UserProfile() {
   const user = await currentUser();
@@ -24,21 +31,28 @@ async function UserProfile() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-lg p-5">
+    <div className="mx-auto w-full max-w-screen-md p-4">
       <SignedIn>
-        <PublicProfile profile={profile} />
-        <AnnouncementCard profile={profile} />
-
-        <Separator />
-
-        <div className="my-4">
-          <h1 className="text-xl font-bold">Información Personal</h1>
-        </div>
-        <div className="flex w-full flex-col gap-2">
-          <NameField profile={profile} />
-          <BirthdateField profile={profile} />
-          <EmailField profile={profile} />
-          <PhoneField profile={profile} />
+        <div className="flex flex-col gap-4">
+          <AnnouncementCard profile={profile} />
+          <PublicProfile profile={profile} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Información Personal</CardTitle>
+              <CardDescription>
+                Esta información será visible solamente para el equipo de
+                Glitter.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex w-full flex-col gap-2">
+                <NameField profile={profile} />
+                <BirthdateField profile={profile} />
+                <EmailField profile={profile} />
+                <PhoneField profile={profile} />
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </SignedIn>
     </div>
