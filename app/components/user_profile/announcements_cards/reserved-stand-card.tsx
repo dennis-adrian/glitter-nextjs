@@ -1,7 +1,6 @@
 import { StandBase } from "@/app/api/stands/actions";
-import { Button } from "@/app/components/ui/button";
+import { RedirectButton } from "@/app/components/redirect-button";
 import BaseCard from "@/app/components/user_profile/announcements_cards/base-card";
-import Link from "next/link";
 
 export function ReservedStandCard({ stand }: { stand: StandBase }) {
   return (
@@ -21,9 +20,9 @@ export function ReservedStandCard({ stand }: { stand: StandBase }) {
       }
       footer={
         <div className="flex justify-center w-full">
-          <Button>
-            <Link href="/next_event">¡Ir al mapa!</Link>
-          </Button>
+          <RedirectButton variant="secondary" href="/next_event">
+            ¡Ir al mapa!
+          </RedirectButton>
         </div>
       }
     />

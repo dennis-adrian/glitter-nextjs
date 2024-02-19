@@ -7,6 +7,7 @@ import BaseCard from "@/components/user_profile/announcements_cards/base-card";
 export function ReserveStandCard() {
   return (
     <BaseCard
+      className="bg-gradient-to-r from-pink-500 to-rose-500"
       title="¡Reserva tu espacio!"
       content={
         <p>
@@ -16,7 +17,9 @@ export function ReserveStandCard() {
       }
       footer={
         <div className="flex justify-center w-full">
-          <RedirectButton href="/next_event">¡Quiero reservar!</RedirectButton>
+          <RedirectButton variant="secondary" href="/next_event">
+            ¡Quiero reservar!
+          </RedirectButton>
         </div>
       }
     />

@@ -10,18 +10,17 @@ export default async function PendingParticipationCard({
 }) {
   return (
     <BaseCard
+      className="bg-gradient-to-r from-rose-400 to-red-500"
       title="Estamos considerando tu solicitud"
       content={
-        <>
+        <div className="mb-3">
           <p>
             Hemos recibido tu solicitud para reservar tu espacio en{" "}
             <strong>{festival.name}</strong>. Recibirás un correo notificándote
             que ya puedes reservar
           </p>
-          <p className="text-primary mt-2">
-            <strong>¡Gracias por postular!</strong>
-          </p>
-        </>
+          <p className="font-semibold mt-2">¡Gracias por postular! 🎉</p>
+        </div>
       }
     />
   );
