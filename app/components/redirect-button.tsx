@@ -1,7 +1,9 @@
+"use client";
+
 import Link from "next/link";
 
 import { Button, buttonVariants } from "@/components/ui/button";
-import { useState } from "react";
+import { HTMLAttributes, useState } from "react";
 import { Loader2Icon } from "lucide-react";
 import { VariantProps } from "class-variance-authority";
 
@@ -13,7 +15,8 @@ export function RedirectButton({
 }: {
   children: React.ReactNode;
   href: string;
-} & VariantProps<typeof buttonVariants>) {
+} & VariantProps<typeof buttonVariants> &
+  HTMLAttributes<HTMLButtonElement>) {
   const [loading, setLoading] = useState(false);
 
   return loading ? (
