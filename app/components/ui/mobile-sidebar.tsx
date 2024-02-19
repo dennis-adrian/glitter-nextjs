@@ -69,7 +69,7 @@ const MobileSidebar = ({ children }: MobileSidebarProps) => {
 
   return (
     <Sheet>
-      <SheetTrigger className="cursor-default" variant="ghost" size="icon">
+      <SheetTrigger className="cursor-default" variant="outline" size="icon">
         {children}
       </SheetTrigger>
       <SheetContent side="left">

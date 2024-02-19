@@ -25,10 +25,10 @@ export default function RootLayout({
   return (
     <ClerkProvider localization={esES}>
       <html lang="es">
-        <body className={inter.className}>
+        <body className={`${inter.variable} font-sans`}>
           <EdgeStoreProvider>
             <Navbar />
-            <main className={`${inter.className}`}>{children}</main>
+            {children}
             <Toaster richColors />
             <Analytics />
           </EdgeStoreProvider>
