@@ -1,11 +1,12 @@
 "use client";
 
+import { useFormState } from "react-dom";
+
 import { createUserRequest } from "@/api/user_requests/actions";
 import { ProfileType } from "@/app/api/users/definitions";
-import { SubmitButton } from "@/app/components/submit-button";
 import { isProfileComplete } from "@/app/lib/utils";
-import { Button } from "@/components/ui/button";
-import { useFormState } from "react-dom";
+
+import { SubmitButton } from "@/app/components/submit-button";
 
 export default function BecomeArtistForm({
   profile,
@@ -25,12 +26,10 @@ export default function BecomeArtistForm({
   );
 
   return isProfileComplete(profile) ? (
-    <form action={action} className="flex w-full justify-center">
-      <SubmitButton formState={state}>¡Soy artista!</SubmitButton>
+    <form action={action}>
+      <SubmitButton variant="secondary" size="sm" formState={state}>
+        ¡Soy artista!
+      </SubmitButton>
     </form>
-  ) : (
-    <div className="flex w-full justify-center">
-      <Button disabled>¡Soy artista!</Button>
-    </div>
-  );
+  ) : null;
 }

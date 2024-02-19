@@ -3,12 +3,12 @@
 import { RedirectButton } from "@/components/redirect-button";
 
 import BaseCard from "@/components/user_profile/announcements_cards/base-card";
+import { ArrowRightIcon } from "lucide-react";
 
 export function ReserveStandCard() {
   return (
     <BaseCard
       className="bg-gradient-to-r from-pink-500 to-rose-500"
-      title="¡Reserva tu espacio!"
       content={
         <p>
           ¡Felicidades! Fuiste aceptado para participar de la siguiente versión
@@ -16,11 +16,10 @@ export function ReserveStandCard() {
         </p>
       }
       footer={
-        <div className="flex justify-center w-full">
-          <RedirectButton variant="secondary" href="/next_event">
-            ¡Quiero reservar!
-          </RedirectButton>
-        </div>
+        <RedirectButton variant="secondary" size="sm" href="/next_event">
+          Ir a reservar espacio
+          <ArrowRightIcon className="ml-2 w-4 h-4" />
+        </RedirectButton>
       }
     />
   );

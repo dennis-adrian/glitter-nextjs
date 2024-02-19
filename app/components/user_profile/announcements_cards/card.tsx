@@ -56,10 +56,6 @@ export default async function Card({ profile }: { profile: ProfileType }) {
       return <PendingParticipationCard festival={festival} />;
     }
 
-    return (
-      <div className="my-4">
-        <ParticipationCard festival={festival} profile={profile} />
-      </div>
-    );
+    return <ParticipationCard festival={festival} profile={profile} />;
   }
 }

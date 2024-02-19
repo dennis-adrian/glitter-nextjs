@@ -1,21 +1,17 @@
-import { cn } from "@/app/lib/utils";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+"use client";
+
 import { ReactNode } from "react";
 
-export default async function BaseCard({
-  title,
+import { cn } from "@/app/lib/utils";
+
+import { Card, CardContent } from "@/components/ui/card";
+
+export default function BaseCard({
   content,
   footer,
   className,
 }: {
   className?: string;
-  title: ReactNode;
   content: ReactNode;
   footer?: ReactNode;
 }) {
@@ -26,13 +22,12 @@ export default async function BaseCard({
         className,
       )}
     >
-      <CardHeader className="pb-3 md:pb-6">
-        <CardTitle className="text-xl md:text-2xl">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="pb-3 text-sm md:pb-6 md:text-base">
-        {content}
+      <CardContent className="text-sm py-3 ">
+        <div className="flex flex-col justify-between items-center md:flex-row gap-2">
+          <div>{content}</div>
+          {footer}
+        </div>
       </CardContent>
-      {footer && <CardFooter>{footer}</CardFooter>}
     </Card>
   );
 }

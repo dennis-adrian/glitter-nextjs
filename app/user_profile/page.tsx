@@ -32,7 +32,7 @@ async function UserProfile() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-screen-md p-4">
+    <div className="mx-auto max-w-screen-lg p-3 md:p-6">
       <SignedIn>
         <div className="flex flex-col gap-4">
           <AnnouncementCard profile={profile} />

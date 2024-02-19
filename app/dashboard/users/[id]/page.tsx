@@ -18,7 +18,7 @@ export default async function Page({ params }: { params: { id: string } }) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-lg p-5">
+    <div className="mx-auto max-w-screen-lg p-3 md:p-6">
       <div className="flex flex-col gap-4">
         <AnnouncementCard profile={profile} />
         <PublicProfile profile={profile} title="Perfil de Usuario" />

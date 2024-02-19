@@ -28,8 +28,8 @@ export default function ParticipationForm({
   );
 
   return (
-    <form action={action} className="flex w-full justify-center">
-      <SubmitButton variant="secondary" formState={state}>
+    <form action={action}>
+      <SubmitButton variant="secondary" size="sm" formState={state}>
         ¡Quiero reservar!
       </SubmitButton>
     </form>

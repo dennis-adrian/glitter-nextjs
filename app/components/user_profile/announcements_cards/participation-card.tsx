@@ -14,7 +14,6 @@ export default async function ParticipationCard({
   return (
     <BaseCard
       className="bg-gradient-to-r from-purple-500 to-purple-900"
-      title={`${festival.name} Se Acerca`}
       content={
         <p>
           La siguiente versión de <strong>Glitter</strong> será el{" "}
