@@ -17,6 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
+import { PersonalInformation } from "@/app/components/user_profile/personal_information";
 
 async function UserProfile() {
   const user = await currentUser();
@@ -36,23 +37,7 @@ async function UserProfile() {
         <div className="flex flex-col gap-4">
           <AnnouncementCard profile={profile} />
           <PublicProfile profile={profile} />
-          <Card>
-            <CardHeader>
-              <CardTitle>Información Personal</CardTitle>
-              <CardDescription>
-                Esta información será visible solamente para el equipo de
-                Glitter.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex w-full flex-col gap-2">
-                <NameField profile={profile} />
-                <BirthdateField profile={profile} />
-                <EmailField profile={profile} />
-                <PhoneField profile={profile} />
-              </div>
-            </CardContent>
-          </Card>
+          <PersonalInformation profile={profile} />
         </div>
       </SignedIn>
     </div>
