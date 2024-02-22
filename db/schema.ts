@@ -66,6 +66,7 @@ export const festivalsRelations = relations(festivals, ({ many }) => ({
   userRequests: many(userRequests),
   standReservations: many(standReservations),
   stands: many(stands),
+  tickes: many(tickets),
 }));
 
 export const requestStatusEnum = pgEnum("participation_request_status", [
@@ -203,3 +204,40 @@ export const participationsRelations = relations(
     }),
   }),
 );
+
+export const visitors = pgTable("visitors", {
+  id: serial("id").primaryKey(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  email: text("email").unique().notNull(),
+  phoneNumber: text("phone_number").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const visitorsRelations = relations(visitors, ({ many }) => ({
+  tickets: many(tickets),
+}));
+
+export const ticketStatusEnum = pgEnum("ticket_status", [
+  "pending",
+  "checked_in",
+]);
+export const tickets = pgTable("tickets", {
+  id: serial("id").primaryKey(),
+  date: timestamp("date").notNull(),
+  status: ticketStatusEnum("status").default("pending").notNull(),
+  visitorId: integer("visitor_id").notNull(),
+  festivalId: integer("festival_id").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const ticketRelations = relations(tickets, ({ one }) => ({
+  visitor: one(visitors, {
+    fields: [tickets.visitorId],
+    references: [visitors.id],
+  }),
+  festival: one(festivals, {
+    fields: [tickets.festivalId],
+    references: [festivals.id],
+  }),
+}));

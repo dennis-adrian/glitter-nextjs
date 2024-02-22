@@ -141,6 +141,13 @@
       "when": 1707143002950,
       "tag": "0019_smart_piledriver",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1708564543084,
+      "tag": "0020_opposite_power_pack",
+      "breakpoints": true
     }
   ]
 }
