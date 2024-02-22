@@ -28,7 +28,7 @@ export default function RootLayout({
         <body className={`${inter.variable} font-sans`}>
           <EdgeStoreProvider>
             <Navbar />
-            {children}
+            <main style={{ height: "calc(100vh - 64px)" }}>{children}</main>
             <Toaster richColors />
             <Analytics />
           </EdgeStoreProvider>

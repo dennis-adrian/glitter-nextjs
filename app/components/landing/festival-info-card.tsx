@@ -1,8 +1,12 @@
-import { Festival } from "@/app/api/festivals/definitions";
+import { Festival, FestivalBase } from "@/app/api/festivals/definitions";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
 import { CalendarIcon, ClockIcon, LocateIcon } from "lucide-react";
 
-export function FestivalInfo({ festival }: { festival: Festival }) {
+export function FestivalInfo({
+  festival,
+}: {
+  festival: Festival | FestivalBase;
+}) {
   return (
     <div className="grid gap-2 py-4 text-lg md:text-xl">
       <div className="flex items-center justify-center md:justify-start">

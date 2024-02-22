@@ -8,10 +8,19 @@ import { MenuIcon } from "lucide-react";
 import MobileSidebar from "@/app/components/ui/mobile-sidebar";
 import UserDropdown from "@/app/components/ui/user-dropdown";
 import NavbarNavigationMenu from "@/app/ui/navbar-navigation-menu";
+import { usePathname, useSearchParams } from "next/navigation";
 
 const Navbar = () => {
+  const pathname = usePathname();
+
   return (
-    <header>
+    <header
+      className={
+        pathname.includes("events") && pathname.includes("registration")
+          ? "hidden"
+          : ""
+      }
+    >
       <nav className="h-16 w-full container m-auto py-3 px-4 md:px-6">
         <ul className="grid grid-cols-3 items-center">
           <li className="md:hidden">
