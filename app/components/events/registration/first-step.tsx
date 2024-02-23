@@ -59,7 +59,7 @@ export default function FirstStep({
             control={form.control}
             name="email"
             render={({ field }) => (
-              <FormItem className="w-[280px] sm:w-[300px] md:w-[500px]">
+              <FormItem className="w-[250px] sm:w-[300px] md:w-[500px]">
                 <FormLabel className="text-base sm:text-lg md:text-xl">
                   ¿Cuál es tu correo electrónico?
                 </FormLabel>
