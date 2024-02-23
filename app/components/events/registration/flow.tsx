@@ -12,15 +12,24 @@ export default function RegistrationFlow({
   festival: FestivalBase;
 }) {
   const [visitor, setVisitor] = useState<VisitorBase | undefined | null>();
-  const [step, setStep] = useState(0);
+  const [email, setEmail] = useState<string>("");
 
   const handleSuccess = (visitor: VisitorBase) => {
     setVisitor(visitor);
   };
 
-  return step === 0 ? (
-    <FirstStep onSuccess={handleSuccess} onSubmit={() => setStep(1)} />
+  return email && email.length > 0 ? (
+    <div className="container px-3 sm:px-8">
+      <EventRegistrationForm
+        email={email}
+        visitor={visitor}
+        festival={festival}
+      />
+    </div>
   ) : (
-    <EventRegistrationForm visitor={visitor} festival={festival} />
+    <FirstStep
+      onSuccess={handleSuccess}
+      onSubmit={(value) => setEmail(value)}
+    />
   );
 }

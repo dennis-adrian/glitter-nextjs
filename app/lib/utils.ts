@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { ProfileType } from "@/api/users/definitions";
+import { eventDiscoveryEnum, genderEnum } from "@/db/schema";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -63,3 +64,25 @@ export const requestTypeLabels = {
   become_artist: "Ser artista",
   festival_participation: "Participar en festival",
 };
+
+export const eventDiscoveryOptions = [
+  { value: eventDiscoveryEnum.enumValues[0], label: "Facebook" },
+  { value: eventDiscoveryEnum.enumValues[1], label: "Instagram" },
+  { value: eventDiscoveryEnum.enumValues[2], label: "Tiktok" },
+  { value: eventDiscoveryEnum.enumValues[3], label: "CBA" },
+  { value: eventDiscoveryEnum.enumValues[4], label: "Un amigo me invitó" },
+  {
+    value: eventDiscoveryEnum.enumValues[5],
+    label: "Un artista participante me invitó",
+  },
+  { value: eventDiscoveryEnum.enumValues[6], label: "Estaba de pasada" },
+  { value: eventDiscoveryEnum.enumValues[7], label: "Otro" },
+];
+
+export const genderOptions = [
+  { value: genderEnum.enumValues[0], label: "Masculino" },
+  { value: genderEnum.enumValues[1], label: "Femenino" },
+  { value: genderEnum.enumValues[2], label: "No binario" },
+  { value: genderEnum.enumValues[3], label: "Otro" },
+  { value: genderEnum.enumValues[4], label: "Prefiero no decir" },
+];

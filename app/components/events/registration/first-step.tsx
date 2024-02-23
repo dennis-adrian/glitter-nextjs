@@ -33,7 +33,7 @@ export default function FirstStep({
   onSubmit,
   onSuccess,
 }: {
-  onSubmit: () => void;
+  onSubmit: (value: string) => void;
   onSuccess: (visitor: VisitorBase) => void;
 }) {
   const form = useForm<z.infer<typeof FormSchema>>({
@@ -48,7 +48,7 @@ export default function FirstStep({
     if (visitor) {
       onSuccess(visitor);
     }
-    onSubmit();
+    onSubmit(data.email);
   });
 
   return (
@@ -59,8 +59,8 @@ export default function FirstStep({
             control={form.control}
             name="email"
             render={({ field }) => (
-              <FormItem className="w-[300px] md:w-[500px]">
-                <FormLabel className="text-lg md:text-xl">
+              <FormItem className="w-[280px] sm:w-[300px] md:w-[500px]">
+                <FormLabel className="text-base sm:text-lg md:text-xl">
                   ¿Cuál es tu correo electrónico?
                 </FormLabel>
                 <FormMessage />
