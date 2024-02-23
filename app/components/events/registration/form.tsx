@@ -12,6 +12,7 @@ import {
   FormField,
   FormItem,
   FormLabel,
+  FormMessage,
 } from "@/app/components/ui/form";
 import { Input } from "@/app/components/ui/input";
 import {
@@ -28,9 +29,15 @@ import {
   formatDateOnlyToISO,
   genderOptions,
 } from "@/app/lib/utils";
+import { Button } from "@/app/components/ui/button";
+import { formatFullDate } from "@/app/lib/formatters";
+import { createTicketsForVisitor } from "@/app/api/tickets/actions";
 
 const FormSchema = z.object({
-  birthdate: z.string(),
+  attendance: z.enum(["day_one", "day_two", "both"]),
+  birthdate: z.string().min(1, {
+    message: "La fecha de nacimiento es requerida",
+  }),
   email: z
     .string({
       required_error: "El correo electronico es requerido",
@@ -63,6 +70,7 @@ export default function EventRegistrationForm({
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
+      attendance: "both",
       birthdate: formatDateOnlyToISO(visitor?.birthdate),
       email: email,
       eventDiscovery: visitor?.eventDiscovery || "instagram",
@@ -73,19 +81,31 @@ export default function EventRegistrationForm({
     },
   });
 
+  async function onSubmit(data: z.infer<typeof FormSchema>) {
+    const res = await createTicketsForVisitor({
+      ...data,
+      birthdate: new Date(data.birthdate),
+      festival: festival,
+      visitorId: visitor?.id,
+    });
+  }
+
   return (
     <Form {...form}>
-      <form className="grid items-start gap-4">
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="grid items-start gap-2"
+      >
         <FormField
-          disabled
           control={form.control}
           name="email"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input type="email" {...field} />
+                <Input disabled type="email" {...field} />
               </FormControl>
+              <FormMessage />
             </FormItem>
           )}
         />
@@ -99,6 +119,7 @@ export default function EventRegistrationForm({
                 <FormControl>
                   <Input type="text" {...field} />
                 </FormControl>
+                <FormMessage />
               </FormItem>
             )}
           />
@@ -111,6 +132,7 @@ export default function EventRegistrationForm({
                 <FormControl>
                   <Input type="text" {...field} />
                 </FormControl>
+                <FormMessage />
               </FormItem>
             )}
           />
@@ -130,6 +152,7 @@ export default function EventRegistrationForm({
                     <Input className="pl-14" type="tel" {...field} />
                   </div>
                 </FormControl>
+                <FormMessage />
               </FormItem>
             )}
           />
@@ -142,6 +165,7 @@ export default function EventRegistrationForm({
                 <FormControl>
                   <Input type="date" {...field} />
                 </FormControl>
+                <FormMessage />
               </FormItem>
             )}
           />
@@ -192,6 +216,32 @@ export default function EventRegistrationForm({
             </FormItem>
           )}
         />
+        <FormField
+          control={form.control}
+          name="attendance"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>¿Qué día asistirás?</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Elige una opción" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="day_one">
+                    El primer día - {formatFullDate(festival.startDate)}
+                  </SelectItem>
+                  <SelectItem value="day_two">
+                    El segundo día - {formatFullDate(festival.endDate)}
+                  </SelectItem>
+                  <SelectItem value="both">Ambos días</SelectItem>
+                </SelectContent>
+              </Select>
+            </FormItem>
+          )}
+        />
+        <Button type="submit">Registrarse</Button>
       </form>
     </Form>
   );

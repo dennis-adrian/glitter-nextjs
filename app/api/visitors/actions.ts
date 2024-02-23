@@ -4,6 +4,7 @@ import { pool, db } from "@/db";
 import { visitors } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
+export type NewVisitor = typeof visitors.$inferInsert;
 export type VisitorBase = typeof visitors.$inferSelect;
 export async function fetchVisitorByEmail(
   email: string,
