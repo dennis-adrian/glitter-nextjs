@@ -148,6 +148,13 @@
       "when": 1708564543084,
       "tag": "0020_opposite_power_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1708649832300,
+      "tag": "0021_faithful_wong",
+      "breakpoints": true
     }
   ]
 }

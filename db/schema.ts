@@ -205,12 +205,34 @@ export const participationsRelations = relations(
   }),
 );
 
+export const eventDiscoveryEnum = pgEnum("event_discovery", [
+  "facebook",
+  "instagram",
+  "tiktok",
+  "cba",
+  "friends",
+  "participant_invitation",
+  "casual",
+  "other",
+]);
+export const genderEnum = pgEnum("gender", [
+  "male",
+  "female",
+  "non_binary",
+  "other",
+  "undisclosed",
+]);
 export const visitors = pgTable("visitors", {
   id: serial("id").primaryKey(),
   firstName: text("first_name"),
   lastName: text("last_name"),
   email: text("email").unique().notNull(),
   phoneNumber: text("phone_number").notNull(),
+  eventDiscovery: eventDiscoveryEnum("event_discovery")
+    .notNull()
+    .default("other"),
+  gender: genderEnum("gender").notNull().default("undisclosed"),
+  birthdate: timestamp("birthdate").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
