@@ -5,15 +5,15 @@
 @layer base {
     :root {
         --background: 0 0% 100%;
-        --foreground: 242 39% 13%;
-        --card: 0 0% 98%;
-        --card-foreground: 242 39% 13%;
+        --foreground: 224 100% 17%;
+        --card: 0 0% 99%;
+        --card-foreground: 224 100% 17%;
         --popover: 217 0% 96%;
-        --popover-foreground: 242 39% 13%;
+        --popover-foreground: 224 100% 17%;
         --primary: 262 77% 49%;
         --primary-foreground: 0 0% 98%;
         --secondary: 308 59% 72%;
-        --secondary-foreground: 242 39% 13%;
+        --secondary-foreground: 224 100% 17%;
         --muted: 220 14.3% 95.9%;
         --muted-foreground: 220 8.9% 46.1%;
         --accent: 338 69% 65%;
@@ -25,17 +25,17 @@
         --ring: 338 72% 65%;
         --radius: 0.5rem;
 
-        --text-50: 246 38% 95%;
-        --text-100: 240 37% 90%;
-        --text-200: 242 39% 80%;
-        --text-300: 242 39% 70%;
-        --text-400: 242 39% 60%;
-        --text-500: 242 39% 50%;
-        --text-600: 242 39% 40%;
-        --text-700: 242 39% 30%;
-        --text-800: 242 39% 20%;
-        --text-900: 240 37% 10%;
-        --text-950: 240 38% 5%;
+        --text-50: 224 100% 95%;
+        --text-100: 224 100% 90%;
+        --text-200: 224 100% 80%;
+        --text-300: 224 100% 70%;
+        --text-400: 224 100% 60%;
+        --text-500: 224 100% 50%;
+        --text-600: 224 100% 40%;
+        --text-700: 224 100% 30%;
+        --text-800: 224 100% 20%;
+        --text-900: 224 100% 10%;
+        --text-950: 224 100% 5%;
 
         --background-50: 0 0% 95%;
         --background-100: 0 0% 90%;
@@ -113,6 +113,7 @@
     * {
         @apply border-border;
     }
+
     body {
         @apply bg-background text-foreground;
     }

@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
 
 const config = {
   darkMode: ["class"],
@@ -98,18 +99,18 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        text: {
-          50: "hsl(var(--text-50))",
-          100: "hsl(var(--text-100))",
-          200: "hsl(var(--text-200))",
-          300: "hsl(var(--text-300))",
-          400: "hsl(var(--text-400))",
-          500: "hsl(var(--text-500))",
-          600: "hsl(var(--text-600))",
-          700: "hsl(var(--text-700))",
-          800: "hsl(var(--text-800))",
-          900: "hsl(var(--text-900))",
-          950: "hsl(var(--text-950))",
+        "glitter-blue": {
+          50: "var(--text-50)",
+          100: "var(--text-100)",
+          200: "var(--text-200)",
+          300: "var(--text-300)",
+          400: "var(--text-400)",
+          500: "var(--text-500)",
+          600: "var(--text-600)",
+          700: "var(--text-700)",
+          800: "var(--text-800)",
+          900: "var(--text-900)",
+          950: "var(--text-950)",
         },
       },
       borderRadius: {
@@ -134,9 +135,26 @@ const config = {
       fontFamily: {
         sans: ["var(--font-inter)"],
       },
+      textShadow: {
+        sm: "1px 1px 2px var(--tw-shadow-color)",
+        DEFAULT: "6px 6px 3px var(--tw-shadow-color)",
+        lg: "8px 8px 4px var(--tw-shadow-color)",
+      },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    plugin(function ({ matchUtilities, theme }) {
+      matchUtilities(
+        {
+          "text-shadow": (value) => ({
+            textShadow: value,
+          }),
+        },
+        { values: theme("textShadow") },
+      );
+    }),
+  ],
 } satisfies Config;
 
 export default config;
