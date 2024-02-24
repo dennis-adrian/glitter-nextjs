@@ -1,3 +1,4 @@
+import QRCode from "qrcode";
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { ProfileType } from "@/api/users/definitions";
@@ -10,6 +11,21 @@ export function cn(...inputs: ClassValue[]) {
 export function formatDateOnlyToISO(date?: string | Date | null): string {
   if (!date) return "";
   return new Date(date).toISOString().split("T")[0];
+}
+
+export async function generateQRCode(
+  url: string,
+): Promise<{ qrCodeUrl: string; error: boolean }> {
+  try {
+    const qrCodeUrl = await QRCode.toDataURL(url);
+    return {
+      qrCodeUrl,
+      error: false,
+    };
+  } catch (error) {
+    console.error("Error generating QR code", error);
+    return { error: true, qrCodeUrl: "" };
+  }
 }
 
 export function isProfileComplete(profile: ProfileType) {

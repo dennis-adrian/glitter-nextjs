@@ -2,10 +2,12 @@
 
 import { FestivalBase } from "@/app/api/festivals/definitions";
 import { NewVisitor } from "@/app/api/visitors/actions";
+import { generateQRCode } from "@/app/lib/utils";
 import { pool, db } from "@/db";
 import { tickets, visitors } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 
+export type TicketBase = typeof tickets.$inferSelect;
 export async function createTicketsForVisitor(
   data: NewVisitor & {
     attendance: "day_one" | "day_two" | "both";
@@ -59,16 +61,19 @@ export async function createTicketsForVisitor(
           eq(tickets.date, data.festival.endDate),
         ),
       });
+      const qrcode = await generateQRCode(`https://festivalglitter.art/`);
 
       if (data.attendance === "day_one" && !firstDayTicket) {
         await tx.insert(tickets).values({
           date: new Date(data.festival.startDate),
+          qrcode: qrcode.qrCodeUrl,
           festivalId: data.festival.id,
           visitorId,
         });
       } else if (data.attendance === "day_two" && !secondDayTicket) {
         await tx.insert(tickets).values({
           date: new Date(data.festival.endDate),
+          qrcode: qrcode.qrCodeUrl,
           festivalId: data.festival.id,
           visitorId,
         });
@@ -78,6 +83,7 @@ export async function createTicketsForVisitor(
           .values({
             id: firstDayTicket?.id,
             date: new Date(data.festival.startDate),
+            qrcode: qrcode.qrCodeUrl,
             festivalId: data.festival.id,
             visitorId,
           })
@@ -87,6 +93,7 @@ export async function createTicketsForVisitor(
           .values({
             id: secondDayTicket?.id,
             date: new Date(data.festival.endDate),
+            qrcode: qrcode.qrCodeUrl,
             festivalId: data.festival.id,
             visitorId,
           })
@@ -95,6 +102,22 @@ export async function createTicketsForVisitor(
     });
   } catch (error) {
     console.error("Error creating ticket", error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+export async function fetchTicket(
+  id: number,
+): Promise<TicketBase | undefined | null> {
+  const client = await pool.connect();
+  try {
+    return await db.query.tickets.findFirst({
+      where: eq(tickets.id, id),
+    });
+  } catch (error) {
+    console.error(error);
     return null;
   } finally {
     client.release();
