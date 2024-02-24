@@ -25,7 +25,7 @@ export function RedirectButton({
       Cargando
     </Button>
   ) : (
-    <Link href={href}>
+    <Link className="w-fit" href={href}>
       <Button variant={variant} onClick={() => setLoading(true)} {...props}>
         {children}
       </Button>
