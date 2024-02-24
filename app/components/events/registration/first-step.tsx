@@ -7,7 +7,10 @@ import { z } from "zod";
 
 import { Loader2Icon, SendHorizonalIcon } from "lucide-react";
 
-import { VisitorBase, fetchVisitorByEmail } from "@/app/api/visitors/actions";
+import {
+  VisitorWithTickets,
+  fetchVisitorByEmail,
+} from "@/app/api/visitors/actions";
 import { Button } from "@/app/components/ui/button";
 import {
   Form,
@@ -34,7 +37,7 @@ export default function FirstStep({
   onSuccess,
 }: {
   onSubmit: (value: string) => void;
-  onSuccess: (visitor: VisitorBase) => void;
+  onSuccess: (visitor: VisitorWithTickets) => void;
 }) {
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),

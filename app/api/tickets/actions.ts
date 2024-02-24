@@ -61,8 +61,10 @@ export async function createTicketsForVisitor(
           eq(tickets.date, data.festival.endDate),
         ),
       });
-      const qrcode = await generateQRCode(`https://festivalglitter.art/`);
 
+      const qrcode = await generateQRCode(
+        `https://festivalglitter.art/visitors/${visitorId}/tickets`,
+      );
       if (data.attendance === "day_one" && !firstDayTicket) {
         await tx.insert(tickets).values({
           date: new Date(data.festival.startDate),
@@ -99,6 +101,12 @@ export async function createTicketsForVisitor(
           })
           .onConflictDoNothing();
       }
+      return await tx.query.visitors.findFirst({
+        where: eq(visitors.id, visitorId),
+        with: {
+          tickets: true,
+        },
+      });
     });
   } catch (error) {
     console.error("Error creating ticket", error);

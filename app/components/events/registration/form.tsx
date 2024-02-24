@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { FestivalBase } from "@/app/api/festivals/definitions";
-import { VisitorBase } from "@/app/api/visitors/actions";
+import { VisitorBase, VisitorWithTickets } from "@/app/api/visitors/actions";
 import {
   Form,
   FormControl,
@@ -62,10 +62,12 @@ export default function EventRegistrationForm({
   email,
   festival,
   visitor,
+  onSuccess,
 }: {
   email: string;
   festival: FestivalBase;
   visitor: VisitorBase | undefined | null;
+  onSuccess: (visitor: VisitorWithTickets) => void;
 }) {
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
@@ -88,6 +90,10 @@ export default function EventRegistrationForm({
       festival: festival,
       visitorId: visitor?.id,
     });
+    debugger;
+    if (res) {
+      onSuccess(res);
+    }
   }
 
   return (
@@ -146,7 +152,7 @@ export default function EventRegistrationForm({
                 <FormLabel>Teléfono</FormLabel>
                 <FormControl>
                   <div className="relative flex items-center">
-                    <span className="absolute left-2 bg-gray-200 text-sm rounded-sm p-1">
+                    <span className="absolute left-2 rounded-sm bg-gray-200 p-1 text-sm">
                       +591
                     </span>
                     <Input className="pl-14" type="tel" {...field} />
