@@ -1,3 +1,5 @@
+import { Metadata } from "next";
+
 import { currentUser } from "@clerk/nextjs";
 
 import { CalendarIcon, ClockIcon, LocateIcon } from "lucide-react";
@@ -11,6 +13,11 @@ import NextFestival from "@/app/components/next_event/next-festival";
 import { Participants } from "@/app/components/next_event/participants/grid";
 import { Badge } from "@/app/components/ui/badge";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
+
+export const metadata: Metadata = {
+  title: "Próximo Evento",
+  description: "Participa en el próximo evento de Festival Glitter",
+};
 
 export default async function Page() {
   const festival = await fetchActiveFestival({ acceptedUsersOnly: true });

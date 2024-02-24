@@ -14,7 +14,10 @@ import { inter } from "@/ui/fonts";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Festival Glitter",
+  title: {
+    template: "%s | Festival Glitter",
+    default: "Festival Glitter",
+  },
   description: "Un festival para que los artistas brillen",
 };
 
@@ -27,19 +30,12 @@ export default function RootLayout({
     <ClerkProvider localization={esES}>
       <html lang="es">
         <body className={`${inter.variable} font-sans`}>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            <EdgeStoreProvider>
-              <Navbar />
-              <main style={{ height: "calc(100vh - 64px)" }}>{children}</main>
-              <Toaster richColors />
-              <Analytics />
-            </EdgeStoreProvider>
-          </ThemeProvider>
+          <EdgeStoreProvider>
+            <Navbar />
+            <main style={{ height: "calc(100vh - 64px)" }}>{children}</main>
+            <Toaster richColors />
+            <Analytics />
+          </EdgeStoreProvider>
         </body>
       </html>
     </ClerkProvider>

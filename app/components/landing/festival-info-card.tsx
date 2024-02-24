@@ -14,7 +14,9 @@ function InfoItem({
 }) {
   return (
     <div className="flex justify-center md:justify-start items-start">
-      <Icon className="mr-2 inline-block h-4 w-4" />
+      <span className="py-[6px] flex items-center">
+        <Icon className="mr-2 inline-block h-4 w-4" />
+      </span>
       <span className="hidden sm:inline-block md:mr-1">{label}</span>
       {value}
     </div>

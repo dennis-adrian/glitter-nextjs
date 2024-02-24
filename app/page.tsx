@@ -29,35 +29,37 @@ export default async function Home() {
               }}
             />
           </div>
-          <div className="flex flex-col md:flex-row text-white md:justify-between md:gap-16">
+          <div className="flex flex-col md:flex-row text-glitter-blue-950 md:justify-between md:gap-16">
             <div className="flex flex-col md:gap-8 md:text-left sm:p-6 md:backdrop-blur-sm">
               <div>
                 <div className="m-auto mt-2">
                   <span className={junegull.className}>
-                    <h1 className="text-5xl text-white sm:text-7xl">
+                    <h1 className="text-5xl text-white sm:text-7xl text-shadow shadow-blue-950">
                       ¡Brillemos juntos!
                     </h1>
                   </span>
                 </div>
-                <p className="m-auto py-4 md:py-0 text-xl leading-6 md:text-2xl font-semibold">
+                <p className="m-auto py-4 md:py-0 text-xl leading-6 md:text-2xl font-semibold text-shadow-sm shadow-white">
                   Festival para que los artistas brillen
                 </p>
               </div>
-              <div className="hidden md:block">
+              <div className="hidden md:block bg-card/50 p-6 rounded-lg backdrop-blur-sm">
                 <div className="font-semibold text-3xl">Próximo Evento</div>
-                <div className="text-xl mt-1">
+                <div className="text-xl">
                   <p>
                     No te quedes fuera y participa de{" "}
                     {festival ? (
-                      <span>
-                        <strong>{festival.name}</strong>
+                      <span className="font-semibold whitespace-nowrap">
+                        {festival.name}
                       </span>
                     ) : (
                       "nuestro próximo evento"
                     )}
                   </p>
                 </div>
-                {festival && <FestivalInfo festival={festival} />}
+                {festival && (
+                  <FestivalInfo className="p-0 pt-4" festival={festival} />
+                )}
               </div>
               <LandingRedirectButton
                 className="hidden md:flex"
@@ -74,7 +76,7 @@ export default async function Home() {
           </div>
         </div>
       </section>
-      <section className="md:hidden text-secondary-foreground m-auto bg-amber-50 px-4 py-8">
+      <section className="md:hidden bg-primary-50 m-auto px-4 py-8">
         <div className="font-semibold text-3xl">Próximo Evento</div>
         <div className="text-lg mt-4">
           <p>
