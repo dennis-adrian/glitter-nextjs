@@ -5,6 +5,7 @@ import { esES } from "@clerk/localizations";
 import { ClerkProvider } from "@clerk/nextjs";
 
 import { EdgeStoreProvider } from "@/app/lib/edgestore";
+import { ThemeProvider } from "@/components/theme-provider";
 
 import Navbar from "@/app/ui/navbar";
 import { Toaster } from "@/components/ui/sonner";
@@ -26,12 +27,19 @@ export default function RootLayout({
     <ClerkProvider localization={esES}>
       <html lang="es">
         <body className={`${inter.variable} font-sans`}>
-          <EdgeStoreProvider>
-            <Navbar />
-            <main style={{ height: "calc(100vh - 64px)" }}>{children}</main>
-            <Toaster richColors />
-            <Analytics />
-          </EdgeStoreProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <EdgeStoreProvider>
+              <Navbar />
+              <main style={{ height: "calc(100vh - 64px)" }}>{children}</main>
+              <Toaster richColors />
+              <Analytics />
+            </EdgeStoreProvider>
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>
