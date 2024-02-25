@@ -8,6 +8,7 @@ import { fetchActiveFestival } from "@/app/api/festivals/actions";
 import LandingRedirectButton from "@/app/components/landing/redirect-button";
 import { FestivalInfo } from "@/app/components/landing/festival-info-card";
 import Carousel from "@/app/components/landing/carousel";
+import EventFeatures from "@/app/components/landing/event-features";
 
 export default async function Home() {
   const user = await currentUser();
@@ -94,7 +95,7 @@ export default async function Home() {
         {festival && <FestivalInfo festival={festival} />}
         <LandingRedirectButton className="md:hidden" userId={user?.id} />
       </section>
-      <section className="px-3 py-8 md:py-14 md:px-6">
+      <section className="px-3 pt-8 md:pt-14 md:px-6">
         <h1 className="text-4xl font-bold md:text-6xl">
           Esto es el{" "}
           <span className="from-primary to-accent whitespace-nowrap bg-gradient-to-br bg-clip-text tracking-tight text-transparent">
@@ -105,9 +106,15 @@ export default async function Home() {
           un evento creado para brindar un espacio acogedor y seguro para
           artistas
         </p>
-        <div className="py-4 md:py-8">
+        <div className="pt-4 md:pt-8">
           <Carousel />
         </div>
+      </section>
+      <section className="px-3 pt-8 md:pt-14 md:px-6">
+        <h1 className="text-4xl font-bold md:text-6xl">
+          El mejor lugar para encontrar
+        </h1>
+        <EventFeatures />
       </section>
     </div>
   );
