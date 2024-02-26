@@ -1,39 +1,60 @@
 "use client";
 
+import { Dispatch, useRef } from "react";
+
+import * as htmlToImage from "html-to-image";
+import Image from "next/image";
+
+import { CalendarDaysIcon, ClockIcon } from "lucide-react";
+
 import { FestivalBase } from "@/app/api/festivals/definitions";
-import { VisitorBase, VisitorWithTickets } from "@/app/api/visitors/actions";
+import { VisitorWithTickets } from "@/app/api/visitors/actions";
+import { Button } from "@/app/components/ui/button";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
 import { junegull } from "@/app/ui/fonts";
 import {
   DrawerDialog,
+  DrawerDialogClose,
   DrawerDialogContent,
-  DrawerDialogHeader,
-  DrawerDialogTitle,
+  DrawerDialogFooter,
 } from "@/components/ui/drawer-dialog";
-import { CalendarDaysIcon, CalendarIcon, ClockIcon } from "lucide-react";
-import Image from "next/image";
 
 export default function TicketModal({
   festival,
   show,
   visitor,
+  onOpenChange,
 }: {
   festival: FestivalBase;
   show: boolean;
   visitor: VisitorWithTickets;
+  onOpenChange: Dispatch<React.SetStateAction<boolean>>;
 }) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
+  const ticket = useRef(null);
 
   if (visitor.tickets.length < 1) {
     return null;
   }
 
+  const downloadTicket = async () => {
+    const dataUrl = await htmlToImage.toPng(ticket.current!);
+
+    const link = document.createElement("a");
+    link.download = "glitter-ticket.png";
+    link.href = dataUrl;
+    link.click();
+  };
+
   return (
-    <DrawerDialog isDesktop={isDesktop} open={show}>
+    <DrawerDialog isDesktop={isDesktop} open={show} onOpenChange={onOpenChange}>
       <DrawerDialogContent isDesktop={isDesktop}>
         <div className={`${isDesktop ? "" : "px-4"} py-4`}>
-          <div className="flex flex-col items-center rounded-lg bg-gradient-to-b from-[#99A4E6] to-[#52B0E6] p-6 pb-0 md:p-8 md:pb-0">
+          <div
+            ref={ticket}
+            className="flex flex-col items-center rounded-lg bg-gradient-to-b from-[#99A4E6] to-[#52B0E6] p-6 pb-0 md:p-8 md:pb-0"
+          >
             <Image
               alt="Logo de Glitter con descripción"
               src="/img/logo-with-description.png"
@@ -54,7 +75,7 @@ export default function TicketModal({
             >
               Entrada
             </h1>
-            <div className="my-4 rounded-lg bg-blue-950 px-4 py-2 font-semibold uppercase text-white">
+            <div className="my-4 rounded-lg bg-blue-900 px-4 py-2 font-semibold uppercase text-white">
               {visitor.tickets.length > 1 ? (
                 <h3>
                   {getWeekdayFromDate(visitor.tickets[0].date)} y{" "}
@@ -99,6 +120,9 @@ export default function TicketModal({
               width={120}
             />
           </div>
+          <Button className="w-full mt-4" onClick={downloadTicket}>
+            Descargar entrada
+          </Button>
         </div>
       </DrawerDialogContent>
     </DrawerDialog>

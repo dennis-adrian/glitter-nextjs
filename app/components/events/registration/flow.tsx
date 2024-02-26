@@ -80,7 +80,12 @@ export default function RegistrationFlow({
         />
       )}
       {visitor && (
-        <TicketModal show={showModal} visitor={visitor} festival={festival} />
+        <TicketModal
+          show={showModal}
+          visitor={visitor}
+          festival={festival}
+          onOpenChange={setShowModal}
+        />
       )}
     </div>
   );
