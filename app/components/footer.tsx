@@ -1,8 +1,12 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+import { cn } from "@/app/lib/utils";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
-import { socialsUrls } from "@/app/lib/config";
 import GlitterLogo from "@/app/components/landing/glitter-logo";
 import {
   faFacebook,
@@ -11,9 +15,19 @@ import {
 } from "@fortawesome/free-brands-svg-icons";
 
 export default function Footer() {
+  const pathname = usePathname();
+
   return (
-    <footer className="bg-gradient-to-br from-primary to-secondary-400 text-primary-foreground text-sm md:text-base">
-      <div className="container m-auto py-5 px-4 md:px-6">
+    <footer
+      className={cn(
+        "bg-gradient-to-br from-primary to-secondary-400 text-primary-foreground text-sm md:text-base",
+        {
+          hidden:
+            pathname.includes("festivals") && pathname.includes("registration"),
+        },
+      )}
+    >
+      <div className="container m-auto py-5 px-4 md:px-6 ">
         <div className="grid gap-4 sm:gap-8 md:grid-cols-3">
           <div className="col-span-2">
             <GlitterLogo />
@@ -26,7 +40,7 @@ export default function Footer() {
             <div className="flex flex-col gap-1">
               <Link
                 className="flex items-center hover:underline"
-                href={`${socialsUrls["instagram"]}glitter.bo`}
+                href="https://instagram.com/glitter.bo"
                 target="_blank"
               >
                 <FontAwesomeIcon className="w-4 h-4 mr-1" icon={faInstagram} />{" "}
@@ -34,7 +48,7 @@ export default function Footer() {
               </Link>
               <Link
                 className="flex items-center hover:underline"
-                href={`${socialsUrls["facebook"]}glitterfestival`}
+                href="https://facebook.com/glitterfestival"
                 target="_blank"
               >
                 <FontAwesomeIcon className="w-4 h-4 mr-1" icon={faFacebook} />
@@ -42,7 +56,7 @@ export default function Footer() {
               </Link>
               <Link
                 className="flex items-center hover:underline"
-                href={`${socialsUrls["tiktok"]}festival.glitter.bo`}
+                href="https://tiktok.com/@festival.glitter.bo"
                 target="_blank"
               >
                 <FontAwesomeIcon className="w-4 h-4 mr-1" icon={faTiktok} />

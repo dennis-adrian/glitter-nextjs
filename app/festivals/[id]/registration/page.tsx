@@ -1,9 +1,5 @@
-import Image from "next/image";
-
 import { fetchFestival } from "@/app/api/festivals/actions";
 
-import EventRegistrationForm from "@/app/components/events/registration/first-step";
-import { FestivalInfo } from "@/app/components/landing/festival-info-card";
 import { RedirectButton } from "@/app/components/redirect-button";
 import ResourceNotFound from "@/app/components/resource-not-found";
 import RegistrationFlow from "@/app/components/events/registration/flow";
@@ -27,7 +23,7 @@ export default async function Page({ params }: { params: { id: string } }) {
   }
 
   return (
-    <div className="flex h-full justify-center items-center">
+    <div className="flex min-h-dvh justify-center items-center">
       <RegistrationFlow festival={festival} />
     </div>
   );
