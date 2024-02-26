@@ -90,7 +90,6 @@ export default function EventRegistrationForm({
       festival: festival,
       visitorId: visitor?.id,
     });
-    debugger;
     if (res) {
       onSuccess(res);
     }

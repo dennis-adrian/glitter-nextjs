@@ -79,7 +79,9 @@ export default function RegistrationFlow({
           onSubmit={(value) => setEmail(value)}
         />
       )}
-      {visitor && <TicketModal show={showModal} visitor={visitor} />}
+      {visitor && (
+        <TicketModal show={showModal} visitor={visitor} festival={festival} />
+      )}
     </div>
   );
 }
