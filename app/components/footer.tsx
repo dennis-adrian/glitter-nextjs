@@ -12,7 +12,7 @@ import {
 
 export default function Footer() {
   return (
-    <footer className="bg-gradient-to-br from-primary to-secondary-400 text-primary-foreground text-sm md:text-base">
+    <footer className="bg-gradient-to-br from-violet-500 to-primary-600 text-primary-foreground text-sm md:text-base">
       <div className="container m-auto py-5 px-4 md:px-6">
         <div className="grid gap-4 sm:gap-8 md:grid-cols-3">
           <div className="col-span-2">

@@ -10,7 +10,7 @@ export default function GlitterLogo({
       className="w-[100px] h-[32px] sm:w-[150px] sm:h-[48px]"
       src={
         variant === "dark"
-          ? "/img/logo/logo-dark-alt.png"
+          ? "/img/logo/logo-dark.png"
           : "/img/logo/logo-light.png"
       }
       alt="Glitter Logo"
