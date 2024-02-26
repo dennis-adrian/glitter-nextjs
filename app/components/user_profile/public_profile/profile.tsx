@@ -78,7 +78,7 @@ export default function PublicProfile({
                       return (
                         <a
                           key={social.id}
-                          href={`${url}/${social.username}`}
+                          href={`${url}${social.username}`}
                           target="_blank"
                           rel="noreferrer"
                         >

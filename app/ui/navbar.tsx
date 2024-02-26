@@ -9,6 +9,7 @@ import MobileSidebar from "@/app/components/ui/mobile-sidebar";
 import UserDropdown from "@/app/components/ui/user-dropdown";
 import NavbarNavigationMenu from "@/app/ui/navbar-navigation-menu";
 import { usePathname, useSearchParams } from "next/navigation";
+import GlitterLogo from "@/app/components/landing/glitter-logo";
 
 const Navbar = () => {
   const pathname = usePathname();
@@ -21,7 +22,7 @@ const Navbar = () => {
           : ""
       }
     >
-      <nav className="h-16 w-full container m-auto py-3 px-4 md:px-6">
+      <nav className="w-full container m-auto py-3 md:py-4 px-4 md:px-6">
         <ul className="grid grid-cols-3 items-center">
           <li className="md:hidden">
             <MobileSidebar>
@@ -30,12 +31,7 @@ const Navbar = () => {
           </li>
           <li className="justify-self-center md:justify-self-start">
             <Link href="/">
-              <Image
-                src="/img/logo-dark.png"
-                alt="Glitter Logo"
-                height={40}
-                width={96}
-              />
+              <GlitterLogo variant="dark" />
             </Link>
           </li>
           <li className="hidden justify-self-center md:block">

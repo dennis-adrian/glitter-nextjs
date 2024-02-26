@@ -110,7 +110,7 @@ export default async function Home() {
           <Carousel />
         </div>
       </section>
-      <section className="px-3 pt-8 md:pt-14 md:px-6">
+      <section className="px-3 py-8 md:py-14 md:px-6">
         <h1 className="text-4xl font-bold md:text-6xl">
           El mejor lugar para encontrar
         </h1>

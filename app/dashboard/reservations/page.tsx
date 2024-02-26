@@ -28,7 +28,7 @@ export default async function Page() {
 
   if (reservations.length === 0) {
     return (
-      <div className="container mx-auto px-4 md:px-6">
+      <div className="container mx-auto px-4 md:px-6 h-full">
         <h1 className="mb-2 text-3xl font-bold">Reservas</h1>
         <p>No hay reservas</p>
       </div>
@@ -36,7 +36,7 @@ export default async function Page() {
   }
 
   return (
-    <div className="container mx-auto px-4 md:px-6">
+    <div className="container mx-auto px-4 md:px-6 h-full">
       <div className="flex justify-between items-center mb-4">
         <h1 className="mb-2 text-3xl font-bold">Reservas</h1>
         <Button>

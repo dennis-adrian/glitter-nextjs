@@ -40,7 +40,7 @@ export default function SocialsCell({ socials }: { socials: UserSocial[] }) {
           <a
             className="hover:underline"
             key={social.id}
-            href={`${url}/${social.username}`}
+            href={`${url}${social.username}`}
             target="_blank"
             rel="noreferrer"
           >

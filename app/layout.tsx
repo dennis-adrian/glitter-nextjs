@@ -5,11 +5,12 @@ import { esES } from "@clerk/localizations";
 import { ClerkProvider } from "@clerk/nextjs";
 
 import { EdgeStoreProvider } from "@/app/lib/edgestore";
-import { ThemeProvider } from "@/components/theme-provider";
 
-import Navbar from "@/app/ui/navbar";
 import { Toaster } from "@/components/ui/sonner";
 import { inter } from "@/ui/fonts";
+
+import Navbar from "@/app/ui/navbar";
+import Footer from "@/app/components/footer";
 
 import "./globals.css";
 
@@ -32,7 +33,10 @@ export default function RootLayout({
         <body className={`${inter.variable} font-sans`}>
           <EdgeStoreProvider>
             <Navbar />
-            <main style={{ height: "calc(100vh - 64px)" }}>{children}</main>
+            <main style={{ height: "calc(100vh - 80px - 148px)" }}>
+              {children}
+              <Footer />
+            </main>
             <Toaster richColors />
             <Analytics />
           </EdgeStoreProvider>
