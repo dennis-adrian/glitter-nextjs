@@ -2,6 +2,7 @@
 
 import { FestivalBase } from "@/app/api/festivals/definitions";
 import { NewVisitor } from "@/app/api/visitors/actions";
+import { backendClient } from "@/app/lib/edgestore-server";
 import { generateQRCode } from "@/app/lib/utils";
 import { pool, db } from "@/db";
 import { tickets, visitors } from "@/db/schema";
@@ -63,12 +64,24 @@ export async function createTicketsForVisitor(
       });
 
       const qrcode = await generateQRCode(
-        `https://festivalglitter.art/visitors/${visitorId}/tickets`,
+        `https://${process.env.NEXT_PUBLIC_BASE_URL}/visitors/${visitorId}/tickets`,
       );
+
+      const blobPromise = await fetch(qrcode.qrCodeUrl);
+      const blob = await blobPromise.blob();
+      const file = new File([blob], "ticket-qrcode.png", { type: "image/png" });
+      const { url: qrcodeUrl } = await backendClient.publicFiles.upload({
+        content: {
+          blob: file,
+          extension: "png",
+        },
+      });
+
       if (data.attendance === "day_one" && !firstDayTicket) {
         await tx.insert(tickets).values({
           date: new Date(data.festival.startDate),
           qrcode: qrcode.qrCodeUrl,
+          qrcodeUrl,
           festivalId: data.festival.id,
           visitorId,
         });
@@ -76,6 +89,7 @@ export async function createTicketsForVisitor(
         await tx.insert(tickets).values({
           date: new Date(data.festival.endDate),
           qrcode: qrcode.qrCodeUrl,
+          qrcodeUrl,
           festivalId: data.festival.id,
           visitorId,
         });
@@ -86,6 +100,7 @@ export async function createTicketsForVisitor(
             id: firstDayTicket?.id,
             date: new Date(data.festival.startDate),
             qrcode: qrcode.qrCodeUrl,
+            qrcodeUrl,
             festivalId: data.festival.id,
             visitorId,
           })
@@ -96,6 +111,7 @@ export async function createTicketsForVisitor(
             id: secondDayTicket?.id,
             date: new Date(data.festival.endDate),
             qrcode: qrcode.qrCodeUrl,
+            qrcodeUrl,
             festivalId: data.festival.id,
             visitorId,
           })

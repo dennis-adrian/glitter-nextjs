@@ -1,12 +1,14 @@
 "use client";
 
+import { useState } from "react";
+
+import Image from "next/image";
+
 import { FestivalBase } from "@/app/api/festivals/definitions";
-import { VisitorBase, VisitorWithTickets } from "@/app/api/visitors/actions";
+import { VisitorWithTickets } from "@/app/api/visitors/actions";
 import FirstStep from "@/app/components/events/registration/first-step";
 import EventRegistrationForm from "@/app/components/events/registration/form";
 import { FestivalInfo } from "@/app/components/landing/festival-info-card";
-import Image from "next/image";
-import { useState } from "react";
 import TicketModal from "./ticket-modal";
 
 export default function RegistrationFlow({
