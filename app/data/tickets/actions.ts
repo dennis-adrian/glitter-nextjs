@@ -2,7 +2,7 @@
 
 import { FestivalBase } from "@/app/api/festivals/definitions";
 import { NewVisitor } from "@/app/api/visitors/actions";
-import { backendClient } from "@/app/lib/edgestore-server";
+import { uploadQrCode } from "@/app/data/tickets/helpers";
 import { generateQRCode } from "@/app/lib/utils";
 import { pool, db } from "@/db";
 import { tickets, visitors } from "@/db/schema";
@@ -67,15 +67,15 @@ export async function createTicketsForVisitor(
         `${process.env.NEXT_PUBLIC_BASE_URL}/visitors/${visitorId}/tickets`,
       );
 
-      const blobPromise = await fetch(qrcode.qrCodeUrl);
-      const blob = await blobPromise.blob();
-      const file = new File([blob], "ticket-qrcode.png", { type: "image/png" });
-      const { url: qrcodeUrl } = await backendClient.publicFiles.upload({
-        content: {
-          blob: file,
-          extension: "png",
-        },
-      });
+      let qrcodeUrl = "";
+      if (!(firstDayTicket || secondDayTicket || qrcode.error)) {
+        qrcodeUrl = await uploadQrCode(qrcode.qrCodeUrl);
+      } else {
+        const qrcodeUrls = [firstDayTicket, secondDayTicket]
+          .map((ticket) => ticket?.qrcodeUrl)
+          .filter(Boolean);
+        qrcodeUrl = qrcodeUrls[0] as string;
+      }
 
       if (data.attendance === "day_one" && !firstDayTicket) {
         await tx.insert(tickets).values({

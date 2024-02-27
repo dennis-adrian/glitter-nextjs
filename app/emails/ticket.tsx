@@ -1,23 +1,23 @@
 import {
-  Column,
   Container,
   Head,
   Html,
   Img,
+  Preview,
   Row,
   Section,
   Tailwind,
   Text,
 } from "@react-email/components";
 
-import { FestivalBase } from "../api/festivals/definitions";
-import { VisitorWithTickets } from "../api/visitors/actions";
-import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
 import {
   GLITTER_EMAIL_HEADING_URL,
   GLITTER_EMAIL_LOGO_URL,
   SAMY_HEAD_URL,
 } from "@/app/lib/costants";
+import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
+import { FestivalBase } from "../api/festivals/definitions";
+import { VisitorWithTickets } from "../api/visitors/actions";
 
 export default function TicketEmailTemplate({
   visitor,
@@ -45,6 +45,10 @@ export default function TicketEmailTemplate({
     <Html>
       <Tailwind>
         <Head></Head>
+        <Preview>
+          Muchas gracias por registrarte para {festival?.name || "Glitter"}. No
+          te olvides mostrar tu entrada al ingresar al evento.
+        </Preview>
         <Section style={main}>
           <Container style={container}>
             <Text className="text-3xl font-bold">
@@ -52,7 +56,7 @@ export default function TicketEmailTemplate({
             </Text>
             <Text className="text-lg">
               Muchas gracias por registarte para {festival?.name || "Glitter"}.
-              No te olvides mostarar tu entrada al ingresar al evento.
+              No te olvides mostrar tu entrada al ingresar al evento.
             </Text>
             <Section
               className="rounded-lg p-6 pb-0 md:p-8 md:pb-0"
