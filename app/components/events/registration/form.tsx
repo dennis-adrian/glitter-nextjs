@@ -31,7 +31,7 @@ import {
 } from "@/app/lib/utils";
 import { Button } from "@/app/components/ui/button";
 import { formatFullDate } from "@/app/lib/formatters";
-import { createTicketsForVisitor } from "@/app/api/tickets/actions";
+import { createTicketsForVisitor } from "@/app/data/tickets/actions";
 
 const FormSchema = z.object({
   attendance: z.enum(["day_one", "day_two", "both"]),

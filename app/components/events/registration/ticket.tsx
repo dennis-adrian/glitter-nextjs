@@ -46,7 +46,7 @@ export default function Ticket({
       >
         Entrada
       </h1>
-      <div className="my-4 rounded-lg bg-blue-900 px-4 py-2 font-semibold uppercase text-white">
+      <div className="my-3 rounded-2xl bg-blue-900 px-3 py-1 font-semibold uppercase text-white">
         {visitor.tickets.length > 1 ? (
           <h3>
             {getWeekdayFromDate(visitor.tickets[0].date)} y{" "}

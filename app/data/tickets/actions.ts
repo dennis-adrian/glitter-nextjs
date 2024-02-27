@@ -64,7 +64,7 @@ export async function createTicketsForVisitor(
       });
 
       const qrcode = await generateQRCode(
-        `https://${process.env.NEXT_PUBLIC_BASE_URL}/visitors/${visitorId}/tickets`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}/visitors/${visitorId}/tickets`,
       );
 
       const blobPromise = await fetch(qrcode.qrCodeUrl);
