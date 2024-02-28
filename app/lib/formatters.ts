@@ -10,10 +10,13 @@ export function formatFullDate(date: Date): string {
   return dateFormatter.format(date);
 }
 
-export function getWeekdayFromDate(date: Date): string {
+export function getWeekdayFromDate(
+  date: Date,
+  format: "long" | "short" | "narrow" = "long",
+): string {
   const dateFormatter = new Intl.DateTimeFormat("es-Es", {
     timeZone: "Etc/GMT",
-    weekday: "long",
+    weekday: format,
   });
   date = date || new Date();
 

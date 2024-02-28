@@ -69,13 +69,20 @@ export default async function Page({
           <FormBanner festival={festival} />
           <div className="col-span-2">
             {step === "2" && email && (
-              <VisitorRegistrationForm
-                email={email}
-                festival={festival}
-                visitor={visitor}
-              />
+              <>
+                <h1 className="mb-4 text-xl font-semibold sm:text-2xl">
+                  Registro de Asistencia
+                </h1>
+                <VisitorRegistrationForm
+                  email={email}
+                  festival={festival}
+                  visitor={visitor}
+                />
+              </>
             )}
-            {step === "3" && visitor && <VisitorTickets visitor={visitor} />}
+            {step === "3" && visitor && (
+              <VisitorTickets festival={festival} visitor={visitor} />
+            )}
           </div>
         </div>
       )}

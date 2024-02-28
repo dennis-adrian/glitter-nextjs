@@ -17,7 +17,7 @@ import {
 } from "@/app/lib/costants";
 import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
 import { FestivalBase } from "../api/festivals/definitions";
-import { VisitorWithTickets } from "../api/visitors/actions";
+import { VisitorWithTickets } from "../data/visitors/actions";
 
 export default function TicketEmailTemplate({
   visitor,
