@@ -2,6 +2,8 @@
 
 import { useForm } from "react-hook-form";
 
+import { redirect, useRouter } from "next/navigation";
+
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
@@ -10,7 +12,7 @@ import { Loader2Icon, SendHorizonalIcon } from "lucide-react";
 import {
   VisitorWithTickets,
   fetchVisitorByEmail,
-} from "@/app/api/visitors/actions";
+} from "@/app/data/visitors/actions";
 import { Button } from "@/app/components/ui/button";
 import {
   Form,
@@ -32,13 +34,8 @@ const FormSchema = z.object({
     }),
 });
 
-export default function FirstStep({
-  onSubmit,
-  onSuccess,
-}: {
-  onSubmit: (value: string) => void;
-  onSuccess: (visitor: VisitorWithTickets) => void;
-}) {
+export default function EmailSubmissionForm() {
+  const router = useRouter();
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -49,9 +46,12 @@ export default function FirstStep({
   const action: () => void = form.handleSubmit(async (data) => {
     const visitor = await fetchVisitorByEmail(data.email);
     if (visitor) {
-      onSuccess(visitor);
+      router.push(
+        `?${new URLSearchParams({ email: data.email, step: "3", visitorId: visitor.id.toString() })}`,
+      );
+    } else {
+      router.push(`?${new URLSearchParams({ email: data.email, step: "2" })}`);
     }
-    onSubmit(data.email);
   });
 
   return (

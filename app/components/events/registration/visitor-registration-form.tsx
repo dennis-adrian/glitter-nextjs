@@ -5,7 +5,11 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { FestivalBase } from "@/app/api/festivals/definitions";
-import { VisitorBase, VisitorWithTickets } from "@/app/api/visitors/actions";
+import {
+  VisitorBase,
+  VisitorWithTickets,
+  createVisitor,
+} from "@/app/data/visitors/actions";
 import {
   Form,
   FormControl,
@@ -32,6 +36,8 @@ import {
 import { Button } from "@/app/components/ui/button";
 import { formatFullDate } from "@/app/lib/formatters";
 import { createTicketsForVisitor } from "@/app/data/tickets/actions";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 const FormSchema = z.object({
   attendance: z.enum(["day_one", "day_two", "both"]),
@@ -58,17 +64,16 @@ const FormSchema = z.object({
     .min(8, { message: "El número de teléfono no es valido" }),
 });
 
-export default function EventRegistrationForm({
+export default function VisitorRegistrationForm({
   email,
   festival,
   visitor,
-  onSuccess,
 }: {
   email: string;
   festival: FestivalBase;
   visitor: VisitorBase | undefined | null;
-  onSuccess: (visitor: VisitorWithTickets) => void;
 }) {
+  const router = useRouter();
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -84,15 +89,33 @@ export default function EventRegistrationForm({
   });
 
   async function onSubmit(data: z.infer<typeof FormSchema>) {
-    const res = await createTicketsForVisitor({
+    const res = await createVisitor({
       ...data,
       birthdate: new Date(data.birthdate),
-      festival: festival,
-      visitorId: visitor?.id,
     });
-    if (res) {
-      onSuccess(res);
+
+    if (res.success) {
+      router.push(
+        `?${new URLSearchParams({ email: data.email, step: "3" })}`,
+      );
+    } else {
+      toast.error(res.error);
     }
+
+    // if (res.success) {
+    //   onSuccess(res);
+    // } else {
+    //   toast.error(res.error)
+    // }
+    // const res = await createTicketsForVisitor({
+    //   ...data,
+    //   birthdate: new Date(data.birthdate),
+    //   festival: festival,
+    //   visitorId: visitor?.id,
+    // });
+    // if (res) {
+    //   onSuccess(res);
+    // }
   }
 
   return (

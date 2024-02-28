@@ -1,0 +1,72 @@
+"use server";
+
+import { eq } from "drizzle-orm";
+
+import { TicketBase } from "@/app/data/tickets/actions";
+import { pool, db } from "@/db";
+import { visitors } from "@/db/schema";
+import { revalidatePath } from "next/cache";
+
+export type NewVisitor = typeof visitors.$inferInsert;
+export type VisitorBase = typeof visitors.$inferSelect;
+export type VisitorWithTickets = VisitorBase & {
+  tickets: TicketBase[];
+};
+
+export async function fetchVisitorByEmail(
+  email: string,
+): Promise<VisitorWithTickets | undefined | null> {
+  const client = await pool.connect();
+  try {
+    return await db.query.visitors.findFirst({
+      where: eq(visitors.email, email),
+      with: {
+        tickets: true,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching visitor by email", error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+export async function fetchVisitor(
+  visitorId: number,
+): Promise<VisitorWithTickets | undefined | null> {
+  const client = await pool.connect();
+  try {
+    return await db.query.visitors.findFirst({
+      where: eq(visitors.id, visitorId),
+      with: {
+        tickets: true,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching visitor", error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+export async function createVisitor(
+  visitor: NewVisitor,
+): Promise<{ success: boolean; error?: string }> {
+  const client = await pool.connect();
+  try {
+    await db.insert(visitors).values(visitor);
+  } catch (error) {
+    console.error("Error creating visitor", error);
+    return {
+      success: false,
+      error: "Error creating visitor",
+    };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/festivals/[id]/registration");
+  return { success: true };
+}
