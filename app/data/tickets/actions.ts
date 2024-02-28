@@ -1,65 +1,37 @@
 "use server";
 
+import { and, eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+
 import { FestivalBase } from "@/app/api/festivals/definitions";
-import { NewVisitor } from "@/app/api/visitors/actions";
 import { uploadQrCode } from "@/app/data/tickets/helpers";
 import { generateQRCode } from "@/app/lib/utils";
-import { pool, db } from "@/db";
-import { tickets, visitors } from "@/db/schema";
-import { and, eq, sql } from "drizzle-orm";
+import { db, pool } from "@/db";
+import { tickets } from "@/db/schema";
 
 export type TicketBase = typeof tickets.$inferSelect;
-export async function createTicketsForVisitor(
-  data: NewVisitor & {
-    attendance: "day_one" | "day_two" | "both";
-    festival: FestivalBase;
-    visitorId?: number;
-  },
-) {
+export async function createTickets(data: {
+  attendance: "day_one" | "day_two" | "both";
+  festival: FestivalBase;
+  visitorId: number;
+}): Promise<{ success: boolean; error: string | null }> {
   const client = await pool.connect();
   try {
-    return await db.transaction(async (tx) => {
-      const res = await tx
-        .insert(visitors)
-        .values({
-          id: data.visitorId,
-          birthdate: data.birthdate,
-          email: data.email,
-          firstName: data.firstName,
-          gender: data.gender,
-          lastName: data.lastName,
-          phoneNumber: data.phoneNumber,
-          eventDiscovery: data.eventDiscovery,
-        })
-        .returning({ visitorId: visitors.id })
-        .onConflictDoUpdate({
-          target: visitors.id,
-          set: {
-            birthdate: data.birthdate,
-            email: data.email,
-            firstName: data.firstName,
-            gender: data.gender,
-            lastName: data.lastName,
-            eventDiscovery: data.eventDiscovery,
-            phoneNumber: data.phoneNumber,
-          },
-        });
-
-      const visitorId = res[0].visitorId;
-
+    const { attendance, festival, visitorId } = data;
+    await db.transaction(async (tx) => {
       const firstDayTicket = await tx.query.tickets.findFirst({
         where: and(
           eq(tickets.visitorId, visitorId),
-          eq(tickets.festivalId, data.festival.id),
-          eq(tickets.date, data.festival.startDate),
+          eq(tickets.festivalId, festival.id),
+          eq(tickets.date, festival.startDate),
         ),
       });
 
       const secondDayTicket = await tx.query.tickets.findFirst({
         where: and(
           eq(tickets.visitorId, visitorId),
-          eq(tickets.festivalId, data.festival.id),
-          eq(tickets.date, data.festival.endDate),
+          eq(tickets.festivalId, festival.id),
+          eq(tickets.date, festival.endDate),
         ),
       });
 
@@ -77,20 +49,20 @@ export async function createTicketsForVisitor(
         qrcodeUrl = qrcodeUrls[0] as string;
       }
 
-      if (data.attendance === "day_one" && !firstDayTicket) {
+      if (attendance === "day_one" && !firstDayTicket) {
         await tx.insert(tickets).values({
-          date: new Date(data.festival.startDate),
+          date: new Date(festival.startDate),
           qrcode: qrcode.qrCodeUrl,
           qrcodeUrl,
-          festivalId: data.festival.id,
+          festivalId: festival.id,
           visitorId,
         });
-      } else if (data.attendance === "day_two" && !secondDayTicket) {
+      } else if (attendance === "day_two" && !secondDayTicket) {
         await tx.insert(tickets).values({
-          date: new Date(data.festival.endDate),
+          date: new Date(festival.endDate),
           qrcode: qrcode.qrCodeUrl,
           qrcodeUrl,
-          festivalId: data.festival.id,
+          festivalId: festival.id,
           visitorId,
         });
       } else {
@@ -98,10 +70,10 @@ export async function createTicketsForVisitor(
           .insert(tickets)
           .values({
             id: firstDayTicket?.id,
-            date: new Date(data.festival.startDate),
+            date: new Date(festival.startDate),
             qrcode: qrcode.qrCodeUrl,
             qrcodeUrl,
-            festivalId: data.festival.id,
+            festivalId: festival.id,
             visitorId,
           })
           .onConflictDoNothing();
@@ -109,27 +81,24 @@ export async function createTicketsForVisitor(
           .insert(tickets)
           .values({
             id: secondDayTicket?.id,
-            date: new Date(data.festival.endDate),
+            date: new Date(festival.endDate),
             qrcode: qrcode.qrCodeUrl,
             qrcodeUrl,
-            festivalId: data.festival.id,
+            festivalId: festival.id,
             visitorId,
           })
           .onConflictDoNothing();
       }
-      return await tx.query.visitors.findFirst({
-        where: eq(visitors.id, visitorId),
-        with: {
-          tickets: true,
-        },
-      });
     });
   } catch (error) {
     console.error("Error creating ticket", error);
-    return null;
+    return { success: false, error: "No se pudo crear la(s) entrada(s)" };
   } finally {
     client.release();
   }
+
+  revalidatePath("/festivals/[id]/registration");
+  return { success: true, error: null };
 }
 
 export async function fetchTicket(

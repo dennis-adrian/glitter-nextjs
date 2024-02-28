@@ -5,7 +5,7 @@ import { Dispatch, useRef } from "react";
 import * as htmlToImage from "html-to-image";
 
 import { FestivalBase } from "@/app/api/festivals/definitions";
-import { VisitorWithTickets } from "@/app/api/visitors/actions";
+import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import Ticket from "@/app/components/events/registration/ticket";
 import { Button } from "@/app/components/ui/button";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
@@ -32,16 +32,6 @@ export default function TicketModal({
     return null;
   }
 
-  const sendEmail = async () => {
-    await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/send`, {
-      body: JSON.stringify({
-        visitor,
-        festival,
-      }),
-      method: "POST",
-    });
-  };
-
   const downloadTicket = async () => {
     const dataUrl = await htmlToImage.toPng(ticketRef.current!);
 
@@ -55,12 +45,7 @@ export default function TicketModal({
     <DrawerDialog isDesktop={isDesktop} open={show} onOpenChange={onOpenChange}>
       <DrawerDialogContent isDesktop={isDesktop}>
         <div className={`${isDesktop ? "" : "px-4"} py-4`}>
-          <Ticket
-            onQrLoad={() => sendEmail()}
-            festival={festival}
-            ticketRef={ticketRef}
-            visitor={visitor}
-          />
+          <Ticket festival={festival} ticketRef={ticketRef} visitor={visitor} />
           <Button className="mt-4 w-full" onClick={downloadTicket}>
             Descargar entrada
           </Button>

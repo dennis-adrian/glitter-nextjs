@@ -73,11 +73,7 @@ export default async function Page({
                 <h1 className="mb-4 text-xl font-semibold sm:text-2xl">
                   Registro de Asistencia
                 </h1>
-                <VisitorRegistrationForm
-                  email={email}
-                  festival={festival}
-                  visitor={visitor}
-                />
+                <VisitorRegistrationForm email={email} visitor={visitor} />
               </>
             )}
             {step === "3" && visitor && (

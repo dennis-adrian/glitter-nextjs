@@ -1,15 +1,13 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowRightCircleIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
-
+import { toast } from "sonner";
 import { z } from "zod";
 
-import { FestivalBase } from "@/app/api/festivals/definitions";
-import {
-  VisitorBase,
-  VisitorWithTickets,
-  createVisitor,
-} from "@/app/data/visitors/actions";
+import { Button } from "@/app/components/ui/button";
 import {
   Form,
   FormControl,
@@ -26,21 +24,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { eventDiscoveryEnum, genderEnum } from "@/db/schema";
+import { VisitorBase, createVisitor } from "@/app/data/visitors/actions";
 import {
   eventDiscoveryOptions,
   formatDateOnlyToISO,
   genderOptions,
 } from "@/app/lib/utils";
-import { Button } from "@/app/components/ui/button";
-import { formatFullDate } from "@/app/lib/formatters";
-import { createTicketsForVisitor } from "@/app/data/tickets/actions";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { eventDiscoveryEnum, genderEnum } from "@/db/schema";
 
 const FormSchema = z.object({
-  attendance: z.enum(["day_one", "day_two", "both"]),
   birthdate: z.string().min(1, {
     message: "La fecha de nacimiento es requerida",
   }),
@@ -66,18 +58,15 @@ const FormSchema = z.object({
 
 export default function VisitorRegistrationForm({
   email,
-  festival,
   visitor,
 }: {
   email: string;
-  festival: FestivalBase;
   visitor: VisitorBase | undefined | null;
 }) {
   const router = useRouter();
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      attendance: "both",
       birthdate: formatDateOnlyToISO(visitor?.birthdate),
       email: email,
       eventDiscovery: visitor?.eventDiscovery || "instagram",
@@ -95,27 +84,10 @@ export default function VisitorRegistrationForm({
     });
 
     if (res.success) {
-      router.push(
-        `?${new URLSearchParams({ email: data.email, step: "3" })}`,
-      );
+      router.push(`?${new URLSearchParams({ email: data.email, step: "3" })}`);
     } else {
       toast.error(res.error);
     }
-
-    // if (res.success) {
-    //   onSuccess(res);
-    // } else {
-    //   toast.error(res.error)
-    // }
-    // const res = await createTicketsForVisitor({
-    //   ...data,
-    //   birthdate: new Date(data.birthdate),
-    //   festival: festival,
-    //   visitorId: visitor?.id,
-    // });
-    // if (res) {
-    //   onSuccess(res);
-    // }
   }
 
   return (
@@ -244,32 +216,9 @@ export default function VisitorRegistrationForm({
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="attendance"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>¿Qué día asistirás?</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Elige una opción" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="day_one">
-                    El primer día - {formatFullDate(festival.startDate)}
-                  </SelectItem>
-                  <SelectItem value="day_two">
-                    El segundo día - {formatFullDate(festival.endDate)}
-                  </SelectItem>
-                  <SelectItem value="both">Ambos días</SelectItem>
-                </SelectContent>
-              </Select>
-            </FormItem>
-          )}
-        />
-        <Button type="submit">Registrarse</Button>
+        <Button disabled={form.formState.isSubmitting} type="submit">
+          Siguiente <ArrowRightCircleIcon className="ml-2 h-4 w-4" />
+        </Button>
       </form>
     </Form>
   );

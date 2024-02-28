@@ -3,7 +3,7 @@ import React from "react";
 import { Resend } from "resend";
 
 import { FestivalBase } from "@/app/api/festivals/definitions";
-import { VisitorWithTickets } from "@/app/api/visitors/actions";
+import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import TicketEmailTemplate from "@/app/emails/ticket";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const data = await resend.emails.send({
+    const res = await resend.emails.send({
       from: "Equipo de Glitter <no-reply@festivalglitter.art>",
       to: [visitor.email],
       subject: "Confirmación de Registro para Glitter Vol 2",
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
       }) as React.ReactElement,
     });
 
-    return Response.json({ data });
+    return Response.json({ ...res });
   } catch (error) {
     console.log(error);
     return new Response(null, { status: 500 });

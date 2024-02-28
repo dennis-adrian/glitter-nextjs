@@ -5,7 +5,7 @@ import Image from "next/image";
 import { CalendarDaysIcon, ClockIcon } from "lucide-react";
 
 import { FestivalBase } from "@/app/api/festivals/definitions";
-import { VisitorWithTickets } from "@/app/api/visitors/actions";
+import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
 import { junegull } from "@/app/ui/fonts";
 

@@ -1,3 +1,5 @@
+"use client";
+
 import { FestivalBase } from "@/app/api/festivals/definitions";
 import {
   Card,
@@ -8,6 +10,10 @@ import {
 } from "@/app/components/ui/card";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
+import { PlusCircleIcon } from "lucide-react";
+import { useState } from "react";
+import TicketCreationForm from "./ticket-creation-form";
+import TicketModal from "./ticket-modal";
 
 export default function VisitorTickets({
   visitor,
@@ -16,12 +22,14 @@ export default function VisitorTickets({
   visitor: VisitorWithTickets;
   festival: FestivalBase;
 }) {
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [showForm, setShowForm] = useState(false);
   return (
     <>
       <h1 className="mb-4 text-xl font-semibold sm:text-2xl">
         Confirmación de Entradas
       </h1>
-      {visitor.tickets.length > 1 && (
+      {visitor.tickets.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Tus Entradas</CardTitle>
@@ -51,6 +59,32 @@ export default function VisitorTickets({
           </CardContent>
         </Card>
       )}
+      {!showForm && visitor.tickets.length === 1 && (
+        <div
+          className="my-4 flex cursor-pointer items-center justify-center hover:underline"
+          onClick={() => setShowForm(true)}
+        >
+          <PlusCircleIcon className="mr-1 inline-block h-4 w-4" />
+          Adquirir otra entrada
+        </div>
+      )}
+      {(showForm && visitor.tickets.length === 1) ||
+      visitor.tickets.length === 0 ? (
+        <div className="p-4">
+          <TicketCreationForm
+            festival={festival}
+            visitor={visitor}
+            onSuccess={() => setShowTicketModal(true)}
+          />
+        </div>
+      ) : null}
+
+      <TicketModal
+        show={showTicketModal}
+        visitor={visitor}
+        festival={festival}
+        onOpenChange={setShowTicketModal}
+      />
     </>
   );
 }
