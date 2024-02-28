@@ -44,10 +44,9 @@ export default function TicketEmailTemplate({
   return (
     <Html>
       <Tailwind>
-        <Head></Head>
+        <Head />
         <Preview>
-          Muchas gracias por registrarte para {festival?.name || "Glitter"}. No
-          te olvides mostrar tu entrada al ingresar al evento.
+          Confirmación de tu entrada para {festival?.name || "Festival Glitter"}
         </Preview>
         <Section style={main}>
           <Container style={container}>
