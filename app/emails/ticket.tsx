@@ -1,4 +1,5 @@
 import {
+  Body,
   Container,
   Head,
   Html,
@@ -6,7 +7,6 @@ import {
   Preview,
   Row,
   Section,
-  Tailwind,
   Text,
 } from "@react-email/components";
 
@@ -43,90 +43,81 @@ export default function TicketEmailTemplate({
 
   return (
     <Html>
-      <Tailwind>
-        <Head />
-        <Preview>
-          Confirmación de tu entrada para {festival?.name || "Festival Glitter"}
-        </Preview>
-        <Section style={main}>
-          <Container style={container}>
-            <Text className="text-3xl font-bold">
-              Hola, {visitor?.firstName || "John"}
-            </Text>
-            <Text className="text-lg">
-              Muchas gracias por registarte para {festival?.name || "Glitter"}.
-              No te olvides mostrar tu entrada al ingresar al evento.
-            </Text>
-            <Section
-              className="rounded-lg p-6 pb-0 md:p-8 md:pb-0"
-              style={{ background: "linear-gradient(#99A4E6, #52B0E6)" }}
-            >
+      <Head />
+      <Preview>
+        Confirmación de tu entrada para {festival?.name || "Festival Glitter"}
+      </Preview>
+      <Body style={main}>
+        <Container style={container}>
+          <Text style={greeting}>Hola, {visitor?.firstName || "John"}</Text>
+          <Text style={textLg}>
+            Muchas gracias por registarte para {festival?.name || "Glitter"}. No
+            te olvides mostrar tu entrada al ingresar al evento.
+          </Text>
+          <Section style={ticketContainer}>
+            <Img
+              style={marginAuto}
+              alt="Logo de Glitter con descripción"
+              src={GLITTER_EMAIL_LOGO_URL}
+              height={68}
+              width={180}
+            />
+            <Section style={qrCodeContainer}>
               <Img
-                className="m-auto"
-                alt="Logo de Glitter con descripción"
-                src={GLITTER_EMAIL_LOGO_URL}
-                height={68}
-                width={180}
-              />
-              <Section className="my-2 h-60 w-60 rounded-lg bg-white/50 backdrop-blur-sm">
-                <Img
-                  className="m-auto max-w-fit rounded-lg"
-                  alt="código QR de la entrada"
-                  src={qrCodeSrc}
-                  height={204}
-                  width={204}
-                />
-              </Section>
-              <Img
-                className="m-auto"
-                alt="texto entrada"
-                src={GLITTER_EMAIL_HEADING_URL}
-                width={215}
-                height={43}
-              />
-              <Text className="mx-auto my-4 max-w-fit rounded-2xl bg-blue-900 px-3 py-1 text-center font-semibold uppercase text-white">
-                {weekDayLabel}
-              </Text>
-              <Section className="my-2 max-w-[400px] text-center text-lg leading-5 tracking-tight">
-                Esta entrada es válida sólo para 1 persona y debe de ser
-                mostrada al momento de ingresar al evento
-                {visitor?.tickets?.length > 1 && (
-                  <Text className="h-2 p-0">
-                    * Presentar esta misma entrada ambos días que asistas
-                  </Text>
-                )}
-              </Section>
-              <Section className="my-4 text-white">
-                {visitor?.tickets ? (
-                  visitor.tickets.map((ticket) => (
-                    <Row key={ticket.id}>
-                      <Text className="m-auto max-w-fit text-lg">
-                        {formatFullDate(new Date(ticket.date))} de 10:00 a 19:00
-                      </Text>
-                    </Row>
-                  ))
-                ) : (
-                  <Row>
-                    <Text className="m-auto max-w-fit text-lg">
-                      {formatFullDate(new Date())} de 10:00 a 19:00
-                    </Text>
-                  </Row>
-                )}
-              </Section>
-              <Section className="mb-3 flex w-fit items-center justify-center rounded-lg bg-white/50 px-4 py-2 text-sm backdrop-blur-sm">
-                {festival?.locationLabel || "Galería del CBA. Calle Sucre 346"}
-              </Section>
-              <Img
-                className="m-auto"
-                alt="Samy"
-                src={SAMY_HEAD_URL}
-                height={92}
-                width={120}
+                style={qrCode}
+                alt="código QR de la entrada"
+                src={qrCodeSrc}
+                height={204}
+                width={204}
               />
             </Section>
-          </Container>
-        </Section>
-      </Tailwind>
+            <Img
+              style={marginAuto}
+              alt="texto entrada"
+              src={GLITTER_EMAIL_HEADING_URL}
+              width={215}
+              height={43}
+            />
+            <Text style={weekDayPill}>{weekDayLabel}</Text>
+            <Section style={message}>
+              Esta entrada es válida sólo para 1 persona y debe de ser mostrada
+              al momento de ingresar al evento
+              {visitor?.tickets?.length > 1 && (
+                <Text style={{ height: "8px", padding: "0px" }}>
+                  * Presentar esta misma entrada ambos días que asistas
+                </Text>
+              )}
+            </Section>
+            <Section style={{ margin: "16px auto", color: "white" }}>
+              {visitor?.tickets ? (
+                visitor.tickets.map((ticket) => (
+                  <Row key={ticket.id}>
+                    <Text style={ticketDate}>
+                      {formatFullDate(new Date(ticket.date))} de 10:00 a 19:00
+                    </Text>
+                  </Row>
+                ))
+              ) : (
+                <Row>
+                  <Text style={ticketDate}>
+                    {formatFullDate(new Date())} de 10:00 a 19:00
+                  </Text>
+                </Row>
+              )}
+            </Section>
+            <Section style={addressLabel}>
+              {festival?.locationLabel || "Galería del CBA. Calle Sucre 346"}
+            </Section>
+            <Img
+              style={marginAuto}
+              alt="Samy"
+              src={SAMY_HEAD_URL}
+              height={92}
+              width={120}
+            />
+          </Section>
+        </Container>
+      </Body>
     </Html>
   );
 }
@@ -138,7 +129,93 @@ const main = {
     '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif',
 };
 
-const container = {
+const marginAuto = {
   margin: "0 auto",
+};
+
+const roundedLg = {
+  borderRadius: "8px",
+};
+
+const textLg = {
+  fontSize: "18px",
+  lineHeight: "24px",
+};
+
+const maxWidthFit = {
+  maxWidth: "fit-content",
+};
+
+const container = {
   padding: "20px 0",
+  ...marginAuto,
+};
+
+const ticketContainer = {
+  background: "linear-gradient(#99A4E6, #52B0E6)",
+  padding: "24px 24px 0",
+  ...roundedLg,
+};
+
+const greeting = {
+  fontSize: "30px",
+  lineHeight: "36px",
+  fontWeight: "700",
+};
+
+const backdropBlur = {
+  backgroundColor: "rgba(255, 255, 255, 0.5)",
+  backdropFilter: "blur(4px)",
+};
+
+const qrCodeContainer = {
+  height: "240px",
+  margin: "8px auto",
+  width: "240px",
+  ...backdropBlur,
+  ...roundedLg,
+};
+
+const weekDayPill = {
+  backgroundColor: "rgb(30 58 138)",
+  borderRadius: "16px",
+  color: "white",
+  fontWeight: "600",
+  padding: "4px 12px",
+  margin: "16px auto",
+  textAlign: "center" as const,
+  textTransform: "uppercase" as const,
+  ...maxWidthFit,
+};
+
+const qrCode = {
+  ...marginAuto,
+  ...maxWidthFit,
+  ...roundedLg,
+};
+
+const ticketDate = {
+  ...maxWidthFit,
+  ...marginAuto,
+  ...textLg,
+};
+
+const message = {
+  margin: "16px auto",
+  textAlign: "center" as const,
+  maxWidth: "400px",
+  fontSize: "18px",
+  lineHeight: "20px",
+  fontWeight: "400",
+  letterSpacing: "-0.025em",
+};
+
+const addressLabel = {
+  margin: "0 auto 12px",
+  fontSize: "14px",
+  lineHeight: "20px",
+  padding: "8px 16px",
+  ...backdropBlur,
+  ...maxWidthFit,
+  ...roundedLg,
 };
