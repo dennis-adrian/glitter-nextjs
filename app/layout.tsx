@@ -14,12 +14,20 @@ import Footer from "@/app/components/footer";
 
 import "./globals.css";
 
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+
 export const metadata: Metadata = {
   title: {
     template: "%s | Festival Glitter",
     default: "Festival Glitter",
   },
   description: "Un festival para que los artistas brillen",
+  keywords: ["festival", "glitter", "artistas", "ilustración", "arte"],
+  metadataBase: new URL(baseUrl || "https://www.festivalglitter.com"),
+  openGraph: {
+    title: "Festival Glitter",
+    description: "Un festival para que los artistas brillen",
+  },
 };
 
 export default function RootLayout({
