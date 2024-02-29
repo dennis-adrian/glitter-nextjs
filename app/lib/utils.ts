@@ -92,7 +92,8 @@ export const eventDiscoveryOptions = [
     label: "Un artista participante me invitó",
   },
   { value: eventDiscoveryEnum.enumValues[6], label: "Estaba de pasada" },
-  { value: eventDiscoveryEnum.enumValues[7], label: "Otro" },
+  { value: eventDiscoveryEnum.enumValues[7], label: "La Rota Carlota" },
+  { value: eventDiscoveryEnum.enumValues[8], label: "Otro" },
 ];
 
 export const genderOptions = [

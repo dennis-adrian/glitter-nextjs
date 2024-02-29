@@ -213,6 +213,7 @@ export const eventDiscoveryEnum = pgEnum("event_discovery", [
   "friends",
   "participant_invitation",
   "casual",
+  "la_rota",
   "other",
 ]);
 export const genderEnum = pgEnum("gender", [

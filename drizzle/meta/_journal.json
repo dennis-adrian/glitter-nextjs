@@ -169,6 +169,13 @@
       "when": 1709046691558,
       "tag": "0023_special_white_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1709236333703,
+      "tag": "0024_marvelous_dragon_lord",
+      "breakpoints": true
     }
   ]
 }

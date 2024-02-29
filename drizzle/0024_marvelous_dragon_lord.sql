@@ -1,0 +1,1 @@
+ALTER TYPE "event_discovery" ADD VALUE 'la_rota';
