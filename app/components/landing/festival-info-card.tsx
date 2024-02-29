@@ -13,10 +13,8 @@ function InfoItem({
   value: string;
 }) {
   return (
-    <div className="flex justify-center md:justify-start items-start">
-      <span className="py-[6px] flex items-center">
-        <Icon className="mr-2 inline-block h-4 w-4" />
-      </span>
+    <div className="flex items-center justify-center md:justify-start">
+      <Icon className="mr-2 h-4 w-4" />
       <span className="hidden sm:inline-block md:mr-1">{label}</span>
       {value}
     </div>
@@ -31,7 +29,9 @@ export function FestivalInfo({
   festival: Festival | FestivalBase;
 }) {
   return (
-    <div className={cn("grid gap-2 py-4 text-lg md:text-xl", className)}>
+    <div
+      className={cn("grid gap-1 py-4 text-lg md:gap-2 md:text-xl", className)}
+    >
       <InfoItem
         Icon={CalendarIcon}
         label="Fecha: "
