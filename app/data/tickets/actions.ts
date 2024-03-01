@@ -116,3 +116,24 @@ export async function fetchTicket(
     client.release();
   }
 }
+
+export async function updateTicket(id: number, status: TicketBase["status"]) {
+  const client = await pool.connect();
+  try {
+    await db.update(tickets).set({ status }).where(eq(tickets.id, id));
+  } catch (error) {
+    console.error(error);
+    return {
+      success: false,
+      error: "No se pudo actualizar el estado de la entrada",
+    };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/festivals");
+  return {
+    success: true,
+    error: null,
+  };
+}

@@ -28,7 +28,7 @@ export default async function Page() {
 
   if (reservations.length === 0) {
     return (
-      <div className="container mx-auto p-4 md:p-6 min-h-full">
+      <div className="container mx-auto min-h-full p-4 md:p-6">
         <h1 className="mb-2 text-3xl font-bold">Reservas</h1>
         <p>No hay reservas</p>
       </div>
@@ -36,15 +36,15 @@ export default async function Page() {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-6 min-h-full">
-      <div className="flex justify-between items-center mb-4">
+    <div className="container mx-auto min-h-full p-4 md:p-6">
+      <div className="mb-4 flex items-center justify-between">
         <h1 className="mb-2 text-3xl font-bold">Reservas</h1>
         <Button>
           <Link href="/dashboard/reservations/new">Nueva Reserva</Link>
         </Button>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+      <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
         <TotalsCard
           amount={pendingReservations.length}
           title="pendientes"
