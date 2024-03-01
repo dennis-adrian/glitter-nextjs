@@ -66,7 +66,7 @@ export const festivalsRelations = relations(festivals, ({ many }) => ({
   userRequests: many(userRequests),
   standReservations: many(standReservations),
   stands: many(stands),
-  tickes: many(tickets),
+  tickets: many(tickets),
 }));
 
 export const requestStatusEnum = pgEnum("participation_request_status", [

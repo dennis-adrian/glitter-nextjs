@@ -8,8 +8,10 @@ import { uploadQrCode } from "@/app/data/tickets/helpers";
 import { generateQRCode } from "@/app/lib/utils";
 import { db, pool } from "@/db";
 import { tickets } from "@/db/schema";
+import { VisitorBase } from "../visitors/actions";
 
 export type TicketBase = typeof tickets.$inferSelect;
+export type TicketWithVisitor = TicketBase & { visitor: VisitorBase };
 export async function createTickets(data: {
   attendance: "day_one" | "day_two" | "both";
   festival: FestivalBase;
@@ -131,7 +133,8 @@ export async function updateTicket(id: number, status: TicketBase["status"]) {
     client.release();
   }
 
-  revalidatePath("/festivals");
+  revalidatePath("/dashboard/festivals");
+  revalidatePath("/visitors");
   return {
     success: true,
     error: null,

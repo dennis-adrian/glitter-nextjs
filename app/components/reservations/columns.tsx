@@ -1,5 +1,8 @@
 "use client";
 
+import { ColumnDef } from "@tanstack/react-table";
+import Link from "next/link";
+
 import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/actions";
 import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
 import { ActionsCell } from "@/app/components/reservations/cells/actions";
@@ -7,10 +10,6 @@ import { ReservationStatus } from "@/app/components/reservations/cells/status";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { formatFullDate } from "@/app/lib/formatters";
-import { ColumnDef } from "@tanstack/react-table";
-import { CopyIcon } from "lucide-react";
-import Link from "next/link";
-import { toast } from "sonner";
 
 export const columnTitles = {
   id: "ID",
@@ -69,7 +68,7 @@ export const columns: ColumnDef<ReservationWithParticipantsAndUsersAndStand>[] =
       cell: ({ row }) => (
         <div className="flex flex-col gap-1">
           {row.original.participants.map((p) => (
-            <span key={p.id} className="underline text-blue-500">
+            <span key={p.id} className="text-blue-500 underline">
               <Link href={`/dashboard/users/${p.user.id}`}>
                 {p.user.displayName}
               </Link>

@@ -2,11 +2,14 @@
 
 import { StandBase } from "@/app/api/stands/actions";
 import { ProfileWithParticipationsAndRequests } from "@/app/api/users/definitions";
+import { TicketWithVisitor } from "@/app/data/tickets/actions";
 import {
   festivals,
   standReservations,
   stands,
+  tickets,
   userRequests,
+  visitors,
 } from "@/db/schema";
 
 export type FestivalBase = typeof festivals.$inferSelect;
@@ -23,3 +26,7 @@ export type FestivalWithUserRequests = Omit<
   Festival,
   "standReservations" | "stands"
 >;
+
+export type FestivalWithTickets = FestivalBase & {
+  tickets: TicketWithVisitor[];
+};

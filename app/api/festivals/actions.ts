@@ -3,8 +3,8 @@
 import { asc, eq } from "drizzle-orm";
 
 import { db, pool } from "@/db";
-import { userRequests, festivals, stands } from "@/db/schema";
-import { Festival, FestivalBase } from "./definitions";
+import { userRequests, festivals, stands, visitors } from "@/db/schema";
+import { Festival, FestivalBase, FestivalWithTickets } from "./definitions";
 
 export async function fetchActiveFestival({
   acceptedUsersOnly = false,
@@ -51,11 +51,18 @@ export async function fetchActiveFestival({
 
 export async function fetchFestival(
   id: number,
-): Promise<FestivalBase | null | undefined> {
+): Promise<FestivalWithTickets | null | undefined> {
   const client = await pool.connect();
   try {
     return await db.query.festivals.findFirst({
       where: eq(festivals.id, id),
+      with: {
+        tickets: {
+          with: {
+            visitor: true,
+          },
+        },
+      },
     });
   } catch (error) {
     console.error("Error fetching active festival", error);
