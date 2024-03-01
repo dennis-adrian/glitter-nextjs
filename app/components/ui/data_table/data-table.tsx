@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/table";
 
 interface DataTableFiltersProps {
+  label?: string;
   options: { value: string; label: string }[];
   columnId: string;
 }
@@ -69,11 +70,11 @@ export function DataTable<TData, TValue>({
 
   return (
     <div>
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="flex items-center py-4 min-w-60 sm:min-w-80">
-            <span className="relative w-0 left-3 top-1/2">
-              <SearchIcon className="w-4 h-4 text-gray-500" />
+          <div className="flex min-w-60 items-center py-4 sm:min-w-80">
+            <span className="relative left-3 top-1/2 w-0">
+              <SearchIcon className="h-4 w-4 text-gray-500" />
             </span>
             <Input
               placeholder={"Buscar..."}
@@ -84,10 +85,11 @@ export function DataTable<TData, TValue>({
           </div>
           {filters.length > 0 && (
             <DataTableFilters>
-              {filters.map(({ columnId, options }, index) => (
+              {filters.map(({ columnId, options, label }, index) => (
                 <DataTableFilter
                   key={index}
                   columnId={columnId}
+                  label={label}
                   options={options}
                   table={table}
                 />
@@ -97,7 +99,7 @@ export function DataTable<TData, TValue>({
         </div>
         <DataTableViewOptions table={table} columnTitles={columnTitles} />
       </div>
-      <div className="rounded-md border mb-4">
+      <div className="mb-4 rounded-md border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -140,7 +142,7 @@ export function DataTable<TData, TValue>({
                   colSpan={columns.length}
                   className="h-24 text-center"
                 >
-                  No results.
+                  Sin resultados.
                 </TableCell>
               </TableRow>
             )}

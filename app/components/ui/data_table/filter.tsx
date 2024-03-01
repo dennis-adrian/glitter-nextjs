@@ -14,17 +14,19 @@ import {
 
 interface DataTableFilterProps<TData> {
   columnId: string;
+  label?: string;
   table: Table<TData>;
   options: { value: string; label: string }[];
 }
 export function DataTableFilter<TData>({
   columnId,
+  label,
   table,
   options,
 }: DataTableFilterProps<TData>) {
   return (
     <>
-      <DropdownMenuLabel>Tipo de Solicitud</DropdownMenuLabel>
+      <DropdownMenuLabel>{label || "Tipo de Solicitud"}</DropdownMenuLabel>
       <DropdownMenuSeparator />
       {options.map((option) => {
         return (
