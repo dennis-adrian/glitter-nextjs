@@ -35,14 +35,8 @@ export async function createTickets(data: {
         ),
       });
 
-      let baseUrl = "http://localhost:3000";
-      if (process.env.VERCEL_ENV === "preview") {
-        `https://${process.env.VERCEL_URL}`;
-      } else {
-        process.env.NEXT_PUBLIC_BASE_URL;
-      }
       const qrcode = await generateQRCode(
-        `${baseUrl}/visitors/${visitorId}/tickets`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}/visitors/${visitorId}/tickets`,
       );
 
       let qrcodeUrl = "";
