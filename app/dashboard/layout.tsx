@@ -16,7 +16,10 @@ export default async function Layout({
   const data = await fetchUserProfile(user.id);
   const profile = data.user;
 
-  if (profile && profile.role !== "admin") {
+  if (
+    profile &&
+    !(profile.role === "festival_admin" || profile.role === "admin")
+  ) {
     redirect("/");
   }
 
