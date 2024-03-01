@@ -35,8 +35,14 @@ export async function createTickets(data: {
         ),
       });
 
+      let baseUrl = "http://localhost:3000";
+      if (process.env.VERCEL_ENV === "preview") {
+        `https://${process.env.VERCEL_URL}`;
+      } else {
+        process.env.NEXT_PUBLIC_BASE_URL;
+      }
       const qrcode = await generateQRCode(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/visitors/${visitorId}/tickets`,
+        `${baseUrl}/visitors/${visitorId}/tickets`,
       );
 
       let qrcodeUrl = "";
@@ -115,4 +121,25 @@ export async function fetchTicket(
   } finally {
     client.release();
   }
+}
+
+export async function updateTicket(id: number, status: TicketBase["status"]) {
+  const client = await pool.connect();
+  try {
+    await db.update(tickets).set({ status }).where(eq(tickets.id, id));
+  } catch (error) {
+    console.error(error);
+    return {
+      success: false,
+      error: "No se pudo actualizar el estado de la entrada",
+    };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/festivals");
+  return {
+    success: true,
+    error: null,
+  };
 }

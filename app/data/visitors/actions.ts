@@ -1,10 +1,10 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 
 import { TicketBase } from "@/app/data/tickets/actions";
 import { pool, db } from "@/db";
-import { visitors } from "@/db/schema";
+import { tickets, visitors } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 
 export type NewVisitor = typeof visitors.$inferInsert;
@@ -21,7 +21,9 @@ export async function fetchVisitorByEmail(
     return await db.query.visitors.findFirst({
       where: eq(visitors.email, email),
       with: {
-        tickets: true,
+        tickets: {
+          orderBy: tickets.date,
+        },
       },
     });
   } catch (error) {
