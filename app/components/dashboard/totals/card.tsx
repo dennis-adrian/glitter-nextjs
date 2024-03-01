@@ -16,20 +16,20 @@ export default function TotalsCard({
   amount: number;
   title: string;
   description?: string;
-  Icon: LucideIcon;
+  Icon?: LucideIcon;
 }) {
   return (
-    <Card className="flex-1 w-full">
+    <Card className="w-full flex-1">
       <CardHeader className="w-fullp p-6 pb-2">
-        <div className="flex justify-between w-full">
-          <CardTitle className="capitalize text-sm">{title}</CardTitle>
-          <Icon className="w-3 h-3" />
+        <div className="flex w-full justify-between">
+          <CardTitle className="text-sm capitalize">{title}</CardTitle>
+          {Icon && <Icon className="h-3 w-3" />}
         </div>
       </CardHeader>
       <CardContent className="p-6 pt-2">
         <div className="p-2">
-          <div className="font-bold text-2xl text-center mb-2">{amount}</div>
-          <div className="text-muted-foreground text-sm text-center">
+          <div className="mb-2 text-center text-2xl font-bold">{amount}</div>
+          <div className="text-muted-foreground text-center text-sm">
             {description}
           </div>
         </div>
