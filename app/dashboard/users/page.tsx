@@ -10,9 +10,9 @@ export default async function DemoPage() {
   const regularUsers = users.filter((user) => user.role === "user");
 
   return (
-    <div className="container mx-auto py-10">
-      <h1 className="text-3xl font-bold mb-2">Usuarios</h1>
-      <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+    <div className="container mx-auto min-h-full p-4 md:p-6">
+      <h1 className="mb-2 text-2xl font-bold md:text-3xl">Usuarios</h1>
+      <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
         <TotalsCard
           amount={users.length}
           title="usuarios totales"
