@@ -4,7 +4,7 @@ import { fetchFestival } from "@/app/api/festivals/actions";
 import TotalsCard from "@/app/components/dashboard/totals/card";
 import { columnTitles, columns } from "@/app/components/tickets/table/columns";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
-import { getWeekdayFromDate } from "@/app/lib/formatters";
+import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
 
 export default async function Page({ params }: { params: { id: string } }) {
   const festival = await fetchFestival(parseInt(params.id));
@@ -19,7 +19,7 @@ export default async function Page({ params }: { params: { id: string } }) {
   const tickets = festival.tickets;
 
   return (
-    <div className="px:4 container min-h-full md:px-6">
+    <div className="container min-h-full p-4 md:px-6">
       <h1 className="mb-2 text-2xl font-bold md:text-3xl">
         Entradas para {festival.name}
       </h1>
@@ -58,7 +58,32 @@ export default async function Page({ params }: { params: { id: string } }) {
         />
       </div>
 
-      <DataTable columns={columns} columnTitles={columnTitles} data={tickets} />
+      <DataTable
+        columns={columns}
+        columnTitles={columnTitles}
+        data={tickets}
+        filters={[
+          {
+            columnId: "status",
+            label: "Estado de la asistencia",
+            options: [
+              { label: "Pendiente", value: "pending" },
+              { label: "Confirmada", value: "checked_in" },
+            ],
+          },
+          {
+            columnId: "date",
+            label: "Fecha de la entrada",
+            options: [
+              {
+                label: "Primer día",
+                value: formatFullDate(festival.startDate),
+              },
+              { label: "Segundo día", value: formatFullDate(festival.endDate) },
+            ],
+          },
+        ]}
+      />
     </div>
   );
 }

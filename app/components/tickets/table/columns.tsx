@@ -12,7 +12,7 @@ export const columnTitles = {
   id: "ID",
   date: "Fecha",
   visitor: "Visitante",
-  status: "Estado",
+  status: "Asistencia",
 };
 
 export const columns: ColumnDef<TicketWithVisitor>[] = [
@@ -46,13 +46,21 @@ export const columns: ColumnDef<TicketWithVisitor>[] = [
   },
   {
     id: "date",
+    accessorFn: (ticket) => formatFullDate(ticket.date),
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.date} />
     ),
     cell: ({ row }) => formatFullDate(row.original.date),
+    filterFn: (row, columnId, filterDate) => {
+      if (filterDate.length === 0) return true;
+      const date = row.getValue(columnId);
+      return filterDate.includes(date);
+    },
   },
   {
     id: "visitor",
+    accessorFn: (ticket) =>
+      `${ticket.visitor.firstName} ${ticket.visitor.lastName}`,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.visitor} />
     ),
@@ -61,7 +69,16 @@ export const columns: ColumnDef<TicketWithVisitor>[] = [
   },
   {
     id: "status",
-    header: "Asistencia",
+    accessorFn: (ticket) => ticket.status,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.status} />
+    ),
     cell: ({ row }) => <ActionsCell ticket={row.original} />,
+    enableHiding: false,
+    filterFn: (row, columnId, filterStatus) => {
+      if (filterStatus.length === 0) return true;
+      const role = row.getValue(columnId);
+      return filterStatus.includes(role);
+    },
   },
 ];
