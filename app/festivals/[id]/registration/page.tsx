@@ -7,6 +7,8 @@ import { fetchVisitor, fetchVisitorByEmail } from "@/app/data/visitors/actions";
 import VisitorRegistrationForm from "@/app/components/events/registration/visitor-registration-form";
 import VisitorTickets from "@/app/components/events/registration/visitor-tickets";
 import { FormBanner } from "@/app/components/events/registration/form-banner";
+import { currentUser } from "@clerk/nextjs/server";
+import { fetchUserProfile } from "@/app/api/users/actions";
 
 export default async function Page({
   params,
@@ -61,6 +63,15 @@ export default async function Page({
     );
   }
 
+  const user = await currentUser();
+  let profile = null;
+  if (user) {
+    const res = await fetchUserProfile(user.id);
+    if (res.user) {
+      profile = res.user;
+    }
+  }
+
   return (
     <div className="flex min-h-dvh items-center justify-center">
       {step === "1" && <EmailSubmissionForm />}
@@ -77,7 +88,11 @@ export default async function Page({
               </>
             )}
             {step === "3" && visitor && (
-              <VisitorTickets festival={festival} visitor={visitor} />
+              <VisitorTickets
+                festival={festival}
+                visitor={visitor}
+                currentUser={profile}
+              />
             )}
           </div>
         </div>

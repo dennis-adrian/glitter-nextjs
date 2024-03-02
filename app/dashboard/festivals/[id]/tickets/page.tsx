@@ -5,8 +5,18 @@ import TotalsCard from "@/app/components/dashboard/totals/card";
 import { columnTitles, columns } from "@/app/components/tickets/table/columns";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
+import { RedirectButton } from "@/app/components/redirect-button";
+import { currentUser } from "@clerk/nextjs/server";
+import { fetchUserProfile } from "@/app/api/users/actions";
 
 export default async function Page({ params }: { params: { id: string } }) {
+  const user = await currentUser();
+  let profile = null;
+  if (user) {
+    const res = await fetchUserProfile(user.id);
+    profile = res.user;
+  }
+
   const festival = await fetchFestival(parseInt(params.id));
   if (!festival) {
     return (
@@ -20,43 +30,48 @@ export default async function Page({ params }: { params: { id: string } }) {
 
   return (
     <div className="container min-h-full p-4 md:px-6">
-      <h1 className="mb-2 text-2xl font-bold md:text-3xl">
-        Entradas para {festival.name}
-      </h1>
-      <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-        <TotalsCard
-          amount={festival.tickets.length}
-          title="entradas en total"
-          description="Entradas para el evento"
-          Icon={TicketIcon}
-        />
-        <TotalsCard
-          amount={
-            festival.tickets.filter(
-              (ticket) =>
-                ticket.date.toString() === festival.startDate.toString(),
-            ).length
-          }
-          title="entradas primer día"
-          description={`Entradas para el ${getWeekdayFromDate(
-            festival.startDate,
-            "long",
-          )}`}
-        />
-        <TotalsCard
-          amount={
-            festival.tickets.filter(
-              (ticket) =>
-                ticket.date.toString() === festival.endDate.toString(),
-            ).length
-          }
-          title="entradas segundo día"
-          description={`Entradas para el ${getWeekdayFromDate(
-            festival.endDate,
-            "long",
-          )}`}
-        />
+      <div className="my-2 flex items-center justify-between">
+        <h1 className="text-2xl font-bold md:text-3xl">Entradas </h1>
+        <RedirectButton href={`/festivals/${festival.id}/registration`}>
+          Nueva entrada
+        </RedirectButton>
       </div>
+      {profile && profile.role === "admin" && (
+        <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <TotalsCard
+            amount={festival.tickets.length}
+            title="entradas en total"
+            description="Entradas para el evento"
+            Icon={TicketIcon}
+          />
+          <TotalsCard
+            amount={
+              festival.tickets.filter(
+                (ticket) =>
+                  ticket.date.toString() === festival.startDate.toString(),
+              ).length
+            }
+            title="entradas primer día"
+            description={`Entradas para el ${getWeekdayFromDate(
+              festival.startDate,
+              "long",
+            )}`}
+          />
+          <TotalsCard
+            amount={
+              festival.tickets.filter(
+                (ticket) =>
+                  ticket.date.toString() === festival.endDate.toString(),
+              ).length
+            }
+            title="entradas segundo día"
+            description={`Entradas para el ${getWeekdayFromDate(
+              festival.endDate,
+              "long",
+            )}`}
+          />
+        </div>
+      )}
 
       <DataTable
         columns={columns}
