@@ -14,13 +14,17 @@ import { PlusCircleIcon } from "lucide-react";
 import { useState } from "react";
 import TicketCreationForm from "./ticket-creation-form";
 import TicketModal from "./ticket-modal";
+import { ProfileWithParticipationsAndRequests } from "@/app/api/users/definitions";
+import { RedirectButton } from "../../redirect-button";
 
 export default function VisitorTickets({
   visitor,
   festival,
+  currentUser,
 }: {
   visitor: VisitorWithTickets;
   festival: FestivalBase;
+  currentUser?: ProfileWithParticipationsAndRequests | null;
 }) {
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -85,6 +89,15 @@ export default function VisitorTickets({
         festival={festival}
         onOpenChange={setShowTicketModal}
       />
+
+      {(currentUser?.role === "admin" ||
+        currentUser?.role === "festival_admin") && (
+        <div className="mt-4 flex w-full justify-center">
+          <RedirectButton href={`/dashboard/festivals/${festival.id}/tickets`}>
+            Ver entradas
+          </RedirectButton>
+        </div>
+      )}
     </>
   );
 }

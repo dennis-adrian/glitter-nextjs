@@ -1,8 +1,11 @@
+import { currentUser } from "@clerk/nextjs/server";
+import { BanIcon, CheckIcon, HourglassIcon } from "lucide-react";
+
 import { fetchRequests } from "@/app/api/user_requests/actions";
+import { fetchUserProfile } from "@/app/api/users/actions";
 import TotalsCard from "@/app/components/dashboard/totals/card";
 import { DataTable } from "@/components/ui/data_table/data-table";
 import { columns, columnTitles } from "@/components/user_requests/columns";
-import { BanIcon, CheckIcon, HourglassIcon } from "lucide-react";
 
 const statusOptions = [
   { value: "pending", label: "Pendientes" },
@@ -16,6 +19,21 @@ const typeOptions = [
 ];
 
 export default async function Page() {
+  // TODO: Improve how this route protecting works
+  const user = await currentUser();
+  const data = await fetchUserProfile(user!.id);
+  const profile = data.user;
+
+  if (profile && profile.role !== "admin") {
+    return (
+      <div className="container flex min-h-full items-center justify-center p-4 md:p-6">
+        <h1 className="font-smibold text-muted-foreground text-lg md:text-2xl">
+          No tienes permisos para ver esta página
+        </h1>
+      </div>
+    );
+  }
+
   const requests = await fetchRequests();
   const pendingRequests = requests.filter(
     (request) => request.status === "pending",

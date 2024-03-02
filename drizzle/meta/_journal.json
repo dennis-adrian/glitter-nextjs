@@ -176,6 +176,13 @@
       "when": 1709236333703,
       "tag": "0024_marvelous_dragon_lord",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1709327699906,
+      "tag": "0025_polite_giant_man",
+      "breakpoints": true
     }
   ]
 }

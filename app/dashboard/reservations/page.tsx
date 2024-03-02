@@ -1,12 +1,13 @@
+import { fetchUserProfile } from "@/app/api/users/actions";
+import { currentUser } from "@clerk/nextjs/server";
 import { BanIcon, CheckIcon, HourglassIcon } from "lucide-react";
+import Link from "next/link";
 
 import { fetchReservations } from "@/app/api/reservations/actions";
-
 import TotalsCard from "@/app/components/dashboard/totals/card";
 import { columnTitles, columns } from "@/app/components/reservations/columns";
-import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { Button } from "@/app/components/ui/button";
-import Link from "next/link";
+import { DataTable } from "@/app/components/ui/data_table/data-table";
 
 const statusOptions = [
   { value: "pending", label: "Pendiente" },
@@ -15,6 +16,21 @@ const statusOptions = [
 ];
 
 export default async function Page() {
+  // TODO: Improve how this route protecting works
+  const user = await currentUser();
+  const data = await fetchUserProfile(user!.id);
+  const profile = data.user;
+
+  if (profile && profile.role !== "admin") {
+    return (
+      <div className="container flex min-h-full items-center justify-center p-4 md:p-6">
+        <h1 className="font-smibold text-muted-foreground text-lg md:text-2xl">
+          No tienes permisos para ver esta página
+        </h1>
+      </div>
+    );
+  }
+
   const reservations = await fetchReservations();
   const pendingReservations = reservations.filter(
     (reservation) => reservation.status === "pending",
