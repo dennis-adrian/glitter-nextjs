@@ -14,26 +14,34 @@ export type TicketBase = typeof tickets.$inferSelect;
 export type TicketWithVisitor = TicketBase & { visitor: VisitorBase };
 export async function createTickets(data: {
   attendance: "day_one" | "day_two" | "both";
-  festival: FestivalBase;
   visitorId: number;
+  festivalId: number;
+  festivalStartDate: Date;
+  festivalEndDate: Date;
 }): Promise<{ success: boolean; error: string | null }> {
   const client = await pool.connect();
   try {
-    const { attendance, festival, visitorId } = data;
+    const {
+      attendance,
+      festivalId,
+      festivalStartDate,
+      festivalEndDate,
+      visitorId,
+    } = data;
     await db.transaction(async (tx) => {
       const firstDayTicket = await tx.query.tickets.findFirst({
         where: and(
           eq(tickets.visitorId, visitorId),
-          eq(tickets.festivalId, festival.id),
-          eq(tickets.date, festival.startDate),
+          eq(tickets.festivalId, festivalId),
+          eq(tickets.date, festivalStartDate),
         ),
       });
 
       const secondDayTicket = await tx.query.tickets.findFirst({
         where: and(
           eq(tickets.visitorId, visitorId),
-          eq(tickets.festivalId, festival.id),
-          eq(tickets.date, festival.endDate),
+          eq(tickets.festivalId, festivalId),
+          eq(tickets.date, festivalEndDate),
         ),
       });
 
@@ -53,18 +61,18 @@ export async function createTickets(data: {
 
       if (attendance === "day_one" && !firstDayTicket) {
         await tx.insert(tickets).values({
-          date: new Date(festival.startDate),
+          date: new Date(festivalStartDate),
           qrcode: qrcode.qrCodeUrl,
           qrcodeUrl,
-          festivalId: festival.id,
+          festivalId: festivalId,
           visitorId,
         });
       } else if (attendance === "day_two" && !secondDayTicket) {
         await tx.insert(tickets).values({
-          date: new Date(festival.endDate),
+          date: new Date(festivalEndDate),
           qrcode: qrcode.qrCodeUrl,
           qrcodeUrl,
-          festivalId: festival.id,
+          festivalId: festivalId,
           visitorId,
         });
       } else {
@@ -72,10 +80,10 @@ export async function createTickets(data: {
           .insert(tickets)
           .values({
             id: firstDayTicket?.id,
-            date: new Date(festival.startDate),
+            date: new Date(festivalStartDate),
             qrcode: qrcode.qrCodeUrl,
             qrcodeUrl,
-            festivalId: festival.id,
+            festivalId: festivalId,
             visitorId,
           })
           .onConflictDoNothing();
@@ -83,10 +91,10 @@ export async function createTickets(data: {
           .insert(tickets)
           .values({
             id: secondDayTicket?.id,
-            date: new Date(festival.endDate),
+            date: new Date(festivalEndDate),
             qrcode: qrcode.qrCodeUrl,
             qrcodeUrl,
-            festivalId: festival.id,
+            festivalId: festivalId,
             visitorId,
           })
           .onConflictDoNothing();
