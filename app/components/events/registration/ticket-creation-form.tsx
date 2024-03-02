@@ -51,8 +51,10 @@ export default function TicketCreationForm({
   async function onSubmit(data: z.infer<typeof FormSchema>) {
     const res = await createTickets({
       attendance: data.attendance,
-      festival: festival,
       visitorId: visitor.id,
+      festivalId: festival.id,
+      festivalStartDate: festival.startDate,
+      festivalEndDate: festival.endDate,
     });
 
     if (res.success) {
