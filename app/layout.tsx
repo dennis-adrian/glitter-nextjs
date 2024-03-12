@@ -13,13 +13,14 @@ import Navbar from "@/app/ui/navbar";
 import Footer from "@/app/components/footer";
 
 import "./globals.css";
+import { getEnvLabel } from "./lib/config";
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
 export const metadata: Metadata = {
   title: {
-    template: "%s | Festival Glitter",
-    default: "Festival Glitter",
+    template: `${getEnvLabel()} %s | Festival Glitter`,
+    default: `${getEnvLabel()} Festival Glitter`,
   },
   description: "Un festival para que los artistas brillen",
   keywords: ["festival", "glitter", "artistas", "ilustración", "arte"],
