@@ -11,6 +11,19 @@ import {
 const projectDir = process.cwd();
 loadEnvConfig(projectDir);
 
+export function getEnvLabel() {
+  const env = process.env.VERCEL_ENV;
+  if (env === "preview") {
+    return "[Prev]";
+  }
+
+  if (env === "development") {
+    return "[Dev]";
+  }
+
+  return "";
+}
+
 export const socialsUrls = {
   instagram: "https://www.instagram.com/",
   tiktok: "https://www.tiktok.com/@",
