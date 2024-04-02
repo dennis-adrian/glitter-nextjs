@@ -40,6 +40,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   userRequests: many(userRequests),
   userSocials: many(userSocials),
   participations: many(reservationParticipants),
+  profileTasks: many(profileTasks),
 }));
 
 export const festivalStatusEnum = pgEnum("festival_status", [
@@ -268,5 +269,25 @@ export const ticketRelations = relations(tickets, ({ one }) => ({
   festival: one(festivals, {
     fields: [tickets.festivalId],
     references: [festivals.id],
+  }),
+}));
+
+export const profileTaskTypeEnum = pgEnum("profile_task_type", [
+  "profile_creation",
+]);
+export const profileTasks = pgTable("profile_tasks", {
+  id: serial("id").primaryKey(),
+  dueDate: timestamp("due_date").notNull(),
+  completedAt: timestamp("completed_at"),
+  reminderTime: timestamp("reminder_time").notNull(),
+  reminderSentAt: timestamp("reminder_sent_at"),
+  profileId: integer("profile_id").references(() => users.id),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const profileTasksRelations = relations(profileTasks, ({ one }) => ({
+  profile: one(users, {
+    fields: [profileTasks.profileId],
+    references: [users.id],
   }),
 }));
