@@ -190,6 +190,13 @@
       "when": 1712023017010,
       "tag": "0026_nostalgic_stryfe",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1712100535140,
+      "tag": "0027_slim_komodo",
+      "breakpoints": true
     }
   ]
 }
