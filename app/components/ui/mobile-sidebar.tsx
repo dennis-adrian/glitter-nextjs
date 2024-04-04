@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { SignedIn, SignedOut, useClerk, useUser } from "@clerk/nextjs";
+import { SignedIn, SignedOut, useClerk } from "@clerk/nextjs";
 
 import { Separator } from "@/app/components/ui/separator";
 import {
@@ -24,9 +24,7 @@ import {
   UsersIcon,
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useState } from "react";
 import { ProfileType } from "@/app/api/users/definitions";
-import { fetchUserProfile } from "@/app/api/users/actions";
 
 type MobileSidebarItemProps = {
   href: string;
@@ -47,25 +45,13 @@ const MobileSidebarItem = ({ href, children }: MobileSidebarItemProps) => {
 };
 
 type MobileSidebarProps = {
+  profile?: ProfileType | null;
   children: React.ReactNode;
 };
 
-const MobileSidebar = ({ children }: MobileSidebarProps) => {
+const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
   const { signOut } = useClerk();
   const router = useRouter();
-  const [profile, setProfile] = useState<ProfileType | null>(null);
-
-  const user = useUser();
-
-  useEffect(() => {
-    if (user.user) {
-      fetchUserProfile(user.user.id).then((data) => {
-        if (data.user) {
-          setProfile(data.user);
-        }
-      });
-    }
-  }, [user.user]);
 
   return (
     <Sheet>

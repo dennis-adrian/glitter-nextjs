@@ -9,7 +9,7 @@ import { EdgeStoreProvider } from "@/app/lib/edgestore";
 import { Toaster } from "@/components/ui/sonner";
 import { inter } from "@/ui/fonts";
 
-import Navbar from "@/app/ui/navbar";
+import Navbar from "@/app/components/navbar/navbar";
 import Footer from "@/app/components/footer";
 
 import "./globals.css";
@@ -44,8 +44,8 @@ export default function RootLayout({
             <Navbar />
             <main className="h-[calc(100vh-64px-200px)] md:h-[calc(100vh-80px-148px)]">
               {children}
-              <Footer />
             </main>
+            <Footer />
             <Toaster richColors />
             <Analytics />
           </EdgeStoreProvider>

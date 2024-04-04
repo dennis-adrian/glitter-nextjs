@@ -11,7 +11,6 @@ import {
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from "@/app/components/ui/navigation-menu";
-import { useUser } from "@clerk/nextjs";
 import {
   AlbumIcon,
   CalendarCheck2Icon,
@@ -20,25 +19,13 @@ import {
   LayoutDashboardIcon,
   UsersIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { fetchUserProfile } from "../api/users/actions";
-import { ProfileType } from "../api/users/definitions";
+import { ProfileType } from "../../api/users/definitions";
 
-const NavbarNavigationMenu = () => {
-  const [profile, setProfile] = useState<ProfileType | null>(null);
-
-  const user = useUser();
-
-  useEffect(() => {
-    if (user.user) {
-      fetchUserProfile(user.user.id).then((data) => {
-        if (data.user) {
-          setProfile(data.user);
-        }
-      });
-    }
-  }, [user.user]);
-
+const NavbarNavigationMenu = ({
+  profile,
+}: {
+  profile?: ProfileType | null;
+}) => {
   return (
     <NavigationMenu>
       <NavigationMenuList>
