@@ -73,6 +73,8 @@ export async function sendReminderEmails(): Promise<ProfileTaskWithProfile[]> {
         )
         .returning({ id: profileTasks.id });
 
+      if (updatedIds.length === 0) return [] as ProfileTaskWithProfile[];
+
       const pendingTasks = await tx.query.profileTasks.findMany({
         where: inArray(
           profileTasks.id,
@@ -119,6 +121,8 @@ export async function sendDeletionEmails(): Promise<ProfileTaskWithProfile[]> {
           profile: true,
         },
       });
+
+      if (overdueTasks.length === 0) return [] as ProfileTaskWithProfile[];
 
       const deletedIds = await tx
         .delete(users)
