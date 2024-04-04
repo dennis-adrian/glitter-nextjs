@@ -88,7 +88,7 @@ export const userRequests = pgTable("user_requests", {
   id: serial("id").primaryKey(),
   userId: integer("user_id")
     .notNull()
-    .references(() => users.id),
+    .references(() => users.id, { onDelete: "cascade" }),
   festivalId: integer("festival_id").references(() => festivals.id),
   type: requestTypeEnum("type").notNull().default("become_artist"),
   status: requestStatusEnum("status").default("pending").notNull(),
@@ -117,7 +117,7 @@ export const userSocials = pgTable("user_socials", {
   id: serial("id").primaryKey(),
   userId: integer("user_id")
     .notNull()
-    .references(() => users.id),
+    .references(() => users.id, { onDelete: "cascade" }),
   type: userSocialTypeEnum("type").notNull(),
   username: text("username").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -191,7 +191,9 @@ export const standReservationsRelations = relations(
 
 export const reservationParticipants = pgTable("participations", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
   reservationId: integer("reservation_id").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -281,7 +283,9 @@ export const profileTasks = pgTable("profile_tasks", {
   completedAt: timestamp("completed_at"),
   reminderTime: timestamp("reminder_time").notNull(),
   reminderSentAt: timestamp("reminder_sent_at"),
-  profileId: integer("profile_id").references(() => users.id),
+  profileId: integer("profile_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

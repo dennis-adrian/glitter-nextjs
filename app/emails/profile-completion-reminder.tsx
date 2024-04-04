@@ -35,7 +35,7 @@ export default function ProfileCompletionReminderTemplate({
             <strong>{name}</strong>, aún no has completado tu perfil
           </Text>
           <Section style={styles.section}>
-            <Text style={styles.text}>¡Hola! {name}, </Text>
+            <Text style={styles.text}>¡Hola {name}!</Text>
             <Text style={styles.text}>
               Hemos notado que tu perfil en Festival Glitter está incompleto.
               Para poder participar de nuestros eventos, necesitamos que

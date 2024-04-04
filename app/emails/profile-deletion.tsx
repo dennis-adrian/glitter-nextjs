@@ -39,7 +39,7 @@ export default function ProfileDeletionTemplate({
             <strong>{name}</strong>, tu cuenta ha sido eliminada
           </Text>
           <Section style={styles.section}>
-            <Text style={styles.text}>¡Hola! {name}, </Text>
+            <Text style={styles.text}>¡Hola {name}!</Text>
             <Text style={styles.text}>
               No pudimos confirmar que los datos de tu perfil estén completos y
               tu cuenta fue eliminada automáticamente.
