@@ -13,8 +13,7 @@ export default async function Page({ params }: { params: { id: string } }) {
   const user = await currentUser();
   let profile = null;
   if (user) {
-    const res = await fetchUserProfile(user.id);
-    profile = res.user;
+    profile = await fetchUserProfile(user.id);
   }
 
   const festival = await fetchFestival(parseInt(params.id));

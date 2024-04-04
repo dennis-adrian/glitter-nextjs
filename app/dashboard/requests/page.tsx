@@ -21,8 +21,7 @@ const typeOptions = [
 export default async function Page() {
   // TODO: Improve how this route protecting works
   const user = await currentUser();
-  const data = await fetchUserProfile(user!.id);
-  const profile = data.user;
+  const profile = await fetchUserProfile(user!.id);
 
   if (profile && profile.role !== "admin") {
     return (

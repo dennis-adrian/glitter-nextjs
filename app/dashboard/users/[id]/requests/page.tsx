@@ -1,5 +1,4 @@
 import { fetchRequestsByUserId } from "@/app/api/user_requests/actions";
-import { fetchUserProfileById } from "@/app/api/users/actions";
 
 import { Badge } from "@/app/components/ui/badge";
 import Form from "@/app/dashboard/users/[id]/requests/form";

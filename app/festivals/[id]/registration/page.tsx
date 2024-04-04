@@ -66,10 +66,7 @@ export default async function Page({
   const user = await currentUser();
   let profile = null;
   if (user) {
-    const res = await fetchUserProfile(user.id);
-    if (res.user) {
-      profile = res.user;
-    }
+    profile = await fetchUserProfile(user.id);
   }
 
   return (
