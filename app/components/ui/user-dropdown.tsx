@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { useUser } from "@clerk/nextjs";
-import { CircleUserIcon, User, UserIcon } from "lucide-react";
+import { CircleUserIcon, UserIcon } from "lucide-react";
 
-import { fetchUserProfile } from "@/app/api/users/actions";
 import { ProfileType } from "@/app/api/users/definitions";
 
 import SignOutButton from "@/app/components/user_dropdown/sign-out-button";
@@ -24,18 +21,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { RedirectButton } from "@/app/components/redirect-button";
 
-export default function UserDropdown() {
+export default function UserDropdown({
+  profile,
+}: {
+  profile?: ProfileType | null;
+}) {
   const clerk = useUser();
   const pathname = usePathname();
-  const [profile, setProfile] = useState<ProfileType>();
-
-  useEffect(() => {
-    if (clerk.user) {
-      fetchUserProfile(clerk.user.id).then((data) => {
-        setProfile(data.user);
-      });
-    }
-  }, [clerk.user]);
 
   if (!clerk.isLoaded || (clerk.isSignedIn && !profile)) {
     return <UserDropdownSkeleton />;

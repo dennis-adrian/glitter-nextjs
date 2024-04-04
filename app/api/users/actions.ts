@@ -113,11 +113,13 @@ export async function fetchUserProfileById(id: number) {
   }
 }
 
-export async function fetchUserProfile(id: string) {
+export async function fetchUserProfile(
+  clerkId: string,
+): Promise<ProfileType | undefined | null> {
   const client = await pool.connect();
 
   try {
-    const user = await db.query.users.findFirst({
+    return await db.query.users.findFirst({
       with: {
         userRequests: true,
         userSocials: true,
@@ -127,17 +129,11 @@ export async function fetchUserProfile(id: string) {
           },
         },
       },
-      where: eq(users.clerkId, id),
+      where: eq(users.clerkId, clerkId),
     });
-    return {
-      user,
-    };
   } catch (error) {
     console.error(error);
-    return {
-      message: "Error fetching user profile",
-      error,
-    };
+    return null;
   } finally {
     client.release();
   }
@@ -168,8 +164,8 @@ export async function fetchProfiles(): Promise<ProfileType[]> {
 }
 
 export async function isProfileCreated(user: User) {
-  const data = await fetchUserProfile(user.id);
-  return !!data.user;
+  const profile = await fetchUserProfile(user.id);
+  return profile !== null || profile !== undefined;
 }
 
 export async function deleteClerkUser(user: User) {

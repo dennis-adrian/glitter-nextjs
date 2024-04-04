@@ -25,8 +25,7 @@ export default async function Page() {
 
   let profile = null;
   if (user) {
-    const data = await fetchUserProfile(user.id);
-    profile = data?.user;
+    profile = await fetchUserProfile(user.id);
   }
 
   if (!festival) {

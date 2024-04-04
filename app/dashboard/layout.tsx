@@ -13,8 +13,7 @@ export default async function Layout({
     redirect("/sign-in");
   }
 
-  const data = await fetchUserProfile(user.id);
-  const profile = data.user;
+  const profile = await fetchUserProfile(user.id);
 
   if (
     profile &&
