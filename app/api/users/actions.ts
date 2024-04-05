@@ -141,7 +141,7 @@ export async function isProfileCreated(user?: User | null) {
   return profile !== null || profile !== undefined;
 }
 
-export async function deleteClerkUser(user: User) {
+export async function deleteClerkUser(user: User | { id: string }) {
   try {
     await clerkClient.users.deleteUser(user.id);
   } catch (error) {
@@ -289,7 +289,14 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
   const client = await pool.connect();
 
   try {
-    await db.delete(users).where(eq(users.id, profileId));
+    const deletedUsers = await db
+      .delete(users)
+      .where(eq(users.id, profileId))
+      .returning();
+
+    deletedUsers.forEach(async (deletedUsers) => {
+      await deleteClerkUser({ id: deletedUsers.clerkId });
+    });
   } catch (error) {
     console.error(error);
     return { success: false, message: "Error al eliminar el perfil" };
