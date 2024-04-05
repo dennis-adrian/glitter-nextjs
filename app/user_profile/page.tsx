@@ -5,7 +5,7 @@ import { ProfileType } from "@/app/api/users/definitions";
 
 import AnnouncementCard from "@/components/user_profile/announcements_cards/card";
 import PublicProfile from "@/components/user_profile/public_profile/profile";
-import { PersonalInformation } from "@/app/components/user_profile/personal_information";
+import PrivateProfile from "@/app/components/user_profile/private_profile/overview";
 
 async function UserProfile() {
   const user = await currentUser();
@@ -24,7 +24,7 @@ async function UserProfile() {
         <div className="flex flex-col gap-4">
           <AnnouncementCard profile={profile} />
           <PublicProfile profile={profile} />
-          <PersonalInformation profile={profile} />
+          <PrivateProfile profile={profile} />
         </div>
       </SignedIn>
     </div>
