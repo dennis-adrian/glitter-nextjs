@@ -16,6 +16,9 @@ import { socialsIcons, socialsUrls } from "@/app/lib/config";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/user_profile/modal";
 import Form from "./form";
+import { Badge } from "@/app/components/ui/badge";
+import VerificationStatusBadge from "@/app/components/user_profile/verification-status-badge";
+import ProfileCategoryBadge from "@/app/components/user_profile/category-badge";
 
 export default function PublicProfile({
   profile,
@@ -51,8 +54,14 @@ export default function PublicProfile({
         <CardContent>
           <div className="flex flex-col items-center gap-4">
             <ProfilePicField profile={profile} />
-            <div className="relative min-w-full pt-2">
-              <div className="flex flex-col gap-1 text-center p-3">
+            <div className="flex gap-2">
+              <VerificationStatusBadge profile={profile} />
+              {profile.category !== "none" && (
+                <ProfileCategoryBadge profile={profile} />
+              )}
+            </div>
+            <div className="relative min-w-full">
+              <div className="flex flex-col gap-1 text-center">
                 {profile.displayName ? (
                   <div className="text-xl md:text-2xl font-bold">
                     {profile.displayName}
