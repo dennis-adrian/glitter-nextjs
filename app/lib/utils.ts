@@ -28,7 +28,7 @@ export async function generateQRCode(
   }
 }
 
-export function isProfileComplete(profile: ProfileType) {
+export function isProfileComplete(profile?: ProfileType | null) {
   if (!profile) return false;
 
   const socials = profile.userSocials.filter((social) => !!social.username);

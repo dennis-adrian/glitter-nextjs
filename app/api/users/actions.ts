@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 
 import { clerkClient } from "@clerk/nextjs";
 import { User } from "@clerk/nextjs/server";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { pool, db } from "@/db";
@@ -12,6 +12,7 @@ import { profileTasks, userRequests, userSocials, users } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { NewUserSocial, ProfileType } from "./definitions";
 import { buildNewUser, buildUserSocials } from "@/app/api/users/helpers";
+import { isProfileComplete } from "@/app/lib/utils";
 
 export type NewUser = typeof users.$inferInsert;
 export type UserProfileType = typeof users.$inferSelect;
@@ -40,6 +41,7 @@ export async function createUserProfile(user: User) {
           dueDate: sql`now() + interval '5 days'`,
           reminderTime: sql`now() + interval '3 days'`,
           profileId: userId,
+          taskType: "profile_creation",
           updatedAt: new Date(),
           createdAt: new Date(),
         });
@@ -56,11 +58,13 @@ export async function createUserProfile(user: User) {
   redirect("/user_profile");
 }
 
-export async function fetchUserProfileById(id: number) {
+export async function fetchUserProfileById(
+  id: number,
+): Promise<ProfileType | null | undefined> {
   const client = await pool.connect();
 
   try {
-    const user = await db.query.users.findFirst({
+    return await db.query.users.findFirst({
       with: {
         userRequests: true,
         userSocials: true,
@@ -72,16 +76,9 @@ export async function fetchUserProfileById(id: number) {
       },
       where: eq(users.id, id),
     });
-
-    return {
-      user,
-    };
   } catch (error) {
     console.error("Error fetching user profile", error);
-    return {
-      message: "Error fetching user profile",
-      error,
-    };
+    return null;
   } finally {
     client.release();
   }
@@ -226,7 +223,6 @@ export async function updateProfileWithValidatedData(
   data: ProfileType & { socials?: NewUserSocial[] },
 ) {
   const client = await pool.connect();
-  // console.log("updating profile", data);
   const {
     firstName,
     lastName,
@@ -260,6 +256,19 @@ export async function updateProfileWithValidatedData(
           .where(sql`${userSocials.id} = ${social.id}`);
       });
     });
+
+    const profile = await fetchUserProfileById(id);
+    if (isProfileComplete(profile)) {
+      await db
+        .update(profileTasks)
+        .set({ completedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(profileTasks.profileId, id),
+            eq(profileTasks.taskType, "profile_creation"),
+          ),
+        );
+    }
   } catch (error) {
     console.error("Error updating profile", error);
     return {
