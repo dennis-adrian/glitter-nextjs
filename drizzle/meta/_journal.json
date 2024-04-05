@@ -225,6 +225,20 @@
       "when": 1712285097740,
       "tag": "0031_lowly_anthem",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "5",
+      "when": 1712345625746,
+      "tag": "0032_glorious_white_tiger",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1712345803647,
+      "tag": "0033_typical_scalphunter",
+      "breakpoints": true
     }
   ]
 }
