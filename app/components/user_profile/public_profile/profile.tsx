@@ -29,7 +29,21 @@ export default function PublicProfile({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>{title}</CardTitle>
+          <CardTitle className="flex justify-between items-center">
+            {title}
+            <div>
+              <Modal
+                profile={profile}
+                title="Editar Perfil"
+                FormComponent={Form}
+              >
+                <Button variant="ghost">
+                  <FilePenLineIcon className="mr-1 h-4 w-4" />
+                  Editar
+                </Button>
+              </Modal>
+            </div>
+          </CardTitle>
           <CardDescription>
             Esta información será visible para todos los usuarios de la página.
           </CardDescription>
@@ -38,18 +52,6 @@ export default function PublicProfile({
           <div className="flex flex-col items-center gap-4">
             <ProfilePicField profile={profile} />
             <div className="relative min-w-full pt-2">
-              <div className="absolute -top-3 right-1">
-                <Modal
-                  profile={profile}
-                  title="Editar Perfil"
-                  FormComponent={Form}
-                >
-                  <Button variant="ghost">
-                    <FilePenLineIcon className="mr-1 h-4 w-4" />
-                    Editar
-                  </Button>
-                </Modal>
-              </div>
               <div className="flex flex-col gap-1 text-center p-3">
                 {profile.displayName ? (
                   <div className="text-xl md:text-2xl font-bold">

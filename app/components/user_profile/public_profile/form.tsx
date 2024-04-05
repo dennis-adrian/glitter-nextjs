@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { findUserSocial, formatUserSocialsForInsertion } from "./utils";
+import AutomaticProfilePicUploadForm from "@/app/components/user_profile/profile_pic/automatic_upload_form";
 
 const usernameRegex = new RegExp(/^[a-zA-Z0-9_.-]+$/);
 const FormSchema = z.object({
@@ -76,104 +77,111 @@ export default function PublicProfileForm({
   });
 
   return (
-    <Form {...form}>
-      <form action={action} className="grid items-start gap-4">
-        <FormField
-          control={form.control}
-          name="displayName"
-          render={({ field }) => (
-            <FormItem className="grid gap-2">
-              <FormLabel>Nombre Público</FormLabel>
-              <FormControl>
-                <Input type="text" placeholder="Ingresa tu nombre" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="bio"
-          render={({ field }) => (
-            <FormItem className="grid gap-2">
-              <FormLabel>Bio</FormLabel>
-              <FormControl>
-                <Textarea
-                  className="resize-none"
-                  maxLength={80}
-                  placeholder="Escribe un poco sobre ti"
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div className="text-muted-foreground mt-3 font-bold">
-          Debes agregar al menos una red social
-        </div>
-        <FormField
-          control={form.control}
-          name="instagramProfile"
-          render={({ field }) => (
-            <FormItem className="grid gap-2">
-              <FormLabel>Perfil de Instagram</FormLabel>
-              <FormControl>
-                <div className="flex items-center">
-                  <span className="mx-2">@</span>
+    <>
+      <AutomaticProfilePicUploadForm profile={profile} />
+      <Form {...form}>
+        <form action={action} className="grid items-start gap-4">
+          <FormField
+            control={form.control}
+            name="displayName"
+            render={({ field }) => (
+              <FormItem className="grid gap-2">
+                <FormLabel>Nombre Público</FormLabel>
+                <FormControl>
                   <Input
                     type="text"
-                    placeholder="Tu usuario de Instagram"
+                    placeholder="Ingresa tu nombre"
                     {...field}
                   />
-                </div>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="tiktokProfile"
-          render={({ field }) => (
-            <FormItem className="grid gap-2">
-              <FormLabel>Perfil de Tik Tok</FormLabel>
-              <FormControl>
-                <div className="flex items-center">
-                  <span className="mx-2">@</span>
-                  <Input
-                    type="text"
-                    placeholder="Tu usuario de TikTok"
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="bio"
+            render={({ field }) => (
+              <FormItem className="grid gap-2">
+                <FormLabel>Bio</FormLabel>
+                <FormControl>
+                  <Textarea
+                    className="resize-none"
+                    maxLength={80}
+                    placeholder="Escribe un poco sobre ti"
                     {...field}
                   />
-                </div>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="facebookProfile"
-          render={({ field }) => (
-            <FormItem className="grid gap-2">
-              <FormLabel>Perfil de Facebook</FormLabel>
-              <FormControl>
-                <div className="flex items-center">
-                  <span className="mx-2">@</span>
-                  <Input
-                    type="text"
-                    placeholder="Tu usuario de Facebook"
-                    {...field}
-                  />
-                </div>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button type="submit">Guardar cambios</Button>
-      </form>
-    </Form>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <div className="text-muted-foreground mt-3 font-bold">
+            Debes agregar al menos una red social
+          </div>
+          <FormField
+            control={form.control}
+            name="instagramProfile"
+            render={({ field }) => (
+              <FormItem className="grid gap-2">
+                <FormLabel>Perfil de Instagram</FormLabel>
+                <FormControl>
+                  <div className="flex items-center">
+                    <span className="mx-2">@</span>
+                    <Input
+                      type="text"
+                      placeholder="Tu usuario de Instagram"
+                      {...field}
+                    />
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="tiktokProfile"
+            render={({ field }) => (
+              <FormItem className="grid gap-2">
+                <FormLabel>Perfil de Tik Tok</FormLabel>
+                <FormControl>
+                  <div className="flex items-center">
+                    <span className="mx-2">@</span>
+                    <Input
+                      type="text"
+                      placeholder="Tu usuario de TikTok"
+                      {...field}
+                    />
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="facebookProfile"
+            render={({ field }) => (
+              <FormItem className="grid gap-2">
+                <FormLabel>Perfil de Facebook</FormLabel>
+                <FormControl>
+                  <div className="flex items-center">
+                    <span className="mx-2">@</span>
+                    <Input
+                      type="text"
+                      placeholder="Tu usuario de Facebook"
+                      {...field}
+                    />
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <Button type="submit">Guardar cambios</Button>
+        </form>
+      </Form>
+    </>
   );
 }
