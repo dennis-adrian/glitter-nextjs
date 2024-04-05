@@ -144,7 +144,6 @@ export async function isProfileCreated(user?: User | null) {
 export async function deleteClerkUser(user: User) {
   try {
     await clerkClient.users.deleteUser(user.id);
-    redirect("/sign_up");
   } catch (error) {
     console.error("Error deleting user", error);
     return {
@@ -280,4 +279,24 @@ export async function updateProfileWithValidatedData(
 
   revalidatePath("/user_profile");
   return { success: true };
+}
+
+type FormState = {
+  success: boolean;
+  message: string;
+};
+export async function deleteProfile(profileId: number, prevState: FormState) {
+  const client = await pool.connect();
+
+  try {
+    await db.delete(users).where(eq(users.id, profileId));
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al eliminar el perfil" };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/users");
+  return { success: true, message: "Perfil eliminado" };
 }

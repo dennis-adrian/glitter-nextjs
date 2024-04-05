@@ -1,5 +1,4 @@
-import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/actions";
-import { DeleteReservationForm } from "@/app/components/reservations/form/delete-reservation";
+import { ProfileType } from "@/app/api/users/definitions";
 import { Button } from "@/app/components/ui/button";
 import {
   DrawerDialog,
@@ -9,27 +8,30 @@ import {
   DrawerDialogHeader,
   DrawerDialogTitle,
 } from "@/app/components/ui/drawer-dialog";
+import { DeleteProfileForm } from "@/app/components/users/form/delete-profile-form";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { AlertCircleIcon } from "lucide-react";
 
-export function DeleteReservationModal({
+export function DeleteProfileModal({
   open,
-  reservation,
+  profile,
   setOpen,
 }: {
   open: boolean;
-  reservation: ReservationWithParticipantsAndUsersAndStand;
+  profile: ProfileType;
   setOpen: (open: boolean) => void;
 }) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
+  const userLabel =
+    profile.displayName ||
+    `${profile.firstName || ""} ${profile.lastName || ""}`;
 
   return (
     <DrawerDialog isDesktop={isDesktop} open={open} onOpenChange={setOpen}>
       <DrawerDialogContent className="sm:max-w-[425px]" isDesktop={isDesktop}>
         <DrawerDialogHeader isDesktop={isDesktop}>
           <DrawerDialogTitle isDesktop={isDesktop}>
-            Eliminar Reserva para Espacio {reservation.stand.label}
-            {reservation.stand.standNumber}
+            Eliminar Reserva Usuario
           </DrawerDialogTitle>
         </DrawerDialogHeader>
 
@@ -37,15 +39,18 @@ export function DeleteReservationModal({
           <div className="flex items-center flex-col gap-6 m-auto text-center py-4">
             <AlertCircleIcon size={48} className="text-red-500" />
             <div className="flex flex-col gap-2">
-              <p>¿Estás seguro que deseas eliminar esta reserva?</p>
               <p>
-                El espacio cambiará a <strong>Disponible</strong> y los artistas
-                quedarán libres para hacer otra reserva
+                ¿Estás seguro que deseas eliminar a <strong>{userLabel}</strong>
+                ?
+              </p>
+              <p>
+                El usuario será eliminado de la base de datos. Esta acción no se
+                puede deshacer.
               </p>
             </div>
           </div>
-          <DeleteReservationForm
-            reservation={reservation}
+          <DeleteProfileForm
+            profile={profile}
             onSuccess={() => setOpen(false)}
           />
         </div>
