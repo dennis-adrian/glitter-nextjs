@@ -2,9 +2,9 @@ import { fetchUserProfileById } from "@/app/api/users/actions";
 import Image from "next/image";
 
 export default async function Page({ params }: { params: { id: string } }) {
-  const res = await fetchUserProfileById(parseInt(params.id));
+  const profile = await fetchUserProfileById(parseInt(params.id));
 
-  if (!res.user) {
+  if (!profile) {
     return (
       <div className="flex h-full items-center justify-center text-2xl font-semibold">
         El perfil no existe

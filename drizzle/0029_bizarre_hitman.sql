@@ -1,0 +1,1 @@
+ALTER TABLE "profile_tasks" ADD COLUMN "task_type" "profile_task_type";

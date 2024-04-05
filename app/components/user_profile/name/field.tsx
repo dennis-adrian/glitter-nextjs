@@ -10,7 +10,7 @@ const NameField = ({ profile }: { profile: ProfileType }) => {
   return (
     <UserProfileField
       label="Nombre completo"
-      value={`${profile.firstName} ${profile.lastName}`}
+      value={`${profile.firstName || ""} ${profile.lastName || ""}`}
     >
       <Modal profile={profile} title="Editar Nombre" FormComponent={Form}>
         <UserProfileFieldButton />

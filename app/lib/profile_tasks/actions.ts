@@ -8,7 +8,7 @@ import { ProfileTaskWithProfile } from "@/app/lib/profile_tasks/definitions";
 import { db, pool } from "@/db";
 import { profileTasks, users } from "@/db/schema";
 import { sendEmail } from "@/vendors/resend";
-import { and, gt, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 
 export async function fetchPendingTasks(): Promise<ProfileTaskWithProfile[]> {
   const client = await pool.connect();
@@ -69,6 +69,7 @@ export async function sendReminderEmails(): Promise<ProfileTaskWithProfile[]> {
             isNull(profileTasks.reminderSentAt),
             gt(profileTasks.dueDate, sql`now()`),
             lte(profileTasks.reminderTime, sql`now()`),
+            eq(profileTasks.taskType, "profile_creation"),
           ),
         )
         .returning({ id: profileTasks.id });
@@ -116,6 +117,7 @@ export async function sendDeletionEmails(): Promise<ProfileTaskWithProfile[]> {
           isNull(profileTasks.completedAt),
           isNotNull(profileTasks.reminderSentAt),
           lte(profileTasks.dueDate, sql`now()`),
+          eq(profileTasks.taskType, "profile_creation"),
         ),
         with: {
           profile: true,

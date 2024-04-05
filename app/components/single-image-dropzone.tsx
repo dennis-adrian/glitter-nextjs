@@ -1,6 +1,7 @@
 "use client";
 
-import { UploadCloudIcon, X } from "lucide-react";
+import { Button } from "@/app/components/ui/button";
+import { CameraIcon, UploadCloudIcon, X } from "lucide-react";
 import Image from "next/image";
 import * as React from "react";
 import { useDropzone, type DropzoneOptions } from "react-dropzone";
@@ -18,6 +19,7 @@ const variants = {
 };
 
 type InputProps = {
+  canRemove?: boolean;
   width: number;
   height: number;
   className?: string;
@@ -46,7 +48,16 @@ const ERROR_MESSAGES = {
 
 const SingleImageDropzone = React.forwardRef<HTMLInputElement, InputProps>(
   (
-    { dropzoneOptions, width, height, value, className, disabled, onChange },
+    {
+      canRemove = true,
+      dropzoneOptions,
+      width,
+      height,
+      value,
+      className,
+      disabled,
+      onChange,
+    },
     ref,
   ) => {
     const imageUrl = React.useMemo(() => {
@@ -138,26 +149,38 @@ const SingleImageDropzone = React.forwardRef<HTMLInputElement, InputProps>(
 
           {imageUrl ? (
             // Image Preview
-            <Image
-              className="h-full w-full rounded-md object-cover"
-              src={imageUrl}
-              alt={acceptedFiles[0]?.name || "image"}
-              width={width}
-              height={height}
-            />
+            <div className="w-full h-full flex flex-col items-center">
+              <Image
+                className="h-full w-full rounded-md object-cover"
+                src={imageUrl}
+                alt={acceptedFiles[0]?.name || "image"}
+                width={width}
+                height={height}
+              />
+              <div className="absolute -bottom-5">
+                <Button disabled={disabled} size="sm" variant="outline">
+                  <CameraIcon className="mr-2 h-5 w-5" />
+                  Editar
+                </Button>
+              </div>
+            </div>
           ) : (
             // Upload Icon
             <div className="flex flex-col items-center justify-center text-xs text-gray-400">
               <UploadCloudIcon className="mb-2 h-7 w-7" />
-              <div className="text-gray-400">drag & drop to upload</div>
+              <div className="text-gray-400">
+                arrastre una imagen o presione
+              </div>
               <div className="mt-3">
-                <Button disabled={disabled}>select</Button>
+                <Button disabled={disabled} size="sm" variant="outline">
+                  seleccionar
+                </Button>
               </div>
             </div>
           )}
 
           {/* Remove Image Icon */}
-          {imageUrl && !disabled && (
+          {canRemove && imageUrl && !disabled && (
             <div
               className="group absolute right-0 top-0 -translate-y-1/4 translate-x-1/4 transform"
               onClick={(e) => {
@@ -183,28 +206,6 @@ const SingleImageDropzone = React.forwardRef<HTMLInputElement, InputProps>(
   },
 );
 SingleImageDropzone.displayName = "SingleImageDropzone";
-
-const Button = React.forwardRef<
-  HTMLButtonElement,
-  React.ButtonHTMLAttributes<HTMLButtonElement>
->(({ className, ...props }, ref) => {
-  return (
-    <button
-      className={twMerge(
-        // base
-        "focus-visible:ring-ring inline-flex cursor-pointer items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50",
-        // color
-        "border border-gray-400 text-gray-400 shadow hover:bg-gray-100 hover:text-gray-500 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700",
-        // size
-        "h-6 rounded-md px-2 text-xs",
-        className,
-      )}
-      ref={ref}
-      {...props}
-    />
-  );
-});
-Button.displayName = "Button";
 
 function formatFileSize(bytes?: number) {
   if (!bytes) {

@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
-import { useRouter } from 'next/navigation';
+import { useRouter } from "next/navigation";
 
 import {
   Drawer,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
-} from '@/components/ui/drawer';
-import { useClerk } from '@clerk/nextjs';
+} from "@/components/ui/drawer";
+import { useClerk } from "@clerk/nextjs";
 
 type RedirectDrawerProps = {
   counterValue?: number;
@@ -42,7 +42,7 @@ export function RedirectDrawer({
   }, []);
 
   if (counter <= 1) {
-    signOut(() => router.push('/sign_up'));
+    signOut().then(() => router.push("/sign_up"));
   }
 
   return (

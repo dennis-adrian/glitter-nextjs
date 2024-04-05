@@ -5,8 +5,7 @@ import AnnouncementCard from "@/components/user_profile/announcements_cards/card
 
 export default async function Page({ params }: { params: { id: string } }) {
   const id = params.id;
-  const response = await fetchUserProfileById(parseInt(id));
-  const profile = response.user;
+  const profile = await fetchUserProfileById(parseInt(id));
 
   if (!profile) {
     return <div>Usuario no encontrado</div>;

@@ -4,15 +4,17 @@ import { redirect } from "next/navigation";
 
 import { clerkClient } from "@clerk/nextjs";
 import { User } from "@clerk/nextjs/server";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { pool, db } from "@/db";
-import { userRequests, userSocials, users } from "@/db/schema";
+import { profileTasks, userRequests, userSocials, users } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { NewUserSocial, ProfileType } from "./definitions";
+import { buildNewUser, buildUserSocials } from "@/app/api/users/helpers";
+import { isProfileComplete } from "@/app/lib/utils";
 
-type NewUser = typeof users.$inferInsert;
+export type NewUser = typeof users.$inferInsert;
 export type UserProfileType = typeof users.$inferSelect;
 export type UserProfileWithRequests = UserProfileType & {
   userRequests: (typeof userRequests.$inferSelect)[];
@@ -21,16 +23,9 @@ export type UserProfileWithRequests = UserProfileType & {
 export async function createUserProfile(user: User) {
   const client = await pool.connect();
 
-  const newUser: NewUser = {
-    clerkId: user.id,
-    email: user.emailAddresses[0].emailAddress,
-    firstName: user.firstName || "",
-    imageUrl: user.imageUrl || "",
-    lastName: user.lastName || "",
-    displayName: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
-  };
-
   try {
+    const newUser = buildNewUser(user);
+
     await db.transaction(async (tx) => {
       const newUsers = await tx
         .insert(users)
@@ -38,43 +33,24 @@ export async function createUserProfile(user: User) {
         .returning({ userId: users.id });
 
       const userId = newUsers[0].userId;
+      const userSocialsValues = buildUserSocials(userId);
 
-      if (user) {
-        await tx.insert(userSocials).values([
-          {
-            userId: userId,
-            type: "instagram",
-            username: "",
-          },
-          {
-            userId: userId,
-            type: "tiktok",
-            username: "",
-          },
-          {
-            userId: userId,
-            type: "facebook",
-            username: "",
-          },
-          {
-            userId: userId,
-            type: "twitter",
-            username: "",
-          },
-          {
-            userId: userId,
-            type: "youtube",
-            username: "",
-          },
-        ]);
+      if (userId) {
+        await tx.insert(userSocials).values(userSocialsValues);
+        await tx.insert(profileTasks).values({
+          dueDate: sql`now() + interval '5 days'`,
+          reminderTime: sql`now() + interval '3 days'`,
+          profileId: userId,
+          taskType: "profile_creation",
+          updatedAt: new Date(),
+          createdAt: new Date(),
+        });
       }
     });
   } catch (error) {
     console.error("Error creating user profile", error);
     await deleteClerkUser(user);
-    return {
-      message: "Error creating user profile",
-    };
+    return null;
   } finally {
     client.release();
   }
@@ -82,11 +58,13 @@ export async function createUserProfile(user: User) {
   redirect("/user_profile");
 }
 
-export async function fetchUserProfileById(id: number) {
+export async function fetchUserProfileById(
+  id: number,
+): Promise<ProfileType | null | undefined> {
   const client = await pool.connect();
 
   try {
-    const user = await db.query.users.findFirst({
+    return await db.query.users.findFirst({
       with: {
         userRequests: true,
         userSocials: true,
@@ -98,16 +76,9 @@ export async function fetchUserProfileById(id: number) {
       },
       where: eq(users.id, id),
     });
-
-    return {
-      user,
-    };
   } catch (error) {
     console.error("Error fetching user profile", error);
-    return {
-      message: "Error fetching user profile",
-      error,
-    };
+    return null;
   } finally {
     client.release();
   }
@@ -163,7 +134,9 @@ export async function fetchProfiles(): Promise<ProfileType[]> {
   }
 }
 
-export async function isProfileCreated(user: User) {
+export async function isProfileCreated(user?: User | null) {
+  if (!user) return false;
+
   const profile = await fetchUserProfile(user.id);
   return profile !== null || profile !== undefined;
 }
@@ -250,7 +223,6 @@ export async function updateProfileWithValidatedData(
   data: ProfileType & { socials?: NewUserSocial[] },
 ) {
   const client = await pool.connect();
-  // console.log("updating profile", data);
   const {
     firstName,
     lastName,
@@ -284,6 +256,19 @@ export async function updateProfileWithValidatedData(
           .where(sql`${userSocials.id} = ${social.id}`);
       });
     });
+
+    const profile = await fetchUserProfileById(id);
+    if (isProfileComplete(profile)) {
+      await db
+        .update(profileTasks)
+        .set({ completedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(profileTasks.profileId, id),
+            eq(profileTasks.taskType, "profile_creation"),
+          ),
+        );
+    }
   } catch (error) {
     console.error("Error updating profile", error);
     return {
