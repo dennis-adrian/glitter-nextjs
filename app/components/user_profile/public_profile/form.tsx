@@ -8,6 +8,15 @@ import { updateProfileWithValidatedData } from "@/app/api/users/actions";
 import { ProfileType } from "@/app/api/users/definitions";
 
 import { Input } from "@/app/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/app/components/ui/select";
+import AutomaticProfilePicUploadForm from "@/app/components/user_profile/profile_pic/automatic_upload_form";
+import { userCategoryOptions } from "@/app/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -18,21 +27,22 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
+import { userCategoryEnum } from "@/db/schema";
 import { findUserSocial, formatUserSocialsForInsertion } from "./utils";
-import AutomaticProfilePicUploadForm from "@/app/components/user_profile/profile_pic/automatic_upload_form";
 
 const usernameRegex = new RegExp(/^[a-zA-Z0-9_.-]+$/);
 const FormSchema = z.object({
+  bio: z.string().min(10, { message: "Escribe una bio un poco más larga" }),
+  category: z.enum(userCategoryEnum.enumValues),
   displayName: z.string().min(2, {
     message: "El nombre de artista tiene que tener al menos dos letras",
   }),
-  bio: z.string().min(10, { message: "Escribe una bio un poco más larga" }),
-  instagramProfile: z
+  facebookProfile: z
     .string()
     .refine((value) => value === "" || usernameRegex.test(value), {
       message: "El nombre de usuario no puede tener caracteres especiales",
     }),
-  facebookProfile: z
+  instagramProfile: z
     .string()
     .refine((value) => value === "" || usernameRegex.test(value), {
       message: "El nombre de usuario no puede tener caracteres especiales",
@@ -58,8 +68,9 @@ export default function PublicProfileForm({
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      displayName: profile.displayName || "",
       bio: profile.bio || "",
+      displayName: profile.displayName || "",
+      category: profile.category,
       instagramProfile: instagramProfile?.username || "",
       facebookProfile: facebookProfile?.username || "",
       tiktokProfile: tiktokProfile?.username || "",
@@ -116,6 +127,36 @@ export default function PublicProfileForm({
               </FormItem>
             )}
           />
+          {!profile.verified && (
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    ¿En cuál categoría te gustaría participar?
+                  </FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Elige una opción" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {userCategoryOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
+          )}
           <div className="text-muted-foreground mt-3 font-bold">
             Debes agregar al menos una red social
           </div>

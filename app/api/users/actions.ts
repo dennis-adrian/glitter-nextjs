@@ -226,6 +226,7 @@ export async function updateProfileWithValidatedData(
     firstName,
     lastName,
     birthdate,
+    category,
     phoneNumber,
     imageUrl,
     displayName,
@@ -239,6 +240,7 @@ export async function updateProfileWithValidatedData(
         .set({
           bio,
           birthdate,
+          category,
           displayName,
           firstName,
           imageUrl,

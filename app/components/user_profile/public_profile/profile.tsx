@@ -11,14 +11,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
+import ProfileCategoryBadge from "@/app/components/user_profile/category-badge";
 import ProfilePicField from "@/app/components/user_profile/profile_pic/field";
+import VerificationStatusBadge from "@/app/components/user_profile/verification-status-badge";
 import { socialsIcons, socialsUrls } from "@/app/lib/config";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/user_profile/modal";
 import Form from "./form";
-import { Badge } from "@/app/components/ui/badge";
-import VerificationStatusBadge from "@/app/components/user_profile/verification-status-badge";
-import ProfileCategoryBadge from "@/app/components/user_profile/category-badge";
 
 export default function PublicProfile({
   profile,
