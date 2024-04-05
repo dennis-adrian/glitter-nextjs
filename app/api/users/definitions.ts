@@ -4,6 +4,7 @@ import {
   userSocials,
   reservationParticipants,
   standReservations,
+  profileTasks,
 } from "@/db/schema";
 
 export type UserSocial = typeof userSocials.$inferSelect;
@@ -28,3 +29,4 @@ export type ProfileWithParticipationsAndRequests = typeof users.$inferSelect & {
 };
 
 export type NewUserSocial = typeof userSocials.$inferInsert;
+export type NewProfileTask = typeof profileTasks.$inferInsert;

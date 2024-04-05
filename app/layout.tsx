@@ -2,7 +2,7 @@ import { Analytics } from "@vercel/analytics/react";
 import type { Metadata } from "next";
 
 import { esES } from "@clerk/localizations";
-import { ClerkProvider } from "@clerk/nextjs";
+import { ClerkProvider, currentUser } from "@clerk/nextjs";
 
 import { EdgeStoreProvider } from "@/app/lib/edgestore";
 

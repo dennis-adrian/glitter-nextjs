@@ -8,11 +8,12 @@ import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { pool, db } from "@/db";
-import { userRequests, userSocials, users } from "@/db/schema";
+import { profileTasks, userRequests, userSocials, users } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { NewUserSocial, ProfileType } from "./definitions";
+import { buildNewUser, buildUserSocials } from "@/app/api/users/helpers";
 
-type NewUser = typeof users.$inferInsert;
+export type NewUser = typeof users.$inferInsert;
 export type UserProfileType = typeof users.$inferSelect;
 export type UserProfileWithRequests = UserProfileType & {
   userRequests: (typeof userRequests.$inferSelect)[];
@@ -21,16 +22,9 @@ export type UserProfileWithRequests = UserProfileType & {
 export async function createUserProfile(user: User) {
   const client = await pool.connect();
 
-  const newUser: NewUser = {
-    clerkId: user.id,
-    email: user.emailAddresses[0].emailAddress,
-    firstName: user.firstName || "",
-    imageUrl: user.imageUrl || "",
-    lastName: user.lastName || "",
-    displayName: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
-  };
-
   try {
+    const newUser = buildNewUser(user);
+
     await db.transaction(async (tx) => {
       const newUsers = await tx
         .insert(users)
@@ -38,43 +32,23 @@ export async function createUserProfile(user: User) {
         .returning({ userId: users.id });
 
       const userId = newUsers[0].userId;
+      const userSocialsValues = buildUserSocials(userId);
 
-      if (user) {
-        await tx.insert(userSocials).values([
-          {
-            userId: userId,
-            type: "instagram",
-            username: "",
-          },
-          {
-            userId: userId,
-            type: "tiktok",
-            username: "",
-          },
-          {
-            userId: userId,
-            type: "facebook",
-            username: "",
-          },
-          {
-            userId: userId,
-            type: "twitter",
-            username: "",
-          },
-          {
-            userId: userId,
-            type: "youtube",
-            username: "",
-          },
-        ]);
+      if (userId) {
+        await tx.insert(userSocials).values(userSocialsValues);
+        await tx.insert(profileTasks).values({
+          dueDate: sql`now() + interval '5 days'`,
+          reminderTime: sql`now() + interval '3 days'`,
+          profileId: userId,
+          updatedAt: new Date(),
+          createdAt: new Date(),
+        });
       }
     });
   } catch (error) {
     console.error("Error creating user profile", error);
     await deleteClerkUser(user);
-    return {
-      message: "Error creating user profile",
-    };
+    return null;
   } finally {
     client.release();
   }
@@ -163,7 +137,9 @@ export async function fetchProfiles(): Promise<ProfileType[]> {
   }
 }
 
-export async function isProfileCreated(user: User) {
+export async function isProfileCreated(user?: User | null) {
+  if (!user) return false;
+
   const profile = await fetchUserProfile(user.id);
   return profile !== null || profile !== undefined;
 }
