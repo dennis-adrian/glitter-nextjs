@@ -1,0 +1,1 @@
+ALTER TABLE "profile_tasks" ALTER COLUMN "task_type" SET NOT NULL;

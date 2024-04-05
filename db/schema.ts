@@ -279,6 +279,7 @@ export const profileTaskTypeEnum = pgEnum("profile_task_type", [
 ]);
 export const profileTasks = pgTable("profile_tasks", {
   id: serial("id").primaryKey(),
+  taskType: profileTaskTypeEnum("task_type").notNull(),
   dueDate: timestamp("due_date").notNull(),
   completedAt: timestamp("completed_at"),
   reminderTime: timestamp("reminder_time").notNull(),
