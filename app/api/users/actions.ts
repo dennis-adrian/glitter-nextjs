@@ -141,10 +141,9 @@ export async function isProfileCreated(user?: User | null) {
   return profile !== null || profile !== undefined;
 }
 
-export async function deleteClerkUser(user: User) {
+export async function deleteClerkUser(user: User | { id: string }) {
   try {
     await clerkClient.users.deleteUser(user.id);
-    redirect("/sign_up");
   } catch (error) {
     console.error("Error deleting user", error);
     return {
@@ -280,4 +279,31 @@ export async function updateProfileWithValidatedData(
 
   revalidatePath("/user_profile");
   return { success: true };
+}
+
+type FormState = {
+  success: boolean;
+  message: string;
+};
+export async function deleteProfile(profileId: number, prevState: FormState) {
+  const client = await pool.connect();
+
+  try {
+    const deletedUsers = await db
+      .delete(users)
+      .where(eq(users.id, profileId))
+      .returning();
+
+    deletedUsers.forEach(async (deletedUsers) => {
+      await deleteClerkUser({ id: deletedUsers.clerkId });
+    });
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al eliminar el perfil" };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/users");
+  return { success: true, message: "Perfil eliminado" };
 }

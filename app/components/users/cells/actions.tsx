@@ -1,4 +1,4 @@
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Trash2Icon } from "lucide-react";
 
 import { ProfileType } from "@/app/api/users/definitions";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
+import { useState } from "react";
+import { DeleteProfileModal } from "@/app/components/users/form/delete-profile-modal";
 
 export function ActionsCell({ user }: { user: ProfileType }) {
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -23,18 +27,9 @@ export function ActionsCell({ user }: { user: ProfileType }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-        {/* <DropdownMenuItem
-              onClick={() =>
-                navigator.clipboard.writeText(user.id.toString())
-              }
-            >
-              Copy payment ID
-            </DropdownMenuItem> */}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href={`/dashboard/users/${user.id}`}>
-            Ver perfil
-          </Link>
+          <Link href={`/dashboard/users/${user.id}`}>Ver perfil</Link>
         </DropdownMenuItem>
         {user.userRequests.length > 0 && (
           <DropdownMenuItem>
@@ -43,10 +38,19 @@ export function ActionsCell({ user }: { user: ProfileType }) {
             </Link>
           </DropdownMenuItem>
         )}
-        {user.role !== "admin" && (
+        {/* {user.role !== "admin" && (
           <DropdownMenuItem> Volver admin</DropdownMenuItem>
-        )}
+        )} */}
+        <DropdownMenuItem onClick={() => setOpenDeleteModal(true)}>
+          <Trash2Icon className="h-4 w-4 mr-1" />
+          Eliminar
+        </DropdownMenuItem>
       </DropdownMenuContent>
+      <DeleteProfileModal
+        open={openDeleteModal}
+        profile={user}
+        setOpen={setOpenDeleteModal}
+      />
     </DropdownMenu>
   );
 }
