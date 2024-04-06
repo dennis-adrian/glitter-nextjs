@@ -7,7 +7,6 @@ import { ProfileType } from "@/app/api/users/definitions";
 import { useEdgeStore } from "@/app/lib/edgestore";
 
 import { SingleImageDropzone } from "@/components/single-image-dropzone";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 
 export default function AutomaticProfilePicUploadForm({
@@ -58,8 +57,8 @@ export default function AutomaticProfilePicUploadForm({
         <div className="mt-4 mb-6">
           <SingleImageDropzone
             canRemove={false}
-            width={200}
-            height={200}
+            width={120}
+            height={120}
             value={profile.imageUrl || ""}
             dropzoneOptions={{
               maxSize: 1024 * 1024 * 3, // 3MB,
