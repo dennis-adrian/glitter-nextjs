@@ -239,6 +239,20 @@
       "when": 1712345803647,
       "tag": "0033_typical_scalphunter",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1712363446374,
+      "tag": "0034_opposite_cannonball",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "5",
+      "when": 1712363544817,
+      "tag": "0035_omniscient_scalphunter",
+      "breakpoints": true
     }
   ]
 }
