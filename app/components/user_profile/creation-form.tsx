@@ -16,11 +16,15 @@ import {
 } from "@/app/components/ui/card";
 import { Form } from "@/app/components/ui/form";
 import AutomaticProfilePicUploadForm from "@/app/components/user_profile/profile_pic/automatic_upload_form";
-import { formatUserSocialsForInsertion } from "@/app/components/user_profile/public_profile/utils";
-import { formatDateOnlyToISO, userCategoryOptions } from "@/app/lib/utils";
+import {
+  formatDateOnlyToISO,
+  isProfileComplete,
+  userCategoryOptions,
+} from "@/app/lib/utils";
 import { userCategoryEnum } from "@/db/schema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { redirect } from "next/navigation";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -78,6 +82,23 @@ export default function ProfileCreationForm({
       toast.error(result.message);
     }
   });
+
+  useEffect(() => {
+    if (isProfileComplete(profile)) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload, {
+      capture: true,
+    });
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload, {
+        capture: true,
+      });
+    };
+  }, [profile]);
 
   return (
     <div className="max-w-screen-md mx-auto">
@@ -153,20 +174,13 @@ export default function ProfileCreationForm({
               />
             </CardContent>
           </Card>
-          <div className="grid gap-2 grid-cols-1 md:grid-cols-2 justify-end">
+          <div className="flex justify-end w-full">
             <Button
               disabled={form.formState.isLoading}
-              className="md:order-2"
+              className="w-full md:max-w-40"
               type="submit"
             >
               Guardar cambios
-            </Button>
-            <Button
-              disabled={form.formState.isLoading}
-              type="button"
-              variant="outline"
-            >
-              Cancelar
             </Button>
           </div>
         </form>
