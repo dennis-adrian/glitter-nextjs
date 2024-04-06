@@ -15,7 +15,7 @@ export default function TextInput({
   name,
   ...props
 }: {
-  formControl: UseFormReturn["control"];
+  formControl: UseFormReturn<any>["control"];
   label: string;
   name: string;
   placeholder?: string;

@@ -337,7 +337,7 @@ export async function updateProfileWithValidatedData(
   } catch (error) {
     console.error("Error updating profile", error);
     return {
-      message: "Error de Base de Datos: No se pudo actualizar el perfil",
+      message: "Error al guardar los cambios. Intenta de nuevo",
     };
   } finally {
     client.release();

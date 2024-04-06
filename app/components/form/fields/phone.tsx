@@ -13,7 +13,7 @@ export default function PhoneInput({
   label,
   name,
 }: {
-  formControl: UseFormReturn["control"];
+  formControl: UseFormReturn<any>["control"];
   label: string;
   name: string;
 }) {

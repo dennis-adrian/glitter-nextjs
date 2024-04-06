@@ -21,7 +21,7 @@ export default function SelectInput({
   options,
   placeholder,
 }: {
-  formControl: UseFormReturn["control"];
+  formControl: UseFormReturn<any>["control"];
   label: string;
   name: string;
   options: { value: string; label: string }[];

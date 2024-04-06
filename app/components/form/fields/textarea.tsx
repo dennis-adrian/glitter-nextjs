@@ -9,13 +9,13 @@ import { Textarea } from "@/app/components/ui/textarea";
 import { UseFormReturn } from "react-hook-form";
 
 export default function TextareaInput({
-  form,
+  formControl,
   label,
   maxLength,
   name,
   placeholder,
 }: {
-  form: UseFormReturn;
+  formControl: UseFormReturn<any>["control"];
   label: string;
   maxLength?: number;
   name: string;
@@ -23,7 +23,7 @@ export default function TextareaInput({
 }) {
   return (
     <FormField
-      control={form.control}
+      control={formControl}
       name={name}
       render={({ field }) => (
         <FormItem className="grid gap-2">
