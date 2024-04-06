@@ -114,7 +114,6 @@ export const genderOptions = [
 ];
 
 export const userCategoryOptions = [
-  { value: userCategoryEnum.enumValues[0], label: "Ninguna" },
   { value: userCategoryEnum.enumValues[1], label: "Ilustración" },
   { value: userCategoryEnum.enumValues[2], label: "Gastronomía" },
   { value: userCategoryEnum.enumValues[3], label: "Emprendimiento" },

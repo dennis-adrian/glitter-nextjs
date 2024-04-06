@@ -4,6 +4,7 @@ import { updateProfileWithValidatedData } from "@/app/api/users/actions";
 import { ProfileType } from "@/app/api/users/definitions";
 import PhoneInput from "@/app/components/form/fields/phone";
 import SelectInput from "@/app/components/form/fields/select";
+import SocialMediaInput from "@/app/components/form/fields/social-media";
 import TextInput from "@/app/components/form/fields/text";
 import TextareaInput from "@/app/components/form/fields/textarea";
 import { Button } from "@/app/components/ui/button";
@@ -17,6 +18,10 @@ import {
 import { Form } from "@/app/components/ui/form";
 import AutomaticProfilePicUploadForm from "@/app/components/user_profile/profile_pic/automatic_upload_form";
 import {
+  findUserSocial,
+  formatUserSocialsForInsertion,
+} from "@/app/components/user_profile/public_profile/utils";
+import {
   formatDateOnlyToISO,
   isProfileComplete,
   userCategoryOptions,
@@ -29,13 +34,14 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+const usernameRegex = new RegExp(/^[a-zA-Z0-9_.-]+$/);
 const phoneRegex = new RegExp(/^\d{8}$/);
 const FormSchema = z.object({
   bio: z.string().min(10, { message: "Escribe una bio un poco más larga" }),
   birthdate: z.string().min(1, {
     message: "La fecha de nacimiento es requerida",
   }),
-  category: z.enum(userCategoryEnum.enumValues),
+  category: z.enum(userCategoryEnum.enumValues).exclude(["none"]),
   displayName: z.string().min(2, {
     message: "El nombre de artista tiene que tener al menos dos letras",
   }),
@@ -48,6 +54,22 @@ const FormSchema = z.object({
   phoneNumber: z
     .string()
     .regex(phoneRegex, "Número de teléfono inválido. Necesita tener 8 dígitos"),
+  facebookProfile: z
+    .string()
+    .refine((value) => value === "" || usernameRegex.test(value), {
+      message: "El nombre de usuario no puede tener caracteres especiales",
+    }),
+  instagramProfile: z
+    .string()
+    .min(2, { message: "Agrega al menos tu perfil de Instagram" })
+    .refine((value) => value === "" || usernameRegex.test(value), {
+      message: "El nombre de usuario no puede tener caracteres especiales",
+    }),
+  tiktokProfile: z
+    .string()
+    .refine((value) => value === "" || usernameRegex.test(value), {
+      message: "El nombre de usuario no puede tener caracteres especiales",
+    }),
 });
 
 export default function ProfileCreationForm({
@@ -55,26 +77,33 @@ export default function ProfileCreationForm({
 }: {
   profile: ProfileType;
 }) {
+  const instagramProfile = findUserSocial(profile, "instagram");
+  const facebookProfile = findUserSocial(profile, "facebook");
+  const tiktokProfile = findUserSocial(profile, "tiktok");
+
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       bio: profile.bio || "",
       birthdate: formatDateOnlyToISO(profile?.birthdate) || "",
       displayName: profile.displayName || "",
-      category: profile.category,
+      category: profile.category === "none" ? undefined : profile.category,
       firstName: profile.firstName || "",
       lastName: profile.lastName || "",
       phoneNumber: profile.phoneNumber || "",
+      instagramProfile: instagramProfile?.username || "",
+      facebookProfile: facebookProfile?.username || "",
+      tiktokProfile: tiktokProfile?.username || "",
     },
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    // const socials = formatUserSocialsForInsertion(data, profile);
+    const socials = formatUserSocialsForInsertion(data, profile);
     const result = await updateProfileWithValidatedData(profile.id, {
       ...profile,
       ...data,
       birthdate: new Date(data.birthdate),
-      // socials: socials.filter(Boolean) as ProfileType["userSocials"],
+      socials: socials.filter(Boolean) as ProfileType["userSocials"],
     });
     if (result.success) {
       redirect("/user_profile");
@@ -135,6 +164,35 @@ export default function ProfileCreationForm({
                     name="bio"
                     placeholder="Cuéntanos un poco sobre ti"
                   />
+                </div>
+                <div className="md:col-span-2">
+                  <div className="mb-4">
+                    <h2 className="text-lg font-semibold">Redes sociales</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Agrega al menos tu perfil de Instagram para ver tu trabajo
+                      y analizar tu perfil
+                    </p>
+                  </div>
+                  <div className="grid md:grid-cols-3 gap-2">
+                    <SocialMediaInput
+                      formControl={form.control}
+                      label="Perfil de Instagram"
+                      name="instagramProfile"
+                      placeholder="usuario"
+                    />
+                    <SocialMediaInput
+                      formControl={form.control}
+                      label="Perfil de Facebook"
+                      name="facebookProfile"
+                      placeholder="usuario"
+                    />
+                    <SocialMediaInput
+                      formControl={form.control}
+                      label="Perfil de TikTok"
+                      name="tiktokProfile"
+                      placeholder="usuario"
+                    />
+                  </div>
                 </div>
               </div>
             </CardContent>
