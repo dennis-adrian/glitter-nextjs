@@ -48,7 +48,7 @@ export default function PrivateProfileForm({
       birthdate: formatDateOnlyToISO(profile?.birthdate) || "",
       firstName: profile.firstName || "",
       lastName: profile.lastName || "",
-      phoneNumber: profile.phoneNumber ? `+591 ${profile.phoneNumber}` : "",
+      phoneNumber: profile.phoneNumber || "",
     },
   });
 

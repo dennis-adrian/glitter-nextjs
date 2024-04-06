@@ -8,7 +8,7 @@ import { isProfileComplete } from "@/app/lib/utils";
 
 import { SubmitButton } from "@/app/components/submit-button";
 
-export default function BecomeArtistForm({
+export default function VerifyProfileform({
   profile,
 }: {
   profile: ProfileType;
@@ -27,8 +27,8 @@ export default function BecomeArtistForm({
 
   return isProfileComplete(profile) ? (
     <form action={action}>
-      <SubmitButton variant="secondary" size="sm" formState={state}>
-        ¡Soy artista!
+      <SubmitButton size="sm" formState={state}>
+        Solicitar verificación
       </SubmitButton>
     </form>
   ) : null;

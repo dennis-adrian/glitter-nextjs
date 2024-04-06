@@ -1,6 +1,6 @@
 import { fetchActiveFestival } from "@/app/api/festivals/actions";
 import { ProfileType } from "@/app/api/users/definitions";
-import BecomeArtistCard from "./become-artist-card";
+import MissingFieldsCard from "./missing-fields-card";
 import PendingArtistCard from "./pending-artist-card";
 import ParticipationCard from "./participation-card";
 import PendingParticipationCard from "./pending-participation";
@@ -14,14 +14,14 @@ export default async function Card({ profile }: { profile: ProfileType }) {
 
   if (profile.role === "user") {
     const becomeArtistRequest = profile.userRequests.find(
-      (request) => request.type === "become_artist",
+      (request) => request.type === "profile_verification",
     );
 
     if (becomeArtistRequest) {
       return <PendingArtistCard />;
     }
 
-    return <BecomeArtistCard profile={profile} />;
+    return <MissingFieldsCard profile={profile} />;
   }
 
   const festival = await fetchActiveFestival({});

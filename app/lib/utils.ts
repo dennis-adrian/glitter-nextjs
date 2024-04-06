@@ -42,6 +42,7 @@ export function isProfileComplete(profile?: ProfileType | null) {
     !!profile.phoneNumber &&
     !!profile.displayName &&
     !!profile.email &&
+    profile.category !== "none" &&
     socials.length > 0
   );
 }
@@ -69,6 +70,14 @@ export function getMissingProfileFields(profile: ProfileType) {
     missingFields.push({
       key: "userSocials",
       label: "Al menos una red social",
+      isPublic: true,
+    });
+  }
+
+  if (profile.category === "none") {
+    missingFields.push({
+      key: "category",
+      label: "Una categoría en la que participar",
       isPublic: true,
     });
   }
