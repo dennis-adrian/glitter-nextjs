@@ -132,25 +132,25 @@ export default function ProfileCreationForm({
   return (
     <div className="max-w-screen-md mx-auto">
       <Form {...form}>
-        <form action={action} className="grid gap-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold">Completa tu Perfil</h1>
-            <Button
-              disabled={form.formState.isLoading}
-              className="w-full md:max-w-40"
-              type="submit"
-            >
+        <form action={action} className="relative grid gap-6">
+          <div className="bg-white/90 sticky flex justify-between items-center z-50 top-0 right-0 border-b h-16">
+            <h1 className="text-xl md:text-2xl font-bold">
+              Completa tu Perfil
+            </h1>
+            <Button disabled={form.formState.isLoading} type="submit">
               Guardar cambios
             </Button>
           </div>
-          <Card>
-            <CardHeader>
-              <CardTitle>Información pública</CardTitle>
-              <CardDescription>
+          <section>
+            <section>
+              <h2 className="font-bold text-lg md:text-xl">
+                Información pública
+              </h2>
+              <p className="text-sm text-muted-foreground">
                 Esta información será visible para todos
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid items-start gap-4">
+              </p>
+            </section>
+            <div className="grid items-start gap-4">
               <AutomaticProfilePicUploadForm profile={profile} />
               <div className="grid items-start md:grid-cols-2 gap-4">
                 <TextInput
@@ -176,13 +176,13 @@ export default function ProfileCreationForm({
                 </div>
                 <div className="md:col-span-2">
                   <div className="mb-4">
-                    <h2 className="text-lg font-semibold">Redes sociales</h2>
+                    <h2 className="text-base font-medium">Redes sociales</h2>
                     <p className="text-sm text-muted-foreground">
                       Agrega al menos tu perfil de Instagram para ver tu trabajo
                       y analizar tu perfil
                     </p>
                   </div>
-                  <div className="grid md:grid-cols-3 gap-2">
+                  <div className="grid md:grid-cols-3 gap-2 items-start">
                     <SocialMediaInput
                       formControl={form.control}
                       label="Perfil de Instagram"
@@ -204,17 +204,19 @@ export default function ProfileCreationForm({
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Información personal</CardTitle>
-              <CardDescription>
+            </div>
+          </section>
+          <section>
+            <section className="mb-4">
+              <h2 className="font-bold text-lg md:text-xl">
+                Información personal
+              </h2>
+              <p className="text-sm text-muted-foreground">
                 Esta información será visible solamente para el equipo de
                 Glitter
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid md:grid-cols-2 items-start gap-4">
+              </p>
+            </section>
+            <section className="grid md:grid-cols-2 items-start gap-4">
               <TextInput
                 formControl={form.control}
                 label="Nombre"
@@ -239,17 +241,8 @@ export default function ProfileCreationForm({
                 label="Número de teléfono"
                 name="phoneNumber"
               />
-            </CardContent>
-          </Card>
-          <div className="flex justify-end w-full">
-            <Button
-              disabled={form.formState.isLoading}
-              className="w-full md:max-w-40"
-              type="submit"
-            >
-              Guardar cambios
-            </Button>
-          </div>
+            </section>
+          </section>
         </form>
       </Form>
     </div>
