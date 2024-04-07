@@ -1,1 +1,0 @@
-ALTER TABLE "user_requests" ALTER COLUMN "type" SET DEFAULT 'profile_verification';

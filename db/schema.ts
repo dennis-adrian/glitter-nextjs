@@ -91,7 +91,7 @@ export const requestStatusEnum = pgEnum("participation_request_status", [
 
 export const requestTypeEnum = pgEnum("user_request_type", [
   "festival_participation",
-  "profile_verification",
+  "become_artist",
 ]);
 export const userRequests = pgTable("user_requests", {
   id: serial("id").primaryKey(),
@@ -99,7 +99,7 @@ export const userRequests = pgTable("user_requests", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   festivalId: integer("festival_id").references(() => festivals.id),
-  type: requestTypeEnum("type").notNull().default("profile_verification"),
+  type: requestTypeEnum("type").notNull().default("become_artist"),
   status: requestStatusEnum("status").default("pending").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

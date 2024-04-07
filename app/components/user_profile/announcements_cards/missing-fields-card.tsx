@@ -1,7 +1,6 @@
 import { ProfileType } from "@/app/api/users/definitions";
 import { getMissingProfileFields, isProfileComplete } from "@/app/lib/utils";
 import BaseCard from "./base-card";
-import VerifyProfileForm from "./verify-profile-form";
 
 export default function MissingFieldsCard({
   profile,
@@ -19,8 +18,8 @@ export default function MissingFieldsCard({
         <div>
           {isProfileComplete(profile) ? (
             <p>
-              ¡Felicidades! Tu perfil está completo. Ahora puedes solicitar ser
-              artista
+              Gracias por completar tu perfil. Te enviaremos un correo cuando
+              sea verificado.
             </p>
           ) : (
             <div>
@@ -73,7 +72,6 @@ export default function MissingFieldsCard({
           )}
         </div>
       }
-      footer={<VerifyProfileForm profile={profile} />}
     />
   );
 }

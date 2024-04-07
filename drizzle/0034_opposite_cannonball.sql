@@ -1,1 +1,0 @@
-ALTER TYPE "user_request_type" ADD VALUE 'profile_verification';

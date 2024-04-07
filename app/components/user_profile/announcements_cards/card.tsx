@@ -14,7 +14,7 @@ export default async function Card({ profile }: { profile: ProfileType }) {
 
   if (profile.role === "user") {
     const becomeArtistRequest = profile.userRequests.find(
-      (request) => request.type === "profile_verification",
+      (request) => request.type === "become_artist",
     );
 
     if (becomeArtistRequest) {
