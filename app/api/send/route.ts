@@ -2,7 +2,7 @@ import React from "react";
 
 import { Resend } from "resend";
 
-import { FestivalBase } from "@/app/api/festivals/definitions";
+import { FestivalBase } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import TicketEmailTemplate from "@/app/emails/ticket";
 

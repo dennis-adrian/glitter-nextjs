@@ -1,4 +1,4 @@
-import { fetchActiveFestival } from "@/app/api/festivals/actions";
+import { fetchActiveFestival } from "@/app/data/festivals/actions";
 import { ProfileType } from "@/app/api/users/definitions";
 import MissingFieldsCard from "./missing-fields-card";
 import PendingArtistCard from "./pending-artist-card";

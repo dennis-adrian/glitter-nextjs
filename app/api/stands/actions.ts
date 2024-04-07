@@ -1,6 +1,6 @@
 "use server";
 
-import { FestivalWithUserRequests } from "@/app/api/festivals/definitions";
+import { FestivalWithUserRequests } from "@/app/data/festivals/definitions";
 import { db, pool } from "@/db";
 import {
   festivals,

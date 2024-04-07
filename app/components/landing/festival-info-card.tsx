@@ -1,4 +1,4 @@
-import { Festival, FestivalBase } from "@/app/api/festivals/definitions";
+import { Festival, FestivalBase } from "@/app/data/festivals/definitions";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
 import { cn } from "@/app/lib/utils";
 import { CalendarIcon, ClockIcon, LocateIcon, LucideIcon } from "lucide-react";

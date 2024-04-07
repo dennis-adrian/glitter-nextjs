@@ -1,4 +1,4 @@
-import { FestivalBase } from "@/app/api/festivals/definitions";
+import { FestivalBase } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
 import { AttendanceType } from "./ticket-creation-form";
@@ -8,11 +8,15 @@ export function getAttendanceOptions(
   festival: FestivalBase,
 ): { label: string; value: AttendanceType }[] {
   const dayOneOption = {
-    label: `${getWeekdayFromDate(festival.startDate)} ${formatFullDate(festival.startDate)}`,
+    label: `${getWeekdayFromDate(festival.startDate)} ${formatFullDate(
+      festival.startDate,
+    )}`,
     value: "day_one" as AttendanceType,
   };
   const dayTwoOption = {
-    label: `${getWeekdayFromDate(festival.endDate)} ${formatFullDate(festival.endDate)}`,
+    label: `${getWeekdayFromDate(festival.endDate)} ${formatFullDate(
+      festival.endDate,
+    )}`,
     value: "day_two" as AttendanceType,
   };
   const bothDaysOption = {

@@ -4,7 +4,7 @@ import { junegull } from "@/ui/fonts";
 
 import bg_image from "../public/img/bg_w_1280.png";
 import { currentUser } from "@clerk/nextjs";
-import { fetchActiveFestival } from "@/app/api/festivals/actions";
+import { fetchActiveFestival } from "@/app/data/festivals/actions";
 import LandingRedirectButton from "@/app/components/landing/redirect-button";
 import { FestivalInfo } from "@/app/components/landing/festival-info-card";
 import Carousel from "@/app/components/landing/carousel";

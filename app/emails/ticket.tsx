@@ -16,7 +16,7 @@ import {
   SAMY_HEAD_URL,
 } from "@/app/lib/costants";
 import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
-import { FestivalBase } from "../api/festivals/definitions";
+import { FestivalBase } from "../data/festivals/definitions";
 import { VisitorWithTickets } from "../data/visitors/actions";
 
 export default function TicketEmailTemplate({

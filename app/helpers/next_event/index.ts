@@ -1,7 +1,7 @@
 import {
   FestivalBase,
   FestivalWithUserRequests,
-} from "@/app/api/festivals/definitions";
+} from "@/app/data/festivals/definitions";
 import {
   ProfileType,
   ProfileWithParticipationsAndRequests,

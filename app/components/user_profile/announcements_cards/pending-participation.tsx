@@ -1,6 +1,6 @@
 "use server";
 
-import { FestivalBase } from "@/app/api/festivals/definitions";
+import { FestivalBase } from "@/app/data/festivals/definitions";
 import BaseCard from "./base-card";
 
 export default async function PendingParticipationCard({

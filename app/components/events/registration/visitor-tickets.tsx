@@ -1,6 +1,6 @@
 "use client";
 
-import { FestivalBase } from "@/app/api/festivals/definitions";
+import { FestivalBase } from "@/app/data/festivals/definitions";
 import {
   Card,
   CardContent,
