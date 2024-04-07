@@ -246,6 +246,20 @@
       "when": 1712454380651,
       "tag": "0034_mysterious_rocket_raccoon",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "5",
+      "when": 1712513644428,
+      "tag": "0035_first_xorn",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1712514895744,
+      "tag": "0036_slow_thunderball",
+      "breakpoints": true
     }
   ]
 }
