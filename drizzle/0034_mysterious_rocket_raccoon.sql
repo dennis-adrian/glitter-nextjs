@@ -1,0 +1,1 @@
+ALTER TABLE "stands" ADD COLUMN "stand_category" "user_category" DEFAULT 'illustration' NOT NULL;
