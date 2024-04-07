@@ -5,7 +5,9 @@ import {
   reservationParticipants,
   standReservations,
   profileTasks,
+  userCategoryEnum,
 } from "@/db/schema";
+import { z } from "zod";
 
 export type UserSocial = typeof userSocials.$inferSelect;
 type UserRequest = typeof userRequests.$inferSelect;
@@ -30,3 +32,4 @@ export type ProfileWithParticipationsAndRequests = typeof users.$inferSelect & {
 
 export type NewUserSocial = typeof userSocials.$inferInsert;
 export type NewProfileTask = typeof profileTasks.$inferInsert;
+export type UserCategory = BaseProfile["category"];
