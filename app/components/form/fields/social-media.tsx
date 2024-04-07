@@ -27,7 +27,6 @@ export default function SocialMediaInput({
       control={formControl}
       name={name}
       render={({ field, formState, fieldState }) => {
-        debugger;
         return (
           <FormItem className="grid gap-2">
             <FormLabel>{label}</FormLabel>

@@ -131,9 +131,18 @@ export default function ProfileCreationForm({
 
   return (
     <div className="max-w-screen-md mx-auto">
-      <h1 className="text-2xl font-bold my-4">Perfil</h1>
       <Form {...form}>
         <form action={action} className="grid gap-4">
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold">Completa tu Perfil</h1>
+            <Button
+              disabled={form.formState.isLoading}
+              className="w-full md:max-w-40"
+              type="submit"
+            >
+              Guardar cambios
+            </Button>
+          </div>
           <Card>
             <CardHeader>
               <CardTitle>Información pública</CardTitle>
