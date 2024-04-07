@@ -2,7 +2,7 @@ import QRCode from "qrcode";
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { ProfileType } from "@/api/users/definitions";
-import { eventDiscoveryEnum, genderEnum } from "@/db/schema";
+import { eventDiscoveryEnum, genderEnum, userCategoryEnum } from "@/db/schema";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -42,6 +42,7 @@ export function isProfileComplete(profile?: ProfileType | null) {
     !!profile.phoneNumber &&
     !!profile.displayName &&
     !!profile.email &&
+    profile.category !== "none" &&
     socials.length > 0
   );
 }
@@ -69,6 +70,14 @@ export function getMissingProfileFields(profile: ProfileType) {
     missingFields.push({
       key: "userSocials",
       label: "Al menos una red social",
+      isPublic: true,
+    });
+  }
+
+  if (profile.category === "none") {
+    missingFields.push({
+      key: "category",
+      label: "Una categoría en la que participar",
       isPublic: true,
     });
   }
@@ -102,4 +111,10 @@ export const genderOptions = [
   { value: genderEnum.enumValues[2], label: "No binario" },
   { value: genderEnum.enumValues[3], label: "Otro" },
   { value: genderEnum.enumValues[4], label: "Prefiero no decir" },
+];
+
+export const userCategoryOptions = [
+  { value: userCategoryEnum.enumValues[1], label: "Ilustración" },
+  { value: userCategoryEnum.enumValues[2], label: "Gastronomía" },
+  { value: userCategoryEnum.enumValues[3], label: "Emprendimiento" },
 ];

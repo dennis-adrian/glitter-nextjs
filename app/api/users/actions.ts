@@ -110,6 +110,70 @@ export async function fetchUserProfile(
   }
 }
 
+export async function fetchOrCreateProfile(
+  user: User | null | undefined,
+): Promise<ProfileType | undefined | null> {
+  const client = await pool.connect();
+
+  try {
+    if (!user) throw new Error("No logged in user provided");
+    return await db.transaction(async (tx) => {
+      const profile = await tx.query.users.findFirst({
+        with: {
+          userRequests: true,
+          userSocials: true,
+          participations: {
+            with: {
+              reservation: true,
+            },
+          },
+        },
+        where: eq(users.clerkId, user.id),
+      });
+
+      if (profile) return profile;
+
+      const [newUser] = await tx
+        .insert(users)
+        .values(buildNewUser(user))
+        .returning({ id: users.id });
+
+      return await tx.transaction(async (tx2) => {
+        if (newUser?.id) {
+          const userSocialsValues = buildUserSocials(newUser.id);
+          await tx2.insert(userSocials).values(userSocialsValues);
+          await tx2.insert(profileTasks).values({
+            dueDate: sql`now() + interval '5 days'`,
+            reminderTime: sql`now() + interval '3 days'`,
+            profileId: newUser.id,
+            taskType: "profile_creation",
+            updatedAt: new Date(),
+            createdAt: new Date(),
+          });
+
+          return await tx2.query.users.findFirst({
+            with: {
+              userRequests: true,
+              userSocials: true,
+              participations: {
+                with: {
+                  reservation: true,
+                },
+              },
+            },
+            where: eq(users.id, newUser.id),
+          });
+        }
+      });
+    });
+  } catch (error) {
+    console.error(error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
 export async function fetchProfiles(): Promise<ProfileType[]> {
   const client = await pool.connect();
 
@@ -226,6 +290,7 @@ export async function updateProfileWithValidatedData(
     firstName,
     lastName,
     birthdate,
+    category,
     phoneNumber,
     imageUrl,
     displayName,
@@ -239,6 +304,7 @@ export async function updateProfileWithValidatedData(
         .set({
           bio,
           birthdate,
+          category,
           displayName,
           firstName,
           imageUrl,
@@ -271,7 +337,7 @@ export async function updateProfileWithValidatedData(
   } catch (error) {
     console.error("Error updating profile", error);
     return {
-      message: "Error de Base de Datos: No se pudo actualizar el perfil",
+      message: "Error al guardar los cambios. Intenta de nuevo",
     };
   } finally {
     client.release();

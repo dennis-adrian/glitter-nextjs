@@ -158,7 +158,12 @@ const SingleImageDropzone = React.forwardRef<HTMLInputElement, InputProps>(
                 height={height}
               />
               <div className="absolute -bottom-5">
-                <Button disabled={disabled} size="sm" variant="outline">
+                <Button
+                  disabled={disabled}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
                   <CameraIcon className="mr-2 h-5 w-5" />
                   Editar
                 </Button>

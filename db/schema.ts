@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import {
+  boolean,
   index,
   integer,
   pgEnum,
@@ -15,6 +16,12 @@ export const userRoleEnum = pgEnum("user_role", [
   "user",
   "festival_admin",
 ]);
+export const userCategoryEnum = pgEnum("user_category", [
+  "none",
+  "illustration",
+  "gastronomy",
+  "entrepreneurship",
+]);
 export const users = pgTable(
   "users",
   {
@@ -29,6 +36,8 @@ export const users = pgTable(
     lastName: text("last_name"),
     phoneNumber: text("phone_number"),
     role: userRoleEnum("role").default("user").notNull(),
+    category: userCategoryEnum("category").default("none").notNull(),
+    verified: boolean("verified").default(false).notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -81,8 +90,8 @@ export const requestStatusEnum = pgEnum("participation_request_status", [
 ]);
 
 export const requestTypeEnum = pgEnum("user_request_type", [
-  "become_artist",
   "festival_participation",
+  "become_artist",
 ]);
 export const userRequests = pgTable("user_requests", {
   id: serial("id").primaryKey(),

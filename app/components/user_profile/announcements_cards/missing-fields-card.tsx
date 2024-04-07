@@ -1,10 +1,8 @@
-import BecomeArtistForm from "./become-artist-form";
 import { ProfileType } from "@/app/api/users/definitions";
 import { getMissingProfileFields, isProfileComplete } from "@/app/lib/utils";
 import BaseCard from "./base-card";
-import { cx } from "class-variance-authority";
 
-export default function BecomeArtistCard({
+export default function MissingFieldsCard({
   profile,
 }: {
   profile: ProfileType;
@@ -15,22 +13,19 @@ export default function BecomeArtistCard({
 
   return (
     <BaseCard
-      className={cx("bg-gradient-to-r from-fuchsia-600 to-pink-600", {
-        "from-indigo-500 to-blue-500": isProfileComplete(profile),
-      })}
+      className="text-foreground from-indigo-200/10 to-blue-300/10"
       content={
         <div>
           {isProfileComplete(profile) ? (
             <p>
-              ¡Felicidades! Tu perfil está completo. Ahora puedes solicitar ser
-              artista
+              Gracias por completar tu perfil. Te enviaremos un correo cuando
+              sea verificado.
             </p>
           ) : (
             <div>
               <p>
                 Si quieres participar de los eventos que organiza{" "}
-                <strong>Glitter</strong>, completa tu perfil y únete a nuestra
-                comunidad.
+                <strong>Glitter</strong>, necesitas completar tu perfil.
               </p>
               <div className="mt-2">
                 <h3 className="text-base font-semibold">
@@ -43,7 +38,10 @@ export default function BecomeArtistCard({
                       <ul>
                         {publicFields.map((field) => {
                           return (
-                            <li key={field.key} className="text-sm">
+                            <li
+                              key={field.key}
+                              className="text-destructive text-sm"
+                            >
                               - {field.label}
                             </li>
                           );
@@ -57,7 +55,10 @@ export default function BecomeArtistCard({
                       <ul>
                         {privateFields.map((field) => {
                           return (
-                            <li key={field.key} className="text-sm">
+                            <li
+                              key={field.key}
+                              className="text-destructive text-sm"
+                            >
                               - {field.label}
                             </li>
                           );
@@ -71,7 +72,6 @@ export default function BecomeArtistCard({
           )}
         </div>
       }
-      footer={<BecomeArtistForm profile={profile} />}
     />
   );
 }
