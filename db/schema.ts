@@ -159,6 +159,9 @@ export const stands = pgTable(
       .default("landscape")
       .notNull(),
     standNumber: integer("stand_number").notNull(),
+    standCategory: userCategoryEnum("stand_category")
+      .default("illustration")
+      .notNull(),
     festivalId: integer("festival_id").notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
