@@ -22,7 +22,8 @@ export default function QrCodeDownload({ profile }: { profile: ProfileType }) {
     link.click();
   };
   return (
-    <div>
+    <div className="my-4">
+      <h2 className="font-semibold text-lg text-center">Código QR</h2>
       <Image
         ref={qrCodeRef}
         className="mx-auto"

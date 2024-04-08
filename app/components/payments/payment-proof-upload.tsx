@@ -68,40 +68,42 @@ export default function PaymentProofUpload({
   console.log("this is the invoice", invoice);
   console.log("this is the payment", payment);
   return (
-    <div className="flex flex-col items-center justify-center gap-6">
-      <h2>Comprobante de pago</h2>
-      {showProgress ? (
-        <div className="flex items-center justify-center w-full">
-          <Progress value={progress} className="w-[60%]" />
-        </div>
-      ) : (
-        <div className="mt-4">
-          <SingleImageDropzone
-            canRemove={false}
-            width={320}
-            height={460}
-            value={file || payment?.voucherUrl}
-            dropzoneOptions={{
-              maxSize: 1024 * 1024 * 5, // 5MB,
-            }}
-            onChange={(file) => {
-              setFile(file);
-            }}
-          />
-        </div>
-      )}
-      <Button
-        disabled={!file}
-        className="max-w-80"
-        type="submit"
-        onClick={handleImageUpload}
-      >
-        {payment?.voucherUrl ? (
-          <span>Reemplazar comprobante</span>
+    <div className="my-4">
+      <h2 className="font-semibold text-lg text-center">Comprobante de pago</h2>
+      <div className="flex flex-col items-center justify-center gap-6">
+        {showProgress ? (
+          <div className="flex items-center justify-center w-full">
+            <Progress value={progress} className="w-[60%]" />
+          </div>
         ) : (
-          <span>Subir comprobante</span>
+          <div className="mt-4">
+            <SingleImageDropzone
+              canRemove={false}
+              width={320}
+              height={460}
+              value={file || payment?.voucherUrl}
+              dropzoneOptions={{
+                maxSize: 1024 * 1024 * 5, // 5MB,
+              }}
+              onChange={(file) => {
+                setFile(file);
+              }}
+            />
+          </div>
         )}
-      </Button>
+        <Button
+          disabled={!file}
+          className="max-w-80"
+          type="submit"
+          onClick={handleImageUpload}
+        >
+          {payment?.voucherUrl ? (
+            <span>Reemplazar comprobante</span>
+          ) : (
+            <span>Subir comprobante</span>
+          )}
+        </Button>
+      </div>
     </div>
   );
 }
