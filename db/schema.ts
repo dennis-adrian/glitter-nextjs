@@ -5,6 +5,7 @@ import {
   integer,
   pgEnum,
   pgTable,
+  real,
   serial,
   text,
   timestamp,
@@ -172,6 +173,10 @@ export const stands = pgTable(
       .default("illustration")
       .notNull(),
     zone: standZoneEnum("zone").default("main").notNull(),
+    width: real("width"),
+    height: real("height"),
+    positionLeft: real("position_left"),
+    positionTop: real("position_top"),
     festivalId: integer("festival_id").notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),

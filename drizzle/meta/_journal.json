@@ -260,6 +260,20 @@
       "when": 1712514895744,
       "tag": "0036_slow_thunderball",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1712519467154,
+      "tag": "0037_wandering_shooting_star",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1712520676785,
+      "tag": "0038_silky_tenebrous",
+      "breakpoints": true
     }
   ]
 }
