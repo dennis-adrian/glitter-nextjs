@@ -3,10 +3,13 @@ import { UserCategory } from "@/app/api/users/definitions";
 
 export function getCategoryOccupationLabel(
   category: Exclude<UserCategory, "none">,
+  options?: { singular?: boolean },
 ) {
-  if (category === "illustration") return "Ilustradores";
+  if (category === "illustration")
+    return options?.singular ? "Ilustrador " : "Ilustradores";
   if (category === "gastronomy") return "Gastronomía";
-  if (category === "entrepreneurship") return "Emprendedores";
+  if (category === "entrepreneurship")
+    return options?.singular ? "Emprendedor" : "Emprendedores";
   return "Sin nombre";
 }
 

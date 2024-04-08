@@ -3,6 +3,7 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { ProfileType } from "@/api/users/definitions";
 import { eventDiscoveryEnum, genderEnum, userCategoryEnum } from "@/db/schema";
+import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -114,7 +115,22 @@ export const genderOptions = [
 ];
 
 export const userCategoryOptions = [
-  { value: userCategoryEnum.enumValues[1], label: "Ilustración" },
-  { value: userCategoryEnum.enumValues[2], label: "Gastronomía" },
-  { value: userCategoryEnum.enumValues[3], label: "Emprendimiento" },
+  {
+    value: userCategoryEnum.enumValues[1],
+    label: getCategoryOccupationLabel(userCategoryEnum.enumValues[1], {
+      singular: true,
+    }),
+  },
+  {
+    value: userCategoryEnum.enumValues[2],
+    label: getCategoryOccupationLabel(userCategoryEnum.enumValues[2], {
+      singular: true,
+    }),
+  },
+  {
+    value: userCategoryEnum.enumValues[3],
+    label: getCategoryOccupationLabel(userCategoryEnum.enumValues[3], {
+      singular: true,
+    }),
+  },
 ];
