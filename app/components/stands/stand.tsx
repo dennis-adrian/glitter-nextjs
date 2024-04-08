@@ -4,7 +4,10 @@ import { Stand } from "@/app/api/stands/actions";
 import { getStandSize } from "@/app/components/next_event/helpers";
 import StandContent from "@/app/components/stands/stand-content";
 import { ProfileType } from "@/app/api/users/definitions";
-import { standsPositions } from "@/app/components/next_event/config";
+import {
+  standsPositions,
+  standProportions,
+} from "@/app/components/next_event/config";
 
 export function StandShape({
   imageSize,
@@ -26,8 +29,8 @@ export function StandShape({
     standsPositions.find((position) => position.id === stand.standNumber)
       ?.top ||
     0;
-  const widht = stand.width || 0;
-  const height = stand.height || 0;
+  const widht = stand.width || standProportions.wide || 0;
+  const height = stand.height || standProportions.narrow || 0;
   const { orientation, standNumber, status } = stand;
   const size = getStandSize(imageSize, { wide: widht, narrow: height });
 

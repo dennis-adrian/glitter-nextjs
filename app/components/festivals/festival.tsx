@@ -2,7 +2,7 @@ import { fetchStandsByFestivalId } from "@/app/api/stands/actions";
 import { ProfileType, UserCategory } from "@/app/api/users/definitions";
 import ClientMap from "@/app/components/festivals/client-map";
 import { FestivalBase } from "@/app/data/festivals/definitions";
-import { getMapLabel } from "@/app/lib/maps/helpers";
+import { getMapLabel, getMapPageTitle } from "@/app/lib/maps/helpers";
 
 export default async function Festival({
   profile,
@@ -19,7 +19,7 @@ export default async function Festival({
 
   return (
     <div className="container p-4 md:p-6">
-      <h1 className="font-bold text-2xl my-4">Zona Ilustradores</h1>
+      <h1 className="font-bold text-2xl my-4">{getMapPageTitle(category)}</h1>
       <p>Selecciona un espacio disponible</p>
       <div className="my-4">
         <ul>
