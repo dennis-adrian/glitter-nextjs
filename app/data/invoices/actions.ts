@@ -36,10 +36,17 @@ export async function createPayment(payment: NewPayment) {
   const client = await pool.connect();
 
   try {
-    await db
-      .insert(payments)
-      .values(payment)
-      .onConflictDoUpdate({ target: payments.id, set: payment });
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(payments)
+        .values(payment)
+        .onConflictDoUpdate({ target: payments.id, set: payment });
+
+      await tx
+        .update(invoices)
+        .set({ status: "paid" })
+        .where(eq(invoices.id, payment.invoiceId));
+    });
   } catch (error) {
     console.error("Error creating payment", error);
     return {
