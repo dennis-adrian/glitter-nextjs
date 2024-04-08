@@ -29,7 +29,7 @@ export default async function Page({ params }: { params: { id: string } }) {
   if (invoice && invoice.status === "pending") {
     return (
       <div className="container p-4 md:p-6">
-        <PendingPayment invoice={invoice} />
+        <PendingPayment invoice={invoice} profile={profile} />
       </div>
     );
   }
