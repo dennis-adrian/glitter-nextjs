@@ -30,3 +30,4 @@ export type FestivalWithUserRequests = Omit<
 export type FestivalWithTickets = FestivalBase & {
   tickets: TicketWithVisitor[];
 };
+export type FestivalMapVersion = FestivalBase["maps_version"];

@@ -4,29 +4,37 @@ import { Stand } from "@/app/api/stands/actions";
 import { getStandSize } from "@/app/components/next_event/helpers";
 import StandContent from "@/app/components/stands/stand-content";
 import { ProfileType } from "@/app/api/users/definitions";
+import { standsPositions } from "@/app/components/next_event/config";
 
 export function StandShape({
   imageSize,
-  position,
-  profile,
-  proportions,
   stand,
   onClick,
 }: {
   imageSize: { width: number; height: number };
-  position: { left: number; top: number };
   profile?: ProfileType | null;
-  proportions: { wide: number; narrow: number };
   stand: Stand;
   onClick: (stand: Stand) => void;
 }) {
-  const { orientation, label, standNumber, status } = stand;
-  const size = getStandSize(imageSize, proportions);
+  const positionLeft =
+    stand.positionLeft ||
+    standsPositions.find((position) => position.id === stand.standNumber)
+      ?.left ||
+    0;
+  const positionTop =
+    stand.positionTop ||
+    standsPositions.find((position) => position.id === stand.standNumber)
+      ?.top ||
+    0;
+  const widht = stand.width || 0;
+  const height = stand.height || 0;
+  const { orientation, standNumber, status } = stand;
+  const size = getStandSize(imageSize, { wide: widht, narrow: height });
 
   const style: CSSProperties = {
     position: "absolute",
-    left: `${position.left}%`,
-    top: `${position.top}%`,
+    left: `${positionLeft}%`,
+    top: `${positionTop}%`,
     cursor: `${status === "available" ? "pointer" : "not-allowed"}`,
     height: `${orientation === "landscape" ? size.narrow : size.wide}px`,
     width: `${orientation === "landscape" ? size.wide : size.narrow}px`,
@@ -57,7 +65,7 @@ export function StandShape({
     >
       <StandContent
         stand={stand}
-        standPosition={{ top: position.top || 0, left: position.left || 0 }}
+        standPosition={{ top: positionTop || 0, left: positionLeft || 0 }}
       />
     </div>
   );
