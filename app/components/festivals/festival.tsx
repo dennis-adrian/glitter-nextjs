@@ -48,7 +48,7 @@ export default async function Festival({
               {getMapLabel(category, "main")}
             </h2>
             <p>
-              Stands del {mainStands[0].label}
+              Espacios del {mainStands[0].label}
               {mainStands[0].standNumber} al {mainStands[0].label}
               {mainStands[mainStands.length - 1].standNumber}
             </p>
@@ -71,7 +71,7 @@ export default async function Festival({
                 {getMapLabel(category, "secondary")}
               </h2>
               <p>
-                Stands del {secondaryStands[0]?.label}
+                Espacios del {secondaryStands[0]?.label}
                 {secondaryStands[0]?.standNumber} al {secondaryStands[0]?.label}
                 {secondaryStands[secondaryStands.length - 1]?.standNumber}
               </p>

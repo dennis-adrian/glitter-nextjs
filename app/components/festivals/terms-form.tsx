@@ -1,10 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { addUserToFestival } from "@/app/api/user_requests/actions";
+import { ProfileType, UserCategory } from "@/app/api/users/definitions";
+import { FestivalBase } from "@/app/data/festivals/definitions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -16,7 +19,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 const FormSchema = z.object({
   consent: z.boolean().refine((val) => val === true, {
@@ -25,7 +30,16 @@ const FormSchema = z.object({
   }),
 });
 
-export default function TermsForm() {
+export default function TermsForm({
+  profile,
+  festival,
+  category,
+}: {
+  profile: ProfileType;
+  festival: FestivalBase;
+  category: Exclude<UserCategory, "none">;
+}) {
+  const router = useRouter();
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -33,8 +47,16 @@ export default function TermsForm() {
     },
   });
 
-  function onSubmit(data: z.infer<typeof FormSchema>) {
-    toast("Submitted");
+  async function onSubmit(data: z.infer<typeof FormSchema>) {
+    if (data.consent) {
+      const res = await addUserToFestival(profile.id, festival.id);
+      if (res.success) {
+        toast.success(res.message);
+        router.push(`/festivals/${festival.id}?category=${category}`);
+      } else {
+        toast.error(res.message);
+      }
+    }
   }
 
   return (
@@ -69,8 +91,19 @@ export default function TermsForm() {
           )}
         />
         <div className="flex justify-end">
-          <Button className="w-full md:max-w-60" type="submit">
-            ¡Quiero reservar!
+          <Button
+            disabled={form.formState.isSubmitting}
+            className="w-full md:max-w-60"
+            type="submit"
+          >
+            {form.formState.isSubmitting ? (
+              <>
+                <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+                Cargando
+              </>
+            ) : (
+              <span>¡Quiero reservar!</span>
+            )}
           </Button>
         </div>
       </form>

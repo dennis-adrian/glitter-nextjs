@@ -220,3 +220,24 @@ export async function createUserRequest(
   revalidatePath("/user_profile");
   return { success: true, message: "Solicitud enviada correctamente" };
 }
+
+export async function addUserToFestival(userId: number, festivalId: number) {
+  const client = await pool.connect();
+
+  try {
+    await db.insert(userRequests).values({
+      userId,
+      festivalId,
+      status: "accepted",
+      type: "festival_participation",
+    });
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al solicitar participación" };
+  } finally {
+    client.release();
+  }
+
+  // revalidatePath("/");
+  return { success: true, message: "Ya puedes reservar tu espacio" };
+}

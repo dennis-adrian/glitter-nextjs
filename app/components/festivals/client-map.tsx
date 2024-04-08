@@ -10,6 +10,7 @@ import { profileHasReservation } from "@/app/helpers/next_event";
 import { imagesSrc } from "@/app/lib/maps/config";
 import { FestivalMapVersion } from "@/app/data/festivals/definitions";
 import { StandZone } from "@/app/api/stands/definitions";
+import { isProfileInFestival } from "@/app/components/next_event/helpers";
 
 export default function ClientMap({
   profile,
@@ -31,8 +32,8 @@ export default function ClientMap({
     if (!profile) return;
 
     if (profile.role !== "admin") {
-      // const inFestival = isProfileInFestival(stand.festivalId, profile);
-      // if (!inFestival) return;
+      const inFestival = isProfileInFestival(stand.festivalId, profile);
+      if (!inFestival || profile.category !== category) return;
       if (profileHasReservation(profile, stand.festivalId)) return;
     }
 

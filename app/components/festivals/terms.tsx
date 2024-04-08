@@ -1,5 +1,7 @@
 import { ProfileType, UserCategory } from "@/app/api/users/definitions";
 import TermsForm from "@/app/components/festivals/terms-form";
+import { isProfileInFestival } from "@/app/components/next_event/helpers";
+import { RedirectButton } from "@/app/components/redirect-button";
 import { Separator } from "@/app/components/ui/separator";
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
@@ -12,7 +14,7 @@ export default function Terms({
   category,
 }: {
   festival: FestivalBase;
-  profile: ProfileType | null;
+  profile: ProfileType;
   category: Exclude<UserCategory, "none">;
 }) {
   const standImageSrc = imagesSrc[festival.mapsVersion][category]["stand"];
@@ -32,7 +34,7 @@ export default function Terms({
         </p>
         <br />
         <h2 className="font-semibold text-lg my-2">Información General</h2>
-        <p>
+        <div>
           <div>
             <strong>Fecha: </strong>
             {getFestivalDateLabel(festival, true).charAt(0).toUpperCase() +
@@ -47,12 +49,12 @@ export default function Terms({
             <strong>Lugar: </strong>
             {festival.locationLabel} - {festival.address}
           </div>
-        </p>
+        </div>
         <br />
         <h2 className="font-semibold text-lg my-2">Espacios</h2>
         <ul className="leading-7 list-disc list-inside">
           <li>El espacio de Ilustrador mide 120cm x 60cm (media mesa)</li>
-          <li>Cada stand de Ilustrador incluye 2 (dos) sillas.</li>
+          <li>Cada espacio de Ilustrador incluye 2 (dos) sillas.</li>
           <li>
             El espacio no incluye mantel, el expositor es responsable de llevar
             un mantel.
@@ -102,7 +104,7 @@ export default function Terms({
           </li>
           <li>
             No pueden incluirse personas adicionales para trabajar en el
-            espacio. Máximo dos personas por stand (incluyendo el artista/los
+            espacio. Máximo dos personas por espacio (incluyendo el artista/los
             artistas).
           </li>
           <li>No estaremos brindando sillas adicionales a espacio.</li>
@@ -142,7 +144,7 @@ export default function Terms({
         <h2 className="font-semibold text-lg my-2">
           Horario de armado y desarmado
         </h2>
-        <p>El armado de stand será: </p>
+        <p>El armado de espacio será: </p>
         <ul className="leading-7 list-inside list-disc">
           <li>Sábado de 9:00 a 10:00</li>
           <li>Domingo de 9:30 a 10:00</li>
@@ -189,7 +191,7 @@ export default function Terms({
             funcionamiento no podemos garantizar ni hacernos cargo de su
             correcto funcionamiento.
           </li>
-          <li>No está permitida la presencia de niños en los stands.</li>
+          <li>No está permitida la presencia de niños en los espacios.</li>
         </ul>
         <br />
         <Separator />
@@ -201,9 +203,9 @@ export default function Terms({
             guardar respeto entre todos.
           </li>
           <li>
-            Cada participante es responsable de su stand y de sus pertenencias,
-            así como el mobiliario (mesa y silla/sillas) que le fueron
-            entregados.
+            Cada participante es responsable de su espacio y de sus
+            pertenencias, así como el mobiliario (mesa y silla/sillas) que le
+            fueron entregados.
           </li>
           <li>Deben mantener la limpieza, no tiren basura al suelo.</li>
           <li>No está permitido pegar nada en las paredes.</li>
@@ -234,7 +236,23 @@ export default function Terms({
         <Separator />
         <br />
       </section>
-      <TermsForm />
+      {isProfileInFestival(festival.id, profile) ? (
+        <>
+          <div className="rounded-md border p-4">
+            Gracias por aceptar los términos y condiciones. Ya puedes hacer tu
+            reserva haciendo clic en el botón de abajo.
+          </div>
+          <div className="flex justify-end mt-4">
+            <RedirectButton
+              href={`/festivals/${festival.id}?category=${category}`}
+            >
+              ¡Ir al mapa!
+            </RedirectButton>
+          </div>
+        </>
+      ) : (
+        <TermsForm category={category} festival={festival} profile={profile} />
+      )}
     </div>
   );
 }

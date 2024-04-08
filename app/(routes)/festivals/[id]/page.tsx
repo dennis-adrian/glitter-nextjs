@@ -55,7 +55,8 @@ export default async function Page({
   if (
     canViewCategories &&
     validatedSearchParams.success &&
-    validatedSearchParams.data.category
+    (validatedSearchParams.data.category === profile?.category ||
+      profile?.role === "admin")
   ) {
     if (validatedSearchParams.data.terms) {
       return (
