@@ -11,6 +11,7 @@ export const imagesSrc: {
       };
     } & {
       stand?: string;
+      mascot?: string;
     };
   };
 } = {
@@ -64,19 +65,24 @@ export const imagesSrc: {
         sm: "/img/maps/v3/lobby-map-sm.png",
         md: "/img/maps/v3/lobby-map-md.png",
       },
-      stand: "/img/maps/v3/stand-sm.png",
+      stand: "/img/maps/v3/illustration-stand-sm.png",
+      mascot: "/img/maps/v3/illustration-mascot-sm.png",
     },
     gastronomy: {
       main: {
         sm: "/img/maps/v3/patio-map-sm.png",
         md: "/img/maps/v3/patio-map-md.png",
       },
+      mascot: "/img/maps/v3/gastronomy-mascot-sm.png",
+      stand: "/img/maps/v3/gastronomy-stand-sm.png",
     },
     entrepreneurship: {
       main: {
         sm: "/img/maps/v3/gallery-map-sm.png",
         md: "/img/maps/v3/gallery-map-md.png",
       },
+      mascot: "/img/maps/v3/entrepreneurship-mascot-sm.png",
+      stand: "/img/maps/v3/entrepreneurship-stand-sm.png",
     },
   },
 };

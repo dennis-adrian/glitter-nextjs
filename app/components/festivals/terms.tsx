@@ -6,6 +6,7 @@ import { Separator } from "@/app/components/ui/separator";
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
 import { imagesSrc } from "@/app/lib/maps/config";
+import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import Image from "next/image";
 
 export default function Terms({
@@ -18,22 +19,35 @@ export default function Terms({
   category: Exclude<UserCategory, "none">;
 }) {
   const standImageSrc = imagesSrc[festival.mapsVersion][category]["stand"];
+  const mascotImageSrc = imagesSrc[festival.mapsVersion][category]["mascot"];
+
   return (
     <div className="container p-4 md:p-6 max-w-screen-lg">
-      <h1 className="font-bold text-2xl my-4">Términos y Condiciones</h1>
+      <h1 className="font-bold text-3xl my-4">
+        Información para {getCategoryOccupationLabel(category)}
+      </h1>
+      {mascotImageSrc && (
+        <Image
+          className="mx-auto"
+          alt="Mascota de la categoría"
+          src={mascotImageSrc}
+          width={320}
+          height={200}
+        />
+      )}
+      <h2 className="font-bold text-2xl my-4">Términos y condiciones</h2>
       <section>
         <p>
           A continuación te presentamos las bases para el próximo Festival
           Glitter. Para evitar malentendidos a futuro, debes de leer con
-          atención
-          <strong>antes</strong> de continuar.
+          atención <strong>antes</strong> de continuar.
         </p>
         <p>
           Al darle al botón &quot;<strong>¡Quiero reservar!</strong>&quot; estás
           aceptando los términos y condiciones aquí expresadas
         </p>
         <br />
-        <h2 className="font-semibold text-lg my-2">Información General</h2>
+        <h3 className="font-semibold text-lg my-2">Información General</h3>
         <div>
           <div>
             <strong>Fecha: </strong>
@@ -51,9 +65,13 @@ export default function Terms({
           </div>
         </div>
         <br />
-        <h2 className="font-semibold text-lg my-2">Espacios</h2>
+        <h3 className="font-semibold text-lg my-2">Espacios</h3>
         <ul className="leading-7 list-disc list-inside">
-          <li>El espacio de Ilustrador mide 120cm x 60cm (media mesa)</li>
+          {category === "gastronomy" ? (
+            <li>El espacio del expositor mide 1 metro x 60cm.</li>
+          ) : (
+            <li>El espacio del expositor mide 120cm x 60cm (media mesa)</li>
+          )}
           <li>Cada espacio de Ilustrador incluye 2 (dos) sillas.</li>
           <li>
             El espacio no incluye mantel, el expositor es responsable de llevar
@@ -74,45 +92,55 @@ export default function Terms({
           </figure>
         )}
         <br />
-        <p>
-          Se permite compartir espacio con otro ilustrador siempre y cuando se
-          cumplan con los siguientes puntos:
-        </p>
+        {category === "illustration" && (
+          <p>
+            Se permite compartir espacio con otro ilustrador siempre y cuando se
+            cumplan con los siguientes puntos:
+          </p>
+        )}
         <ul className="leading-7 list-inside list-disc">
-          <li>
-            El Ilustrador con el que se compartirá mesa debe de tener su cuenta
-            en el sitio web y su perfil debe de haber sido verificado. Si ha
-            participado del festival anterior, este paso lo tiene completado.
-          </li>
-          <li>
-            La reserva del espacio la hace únicamente una persona, la cual debe
-            agregar el nombre de su compañero de espacio al momento de hacer la
-            reserva.
-          </li>
-          <li>
-            Ambos expositores deben de ser parte de la categoría “ilustrador”
-          </li>
-          <li>
-            Compartir espacio con otro ilustrador implica la responsabilidad de
-            ambas partes de estar presentes el día del evento.
-          </li>
-          <li>
-            Si en el transcurso que se abona el espacio hasta el evento, una de
-            las partes no puede participar, el otro ilustrador deberá hacerse
-            cargo de ocupar el espacio, sin posibilidades de reemplazar al
-            ilustrador que se dio de baja por otro.
-          </li>
-          <li>
-            No pueden incluirse personas adicionales para trabajar en el
-            espacio. Máximo dos personas por espacio (incluyendo el artista/los
-            artistas).
-          </li>
+          {category === "illustration" ? (
+            <>
+              <li>
+                El Ilustrador con el que se compartirá mesa debe de tener su
+                cuenta en el sitio web y su perfil debe de haber sido
+                verificado. Si ha participado del festival anterior, este paso
+                lo tiene completado.
+              </li>
+              <li>
+                La reserva del espacio la hace únicamente una persona, la cual
+                debe agregar el nombre de su compañero de espacio al momento de
+                hacer la reserva.
+              </li>
+              <li>
+                Ambos expositores deben de ser parte de la categoría
+                “ilustrador”
+              </li>
+              <li>
+                Compartir espacio con otro ilustrador implica la responsabilidad
+                de ambas partes de estar presentes el día del evento.
+              </li>
+              <li>
+                Si en el transcurso que se abona el espacio hasta el evento, una
+                de las partes no puede participar, el otro ilustrador deberá
+                hacerse cargo de ocupar el espacio, sin posibilidades de
+                reemplazar al ilustrador que se dio de baja por otro.
+              </li>
+              <li>
+                No pueden incluirse personas adicionales para trabajar en el
+                espacio. Máximo dos personas por espacio (incluyendo el
+                artista/los artistas).
+              </li>
+            </>
+          ) : (
+            <li>El expositor puede llevar máximo un acompañante.</li>
+          )}
           <li>No estaremos brindando sillas adicionales a espacio.</li>
         </ul>
         <br />
         <Separator />
         <br />
-        <h2 className="font-semibold text-lg my-2">Abono de los espacios</h2>
+        <h3 className="font-semibold text-lg my-2">Abono de los espacios</h3>
         <ul className="leading-7 list-inside list-disc">
           <li>Los espacios se abonan a partir del 08/04/2024.</li>
           <li>
@@ -141,9 +169,9 @@ export default function Terms({
         <br />
         <Separator />
         <br />
-        <h2 className="font-semibold text-lg my-2">
+        <h3 className="font-semibold text-lg my-2">
           Horario de armado y desarmado
-        </h2>
+        </h3>
         <p>El armado de espacio será: </p>
         <ul className="leading-7 list-inside list-disc">
           <li>Sábado de 9:00 a 10:00</li>
@@ -162,7 +190,7 @@ export default function Terms({
         <br />
         <Separator />
         <br />
-        <h2 className="font-semibold text-lg my-2">Importante</h2>
+        <h3 className="font-semibold text-lg my-2">Importante</h3>
         <ul className="leading-7 list-inside list-disc">
           <li>Todos los espacios son con reserva previa de ubicación.</li>
           <li>
@@ -196,7 +224,7 @@ export default function Terms({
         <br />
         <Separator />
         <br />
-        <h2 className="font-semibold text-lg my-2">Reglas de convivencia</h2>
+        <h3 className="font-semibold text-lg my-2">Reglas de convivencia</h3>
         <ul className="leading-7 list-inside list-disc">
           <li>
             Queremos que el evento sea un espacio seguro por tanto pedimos
@@ -226,11 +254,13 @@ export default function Terms({
             sustancias. Cualquier artista que viole esta regla será retirado del
             evento y no podrá participar de siguientes ediciones de Glitter.
           </li>
-          <li>
-            Es un evento de ilustradores que impulsa a que muestren productos de
-            autoría propia. Está prohibido vender material plagiado o imprimir
-            stickers sacados de internet.
-          </li>
+          {category === "illustration" && (
+            <li>
+              Es un evento de ilustradores que impulsa a que muestren productos
+              de autoría propia. Está prohibido vender material plagiado o
+              imprimir stickers sacados de internet.
+            </li>
+          )}
         </ul>
         <br />
         <Separator />
