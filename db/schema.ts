@@ -51,6 +51,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   userSocials: many(userSocials),
   participations: many(reservationParticipants),
   profileTasks: many(profileTasks),
+  invoices: many(invoices),
 }));
 
 export const festivalStatusEnum = pgEnum("festival_status", [
@@ -176,6 +177,7 @@ export const stands = pgTable(
     height: real("height"),
     positionLeft: real("position_left"),
     positionTop: real("position_top"),
+    price: real("price").notNull().default(0),
     festivalId: integer("festival_id").notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -212,6 +214,7 @@ export const standReservationsRelations = relations(
       references: [festivals.id],
     }),
     participants: many(reservationParticipants),
+    invoices: many(invoices),
   }),
 );
 
@@ -320,5 +323,52 @@ export const profileTasksRelations = relations(profileTasks, ({ one }) => ({
   profile: one(users, {
     fields: [profileTasks.profileId],
     references: [users.id],
+  }),
+}));
+
+export const invoiceStatusEnum = pgEnum("invoice_status", [
+  "pending",
+  "paid",
+  "cancelled",
+]);
+export const invoices = pgTable("invoices", {
+  id: serial("id").primaryKey(),
+  amount: real("amount").notNull(),
+  date: timestamp("date").notNull(),
+  status: invoiceStatusEnum("status").default("pending").notNull(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  reservationId: integer("reservation_id")
+    .notNull()
+    .references(() => standReservations.id),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const invoicesRelations = relations(invoices, ({ one }) => ({
+  user: one(users, {
+    fields: [invoices.userId],
+    references: [users.id],
+  }),
+  reservation: one(standReservations, {
+    fields: [invoices.reservationId],
+    references: [standReservations.id],
+  }),
+}));
+
+export const payments = pgTable("payments", {
+  id: serial("id").primaryKey(),
+  date: timestamp("date").notNull(),
+  invoiceId: integer("invoice_id")
+    .notNull()
+    .references(() => invoices.id, { onDelete: "cascade" }),
+  voucherUrl: text("voucher_url").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const paymentsRelations = relations(payments, ({ one }) => ({
+  invoice: one(invoices, {
+    fields: [payments.invoiceId],
+    references: [invoices.id],
   }),
 }));

@@ -1,0 +1,1 @@
+ALTER TABLE "payments" ADD COLUMN "voucher_url" text NOT NULL;

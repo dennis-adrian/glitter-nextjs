@@ -281,6 +281,27 @@
       "when": 1712582169601,
       "tag": "0039_clean_living_tribunal",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1712597320366,
+      "tag": "0040_green_johnny_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "5",
+      "when": 1712597432285,
+      "tag": "0041_flawless_power_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "5",
+      "when": 1712597734151,
+      "tag": "0042_exotic_the_renegades",
+      "breakpoints": true
     }
   ]
 }
