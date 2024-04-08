@@ -1,13 +1,80 @@
-import * as React from "react";
+import * as styles from "@/app/emails/styles";
+import { UserCategory } from "@/app/api/users/definitions";
+import {
+  Body,
+  Button,
+  Container,
+  Head,
+  Html,
+  Link,
+  Preview,
+  Section,
+  Text,
+} from "@react-email/components";
 
-interface EmailTemplateProps {
-  firstName: string;
+interface FestivalActivationTemplateProps {
+  name: string;
+  category: Exclude<UserCategory, "none">;
+  festivalId: number;
 }
 
-export const EmailTemplate: React.FC<Readonly<EmailTemplateProps>> = ({
-  firstName,
-}) => (
-  <div>
-    <h1>Welcome, {firstName}!</h1>
-  </div>
-);
+export default function FestivalActivationEmailTemplate({
+  name,
+  category,
+  festivalId,
+}: FestivalActivationTemplateProps) {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+
+  return (
+    <Html>
+      <Head />
+      <Preview>Ya abrimos nuestra convatoria</Preview>
+      <Body style={styles.main}>
+        <Container style={styles.container}>
+          <Section style={styles.section}>
+            <Text style={styles.text}>¡Hola {name}!</Text>
+            <Text style={styles.text}>
+              El festival de mayo ya está cerca y te invitamos a que reserves tu
+              espacio con anticipación.
+            </Text>
+            <Text style={styles.text}>
+              El primer paso para reservar tu espacio es leer los términos y
+              condiciones en el botón de abajo.
+            </Text>
+            <Text style={styles.text}>
+              Luego de leer y aceptar, puedes darle al botón &quot;
+              <strong>¡Quiero reservar!&quot;</strong> y comenzar tu proceso de
+              reserva.
+            </Text>
+            <Text style={styles.text}>
+              Si tienes dudas o problemas con la reserva, comunícate con al
+              correo{" "}
+              <Link
+                href="mailto:soporte@productoraglitter.com"
+                style={{
+                  color: "#15c",
+                  textDecoration: "underline",
+                }}
+              >
+                soporte@productoraglitter.com
+              </Link>{" "}
+              nosotros para que podamos ayudarte.
+            </Text>
+            <Button
+              href={`${baseUrl}/festivals/${festivalId}/?category=${category}&terms=true`}
+              style={styles.button}
+            >
+              Leer términos y condiciones
+            </Button>
+          </Section>
+        </Container>
+      </Body>
+    </Html>
+  );
+}
+
+FestivalActivationEmailTemplate.PreviewProps = {
+  name: "John Doe",
+  category: "illustration",
+  festivalId: 9,
+} as FestivalActivationTemplateProps;

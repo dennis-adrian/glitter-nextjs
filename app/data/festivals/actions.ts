@@ -7,7 +7,7 @@ import { userRequests, festivals, stands, users } from "@/db/schema";
 import { Festival, FestivalBase, FestivalWithTickets } from "./definitions";
 import { sendEmail } from "@/vendors/resend";
 import React from "react";
-import { EmailTemplate } from "@/app/emails/festival-activation";
+import EmailTemplate from "@/app/emails/festival-activation";
 import { revalidatePath } from "next/cache";
 
 export async function fetchActiveFestival({
@@ -139,25 +139,43 @@ export async function activateFestival(festival: FestivalBase) {
       (user) => user.category === "gastronomy",
     );
 
-    await sendEmail({
-      to: entrepreneurs.map((user) => user.email),
-      from: "Equipo Glitter <no-reply@festivalglitter.art>",
-      subject: "Participa en Glitter",
-      react: EmailTemplate({ firstName: "emprendedor" }) as React.ReactElement,
+    entrepreneurs.forEach(async (user) => {
+      await sendEmail({
+        to: [user.email],
+        from: "Equipo Glitter <no-reply@festivalglitter.art>",
+        subject: "Participa en Glitter",
+        react: EmailTemplate({
+          category: "entrepreneurship",
+          name: user.displayName || "Emprendedor",
+          festivalId: festival.id,
+        }) as React.ReactElement,
+      });
     });
 
-    sendEmail({
-      to: illustrators.map((user) => user.email),
-      from: "Equipo Glitter <no-reply@festivalglitter.art>",
-      subject: "Participa en Glitter",
-      react: EmailTemplate({ firstName: "emprendedor" }) as React.ReactElement,
+    illustrators.forEach(async (user) => {
+      await sendEmail({
+        to: [user.email],
+        from: "Equipo Glitter <no-reply@festivalglitter.art>",
+        subject: "Participa en Glitter",
+        react: EmailTemplate({
+          category: "illustration",
+          name: user.displayName || "Ilustrador",
+          festivalId: festival.id,
+        }) as React.ReactElement,
+      });
     });
 
-    sendEmail({
-      to: gastronmics.map((user) => user.email),
-      from: "Equipo Glitter <no-reply@festivalglitter.art>",
-      subject: "Participa en Glitter",
-      react: EmailTemplate({ firstName: "emprendedor" }) as React.ReactElement,
+    gastronmics.forEach(async (user) => {
+      await sendEmail({
+        to: [user.email],
+        from: "Equipo Glitter <no-reply@festivalglitter.art>",
+        subject: "Participa en Glitter",
+        react: EmailTemplate({
+          category: "gastronomy",
+          name: user.displayName || "Emprendedor Gastronómico",
+          festivalId: festival.id,
+        }) as React.ReactElement,
+      });
     });
   } catch (error) {
     console.error("Error activating festival", error);
