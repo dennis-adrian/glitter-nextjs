@@ -56,7 +56,7 @@ export default async function Festival({
               profile={profile}
               stands={mainStands}
               category={category}
-              mapVersion={festival.maps_version}
+              mapVersion={festival.mapsVersion}
               zone="main"
             />
             <p className="text-center text-[10px] md:text-xs text-muted-foreground leading-3 md:leading-4">
@@ -79,7 +79,7 @@ export default async function Festival({
                 profile={profile}
                 stands={secondaryStands}
                 category={category}
-                mapVersion={festival.maps_version}
+                mapVersion={festival.mapsVersion}
                 zone="secondary"
               />
               <p className="text-center text-[10px] md:text-xs text-muted-foreground leading-3 md:leading-4">

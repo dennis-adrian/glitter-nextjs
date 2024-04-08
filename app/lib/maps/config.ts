@@ -9,6 +9,8 @@ export const imagesSrc: {
         sm: string;
         md: string;
       };
+    } & {
+      stand?: string;
     };
   };
 } = {
@@ -62,6 +64,7 @@ export const imagesSrc: {
         sm: "/img/maps/v3/lobby-map-sm.png",
         md: "/img/maps/v3/lobby-map-md.png",
       },
+      stand: "/img/maps/v3/stand-sm.png",
     },
     gastronomy: {
       main: {

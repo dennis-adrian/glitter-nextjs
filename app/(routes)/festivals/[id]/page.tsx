@@ -7,6 +7,7 @@ import Festival from "@/app/components/festivals/festival";
 import { fetchBaseFestival } from "@/app/data/festivals/actions";
 import { userCategoryEnum } from "@/db/schema";
 import { UserCategory } from "@/app/api/users/definitions";
+import Terms from "@/app/components/festivals/terms";
 
 export const metadata: Metadata = {
   title: "Información del Festival",
@@ -57,7 +58,15 @@ export default async function Page({
     validatedSearchParams.data.category
   ) {
     if (validatedSearchParams.data.terms) {
-      return <h1>Terminos y condiciones</h1>;
+      return (
+        <Terms
+          profile={profile!}
+          festival={festival}
+          category={
+            validatedSearchParams.data.category as Exclude<UserCategory, "none">
+          }
+        />
+      );
     }
 
     return (

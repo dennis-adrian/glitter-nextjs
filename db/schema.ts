@@ -70,14 +70,13 @@ export const festivals = pgTable(
     id: serial("id").primaryKey(),
     name: text("name").unique().notNull(),
     description: text("description"),
+    address: text("address"),
     locationLabel: text("location_label"),
     locationUrl: text("location_url"),
     startDate: timestamp("start_date").notNull(),
     status: festivalStatusEnum("status").default("draft").notNull(),
     endDate: timestamp("end_date").notNull(),
-    maps_version: festivalMapVersionEnum("maps_version")
-      .default("v1")
-      .notNull(),
+    mapsVersion: festivalMapVersionEnum("maps_version").default("v1").notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
