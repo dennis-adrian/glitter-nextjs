@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import { FestivalBase } from "@/app/api/festivals/definitions";
+import { FestivalBase } from "@/app/data/festivals/definitions";
 import { Button } from "@/app/components/ui/button";
 import {
   Select,

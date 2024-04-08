@@ -246,6 +246,41 @@
       "when": 1712454380651,
       "tag": "0034_mysterious_rocket_raccoon",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "5",
+      "when": 1712513644428,
+      "tag": "0035_first_xorn",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "5",
+      "when": 1712514895744,
+      "tag": "0036_slow_thunderball",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1712519467154,
+      "tag": "0037_wandering_shooting_star",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1712520676785,
+      "tag": "0038_silky_tenebrous",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "5",
+      "when": 1712582169601,
+      "tag": "0039_clean_living_tribunal",
+      "breakpoints": true
     }
   ]
 }

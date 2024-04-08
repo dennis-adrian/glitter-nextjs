@@ -1,7 +1,7 @@
 import {
   FestivalBase,
   FestivalWithUserRequests,
-} from "@/app/api/festivals/definitions";
+} from "@/app/data/festivals/definitions";
 import {
   ProfileType,
   ProfileWithParticipationsAndRequests,
@@ -9,12 +9,25 @@ import {
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
 
-export function getFestivalDateLabel(festival: FestivalBase) {
+export function getFestivalDateLabel(
+  festival: FestivalBase,
+  withWeekday = false,
+) {
+  const startWeekday = festival.startDate.toLocaleString("es-ES", {
+    weekday: "long",
+  });
+  const endWeekday = festival.endDate.toLocaleString("es-ES", {
+    weekday: "long",
+  });
   const startDateDay = festival.startDate.getDate() + 1;
   const endDateDay = festival.endDate.getDate() + 1;
   const startDateMonth = festival.startDate.toLocaleString("es-ES", {
     month: "long",
   });
+
+  if (withWeekday) {
+    return `${startWeekday} ${startDateDay} y ${endWeekday} ${endDateDay} de ${startDateMonth}`;
+  }
 
   return `${startDateDay} y ${endDateDay} de ${startDateMonth}`;
 }
@@ -35,7 +48,8 @@ export function getSearchArtistOptions(
   const filteredArtists = festivalArtists.filter((artist) => {
     return (
       !profileHasReservation(artist, festival.id) &&
-      isProfileInFestival(festival.id, artist)
+      isProfileInFestival(festival.id, artist) &&
+      artist.category === "illustration"
     );
   });
 

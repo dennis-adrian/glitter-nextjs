@@ -3,7 +3,7 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { FestivalBase } from "@/app/api/festivals/definitions";
+import { FestivalBase } from "@/app/data/festivals/definitions";
 import { uploadQrCode } from "@/app/data/tickets/helpers";
 import { generateQRCode } from "@/app/lib/utils";
 import { db, pool } from "@/db";

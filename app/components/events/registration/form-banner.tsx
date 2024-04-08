@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 
-import { FestivalBase } from "@/app/api/festivals/definitions";
+import { FestivalBase } from "@/app/data/festivals/definitions";
 import { FestivalInfo } from "@/components/landing/festival-info-card";
 
 export function FormBanner({ festival }: { festival: FestivalBase }) {

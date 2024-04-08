@@ -101,28 +101,32 @@ export default function ReservationForm({
         </span>
       </div>
 
-      <div className="grid items-start gap-2">
-        {addPartner ? (
-          <>
-            <Label htmlFor="search-input">Elige a tu compañero</Label>
-            <SearchInput
-              id="search-input"
-              options={searchOptions}
-              placeholder="Ingresa el nombre..."
-              onSelect={handleSelectArtist}
-            />
-          </>
-        ) : (
-          <>
-            <Separator />
-            <div className="flex items-center mb-2 mt-6 sm:mb-0 sm:mt-4">
-              <span>¿Compartes espacio?</span>
-              <Button variant="link" onClick={() => setAddPartner(true)}>
-                ¡Haz click aquí!
-              </Button>
-            </div>
-          </>
-        )}
+      {stand.standCategory === "illustration" && (
+        <div className="grid items-start gap-2">
+          {addPartner ? (
+            <>
+              <Label htmlFor="search-input">Elige a tu compañero</Label>
+              <SearchInput
+                id="search-input"
+                options={searchOptions}
+                placeholder="Ingresa el nombre..."
+                onSelect={handleSelectArtist}
+              />
+            </>
+          ) : (
+            <>
+              <Separator />
+              <div className="flex items-center mb-2 mt-6 sm:mb-0 sm:mt-4">
+                <span>¿Compartes espacio?</span>
+                <Button variant="link" onClick={() => setAddPartner(true)}>
+                  ¡Haz click aquí!
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+      <div className="flex justify-end">
         <Button className="mt-4" type="submit" onClick={handleConfirm}>
           Confirmar reserva
         </Button>

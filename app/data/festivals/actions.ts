@@ -1,24 +1,31 @@
 "use server";
 
-import { asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { db, pool } from "@/db";
-import { userRequests, festivals, stands, visitors } from "@/db/schema";
+import { userRequests, festivals, stands } from "@/db/schema";
 import { Festival, FestivalBase, FestivalWithTickets } from "./definitions";
 
 export async function fetchActiveFestival({
   acceptedUsersOnly = false,
+  id,
 }: {
   acceptedUsersOnly?: boolean;
+  id?: number;
 }): Promise<Festival | null | undefined> {
   const client = await pool.connect();
 
   const whereCondition = acceptedUsersOnly
     ? { where: eq(userRequests.status, "accepted") }
     : {};
+
+  const festivalWhereCondition = id
+    ? { where: eq(festivals.id, id) }
+    : { where: eq(festivals.status, "active") };
+
   try {
     return await db.query.festivals.findFirst({
-      where: eq(festivals.status, "active"),
+      ...festivalWhereCondition,
       with: {
         userRequests: {
           with: {
@@ -63,6 +70,22 @@ export async function fetchFestival(
           },
         },
       },
+    });
+  } catch (error) {
+    console.error("Error fetching active festival", error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+export async function fetchBaseFestival(
+  id: number,
+): Promise<FestivalBase | null | undefined> {
+  const client = await pool.connect();
+  try {
+    return await db.query.festivals.findFirst({
+      where: eq(festivals.id, id),
     });
   } catch (error) {
     console.error("Error fetching active festival", error);

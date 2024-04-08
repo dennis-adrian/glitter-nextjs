@@ -1,6 +1,6 @@
 import { TicketIcon } from "lucide-react";
 
-import { fetchFestival } from "@/app/api/festivals/actions";
+import { fetchFestival } from "@/app/data/festivals/actions";
 import TotalsCard from "@/app/components/dashboard/totals/card";
 import { columnTitles, columns } from "@/app/components/tickets/table/columns";
 import { DataTable } from "@/app/components/ui/data_table/data-table";

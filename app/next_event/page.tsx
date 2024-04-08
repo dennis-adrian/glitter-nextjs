@@ -5,7 +5,7 @@ import { currentUser } from "@clerk/nextjs";
 import { CalendarIcon, ClockIcon, LocateIcon } from "lucide-react";
 import Image from "next/image";
 
-import { fetchActiveFestival } from "@/app/api/festivals/actions";
+import { fetchActiveFestival } from "@/app/data/festivals/actions";
 import { fetchStandsByFestivalId } from "@/app/api/stands/actions";
 import { fetchUserProfile } from "@/app/api/users/actions";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";

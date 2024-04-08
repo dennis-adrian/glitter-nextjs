@@ -1,4 +1,4 @@
-import { fetchFestival } from "@/app/api/festivals/actions";
+import { fetchFestival } from "@/app/data/festivals/actions";
 
 import { RedirectButton } from "@/app/components/redirect-button";
 import ResourceNotFound from "@/app/components/resource-not-found";

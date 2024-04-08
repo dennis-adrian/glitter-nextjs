@@ -1,4 +1,4 @@
-import { fetchActiveFestival } from "@/api/festivals/actions";
+import { fetchActiveFestival } from "@/app/data/festivals/actions";
 import { StandBase } from "@/app/api/stands/actions";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { CreateReservationForm } from "@/app/components/reservations/create-form";

@@ -5,6 +5,7 @@ import {
   integer,
   pgEnum,
   pgTable,
+  real,
   serial,
   text,
   timestamp,
@@ -58,17 +59,24 @@ export const festivalStatusEnum = pgEnum("festival_status", [
   "active",
   "archived",
 ]);
+export const festivalMapVersionEnum = pgEnum("festival_map_version", [
+  "v1",
+  "v2",
+  "v3",
+]);
 export const festivals = pgTable(
   "festivals",
   {
     id: serial("id").primaryKey(),
     name: text("name").unique().notNull(),
     description: text("description"),
+    address: text("address"),
     locationLabel: text("location_label"),
     locationUrl: text("location_url"),
     startDate: timestamp("start_date").notNull(),
     status: festivalStatusEnum("status").default("draft").notNull(),
     endDate: timestamp("end_date").notNull(),
+    mapsVersion: festivalMapVersionEnum("maps_version").default("v1").notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -149,6 +157,7 @@ export const standOrientationEnum = pgEnum("stand_orientation", [
   "portrait",
   "landscape",
 ]);
+export const standZoneEnum = pgEnum("stand_zone", ["main", "secondary"]);
 export const stands = pgTable(
   "stands",
   {
@@ -162,6 +171,11 @@ export const stands = pgTable(
     standCategory: userCategoryEnum("stand_category")
       .default("illustration")
       .notNull(),
+    zone: standZoneEnum("zone").default("main").notNull(),
+    width: real("width"),
+    height: real("height"),
+    positionLeft: real("position_left"),
+    positionTop: real("position_top"),
     festivalId: integer("festival_id").notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),

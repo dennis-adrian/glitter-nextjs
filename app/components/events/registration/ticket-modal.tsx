@@ -4,7 +4,7 @@ import { Dispatch, useRef } from "react";
 
 import * as htmlToImage from "html-to-image";
 
-import { FestivalBase } from "@/app/api/festivals/definitions";
+import { FestivalBase } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import Ticket from "@/app/components/events/registration/ticket";
 import { Button } from "@/app/components/ui/button";
