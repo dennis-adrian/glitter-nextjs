@@ -48,7 +48,8 @@ export function getSearchArtistOptions(
   const filteredArtists = festivalArtists.filter((artist) => {
     return (
       !profileHasReservation(artist, festival.id) &&
-      isProfileInFestival(festival.id, artist)
+      isProfileInFestival(festival.id, artist) &&
+      artist.category === "illustration"
     );
   });
 
