@@ -3,9 +3,10 @@ import { Metadata } from "next";
 import { z } from "zod";
 
 import { fetchUserProfile } from "@/app/api/users/actions";
-import FestivalMap from "@/app/components/festivals/map";
+import Festival from "@/app/components/festivals/festival";
 import { fetchBaseFestival } from "@/app/data/festivals/actions";
 import { userCategoryEnum } from "@/db/schema";
+import { UserCategory } from "@/app/api/users/definitions";
 
 export const metadata: Metadata = {
   title: "Información del Festival",
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 };
 
 const searchParamsSchema = z.object({
-  zone: z.enum(userCategoryEnum.enumValues).optional(),
+  category: z.enum(userCategoryEnum.enumValues).optional(),
   terms: z.coerce.boolean().optional(),
 });
 
@@ -24,7 +25,7 @@ export default async function Page({
   params: { id: string };
   searchParams: {
     terms: string;
-    zone: string;
+    category: string;
   };
 }) {
   const user = await currentUser();
@@ -46,28 +47,27 @@ export default async function Page({
   }
 
   const validatedSearchParams = searchParamsSchema.safeParse(searchParams);
-  const canViewZones: boolean = !profile
+  const canViewCategories: boolean = !profile
     ? false
     : profile.verified || profile.role === "admin";
 
   if (
-    canViewZones &&
+    canViewCategories &&
     validatedSearchParams.success &&
-    validatedSearchParams.data.zone
+    validatedSearchParams.data.category
   ) {
     if (validatedSearchParams.data.terms) {
       return <h1>Terminos y condiciones</h1>;
     }
 
     return (
-      <div className="container p-4 md:p-6">
-        <h1 className="font-bold text-2xl">Zona Ilustradores</h1>
-        <FestivalMap
-          profile={profile!}
-          festival={festival}
-          zone={validatedSearchParams.data.zone}
-        />
-      </div>
+      <Festival
+        profile={profile!}
+        festival={festival}
+        category={
+          validatedSearchParams.data.category as Exclude<UserCategory, "none">
+        }
+      />
     );
   }
 
