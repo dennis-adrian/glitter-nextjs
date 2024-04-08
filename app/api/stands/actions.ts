@@ -1,5 +1,6 @@
 "use server";
 
+import { UserCategory } from "@/app/api/users/definitions";
 import { FestivalWithUserRequests } from "@/app/data/festivals/definitions";
 import { db, pool } from "@/db";
 import {
@@ -10,7 +11,7 @@ import {
   userRequests,
   users,
 } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
 export type Participant = typeof reservationParticipants.$inferSelect & {
   user: typeof users.$inferSelect;
@@ -25,12 +26,17 @@ export type Stand = typeof stands.$inferSelect & {
 
 export async function fetchStandsByFestivalId(
   festivalId: number,
+  category: UserCategory = "illustration",
 ): Promise<Stand[]> {
   const client = await pool.connect();
 
   try {
     const standsRes = await db.query.stands.findMany({
-      where: eq(stands.festivalId, festivalId),
+      where: and(
+        eq(stands.festivalId, festivalId),
+        eq(stands.standCategory, category),
+      ),
+      orderBy: (asc(stands.standNumber)),
       with: {
         festival: {
           with: {

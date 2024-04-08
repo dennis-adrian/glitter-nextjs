@@ -68,8 +68,6 @@ export function Map({
             key={stand.id}
             imageSize={dimensions}
             profile={profile}
-            proportions={standProportions}
-            position={position}
             stand={stand}
             onClick={onStandClick}
           />
