@@ -11,7 +11,6 @@ const ParamsSchema = z.object({
 
 export default async function Page({ params }: { params: { id: string } }) {
   const validatedParams = ParamsSchema.safeParse(params);
-  console.log(validatedParams);
   if (!validatedParams.success) redirect("/");
 
   const user = await currentUser();

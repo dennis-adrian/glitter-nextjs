@@ -345,7 +345,7 @@ export const invoices = pgTable("invoices", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
-export const invoicesRelations = relations(invoices, ({ one }) => ({
+export const invoicesRelations = relations(invoices, ({ one, many }) => ({
   user: one(users, {
     fields: [invoices.userId],
     references: [users.id],
@@ -354,10 +354,12 @@ export const invoicesRelations = relations(invoices, ({ one }) => ({
     fields: [invoices.reservationId],
     references: [standReservations.id],
   }),
+  payments: many(payments),
 }));
 
 export const payments = pgTable("payments", {
   id: serial("id").primaryKey(),
+  amount: real("amount").notNull(),
   date: timestamp("date").notNull(),
   invoiceId: integer("invoice_id")
     .notNull()
