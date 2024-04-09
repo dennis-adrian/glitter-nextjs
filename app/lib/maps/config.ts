@@ -14,6 +14,15 @@ export const imagesSrc: {
       mascot?: string;
       qrCode?: string;
     };
+  } & {
+    general?: {
+      sm: string;
+      md: string;
+    };
+    mascot?: {
+      sm: string;
+      md: string;
+    };
   };
 } = {
   v1: {
@@ -87,6 +96,14 @@ export const imagesSrc: {
       mascot: "/img/maps/v3/entrepreneurship-mascot-sm.png",
       stand: "/img/maps/v3/entrepreneurship-stand-sm.png",
       qrCode: "/img/maps/v3/entrepreneurship-qr-code.png",
+    },
+    general: {
+      sm: "/img/maps/v3/general-map-sm.png",
+      md: "/img/maps/v3/general-map-md.png",
+    },
+    mascot: {
+      sm: "/img/maps/v3/mascot-sm.png",
+      md: "/img/maps/v3/mascot-md.png",
     },
   },
 };

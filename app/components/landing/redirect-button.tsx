@@ -15,9 +15,9 @@ const LandingRedirectButton = ({
     <RedirectButton
       variant="cta"
       className={`${cn("text-lg p-6 max-w-52", className)}`}
-      href={`/festivals/${festivalId}/registration`}
+      href={`/festivals/${festivalId}`}
     >
-      ¡Quiero registrarme!
+      ¡Ver evento!
     </RedirectButton>
   );
 };
