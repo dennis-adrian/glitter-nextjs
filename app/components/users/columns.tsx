@@ -1,14 +1,12 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { CopyIcon } from "lucide-react";
 
 import { ProfileType } from "@/app/api/users/definitions";
 import UserRoleBadge from "@/app/components/user-role-badge";
 import { ActionsCell } from "@/app/components/users/cells/actions";
 import SocialsCell from "@/app/components/users/cells/socials";
 import { DataTableColumnHeader } from "@/components/ui/data_table/column-header";
-import { toast } from "sonner";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
 
@@ -19,6 +17,7 @@ export const columnTitles = {
   email: "Email",
   phoneNumber: "Teléfono",
   role: "Rol",
+  actions: "Acciones",
 };
 
 export const columns: ColumnDef<ProfileType>[] = [
@@ -105,6 +104,9 @@ export const columns: ColumnDef<ProfileType>[] = [
   },
   {
     id: "actions",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.actions} />
+    ),
     cell: ({ row }) => {
       const user = row.original;
 

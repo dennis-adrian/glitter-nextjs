@@ -42,6 +42,28 @@ interface DataTableProps<TData, TValue> {
   filters?: DataTableFiltersProps[];
 }
 
+// const getCommonPinningStyles = (column: Column<Person>): CSSProperties => {
+//   const isPinned = column.getIsPinned()
+//   const isLastLeftPinnedColumn =
+//     isPinned === 'left' && column.getIsLastColumn('left')
+//   const isFirstRightPinnedColumn =
+//     isPinned === 'right' && column.getIsFirstColumn('right')
+
+//   return {
+//     boxShadow: isLastLeftPinnedColumn
+//       ? '-4px 0 4px -4px gray inset'
+//       : isFirstRightPinnedColumn
+//         ? '4px 0 4px -4px gray inset'
+//         : undefined,
+//     left: isPinned === 'left' ? `${column.getStart('left')}px` : undefined,
+//     right: isPinned === 'right' ? `${column.getAfter('right')}px` : undefined,
+//     opacity: isPinned ? 0.95 : 1,
+//     position: isPinned ? 'sticky' : 'relative',
+//     width: column.getSize(),
+//     zIndex: isPinned ? 1 : 0,
+//   }
+// }
+
 export function DataTable<TData, TValue>({
   columns,
   columnTitles,
@@ -65,6 +87,11 @@ export function DataTable<TData, TValue>({
       sorting,
       columnFilters,
       globalFilter: searchFilter,
+    },
+    initialState: {
+      columnPinning: {
+        right: ["actions"],
+      },
     },
   });
 
@@ -106,7 +133,14 @@ export function DataTable<TData, TValue>({
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead
+                      key={header.id}
+                      className={
+                        header.column.getIsPinned()
+                          ? "sticky right-0 z-20 bg-white shadow-inner"
+                          : ""
+                      }
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -127,7 +161,14 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell
+                      key={cell.id}
+                      className={
+                        cell.column.getIsPinned()
+                          ? "sticky right-0 z-20 bg-white shadow-inner"
+                          : ""
+                      }
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext(),
