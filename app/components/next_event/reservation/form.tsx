@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { Separator } from "@/app/components/ui/separator";
 import { Label } from "@/app/components/ui/label";
+import { useRouter } from "next/navigation";
 
 type Profile = Omit<
   ProfileType,
@@ -34,6 +35,7 @@ export default function ReservationForm({
   stand: Stand;
   onModalClose: () => void;
 }) {
+  const router = useRouter();
   const searchOptions = getSearchArtistOptions(stand.festival, profile);
   const [selectedArtist, setSelectedArtist] = useState<Profile | undefined>();
   const [addPartner, setAddPartner] = useState(false);
@@ -72,7 +74,7 @@ export default function ReservationForm({
       participantIds,
     } as NewStandReservation;
 
-    const res = await createReservation(reservation);
+    const res = await createReservation(reservation, stand.price);
     if (res.success) {
       onModalClose();
       setSelectedArtist(undefined);
@@ -82,6 +84,7 @@ export default function ReservationForm({
         origin: { y: 0.6 },
       });
       toast.success("Reserva confirmada");
+      router.push(`/profiles/${profile.id}/payments/latest`);
     } else {
       toast.error("No se pudo confirmar la reserva", {
         description: "Inténtalo de nuevo",

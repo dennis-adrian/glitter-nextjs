@@ -1,0 +1,1 @@
+ALTER TABLE "stands" ADD COLUMN "price" real DEFAULT 0 NOT NULL;

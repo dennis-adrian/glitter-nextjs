@@ -1,8 +1,10 @@
 "use server";
 
+import { Stand } from "@/app/api/stands/actions";
 import { UserRequest } from "@/app/api/user_requests/definitions";
 import { db, pool } from "@/db";
 import {
+  invoices,
   reservationParticipants,
   standReservations,
   stands,
@@ -87,7 +89,10 @@ export async function fetchRequests(): Promise<UserRequest[]> {
 export type NewStandReservation = typeof standReservations.$inferInsert & {
   participantIds: number[];
 };
-export async function createReservation(reservation: NewStandReservation) {
+export async function createReservation(
+  reservation: NewStandReservation,
+  price: number,
+) {
   const client = await pool.connect();
   try {
     const { festivalId, standId, participantIds } = reservation;
@@ -113,6 +118,13 @@ export async function createReservation(reservation: NewStandReservation) {
         .update(stands)
         .set({ status: "reserved", updatedAt: new Date() })
         .where(eq(stands.id, standId));
+
+      await tx.insert(invoices).values({
+        date: new Date(),
+        userId: participantIds[0],
+        reservationId: reservationId,
+        amount: price,
+      });
     });
   } catch (error) {
     console.error("Error creating reservation", error);
