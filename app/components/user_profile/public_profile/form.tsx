@@ -39,16 +39,20 @@ const FormSchema = z.object({
   }),
   facebookProfile: z
     .string()
+    .transform((v) => v.trim())
     .refine((value) => value === "" || usernameRegex.test(value), {
       message: "El nombre de usuario no puede tener caracteres especiales",
     }),
   instagramProfile: z
     .string()
+    .min(2, { message: "Agrega al menos tu perfil de Instagram" })
+    .transform((v) => v.trim())
     .refine((value) => value === "" || usernameRegex.test(value), {
       message: "El nombre de usuario no puede tener caracteres especiales",
     }),
   tiktokProfile: z
     .string()
+    .transform((v) => v.trim())
     .refine((value) => value === "" || usernameRegex.test(value), {
       message: "El nombre de usuario no puede tener caracteres especiales",
     }),
