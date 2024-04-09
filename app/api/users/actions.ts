@@ -393,7 +393,7 @@ export async function verifyProfile(profileId: number) {
 
     await sendEmail({
       to: [updatedUser.email],
-      from: "Equipo Glitter <no-reply@festivalglitter.art>",
+      from: "Equipo Glitter <verificacion@festivalglitter.art>",
       subject: "Perfil verificado",
       react: EmailTemplate({
         name: updatedUser.displayName || "Usuario",
