@@ -37,36 +37,57 @@ import { z } from "zod";
 const usernameRegex = new RegExp(/^[a-zA-Z0-9_.-]+$/);
 const phoneRegex = new RegExp(/^\d{8}$/);
 const FormSchema = z.object({
-  bio: z.string().min(10, { message: "Escribe una bio un poco más larga" }),
+  bio: z
+    .string()
+    .min(10, { message: "Escribe una bio un poco más larga" })
+    .transform((v) => v.trim()),
   birthdate: z.string().min(1, {
     message: "La fecha de nacimiento es requerida",
   }),
   category: z.enum(userCategoryEnum.enumValues).exclude(["none"]),
-  displayName: z.string().min(2, {
-    message: "El nombre de artista tiene que tener al menos dos letras",
-  }),
+  displayName: z
+    .string()
+    .min(2, {
+      message: "El nombre de artista tiene que tener al menos dos letras",
+    })
+    .transform((v) => v.trim()),
   firstName: z
     .string()
-    .min(2, { message: "El nombre tiene que tener al menos dos letras" }),
+    .min(2, { message: "El nombre tiene que tener al menos dos letras" })
+    .transform((v) => v.trim()),
   lastName: z
     .string()
-    .min(2, { message: "El apellido tiene que tener al menos dos letras" }),
-  phoneNumber: z
-    .string()
-    .regex(phoneRegex, "Número de teléfono inválido. Necesita tener 8 dígitos"),
+    .min(2, { message: "El apellido tiene que tener al menos dos letras" })
+    .transform((v) => v.trim()),
+  phoneNumber: z.string().transform((val, ctx) => {
+    val = val.trim();
+    if (phoneRegex.test(val)) {
+      return val;
+    }
+
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Número de teléfono inválido. Necesita tener 8 dígitos",
+    });
+
+    return z.NEVER;
+  }),
   facebookProfile: z
     .string()
+    .transform((v) => v.trim())
     .refine((value) => value === "" || usernameRegex.test(value), {
       message: "El nombre de usuario no puede tener caracteres especiales",
     }),
   instagramProfile: z
     .string()
     .min(2, { message: "Agrega al menos tu perfil de Instagram" })
+    .transform((v) => v.trim())
     .refine((value) => value === "" || usernameRegex.test(value), {
       message: "El nombre de usuario no puede tener caracteres especiales",
     }),
   tiktokProfile: z
     .string()
+    .transform((v) => v.trim())
     .refine((value) => value === "" || usernameRegex.test(value), {
       message: "El nombre de usuario no puede tener caracteres especiales",
     }),
