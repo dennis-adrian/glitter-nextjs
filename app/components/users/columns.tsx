@@ -3,7 +3,6 @@
 import { ColumnDef } from "@tanstack/react-table";
 
 import { ProfileType } from "@/app/api/users/definitions";
-import UserRoleBadge from "@/app/components/user-role-badge";
 import { ActionsCell } from "@/app/components/users/cells/actions";
 import SocialsCell from "@/app/components/users/cells/socials";
 import { DataTableColumnHeader } from "@/components/ui/data_table/column-header";
@@ -11,6 +10,7 @@ import { Checkbox } from "@/app/components/ui/checkbox";
 import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
 import CategoryBadge from "@/app/components/category-badge";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
+import { isProfileComplete } from "@/app/lib/utils";
 
 export const columnTitles = {
   id: "ID",
@@ -19,6 +19,7 @@ export const columnTitles = {
   fullName: "Nombre",
   email: "Email",
   socials: "Redes",
+  status: "Estado",
   phoneNumber: "Teléfono",
   verified: "Verificado",
 };
@@ -53,6 +54,20 @@ export const columns: ColumnDef<ProfileType>[] = [
     ),
   },
   {
+    id: "category",
+    // i'm using a formated value here because i want these to be recognized by the search filter
+    accessorFn: (row) =>
+      getCategoryOccupationLabel(row.category, { singular: true }),
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.category} />
+    ),
+    cell: ({ row }) => <CategoryBadge category={row.original.category} />,
+    filterFn: (row, columnId, filterCategories) => {
+      if (filterCategories.length === 0) return true;
+      return filterCategories.includes(row.original.category);
+    },
+  },
+  {
     accessorKey: "displayName",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.displayName} />
@@ -76,16 +91,21 @@ export const columns: ColumnDef<ProfileType>[] = [
     cell: ({ row }) => <SocialsCell socials={row.original.userSocials} />,
   },
   {
-    id: "category",
-    accessorFn: (row) =>
-      getCategoryOccupationLabel(row.category, { singular: true }),
+    id: "status",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={columnTitles.category} />
+      <DataTableColumnHeader column={column} title={columnTitles.status} />
     ),
-    cell: ({ row }) => <CategoryBadge category={row.original.category} />,
-    filterFn: (row, columnId, filterCategories) => {
-      if (filterCategories.length === 0) return true;
-      return filterCategories.includes(row.original.category);
+    accessorFn: (row) => {
+      return isProfileComplete(row) ? "complete" : "incomplete";
+    },
+    cell: ({ row }) => {
+      const user = row.original;
+      return isProfileComplete(user) ? "Completo" : "Incompleto";
+    },
+    filterFn: (row, columnId, filterStatus) => {
+      if (!filterStatus) return true;
+      const status = row.getValue(columnId);
+      return filterStatus === status;
     },
   },
   {

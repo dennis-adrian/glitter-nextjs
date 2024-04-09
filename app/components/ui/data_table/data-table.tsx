@@ -36,9 +36,10 @@ interface DataTableFiltersProps {
   columnId: string;
 }
 
-interface DataTableInitialState {
+export interface DataTableInitialState {
   columnVisibility?: Record<string, boolean>;
   columnPinning?: Record<string, string[]>;
+  columnFilters?: ColumnFiltersState;
 }
 
 interface DataTableProps<TData, TValue> {
@@ -49,28 +50,6 @@ interface DataTableProps<TData, TValue> {
   initialState?: DataTableInitialState;
 }
 
-// const getCommonPinningStyles = (column: Column<Person>): CSSProperties => {
-//   const isPinned = column.getIsPinned()
-//   const isLastLeftPinnedColumn =
-//     isPinned === 'left' && column.getIsLastColumn('left')
-//   const isFirstRightPinnedColumn =
-//     isPinned === 'right' && column.getIsFirstColumn('right')
-
-//   return {
-//     boxShadow: isLastLeftPinnedColumn
-//       ? '-4px 0 4px -4px gray inset'
-//       : isFirstRightPinnedColumn
-//         ? '4px 0 4px -4px gray inset'
-//         : undefined,
-//     left: isPinned === 'left' ? `${column.getStart('left')}px` : undefined,
-//     right: isPinned === 'right' ? `${column.getAfter('right')}px` : undefined,
-//     opacity: isPinned ? 0.95 : 1,
-//     position: isPinned ? 'sticky' : 'relative',
-//     width: column.getSize(),
-//     zIndex: isPinned ? 1 : 0,
-//   }
-// }
-
 export function DataTable<TData, TValue>({
   columns,
   columnTitles,
@@ -80,8 +59,10 @@ export function DataTable<TData, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchFilter, setSearchFilter] = useState<string>("");
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  console.log(initialState);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
+    initialState?.columnFilters || [],
+  );
+
   const table = useReactTable({
     data,
     columns,
