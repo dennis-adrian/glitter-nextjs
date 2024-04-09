@@ -35,11 +35,18 @@ interface DataTableFiltersProps {
   options: { value: string; label: string }[];
   columnId: string;
 }
+
+interface DataTableInitialState {
+  columnVisibility?: Record<string, boolean>;
+  columnPinning?: Record<string, string[]>;
+}
+
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   columnTitles: Record<string, string>;
   filters?: DataTableFiltersProps[];
+  initialState?: DataTableInitialState;
 }
 
 // const getCommonPinningStyles = (column: Column<Person>): CSSProperties => {
@@ -69,11 +76,12 @@ export function DataTable<TData, TValue>({
   columnTitles,
   data,
   filters = [],
+  initialState,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchFilter, setSearchFilter] = useState<string>("");
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-
+  console.log(initialState);
   const table = useReactTable({
     data,
     columns,
@@ -92,6 +100,7 @@ export function DataTable<TData, TValue>({
       columnPinning: {
         right: ["actions"],
       },
+      ...initialState,
     },
   });
 
@@ -99,7 +108,7 @@ export function DataTable<TData, TValue>({
     <div>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="flex min-w-60 items-center py-4 sm:min-w-80">
+          <div className="flex min-w-60 items-center py-2 sm:min-w-80">
             <span className="relative left-3 top-1/2 w-0">
               <SearchIcon className="h-4 w-4 text-gray-500" />
             </span>

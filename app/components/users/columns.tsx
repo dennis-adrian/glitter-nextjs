@@ -9,15 +9,18 @@ import SocialsCell from "@/app/components/users/cells/socials";
 import { DataTableColumnHeader } from "@/components/ui/data_table/column-header";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
+import CategoryBadge from "@/app/components/category-badge";
+import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 
 export const columnTitles = {
   id: "ID",
+  category: "Categoría",
   displayName: "Nombre de artista",
   fullName: "Nombre",
   email: "Email",
+  socials: "Redes",
   phoneNumber: "Teléfono",
-  role: "Rol",
-  actions: "Acciones",
+  verified: "Verificado",
 };
 
 export const columns: ColumnDef<ProfileType>[] = [
@@ -63,13 +66,35 @@ export const columns: ColumnDef<ProfileType>[] = [
     ),
   },
   {
-    header: "Redes",
+    id: "socials",
+    header: columnTitles.socials,
     accessorFn: (row) =>
       row.userSocials
         .map((social) => social.username)
         .filter(Boolean)
         .join(", "),
     cell: ({ row }) => <SocialsCell socials={row.original.userSocials} />,
+  },
+  {
+    id: "category",
+    accessorFn: (row) =>
+      getCategoryOccupationLabel(row.category, { singular: true }),
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.category} />
+    ),
+    cell: ({ row }) => <CategoryBadge category={row.original.category} />,
+    filterFn: (row, columnId, filterCategories) => {
+      if (filterCategories.length === 0) return true;
+      return filterCategories.includes(row.original.category);
+    },
+  },
+  {
+    id: "verified",
+    accessorKey: "verified",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.verified} />
+    ),
+    cell: ({ row }) => (row.original.verified ? "Sí" : "No"),
   },
   {
     header: ({ column }) => (
@@ -87,26 +112,7 @@ export const columns: ColumnDef<ProfileType>[] = [
     accessorKey: "phoneNumber",
   },
   {
-    id: "role",
-    accessorKey: "role",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Rol" />
-    ),
-    cell: ({ row }) => {
-      const role = row.original.role;
-      return <UserRoleBadge role={role} />;
-    },
-    filterFn: (row, columnId, filterRoles) => {
-      if (filterRoles.length === 0) return true;
-      const role = row.getValue(columnId);
-      return filterRoles.includes(role);
-    },
-  },
-  {
     id: "actions",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={columnTitles.actions} />
-    ),
     cell: ({ row }) => {
       const user = row.original;
 
