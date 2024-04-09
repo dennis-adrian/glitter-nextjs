@@ -1,4 +1,4 @@
-import { MoreHorizontal, Trash2Icon } from "lucide-react";
+import { CheckIcon, MoreHorizontal, Trash2Icon } from "lucide-react";
 
 import { ProfileType } from "@/app/api/users/definitions";
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,12 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { DeleteProfileModal } from "@/app/components/users/form/delete-profile-modal";
+import { VerifyProfileModal } from "@/app/components/users/form/verify-user-modal";
+import { profile } from "console";
 
 export function ActionsCell({ user }: { user: ProfileType }) {
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [openVerifyModal, setOpenVerifyModal] = useState(false);
 
   return (
     <DropdownMenu>
@@ -28,6 +31,12 @@ export function ActionsCell({ user }: { user: ProfileType }) {
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {!user.verified && (
+          <DropdownMenuItem onClick={() => setOpenVerifyModal(true)}>
+            <CheckIcon className="h-4 w-4 mr-1" />
+            Verificar
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem asChild>
           <Link href={`/dashboard/users/${user.id}`}>Ver perfil</Link>
         </DropdownMenuItem>
@@ -50,6 +59,11 @@ export function ActionsCell({ user }: { user: ProfileType }) {
         open={openDeleteModal}
         profile={user}
         setOpen={setOpenDeleteModal}
+      />
+      <VerifyProfileModal
+        open={openVerifyModal}
+        profile={user}
+        setOpen={setOpenVerifyModal}
       />
     </DropdownMenu>
   );
