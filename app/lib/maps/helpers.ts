@@ -2,15 +2,15 @@ import { StandZone } from "@/app/api/stands/definitions";
 import { UserCategory } from "@/app/api/users/definitions";
 
 export function getCategoryOccupationLabel(
-  category: Exclude<UserCategory, "none">,
+  category: UserCategory | Exclude<UserCategory, "none">,
   options?: { singular?: boolean },
 ) {
   if (category === "illustration")
-    return options?.singular ? "Ilustrador " : "Ilustradores";
+    return options?.singular ? "Ilustrador" : "Ilustradores";
   if (category === "gastronomy") return "Gastronomía";
   if (category === "entrepreneurship")
     return options?.singular ? "Emprendedor" : "Emprendedores";
-  return "Sin nombre";
+  return "Sin categoría";
 }
 
 export function getCategoryLabel(category: Exclude<UserCategory, "none">) {

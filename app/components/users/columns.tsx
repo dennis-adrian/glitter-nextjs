@@ -1,24 +1,27 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { CopyIcon } from "lucide-react";
 
 import { ProfileType } from "@/app/api/users/definitions";
-import UserRoleBadge from "@/app/components/user-role-badge";
 import { ActionsCell } from "@/app/components/users/cells/actions";
 import SocialsCell from "@/app/components/users/cells/socials";
 import { DataTableColumnHeader } from "@/components/ui/data_table/column-header";
-import { toast } from "sonner";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
+import CategoryBadge from "@/app/components/category-badge";
+import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
+import { isProfileComplete } from "@/app/lib/utils";
 
 export const columnTitles = {
   id: "ID",
+  category: "Categoría",
   displayName: "Nombre de artista",
   fullName: "Nombre",
   email: "Email",
+  socials: "Redes",
+  status: "Estado",
   phoneNumber: "Teléfono",
-  role: "Rol",
+  verified: "Verificado",
 };
 
 export const columns: ColumnDef<ProfileType>[] = [
@@ -51,6 +54,20 @@ export const columns: ColumnDef<ProfileType>[] = [
     ),
   },
   {
+    id: "category",
+    // i'm using a formated value here because i want these to be recognized by the search filter
+    accessorFn: (row) =>
+      getCategoryOccupationLabel(row.category, { singular: true }),
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.category} />
+    ),
+    cell: ({ row }) => <CategoryBadge category={row.original.category} />,
+    filterFn: (row, columnId, filterCategories) => {
+      if (filterCategories.length === 0) return true;
+      return filterCategories.includes(row.original.category);
+    },
+  },
+  {
     accessorKey: "displayName",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.displayName} />
@@ -64,13 +81,40 @@ export const columns: ColumnDef<ProfileType>[] = [
     ),
   },
   {
-    header: "Redes",
+    id: "socials",
+    header: columnTitles.socials,
     accessorFn: (row) =>
       row.userSocials
         .map((social) => social.username)
         .filter(Boolean)
         .join(", "),
     cell: ({ row }) => <SocialsCell socials={row.original.userSocials} />,
+  },
+  {
+    id: "status",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.status} />
+    ),
+    accessorFn: (row) => {
+      return isProfileComplete(row) ? "complete" : "incomplete";
+    },
+    cell: ({ row }) => {
+      const user = row.original;
+      return isProfileComplete(user) ? "Completo" : "Incompleto";
+    },
+    filterFn: (row, columnId, filterStatus) => {
+      if (!filterStatus) return true;
+      const status = row.getValue(columnId);
+      return filterStatus === status;
+    },
+  },
+  {
+    id: "verified",
+    accessorKey: "verified",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.verified} />
+    ),
+    cell: ({ row }) => (row.original.verified ? "Sí" : "No"),
   },
   {
     header: ({ column }) => (
@@ -86,22 +130,6 @@ export const columns: ColumnDef<ProfileType>[] = [
       <DataTableColumnHeader column={column} title={columnTitles.phoneNumber} />
     ),
     accessorKey: "phoneNumber",
-  },
-  {
-    id: "role",
-    accessorKey: "role",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Rol" />
-    ),
-    cell: ({ row }) => {
-      const role = row.original.role;
-      return <UserRoleBadge role={role} />;
-    },
-    filterFn: (row, columnId, filterRoles) => {
-      if (filterRoles.length === 0) return true;
-      const role = row.getValue(columnId);
-      return filterRoles.includes(role);
-    },
   },
   {
     id: "actions",

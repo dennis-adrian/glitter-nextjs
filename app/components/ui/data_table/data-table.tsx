@@ -35,11 +35,19 @@ interface DataTableFiltersProps {
   options: { value: string; label: string }[];
   columnId: string;
 }
+
+export interface DataTableInitialState {
+  columnVisibility?: Record<string, boolean>;
+  columnPinning?: Record<string, string[]>;
+  columnFilters?: ColumnFiltersState;
+}
+
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   columnTitles: Record<string, string>;
   filters?: DataTableFiltersProps[];
+  initialState?: DataTableInitialState;
 }
 
 export function DataTable<TData, TValue>({
@@ -47,10 +55,13 @@ export function DataTable<TData, TValue>({
   columnTitles,
   data,
   filters = [],
+  initialState,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchFilter, setSearchFilter] = useState<string>("");
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
+    initialState?.columnFilters || [],
+  );
 
   const table = useReactTable({
     data,
@@ -66,13 +77,19 @@ export function DataTable<TData, TValue>({
       columnFilters,
       globalFilter: searchFilter,
     },
+    initialState: {
+      columnPinning: {
+        right: ["actions"],
+      },
+      ...initialState,
+    },
   });
 
   return (
     <div>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="flex min-w-60 items-center py-4 sm:min-w-80">
+          <div className="flex min-w-60 items-center py-2 sm:min-w-80">
             <span className="relative left-3 top-1/2 w-0">
               <SearchIcon className="h-4 w-4 text-gray-500" />
             </span>
@@ -106,7 +123,14 @@ export function DataTable<TData, TValue>({
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead
+                      key={header.id}
+                      className={
+                        header.column.getIsPinned()
+                          ? "sticky right-0 z-20 bg-white shadow-inner"
+                          : ""
+                      }
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -127,7 +151,14 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell
+                      key={cell.id}
+                      className={
+                        cell.column.getIsPinned()
+                          ? "sticky right-0 z-20 bg-white shadow-inner"
+                          : ""
+                      }
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext(),

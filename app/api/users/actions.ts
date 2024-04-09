@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 
 import { clerkClient } from "@clerk/nextjs";
 import { User } from "@clerk/nextjs/server";
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { pool, db } from "@/db";
@@ -181,7 +181,7 @@ export async function fetchProfiles(): Promise<ProfileType[]> {
   const client = await pool.connect();
 
   try {
-    const users = await db.query.users.findMany({
+    return await db.query.users.findMany({
       with: {
         userRequests: true,
         userSocials: true,
@@ -191,8 +191,8 @@ export async function fetchProfiles(): Promise<ProfileType[]> {
           },
         },
       },
+      orderBy: desc(users.updatedAt),
     });
-    return users;
   } catch (error) {
     console.error(error);
     return [];
