@@ -13,6 +13,9 @@ import { revalidatePath } from "next/cache";
 import { NewUserSocial, ProfileType } from "./definitions";
 import { buildNewUser, buildUserSocials } from "@/app/api/users/helpers";
 import { isProfileComplete } from "@/app/lib/utils";
+import { sendEmail } from "@/vendors/resend";
+import EmailTemplate from "@/app/emails/verification-confirmation";
+import { fetchActiveFestival } from "@/app/data/festivals/actions";
 
 export type NewUser = typeof users.$inferInsert;
 export type UserProfileType = typeof users.$inferSelect;
@@ -372,4 +375,45 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
 
   revalidatePath("/dashboard/users");
   return { success: true, message: "Perfil eliminado" };
+}
+
+export async function verifyProfile(profileId: number) {
+  const client = await pool.connect();
+
+  try {
+    const [updatedUser] = await db
+      .update(users)
+      .set({ verified: true, updatedAt: new Date() })
+      .where(eq(users.id, profileId))
+      .returning();
+
+    const activeFestival = await fetchActiveFestival({
+      acceptedUsersOnly: true,
+    });
+
+    await sendEmail({
+      to: [updatedUser.email],
+      from: "Equipo Glitter <no-reply@festivalglitter.art>",
+      subject: "Perfil verificado",
+      react: EmailTemplate({
+        name: updatedUser.displayName || "Usuario",
+        category: updatedUser.category as
+          | "entrepreneurship"
+          | "illustration"
+          | "gastronomy",
+        festivalId: activeFestival?.id,
+      }) as React.ReactElement,
+    });
+  } catch (error) {
+    console.error("Error verifying profile", error);
+    return {
+      success: false,
+      message: "Error al verificar el perfil",
+    };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/users");
+  return { success: true, message: "Perfil verificado" };
 }
