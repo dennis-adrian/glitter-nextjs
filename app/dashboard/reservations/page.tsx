@@ -42,13 +42,14 @@ export default async function Page() {
     );
   }
 
+  // TODO: Fix new reservation page and uncomment button
   return (
     <div className="container mx-auto min-h-full p-4 md:p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="mb-2 text-3xl font-bold">Reservas</h1>
-        <Button>
+        {/* <Button>
           <Link href="/dashboard/reservations/new">Nueva Reserva</Link>
-        </Button>
+        </Button> */}
       </div>
 
       <Tabs defaultValue="all" className="my-4">

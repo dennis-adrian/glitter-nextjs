@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 
-import { Loader2Icon, PlusCircleIcon, TrashIcon } from "lucide-react";
+import { Loader2Icon, PlusCircleIcon, Trash2Icon } from "lucide-react";
 
 import { ReservationWithParticipantsAndUsersAndStandAndFestival } from "@/app/api/reservations/definitions";
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
@@ -24,10 +24,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { updateReservation } from "@/app/api/user_requests/actions";
+import { updateReservationSimple } from "@/app/api/user_requests/actions";
 import { toast } from "sonner";
 import { redirect } from "next/navigation";
-import { FormParticipantCard } from "@/app/components/reservations/form/participant-card";
 import { BaseProfile } from "@/app/api/users/definitions";
 import {
   Card,
@@ -35,7 +34,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
+import { Label } from "@/app/components/ui/label";
+import SearchInput from "@/app/components/ui/search-input/input";
 
 type Artist = Omit<BaseProfile, "userRequests" | "participations">;
 export default function EditReservationForm({
@@ -50,7 +51,7 @@ export default function EditReservationForm({
   const [partner, setPartner] = useState<Artist | undefined>(
     reservation.participants[1]?.user,
   );
-  const [showPartnerForm, setShowPartnerForm] = useState(false);
+  const [showInput, setShowInput] = useState(false);
 
   const form = useForm({
     defaultValues: {
@@ -59,20 +60,14 @@ export default function EditReservationForm({
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    const updatedParticipants = [
-      {
-        participationId: reservation.participants[0]?.userId,
-        userId: reservation.participants[0]?.userId,
-      },
-      {
-        participationId: reservation.participants[1]?.id,
-        userId: partner?.id,
-      },
-    ];
-    const res = await updateReservation(reservation.id, {
+    const updatedPartner = {
+      participationId: reservation.participants[1]?.id,
+      userId: partner?.id,
+    };
+    const res = await updateReservationSimple(reservation.id, {
       ...reservation,
       ...data,
-      updatedParticipants: updatedParticipants.filter(Boolean),
+      partner: updatedPartner,
     });
     if (res.success) {
       toast.success(res.message, {
@@ -98,48 +93,50 @@ export default function EditReservationForm({
     }
   });
 
-  const handlePartnerChange = (userId?: number) => {
-    if (userId) {
-      setPartner(artists.find((a) => a.id === userId));
-    } else {
-      setPartner(undefined);
-    }
-  };
+  function handleAddPartner(userId: number) {
+    setPartner(artists.find((a) => a.id === userId));
+  }
+
+  function removePartner() {
+    setPartner(undefined);
+    setShowInput(false);
+  }
 
   return (
     <>
       <section className="flex flex-col gap-4">
-        <div className="flex gap-4">
-          <Avatar>
-            <AvatarImage
-              src={reservation.participants[0].user.imageUrl!}
-              alt={reservation.participants[0].user.displayName!}
-              height={64}
-              width={64}
-            />
-          </Avatar>
-          <div className="flex flex-col justify-center">
-            <h3 className="font-semibold text-sm">
-              {reservation.participants[0].user.displayName}
-            </h3>
-            <p className="text-sm max-w-[160px] sm:max-w-full truncate text-muted-foreground">
-              {reservation.participants[0].user.email}
-            </p>
-          </div>
+        <div className="p-4 border rounded-lg">
+          <h2 className="font-semibold text-lg mb-2">
+            Participante que hizo la reserva
+          </h2>
+          <ProfileQuickViewInfo profile={reservation.participants[0].user} />
         </div>
-        {showPartnerForm && (
-          <FormParticipantCard
-            options={artistsOptions}
-            participant={partner}
-            onParticipantChange={handlePartnerChange}
-            onRemove={() => {
-              setShowPartnerForm(false);
-              handlePartnerChange();
-            }}
-          />
+        {partner && (
+          <div className="p-4 border rounded-lg">
+            <div className="flex items-start justify-between mb-2">
+              <h2 className="font-semibold text-lg">Compañero de espacio</h2>
+              <Trash2Icon
+                className="w-4 h-4 text-destructive hover:text-red-600 hover:transition cursor-pointer"
+                onClick={() => removePartner()}
+              />
+            </div>
+            <ProfileQuickViewInfo profile={partner} />
+          </div>
         )}
-        {!showPartnerForm && (
-          <Button variant="link" onClick={() => setShowPartnerForm(true)}>
+        {showInput && !partner && (
+          <>
+            <Label htmlFor="first-participant">
+              Busca el compañero de espacio
+            </Label>
+            <SearchInput
+              id="first-participant"
+              options={artistsOptions}
+              onSelect={(id) => handleAddPartner(id)}
+            />
+          </>
+        )}
+        {!showInput && !partner && (
+          <Button variant="link" onClick={() => setShowInput(true)}>
             <PlusCircleIcon className="h-4 w-4 mr-2" />
             Agregar participante
           </Button>

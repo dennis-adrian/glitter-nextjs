@@ -1,3 +1,5 @@
+import { cn } from "@/app/lib/utils";
+
 import { UserCategory } from "@/app/api/users/definitions";
 import { Badge } from "@/app/components/ui/badge";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
@@ -18,7 +20,7 @@ export default function CategoryBadge({ category }: CategoryBadgeProps) {
 
   return (
     <Badge
-      className={styles}
+      className={cn(styles, "max-w-fit")}
       variant={category === "none" ? "dark" : "default"}
     >
       {getCategoryOccupationLabel(category, { singular: true })}

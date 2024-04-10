@@ -49,7 +49,7 @@ export default async function Page({ params }: { params: { id: string } }) {
             {`${reservation?.stand.label}${reservation?.stand.standNumber}`}
           </CardTitle>
           <CardDescription>
-            Puedes agregar o eliminar participantes de la reserva
+            Puedes agregar o eliminar al acompañante de la reserva.
           </CardDescription>
         </CardHeader>
         <CardContent>
