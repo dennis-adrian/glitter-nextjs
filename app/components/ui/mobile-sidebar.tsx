@@ -18,8 +18,8 @@ import { Button } from "@/app/components/ui/button";
 import {
   AlbumIcon,
   CalendarCheck2Icon,
+  CreditCardIcon,
   HomeIcon,
-  InboxIcon,
   LogOutIcon,
   UsersIcon,
 } from "lucide-react";
@@ -93,13 +93,13 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
                   <UsersIcon className="mr-2 h-6 w-6" />
                   Usuarios
                 </MobileSidebarItem>
-                <MobileSidebarItem href="/dashboard/requests">
-                  <InboxIcon className="mr-2 h-6 w-6" />
-                  Solicitudes
-                </MobileSidebarItem>
                 <MobileSidebarItem href="/dashboard/reservations">
                   <AlbumIcon className="mr-2 h-6 w-6" />
                   Reservas
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/requests">
+                  <CreditCardIcon className="mr-2 h-6 w-6" />
+                  Pagos
                 </MobileSidebarItem>
               </div>
             </>
