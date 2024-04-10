@@ -1,15 +1,12 @@
 "use client";
 
 import {
-  BanIcon,
-  CheckCircleIcon,
+  CreditCardIcon,
   FilePenLineIcon,
   MoreHorizontalIcon,
   Trash2Icon,
 } from "lucide-react";
-import { toast } from "sonner";
 
-import { updateReservation } from "@/app/api/user_requests/actions";
 import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/actions";
 
 import { Button } from "@/app/components/ui/button";
@@ -32,62 +29,6 @@ export function ActionsCell({
 }) {
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
 
-  async function onApprove() {
-    const res = await updateReservation(reservation.id, {
-      ...reservation,
-      status: "accepted",
-    });
-    if (res.success) {
-      toast.success(res.message, {
-        duration: 3000,
-        action: {
-          label: "Cerrar",
-          onClick: () => {
-            toast.dismiss();
-          },
-        },
-      });
-    } else {
-      toast.error(res.message, {
-        duration: 3000,
-        action: {
-          label: "Cerrar",
-          onClick: () => {
-            toast.dismiss();
-          },
-        },
-      });
-    }
-  }
-
-  async function onReject() {
-    const res = await updateReservation(reservation.id, {
-      ...reservation,
-      status: "rejected",
-    });
-    if (res.success) {
-      toast.warning(res.message, {
-        duration: 3000,
-        action: {
-          label: "Cerrar",
-          onClick: () => {
-            toast.dismiss();
-          },
-        },
-      });
-    } else {
-      toast.error(res.message, {
-        duration: 3000,
-        action: {
-          label: "Cerrar",
-          onClick: () => {
-            toast.dismiss();
-          },
-        },
-      });
-    }
-  }
-
   return (
     <>
       <DropdownMenu>
@@ -100,39 +41,12 @@ export function ActionsCell({
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            disabled={reservation.status === "accepted"}
-            asChild
-          >
-            <form className="w-full" action={onApprove}>
-              <Button
-                className="flex justify-start h-5 font-normal hover:font-normal w-full text-left p-0"
-                type="submit"
-                variant="ghost"
-                size="sm"
-              >
-                <CheckCircleIcon className="h-4 w-4 mr-1" />
-                Aprobar
-              </Button>
-            </form>
+          <DropdownMenuItem asChild>
+            <Link href={`/dashboard/reservations/${reservation.id}/payments`}>
+              <CreditCardIcon className="h-4 w-4 mr-1" />
+              Ver pagos
+            </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={reservation.status === "rejected"}
-            asChild
-          >
-            <form className="w-full" action={onReject}>
-              <Button
-                className="flex justify-start h-5 font-normal hover:font-normal w-full text-left p-0"
-                type="submit"
-                variant="ghost"
-                size="sm"
-              >
-                <BanIcon className="h-4 w-4 mr-1" />
-                Rechazar
-              </Button>
-            </form>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
             <Link href={`/dashboard/reservations/${reservation.id}/edit`}>
               <FilePenLineIcon className="h-4 w-4 mr-1" />

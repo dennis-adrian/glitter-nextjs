@@ -18,7 +18,6 @@ export const columnTitles = {
   createdAt: "Creación",
   status: "Estado",
   email: "Correo electrónico",
-  names: "Nombres",
 };
 
 export const columns: ColumnDef<ReservationWithParticipantsAndUsersAndStand>[] =
@@ -92,30 +91,15 @@ export const columns: ColumnDef<ReservationWithParticipantsAndUsersAndStand>[] =
       ),
     },
     {
-      id: "names",
-      accessorFn: (row) =>
-        row.participants.map((p) => p.user.displayName).join(", "),
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={columnTitles.names} />
-      ),
-      cell: ({ row }) => (
-        <div className="flex flex-col gap-1">
-          {row.original.participants.map((p) => (
-            <span key={p.id}>{p.user.displayName}</span>
-          ))}
-        </div>
-      ),
-    },
-    {
       accessorKey: "status",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={columnTitles.status} />
       ),
       cell: ({ row }) => <ReservationStatus reservation={row.original} />,
       filterFn: (row, columnId, filterStatus) => {
-        if (filterStatus.length === 0) return true;
+        if (!filterStatus) return true;
         const status = row.getValue(columnId);
-        return filterStatus.includes(status);
+        return filterStatus === status;
       },
     },
     {
