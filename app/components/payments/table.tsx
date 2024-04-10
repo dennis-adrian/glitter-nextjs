@@ -26,6 +26,15 @@ export default function PaymentsTable(props: PaymentsTableProps) {
             columnId: "category",
             options: [...userCategoryOptions],
           },
+          {
+            label: "Estado de la reserva",
+            columnId: "reservationStatus",
+            options: [
+              { value: "pending", label: "Pendiente" },
+              { value: "accepted", label: "Confirmada" },
+              { value: "rejected", label: "Rechazada" },
+            ],
+          },
         ]}
         initialState={{
           columnVisibility: {

@@ -3,6 +3,7 @@
 import CategoryBadge from "@/app/components/category-badge";
 import ActionsCell from "@/app/components/payments/cells/actions";
 import ViewPaymentProofCell from "@/app/components/payments/cells/view-payment-proof-cell";
+import { ReservationStatus } from "@/app/components/reservations/cells/status";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/defiinitions";
@@ -18,6 +19,7 @@ export const columnTitles = {
   profile: "Perfil",
   stand: "Espacio",
   status: "Estado",
+  reservationStatus: "Estado de la reserva",
 };
 
 export const columns: ColumnDef<InvoiceWithPaymentsAndStandAndProfile>[] = [
@@ -106,6 +108,24 @@ export const columns: ColumnDef<InvoiceWithPaymentsAndStandAndProfile>[] = [
     ),
     accessorFn: (row) =>
       `${row.reservation.stand.label}${row.reservation.stand.standNumber}`,
+  },
+  {
+    id: "reservationStatus",
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title={columnTitles.reservationStatus}
+      />
+    ),
+    accessorFn: (row) => row.reservation.status,
+    cell: ({ row }) => (
+      <ReservationStatus reservation={row.original.reservation} />
+    ),
+    filterFn: (row, columnId, filterStatus) => {
+      if (filterStatus.length === 0) return true;
+      const status = row.getValue(columnId);
+      return filterStatus.includes(status);
+    },
   },
   {
     id: "actions",
