@@ -1,11 +1,11 @@
 "use client";
 
-import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { columns, columnTitles } from "@/app/components/payments/columns";
-import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/defiinitions";
-import { invoiceStatusOptions } from "@/app/lib/utils";
-import { useState } from "react";
 import PaymentProofModal from "@/app/components/payments/payment-proof-modal";
+import { DataTable } from "@/app/components/ui/data_table/data-table";
+import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/defiinitions";
+import { invoiceStatusOptions, userCategoryOptions } from "@/app/lib/utils";
+import { useState } from "react";
 
 type PaymentsTableProps = {
   invoices: InvoiceWithPaymentsAndStandAndProfile[];
@@ -20,15 +20,13 @@ export default function PaymentsTable(props: PaymentsTableProps) {
         columns={columns}
         columnTitles={columnTitles}
         data={props.invoices}
-        filters={
-          [
-            // {
-            //   label: "Estado",
-            //   columnId: "status",
-            //   options: [...invoiceStatusOptions],
-            // },
-          ]
-        }
+        filters={[
+          {
+            label: "Categoría",
+            columnId: "category",
+            options: [...userCategoryOptions],
+          },
+        ]}
         initialState={{
           columnVisibility: {
             status: false,
