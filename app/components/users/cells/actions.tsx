@@ -14,7 +14,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { DeleteProfileModal } from "@/app/components/users/form/delete-profile-modal";
 import { VerifyProfileModal } from "@/app/components/users/form/verify-user-modal";
-import { profile } from "console";
 
 export function ActionsCell({ user }: { user: ProfileType }) {
   const [openDeleteModal, setOpenDeleteModal] = useState(false);

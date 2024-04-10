@@ -224,3 +224,27 @@ export async function deleteReservation(
   revalidatePath("/dashboard/reservations");
   return { success: true, message: "Reserva eliminada" };
 }
+
+export async function confirmReservation(
+  reservationId: number,
+  userEmail: string,
+) {
+  const client = await pool.connect();
+
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(standReservations)
+        .set({ status: "accepted" })
+        .where(eq(standReservations.id, reservationId));
+    });
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al confirmar la reserva" };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/reservations");
+  return { success: true, message: "Reserva confirmada" };
+}

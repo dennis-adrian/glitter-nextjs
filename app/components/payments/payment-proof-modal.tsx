@@ -1,5 +1,4 @@
 import { Button } from "@/app/components/ui/button";
-import { PaymentBase } from "@/app/data/invoices/defiinitions";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import {
   DrawerDialog,

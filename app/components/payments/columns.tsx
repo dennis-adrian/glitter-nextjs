@@ -1,7 +1,8 @@
 "use client";
 
 import CategoryBadge from "@/app/components/category-badge";
-import ViewPaymentProofCell from "@/app/components/payments/view-payment-proof-cell";
+import ActionsCell from "@/app/components/payments/cells/actions";
+import ViewPaymentProofCell from "@/app/components/payments/cells/view-payment-proof-cell";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/defiinitions";
@@ -105,5 +106,11 @@ export const columns: ColumnDef<InvoiceWithPaymentsAndStandAndProfile>[] = [
     ),
     accessorFn: (row) =>
       `${row.reservation.stand.label}${row.reservation.stand.standNumber}`,
+  },
+  {
+    id: "actions",
+    cell: ({ row }) => {
+      return <ActionsCell invoice={row.original} />;
+    },
   },
 ];
