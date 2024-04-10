@@ -15,7 +15,7 @@ export const columnTitles = {
   artists: "Artistas",
   createdAt: "Creación",
   email: "Correo electrónico",
-  festival: "Festival",
+  festivalId: "Festival",
   id: "ID",
   stand: "Espacio",
   status: "Estado",
@@ -92,11 +92,20 @@ export const columns: ColumnDef<ReservationWithParticipantsAndUsersAndStandAndFe
       ),
     },
     {
-      id: "festival",
+      id: "festivalId",
+      accessorKey: "festivalId",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={columnTitles.festival} />
+        <DataTableColumnHeader
+          column={column}
+          title={columnTitles.festivalId}
+        />
       ),
-      cell: ({ row }) => row.original.festival,
+      cell: ({ row }) => row.original.festival.name,
+      filterFn: (row, columnId, filterFestival) => {
+        if (filterFestival.length === 0) return true;
+        const festivalId = row.getValue(columnId);
+        return filterFestival.includes(festivalId?.toString());
+      },
     },
     {
       accessorKey: "status",

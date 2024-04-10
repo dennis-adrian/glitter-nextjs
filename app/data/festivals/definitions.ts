@@ -3,14 +3,7 @@
 import { StandBase } from "@/app/api/stands/actions";
 import { ProfileWithParticipationsAndRequests } from "@/app/api/users/definitions";
 import { TicketWithVisitor } from "@/app/data/tickets/actions";
-import {
-  festivals,
-  standReservations,
-  stands,
-  tickets,
-  userRequests,
-  visitors,
-} from "@/db/schema";
+import { festivals, standReservations, userRequests } from "@/db/schema";
 
 export type FestivalBase = typeof festivals.$inferSelect;
 type UserRequest = typeof userRequests.$inferSelect & {

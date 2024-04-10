@@ -6,6 +6,8 @@ import { fetchReservations } from "@/app/api/reservations/actions";
 import { Button } from "@/app/components/ui/button";
 import ReservationsTable from "@/app/components/reservations/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { fetchFestivals } from "@/app/data/festivals/actions";
+import { getFestivalsOptions } from "@/app/data/festivals/helpers";
 
 const statusOptions = [
   { value: "pending", label: "Pendiente" },
@@ -29,6 +31,8 @@ export default async function Page() {
   }
 
   const reservations = await fetchReservations();
+  const festivals = await fetchFestivals();
+  const festivalOptions = getFestivalsOptions(festivals);
   if (reservations.length === 0) {
     return (
       <div className="container mx-auto min-h-full p-4 md:p-6">
@@ -54,10 +58,14 @@ export default async function Page() {
           <TabsTrigger value="accepted">Confirmadas</TabsTrigger>
         </TabsList>
         <TabsContent value="all">
-          <ReservationsTable reservations={reservations} />
+          <ReservationsTable
+            reservations={reservations}
+            festivalOptions={festivalOptions}
+          />
         </TabsContent>
         <TabsContent value="pending">
           <ReservationsTable
+            festivalOptions={festivalOptions}
             reservations={reservations}
             status="pending"
             columnVisbility={{ status: false }}
@@ -65,6 +73,7 @@ export default async function Page() {
         </TabsContent>
         <TabsContent value="accepted">
           <ReservationsTable
+            festivalOptions={festivalOptions}
             reservations={reservations}
             status="accepted"
             columnVisbility={{ status: false }}
