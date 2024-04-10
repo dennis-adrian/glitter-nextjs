@@ -1,8 +1,9 @@
-import { FormEvent, SyntheticEvent, useState } from "react";
+import { SyntheticEvent, useEffect, useState } from "react";
 
 import SearchContent, { SearchOption } from "./search-content";
 import { Input } from "@/app/components/ui/input";
 import { SearchIcon } from "lucide-react";
+import { useDebouncedCallback } from "use-debounce";
 
 type Props = {
   id: string;
@@ -25,17 +26,17 @@ const SearchInput = ({
   const [searchedOptions, setSearchedOptions] =
     useState<SearchOption[]>(options);
 
-  const handleSearch = (e: FormEvent<HTMLInputElement>) => {
-    setInputText(e.currentTarget.value);
-
+  const handleSearch = useDebouncedCallback((term) => {
     const filtered = options?.filter((option) => {
-      return option.label
-        .toLowerCase()
-        .includes(e.currentTarget.value.toLowerCase());
+      return option.label.toLowerCase().includes(term.toLocaleLowerCase());
     });
 
-    setSearchedOptions(filtered);
-  };
+    setSearchedOptions(filtered || []);
+  }, 300);
+
+  useEffect(() => {
+    handleSearch(inputText);
+  }, [inputText, handleSearch]);
 
   const handleSelect = (e: SyntheticEvent<HTMLLIElement>) => {
     setInputText("");
@@ -59,7 +60,7 @@ const SearchInput = ({
           type="search"
           placeholder={placeholder}
           value={inputText}
-          onChange={handleSearch}
+          onChange={(e) => setInputText(e.target.value)}
         />
       </div>
       <SearchContent
