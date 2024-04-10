@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 
-import { PlusCircleIcon, TrashIcon } from "lucide-react";
+import { Loader2Icon, PlusCircleIcon, TrashIcon } from "lucide-react";
 
 import { ReservationWithParticipantsAndUsersAndStandAndFestival } from "@/app/api/reservations/definitions";
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
@@ -35,6 +35,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
+import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 
 type Artist = Omit<BaseProfile, "userRequests" | "participations">;
 export default function EditReservationForm({
@@ -46,9 +47,10 @@ export default function EditReservationForm({
   artistsOptions: SearchOption[];
   reservation: ReservationWithParticipantsAndUsersAndStandAndFestival;
 }) {
-  const [participants, setParticipants] = useState<(Artist | undefined)[]>(
-    reservation.participants.map((p) => p.user),
+  const [partner, setPartner] = useState<Artist | undefined>(
+    reservation.participants[1]?.user,
   );
+  const [showPartnerForm, setShowPartnerForm] = useState(false);
 
   const form = useForm({
     defaultValues: {
@@ -59,12 +61,12 @@ export default function EditReservationForm({
   const action: () => void = form.handleSubmit(async (data) => {
     const updatedParticipants = [
       {
-        participationId: reservation.participants[0]?.id,
-        userId: participants[0]?.id,
+        participationId: reservation.participants[0]?.userId,
+        userId: reservation.participants[0]?.userId,
       },
       {
         participationId: reservation.participants[1]?.id,
-        userId: participants[1]?.id,
+        userId: partner?.id,
       },
     ];
     const res = await updateReservation(reservation.id, {
@@ -96,47 +98,48 @@ export default function EditReservationForm({
     }
   });
 
-  const handleParticipantChange = (
-    participantIndex: number = participants.length,
-    userId?: number,
-  ) => {
-    const newParticipants = [...participants];
-    let artist;
+  const handlePartnerChange = (userId?: number) => {
     if (userId) {
-      artist = artists.find((a) => a.id === userId);
+      setPartner(artists.find((a) => a.id === userId));
+    } else {
+      setPartner(undefined);
     }
-
-    newParticipants[participantIndex] = artist;
-    setParticipants([...newParticipants]);
   };
 
   return (
     <>
       <section className="flex flex-col gap-4">
-        {participants.length > 0 ? (
-          participants.map((participant, index) => (
-            <FormParticipantCard
-              key={index}
-              options={artistsOptions}
-              participant={participant}
-              participantIndex={index}
-              onParticipantChange={handleParticipantChange}
-              onParticipantRemove={() =>
-                setParticipants([...participants.toSpliced(index, 1)])
-              }
+        <div className="flex gap-4">
+          <Avatar>
+            <AvatarImage
+              src={reservation.participants[0].user.imageUrl!}
+              alt={reservation.participants[0].user.displayName!}
+              height={64}
+              width={64}
             />
-          ))
-        ) : (
-          <Card>
-            <CardHeader className="flex items-center">
-              <h2 className="text-muted-foreground text-xl sm:text-2xl text-center">
-                Sin participantes
-              </h2>
-            </CardHeader>
-          </Card>
+          </Avatar>
+          <div className="flex flex-col justify-center">
+            <h3 className="font-semibold text-sm">
+              {reservation.participants[0].user.displayName}
+            </h3>
+            <p className="text-sm max-w-[160px] sm:max-w-full truncate text-muted-foreground">
+              {reservation.participants[0].user.email}
+            </p>
+          </div>
+        </div>
+        {showPartnerForm && (
+          <FormParticipantCard
+            options={artistsOptions}
+            participant={partner}
+            onParticipantChange={handlePartnerChange}
+            onRemove={() => {
+              setShowPartnerForm(false);
+              handlePartnerChange();
+            }}
+          />
         )}
-        {participants.length < 2 && (
-          <Button variant="link" onClick={() => handleParticipantChange()}>
+        {!showPartnerForm && (
+          <Button variant="link" onClick={() => setShowPartnerForm(true)}>
             <PlusCircleIcon className="h-4 w-4 mr-2" />
             Agregar participante
           </Button>
@@ -179,7 +182,20 @@ export default function EditReservationForm({
               />
             </CardContent>
           </Card>
-          <Button type="submit">Guardar cambios</Button>
+          <Button
+            disabled={form.formState.isSubmitting}
+            className="w-full md:max-w-60"
+            type="submit"
+          >
+            {form.formState.isSubmitting ? (
+              <>
+                <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+                Cargando
+              </>
+            ) : (
+              <span>Guardar cambios</span>
+            )}
+          </Button>
         </form>
       </Form>
     </>

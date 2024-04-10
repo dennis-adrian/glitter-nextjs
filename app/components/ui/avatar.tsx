@@ -18,14 +18,19 @@ export function Avatar({
   );
 }
 
-export function AvatarImage({ src, alt, height = 64, width = 64 }: ImageProps) {
+export function AvatarImage({
+  src = "/img/profile-avatar.png",
+  alt,
+  height = 64,
+  width = 64,
+}: ImageProps) {
   return (
     <Image
+      className="rounded-full object-cover absolute inset-0 w-full h-full"
       alt={alt}
       src={src}
-      height={height}
-      width={width}
       blurDataURL="/img/blur-data-img.png"
+      fill
     />
   );
 }

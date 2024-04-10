@@ -12,6 +12,7 @@ import {
 } from "@/app/components/ui/card";
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
 import ResourceNotFound from "@/app/components/resource-not-found";
+import { getParticipantsOptions } from "@/app/api/reservations/helpers";
 
 export default async function Page({ params }: { params: { id: string } }) {
   const { id } = params;
@@ -26,10 +27,7 @@ export default async function Page({ params }: { params: { id: string } }) {
   const filteredArtists = festivalArtists.filter((artist) => {
     return isProfileInFestival(festival!.id, artist);
   });
-  const options: SearchOption[] = filteredArtists.map((artist) => ({
-    displayName: artist.displayName || "",
-    id: artist.id,
-  }));
+  const options: SearchOption[] = getParticipantsOptions(filteredArtists);
 
   return (
     <div className="max-w-screen-md px-4 md:px-6 m-auto">
