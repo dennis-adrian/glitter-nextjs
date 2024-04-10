@@ -92,7 +92,6 @@ export default async function Page({
   const generalMapSm = imagesSrc[festival.mapsVersion]["general"]?.sm;
   const generalMapMd = imagesSrc[festival.mapsVersion]["general"]?.md;
 
-  // TODO: Add the general public map/page
   return (
     <div className="container p-4 md:p-6">
       <section className="flex flex-col md:flex-row md:justify-between gap-6">
@@ -134,15 +133,15 @@ export default async function Page({
             <Image
               className="mx-auto"
               alt="mascota del evento"
-              height={320}
+              height={240}
               src={mascotSrcSm}
-              width={320}
+              width={240}
             />
           </>
         )}
       </section>
       <section>
-        <h2 className="font-semibold text-2xl my-4">Mapa del evento</h2>
+        <h2 className="font-semibold text-2xl my-4">Mapas del evento</h2>
         {generalMapSm && generalMapMd && (
           <>
             <h3 className="font-semibold text-xl my-2">
@@ -164,7 +163,22 @@ export default async function Page({
             />
           </>
         )}
-        {canViewCategories && (
+        <Festival
+          profile={profile!}
+          festival={festival}
+          category="illustration"
+        />
+        <Festival
+          profile={profile!}
+          festival={festival}
+          category="entrepreneurship"
+        />
+        <Festival
+          profile={profile!}
+          festival={festival}
+          category="gastronomy"
+        />
+        {canViewCategories && festival.status === "active" && (
           <div className="flex w-full justify-center my-4">
             <RedirectButton
               className="mx-auto"

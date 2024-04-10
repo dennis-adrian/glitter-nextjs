@@ -17,6 +17,8 @@ export default async function Festival({
   const mainStands = stands.filter((stand) => stand.zone === "main");
   const secondaryStands = stands.filter((stand) => stand.zone === "secondary");
 
+  if (mainStands.length === 0) return null;
+
   return (
     <div className="container p-4 md:p-6">
       <h1 className="font-bold text-2xl my-4">{getMapPageTitle(category)}</h1>
