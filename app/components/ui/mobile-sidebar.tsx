@@ -97,7 +97,7 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
                   <AlbumIcon className="mr-2 h-6 w-6" />
                   Reservas
                 </MobileSidebarItem>
-                <MobileSidebarItem href="/dashboard/requests">
+                <MobileSidebarItem href="/dashboard/payments">
                   <CreditCardIcon className="mr-2 h-6 w-6" />
                   Pagos
                 </MobileSidebarItem>
