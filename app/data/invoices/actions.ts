@@ -1,5 +1,6 @@
 import {
   InvoiceWithPaymentsAndStand,
+  InvoiceWithPaymentsAndStandAndProfile,
   NewPayment,
 } from "@/app/data/invoices/defiinitions";
 import { pool, db } from "@/db";
@@ -60,4 +61,29 @@ export async function createPayment(payment: NewPayment) {
     ? "Pago actualizado con éxito"
     : "Pago creado con éxito";
   return { success: true, message: successMessage };
+}
+
+export async function fetchInvoices(): Promise<
+  InvoiceWithPaymentsAndStandAndProfile[]
+> {
+  const client = await pool.connect();
+
+  try {
+    return await db.query.invoices.findMany({
+      with: {
+        payments: true,
+        reservation: {
+          with: {
+            stand: true,
+          },
+        },
+        user: true,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching invoices", error);
+    return [] as InvoiceWithPaymentsAndStandAndProfile[];
+  } finally {
+    client.release();
+  }
 }

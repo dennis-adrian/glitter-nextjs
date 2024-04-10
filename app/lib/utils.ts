@@ -2,8 +2,14 @@ import QRCode from "qrcode";
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { ProfileType } from "@/api/users/definitions";
-import { eventDiscoveryEnum, genderEnum, userCategoryEnum } from "@/db/schema";
+import {
+  eventDiscoveryEnum,
+  genderEnum,
+  invoiceStatusEnum,
+  userCategoryEnum,
+} from "@/db/schema";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
+import { getInvoiceStatusLabel } from "@/app/lib/payments/helpers";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -132,5 +138,20 @@ export const userCategoryOptions = [
     label: getCategoryOccupationLabel(userCategoryEnum.enumValues[3], {
       singular: true,
     }),
+  },
+];
+
+export const invoiceStatusOptions = [
+  {
+    value: invoiceStatusEnum.enumValues[0],
+    label: getInvoiceStatusLabel(invoiceStatusEnum.enumValues[0]),
+  },
+  {
+    value: invoiceStatusEnum.enumValues[1],
+    label: getInvoiceStatusLabel(invoiceStatusEnum.enumValues[1]),
+  },
+  {
+    value: invoiceStatusEnum.enumValues[2],
+    label: getInvoiceStatusLabel(invoiceStatusEnum.enumValues[2]),
   },
 ];

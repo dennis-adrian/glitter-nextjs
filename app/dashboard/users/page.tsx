@@ -2,11 +2,8 @@ import { UsersIcon } from "lucide-react";
 import { currentUser } from "@clerk/nextjs/server";
 
 import { fetchProfiles, fetchUserProfile } from "@/app/api/users/actions";
-import { columnTitles, columns } from "@/components/users/columns";
-import { DataTable } from "@/components/ui/data_table/data-table";
 import TotalsCard from "@/app/components/dashboard/totals/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { userCategoryOptions } from "@/app/lib/utils";
 import UsersTable from "@/app/components/users/table";
 
 export default async function Page() {
