@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 
 import { PlusCircleIcon, TrashIcon } from "lucide-react";
 
-import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/actions";
+import { ReservationWithParticipantsAndUsersAndStandAndFestival } from "@/app/api/reservations/definitions";
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
 import {
   Select,
@@ -44,7 +44,7 @@ export default function EditReservationForm({
 }: {
   artists: Artist[];
   artistsOptions: SearchOption[];
-  reservation: ReservationWithParticipantsAndUsersAndStand;
+  reservation: ReservationWithParticipantsAndUsersAndStandAndFestival;
 }) {
   const [participants, setParticipants] = useState<(Artist | undefined)[]>(
     reservation.participants.map((p) => p.user),

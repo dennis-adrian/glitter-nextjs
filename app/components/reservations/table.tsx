@@ -3,11 +3,11 @@
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { columnTitles, columns } from "@/components/reservations/columns";
 import { userCategoryOptions } from "@/app/lib/utils";
-import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/actions";
+import { ReservationWithParticipantsAndUsersAndStandAndFestival } from "@/app/api/reservations/definitions";
 import { ReservationBase } from "@/app/api/reservations/definitions";
 
 type ReservationsTableProps = {
-  reservations: ReservationWithParticipantsAndUsersAndStand[];
+  reservations: ReservationWithParticipantsAndUsersAndStandAndFestival[];
   status?: ReservationBase["status"];
   columnVisbility?: Record<string, boolean>;
 };

@@ -7,7 +7,7 @@ import {
   Trash2Icon,
 } from "lucide-react";
 
-import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/actions";
+import { ReservationWithParticipantsAndUsersAndStandAndFestival } from "@/app/api/reservations/definitions";
 
 import { Button } from "@/app/components/ui/button";
 import {
@@ -25,7 +25,7 @@ import { useState } from "react";
 export function ActionsCell({
   reservation,
 }: {
-  reservation: ReservationWithParticipantsAndUsersAndStand;
+  reservation: ReservationWithParticipantsAndUsersAndStandAndFestival;
 }) {
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
 

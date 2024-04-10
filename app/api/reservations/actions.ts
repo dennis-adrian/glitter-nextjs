@@ -10,26 +10,18 @@ import {
   stands,
 } from "@/db/schema";
 
-import { BaseProfile, ProfileWithSocials } from "@/app/api/users/definitions";
+import { BaseProfile } from "@/app/api/users/definitions";
 import { sendEmail } from "@/vendors/resend";
 import EmailTemplate from "@/app/emails/reservation-confirmation";
 import React from "react";
-
-export type Participant = typeof reservationParticipants.$inferSelect & {
-  user: ProfileWithSocials;
-};
-export type ReservationWithParticipantsAndUsers =
-  typeof standReservations.$inferSelect & {
-    participants: Participant[];
-  };
-
-export type ReservationWithParticipantsAndUsersAndStand =
-  ReservationWithParticipantsAndUsers & {
-    stand: typeof stands.$inferSelect;
-  };
+import {
+  ReservationWithParticipantsAndUsers,
+  ReservationWithParticipantsAndUsersAndStand,
+  ReservationWithParticipantsAndUsersAndStandAndFestival,
+} from "@/app/api/reservations/definitions";
 
 export async function fetchReservations(): Promise<
-  ReservationWithParticipantsAndUsersAndStand[]
+  ReservationWithParticipantsAndUsersAndStandAndFestival[]
 > {
   const client = await pool.connect();
 
@@ -46,6 +38,7 @@ export async function fetchReservations(): Promise<
           },
         },
         stand: true,
+        festival: true,
       },
       orderBy: desc(standReservations.updatedAt),
     });
@@ -90,7 +83,9 @@ export async function fetchConfirmedReservationsByFestival(
 
 export async function fetchReservation(
   id: number,
-): Promise<ReservationWithParticipantsAndUsersAndStand | undefined | null> {
+): Promise<
+  ReservationWithParticipantsAndUsersAndStandAndFestival | undefined | null
+> {
   const client = await pool.connect();
   try {
     return await db.query.standReservations.findFirst({
@@ -106,6 +101,7 @@ export async function fetchReservation(
           },
         },
         stand: true,
+        festival: true,
       },
     });
   } catch (error) {
@@ -114,8 +110,6 @@ export async function fetchReservation(
   } finally {
     client.release();
   }
-
-  revalidatePath("/dashboard/reservations");
 }
 
 export async function updateReservation(

@@ -3,7 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 
-import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/actions";
+import { ReservationWithParticipantsAndUsersAndStandAndFestival } from "@/app/api/reservations/definitions";
 import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
 import { ActionsCell } from "@/app/components/reservations/cells/actions";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
@@ -12,15 +12,16 @@ import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-hea
 import { formatFullDate } from "@/app/lib/formatters";
 
 export const columnTitles = {
-  id: "ID",
-  stand: "Espacio",
   artists: "Artistas",
   createdAt: "Creación",
-  status: "Estado",
   email: "Correo electrónico",
+  festival: "Festival",
+  id: "ID",
+  stand: "Espacio",
+  status: "Estado",
 };
 
-export const columns: ColumnDef<ReservationWithParticipantsAndUsersAndStand>[] =
+export const columns: ColumnDef<ReservationWithParticipantsAndUsersAndStandAndFestival>[] =
   [
     {
       id: "select",
@@ -89,6 +90,13 @@ export const columns: ColumnDef<ReservationWithParticipantsAndUsersAndStand>[] =
           ))}
         </div>
       ),
+    },
+    {
+      id: "festival",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={columnTitles.festival} />
+      ),
+      cell: ({ row }) => row.original.festival,
     },
     {
       accessorKey: "status",

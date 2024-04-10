@@ -1,4 +1,4 @@
-import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/actions";
+import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
 import { ReservationWithStand } from "@/app/api/reservations/definitions";
 import { Badge } from "@/app/components/ui/badge";
 
