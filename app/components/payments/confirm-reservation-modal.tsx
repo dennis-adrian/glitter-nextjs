@@ -49,8 +49,7 @@ export default function ConfirmReservationModal(
               </p>
             </div>
             <ConfirmReservationForm
-              reservationId={props.invoice.reservation.id}
-              userEmail={props.invoice.user.email}
+              invoice={props.invoice}
               onSuccess={() => props.onOpenChange(false)}
             />
           </div>

@@ -4,10 +4,10 @@ import { useFormState } from "react-dom";
 
 import { SubmitButton } from "@/components/submit-button";
 import { confirmReservation } from "@/app/api/reservations/actions";
+import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/defiinitions";
 
 type ConfirmReservationFormProps = {
-  reservationId: number;
-  userEmail: string;
+  invoice: InvoiceWithPaymentsAndStandAndProfile;
   onSuccess: () => void;
 };
 export function ConfirmReservationForm(props: ConfirmReservationFormProps) {
@@ -17,8 +17,10 @@ export function ConfirmReservationForm(props: ConfirmReservationFormProps) {
   };
   const confirmReservationWithIdAndEmail = confirmReservation.bind(
     null,
-    props.reservationId,
-    props.userEmail,
+    props.invoice.reservationId,
+    props.invoice.user,
+    `${props.invoice.reservation.stand.label}${props.invoice.reservation.stand.standNumber}`,
+    props.invoice.reservation.festivalId,
   );
   const [state, action] = useFormState(
     confirmReservationWithIdAndEmail,
