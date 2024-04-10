@@ -341,7 +341,7 @@ export const invoices = pgTable("invoices", {
     .references(() => users.id, { onDelete: "cascade" }),
   reservationId: integer("reservation_id")
     .notNull()
-    .references(() => standReservations.id),
+    .references(() => standReservations.id, { onDelete: "cascade" }),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
