@@ -148,18 +148,18 @@ export default async function Page({
               Distribución general del evento
             </h3>
             <Image
-              className="hidden md:block mx-auto"
-              alt="mascota del evento"
-              height={800}
-              src={generalMapMd}
-              width={595}
+              className="md:hidden mx-auto"
+              alt="mapa el evento"
+              height={545}
+              src={generalMapSm}
+              width={429}
             />
             <Image
-              className="md:hidden mx-auto"
-              alt="mascota del evento"
-              height={465}
-              src={generalMapSm}
-              width={360}
+              className="hidden md:block mx-auto"
+              alt="mapa del evento"
+              height={1091}
+              src={generalMapMd}
+              width={858}
             />
           </>
         )}
