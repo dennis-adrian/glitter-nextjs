@@ -96,13 +96,14 @@ export const columns: ColumnDef<ProfileType>[] = [
       <DataTableColumnHeader column={column} title={columnTitles.status} />
     ),
     accessorFn: (row) => {
-      return isProfileComplete(row) ? "complete" : "incomplete";
+      return isProfileComplete(row) ? "complete" : "missingFields";
     },
     cell: ({ row }) => {
       const user = row.original;
       return isProfileComplete(user) ? "Completo" : "Incompleto";
     },
     filterFn: (row, columnId, filterStatus) => {
+      debugger;
       if (!filterStatus) return true;
       const status = row.getValue(columnId);
       return filterStatus === status;
