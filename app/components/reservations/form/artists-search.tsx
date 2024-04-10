@@ -41,9 +41,8 @@ export function ArtistsSearch({
             key={index}
             options={options}
             participant={participant}
-            participantIndex={index}
             onParticipantChange={handleParticipantChange}
-            onParticipantRemove={() =>
+            onRemove={() =>
               setParticipants([...participants.toSpliced(index, 1)])
             }
           />

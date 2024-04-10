@@ -12,19 +12,19 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { cn } from "@/app/lib/utils";
 
 type UserQuickViewInfoProps = {
+  className?: string;
   profile: BaseProfile;
 };
 export default function ProfileQuickViewInfo(props: UserQuickViewInfoProps) {
   return (
-    <div className="flex gap-4">
+    <div className={cn("flex gap-4", props.className)}>
       <Avatar>
         <AvatarImage
           src={props.profile.imageUrl || "/img/profile-avatar.png"}
           alt={props.profile.displayName || "avatar"}
-          height={64}
-          width={64}
         />
       </Avatar>
       <div className="flex flex-col gap-1">

@@ -41,12 +41,12 @@ export function ActionsCell({
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
+          {/* <DropdownMenuItem asChild>
             <Link href={`/dashboard/reservations/${reservation.id}/payments`}>
               <CreditCardIcon className="h-4 w-4 mr-1" />
               Ver pagos
             </Link>
-          </DropdownMenuItem>
+          </DropdownMenuItem> */}
           <DropdownMenuItem asChild>
             <Link href={`/dashboard/reservations/${reservation.id}/edit`}>
               <FilePenLineIcon className="h-4 w-4 mr-1" />

@@ -1,20 +1,25 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import Link from "next/link";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import { ReservationWithParticipantsAndUsersAndStandAndFestival } from "@/app/api/reservations/definitions";
-import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
 import { ActionsCell } from "@/app/components/reservations/cells/actions";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { formatFullDate } from "@/app/lib/formatters";
+import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
+import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 
 export const columnTitles = {
-  artists: "Artistas",
+  artists: "Participantes",
   createdAt: "Creación",
-  email: "Correo electrónico",
   festivalId: "Festival",
   id: "ID",
   stand: "Espacio",
@@ -65,31 +70,24 @@ export const columns: ColumnDef<ReservationWithParticipantsAndUsersAndStandAndFe
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={columnTitles.artists} />
       ),
-      cell: ({ row }) => (
-        <div className="flex flex-col gap-1">
-          {row.original.participants.map((p) => (
-            <span key={p.id} className="text-blue-500 underline">
-              <Link href={`/dashboard/users/${p.user.id}`}>
-                {p.user.displayName}
-              </Link>
-            </span>
-          ))}
-        </div>
-      ),
-    },
-    {
-      id: "email",
-      accessorFn: (row) => row.participants.map((p) => p.user.email).join(", "),
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={columnTitles.email} />
-      ),
-      cell: ({ row }) => (
-        <div className="flex flex-col gap-1">
-          {row.original.participants.map((p) => (
-            <EmailCell email={p.user.email} key={p.id} />
-          ))}
-        </div>
-      ),
+      cell: ({ row }) =>
+        row.original.participants.map(({ user: profile }) => (
+          <TooltipProvider key={profile.id}>
+            <Tooltip>
+              <TooltipTrigger>
+                <Avatar className="w-8 h-8">
+                  <AvatarImage
+                    src={profile.imageUrl || "/img/profile-avatar.png"}
+                    alt={profile.displayName || "avatar"}
+                  />
+                </Avatar>
+              </TooltipTrigger>
+              <TooltipContent>
+                <ProfileQuickViewInfo className="p-4" profile={profile} />
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )),
     },
     {
       id: "festivalId",
