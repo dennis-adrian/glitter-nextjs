@@ -7,7 +7,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { CheckCheckIcon, MoreHorizontalIcon } from "lucide-react";
+import {
+  BadgeCheckIcon,
+  CheckCheckIcon,
+  MoreHorizontalIcon,
+} from "lucide-react";
 import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/defiinitions";
 import { useState } from "react";
 import ConfirmReservationModal from "@/app/components/payments/confirm-reservation-modal";
@@ -32,12 +36,19 @@ export default function ActionsCell(props: ActionsCellProps) {
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => setOpenConfirmReservationModal(true)}
-          >
-            <CheckCheckIcon className="h-4 w-4 mr-1" />
-            Confirmar reserva
-          </DropdownMenuItem>
+          {props.invoice.reservation.status !== "accepted" ? (
+            <DropdownMenuItem
+              onClick={() => setOpenConfirmReservationModal(true)}
+            >
+              <CheckCheckIcon className="h-4 w-4 mr-1" />
+              Confirmar reserva
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem disabled>
+              <BadgeCheckIcon className="h-4 w-4 mr-1" />
+              Reserva confirmada
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       <ConfirmReservationModal
