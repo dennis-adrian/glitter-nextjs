@@ -137,6 +137,64 @@ export async function createReservation(
   return { success: true };
 }
 
+export async function updateReservationSimple(
+  id: number,
+  data: ReservationUpdateSimple,
+) {
+  const client = await pool.connect();
+  const { status, standId, partner } = data;
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(standReservations)
+        .set({ status, updatedAt: new Date() })
+        .where(eq(standReservations.id, id));
+
+      let standStatus: StandStatus = "available";
+      if (status === "accepted") {
+        standStatus = "confirmed";
+      }
+      if (status === "pending") {
+        standStatus = "reserved";
+      }
+      await tx
+        .update(stands)
+        .set({ status: standStatus, updatedAt: new Date() })
+        .where(eq(stands.id, standId));
+
+      if (partner) {
+        if (partner.participationId) {
+          if (partner.userId) {
+            await tx
+              .update(reservationParticipants)
+              .set({ userId: partner.userId, updatedAt: new Date() })
+              .where(eq(reservationParticipants.id, partner.participationId));
+          } else {
+            await tx
+              .delete(reservationParticipants)
+              .where(eq(reservationParticipants.id, partner.participationId));
+          }
+        } else {
+          if (partner.userId) {
+            await tx.insert(reservationParticipants).values({
+              userId: partner.userId,
+              reservationId: id,
+            });
+          }
+        }
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al actualizar la reserva" };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/reservations");
+  return { success: true, message: "Reserva actualizada" };
+}
+
 // TODO: Move this to its own file once I ƒigure out that 'fs' error
 export type ReservationStatus =
   (typeof standReservations.$inferSelect)["status"];
@@ -146,6 +204,12 @@ export type ReservationUpdate = typeof standReservations.$inferInsert & {
     participationId: number | undefined;
     userId: number | undefined;
   }[];
+};
+export type ReservationUpdateSimple = typeof standReservations.$inferInsert & {
+  partner?: {
+    participationId: number | undefined;
+    userId: number | undefined;
+  };
 };
 export async function updateReservation(id: number, data: ReservationUpdate) {
   const client = await pool.connect();

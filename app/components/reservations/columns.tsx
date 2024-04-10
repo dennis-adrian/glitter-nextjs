@@ -1,27 +1,32 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import Link from "next/link";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/actions";
-import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
+import { ReservationWithParticipantsAndUsersAndStandAndFestival } from "@/app/api/reservations/definitions";
 import { ActionsCell } from "@/app/components/reservations/cells/actions";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { formatFullDate } from "@/app/lib/formatters";
+import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
+import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 
 export const columnTitles = {
+  artists: "Participantes",
+  createdAt: "Creación",
+  festivalId: "Festival",
   id: "ID",
   stand: "Espacio",
-  artists: "Artistas",
-  createdAt: "Creación",
   status: "Estado",
-  email: "Correo electrónico",
-  names: "Nombres",
 };
 
-export const columns: ColumnDef<ReservationWithParticipantsAndUsersAndStand>[] =
+export const columns: ColumnDef<ReservationWithParticipantsAndUsersAndStandAndFestival>[] =
   [
     {
       id: "select",
@@ -65,46 +70,40 @@ export const columns: ColumnDef<ReservationWithParticipantsAndUsersAndStand>[] =
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={columnTitles.artists} />
       ),
-      cell: ({ row }) => (
-        <div className="flex flex-col gap-1">
-          {row.original.participants.map((p) => (
-            <span key={p.id} className="text-blue-500 underline">
-              <Link href={`/dashboard/users/${p.user.id}`}>
-                {p.user.displayName}
-              </Link>
-            </span>
-          ))}
-        </div>
-      ),
+      cell: ({ row }) =>
+        row.original.participants.map(({ user: profile }) => (
+          <TooltipProvider key={profile.id}>
+            <Tooltip>
+              <TooltipTrigger>
+                <Avatar className="w-8 h-8">
+                  <AvatarImage
+                    src={profile.imageUrl || "/img/profile-avatar.png"}
+                    alt={profile.displayName || "avatar"}
+                  />
+                </Avatar>
+              </TooltipTrigger>
+              <TooltipContent>
+                <ProfileQuickViewInfo className="p-4" profile={profile} />
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )),
     },
     {
-      id: "email",
-      accessorFn: (row) => row.participants.map((p) => p.user.email).join(", "),
+      id: "festivalId",
+      accessorKey: "festivalId",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={columnTitles.email} />
+        <DataTableColumnHeader
+          column={column}
+          title={columnTitles.festivalId}
+        />
       ),
-      cell: ({ row }) => (
-        <div className="flex flex-col gap-1">
-          {row.original.participants.map((p) => (
-            <EmailCell email={p.user.email} key={p.id} />
-          ))}
-        </div>
-      ),
-    },
-    {
-      id: "names",
-      accessorFn: (row) =>
-        row.participants.map((p) => p.user.displayName).join(", "),
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={columnTitles.names} />
-      ),
-      cell: ({ row }) => (
-        <div className="flex flex-col gap-1">
-          {row.original.participants.map((p) => (
-            <span key={p.id}>{p.user.displayName}</span>
-          ))}
-        </div>
-      ),
+      cell: ({ row }) => row.original.festival.name,
+      filterFn: (row, columnId, filterFestival) => {
+        if (filterFestival.length === 0) return true;
+        const festivalId = row.getValue(columnId);
+        return filterFestival.includes(festivalId?.toString());
+      },
     },
     {
       accessorKey: "status",
@@ -113,9 +112,9 @@ export const columns: ColumnDef<ReservationWithParticipantsAndUsersAndStand>[] =
       ),
       cell: ({ row }) => <ReservationStatus reservation={row.original} />,
       filterFn: (row, columnId, filterStatus) => {
-        if (filterStatus.length === 0) return true;
+        if (!filterStatus) return true;
         const status = row.getValue(columnId);
-        return filterStatus.includes(status);
+        return filterStatus === status;
       },
     },
     {

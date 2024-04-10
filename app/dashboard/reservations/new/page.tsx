@@ -4,6 +4,7 @@ import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { CreateReservationForm } from "@/app/components/reservations/create-form";
 import Breadcrumbs from "@/app/components/ui/breadcrumbs";
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
+import { getParticipantsOptions } from "@/app/api/reservations/helpers";
 
 export default async function Page() {
   const festival = await fetchActiveFestival({ acceptedUsersOnly: true });
@@ -12,10 +13,7 @@ export default async function Page() {
   const filteredArtists = artists.filter((artist) => {
     return isProfileInFestival(festival!.id, artist);
   });
-  const options: SearchOption[] = filteredArtists.map((artist) => ({
-    displayName: artist.displayName || "",
-    id: artist.id,
-  }));
+  const options: SearchOption[] = getParticipantsOptions(filteredArtists);
 
   return (
     <div className="max-w-screen-md px-4 md:px-6 m-auto">

@@ -1,10 +1,8 @@
 "use client";
 
 import { useFormState } from "react-dom";
-import {
-  ReservationWithParticipantsAndUsersAndStand,
-  deleteReservation,
-} from "@/app/api/reservations/actions";
+import { deleteReservation } from "@/app/api/reservations/actions";
+import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
 
 import { SubmitButton } from "@/components/submit-button";
 

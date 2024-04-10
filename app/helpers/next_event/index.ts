@@ -8,6 +8,7 @@ import {
 } from "@/app/api/users/definitions";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
+import { getParticipantsOptions } from "@/app/api/reservations/helpers";
 
 export function getFestivalDateLabel(
   festival: FestivalBase,
@@ -53,10 +54,5 @@ export function getSearchArtistOptions(
     );
   });
 
-  return filteredArtists
-    .filter((artist) => artist.id !== profile.id)
-    .map((artist) => ({
-      displayName: artist.displayName!,
-      id: artist.id,
-    }));
+  return getParticipantsOptions(filteredArtists);
 }

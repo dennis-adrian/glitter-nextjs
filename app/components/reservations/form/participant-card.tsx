@@ -6,29 +6,27 @@ import { Card, CardContent, CardHeader } from "@/app/components/ui/card";
 import { Label } from "@/app/components/ui/label";
 import SearchInput from "@/app/components/ui/search-input/input";
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
-import { Trash2Icon, TrashIcon } from "lucide-react";
+import { Trash2Icon } from "lucide-react";
 
 export function FormParticipantCard({
   options,
   participant,
-  participantIndex,
   onParticipantChange,
-  onParticipantRemove,
+  onRemove,
 }: {
   options: SearchOption[];
   participant?: BaseProfile;
-  participantIndex: number;
-  onParticipantChange: (index: number, id: number) => void;
-  onParticipantRemove: () => void;
+  onParticipantChange: (id?: number) => void;
+  onRemove: () => void;
 }) {
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <h2 className="text-sm text-muted-foreground">Artista</h2>
+          <h2 className="text-sm text-muted-foreground"></h2>
           <Trash2Icon
-            className="w-4 h-4 text-destructive"
-            onClick={onParticipantRemove}
+            className="w-4 h-4 text-destructive hover:text-red-600 hover:transition cursor-pointer"
+            onClick={() => onRemove()}
           />
         </div>
         {!participant ? (
@@ -77,7 +75,7 @@ export function FormParticipantCard({
         <SearchInput
           id="first-participant"
           options={options}
-          onSelect={(id) => onParticipantChange(participantIndex, id)}
+          onSelect={(id) => onParticipantChange(id)}
         />
       </CardContent>
     </Card>

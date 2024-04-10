@@ -1,13 +1,13 @@
 import { fetchUserProfile } from "@/app/api/users/actions";
 import { currentUser } from "@clerk/nextjs/server";
-import { BanIcon, CheckIcon, HourglassIcon } from "lucide-react";
 import Link from "next/link";
 
 import { fetchReservations } from "@/app/api/reservations/actions";
-import TotalsCard from "@/app/components/dashboard/totals/card";
-import { columnTitles, columns } from "@/app/components/reservations/columns";
 import { Button } from "@/app/components/ui/button";
-import { DataTable } from "@/app/components/ui/data_table/data-table";
+import ReservationsTable from "@/app/components/reservations/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { fetchFestivals } from "@/app/data/festivals/actions";
+import { getFestivalsOptions } from "@/app/data/festivals/helpers";
 
 const statusOptions = [
   { value: "pending", label: "Pendiente" },
@@ -31,16 +31,8 @@ export default async function Page() {
   }
 
   const reservations = await fetchReservations();
-  const pendingReservations = reservations.filter(
-    (reservation) => reservation.status === "pending",
-  );
-  const confirmedReservations = reservations.filter(
-    (reservation) => reservation.status === "accepted",
-  );
-  const rejectedReservations = reservations.filter(
-    (reservation) => reservation.status === "rejected",
-  );
-
+  const festivals = await fetchFestivals();
+  const festivalOptions = getFestivalsOptions(festivals);
   if (reservations.length === 0) {
     return (
       <div className="container mx-auto min-h-full p-4 md:p-6">
@@ -50,47 +42,45 @@ export default async function Page() {
     );
   }
 
+  // TODO: Fix new reservation page and uncomment button
   return (
     <div className="container mx-auto min-h-full p-4 md:p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="mb-2 text-3xl font-bold">Reservas</h1>
-        <Button>
+        {/* <Button>
           <Link href="/dashboard/reservations/new">Nueva Reserva</Link>
-        </Button>
+        </Button> */}
       </div>
 
-      <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-        <TotalsCard
-          amount={pendingReservations.length}
-          title="pendientes"
-          description="Reservas pendientes de revisión"
-          Icon={HourglassIcon}
-        />
-        <TotalsCard
-          amount={confirmedReservations.length}
-          title="aceptadas"
-          description="Reservas aceptadas"
-          Icon={CheckIcon}
-        />
-        <TotalsCard
-          amount={rejectedReservations.length}
-          title="rechazadas"
-          description="Reservas rechazadas"
-          Icon={BanIcon}
-        />
-      </div>
-
-      <DataTable
-        columns={columns}
-        columnTitles={columnTitles}
-        data={reservations}
-        filters={[
-          {
-            columnId: "status",
-            options: statusOptions,
-          },
-        ]}
-      />
+      <Tabs defaultValue="all" className="my-4">
+        <TabsList>
+          <TabsTrigger value="all">Todas</TabsTrigger>
+          <TabsTrigger value="pending">Pendientes</TabsTrigger>
+          <TabsTrigger value="accepted">Confirmadas</TabsTrigger>
+        </TabsList>
+        <TabsContent value="all">
+          <ReservationsTable
+            reservations={reservations}
+            festivalOptions={festivalOptions}
+          />
+        </TabsContent>
+        <TabsContent value="pending">
+          <ReservationsTable
+            festivalOptions={festivalOptions}
+            reservations={reservations}
+            status="pending"
+            columnVisbility={{ status: false }}
+          />
+        </TabsContent>
+        <TabsContent value="accepted">
+          <ReservationsTable
+            festivalOptions={festivalOptions}
+            reservations={reservations}
+            status="accepted"
+            columnVisbility={{ status: false }}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

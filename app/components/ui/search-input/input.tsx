@@ -29,7 +29,7 @@ const SearchInput = ({
     setInputText(e.currentTarget.value);
 
     const filtered = options?.filter((option) => {
-      return option.displayName
+      return option.label
         .toLowerCase()
         .includes(e.currentTarget.value.toLowerCase());
     });

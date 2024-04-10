@@ -1,4 +1,4 @@
-import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/actions";
+import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
 import { DeleteReservationForm } from "@/app/components/reservations/form/delete-reservation";
 import { Button } from "@/app/components/ui/button";
 import {

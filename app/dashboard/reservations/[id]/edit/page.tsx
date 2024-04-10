@@ -11,21 +11,23 @@ import {
   CardTitle,
 } from "@/app/components/ui/card";
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
+import ResourceNotFound from "@/app/components/resource-not-found";
+import { getParticipantsOptions } from "@/app/api/reservations/helpers";
 
 export default async function Page({ params }: { params: { id: string } }) {
   const { id } = params;
   const reservation = await fetchReservation(parseInt(id));
+  if (!reservation) return <ResourceNotFound />;
+
   const festival = await fetchActiveFestival({
     acceptedUsersOnly: true,
+    id: reservation.festivalId,
   });
   const festivalArtists = festival!.userRequests.map((request) => request.user);
   const filteredArtists = festivalArtists.filter((artist) => {
     return isProfileInFestival(festival!.id, artist);
   });
-  const options: SearchOption[] = filteredArtists.map((artist) => ({
-    displayName: artist.displayName || "",
-    id: artist.id,
-  }));
+  const options: SearchOption[] = getParticipantsOptions(filteredArtists);
 
   return (
     <div className="max-w-screen-md px-4 md:px-6 m-auto">
@@ -47,7 +49,7 @@ export default async function Page({ params }: { params: { id: string } }) {
             {`${reservation?.stand.label}${reservation?.stand.standNumber}`}
           </CardTitle>
           <CardDescription>
-            Puedes agregar o eliminar participantes de la reserva
+            Puedes agregar o eliminar al acompañante de la reserva.
           </CardDescription>
         </CardHeader>
         <CardContent>
