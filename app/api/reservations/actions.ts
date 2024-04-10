@@ -11,6 +11,9 @@ import {
 } from "@/db/schema";
 
 import { BaseProfile, ProfileWithSocials } from "@/app/api/users/definitions";
+import { sendEmail } from "@/vendors/resend";
+import EmailTemplate from "@/app/emails/reservation-confirmation";
+import React from "react";
 
 export type Participant = typeof reservationParticipants.$inferSelect & {
   user: ProfileWithSocials;
@@ -223,4 +226,41 @@ export async function deleteReservation(
 
   revalidatePath("/dashboard/reservations");
   return { success: true, message: "Reserva eliminada" };
+}
+
+export async function confirmReservation(
+  reservationId: number,
+  user: BaseProfile,
+  standLabel: string,
+  festivalId: number,
+) {
+  const client = await pool.connect();
+
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(standReservations)
+        .set({ status: "accepted", updatedAt: new Date() })
+        .where(eq(standReservations.id, reservationId));
+    });
+
+    await sendEmail({
+      to: [user.email],
+      from: "Reservas Glitter <reservas@festivalglitter.art>",
+      subject: "Reserva confirmada",
+      react: EmailTemplate({
+        name: user.displayName!,
+        standLabel,
+        festivalId,
+      }) as React.ReactElement,
+    });
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al confirmar la reserva" };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/payments");
+  return { success: true, message: "Reserva confirmada" };
 }

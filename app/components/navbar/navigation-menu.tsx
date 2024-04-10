@@ -14,8 +14,8 @@ import {
 import {
   AlbumIcon,
   CalendarCheck2Icon,
+  CreditCardIcon,
   HomeIcon,
-  InboxIcon,
   LayoutDashboardIcon,
   UsersIcon,
 } from "lucide-react";
@@ -84,18 +84,6 @@ const NavbarNavigationMenu = ({
                   </Link>
                 </li>
                 <li>
-                  <Link href="/dashboard/requests" legacyBehavior passHref>
-                    <NavigationMenuLink
-                      className={navigationMenuTriggerStyle()}
-                    >
-                      <div className="flex items-center">
-                        <InboxIcon className="w-4 h-4 mr-1" />
-                        Solicitudes
-                      </div>
-                    </NavigationMenuLink>
-                  </Link>
-                </li>
-                <li>
                   <Link href="/dashboard/reservations" legacyBehavior passHref>
                     <NavigationMenuLink
                       className={navigationMenuTriggerStyle()}
@@ -103,6 +91,18 @@ const NavbarNavigationMenu = ({
                       <div className="flex items-center">
                         <AlbumIcon className="w-4 h-4 mr-1" />
                         Reservas
+                      </div>
+                    </NavigationMenuLink>
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/dashboard/payments" legacyBehavior passHref>
+                    <NavigationMenuLink
+                      className={navigationMenuTriggerStyle()}
+                    >
+                      <div className="flex items-center">
+                        <CreditCardIcon className="w-4 h-4 mr-1" />
+                        Pagos
                       </div>
                     </NavigationMenuLink>
                   </Link>

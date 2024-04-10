@@ -4,8 +4,7 @@ import { useFormState } from "react-dom";
 
 import { SubmitButton } from "@/components/submit-button";
 import { ProfileType } from "@/app/api/users/definitions";
-import { toast } from "sonner";
-import { deleteProfile, verifyProfile } from "@/app/api/users/actions";
+import { verifyProfile } from "@/app/api/users/actions";
 
 export function VerifyProfileForm({
   profile,

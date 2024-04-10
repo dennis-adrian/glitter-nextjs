@@ -1,5 +1,5 @@
 import { StandBase } from "@/app/api/stands/definitions";
-import { invoices, payments, standReservations } from "@/db/schema";
+import { invoices, payments, standReservations, users } from "@/db/schema";
 
 export type InvoiceBase = typeof invoices.$inferSelect;
 export type InvoiceWithPayments = InvoiceBase & {
@@ -11,4 +11,11 @@ export type InvoiceWithPaymentsAndStand = InvoiceWithPayments & {
   };
 };
 
+export type InvoiceStatus = InvoiceBase["status"];
+export type InvoiceWithPaymentsAndStandAndProfile =
+  InvoiceWithPaymentsAndStand & {
+    user: typeof users.$inferSelect;
+  };
+
 export type NewPayment = typeof payments.$inferInsert;
+export type PaymentBase = typeof payments.$inferSelect;

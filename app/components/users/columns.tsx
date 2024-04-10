@@ -103,7 +103,6 @@ export const columns: ColumnDef<ProfileType>[] = [
       return isProfileComplete(user) ? "Completo" : "Incompleto";
     },
     filterFn: (row, columnId, filterStatus) => {
-      debugger;
       if (!filterStatus) return true;
       const status = row.getValue(columnId);
       return filterStatus === status;

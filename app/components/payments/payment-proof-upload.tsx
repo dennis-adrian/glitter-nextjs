@@ -92,7 +92,7 @@ export default function PaymentProofUpload({
           </div>
         )}
         <Button
-          disabled={!file}
+          disabled={!file || showProgress}
           className="max-w-80"
           type="submit"
           onClick={handleImageUpload}
