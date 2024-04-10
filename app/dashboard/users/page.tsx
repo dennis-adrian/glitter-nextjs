@@ -66,7 +66,7 @@ export default async function Page() {
           <UsersTable users={users} status="complete" />
         </TabsContent>
         <TabsContent value="incomplete">
-          <UsersTable users={users} status="incomplete" />
+          <UsersTable users={users} status="missingFields" />
         </TabsContent>
       </Tabs>
     </div>

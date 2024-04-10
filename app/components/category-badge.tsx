@@ -8,16 +8,12 @@ type CategoryBadgeProps = {
 
 export default function CategoryBadge({ category }: CategoryBadgeProps) {
   let styles;
-  if (category === "illustration") {
-    styles = "bg-rose-400 hover:bg-rose-400";
-  }
-
   if (category === "gastronomy") {
-    styles = "bg-emerald-400 hover:bg-emerald-400";
+    styles = "bg-amber-500 hover:bg-amber-400";
   }
 
   if (category === "entrepreneurship") {
-    styles = "bg-indigo-400 hover:bg-indigo-400";
+    styles = "bg-pink-500 hover:bg-pink-400";
   }
 
   return (
