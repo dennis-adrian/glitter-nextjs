@@ -164,16 +164,19 @@ export default async function Page({
           </>
         )}
         <Festival
+          isGeneralView
           profile={profile!}
           festival={festival}
           category="illustration"
         />
         <Festival
+          isGeneralView
           profile={profile!}
           festival={festival}
           category="entrepreneurship"
         />
         <Festival
+          isGeneralView
           profile={profile!}
           festival={festival}
           category="gastronomy"
