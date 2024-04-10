@@ -1,14 +1,11 @@
 import { ProfileType } from "@/app/api/users/definitions";
-import {
-  DataTable,
-  DataTableInitialState,
-} from "@/app/components/ui/data_table/data-table";
+import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { columnTitles, columns } from "@/components/users/columns";
 import { userCategoryOptions } from "@/app/lib/utils";
 
 type UsersTableProps = {
   users: ProfileType[];
-  status?: "complete" | "incomplete" | "all";
+  status?: "complete" | "missingFields";
   columnVisbility?: Record<string, boolean>;
 };
 export default function UsersTable(props: UsersTableProps) {
@@ -19,10 +16,19 @@ export default function UsersTable(props: UsersTableProps) {
       data={props.users}
       filters={[
         {
+          label: "Categoría",
           columnId: "category",
           options: [
             { value: "none", label: "Sin categoría" },
             ...userCategoryOptions,
+          ],
+        },
+        {
+          label: "¿Verificado?",
+          columnId: "verified",
+          options: [
+            { value: "verified", label: "Verificado" },
+            { value: "unverified", label: "No verificado" },
           ],
         },
       ]}
