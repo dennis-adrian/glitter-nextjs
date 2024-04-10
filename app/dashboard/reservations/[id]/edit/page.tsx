@@ -13,6 +13,7 @@ import {
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
 import ResourceNotFound from "@/app/components/resource-not-found";
 import { getParticipantsOptions } from "@/app/api/reservations/helpers";
+import { ProfileWithParticipationsAndRequests } from "@/app/api/users/definitions";
 
 export default async function Page({ params }: { params: { id: string } }) {
   const { id } = params;
@@ -23,11 +24,14 @@ export default async function Page({ params }: { params: { id: string } }) {
     acceptedUsersOnly: true,
     id: reservation.festivalId,
   });
-  const festivalArtists = festival!.userRequests.map((request) => request.user);
-  const filteredArtists = festivalArtists.filter((artist) => {
-    return isProfileInFestival(festival!.id, artist);
-  });
-  const options: SearchOption[] = getParticipantsOptions(filteredArtists);
+  const participants = festival!.userRequests.map((request) => request.user);
+  const uniqueIds = [...new Set(participants.map((artist) => artist.id))];
+  const uniqueParticipants = uniqueIds.map((id) =>
+    participants.find((participant) => participant.id === id),
+  );
+  const options: SearchOption[] = getParticipantsOptions(
+    uniqueParticipants as ProfileWithParticipationsAndRequests[],
+  );
 
   return (
     <div className="max-w-screen-md px-4 md:px-6 m-auto">
@@ -54,9 +58,11 @@ export default async function Page({ params }: { params: { id: string } }) {
         </CardHeader>
         <CardContent>
           <EditReservationForm
-            artists={filteredArtists}
+            artists={
+              uniqueParticipants as ProfileWithParticipationsAndRequests[]
+            }
             artistsOptions={options}
-            reservation={reservation!}
+            reservation={reservation}
           />
         </CardContent>
       </Card>
