@@ -19,6 +19,7 @@ export function ConfirmReservationForm(props: ConfirmReservationFormProps) {
     null,
     props.invoice.reservationId,
     props.invoice.user,
+    props.invoice.reservation.standId,
     `${props.invoice.reservation.stand.label}${props.invoice.reservation.stand.standNumber}`,
     props.invoice.reservation.festivalId,
   );
