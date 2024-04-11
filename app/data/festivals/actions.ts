@@ -10,6 +10,21 @@ import React from "react";
 import EmailTemplate from "@/app/emails/festival-activation";
 import { revalidatePath } from "next/cache";
 
+export async function fetchActiveFestivalBase() {
+  const client = await pool.connect();
+
+  try {
+    return await db.query.festivals.findFirst({
+      where: eq(festivals.status, "active"),
+    });
+  } catch (error) {
+    console.error("Error fetching active festival", error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
 export async function fetchActiveFestival({
   acceptedUsersOnly = false,
   id,
