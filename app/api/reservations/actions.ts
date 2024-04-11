@@ -225,6 +225,7 @@ export async function deleteReservation(
 export async function confirmReservation(
   reservationId: number,
   user: BaseProfile,
+  standId: number,
   standLabel: string,
   festivalId: number,
 ) {
@@ -236,6 +237,11 @@ export async function confirmReservation(
         .update(standReservations)
         .set({ status: "accepted", updatedAt: new Date() })
         .where(eq(standReservations.id, reservationId));
+
+      await tx
+        .update(stands)
+        .set({ status: "confirmed" })
+        .where(eq(stands.id, standId));
     });
 
     await sendEmail({
