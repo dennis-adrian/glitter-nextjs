@@ -20,9 +20,11 @@ export function getFestivalDateLabel(
   const endWeekday = festival.endDate.toLocaleString("es-ES", {
     weekday: "long",
   });
-  const startDateDay = festival.startDate.getDate() + 1;
-  const endDateDay = festival.endDate.getDate() + 1;
-  const startDateMonth = festival.startDate.toLocaleString("es-ES", {
+  const startDate = new Date(festival.startDate.getTime() - 4 * 60 * 60 * 1000);
+  const endDate = new Date(festival.endDate.getTime() - 4 * 60 * 60 * 1000);
+  const startDateDay = startDate.getDate();
+  const endDateDay = endDate.getDate();
+  const startDateMonth = startDate.toLocaleString("es-ES", {
     month: "long",
   });
 
