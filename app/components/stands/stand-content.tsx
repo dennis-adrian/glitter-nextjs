@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { StandPosition } from "@/app/api/stands/definitions";
-import { Stand } from "@/app/api/stands/actions";
+import {
+  StandPosition,
+  StandWithReservationsWithParticipants,
+} from "@/app/api/stands/definitions";
 import {
   Card,
   CardContent,
@@ -15,7 +17,7 @@ import { StandStatusBadge } from "@/app/components/stands/status-badge";
 import clsx from "clsx";
 
 type Props = {
-  stand: Stand;
+  stand: StandWithReservationsWithParticipants;
   standPosition: Omit<StandPosition, "id">;
 };
 

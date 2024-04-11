@@ -1,6 +1,11 @@
 import { fetchStandsByFestivalId } from "@/app/api/stands/actions";
-import { ProfileType, UserCategory } from "@/app/api/users/definitions";
+import {
+  BaseProfile,
+  ProfileType,
+  UserCategory,
+} from "@/app/api/users/definitions";
 import ClientMap from "@/app/components/festivals/client-map";
+import { fetchAvailableArtistsInFestival } from "@/app/data/festivals/actions";
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import { getMapLabel, getMapPageTitle } from "@/app/lib/maps/helpers";
 
@@ -18,8 +23,12 @@ export default async function Festival({
   const stands = await fetchStandsByFestivalId(festival.id, category);
   const mainStands = stands.filter((stand) => stand.zone === "main");
   const secondaryStands = stands.filter((stand) => stand.zone === "secondary");
-
   if (mainStands.length === 0) return null;
+
+  let acceptedArtists: BaseProfile[] = [];
+  if (category === "illustration") {
+    acceptedArtists = await fetchAvailableArtistsInFestival(festival.id);
+  }
 
   return (
     <div className={isGeneralView ? "" : "container p-4 md:p-6"}>
@@ -74,6 +83,7 @@ export default async function Festival({
             </h2>
           )}
           <ClientMap
+            artists={acceptedArtists}
             profile={profile}
             stands={mainStands}
             category={category}
@@ -106,6 +116,7 @@ export default async function Festival({
               </h2>
             )}
             <ClientMap
+              artists={acceptedArtists}
               profile={profile}
               stands={secondaryStands}
               category={category}

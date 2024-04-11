@@ -1,6 +1,6 @@
 "use client";
 
-import { Stand } from "@/app/api/stands/actions";
+import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { ProfileType } from "@/app/api/users/definitions";
 import { StandShape } from "@/app/components/stands/stand";
 import Image from "next/image";
@@ -14,8 +14,8 @@ export default function MapImage({
 }: {
   mapSrc: string;
   profile?: ProfileType | null;
-  stands: Stand[];
-  onStandClick: (stand: Stand) => void;
+  stands: StandWithReservationsWithParticipants[];
+  onStandClick: (stand: StandWithReservationsWithParticipants) => void;
 }) {
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });

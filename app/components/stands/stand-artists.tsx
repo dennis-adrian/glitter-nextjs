@@ -1,9 +1,9 @@
-import { Stand } from "@/app/api/stands/actions";
 import AvatarGroup from "@/app/components/ui/avatar-group";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 
 type Props = {
-  stand: Stand;
+  stand: StandWithReservationsWithParticipants;
 };
 const StandArtists = ({ stand }: Props) => {
   const participants = stand.reservations?.find(

@@ -1,14 +1,21 @@
 "use server";
 
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, not } from "drizzle-orm";
 
 import { db, pool } from "@/db";
-import { userRequests, festivals, stands, users } from "@/db/schema";
+import {
+  userRequests,
+  festivals,
+  stands,
+  users,
+  reservationParticipants,
+} from "@/db/schema";
 import { Festival, FestivalBase, FestivalWithTickets } from "./definitions";
 import { sendEmail } from "@/vendors/resend";
 import React from "react";
 import EmailTemplate from "@/app/emails/festival-activation";
 import { revalidatePath } from "next/cache";
+import { BaseProfile } from "@/app/api/users/definitions";
 
 export async function fetchActiveFestivalBase() {
   const client = await pool.connect();
@@ -201,4 +208,53 @@ export async function activateFestival(festival: FestivalBase) {
 
   revalidatePath("/dashboard/festivals");
   return { success: true, message: "Festival activado con éxito" };
+}
+
+export async function fetchAvailableArtistsInFestival(
+  festivalId: number,
+): Promise<BaseProfile[]> {
+  const client = await pool.connect();
+
+  try {
+    return await db.transaction(async (tx) => {
+      return await tx
+        .selectDistinctOn([users.id], {
+          id: users.id,
+          bio: users.bio,
+          birthdate: users.birthdate,
+          clerkId: users.clerkId,
+          displayName: users.displayName,
+          firstName: users.firstName,
+          email: users.email,
+          imageUrl: users.imageUrl,
+          lastName: users.lastName,
+          phoneNumber: users.phoneNumber,
+          category: users.category,
+          role: users.role,
+          verified: users.verified,
+          updatedAt: users.updatedAt,
+          createdAt: users.createdAt,
+        })
+        .from(users)
+        .leftJoin(userRequests, eq(userRequests.userId, users.id))
+        .leftJoin(
+          reservationParticipants,
+          eq(reservationParticipants.userId, users.id),
+        )
+        .where(
+          and(
+            eq(users.category, "illustration"),
+            not(eq(users.role, "admin")),
+            eq(userRequests.status, "accepted"),
+            eq(userRequests.festivalId, festivalId),
+            isNull(reservationParticipants.id),
+          ),
+        );
+    });
+  } catch (error) {
+    console.error("Error fetching profiles in festival", error);
+    return [];
+  } finally {
+    client.release();
+  }
 }

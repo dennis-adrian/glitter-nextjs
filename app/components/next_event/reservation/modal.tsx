@@ -10,21 +10,23 @@ import {
   DrawerDialogHeader,
   DrawerDialogTitle,
 } from "@/app/components/ui/drawer-dialog";
-import { Stand } from "@/app/api/stands/actions";
 import ReservationForm from "@/app/components/next_event/reservation/form";
 import { Button } from "@/app/components/ui/button";
-import { ProfileType } from "@/app/api/users/definitions";
+import { BaseProfile, ProfileType } from "@/app/api/users/definitions";
+import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 
 export function ReservationModal({
+  artists,
   open,
   profile,
   stand,
   onOpenChange,
   onClose,
 }: {
+  artists: BaseProfile[];
   open: boolean;
   profile?: ProfileType | null;
-  stand: Stand | null;
+  stand: StandWithReservationsWithParticipants | null;
   onClose: () => void;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -45,6 +47,7 @@ export function ReservationModal({
           </DrawerDialogTitle>
         </DrawerDialogHeader>
         <ReservationForm
+          artists={artists}
           isDesktop={isDesktop}
           profile={profile}
           stand={stand}
