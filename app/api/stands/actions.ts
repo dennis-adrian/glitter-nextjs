@@ -1,14 +1,13 @@
 "use server";
 
+import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { UserCategory } from "@/app/api/users/definitions";
 import { FestivalWithUserRequests } from "@/app/data/festivals/definitions";
 import { db, pool } from "@/db";
 import {
-  festivals,
   reservationParticipants,
   standReservations,
   stands,
-  userRequests,
   users,
 } from "@/db/schema";
 import { and, asc, eq } from "drizzle-orm";
@@ -27,7 +26,7 @@ export type Stand = typeof stands.$inferSelect & {
 export async function fetchStandsByFestivalId(
   festivalId: number,
   category: UserCategory = "illustration",
-): Promise<Stand[]> {
+): Promise<StandWithReservationsWithParticipants[]> {
   const client = await pool.connect();
 
   try {
@@ -36,26 +35,8 @@ export async function fetchStandsByFestivalId(
         eq(stands.festivalId, festivalId),
         eq(stands.standCategory, category),
       ),
-      orderBy: (asc(stands.standNumber)),
+      orderBy: asc(stands.standNumber),
       with: {
-        festival: {
-          with: {
-            userRequests: {
-              with: {
-                user: {
-                  with: {
-                    participations: {
-                      with: {
-                        reservation: true,
-                      },
-                    },
-                    userRequests: true,
-                  },
-                },
-              },
-            },
-          },
-        },
         reservations: {
           with: {
             participants: {

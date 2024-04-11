@@ -4,13 +4,11 @@ import { useState } from "react";
 
 import confetti from "canvas-confetti";
 
-import { Stand } from "@/app/api/stands/actions";
-import { ProfileType } from "@/app/api/users/definitions";
+import { BaseProfile, ProfileType } from "@/app/api/users/definitions";
 
 import AvatarGroup from "@/app/components/ui/avatar-group";
 import { Button } from "@/app/components/ui/button";
 import SearchInput from "@/app/components/ui/search-input/input";
-import { getSearchArtistOptions } from "@/app/helpers/next_event";
 import {
   NewStandReservation,
   createReservation,
@@ -19,30 +17,32 @@ import { toast } from "sonner";
 import { Separator } from "@/app/components/ui/separator";
 import { Label } from "@/app/components/ui/label";
 import { useRouter } from "next/navigation";
+import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
+import { getParticipantsOptions } from "@/app/api/reservations/helpers";
 
 type Profile = Omit<
   ProfileType,
   "userSocials" | "userRequests" | "participations"
 >;
 export default function ReservationForm({
+  artists,
   isDesktop,
   profile,
   stand,
   onModalClose,
 }: {
+  artists: BaseProfile[];
   isDesktop: boolean;
   profile: ProfileType;
-  stand: Stand;
+  stand: StandWithReservationsWithParticipants;
   onModalClose: () => void;
 }) {
   const router = useRouter();
-  const searchOptions = getSearchArtistOptions(stand.festival, profile);
+  const searchOptions = getParticipantsOptions(artists);
   const [selectedArtist, setSelectedArtist] = useState<Profile | undefined>();
   const [addPartner, setAddPartner] = useState(false);
 
   function handleSelectArtist(artistId: number) {
-    const requests = stand.festival.userRequests;
-    const artists = requests.map(({ user }) => user);
     const foundArtist = artists.find((artist) => artist.id === artistId);
     setSelectedArtist(foundArtist);
   }
@@ -70,7 +70,7 @@ export default function ReservationForm({
 
     const reservation = {
       standId: stand.id,
-      festivalId: stand.festival.id,
+      festivalId: stand.festivalId,
       participantIds,
     } as NewStandReservation;
 

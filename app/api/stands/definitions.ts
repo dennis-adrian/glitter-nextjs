@@ -1,3 +1,4 @@
+import { ReservationWithParticipantsAndUsers } from "@/app/api/reservations/definitions";
 import { stands } from "@/db/schema";
 
 export type StandPosition = {
@@ -13,3 +14,6 @@ export type ElementSize = {
 
 export type StandBase = typeof stands.$inferSelect;
 export type StandZone = StandBase["zone"];
+export type StandWithReservationsWithParticipants = StandBase & {
+  reservations: ReservationWithParticipantsAndUsers[];
+};

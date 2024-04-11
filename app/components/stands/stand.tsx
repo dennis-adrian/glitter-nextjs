@@ -1,6 +1,5 @@
 import { CSSProperties } from "react";
 
-import { Stand } from "@/app/api/stands/actions";
 import { getStandSize } from "@/app/components/next_event/helpers";
 import StandContent from "@/app/components/stands/stand-content";
 import { ProfileType } from "@/app/api/users/definitions";
@@ -8,6 +7,7 @@ import {
   standsPositions,
   standProportions,
 } from "@/app/components/next_event/config";
+import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 
 export function StandShape({
   imageSize,
@@ -16,8 +16,8 @@ export function StandShape({
 }: {
   imageSize: { width: number; height: number };
   profile?: ProfileType | null;
-  stand: Stand;
-  onClick: (stand: Stand) => void;
+  stand: StandWithReservationsWithParticipants;
+  onClick: (stand: StandWithReservationsWithParticipants) => void;
 }) {
   const positionLeft =
     stand.positionLeft ||
