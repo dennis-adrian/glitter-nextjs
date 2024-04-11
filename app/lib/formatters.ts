@@ -1,3 +1,6 @@
+export function formatDateToTimezone(date: Date): Date {
+  return new Date(date.getTime() - 4 * 60 * 60 * 1000);
+}
 export function formatFullDate(date: Date): string {
   const dateFormatter = new Intl.DateTimeFormat("es-Es", {
     timeZone: "Etc/GMT",

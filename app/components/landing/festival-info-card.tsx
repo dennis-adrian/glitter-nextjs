@@ -13,7 +13,7 @@ function InfoItem({
   value: string;
 }) {
   return (
-    <div className="flex items-center md:items-start">
+    <div className="flex text-sm sm:text-base items-center md:items-start">
       <div className="flex items-center justify-center md:justify-start">
         <Icon className="mr-2 h-4 w-4" />
         <span className="hidden sm:inline-block md:mr-1">{label}</span>

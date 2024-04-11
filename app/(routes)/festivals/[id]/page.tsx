@@ -14,6 +14,9 @@ import { getFestivalDateLabel } from "@/app/helpers/next_event";
 import Image from "next/image";
 import { imagesSrc } from "@/app/lib/maps/config";
 import { RedirectButton } from "@/app/components/redirect-button";
+import { Suspense } from "react";
+import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
+import { formatDateToTimezone } from "@/app/lib/formatters";
 
 export const metadata: Metadata = {
   title: "Información del Festival",
@@ -119,8 +122,8 @@ export default async function Page({
             </div>
             <div>
               <ClockIcon className="mr-2 inline-block h-4 w-4" />
-              Hora: {festival.startDate.getHours()}hrs a{" "}
-              {festival.endDate.getHours()}hrs
+              Hora: {formatDateToTimezone(festival.startDate).getHours()}hrs a{" "}
+              {formatDateToTimezone(festival.endDate).getHours()}hrs
             </div>
             <div>
               <LocateIcon className="mr-2 inline-block h-4 w-4" />
@@ -131,7 +134,7 @@ export default async function Page({
         {mascotSrcSm && mascotSrcMd && (
           <>
             <Image
-              className="mx-auto"
+              className="mx-auto md:mx-0"
               alt="mascota del evento"
               height={240}
               src={mascotSrcSm}
@@ -163,24 +166,30 @@ export default async function Page({
             />
           </>
         )}
-        <Festival
-          isGeneralView
-          profile={profile!}
-          festival={festival}
-          category="illustration"
-        />
-        <Festival
-          isGeneralView
-          profile={profile!}
-          festival={festival}
-          category="entrepreneurship"
-        />
-        <Festival
-          isGeneralView
-          profile={profile!}
-          festival={festival}
-          category="gastronomy"
-        />
+        <Suspense fallback={<FestivalSkeleton />}>
+          <Festival
+            isGeneralView
+            profile={profile!}
+            festival={festival}
+            category="illustration"
+          />
+        </Suspense>
+        <Suspense fallback={<FestivalSkeleton />}>
+          <Festival
+            isGeneralView
+            profile={profile!}
+            festival={festival}
+            category="entrepreneurship"
+          />
+        </Suspense>
+        <Suspense fallback={<FestivalSkeleton />}>
+          <Festival
+            isGeneralView
+            profile={profile!}
+            festival={festival}
+            category="gastronomy"
+          />
+        </Suspense>
         {canViewCategories && festival.status === "active" && (
           <div className="flex w-full justify-center my-4">
             <RedirectButton
