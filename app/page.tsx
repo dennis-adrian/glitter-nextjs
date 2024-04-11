@@ -16,7 +16,7 @@ export default async function Home() {
   return (
     <div className="text-center text-lg md:text-2xl">
       <section className="">
-        <div className="relative max-w-[1450px] mx-auto flex flex-col py-10 px-4 md:px-0">
+        <div className="relative max-w-[1450px] mx-auto flex flex-col py-4 md:py-10 px-4 md:px-0">
           <div className="-z-10">
             <Image
               className="hidden md:block rounded-md"
@@ -44,19 +44,18 @@ export default async function Home() {
               <div>
                 <div className="m-auto mt-2">
                   <span className={junegull.className}>
-                    <h1 className="text-shadow text-5xl text-white shadow-blue-950 sm:text-7xl">
+                    <h1 className="text-shadow text-3xl sm:text-5xl text-white shadow-blue-950 md:text-7xl">
                       ¡Brillemos juntos!
                     </h1>
                   </span>
                 </div>
-                <p className="text-shadow-sm m-auto py-4 text-xl font-semibold leading-6 shadow-white md:py-0 md:text-2xl">
-                  Festival para que los artistas brillen
-                </p>
               </div>
               {/* <div className="bg-card/50 hidden rounded-lg p-6 backdrop-blur-sm md:block"> */}
               <div className="text-white container mx-auto">
-                <div className="text-3xl font-semibold">Próximo Evento</div>
-                <div className="text-xl">
+                <div className="text-xl md:text-3xl font-semibold">
+                  Próximo Evento
+                </div>
+                <div className="text-sm sm:text-xl">
                   <p>
                     No te quedes fuera y participa de{" "}
                     {festival ? (

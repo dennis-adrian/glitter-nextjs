@@ -9,6 +9,7 @@ import {
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
 import { getParticipantsOptions } from "@/app/api/reservations/helpers";
+import { formatDateToTimezone } from "@/app/lib/formatters";
 
 export function getFestivalDateLabel(
   festival: FestivalBase,
@@ -20,8 +21,8 @@ export function getFestivalDateLabel(
   const endWeekday = festival.endDate.toLocaleString("es-ES", {
     weekday: "long",
   });
-  const startDate = new Date(festival.startDate.getTime() - 4 * 60 * 60 * 1000);
-  const endDate = new Date(festival.endDate.getTime() - 4 * 60 * 60 * 1000);
+  const startDate = formatDateToTimezone(festival.startDate);
+  const endDate = formatDateToTimezone(festival.endDate);
   const startDateDay = startDate.getDate();
   const endDateDay = endDate.getDate();
   const startDateMonth = startDate.toLocaleString("es-ES", {
