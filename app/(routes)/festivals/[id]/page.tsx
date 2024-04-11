@@ -131,7 +131,7 @@ export default async function Page({
         {mascotSrcSm && mascotSrcMd && (
           <>
             <Image
-              className="mx-auto"
+              className="mx-auto md:mx-0"
               alt="mascota del evento"
               height={240}
               src={mascotSrcSm}

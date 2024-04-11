@@ -29,7 +29,8 @@ export function AvatarImage({
       className="rounded-full object-cover absolute inset-0 w-full h-full"
       alt={alt}
       src={src}
-      blurDataURL="/img/blur-data-img.png"
+      placeholder="blur"
+      blurDataURL="/img/profile-avatar.png"
       fill
     />
   );
