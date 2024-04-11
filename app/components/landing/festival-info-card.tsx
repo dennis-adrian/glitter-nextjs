@@ -13,10 +13,12 @@ function InfoItem({
   value: string;
 }) {
   return (
-    <div className="flex items-center justify-center md:justify-start">
-      <Icon className="mr-2 h-4 w-4" />
-      <span className="hidden sm:inline-block md:mr-1">{label}</span>
-      {value}
+    <div className="flex items-center md:items-start">
+      <div className="flex items-center justify-center md:justify-start">
+        <Icon className="mr-2 h-4 w-4" />
+        <span className="hidden sm:inline-block md:mr-1">{label}</span>
+      </div>
+      <span className="text-left">{value}</span>
     </div>
   );
 }
@@ -37,11 +39,13 @@ export function FestivalInfo({
         label="Fecha: "
         value={getFestivalDateLabel(festival)}
       />
-      <InfoItem Icon={ClockIcon} label="Hora: " value="10:00 AM a 7:00 PM" />
+      <InfoItem Icon={ClockIcon} label="Hora: " value="10:00 AM a 6:00 PM" />
       <InfoItem
         Icon={LocateIcon}
         label="Ubicación: "
-        value={festival.locationLabel || "Por definir"}
+        value={
+          `${festival.locationLabel} - ${festival.address}` || "Por definir"
+        }
       />
     </div>
   );

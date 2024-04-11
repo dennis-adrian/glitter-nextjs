@@ -2,7 +2,6 @@ import Image from "next/image";
 
 import { junegull } from "@/ui/fonts";
 
-import bg_image from "../public/img/bg_w_1280.png";
 import { currentUser } from "@clerk/nextjs";
 import { fetchActiveFestival } from "@/app/data/festivals/actions";
 import LandingRedirectButton from "@/app/components/landing/redirect-button";
@@ -15,15 +14,24 @@ export default async function Home() {
   const festival = await fetchActiveFestival({ acceptedUsersOnly: true });
 
   return (
-    <div className="m-auto max-w-[1400px] text-center text-lg md:text-2xl">
-      <section className="py-0 md:px-6">
-        <div className="relative flex flex-col p-6 md:p-10 lg:p-20">
+    <div className="text-center text-lg md:text-2xl">
+      <section className="">
+        <div className="relative max-w-[1450px] mx-auto flex flex-col py-10 px-4 md:px-0">
           <div className="-z-10">
             <Image
-              className="md:rounded-2xl"
+              className="hidden md:block rounded-md"
               alt="background image"
-              src={bg_image}
-              placeholder="blur"
+              src="/img/background-md.png"
+              quality={100}
+              fill
+              style={{
+                objectFit: "cover",
+              }}
+            />
+            <Image
+              className="md:hidden"
+              alt="background image"
+              src="/img/background-sm.png"
               quality={100}
               fill
               style={{
@@ -31,8 +39,8 @@ export default async function Home() {
               }}
             />
           </div>
-          <div className="text-glitter-blue-950 flex flex-col md:flex-row md:justify-between md:gap-16">
-            <div className="flex flex-col sm:p-6 md:gap-8 md:text-left md:backdrop-blur-sm">
+          <div className="flex flex-wrap mx-auto">
+            <div className="flex flex-col items-center mx-auto sm:p-6 md:gap-8 md:text-left gap-4">
               <div>
                 <div className="m-auto mt-2">
                   <span className={junegull.className}>
@@ -45,7 +53,8 @@ export default async function Home() {
                   Festival para que los artistas brillen
                 </p>
               </div>
-              <div className="bg-card/50 hidden rounded-lg p-6 backdrop-blur-sm md:block">
+              {/* <div className="bg-card/50 hidden rounded-lg p-6 backdrop-blur-sm md:block"> */}
+              <div className="text-white container mx-auto">
                 <div className="text-3xl font-semibold">Próximo Evento</div>
                 <div className="text-xl">
                   <p>
@@ -64,39 +73,26 @@ export default async function Home() {
                 )}
               </div>
               <LandingRedirectButton
-                className="hidden md:flex"
+                className="w-[320px] mt-4"
                 festivalId={festival?.id}
               />
             </div>
             <Image
-              className="m-auto"
-              src="/img/mascot.png"
+              className="mx-auto hidden md:block"
+              src="/img/mascot-md.png"
               alt="Mascota Glitter"
-              width={300}
-              height={300}
+              width={617}
+              height={670}
+            />
+            <Image
+              className="mx-auto md:hidden my-6"
+              src="/img/mascot-sm.png"
+              alt="Mascota Glitter"
+              width={327}
+              height={327}
             />
           </div>
         </div>
-      </section>
-      <section className="bg-gradient-to-br from-primary-100 to-accent-50 px-3 py-8 md:py-14 md:hidden md:px-6">
-        <div className="text-4xl font-semibold">Próximo Evento</div>
-        <div className="mt-4 text-lg">
-          <p>
-            No te quedes fuera y participa de{" "}
-            {festival ? (
-              <span className="whitespace-nowrap">
-                <strong>{festival.name}</strong>
-              </span>
-            ) : (
-              "nuestro próximo evento"
-            )}
-          </p>
-        </div>
-        {festival && <FestivalInfo festival={festival} />}
-        <LandingRedirectButton
-          className="md:hidden"
-          festivalId={festival?.id}
-        />
       </section>
       <section className="px-3 pt-8 md:pt-14 md:px-6">
         <h1 className="text-4xl font-bold md:text-6xl">
