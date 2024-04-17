@@ -134,7 +134,7 @@ export default async function Festival({
           )}
         </div>
         <div className="mx-auto">
-          <ParticipantsGrid stands={stands} />
+          <ParticipantsGrid category={category} stands={stands} />
         </div>
       </div>
     </div>
