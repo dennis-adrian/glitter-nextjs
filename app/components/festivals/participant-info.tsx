@@ -26,13 +26,13 @@ export default function ParticipantInfo(props: ParticipantInfoProps) {
             {props.stand.standNumber}
           </h3>
         </div>
-        {/* <RedirectButton
+        <RedirectButton
           variant="link"
           size="sm"
           href={`/profiles/${props.profile.id}`}
         >
           Ver perfil
-        </RedirectButton> */}
+        </RedirectButton>
       </div>
     </div>
   );
