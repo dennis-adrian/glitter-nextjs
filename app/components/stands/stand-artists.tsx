@@ -39,6 +39,7 @@ const StandArtists = ({ stand }: Props) => {
         className="p-0"
         href={`/profiles/${participant.userId}`}
         variant="link"
+        size="inline"
       >
         {participant.user.displayName}
       </RedirectButton>
@@ -56,7 +57,7 @@ const StandArtists = ({ stand }: Props) => {
   }
 
   return (
-    <div className="flex flex-col items-center text-center">
+    <div className="flex flex-col items-center text-center gap-2">
       {cardBody}
       <span className="text-sm text-muted-foreground">{label}</span>
     </div>

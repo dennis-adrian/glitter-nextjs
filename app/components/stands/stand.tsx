@@ -7,13 +7,7 @@ import {
   standsPositions,
   standProportions,
 } from "@/app/components/next_event/config";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
-import { StandStatusBadge } from "@/app/components/stands/status-badge";
-import StandArtists from "@/app/components/stands/stand-artists";
+import StandContent from "@/app/components/stands/stand-content";
 
 export function StandShape({
   imageSize,
@@ -66,26 +60,16 @@ export function StandShape({
   };
 
   return (
-    <HoverCard>
-      <HoverCardTrigger asChild>
-        <div
-          className={`${bgColor} bg-opacity-50`}
-          style={style}
-          onClick={handleClick}
-        />
-      </HoverCardTrigger>
-      <HoverCardContent>
-        <div className="flex flex-col gap-6 min-w-40">
-          <div>
-            <h1 className="font-semibold">
-              Espacio {stand.label}
-              {standNumber}
-            </h1>
-            <StandStatusBadge status={status} />
-          </div>
-          {status !== "disabled" && <StandArtists stand={stand} />}
-        </div>
-      </HoverCardContent>
-    </HoverCard>
+    <div
+      className={`${bgColor} bg-opacity-50`}
+      key={standNumber}
+      style={style}
+      onClick={handleClick}
+    >
+      <StandContent
+        stand={stand}
+        standPosition={{ top: positionTop || 0, left: positionLeft || 0 }}
+      />
+    </div>
   );
 }
