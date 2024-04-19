@@ -10,7 +10,7 @@ export default function AvatarGroup({
   }[];
 }) {
   return (
-    <div className="flex justify-center">
+    <div className="flex justify-center -space-x-4">
       {avatarsInfo.map((info) => {
         return (
           <Avatar key={info.key}>

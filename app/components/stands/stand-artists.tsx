@@ -1,10 +1,13 @@
 import AvatarGroup from "@/app/components/ui/avatar-group";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
+import Link from "next/link";
+import { RedirectButton } from "@/app/components/redirect-button";
 
 type Props = {
   stand: StandWithReservationsWithParticipants;
 };
+
 const StandArtists = ({ stand }: Props) => {
   const participants = stand.reservations?.find(
     (reservation) =>
@@ -29,22 +32,33 @@ const StandArtists = ({ stand }: Props) => {
       alt: "imagen de usuario",
     }));
 
-    cardBody = (
-      <div className="flex flex-col items-center mb-4">
-        <AvatarGroup avatarsInfo={avatarsInfo} />
-        <span className="text-sm text-muted-foreground mt-2">
-          {participants.length > 1
-            ? `${participants[0].user.displayName} & ${participants[1].user.displayName}`
-            : participants[0].user.displayName}
+    cardBody = <AvatarGroup avatarsInfo={avatarsInfo} />;
+    const profileButtons = participants.map((participant) => (
+      <RedirectButton
+        key={participant.id}
+        className="p-0"
+        href={`/profiles/${participant.userId}`}
+        variant="link"
+      >
+        {participant.user.displayName}
+      </RedirectButton>
+    ));
+
+    label = profileButtons[0];
+
+    if (profileButtons.length > 1) {
+      label = (
+        <span>
+          {profileButtons[0]} & {profileButtons[1]}
         </span>
-      </div>
-    );
+      );
+    }
   }
 
   return (
     <div className="flex flex-col items-center text-center">
       {cardBody}
-      <span className="mt-2 text-sm text-muted-foreground">{label}</span>
+      <span className="text-sm text-muted-foreground">{label}</span>
     </div>
   );
 };

@@ -1,13 +1,19 @@
 import { CSSProperties } from "react";
+import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 
 import { getStandSize } from "@/app/components/next_event/helpers";
-import StandContent from "@/app/components/stands/stand-content";
 import { ProfileType } from "@/app/api/users/definitions";
 import {
   standsPositions,
   standProportions,
 } from "@/app/components/next_event/config";
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import { StandStatusBadge } from "@/app/components/stands/status-badge";
+import StandArtists from "@/app/components/stands/stand-artists";
 
 export function StandShape({
   imageSize,
@@ -60,16 +66,26 @@ export function StandShape({
   };
 
   return (
-    <div
-      className={`${bgColor} bg-opacity-50`}
-      key={standNumber}
-      style={style}
-      onClick={handleClick}
-    >
-      <StandContent
-        stand={stand}
-        standPosition={{ top: positionTop || 0, left: positionLeft || 0 }}
-      />
-    </div>
+    <HoverCard>
+      <HoverCardTrigger asChild>
+        <div
+          className={`${bgColor} bg-opacity-50`}
+          style={style}
+          onClick={handleClick}
+        />
+      </HoverCardTrigger>
+      <HoverCardContent>
+        <div className="flex flex-col gap-6 min-w-40">
+          <div>
+            <h1 className="font-semibold">
+              Espacio {stand.label}
+              {standNumber}
+            </h1>
+            <StandStatusBadge status={status} />
+          </div>
+          {status !== "disabled" && <StandArtists stand={stand} />}
+        </div>
+      </HoverCardContent>
+    </HoverCard>
   );
 }
