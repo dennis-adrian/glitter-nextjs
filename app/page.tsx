@@ -16,14 +16,14 @@ export default async function Home() {
 
   return (
     <div className="text-center text-lg md:text-2xl">
-      <section>
+      <section className="container p-0">
         <div className="relative mx-auto flex flex-col py-4 md:py-10">
           <LandingBanner />
           <div className="flex flex-wrap mx-auto justify-center md:justify-between max-w-[420px] sm:max-w-full sm:w-full md:px-4 gap-4">
-            <div className="flex flex-col md:items-start mx-auto md:text-left gap-5 md:gap-8 lg:gap-16">
+            <div className="flex flex-col md:items-start mx-auto md:text-left gap-5 md:gap-8 lg:gap-16 xl:gap-20">
               <div className="mt-2">
                 <span className={junegull.className}>
-                  <h1 className="text-shadow-sm md:text-shadow text-5xl md:text-4xl lg:text-5xl text-white shadow-blue-950">
+                  <h1 className="text-shadow-sm md:text-shadow text-5xl md:text-4xl lg:text-5xl xl:text-6xl text-white shadow-blue-950">
                     ¡Brillemos juntos!
                   </h1>
                 </span>
@@ -54,7 +54,7 @@ export default async function Home() {
               height={670}
             />
             <Image
-              className="mx-auto hidden lg:block"
+              className="mx-auto hidden lg:block xl:hidden"
               src="/img/mascot-lg.png"
               alt="Mascota Glitter"
               width={480}

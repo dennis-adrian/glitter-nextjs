@@ -4,7 +4,17 @@ export default function LandingBanner() {
   return (
     <div className="-z-10">
       <Image
-        className="hidden lg:block lg:rounded-md"
+        className="hidden xl:block 2xl:rounded-lg"
+        alt="background image"
+        src="/img/landing-banner-xl.png"
+        quality={100}
+        fill
+        style={{
+          objectFit: "cover",
+        }}
+      />
+      <Image
+        className="hidden lg:block xl:hidden"
         alt="background image"
         src="/img/landing-banner-lg.png"
         quality={100}
@@ -14,7 +24,7 @@ export default function LandingBanner() {
         }}
       />
       <Image
-        className="hidden md:block lg:hidden lg:rounded-md"
+        className="hidden md:block lg:hidden"
         alt="background image"
         src="/img/landing-banner-md.png"
         quality={100}
