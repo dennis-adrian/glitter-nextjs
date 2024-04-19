@@ -30,6 +30,12 @@ export default async function Festival({
   if (category === "illustration") {
     acceptedArtists = await fetchAvailableArtistsInFestival(festival.id);
   }
+  const reservedStandsCount = stands.filter((stand) =>
+    stand.reservations.some((r) => r.status === "pending"),
+  ).length;
+  const acceptedStandsCount = stands.filter((stand) =>
+    stand.reservations.some((r) => r.status === "accepted"),
+  ).length;
 
   return (
     <div className={isGeneralView ? "" : "container p-4 md:p-6"}>
@@ -67,13 +73,31 @@ export default async function Festival({
       )}
       <div className="flex flex-wrap gap-4">
         <div className="mx-auto max-w-[420px]">
+          <div className="p-4 rounded-md bg-card border my-2 text-sm">
+            <ul className="flex flex-wrap gap-2 justify-between">
+              <li>
+                <span className="text-muted-foreground">Disponibles: </span>
+                <span className="font-semibold">
+                  {stands.length - reservedStandsCount - acceptedStandsCount}
+                </span>
+              </li>
+              <li>
+                <span className="text-muted-foreground">Reservados: </span>
+                <span className="font-semibold">{reservedStandsCount}</span>
+              </li>
+              <li>
+                <span className="text-muted-foreground">Confirmados: </span>
+                <span className="font-semibold">{acceptedStandsCount}</span>
+              </li>
+            </ul>
+          </div>
           <div>
             {isGeneralView ? (
               <>
                 <h4 className="capitalize font-semibold text-lg">
                   {getMapLabel(category, "main")}
                 </h4>
-                <p className="text-sm">
+                <p className="text-sm text-muted-foreground my-2">
                   Espacios del {mainStands[0]?.label}
                   {mainStands[0]?.standNumber} al {mainStands[0]?.label}
                   {mainStands[mainStands.length - 1]?.standNumber}
@@ -133,7 +157,7 @@ export default async function Festival({
             </div>
           )}
         </div>
-        <div className="mx-auto">
+        <div className="w-full mx-auto max-w-screen-sm md:max-w-screen-md">
           <ParticipantsGrid category={category} stands={stands} />
         </div>
       </div>

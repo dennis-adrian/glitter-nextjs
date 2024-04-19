@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  ElementSize,
   StandPosition,
   StandWithReservationsWithParticipants,
 } from "@/app/api/stands/definitions";
@@ -22,8 +23,8 @@ type Props = {
 };
 
 const StandContent = ({ stand, standPosition }: Props) => {
-  const { label, standNumber, status, orientation } = stand;
-  const { left, top } = standPosition;
+  const { label, standNumber, status } = stand;
+  const { left } = standPosition;
 
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const showTooltip = () => {
@@ -41,43 +42,34 @@ const StandContent = ({ stand, standPosition }: Props) => {
     statusColor = "text-fuchsia-700";
   }
 
-  let position;
-  if (orientation === "landscape" && top! < 50) {
-    position = "transform translate-y-6 sm:translate-y-8 -translate-x-3/4";
-  } else if (orientation === "landscape" && top! > 50) {
-    position = "transform -translate-y-52 -translate-x-3/4";
-  } else if (orientation === "portrait" && left! > 50) {
-    position = "-left-48 sm:-left-52 top-1/2 transform -translate-y-1/2";
-  } else {
-    position = "top-1/2 left-10 transform -translate-y-1/2";
-  }
-
   return (
     <div
-      className="w-full h-full z-20 absolute inline-block"
+      className="w-full h-full z-10 inline-block"
       onMouseEnter={showTooltip}
       onMouseLeave={hideTooltip}
     >
-      {tooltipVisible && (
-        <Card className={`absolute w-48 ${position}`}>
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-lg">
-              Espacio {label}
-              {standNumber}
-            </CardTitle>
-            <CardDescription>
-              <StandStatusBadge status={status} />
-            </CardDescription>
-          </CardHeader>
-          <CardContent
-            className={clsx("p-2", {
-              "pb-4": status !== "disabled",
-            })}
-          >
+      <Card
+        className={clsx(`absolute z-10 hidden transform -translate-y-1/2`, {
+          block: tooltipVisible,
+          "right-[110%]": left > 50,
+          "left-[110%]": left < 50,
+        })}
+      >
+        <CardHeader>
+          <CardTitle className="text-base">
+            Espacio {label}
+            {standNumber}
+          </CardTitle>
+          <CardDescription>
+            <StandStatusBadge status={status} />
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="min-w-36">
             {status !== "disabled" && <StandArtists stand={stand} />}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

@@ -18,6 +18,8 @@ export default function ParticipantsGrid(props: ParticipantsProps) {
     reservations,
   );
 
+  if (profilesWithStand.length === 0) return null;
+
   return (
     <div className="relative flex flex-col border rounded-md max-h-[600px] lg:max-h-[1000px] overflow-x-auto">
       <div className="sticky top-0 left-0 bg-white/90 z-10 border-b px-4">
