@@ -20,15 +20,15 @@ export default async function Home() {
         <div className="relative mx-auto flex flex-col py-4 md:py-10">
           <LandingBanner />
           <div className="flex flex-wrap mx-auto justify-center md:justify-between max-w-[420px] sm:max-w-full sm:w-full md:px-4 gap-4">
-            <div className="flex flex-col mx-auto md:text-left gap-5 md:gap-8 lg:gap-16">
-              <div className="m-auto mt-2">
+            <div className="flex flex-col md:items-start mx-auto md:text-left gap-5 md:gap-8 lg:gap-16">
+              <div className="mt-2">
                 <span className={junegull.className}>
                   <h1 className="text-shadow-sm md:text-shadow text-5xl md:text-4xl lg:text-5xl text-white shadow-blue-950">
                     ¡Brillemos juntos!
                   </h1>
                 </span>
               </div>
-              <div className="md:flex md:flex-col md:gap-2 md:items-center hidden">
+              <div className="md:flex md:flex-col md:gap-2 hidden">
                 <div className="text-white">
                   <div className="text-xl md:text-3xl font-semibold">
                     Próximo Evento
