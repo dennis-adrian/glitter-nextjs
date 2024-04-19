@@ -133,7 +133,7 @@ export default async function Festival({
             </div>
           )}
         </div>
-        <div className="mx-auto">
+        <div className="w-full mx-auto max-w-screen-sm md:max-w-screen-md">
           <ParticipantsGrid category={category} stands={stands} />
         </div>
       </div>
