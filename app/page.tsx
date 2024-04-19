@@ -8,6 +8,7 @@ import LandingRedirectButton from "@/app/components/landing/redirect-button";
 import { FestivalInfo } from "@/app/components/landing/festival-info-card";
 import Carousel from "@/app/components/landing/carousel";
 import EventFeatures from "@/app/components/landing/event-features";
+import LandingBanner from "@/app/components/landing/banner";
 
 export default async function Home() {
   const user = await currentUser();
@@ -15,76 +16,45 @@ export default async function Home() {
 
   return (
     <div className="text-center text-lg md:text-2xl">
-      <section className="">
-        <div className="relative max-w-[1450px] mx-auto flex flex-col py-4 md:py-10 px-4 md:px-0">
-          <div className="-z-10">
-            <Image
-              className="hidden md:block rounded-md"
-              alt="background image"
-              src="/img/background-md.png"
-              quality={100}
-              fill
-              style={{
-                objectFit: "cover",
-              }}
-            />
-            <Image
-              className="md:hidden"
-              alt="background image"
-              src="/img/background-sm.png"
-              quality={100}
-              fill
-              style={{
-                objectFit: "cover",
-              }}
-            />
-          </div>
-          <div className="flex flex-wrap mx-auto">
-            <div className="flex flex-col items-center mx-auto sm:p-6 md:gap-8 md:text-left gap-4">
+      <section>
+        <div className="relative mx-auto flex flex-col py-4 md:py-10 px-4 md:px-0">
+          <LandingBanner />
+          <div className="flex flex-wrap mx-auto justify-between w-full md:px-4">
+            <div className="flex flex-col mx-auto md:text-left gap-4">
               <div>
                 <div className="m-auto mt-2">
                   <span className={junegull.className}>
-                    <h1 className="text-shadow text-3xl sm:text-5xl text-white shadow-blue-950 md:text-7xl">
+                    <h1 className="text-shadow text-3xl md:text-4x lg:text-7xl text-white shadow-blue-950">
                       ¡Brillemos juntos!
                     </h1>
                   </span>
                 </div>
               </div>
-              {/* <div className="bg-card/50 hidden rounded-lg p-6 backdrop-blur-sm md:block"> */}
-              <div className="text-white container mx-auto">
+              <div className="text-white">
                 <div className="text-xl md:text-3xl font-semibold">
                   Próximo Evento
                 </div>
-                <div className="text-sm sm:text-xl">
-                  <p>
-                    No te quedes fuera y participa de{" "}
-                    {festival ? (
-                      <span className="whitespace-nowrap font-semibold">
-                        {festival.name}
-                      </span>
-                    ) : (
-                      "nuestro próximo evento"
-                    )}
-                  </p>
-                </div>
                 {festival && (
-                  <FestivalInfo className="p-0 pt-4" festival={festival} />
+                  <FestivalInfo
+                    className="text-base max-w-sm"
+                    festival={festival}
+                  />
                 )}
               </div>
               <LandingRedirectButton
-                className="w-[320px] mt-4"
+                className="w-[320px]"
                 festivalId={festival?.id}
               />
             </div>
             <Image
-              className="mx-auto hidden md:block"
+              className="mx-auto hidden lg:block"
               src="/img/mascot-md.png"
               alt="Mascota Glitter"
               width={617}
               height={670}
             />
             <Image
-              className="mx-auto md:hidden my-6"
+              className="mx-auto lg:hidden my-6"
               src="/img/mascot-sm.png"
               alt="Mascota Glitter"
               width={327}

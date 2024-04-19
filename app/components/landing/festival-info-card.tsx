@@ -26,7 +26,9 @@ function InfoItem({
 export function FestivalInfo({
   className,
   festival,
+  center,
 }: {
+  center?: boolean;
   className?: string;
   festival: Festival | FestivalBase;
 }) {
