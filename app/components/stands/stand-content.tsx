@@ -65,7 +65,7 @@ const StandContent = ({ stand, standPosition }: Props) => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="w-40">
+          <div className="min-w-36">
             {status !== "disabled" && <StandArtists stand={stand} />}
           </div>
         </CardContent>
