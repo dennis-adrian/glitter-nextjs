@@ -20,38 +20,47 @@ export default async function Home() {
         <div className="relative mx-auto flex flex-col py-4 md:py-10 px-4 md:px-0">
           <LandingBanner />
           <div className="flex flex-wrap mx-auto justify-between w-full md:px-4">
-            <div className="flex flex-col mx-auto md:text-left gap-4">
+            <div className="flex flex-col mx-auto md:text-left gap-4 md:gap-8 lg:gap-16">
               <div>
                 <div className="m-auto mt-2">
                   <span className={junegull.className}>
-                    <h1 className="text-shadow text-3xl md:text-4x lg:text-7xl text-white shadow-blue-950">
+                    <h1 className="text-shadow text-3xl md:text-4x lg:text-5xl text-white shadow-blue-950">
                       ¡Brillemos juntos!
                     </h1>
                   </span>
                 </div>
               </div>
-              <div className="text-white">
-                <div className="text-xl md:text-3xl font-semibold">
-                  Próximo Evento
+              <div>
+                <div className="text-white">
+                  <div className="text-xl md:text-3xl font-semibold">
+                    Próximo Evento
+                  </div>
+                  {festival && (
+                    <FestivalInfo
+                      className="text-base max-w-sm"
+                      festival={festival}
+                    />
+                  )}
                 </div>
-                {festival && (
-                  <FestivalInfo
-                    className="text-base max-w-sm"
-                    festival={festival}
-                  />
-                )}
+                <LandingRedirectButton
+                  className="w-[320px]"
+                  festivalId={festival?.id}
+                />
               </div>
-              <LandingRedirectButton
-                className="w-[320px]"
-                festivalId={festival?.id}
-              />
             </div>
             <Image
-              className="mx-auto hidden lg:block"
-              src="/img/mascot-md.png"
+              className="mx-auto hidden xl:block"
+              src="/img/mascot-xl.png"
               alt="Mascota Glitter"
               width={617}
               height={670}
+            />
+            <Image
+              className="mx-auto hidden lg:block"
+              src="/img/mascot-lg.png"
+              alt="Mascota Glitter"
+              width={480}
+              height={442}
             />
             <Image
               className="mx-auto lg:hidden my-6"
