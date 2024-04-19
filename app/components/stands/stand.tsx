@@ -1,13 +1,13 @@
 import { CSSProperties } from "react";
+import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 
 import { getStandSize } from "@/app/components/next_event/helpers";
-import StandContent from "@/app/components/stands/stand-content";
 import { ProfileType } from "@/app/api/users/definitions";
 import {
   standsPositions,
   standProportions,
 } from "@/app/components/next_event/config";
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
+import StandContent from "@/app/components/stands/stand-content";
 
 export function StandShape({
   imageSize,

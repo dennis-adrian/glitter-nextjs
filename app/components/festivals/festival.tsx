@@ -5,6 +5,7 @@ import {
   UserCategory,
 } from "@/app/api/users/definitions";
 import ClientMap from "@/app/components/festivals/client-map";
+import ParticipantsGrid from "@/app/components/festivals/participants";
 import { fetchAvailableArtistsInFestival } from "@/app/data/festivals/actions";
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import { getMapLabel, getMapPageTitle } from "@/app/lib/maps/helpers";
@@ -29,6 +30,12 @@ export default async function Festival({
   if (category === "illustration") {
     acceptedArtists = await fetchAvailableArtistsInFestival(festival.id);
   }
+  const reservedStandsCount = stands.filter((stand) =>
+    stand.reservations.some((r) => r.status === "pending"),
+  ).length;
+  const acceptedStandsCount = stands.filter((stand) =>
+    stand.reservations.some((r) => r.status === "accepted"),
+  ).length;
 
   return (
     <div className={isGeneralView ? "" : "container p-4 md:p-6"}>
@@ -64,64 +71,50 @@ export default async function Festival({
           </div>
         </>
       )}
-      <div className="mx-auto max-w-[420px]">
-        <div>
-          {isGeneralView ? (
-            <>
-              <h4 className="capitalize font-semibold text-lg">
-                {getMapLabel(category, "main")}
-              </h4>
-              <p className="text-sm">
-                Espacios del {mainStands[0]?.label}
-                {mainStands[0]?.standNumber} al {mainStands[0]?.label}
-                {mainStands[mainStands.length - 1]?.standNumber}
-              </p>
-            </>
-          ) : (
-            <h2 className="capitalize font-semibold text-lg">
-              {getMapLabel(category, "main")}
-            </h2>
-          )}
-          <ClientMap
-            artists={acceptedArtists}
-            profile={profile}
-            stands={mainStands}
-            category={category}
-            mapVersion={festival.mapsVersion}
-            zone="main"
-          />
-          <p className="text-center text-[10px] md:text-xs text-muted-foreground leading-3 md:leading-4">
-            El plano muestra las ubicaciones y la distribución confirmada de los
-            stands. Las medidas y proporciones de todos los elementos son
-            estimadas y se utilizan de manera orientativa
-          </p>
-        </div>
-        {secondaryStands.length > 0 && (
+      <div className="flex flex-wrap gap-4">
+        <div className="mx-auto max-w-[420px]">
+          <div className="p-4 rounded-md bg-card border my-2 text-sm">
+            <ul className="flex flex-wrap gap-2 justify-between">
+              <li>
+                <span className="text-muted-foreground">Disponibles: </span>
+                <span className="font-semibold">
+                  {stands.length - reservedStandsCount - acceptedStandsCount}
+                </span>
+              </li>
+              <li>
+                <span className="text-muted-foreground">Reservados: </span>
+                <span className="font-semibold">{reservedStandsCount}</span>
+              </li>
+              <li>
+                <span className="text-muted-foreground">Confirmados: </span>
+                <span className="font-semibold">{acceptedStandsCount}</span>
+              </li>
+            </ul>
+          </div>
           <div>
             {isGeneralView ? (
               <>
                 <h4 className="capitalize font-semibold text-lg">
-                  {getMapLabel(category, "secondary")}
+                  {getMapLabel(category, "main")}
                 </h4>
-                <p className="text-sm">
-                  Espacios del {secondaryStands[0]?.label}
-                  {secondaryStands[0]?.standNumber} al{" "}
-                  {secondaryStands[0]?.label}
-                  {secondaryStands[secondaryStands.length - 1]?.standNumber}
+                <p className="text-sm text-muted-foreground my-2">
+                  Espacios del {mainStands[0]?.label}
+                  {mainStands[0]?.standNumber} al {mainStands[0]?.label}
+                  {mainStands[mainStands.length - 1]?.standNumber}
                 </p>
               </>
             ) : (
               <h2 className="capitalize font-semibold text-lg">
-                {getMapLabel(category, "secondary")}
+                {getMapLabel(category, "main")}
               </h2>
             )}
             <ClientMap
               artists={acceptedArtists}
               profile={profile}
-              stands={secondaryStands}
+              stands={mainStands}
               category={category}
               mapVersion={festival.mapsVersion}
-              zone="secondary"
+              zone="main"
             />
             <p className="text-center text-[10px] md:text-xs text-muted-foreground leading-3 md:leading-4">
               El plano muestra las ubicaciones y la distribución confirmada de
@@ -129,7 +122,44 @@ export default async function Festival({
               estimadas y se utilizan de manera orientativa
             </p>
           </div>
-        )}
+          {secondaryStands.length > 0 && (
+            <div>
+              {isGeneralView ? (
+                <>
+                  <h4 className="capitalize font-semibold text-lg">
+                    {getMapLabel(category, "secondary")}
+                  </h4>
+                  <p className="text-sm">
+                    Espacios del {secondaryStands[0]?.label}
+                    {secondaryStands[0]?.standNumber} al{" "}
+                    {secondaryStands[0]?.label}
+                    {secondaryStands[secondaryStands.length - 1]?.standNumber}
+                  </p>
+                </>
+              ) : (
+                <h2 className="capitalize font-semibold text-lg">
+                  {getMapLabel(category, "secondary")}
+                </h2>
+              )}
+              <ClientMap
+                artists={acceptedArtists}
+                profile={profile}
+                stands={secondaryStands}
+                category={category}
+                mapVersion={festival.mapsVersion}
+                zone="secondary"
+              />
+              <p className="text-center text-[10px] md:text-xs text-muted-foreground leading-3 md:leading-4">
+                El plano muestra las ubicaciones y la distribución confirmada de
+                los stands. Las medidas y proporciones de todos los elementos
+                son estimadas y se utilizan de manera orientativa
+              </p>
+            </div>
+          )}
+        </div>
+        <div className="w-full mx-auto max-w-screen-sm md:max-w-screen-md">
+          <ParticipantsGrid category={category} stands={stands} />
+        </div>
       </div>
     </div>
   );
