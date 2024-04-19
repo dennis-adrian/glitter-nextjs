@@ -26,7 +26,7 @@ export default function LandingBanner() {
       <Image
         className="md:hidden"
         alt="background image"
-        src="/img/background-sm.png"
+        src="/img/landing-banner-sm.png"
         quality={100}
         fill
         style={{

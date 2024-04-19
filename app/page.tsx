@@ -17,27 +17,25 @@ export default async function Home() {
   return (
     <div className="text-center text-lg md:text-2xl">
       <section>
-        <div className="relative mx-auto flex flex-col py-4 md:py-10 px-4 md:px-0">
+        <div className="relative mx-auto flex flex-col py-4 md:py-10">
           <LandingBanner />
-          <div className="flex flex-wrap mx-auto justify-between w-full md:px-4">
-            <div className="flex flex-col mx-auto md:text-left gap-4 md:gap-8 lg:gap-16">
-              <div>
-                <div className="m-auto mt-2">
-                  <span className={junegull.className}>
-                    <h1 className="text-shadow text-3xl md:text-4x lg:text-5xl text-white shadow-blue-950">
-                      ¡Brillemos juntos!
-                    </h1>
-                  </span>
-                </div>
+          <div className="flex flex-wrap mx-auto justify-center md:justify-between max-w-[420px] sm:max-w-full sm:w-full md:px-4 gap-4">
+            <div className="flex flex-col mx-auto md:text-left gap-5 md:gap-8 lg:gap-16">
+              <div className="m-auto mt-2">
+                <span className={junegull.className}>
+                  <h1 className="text-shadow-sm md:text-shadow text-5xl md:text-4xl lg:text-5xl text-white shadow-blue-950">
+                    ¡Brillemos juntos!
+                  </h1>
+                </span>
               </div>
-              <div>
+              <div className="md:flex md:flex-col md:gap-2 md:items-center hidden">
                 <div className="text-white">
                   <div className="text-xl md:text-3xl font-semibold">
                     Próximo Evento
                   </div>
                   {festival && (
                     <FestivalInfo
-                      className="text-base max-w-sm"
+                      className="text-base max-w-sm py-2 md:py-4"
                       festival={festival}
                     />
                   )}
@@ -63,12 +61,26 @@ export default async function Home() {
               height={442}
             />
             <Image
-              className="mx-auto lg:hidden my-6"
+              className="mx-auto lg:hidden"
               src="/img/mascot-sm.png"
               alt="Mascota Glitter"
               width={327}
               height={327}
             />
+            <div className="text-white rounded-md flex flex-col gap-2 items-center w-full backdrop-blur-sm md:hidden">
+              <div>
+                <div className="text-3xl font-semibold my-2">
+                  Próximo Evento
+                </div>
+                {festival && (
+                  <FestivalInfo className="py-2" festival={festival} />
+                )}
+              </div>
+              <LandingRedirectButton
+                className="w-[320px]"
+                festivalId={festival?.id}
+              />
+            </div>
           </div>
         </div>
       </section>
