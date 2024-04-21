@@ -85,7 +85,7 @@ export default async function Home() {
         </div>
       </section>
       <section className="container p-0">
-        <div className="relative mx-auto flex flex-col py-4 md:py-10">
+        <div className="relative flex flex-col py-4 md:py-10">
           <div className="-z-10">
             <Image
               className="hidden xl:block 2xl:rounded-lg"
@@ -110,7 +110,7 @@ export default async function Home() {
               <Carousel />
             </div>
             <div className="px-3 py-8 md:py-14 md:px-6">
-              <h1 className="text-4xl font-bold md:text-6xl text-shadow-sm shadow-gray-400">
+              <h1 className="text-4xl font-bold md:text-6xl text-shadow-sm shadow-gray-400 my-6 md:my-0">
                 El mejor lugar para encontrar
               </h1>
               <EventFeatures />
