@@ -84,26 +84,39 @@ export default async function Home() {
           </div>
         </div>
       </section>
-      <section className="px-3 pt-8 md:pt-14 md:px-6">
-        <h1 className="text-4xl font-bold md:text-6xl">
-          Esto es el{" "}
-          <span className="from-primary to-accent whitespace-nowrap bg-gradient-to-br bg-clip-text tracking-tight text-transparent">
-            Festival Glitter
-          </span>
-        </h1>
-        <p className="my-2 leading-6">
-          un evento creado para brindar un espacio acogedor y seguro para
-          artistas
-        </p>
-        <div className="pt-4 md:pt-8">
-          <Carousel />
+      <section className="container p-0">
+        <div className="relative mx-auto flex flex-col py-4 md:py-10">
+          <div className="-z-10">
+            <Image
+              className="hidden xl:block 2xl:rounded-lg"
+              alt="background image"
+              src="/img/landing/landing-banner-lg-2.png"
+              quality={100}
+              fill
+              style={{
+                objectFit: "cover",
+              }}
+            />
+          </div>
+          <div>
+            <h1 className="text-4xl font-bold md:text-6xl text-shadow-sm shadow-primary-200">
+              Esto es el Festival Glitter
+            </h1>
+            <p className="my-2 leading-6">
+              un evento creado para brindar un espacio acogedor y seguro para
+              artistas
+            </p>
+            <div className="pt-4 md:pt-8">
+              <Carousel />
+            </div>
+            <div className="px-3 py-8 md:py-14 md:px-6">
+              <h1 className="text-4xl font-bold md:text-6xl text-shadow-sm shadow-gray-400">
+                El mejor lugar para encontrar
+              </h1>
+              <EventFeatures />
+            </div>
+          </div>
         </div>
-      </section>
-      <section className="px-3 py-8 md:py-14 md:px-6">
-        <h1 className="text-4xl font-bold md:text-6xl">
-          El mejor lugar para encontrar
-        </h1>
-        <EventFeatures />
       </section>
     </div>
   );
