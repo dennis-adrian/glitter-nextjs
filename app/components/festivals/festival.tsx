@@ -30,11 +30,14 @@ export default async function Festival({
   if (category === "illustration") {
     acceptedArtists = await fetchAvailableArtistsInFestival(festival.id);
   }
-  const reservedStandsCount = stands.filter((stand) =>
-    stand.reservations.some((r) => r.status === "pending"),
+  const reservedStandsCount = stands.filter(
+    (stand) => stand.status === "reserved",
   ).length;
-  const acceptedStandsCount = stands.filter((stand) =>
-    stand.reservations.some((r) => r.status === "accepted"),
+  const acceptedStandsCount = stands.filter(
+    (stand) => stand.status === "confirmed",
+  ).length;
+  const disabledStandsCount = stands.filter(
+    (stand) => stand.status === "disabled",
   ).length;
 
   return (
@@ -78,7 +81,10 @@ export default async function Festival({
               <li>
                 <span className="text-muted-foreground">Disponibles: </span>
                 <span className="font-semibold">
-                  {stands.length - reservedStandsCount - acceptedStandsCount}
+                  {stands.length -
+                    reservedStandsCount -
+                    acceptedStandsCount -
+                    disabledStandsCount}
                 </span>
               </li>
               <li>
