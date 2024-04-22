@@ -2,7 +2,7 @@ import Image from "next/image";
 
 export default function LandingBanner() {
   return (
-    <div className="-z-10">
+    <div className="-z-10 max-w-[420px]">
       <Image
         className="hidden xl:block 2xl:rounded-lg"
         alt="background image"

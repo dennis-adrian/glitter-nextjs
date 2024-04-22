@@ -67,28 +67,14 @@ export default async function Home() {
               width={327}
               height={327}
             />
-            <div className="text-white rounded-md flex flex-col gap-2 items-center w-full backdrop-blur-sm md:hidden">
-              <div>
-                <div className="text-3xl font-semibold my-2">
-                  Próximo Evento
-                </div>
-                {festival && (
-                  <FestivalInfo className="py-2" festival={festival} />
-                )}
-              </div>
-              <LandingRedirectButton
-                className="w-[320px]"
-                festivalId={festival?.id}
-              />
-            </div>
           </div>
         </div>
       </section>
       <section className="container p-0">
-        <div className="relative flex flex-col py-4 md:py-10">
+        <div className="relative flex flex-col md:py-10">
           <div className="-z-10">
             <Image
-              className="hidden xl:block 2xl:rounded-lg"
+              className="hidden md:block"
               alt="background image"
               src="/img/landing/landing-banner-lg-2.png"
               quality={100}
@@ -97,19 +83,43 @@ export default async function Home() {
                 objectFit: "cover",
               }}
             />
+            <Image
+              className="sm:hidden"
+              alt="background image"
+              src="/img/landing/landing-banner-sm-2.png"
+              quality={100}
+              fill
+              style={{
+                objectFit: "cover",
+              }}
+            />
           </div>
-          <div>
-            <h1 className="text-4xl font-bold md:text-6xl text-shadow-sm shadow-primary-200">
-              Esto es el Festival Glitter
-            </h1>
-            <p className="my-2 leading-6">
-              un evento creado para brindar un espacio acogedor y seguro para
-              artistas
-            </p>
+          <div className="rounded-md flex flex-col gap-2 items-center w-full md:hidden">
+            <div>
+              <div className="text-3xl font-semibold my-2">Próximo Evento</div>
+              {festival && (
+                <FestivalInfo className="py-2" festival={festival} />
+              )}
+            </div>
+            <LandingRedirectButton
+              className="w-[320px]"
+              festivalId={festival?.id}
+            />
+          </div>
+          <div className="mt-8">
+            <div className="px-3">
+              <h1 className="text-4xl font-bold md:text-6xl text-shadow-sm shadow-primary-200">
+                Esto es el Festival Glitter
+              </h1>
+              <p className="my-2 leading-6">
+                un evento creado para brindar un espacio acogedor y seguro para
+                artistas
+              </p>
+            </div>
             <div className="pt-4 md:pt-8">
               <Carousel />
             </div>
-            <div className="px-3 py-8 md:py-14 md:px-6">
+            <div className="px-3 py-4 md:py-14 md:px-6">
               <h1 className="text-4xl font-bold md:text-6xl text-shadow-sm shadow-gray-400 my-6 md:my-0">
                 El mejor lugar para encontrar
               </h1>
