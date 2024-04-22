@@ -136,7 +136,7 @@ const config = {
         sans: ["var(--font-inter)"],
       },
       textShadow: {
-        sm: "1px 1px 2px var(--tw-shadow-color)",
+        sm: "3px 3px 3px var(--tw-shadow-color)",
         DEFAULT: "6px 6px 3px var(--tw-shadow-color)",
         lg: "8px 8px 4px var(--tw-shadow-color)",
       },
