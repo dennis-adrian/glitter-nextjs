@@ -30,7 +30,7 @@ export default function Footer() {
       <div className="container m-auto py-5 px-4 md:px-6">
         <div className="grid gap-4 sm:gap-8 md:grid-cols-3">
           <div className="col-span-2">
-            <GlitterLogo />
+            <GlitterLogo size="md" />
             <p className="ml-1">Un festival para que los artistas brillen</p>
           </div>
           <div>
