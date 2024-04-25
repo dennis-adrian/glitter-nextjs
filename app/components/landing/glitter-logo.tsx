@@ -1,21 +1,36 @@
 import Image from "next/image";
 
-export default function GlitterLogo({
-  variant = "light",
-}: {
+type GlitterLogoProps = {
   variant?: "light" | "dark";
-}) {
+  size?: "sm" | "md";
+};
+
+export default function GlitterLogo(props: GlitterLogoProps) {
+  if (props.size === "md") {
+    return (
+      <Image
+        src={
+          props.variant === "dark"
+            ? "/img/logo/logo-full-dark-md.png"
+            : "/img/logo/logo-full-white.png"
+        }
+        alt="Logo"
+        width={160}
+        height={32}
+      />
+    );
+  }
+
   return (
     <Image
-      className="w-[100px] h-[32px] sm:w-[150px] sm:h-[48px]"
       src={
-        variant === "dark"
-          ? "/img/logo/logo-dark.png"
-          : "/img/logo/logo-light.png"
+        props.variant === "dark"
+          ? "/img/logo/logo-full-dark-sm.png"
+          : "/img/logo/logo-full-white-sm.png"
       }
-      alt="Glitter Logo"
-      width={150}
-      height={48}
+      alt="Logo"
+      width={100}
+      height={20}
     />
   );
 }
