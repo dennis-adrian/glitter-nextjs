@@ -26,16 +26,19 @@ export default function NavbarContent({
           : ""
       }
     >
-      <nav className="w-full container m-auto py-3 md:py-4 px-4 md:px-6">
-        <ul className="grid grid-cols-3 items-center">
+      <nav className="w-full h-16 md:h-20 container m-auto py-3 md:py-4 px-4 md:px-6 flex items-center">
+        <ul className="grid grid-cols-3 items-center w-full">
           <li className="md:hidden">
             <MobileSidebar profile={profile}>
-              <MenuIcon className="h-6 w-6" />
+              <MenuIcon className="h-5 w-5" />
             </MobileSidebar>
           </li>
           <li className="justify-self-center md:justify-self-start">
-            <Link href="/">
-              <GlitterLogo variant="dark" />
+            <Link className="hidden md:block" href="/">
+              <GlitterLogo variant="dark" size="md" />
+            </Link>
+            <Link className="md:hidden" href="/">
+              <GlitterLogo variant="dark" size="sm" />
             </Link>
           </li>
           <li className="hidden justify-self-center md:block">

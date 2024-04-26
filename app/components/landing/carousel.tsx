@@ -14,12 +14,12 @@ const carouselItems = [
   "/img/landing/carousel-item-2.png",
   "/img/landing/carousel-item-3.png",
   "/img/landing/carousel-item-4.png",
-  "/img/landing/carousel-item-5.png",
   "/img/landing/carousel-item-6.png",
   "/img/landing/carousel-item-7.png",
   "/img/landing/carousel-item-8.png",
   "/img/landing/carousel-item-9.png",
   "/img/landing/carousel-item-10.png",
+  "/img/landing/carousel-item-11.png",
 ];
 
 export default function LandingCarousel() {
@@ -47,7 +47,7 @@ export default function LandingCarousel() {
                 className="rounded-lg"
                 alt={`carousel item ${index}`}
                 src={src}
-                height={450}
+                height={350}
                 width={350}
               />
             </div>

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { ProfileType } from "@/app/api/users/definitions";
+import GlitterLogo from "@/app/components/landing/glitter-logo";
 
 type MobileSidebarItemProps = {
   href: string;
@@ -55,7 +56,11 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 
   return (
     <Sheet>
-      <SheetTrigger className="cursor-default" variant="outline" size="icon">
+      <SheetTrigger
+        className="cursor-default hover:bg-primary-100/30 hover:text-primary-500"
+        variant="outline"
+        size="icon"
+      >
         {children}
       </SheetTrigger>
       <SheetContent side="left">
@@ -63,12 +68,7 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
           <SheetTitle>
             <SheetClose>
               <Link href="/">
-                <Image
-                  src="/img/logo-dark.png"
-                  alt="Glitter Logo"
-                  height={40}
-                  width={96}
-                />
+                <GlitterLogo variant="dark" size="sm" />
               </Link>
             </SheetClose>
           </SheetTitle>

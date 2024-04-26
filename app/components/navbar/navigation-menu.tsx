@@ -8,6 +8,7 @@ import {
   NavigationMenuItem,
   NavigationMenuLink,
   NavigationMenuList,
+  NavigationMenuListItem,
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from "@/app/components/ui/navigation-menu";
@@ -30,24 +31,24 @@ const NavbarNavigationMenu = ({
     <NavigationMenu>
       <NavigationMenuList>
         <NavigationMenuItem>
-          <Link href="/" legacyBehavior passHref>
-            <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+          <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+            <Link href="/">
               <div className="flex items-center">
                 <HomeIcon className="w-4 h-4 mr-1" />
                 Inicio
               </div>
-            </NavigationMenuLink>
-          </Link>
+            </Link>
+          </NavigationMenuLink>
         </NavigationMenuItem>
         <NavigationMenuItem>
-          <Link href="/next_event" legacyBehavior passHref>
-            <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+          <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+            <Link href="/next_event">
               <div className="flex items-center">
                 <CalendarCheck2Icon className="w-4 h-4 mr-1" />
                 Próximo Evento
               </div>
-            </NavigationMenuLink>
-          </Link>
+            </Link>
+          </NavigationMenuLink>
         </NavigationMenuItem>
         {profile && profile.role === "admin" && (
           <NavigationMenuItem>
@@ -58,55 +59,25 @@ const NavbarNavigationMenu = ({
               </div>
             </NavigationMenuTrigger>
             <NavigationMenuContent>
-              <ul className="grid p-4 w-[550px] md:grid-cols-4 lg:w-[600px]">
-                <li>
-                  <Link href="/dashboard" legacyBehavior passHref>
-                    <NavigationMenuLink
-                      className={navigationMenuTriggerStyle()}
-                    >
-                      <div className="flex items-center">
-                        <LayoutDashboardIcon className="w-4 h-4 mr-1" />
-                        Dashboard
-                      </div>
-                    </NavigationMenuLink>
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/dashboard/users" legacyBehavior passHref>
-                    <NavigationMenuLink
-                      className={navigationMenuTriggerStyle()}
-                    >
-                      <div className="flex items-center">
-                        <UsersIcon className="w-4 h-4 mr-1" />
-                        Usuarios
-                      </div>
-                    </NavigationMenuLink>
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/dashboard/reservations" legacyBehavior passHref>
-                    <NavigationMenuLink
-                      className={navigationMenuTriggerStyle()}
-                    >
-                      <div className="flex items-center">
-                        <AlbumIcon className="w-4 h-4 mr-1" />
-                        Reservas
-                      </div>
-                    </NavigationMenuLink>
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/dashboard/payments" legacyBehavior passHref>
-                    <NavigationMenuLink
-                      className={navigationMenuTriggerStyle()}
-                    >
-                      <div className="flex items-center">
-                        <CreditCardIcon className="w-4 h-4 mr-1" />
-                        Pagos
-                      </div>
-                    </NavigationMenuLink>
-                  </Link>
-                </li>
+              <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
+                <NavigationMenuListItem
+                  title="Usuarios"
+                  href="/dashboard/users"
+                >
+                  Todas las cuentas creadas en Glitter
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
+                  title="Reservas"
+                  href="/dashboard/reservations"
+                >
+                  Todas las reservas que se han hecho
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
+                  title="Pagos"
+                  href="/dashboard/payments"
+                >
+                  Verifica los pagos hechos por reservas
+                </NavigationMenuListItem>
               </ul>
             </NavigationMenuContent>
           </NavigationMenuItem>
