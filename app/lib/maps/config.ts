@@ -77,7 +77,7 @@ export const imagesSrc: {
       },
       stand: "/img/maps/v3/illustration-stand-sm.png",
       mascot: "/img/maps/v3/illustration-mascot-sm.png",
-      qrCode: "/img/maps/v3/illustration-qr-code.png",
+      qrCode: "/img/maps/v3/illustration-qr-code.jpeg",
     },
     gastronomy: {
       main: {
@@ -86,7 +86,7 @@ export const imagesSrc: {
       },
       mascot: "/img/maps/v3/gastronomy-mascot-sm.png",
       stand: "/img/maps/v3/gastronomy-stand-sm.png",
-      qrCode: "/img/maps/v3/gastronomy-qr-code.png",
+      qrCode: "/img/maps/v3/gastronomy-qr-code.jpeg",
     },
     entrepreneurship: {
       main: {
@@ -95,7 +95,7 @@ export const imagesSrc: {
       },
       mascot: "/img/maps/v3/entrepreneurship-mascot-sm.png",
       stand: "/img/maps/v3/entrepreneurship-stand-sm.png",
-      qrCode: "/img/maps/v3/entrepreneurship-qr-code.png",
+      qrCode: "/img/maps/v3/entrepreneurship-qr-code.jpeg",
     },
     general: {
       sm: "/img/maps/v3/general-map-sm.png",

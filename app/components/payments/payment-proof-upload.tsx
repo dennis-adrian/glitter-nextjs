@@ -65,8 +65,6 @@ export default function PaymentProofUpload({
     }
   }
 
-  console.log("this is the invoice", invoice);
-  console.log("this is the payment", payment);
   return (
     <div className="my-4">
       <h2 className="font-semibold text-lg text-center">Comprobante de pago</h2>
