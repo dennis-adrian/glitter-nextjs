@@ -17,7 +17,7 @@
     "email": "email dev --dir app/emails"
   },
   "dependencies": {
-    "@clerk/localizations": "^1.28.1",
+    "@clerk/localizations": "^1.28.2",
     "@clerk/nextjs": "^4.29.12",
     "@edgestore/react": "^0.1.6",
     "@edgestore/server": "^0.1.6",
