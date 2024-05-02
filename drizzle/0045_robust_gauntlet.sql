@@ -1,0 +1,1 @@
+ALTER TABLE "festivals" ADD COLUMN "public_registration" boolean DEFAULT false NOT NULL;

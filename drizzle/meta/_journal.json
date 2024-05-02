@@ -316,6 +316,13 @@
       "when": 1712787885078,
       "tag": "0044_peaceful_iron_lad",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "5",
+      "when": 1714618492802,
+      "tag": "0045_robust_gauntlet",
+      "breakpoints": true
     }
   ]
 }
