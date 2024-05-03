@@ -1,10 +1,6 @@
 import { currentUser } from "@clerk/nextjs";
 
-import {
-  createUserProfile,
-  fetchOrCreateProfile,
-  fetchUserProfile,
-} from "@/app/api/users/actions";
+import { fetchOrCreateProfile } from "@/app/api/users/actions";
 import { redirect } from "next/navigation";
 import { RedirectDrawer } from "@/app/components/redirect-drawer";
 import ProfileCreationForm from "@/app/components/user_profile/creation-form";
