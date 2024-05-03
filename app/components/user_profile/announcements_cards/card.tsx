@@ -8,16 +8,13 @@ import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { ReserveStandCard } from "@/app/components/user_profile/announcements_cards/reserve-stand-card";
 import { fetchStandById } from "@/app/api/stands/actions";
 import { ReservedStandCard } from "@/app/components/user_profile/announcements_cards/reserved-stand-card";
+import { isProfileComplete } from "@/app/lib/utils";
 
 export default async function Card({ profile }: { profile: ProfileType }) {
   if (!profile) return null;
 
-  if (profile.role === "user") {
-    const becomeArtistRequest = profile.userRequests.find(
-      (request) => request.type === "become_artist",
-    );
-
-    if (becomeArtistRequest) {
+  if (!profile.verified) {
+    if (isProfileComplete(profile)) {
       return <PendingArtistCard />;
     }
 
