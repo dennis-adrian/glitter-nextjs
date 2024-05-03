@@ -147,8 +147,8 @@ export async function fetchOrCreateProfile(
           const userSocialsValues = buildUserSocials(newUser.id);
           await tx2.insert(userSocials).values(userSocialsValues);
           await tx2.insert(profileTasks).values({
-            dueDate: sql`now() + interval '5 days'`,
-            reminderTime: sql`now() + interval '3 days'`,
+            dueDate: sql`now() + interval '3 days'`,
+            reminderTime: sql`now() + interval '1 days'`,
             profileId: newUser.id,
             taskType: "profile_creation",
             updatedAt: new Date(),
