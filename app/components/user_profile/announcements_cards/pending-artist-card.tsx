@@ -6,8 +6,8 @@ export default async function PendingArtistCard() {
       content={
         <p>
           Gracias por querer ser parte de la comunidad de{" "}
-          <strong>Glitter</strong> como artista. Cuando tu solicitud sea
-          aceptada te enviaremos un correo
+          <strong>Glitter</strong>. Tu enviaremos un correo cuando tu perfil sea
+          verificado.
         </p>
       }
     />

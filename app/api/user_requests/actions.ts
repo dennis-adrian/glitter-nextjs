@@ -1,7 +1,15 @@
 "use server";
 
-import { Stand } from "@/app/api/stands/actions";
+import { fetchStandById } from "@/app/api/stands/actions";
 import { UserRequest } from "@/app/api/user_requests/definitions";
+import {
+  fetchAdminUsers,
+  fetchBaseProfileById,
+  fetchUserProfile,
+} from "@/app/api/users/actions";
+import { fetchBaseFestival } from "@/app/data/festivals/actions";
+import ReservationCreatedEmailTemplate from "@/app/emails/reservation-created";
+import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { db, pool } from "@/db";
 import {
   invoices,
@@ -11,7 +19,8 @@ import {
   userRequests,
   users,
 } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { sendEmail } from "@/vendors/resend";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function fetchRequestsByUserId(userId: number) {
@@ -96,16 +105,16 @@ export async function createReservation(
   const client = await pool.connect();
   try {
     const { festivalId, standId, participantIds } = reservation;
-    await db.transaction(async (tx) => {
+    const newReservation = await db.transaction(async (tx) => {
       const rows = await tx
         .insert(standReservations)
         .values({
           festivalId,
           standId,
         })
-        .returning({ reservationId: standReservations.id });
+        .returning();
 
-      const reservationId = rows[0].reservationId;
+      const reservationId = rows[0].id;
 
       const participantValues = participantIds.map((userId) => ({
         userId,
@@ -125,16 +134,38 @@ export async function createReservation(
         reservationId: reservationId,
         amount: price,
       });
+
+      return rows[0];
+    });
+
+    const festival = await fetchBaseFestival(festivalId);
+    const creator = await fetchBaseProfileById(participantIds[0]);
+    const stand = await fetchStandById(standId);
+    const admins = await fetchAdminUsers();
+    const adminEmails = admins.map((admin) => admin.email);
+    await sendEmail({
+      to: [...adminEmails, "reservas@productoraglitter.com"],
+      from: "Reservas Glitter <reservas@festivalglitter.art>",
+      subject: "Nueva reserva creada",
+      react: ReservationCreatedEmailTemplate({
+        festivalName: festival?.name || "Festival",
+        reservation: newReservation,
+        creatorName: creator?.displayName || "Usuario",
+        standName: `${stand?.label}${stand?.standNumber}` || "sin stand",
+        standCategory: getCategoryOccupationLabel(stand?.standCategory, {
+          singular: false,
+        }),
+      }) as React.ReactElement,
     });
   } catch (error) {
     console.error("Error creating reservation", error);
-    return { success: false };
+    return { success: false, message: "No se pudo crear la reserva" };
   } finally {
     client.release();
   }
 
-  revalidatePath("next_event");
-  return { success: true };
+  revalidatePath("/next_event");
+  return { success: true, message: "Reserva creada" };
 }
 
 export async function updateReservationSimple(

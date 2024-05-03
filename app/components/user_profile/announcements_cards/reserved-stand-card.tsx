@@ -18,7 +18,7 @@ export function ReservedStandCard({ stand }: { stand: StandBase }) {
         </div>
       }
       footer={
-        <RedirectButton variant="secondary" size="sm" href="/next_event">
+        <RedirectButton size="sm" href="/next_event">
           Ir al mapa
           <ArrowRightIcon className="ml-2 w-4 h-4" />
         </RedirectButton>

@@ -2,7 +2,7 @@ import { StandZone } from "@/app/api/stands/definitions";
 import { UserCategory } from "@/app/api/users/definitions";
 
 export function getCategoryOccupationLabel(
-  category: UserCategory | Exclude<UserCategory, "none">,
+  category?: UserCategory | Exclude<UserCategory, "none">,
   options?: { singular?: boolean },
 ) {
   if (category === "illustration")

@@ -18,7 +18,7 @@ export default function BaseCard({
   return (
     <Card
       className={cn(
-        "text-white bg-gradient-to-r from-violet-600 to-indigo-600",
+        "bg-gradient-to-r from-background-50/20 to-background-50",
         className,
       )}
     >

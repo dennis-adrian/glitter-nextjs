@@ -10,11 +10,12 @@ import { z } from "zod";
 import { pool, db } from "@/db";
 import { profileTasks, userRequests, userSocials, users } from "@/db/schema";
 import { revalidatePath } from "next/cache";
-import { NewUserSocial, ProfileType } from "./definitions";
+import { BaseProfile, NewUserSocial, ProfileType } from "./definitions";
 import { buildNewUser, buildUserSocials } from "@/app/api/users/helpers";
 import { isProfileComplete } from "@/app/lib/utils";
 import { sendEmail } from "@/vendors/resend";
 import EmailTemplate from "@/app/emails/verification-confirmation";
+import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
 import { fetchActiveFestival } from "@/app/data/festivals/actions";
 
 export type NewUser = typeof users.$inferInsert;
@@ -326,7 +327,7 @@ export async function updateProfileWithValidatedData(
     });
 
     const profile = await fetchUserProfileById(id);
-    if (isProfileComplete(profile)) {
+    if (profile && isProfileComplete(profile)) {
       await db
         .update(profileTasks)
         .set({ completedAt: new Date(), updatedAt: new Date() })
@@ -336,6 +337,22 @@ export async function updateProfileWithValidatedData(
             eq(profileTasks.taskType, "profile_creation"),
           ),
         );
+
+      // // we only want to send the email hopefully once, for the profile to be verified
+      // // once verified we don't care to send it again
+      if (!profile.verified) {
+        const admins = await fetchAdminUsers();
+        const adminEmails = admins.map((admin) => admin.email);
+        await sendEmail({
+          to: [...adminEmails, "perfiles@productoraglitter.com"],
+          from: "Perfiles Glitter <perfiles@festivalglitter.art>",
+          subject: "Perfil completado",
+          react: ProfileCompletionEmailTemplate({
+            profileId: profile.id,
+            displayName: profile.displayName!,
+          }) as React.ReactElement,
+        });
+      }
     }
   } catch (error) {
     console.error("Error updating profile", error);
@@ -416,4 +433,36 @@ export async function verifyProfile(profileId: number) {
 
   revalidatePath("/dashboard/users");
   return { success: true, message: "Perfil verificado" };
+}
+
+export async function fetchAdminUsers(): Promise<BaseProfile[]> {
+  const client = await pool.connect();
+
+  try {
+    return await db.query.users.findMany({
+      where: eq(users.role, "admin"),
+    });
+  } catch (error) {
+    console.error(error);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
+export async function fetchBaseProfileById(
+  id: number,
+): Promise<BaseProfile | null | undefined> {
+  const client = await pool.connect();
+
+  try {
+    return await db.query.users.findFirst({
+      where: eq(users.id, id),
+    });
+  } catch (error) {
+    console.error(error);
+    return null;
+  } finally {
+    client.release();
+  }
 }
