@@ -344,7 +344,7 @@ export async function updateProfileWithValidatedData(
         const admins = await fetchAdminUsers();
         const adminEmails = admins.map((admin) => admin.email);
         await sendEmail({
-          to: [...adminEmails, "reservas@productoraglitter.com"],
+          to: [...adminEmails, "perfiles@productoraglitter.com"],
           from: "Perfiles Glitter <perfiles@festivalglitter.art>",
           subject: "Perfil completado",
           react: ProfileCompletionEmailTemplate({
@@ -445,6 +445,23 @@ export async function fetchAdminUsers(): Promise<BaseProfile[]> {
   } catch (error) {
     console.error(error);
     return [];
+  } finally {
+    client.release();
+  }
+}
+
+export async function fetchBaseProfileById(
+  id: number,
+): Promise<BaseProfile | null | undefined> {
+  const client = await pool.connect();
+
+  try {
+    return await db.query.users.findFirst({
+      where: eq(users.id, id),
+    });
+  } catch (error) {
+    console.error(error);
+    return null;
   } finally {
     client.release();
   }

@@ -83,10 +83,10 @@ export default function ReservationForm({
         spread: 70,
         origin: { y: 0.6 },
       });
-      toast.success("Reserva confirmada");
+      toast.success(res.message);
       router.push(`/profiles/${profile.id}/payments/latest`);
     } else {
-      toast.error("No se pudo confirmar la reserva", {
+      toast.error(res.message, {
         description: "Inténtalo de nuevo",
       });
     }
