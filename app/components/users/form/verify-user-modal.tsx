@@ -31,7 +31,7 @@ export function VerifyProfileModal({
       <DrawerDialogContent className="sm:max-w-[425px]" isDesktop={isDesktop}>
         <DrawerDialogHeader isDesktop={isDesktop}>
           <DrawerDialogTitle isDesktop={isDesktop}>
-            Eliminar Reserva Usuario
+            Verificación de Perfil
           </DrawerDialogTitle>
         </DrawerDialogHeader>
 
