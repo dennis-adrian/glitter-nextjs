@@ -175,16 +175,24 @@ export default function Terms({
         <p>El armado de espacio será: </p>
         <ul className="leading-7 list-inside list-disc">
           <li>Sábado de 9:00 a 10:00</li>
-          <li>Domingo de 9:30 a 10:00</li>
+          <li>Domingo de 9:45 a 10:15</li>
         </ul>
         <p>
           El ingreso del teatro queda sobre la calle Sucre, para poder ingresar
           deben hacer una fila ordenada.{" "}
-          <strong>Nadie puede ingresar al recinto antes de las 9:00</strong>.
+          <strong>
+            Nadie puede ingresar al recinto antes de las 9:00 el sábado y antes
+            de las 9:45 el domingo
+          </strong>
+          .
         </p>
         <p>
-          A las 10:00 todos los espacios deben de estar listos para recibir al
-          público.
+          El día sábado todos los espacios deben estar listos para recibir al
+          público a las 10:00
+        </p>
+        <p>
+          El día domingo todos los espacios deben estar listos para recibir al
+          público a las 10:15
         </p>
         <p>El desarme de espacios ambos días es a partir de las 18:00 horas.</p>
         <br />
