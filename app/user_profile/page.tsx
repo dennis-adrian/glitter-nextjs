@@ -26,7 +26,7 @@ async function UserProfile() {
     <div className="mx-auto max-w-screen-lg p-3 md:p-6">
       <SignedIn>
         <div className="flex flex-col gap-4">
-          {/* <AnnouncementCard profile={profile} /> */}
+          <AnnouncementCard profile={profile} />
           <PublicProfile profile={profile} />
           <PrivateProfile profile={profile} />
         </div>

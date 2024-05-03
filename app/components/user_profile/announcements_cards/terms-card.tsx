@@ -7,26 +7,26 @@ import { RedirectButton } from "@/components/redirect-button";
 import BaseCard from "@/components/user_profile/announcements_cards/base-card";
 import { ArrowRightIcon } from "lucide-react";
 
-type ReserveStandCardProps = {
+type TermsCardProps = {
   festival: Festival;
   profile: ProfileType;
 };
 
-export function ReserveStandCard(props: ReserveStandCardProps) {
+export function TermsCard(props: TermsCardProps) {
   return (
     <BaseCard
       content={
         <p>
-          Ya puedes hacer tu reserva para la siguiente versión de Glitter.
-          Reserva tu espacio pulsando el botón
+          Se viene una nueva versión del festival 🥳🎉 Lee los términos y
+          condiciones para reservar tu espacio.
         </p>
       }
       footer={
         <RedirectButton
           size="sm"
-          href={`/festivals/${props.festival.id}?category=${props.profile.category}`}
+          href={`/festivals/${props.festival.id}?category=${props.profile.category}&terms=true`}
         >
-          Ir a reservar espacio
+          Leer términos y condiciones
           <ArrowRightIcon className="ml-2 w-4 h-4" />
         </RedirectButton>
       }

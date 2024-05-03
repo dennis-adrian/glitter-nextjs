@@ -2,16 +2,15 @@ import { fetchActiveFestival } from "@/app/data/festivals/actions";
 import { ProfileType } from "@/app/api/users/definitions";
 import MissingFieldsCard from "./missing-fields-card";
 import PendingArtistCard from "./pending-artist-card";
-import ParticipationCard from "./participation-card";
-import PendingParticipationCard from "./pending-participation";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { ReserveStandCard } from "@/app/components/user_profile/announcements_cards/reserve-stand-card";
 import { fetchStandById } from "@/app/api/stands/actions";
 import { ReservedStandCard } from "@/app/components/user_profile/announcements_cards/reserved-stand-card";
 import { isProfileComplete } from "@/app/lib/utils";
+import { TermsCard } from "@/app/components/user_profile/announcements_cards/terms-card";
 
 export default async function Card({ profile }: { profile: ProfileType }) {
-  if (!profile) return null;
+  if (!profile || profile?.role === "admin") return null;
 
   if (!profile.verified) {
     if (isProfileComplete(profile)) {
@@ -39,20 +38,8 @@ export default async function Card({ profile }: { profile: ProfileType }) {
       }
     }
 
-    return <ReserveStandCard />;
-  }
-
-  if (profile.role === "artist") {
-    const participationRequest = profile.userRequests.find(
-      (request) =>
-        request.type === "festival_participation" &&
-        request.festivalId === festival.id,
-    );
-
-    if (participationRequest) {
-      return <PendingParticipationCard festival={festival} />;
-    }
-
-    return <ParticipationCard festival={festival} profile={profile} />;
+    return <ReserveStandCard festival={festival} profile={profile} />;
+  } else {
+    return <TermsCard festival={festival} profile={profile} />;
   }
 }
