@@ -16,7 +16,7 @@ import { imagesSrc } from "@/app/lib/maps/config";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Suspense } from "react";
 import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
-import { formatDateToTimezone } from "@/app/lib/formatters";
+import { formatDate } from "@/app/lib/formatters";
 
 export const metadata: Metadata = {
   title: "Información del Festival",
@@ -122,8 +122,8 @@ export default async function Page({
             </div>
             <div>
               <ClockIcon className="mr-2 inline-block h-4 w-4" />
-              Hora: {formatDateToTimezone(festival.startDate).getHours()}hrs a{" "}
-              {formatDateToTimezone(festival.endDate).getHours()}hrs
+              Hora: {formatDate(festival.startDate).hour}hrs a{" "}
+              {formatDate(festival.endDate).hour}hrs
             </div>
             <div>
               <LocateIcon className="mr-2 inline-block h-4 w-4" />
