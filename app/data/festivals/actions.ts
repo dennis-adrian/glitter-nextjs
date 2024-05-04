@@ -213,6 +213,26 @@ export async function updateFestivalStatus(festival: FestivalBase) {
   return { success: true, message: "Festival actualizado con éxito" };
 }
 
+export async function updateFestivalRegistration(festival: FestivalBase) {
+  const client = await pool.connect();
+
+  try {
+    const { publicRegistration } = festival;
+    await db
+      .update(festivals)
+      .set({ publicRegistration })
+      .where(eq(festivals.id, festival.id));
+  } catch (error) {
+    console.error("Error updating festival registration", error);
+    return { success: false, message: "Error al actualizar el festival" };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/festivals");
+  return { success: true, message: "Festival actualizado con éxito" };
+}
+
 export async function fetchAvailableArtistsInFestival(
   festivalId: number,
 ): Promise<BaseProfile[]> {
