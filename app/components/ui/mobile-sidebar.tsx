@@ -18,12 +18,12 @@ import { Button } from "@/app/components/ui/button";
 import {
   AlbumIcon,
   CalendarCheck2Icon,
+  CalendarIcon,
   CreditCardIcon,
   HomeIcon,
   LogOutIcon,
   UsersIcon,
 } from "lucide-react";
-import Image from "next/image";
 import { ProfileType } from "@/app/api/users/definitions";
 import GlitterLogo from "@/app/components/landing/glitter-logo";
 
@@ -100,6 +100,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
                 <MobileSidebarItem href="/dashboard/payments">
                   <CreditCardIcon className="mr-2 h-6 w-6" />
                   Pagos
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/festivals">
+                  <CalendarIcon className="mr-2 h-6 w-6" />
+                  Festivales
                 </MobileSidebarItem>
               </div>
             </>
