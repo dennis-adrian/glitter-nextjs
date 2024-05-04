@@ -136,78 +136,81 @@ export async function fetchFestivals(): Promise<FestivalBase[]> {
   }
 }
 
-export async function activateFestival(festival: FestivalBase) {
+export async function updateFestivalStatus(festival: FestivalBase) {
   const client = await pool.connect();
 
   try {
-    const verifiedUsers = await db.transaction(async (tx) => {
-      await tx
-        .update(festivals)
-        .set({
-          status: "active",
-        })
-        .where(eq(festivals.id, festival.id));
+    const { status } = festival;
+    const [updatedFestival] = await db
+      .update(festivals)
+      .set({ status })
+      .where(eq(festivals.id, festival.id))
+      .returning();
 
-      return await tx.select().from(users).where(eq(users.verified, true));
-    });
+    if (updatedFestival.status === "active") {
+      const verifiedUsers = await db
+        .select()
+        .from(users)
+        .where(eq(users.verified, true));
 
-    const entrepreneurs = verifiedUsers.filter(
-      (user) => user.category === "entrepreneurship",
-    );
-    const illustrators = verifiedUsers.filter(
-      (user) => user.category === "illustration",
-    );
-    const gastronmics = verifiedUsers.filter(
-      (user) => user.category === "gastronomy",
-    );
+      const entrepreneurs = verifiedUsers.filter(
+        (user) => user.category === "entrepreneurship",
+      );
+      const illustrators = verifiedUsers.filter(
+        (user) => user.category === "illustration",
+      );
+      const gastronmics = verifiedUsers.filter(
+        (user) => user.category === "gastronomy",
+      );
 
-    entrepreneurs.forEach(async (user) => {
-      await sendEmail({
-        to: [user.email],
-        from: "Equipo Glitter <no-reply@festivalglitter.art>",
-        subject: "Participa en Glitter",
-        react: EmailTemplate({
-          category: "entrepreneurship",
-          name: user.displayName || "Emprendedor",
-          festivalId: festival.id,
-        }) as React.ReactElement,
+      entrepreneurs.forEach(async (user) => {
+        await sendEmail({
+          to: [user.email],
+          from: "Equipo Glitter <no-reply@festivalglitter.art>",
+          subject: "Participa en Glitter",
+          react: EmailTemplate({
+            category: "entrepreneurship",
+            name: user.displayName || "Emprendedor",
+            festivalId: festival.id,
+          }) as React.ReactElement,
+        });
       });
-    });
 
-    illustrators.forEach(async (user) => {
-      await sendEmail({
-        to: [user.email],
-        from: "Equipo Glitter <no-reply@festivalglitter.art>",
-        subject: "Participa en Glitter",
-        react: EmailTemplate({
-          category: "illustration",
-          name: user.displayName || "Ilustrador",
-          festivalId: festival.id,
-        }) as React.ReactElement,
+      illustrators.forEach(async (user) => {
+        await sendEmail({
+          to: [user.email],
+          from: "Equipo Glitter <no-reply@festivalglitter.art>",
+          subject: "Participa en Glitter",
+          react: EmailTemplate({
+            category: "illustration",
+            name: user.displayName || "Ilustrador",
+            festivalId: festival.id,
+          }) as React.ReactElement,
+        });
       });
-    });
 
-    gastronmics.forEach(async (user) => {
-      await sendEmail({
-        to: [user.email],
-        from: "Equipo Glitter <no-reply@festivalglitter.art>",
-        subject: "Participa en Glitter",
-        react: EmailTemplate({
-          category: "gastronomy",
-          name: user.displayName || "Emprendedor Gastronómico",
-          festivalId: festival.id,
-        }) as React.ReactElement,
+      gastronmics.forEach(async (user) => {
+        await sendEmail({
+          to: [user.email],
+          from: "Equipo Glitter <no-reply@festivalglitter.art>",
+          subject: "Participa en Glitter",
+          react: EmailTemplate({
+            category: "gastronomy",
+            name: user.displayName || "Emprendedor Gastronómico",
+            festivalId: festival.id,
+          }) as React.ReactElement,
+        });
       });
-    });
+    }
   } catch (error) {
     console.error("Error activating festival", error);
-    return { success: false, message: "Error al activar el festival" };
+    return { success: false, message: "Error al actualizar el festival" };
   } finally {
     client.release();
   }
 
   revalidatePath("/dashboard/festivals");
-  return { success: true, message: "Festival activado con éxito" };
+  return { success: true, message: "Festival actualizado con éxito" };
 }
 
 export async function fetchAvailableArtistsInFestival(
