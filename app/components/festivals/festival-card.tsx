@@ -32,9 +32,7 @@ export default function FestivalCard({ festival }: { festival: FestivalBase }) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {festival.status !== "archived" && (
-            <FestivalSwitches festival={festival} />
-          )}
+          <FestivalSwitches festival={festival} />
           <div className="p-4 border rounded-lg space-y-3">
             <h3 className="font-semibold text-xl">Detalles</h3>
             <div>
