@@ -1,7 +1,14 @@
 import { Festival, FestivalBase } from "@/app/data/festivals/definitions";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
 import { cn } from "@/app/lib/utils";
-import { CalendarIcon, ClockIcon, LocateIcon, LucideIcon } from "lucide-react";
+import {
+  BuildingIcon,
+  CalendarIcon,
+  ClockIcon,
+  LocateIcon,
+  LucideIcon,
+  MapPinIcon,
+} from "lucide-react";
 
 function InfoItem({
   Icon,
@@ -43,11 +50,14 @@ export function FestivalInfo({
       />
       <InfoItem Icon={ClockIcon} label="Hora: " value="10:00 AM a 6:00 PM" />
       <InfoItem
-        Icon={LocateIcon}
-        label="Ubicación: "
-        value={
-          `${festival.locationLabel} - ${festival.address}` || "Por definir"
-        }
+        Icon={BuildingIcon}
+        label="Lugar: "
+        value={festival.locationLabel || "Por definir"}
+      />
+      <InfoItem
+        Icon={MapPinIcon}
+        label="Dirección: "
+        value={festival.address || "Por definir"}
       />
     </div>
   );
