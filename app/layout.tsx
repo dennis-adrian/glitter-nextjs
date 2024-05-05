@@ -14,6 +14,7 @@ import Footer from "@/app/components/footer";
 
 import "./globals.css";
 import { getEnvLabel } from "./lib/config";
+import "@uploadthing/react/styles.css";
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
