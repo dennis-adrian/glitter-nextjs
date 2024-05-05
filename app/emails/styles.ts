@@ -8,7 +8,7 @@ export const main = {
 export const container = {
   maxWidth: "480px",
   margin: "0 auto",
-  padding: "20px 0 48px",
+  padding: "20px 0",
 };
 
 export const title = {
@@ -34,12 +34,42 @@ export const button = {
   color: "#fff",
   lineHeight: 1.5,
   borderRadius: "0.5em",
-  padding: "8px 16px",
+  padding: "10px 16px",
 };
 
 export const footer = {
   color: "#6a737d",
-  fontSize: "12px",
+  fontSize: "10px",
   textAlign: "center" as const,
-  marginTop: "30px",
+};
+
+export const banner = {
+  backgroundColor: "#6320E2",
+  borderTopLeftRadius: "8px",
+  borderTopRightRadius: "8px",
+  height: "96px",
+  width: "100%",
+};
+
+export const sectionWithBanner = {
+  padding: "24px",
+  border: "solid 1px #dedede",
+  borderBottomLeftRadius: "8px",
+  borderBottomRightRadius: "8px",
+  textAlign: "center" as const,
+};
+
+export const titleWithBanner = {
+  ...title,
+  margin: "0px 0px 16px",
+};
+
+export const buttonWithBanner = {
+  ...button,
+  marginTop: "6px",
+};
+
+export const footerText = {
+  margin: "0",
+  textAlign: "center" as const,
 };

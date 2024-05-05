@@ -16,6 +16,8 @@ import React from "react";
 import EmailTemplate from "@/app/emails/festival-activation";
 import { revalidatePath } from "next/cache";
 import { BaseProfile } from "@/app/api/users/definitions";
+import { fetchVisitors } from "@/app/data/visitors/actions";
+import RegistrationInvitationEmailTemplate from "@/app/emails/registration-invitation";
 
 export async function fetchActiveFestivalBase() {
   const client = await pool.connect();
@@ -218,10 +220,26 @@ export async function updateFestivalRegistration(festival: FestivalBase) {
 
   try {
     const { publicRegistration } = festival;
-    await db
+    const [updatedFestival] = await db
       .update(festivals)
       .set({ publicRegistration })
-      .where(eq(festivals.id, festival.id));
+      .where(eq(festivals.id, festival.id))
+      .returning();
+
+    if (updatedFestival.publicRegistration) {
+      const visitors = await fetchVisitors();
+      visitors.forEach(async (visitor) => {
+        await sendEmail({
+          to: [visitor.email],
+          from: "Equipo Glitter <equipo@productoraglitter.com>",
+          subject: "Pre-registro abierto para nuestro próximo festival",
+          react: RegistrationInvitationEmailTemplate({
+            festival: updatedFestival,
+            visitorName: visitor.firstName?.trim()!,
+          }) as React.ReactElement,
+        });
+      });
+    }
   } catch (error) {
     console.error("Error updating festival registration", error);
     return { success: false, message: "Error al actualizar el festival" };

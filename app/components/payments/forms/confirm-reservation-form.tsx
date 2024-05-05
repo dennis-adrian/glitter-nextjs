@@ -38,7 +38,7 @@ export function ConfirmReservationForm(props: ConfirmReservationFormProps) {
         variant="default"
         size="sm"
       >
-        Verificar Usuario
+        Confirmar reserva
       </SubmitButton>
     </form>
   );

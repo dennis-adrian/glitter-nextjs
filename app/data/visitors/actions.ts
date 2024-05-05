@@ -72,3 +72,18 @@ export async function createVisitor(
   revalidatePath("/festivals/[id]/registration");
   return { success: true };
 }
+
+export async function fetchVisitors() {
+  const client = await pool.connect();
+
+  try {
+    return await db.query.visitors.findMany({
+      orderBy: desc(visitors.id),
+    });
+  } catch (error) {
+    console.error("Error fetching visitors", error);
+    return [] as VisitorBase[];
+  } finally {
+    client.release();
+  }
+}
