@@ -17,7 +17,6 @@ import { Interval } from "luxon";
 
 interface RegistrationInvitationEmailTemplateProps {
   festival: FestivalBase;
-  visitorName: string;
 }
 
 export default function RegistrationInvitationEmailTemplate(
@@ -46,7 +45,7 @@ export default function RegistrationInvitationEmailTemplate(
           </Section>
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.titleWithBanner}>
-              ¡{props.visitorName}, evita colas para ingresar al evento!
+              ¡Evita colas para ingresar al evento!
             </Text>
             <Text style={styles.text}>
               Este{" "}
@@ -91,7 +90,6 @@ export default function RegistrationInvitationEmailTemplate(
 }
 
 RegistrationInvitationEmailTemplate.PreviewProps = {
-  visitorName: "John",
   festival: {
     id: 1,
     startDate: formatDate(new Date()).plus({ days: 7 }).toJSDate(),

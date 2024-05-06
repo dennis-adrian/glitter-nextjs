@@ -17,11 +17,12 @@ export default function UpdateFestivalRegistrationForm({
 }) {
   const form = useForm();
 
-  const action: () => void = form.handleSubmit(async (data) => {
+  const action: () => void = form.handleSubmit(async () => {
     const res = await updateFestivalRegistration({
       ...festival,
       publicRegistration: !festival.publicRegistration,
     });
+
     if (res.success) {
       toast.success(res.message);
       onSuccess();

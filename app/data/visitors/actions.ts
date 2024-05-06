@@ -75,16 +75,17 @@ export async function createVisitor(
   return { success: true };
 }
 
-export async function fetchVisitorsNamesWithEmails() {
+export async function fetchVisitorsEmails() {
   const client = await pool.connect();
 
   try {
     return db
       .select({
-        name: visitors.firstName || "",
+        id: visitors.id,
         email: visitors.email,
       })
-      .from(visitors);
+      .from(visitors)
+      .orderBy(asc(visitors.id));
   } catch (error) {
     console.error("Error fetching visitors", error);
     return [];

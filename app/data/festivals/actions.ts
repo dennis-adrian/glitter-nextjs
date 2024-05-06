@@ -16,8 +16,9 @@ import React from "react";
 import EmailTemplate from "@/app/emails/festival-activation";
 import { revalidatePath } from "next/cache";
 import { BaseProfile } from "@/app/api/users/definitions";
-import { fetchVisitorsNamesWithEmails } from "@/app/data/visitors/actions";
+import { fetchVisitorsEmails } from "@/app/data/visitors/actions";
 import RegistrationInvitationEmailTemplate from "@/app/emails/registration-invitation";
+import { groupVisitorEmails } from "@/app/data/festivals/helpers";
 
 export async function fetchActiveFestivalBase() {
   const client = await pool.connect();
@@ -226,20 +227,12 @@ export async function updateFestivalRegistration(festival: FestivalBase) {
       .where(eq(festivals.id, festival.id))
       .returning();
 
-    if (updatedFestival.publicRegistration) {
-      const visitors = await fetchVisitorsNamesWithEmails();
-      visitors.forEach(async (visitor) => {
-        await sendEmail({
-          to: [visitor.email],
-          from: "Equipo Glitter <equipo@productoraglitter.com>",
-          subject: "Pre-registro abierto para nuestro próximo festival",
-          react: RegistrationInvitationEmailTemplate({
-            festival: updatedFestival,
-            visitorName: visitor.name?.trim()!,
-          }) as React.ReactElement,
-        });
-      });
-    }
+    const visitors = await fetchVisitorsEmails();
+    const emailGroups = groupVisitorEmails(visitors);
+
+    emailGroups.forEach(async (visitorEmails) => {
+      await sendEmailToVisitors(visitorEmails, updatedFestival);
+    });
   } catch (error) {
     console.error("Error updating festival registration", error);
     return { success: false, message: "Error al actualizar el festival" };
@@ -249,6 +242,24 @@ export async function updateFestivalRegistration(festival: FestivalBase) {
 
   revalidatePath("/dashboard/festivals");
   return { success: true, message: "Festival actualizado con éxito" };
+}
+
+export async function sendEmailToVisitors(
+  emails: string[],
+  festival: FestivalBase,
+) {
+  const { error } = await sendEmail({
+    to: emails,
+    from: "Equipo Glitter <equipo@festivalglitter.art>",
+    subject: "Pre-registro abierto para nuestro próximo festival",
+    react: RegistrationInvitationEmailTemplate({
+      festival: festival,
+    }) as React.ReactElement,
+  });
+
+  if (error) {
+    console.error("Error sending email to visitors", error);
+  }
 }
 
 export async function fetchAvailableArtistsInFestival(
