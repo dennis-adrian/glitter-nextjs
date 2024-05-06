@@ -237,6 +237,7 @@ const addressLabel = {
   fontSize: "14px",
   lineHeight: "20px",
   padding: "8px 16px",
+  textAlign: "center" as const,
   ...backdropBlur,
   ...maxWidthFit,
   ...roundedLg,

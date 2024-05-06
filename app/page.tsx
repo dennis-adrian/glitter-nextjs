@@ -9,6 +9,7 @@ import { FestivalInfo } from "@/app/components/landing/festival-info-card";
 import Carousel from "@/app/components/landing/carousel";
 import EventFeatures from "@/app/components/landing/event-features";
 import LandingBanner from "@/app/components/landing/banner";
+import { RedirectButton } from "@/app/components/redirect-button";
 
 export default async function Home() {
   const user = await currentUser();
@@ -40,10 +41,28 @@ export default async function Home() {
                     />
                   )}
                 </div>
-                <LandingRedirectButton
-                  className="w-[320px]"
-                  festivalId={festival?.id}
-                />
+                {festival && festival.publicRegistration ? (
+                  <div className="space-x-2">
+                    <RedirectButton
+                      className="hover:bg-white"
+                      variant="outline"
+                      href={`/festivals/${festival.id}`}
+                    >
+                      Ver evento
+                    </RedirectButton>
+                    <RedirectButton
+                      variant="cta"
+                      href={`/festivals/${festival.id}/registration`}
+                    >
+                      Registrar asistencia
+                    </RedirectButton>
+                  </div>
+                ) : (
+                  <LandingRedirectButton
+                    className="w-[320px]"
+                    festivalId={festival?.id}
+                  />
+                )}
               </div>
             </div>
             <Image
@@ -94,17 +113,34 @@ export default async function Home() {
               }}
             />
           </div>
-          <div className="rounded-md flex flex-col gap-2 items-center w-full md:hidden">
+          <div className="rounded-md flex-col gap-2 items-center w-full md:hidden">
             <div>
               <div className="text-3xl font-semibold my-2">Próximo Evento</div>
               {festival && (
                 <FestivalInfo className="py-2" festival={festival} />
               )}
             </div>
-            <LandingRedirectButton
-              className="w-[320px]"
-              festivalId={festival?.id}
-            />
+            {festival && festival.publicRegistration ? (
+              <div className="space-x-2">
+                <RedirectButton
+                  variant="outline"
+                  href={`/festivals/${festival.id}`}
+                >
+                  Ver evento
+                </RedirectButton>
+                <RedirectButton
+                  variant="cta"
+                  href={`/festivals/${festival.id}/registration`}
+                >
+                  Registrar asistencia
+                </RedirectButton>
+              </div>
+            ) : (
+              <LandingRedirectButton
+                className="w-[320px]"
+                festivalId={festival?.id}
+              />
+            )}
           </div>
           <div className="mt-8">
             <div className="px-3">
