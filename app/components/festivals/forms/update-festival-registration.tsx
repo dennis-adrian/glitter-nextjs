@@ -17,7 +17,7 @@ export default function UpdateFestivalRegistrationForm({
 }) {
   const form = useForm();
 
-  async function handleSubmit() {
+  const action: () => void = form.handleSubmit(async (data) => {
     const res = await updateFestivalRegistration({
       ...festival,
       publicRegistration: !festival.publicRegistration,
@@ -26,7 +26,7 @@ export default function UpdateFestivalRegistrationForm({
       toast.success(res.message);
       onSuccess();
     } else toast.error(res.message);
-  }
+  });
 
   const buttonLabel = festival.publicRegistration
     ? "Deshabilitar acreditación"
@@ -34,15 +34,11 @@ export default function UpdateFestivalRegistrationForm({
 
   return (
     <Form {...form}>
-      <form action={handleSubmit} className="flex flex-col gap-4 mt-4">
-        <Button
-          disabled={form.formState.isSubmitting}
-          type="submit"
-          className="w-full"
-        >
+      <form onSubmit={action} className="flex flex-col gap-4 mt-4">
+        <Button disabled={form.formState.isSubmitting} className="w-full">
           {form.formState.isSubmitting ? (
-            <span>
-              <Loader2Icon className="w-4 h-4 ml-2 animate-spin" />
+            <span className="flex items-center gap-2">
+              <Loader2Icon className="w-4 h-4 animate-spin" />
               Actualizando festival
             </span>
           ) : (
