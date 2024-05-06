@@ -1,23 +1,23 @@
 "use client";
 
-import { Dispatch, useRef } from "react";
+import { Dispatch, useCallback, useRef, useState } from "react";
 
 import * as htmlToImage from "html-to-image";
 
+import { Button } from "@/app/components/ui/button";
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
-import Ticket from "@/app/components/events/registration/ticket";
-import { Button } from "@/app/components/ui/button";
+import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
+import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
+import { junegull } from "@/app/ui/fonts";
 import {
   DrawerDialog,
   DrawerDialogContent,
 } from "@/components/ui/drawer-dialog";
-import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
-import Image from "next/image";
 import { CalendarDaysIcon, ClockIcon } from "lucide-react";
-import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
-import { junegull } from "@/app/ui/fonts";
+import Image from "next/image";
+import { toast } from "sonner";
 
 export default function TicketModal({
   festival,
@@ -30,22 +30,32 @@ export default function TicketModal({
   visitor: VisitorWithTickets;
   onOpenChange: Dispatch<React.SetStateAction<boolean>>;
 }) {
+  const [showDownloadButton, setShowDownloadButton] = useState(false);
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const ticketRef = useRef(null);
   const visitorTickets = getVisitorFestivalTickets(visitor, festival);
 
+  const downloadTicket = useCallback(() => {
+    if (ticketRef.current === null) {
+      return;
+    }
+
+    htmlToImage
+      .toPng(ticketRef.current, { cacheBust: true })
+      .then((dataUrl) => {
+        const link = document.createElement("a");
+        link.download = "entrada-gliter.png";
+        link.href = dataUrl;
+        link.click();
+      })
+      .catch((err) => {
+        toast.error("No se pudo descargar la entrada");
+      });
+  }, [ticketRef]);
+
   if (visitorTickets.length < 1) {
     return null;
   }
-
-  const downloadTicket = async () => {
-    const dataUrl = await htmlToImage.toPng(ticketRef.current!);
-
-    const link = document.createElement("a");
-    link.download = "glitter-ticket.png";
-    link.href = dataUrl;
-    link.click();
-  };
 
   return (
     <DrawerDialog isDesktop={isDesktop} open={show} onOpenChange={onOpenChange}>
@@ -63,6 +73,7 @@ export default function TicketModal({
             />
             <div className="m-2 flex h-60 w-60 items-center justify-center rounded-lg bg-white/50 backdrop-blur-sm">
               <Image
+                onLoad={() => setShowDownloadButton(true)}
                 className="rounded-lg"
                 alt="Logo de Glitter"
                 src={visitorTickets[0].qrcode}
@@ -113,7 +124,7 @@ export default function TicketModal({
                 </div>
               ))}
             </div>
-            <div className="mb-3 flex items-center justify-center rounded-lg bg-white/20 text-white px-4 py-2 text-sm backdrop-blur-lg">
+            <div className="mb-3 flex text-center items-center justify-center rounded-lg bg-white/20 text-white px-4 py-2 text-sm backdrop-blur-lg">
               {festival.locationLabel} - {festival.address}
             </div>
             <Image
@@ -126,7 +137,11 @@ export default function TicketModal({
               width={320}
             />
           </div>
-          <Button className="mt-4 w-full" onClick={downloadTicket}>
+          <Button
+            disabled={!showDownloadButton}
+            className="hidden sm:block mt-4 mb-4 w-full"
+            onClick={downloadTicket}
+          >
             Descargar entrada
           </Button>
         </div>
