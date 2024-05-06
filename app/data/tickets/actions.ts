@@ -8,7 +8,9 @@ import { uploadQrCode } from "@/app/data/tickets/helpers";
 import { generateQRCode } from "@/app/lib/utils";
 import { db, pool } from "@/db";
 import { tickets } from "@/db/schema";
-import { VisitorBase } from "../visitors/actions";
+import { VisitorBase, VisitorWithTickets } from "../visitors/actions";
+import { sendEmail } from "@/app/vendors/resend";
+import TicketEmailTemplate from "@/app/emails/ticket";
 
 export type TicketBase = typeof tickets.$inferSelect;
 export type TicketWithVisitor = TicketBase & { visitor: VisitorBase };
@@ -147,4 +149,37 @@ export async function updateTicket(id: number, status: TicketBase["status"]) {
     success: true,
     error: null,
   };
+}
+
+export async function sendTicketEmail(
+  visitor: VisitorWithTickets,
+  festival: FestivalBase,
+) {
+  const client = await pool.connect();
+  try {
+    const { error, data } = await sendEmail({
+      from: "Equipo Glitter <entradas@festivalglitter.art>",
+      to: [visitor.email],
+      subject: "Confirmación de Registro para Glitter Vol 2",
+      react: TicketEmailTemplate({
+        visitor,
+        festival,
+      }) as React.ReactElement,
+    });
+
+    if (error) throw new Error(error.message);
+
+    return {
+      success: true,
+      message: `Se envió el correo a ${visitor.email}`,
+    };
+  } catch (error) {
+    console.error("Error sending pending emails", error);
+    return {
+      success: false,
+      message: "No se pudo enviar el correo con la entrada",
+    };
+  } finally {
+    client.release();
+  }
 }
