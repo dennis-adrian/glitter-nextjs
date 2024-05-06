@@ -22,6 +22,7 @@ import {
 } from "@/app/lib/formatters";
 import { FestivalBase } from "../data/festivals/definitions";
 import { VisitorWithTickets } from "../data/visitors/actions";
+import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 
 type TicketEmailTemplateProps = {
   festival: FestivalBase;
@@ -32,18 +33,19 @@ export default function TicketEmailTemplate({
   visitor,
   festival,
 }: TicketEmailTemplateProps) {
+  const festivalTickets = getVisitorFestivalTickets(visitor, festival);
   const qrCodeSrc =
-    visitor?.tickets[0]?.qrcodeUrl || "https://via.placeholder.com/200";
+    festivalTickets[0]?.qrcodeUrl || "https://via.placeholder.com/200";
 
   let weekDayLabel = "sábado y domingo";
-  if (visitor?.tickets) {
-    if (visitor?.tickets.length > 1) {
-      getWeekdayFromDate(new Date(visitor.tickets[0].date)) +
+  if (festivalTickets) {
+    if (festivalTickets.length > 1) {
+      getWeekdayFromDate(festivalTickets[0].date) +
         " y " +
-        getWeekdayFromDate(new Date(visitor.tickets[1].date));
+        getWeekdayFromDate(festivalTickets[1].date);
     }
-    if (visitor.tickets.length === 1) {
-      getWeekdayFromDate(new Date(visitor.tickets[0].date));
+    if (festivalTickets.length === 1) {
+      getWeekdayFromDate(festivalTickets[0].date);
     }
   }
 
@@ -88,15 +90,15 @@ export default function TicketEmailTemplate({
             <Section style={message}>
               Esta entrada es válida sólo para 1 persona y debe de ser mostrada
               al momento de ingresar al evento
-              {visitor?.tickets?.length > 1 && (
+              {festivalTickets?.length > 1 && (
                 <Text style={{ height: "8px", padding: "0px" }}>
                   * Presentar esta misma entrada ambos días que asistas
                 </Text>
               )}
             </Section>
             <Section style={{ margin: "16px auto", color: "white" }}>
-              {visitor?.tickets &&
-                visitor.tickets.map((ticket) => (
+              {festivalTickets &&
+                festivalTickets.map((ticket) => (
                   <Row key={ticket.id}>
                     <Text style={ticketDate}>
                       {formatFullDate(ticket.date)} de 10:00 a 18:00

@@ -19,7 +19,7 @@ import {
   userRequests,
   users,
 } from "@/db/schema";
-import { sendEmail } from "@/vendors/resend";
+import { sendEmail } from "@/app/vendors/resend";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 

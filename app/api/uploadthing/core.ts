@@ -13,7 +13,6 @@ export const ourFileRouter = {
     // Set permissions and file types for this FileRoute
     .middleware(async ({ req }) => {
       const user = await currentUser();
-      debugger;
 
       // Throw if user isn't signed in
       if (!user)

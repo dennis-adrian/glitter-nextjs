@@ -1,6 +1,6 @@
 "use client";
 
-import { UploadButton } from "@/vendors/uploadthing";
+import { UploadButton } from "@/app/vendors/uploadthing";
 
 export default function Page() {
   return (

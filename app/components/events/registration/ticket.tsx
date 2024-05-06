@@ -8,6 +8,7 @@ import { FestivalBase } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
 import { junegull } from "@/app/ui/fonts";
+import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 
 export default function Ticket({
   festival,
@@ -20,6 +21,8 @@ export default function Ticket({
   visitor: VisitorWithTickets;
   onQrLoad?: () => void;
 }) {
+  const visitorFestivalTickets = getVisitorFestivalTickets(visitor, festival);
+
   return (
     <div
       ref={ticketRef}
@@ -36,7 +39,7 @@ export default function Ticket({
           onLoad={onQrLoad}
           className="rounded-lg"
           alt="Logo de Glitter"
-          src={visitor.tickets[0].qrcode}
+          src={visitorFestivalTickets[0].qrcode}
           height={204}
           width={204}
         />
@@ -47,13 +50,13 @@ export default function Ticket({
         Entrada
       </h1>
       <div className="my-3 rounded-2xl bg-[#44161E] px-3 py-1 font-semibold uppercase text-white">
-        {visitor.tickets.length > 1 ? (
+        {visitorFestivalTickets.length > 1 ? (
           <h3>
-            {getWeekdayFromDate(visitor.tickets[0].date)} y{" "}
-            {getWeekdayFromDate(visitor.tickets[1].date)}
+            {getWeekdayFromDate(visitorFestivalTickets[0].date)} y{" "}
+            {getWeekdayFromDate(visitorFestivalTickets[1].date)}
           </h3>
         ) : (
-          <h3>Día {getWeekdayFromDate(visitor.tickets[0].date)}</h3>
+          <h3>Día {getWeekdayFromDate(visitorFestivalTickets[0].date)}</h3>
         )}
       </div>
       <div className="text-center text-lg leading-5 tracking-tight text-white">
@@ -61,15 +64,18 @@ export default function Ticket({
           Esta entrada es válida sólo para 1 persona y debe de ser mostrada al
           momento de ingresar al evento
         </p>
-        {visitor.tickets.length > 1 && (
+        {visitorFestivalTickets.length > 1 && (
           <p className="mt-2">
             Presentar esta misma entrada ambos días que asistas
           </p>
         )}
       </div>
       <div className="text-primary-foreground my-3">
-        {visitor.tickets.map((ticket) => (
-          <div className="flex items-center" key={ticket.id}>
+        {visitorFestivalTickets.map((ticket) => (
+          <div
+            className="flex justify-center items-center flex-wrap"
+            key={ticket.id}
+          >
             <span className="flex items-center">
               <CalendarDaysIcon className="mr-1 h-4 w-4" />
               <span>{formatFullDate(ticket.date)}</span>

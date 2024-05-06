@@ -3,11 +3,14 @@ import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
 import { AttendanceType } from "./ticket-creation-form";
 import { capitalize } from "@/app/lib/utils";
+import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 
 export function getAttendanceOptions(
   visitor: VisitorWithTickets,
   festival: FestivalBase,
 ): { label: string; value: AttendanceType }[] {
+  const visitorFestivalTickets = getVisitorFestivalTickets(visitor, festival);
+
   const dayOneOption = {
     label: `${capitalize(
       getWeekdayFromDate(festival.startDate),
@@ -25,17 +28,20 @@ export function getAttendanceOptions(
     value: "both" as AttendanceType,
   };
 
-  if (visitor.tickets.length === 1) {
-    if (visitor.tickets[0].date.toString() === festival.startDate.toString()) {
+  if (visitorFestivalTickets.length === 1) {
+    if (
+      visitorFestivalTickets[0].date.toString() ===
+      festival.startDate.toString()
+    ) {
       return [dayTwoOption];
     } else if (
-      visitor.tickets[0].date.toString() === festival.endDate.toString()
+      visitorFestivalTickets[0].date.toString() === festival.endDate.toString()
     ) {
       return [dayOneOption];
     }
   }
 
-  if (visitor.tickets.length === 2) {
+  if (visitorFestivalTickets.length === 2) {
     return [];
   }
 

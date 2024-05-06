@@ -16,6 +16,7 @@ import TicketCreationForm from "./ticket-creation-form";
 import TicketModal from "./ticket-modal";
 import { ProfileWithParticipationsAndRequests } from "@/app/api/users/definitions";
 import { RedirectButton } from "../../redirect-button";
+import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 
 export default function VisitorTickets({
   visitor,
@@ -29,9 +30,7 @@ export default function VisitorTickets({
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
-  const visitorFestivalTickets = visitor.tickets.filter(
-    (ticket) => ticket.festivalId === festival.id,
-  );
+  const visitorFestivalTickets = getVisitorFestivalTickets(visitor, festival);
 
   return (
     <>

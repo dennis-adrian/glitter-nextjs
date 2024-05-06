@@ -42,7 +42,9 @@ export async function fetchVisitor(
     return await db.query.visitors.findFirst({
       where: eq(visitors.id, visitorId),
       with: {
-        tickets: true,
+        tickets: {
+          orderBy: tickets.date,
+        },
       },
     });
   } catch (error) {
@@ -69,7 +71,7 @@ export async function createVisitor(
     client.release();
   }
 
-  revalidatePath("/festivals/[id]/registration");
+  revalidatePath("/festivals");
   return { success: true };
 }
 

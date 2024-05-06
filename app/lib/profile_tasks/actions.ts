@@ -7,7 +7,7 @@ import ProfileDeletionTemplate from "@/app/emails/profile-deletion";
 import { ProfileTaskWithProfile } from "@/app/lib/profile_tasks/definitions";
 import { db, pool } from "@/db";
 import { profileTasks, users } from "@/db/schema";
-import { sendEmail } from "@/vendors/resend";
+import { sendEmail } from "@/app/vendors/resend";
 import { and, eq, gt, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 
 export async function fetchPendingTasks(): Promise<ProfileTaskWithProfile[]> {

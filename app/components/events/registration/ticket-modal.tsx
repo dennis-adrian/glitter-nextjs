@@ -13,6 +13,7 @@ import {
   DrawerDialog,
   DrawerDialogContent,
 } from "@/components/ui/drawer-dialog";
+import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 
 export default function TicketModal({
   festival,
@@ -27,8 +28,9 @@ export default function TicketModal({
 }) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const ticketRef = useRef(null);
+  const visitorTickets = getVisitorFestivalTickets(visitor, festival);
 
-  if (visitor.tickets.length < 1) {
+  if (visitorTickets.length < 1) {
     return null;
   }
 

@@ -1,7 +1,8 @@
 import { DateTime } from "luxon";
 
-export function formatDate(date: Date): DateTime {
-  return DateTime.fromISO(date.toISOString(), {
+export function formatDate(date: Date | string): DateTime {
+  const isoDate = date instanceof Date ? date.toISOString() : date;
+  return DateTime.fromISO(isoDate, {
     zone: "America/La_Paz",
   }).setLocale("es");
 }

@@ -13,7 +13,7 @@ import { revalidatePath } from "next/cache";
 import { BaseProfile, NewUserSocial, ProfileType } from "./definitions";
 import { buildNewUser, buildUserSocials } from "@/app/api/users/helpers";
 import { isProfileComplete } from "@/app/lib/utils";
-import { sendEmail } from "@/vendors/resend";
+import { sendEmail } from "@/app/vendors/resend";
 import EmailTemplate from "@/app/emails/verification-confirmation";
 import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
 import { fetchActiveFestival } from "@/app/data/festivals/actions";

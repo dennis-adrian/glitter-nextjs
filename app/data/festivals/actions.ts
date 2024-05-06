@@ -11,7 +11,7 @@ import {
   reservationParticipants,
 } from "@/db/schema";
 import { Festival, FestivalBase, FestivalWithTickets } from "./definitions";
-import { sendEmail } from "@/vendors/resend";
+import { sendEmail } from "@/app/vendors/resend";
 import React from "react";
 import EmailTemplate from "@/app/emails/festival-activation";
 import { revalidatePath } from "next/cache";

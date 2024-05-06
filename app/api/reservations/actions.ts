@@ -11,7 +11,7 @@ import {
 } from "@/db/schema";
 
 import { BaseProfile } from "@/app/api/users/definitions";
-import { sendEmail } from "@/vendors/resend";
+import { sendEmail } from "@/app/vendors/resend";
 import EmailTemplate from "@/app/emails/reservation-confirmation";
 import React from "react";
 import {
