@@ -16,7 +16,7 @@ import React from "react";
 import EmailTemplate from "@/app/emails/festival-activation";
 import { revalidatePath } from "next/cache";
 import { BaseProfile } from "@/app/api/users/definitions";
-import { fetchVisitors } from "@/app/data/visitors/actions";
+import { fetchVisitorsNamesWithEmails } from "@/app/data/visitors/actions";
 import RegistrationInvitationEmailTemplate from "@/app/emails/registration-invitation";
 
 export async function fetchActiveFestivalBase() {
@@ -227,7 +227,7 @@ export async function updateFestivalRegistration(festival: FestivalBase) {
       .returning();
 
     if (updatedFestival.publicRegistration) {
-      const visitors = await fetchVisitors();
+      const visitors = await fetchVisitorsNamesWithEmails();
       visitors.forEach(async (visitor) => {
         await sendEmail({
           to: [visitor.email],
@@ -235,7 +235,7 @@ export async function updateFestivalRegistration(festival: FestivalBase) {
           subject: "Pre-registro abierto para nuestro próximo festival",
           react: RegistrationInvitationEmailTemplate({
             festival: updatedFestival,
-            visitorName: visitor.firstName?.trim()!,
+            visitorName: visitor.name?.trim()!,
           }) as React.ReactElement,
         });
       });
