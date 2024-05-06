@@ -56,6 +56,10 @@ export default function TicketCreationForm({
       festivalStartDate: festival.startDate,
       festivalEndDate: festival.endDate,
     });
+    const toastId = toast("loading");
+    toast.loading("Enviando confirmación...", {
+      id: toastId,
+    });
 
     if (res.success) {
       const updatedVisitor = await fetchVisitor(visitor.id);
@@ -67,12 +71,19 @@ export default function TicketCreationForm({
         }),
         method: "POST",
       });
-      toast.success(
-        "¡Gracias por confirmar tu asistencia! Te hemos enviado un correo con los detalles.",
-      );
+      toast.dismiss(toastId);
+      toast.success("¡Gracias por confirmar tu asistencia!", {
+        description: "Te enviamos un correo con los detalles de tu registro.",
+        duration: 10000,
+        closeButton: true,
+      });
     } else {
       toast.error(
         "Ocurrió un error al confirmar tu asistencia. Intenta de nuevo.",
+        {
+          duration: 10000,
+          closeButton: true,
+        },
       );
     }
   }

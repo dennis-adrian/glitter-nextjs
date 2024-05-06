@@ -48,7 +48,10 @@ export default function TicketModal({
       <DrawerDialogContent isDesktop={isDesktop}>
         <div className={`${isDesktop ? "" : "px-4"} py-4`}>
           <Ticket festival={festival} ticketRef={ticketRef} visitor={visitor} />
-          <Button className="mt-4 w-full" onClick={downloadTicket}>
+          <Button
+            className="hidden sm:block mt-4 w-full"
+            onClick={downloadTicket}
+          >
             Descargar entrada
           </Button>
         </div>
