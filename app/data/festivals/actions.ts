@@ -230,9 +230,12 @@ export async function updateFestivalRegistration(festival: FestivalBase) {
     const visitors = await fetchVisitorsEmails();
     const emailGroups = groupVisitorEmails(visitors);
 
-    emailGroups.forEach(async (visitorEmails) => {
-      await sendEmailToVisitors(visitorEmails, updatedFestival);
-    });
+    // TODO: Remove this after glitter mayo is correctly enabled
+    const tmpEmailGroups = emailGroups.slice(10);
+
+    if (updatedFestival.publicRegistration) {
+      await queueEmails(tmpEmailGroups, updatedFestival);
+    }
   } catch (error) {
     console.error("Error updating festival registration", error);
     return { success: false, message: "Error al actualizar el festival" };
@@ -242,6 +245,20 @@ export async function updateFestivalRegistration(festival: FestivalBase) {
 
   revalidatePath("/dashboard/festivals");
   return { success: true, message: "Festival actualizado con éxito" };
+}
+
+export async function queueEmails(
+  emailGroups: string[][],
+  festival: FestivalBase,
+) {
+  let counter = 0;
+  for (let group of emailGroups) {
+    if (counter % 10 === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    await sendEmailToVisitors(group, festival);
+    counter++;
+  }
 }
 
 export async function sendEmailToVisitors(
