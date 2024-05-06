@@ -11,33 +11,41 @@ import {
 } from "@react-email/components";
 
 import {
+  EMAIL_FOOTER_IMG_URL,
   GLITTER_EMAIL_HEADING_URL,
   GLITTER_EMAIL_LOGO_URL,
-  SAMY_HEAD_URL,
 } from "@/app/lib/costants";
-import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
+import {
+  formatDate,
+  formatFullDate,
+  getWeekdayFromDate,
+} from "@/app/lib/formatters";
 import { FestivalBase } from "../data/festivals/definitions";
 import { VisitorWithTickets } from "../data/visitors/actions";
+import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
+
+type TicketEmailTemplateProps = {
+  festival: FestivalBase;
+  visitor: VisitorWithTickets;
+};
 
 export default function TicketEmailTemplate({
   visitor,
   festival,
-}: {
-  festival: FestivalBase;
-  visitor: VisitorWithTickets;
-}) {
+}: TicketEmailTemplateProps) {
+  const festivalTickets = getVisitorFestivalTickets(visitor, festival);
   const qrCodeSrc =
-    visitor?.tickets[0]?.qrcodeUrl || "https://via.placeholder.com/200";
+    festivalTickets[0]?.qrcodeUrl || "https://via.placeholder.com/200";
 
   let weekDayLabel = "sábado y domingo";
-  if (visitor?.tickets) {
-    if (visitor?.tickets.length > 1) {
-      getWeekdayFromDate(new Date(visitor.tickets[0].date)) +
+  if (festivalTickets) {
+    if (festivalTickets.length > 1) {
+      getWeekdayFromDate(festivalTickets[0].date) +
         " y " +
-        getWeekdayFromDate(new Date(visitor.tickets[1].date));
+        getWeekdayFromDate(festivalTickets[1].date);
     }
-    if (visitor.tickets.length === 1) {
-      getWeekdayFromDate(new Date(visitor.tickets[0].date));
+    if (festivalTickets.length === 1) {
+      getWeekdayFromDate(festivalTickets[0].date);
     }
   }
 
@@ -59,8 +67,8 @@ export default function TicketEmailTemplate({
               style={marginAuto}
               alt="Logo de Glitter con descripción"
               src={GLITTER_EMAIL_LOGO_URL}
-              height={68}
-              width={180}
+              height={56}
+              width={170}
             />
             <Section style={qrCodeContainer}>
               <Img
@@ -82,38 +90,31 @@ export default function TicketEmailTemplate({
             <Section style={message}>
               Esta entrada es válida sólo para 1 persona y debe de ser mostrada
               al momento de ingresar al evento
-              {visitor?.tickets?.length > 1 && (
+              {festivalTickets?.length > 1 && (
                 <Text style={{ height: "8px", padding: "0px" }}>
                   * Presentar esta misma entrada ambos días que asistas
                 </Text>
               )}
             </Section>
             <Section style={{ margin: "16px auto", color: "white" }}>
-              {visitor?.tickets ? (
-                visitor.tickets.map((ticket) => (
+              {festivalTickets &&
+                festivalTickets.map((ticket) => (
                   <Row key={ticket.id}>
                     <Text style={ticketDate}>
-                      {formatFullDate(new Date(ticket.date))} de 10:00 a 19:00
+                      {formatFullDate(ticket.date)} de 10:00 a 18:00
                     </Text>
                   </Row>
-                ))
-              ) : (
-                <Row>
-                  <Text style={ticketDate}>
-                    {formatFullDate(new Date())} de 10:00 a 19:00
-                  </Text>
-                </Row>
-              )}
+                ))}
             </Section>
             <Section style={addressLabel}>
-              {festival?.locationLabel || "Galería del CBA. Calle Sucre 346"}
+              {festival?.locationLabel} - {festival?.address}
             </Section>
             <Img
               style={marginAuto}
-              alt="Samy"
-              src={SAMY_HEAD_URL}
-              height={92}
-              width={120}
+              alt="email footer"
+              src={EMAIL_FOOTER_IMG_URL}
+              height={132}
+              width={320}
             />
           </Section>
         </Container>
@@ -121,6 +122,25 @@ export default function TicketEmailTemplate({
     </Html>
   );
 }
+
+TicketEmailTemplate.PreviewProps = {
+  visitor: {
+    firstName: "John",
+    tickets: [
+      {
+        id: 1,
+        date: formatDate(new Date()).plus({ days: 2 }).toJSDate(),
+      },
+    ],
+  },
+  festival: {
+    address: "Calle Sucre #346",
+    endDate: formatDate(new Date()).plus({ days: 3 }).toJSDate(),
+    locationLabel: "Galería del CBA",
+    name: "Festival Glitter",
+    startDate: formatDate(new Date()).plus({ days: 2 }).toJSDate(),
+  },
+} as TicketEmailTemplateProps;
 
 const main = {
   backgroundColor: "#ffffff",
@@ -152,7 +172,7 @@ const container = {
 };
 
 const ticketContainer = {
-  background: "linear-gradient(#99A4E6, #52B0E6)",
+  background: "linear-gradient(#FF9458, #FF6A96, #9D70FF)",
   padding: "24px 24px 0",
   ...roundedLg,
 };
@@ -164,7 +184,7 @@ const greeting = {
 };
 
 const backdropBlur = {
-  backgroundColor: "rgba(255, 255, 255, 0.5)",
+  backgroundColor: "rgba(255, 255, 255, 0.2)",
   backdropFilter: "blur(4px)",
 };
 
@@ -177,7 +197,7 @@ const qrCodeContainer = {
 };
 
 const weekDayPill = {
-  backgroundColor: "rgb(30 58 138)",
+  backgroundColor: "#44161E",
   borderRadius: "16px",
   color: "white",
   fontWeight: "600",
@@ -201,6 +221,7 @@ const ticketDate = {
 };
 
 const message = {
+  color: "white",
   margin: "16px auto",
   textAlign: "center" as const,
   maxWidth: "400px",
@@ -211,6 +232,7 @@ const message = {
 };
 
 const addressLabel = {
+  color: "white",
   margin: "0 auto 12px",
   fontSize: "14px",
   lineHeight: "20px",

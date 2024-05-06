@@ -11,11 +11,13 @@ import {
   reservationParticipants,
 } from "@/db/schema";
 import { Festival, FestivalBase, FestivalWithTickets } from "./definitions";
-import { sendEmail } from "@/vendors/resend";
+import { sendEmail } from "@/app/vendors/resend";
 import React from "react";
 import EmailTemplate from "@/app/emails/festival-activation";
 import { revalidatePath } from "next/cache";
 import { BaseProfile } from "@/app/api/users/definitions";
+import { fetchVisitors } from "@/app/data/visitors/actions";
+import RegistrationInvitationEmailTemplate from "@/app/emails/registration-invitation";
 
 export async function fetchActiveFestivalBase() {
   const client = await pool.connect();
@@ -136,78 +138,117 @@ export async function fetchFestivals(): Promise<FestivalBase[]> {
   }
 }
 
-export async function activateFestival(festival: FestivalBase) {
+export async function updateFestivalStatus(festival: FestivalBase) {
   const client = await pool.connect();
 
   try {
-    const verifiedUsers = await db.transaction(async (tx) => {
-      await tx
-        .update(festivals)
-        .set({
-          status: "active",
-        })
-        .where(eq(festivals.id, festival.id));
+    const { status } = festival;
+    const [updatedFestival] = await db
+      .update(festivals)
+      .set({ status })
+      .where(eq(festivals.id, festival.id))
+      .returning();
 
-      return await tx.select().from(users).where(eq(users.verified, true));
-    });
+    if (updatedFestival.status === "active") {
+      const verifiedUsers = await db
+        .select()
+        .from(users)
+        .where(eq(users.verified, true));
 
-    const entrepreneurs = verifiedUsers.filter(
-      (user) => user.category === "entrepreneurship",
-    );
-    const illustrators = verifiedUsers.filter(
-      (user) => user.category === "illustration",
-    );
-    const gastronmics = verifiedUsers.filter(
-      (user) => user.category === "gastronomy",
-    );
+      const entrepreneurs = verifiedUsers.filter(
+        (user) => user.category === "entrepreneurship",
+      );
+      const illustrators = verifiedUsers.filter(
+        (user) => user.category === "illustration",
+      );
+      const gastronmics = verifiedUsers.filter(
+        (user) => user.category === "gastronomy",
+      );
 
-    entrepreneurs.forEach(async (user) => {
-      await sendEmail({
-        to: [user.email],
-        from: "Equipo Glitter <no-reply@festivalglitter.art>",
-        subject: "Participa en Glitter",
-        react: EmailTemplate({
-          category: "entrepreneurship",
-          name: user.displayName || "Emprendedor",
-          festivalId: festival.id,
-        }) as React.ReactElement,
+      entrepreneurs.forEach(async (user) => {
+        await sendEmail({
+          to: [user.email],
+          from: "Equipo Glitter <no-reply@festivalglitter.art>",
+          subject: "Participa en Glitter",
+          react: EmailTemplate({
+            category: "entrepreneurship",
+            name: user.displayName || "Emprendedor",
+            festivalId: festival.id,
+          }) as React.ReactElement,
+        });
       });
-    });
 
-    illustrators.forEach(async (user) => {
-      await sendEmail({
-        to: [user.email],
-        from: "Equipo Glitter <no-reply@festivalglitter.art>",
-        subject: "Participa en Glitter",
-        react: EmailTemplate({
-          category: "illustration",
-          name: user.displayName || "Ilustrador",
-          festivalId: festival.id,
-        }) as React.ReactElement,
+      illustrators.forEach(async (user) => {
+        await sendEmail({
+          to: [user.email],
+          from: "Equipo Glitter <no-reply@festivalglitter.art>",
+          subject: "Participa en Glitter",
+          react: EmailTemplate({
+            category: "illustration",
+            name: user.displayName || "Ilustrador",
+            festivalId: festival.id,
+          }) as React.ReactElement,
+        });
       });
-    });
 
-    gastronmics.forEach(async (user) => {
-      await sendEmail({
-        to: [user.email],
-        from: "Equipo Glitter <no-reply@festivalglitter.art>",
-        subject: "Participa en Glitter",
-        react: EmailTemplate({
-          category: "gastronomy",
-          name: user.displayName || "Emprendedor Gastronómico",
-          festivalId: festival.id,
-        }) as React.ReactElement,
+      gastronmics.forEach(async (user) => {
+        await sendEmail({
+          to: [user.email],
+          from: "Equipo Glitter <no-reply@festivalglitter.art>",
+          subject: "Participa en Glitter",
+          react: EmailTemplate({
+            category: "gastronomy",
+            name: user.displayName || "Emprendedor Gastronómico",
+            festivalId: festival.id,
+          }) as React.ReactElement,
+        });
       });
-    });
+    }
   } catch (error) {
     console.error("Error activating festival", error);
-    return { success: false, message: "Error al activar el festival" };
+    return { success: false, message: "Error al actualizar el festival" };
   } finally {
     client.release();
   }
 
   revalidatePath("/dashboard/festivals");
-  return { success: true, message: "Festival activado con éxito" };
+  return { success: true, message: "Festival actualizado con éxito" };
+}
+
+export async function updateFestivalRegistration(festival: FestivalBase) {
+  const client = await pool.connect();
+
+  try {
+    const { publicRegistration } = festival;
+    const [updatedFestival] = await db
+      .update(festivals)
+      .set({ publicRegistration })
+      .where(eq(festivals.id, festival.id))
+      .returning();
+
+    if (updatedFestival.publicRegistration) {
+      const visitors = await fetchVisitors();
+      visitors.forEach(async (visitor) => {
+        await sendEmail({
+          to: [visitor.email],
+          from: "Equipo Glitter <equipo@productoraglitter.com>",
+          subject: "Pre-registro abierto para nuestro próximo festival",
+          react: RegistrationInvitationEmailTemplate({
+            festival: updatedFestival,
+            visitorName: visitor.firstName?.trim()!,
+          }) as React.ReactElement,
+        });
+      });
+    }
+  } catch (error) {
+    console.error("Error updating festival registration", error);
+    return { success: false, message: "Error al actualizar el festival" };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/festivals");
+  return { success: true, message: "Festival actualizado con éxito" };
 }
 
 export async function fetchAvailableArtistsInFestival(

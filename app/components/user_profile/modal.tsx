@@ -14,8 +14,6 @@ import {
   DrawerDialogTrigger,
 } from "@/components/ui/drawer-dialog";
 import { ProfileType } from "@/app/api/users/definitions";
-import ProfilePictureField from "@/app/components/user_profile/profile_pic/field";
-import ProfilePictureForm from "@/app/components/user_profile/profile_pic/form";
 
 type EditUserModalProps = {
   children: React.ReactNode;

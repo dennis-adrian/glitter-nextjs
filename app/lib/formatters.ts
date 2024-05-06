@@ -1,27 +1,27 @@
+import { DateTime } from "luxon";
+
+export function formatDate(date: Date | string): DateTime {
+  const isoDate = date instanceof Date ? date.toISOString() : date;
+  return DateTime.fromISO(isoDate, {
+    zone: "America/La_Paz",
+  }).setLocale("es");
+}
+
 export function formatDateToTimezone(date: Date): Date {
   return new Date(date.getTime() - 4 * 60 * 60 * 1000);
 }
-export function formatFullDate(date: Date): string {
-  const dateFormatter = new Intl.DateTimeFormat("es-Es", {
-    timeZone: "Etc/GMT",
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-  date = date || new Date();
 
-  return dateFormatter.format(date);
+export function formatFullDate(date: Date): string {
+  return formatDate(date).toLocaleString(DateTime.DATE_FULL);
 }
 
 export function getWeekdayFromDate(
   date: Date,
-  format: "long" | "short" | "narrow" = "long",
+  format: "long" | "short" = "long",
 ): string {
-  const dateFormatter = new Intl.DateTimeFormat("es-Es", {
-    timeZone: "Etc/GMT",
-    weekday: format,
-  });
-  date = date || new Date();
+  if (format === "short") {
+    return formatDate(date).weekdayShort || "";
+  }
 
-  return dateFormatter.format(date);
+  return formatDate(date).weekdayLong || "";
 }

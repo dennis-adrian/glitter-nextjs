@@ -13,12 +13,9 @@ import {
   navigationMenuTriggerStyle,
 } from "@/app/components/ui/navigation-menu";
 import {
-  AlbumIcon,
   CalendarCheck2Icon,
-  CreditCardIcon,
   HomeIcon,
   LayoutDashboardIcon,
-  UsersIcon,
 } from "lucide-react";
 import { ProfileType } from "../../api/users/definitions";
 
@@ -77,6 +74,12 @@ const NavbarNavigationMenu = ({
                   href="/dashboard/payments"
                 >
                   Verifica los pagos hechos por reservas
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
+                  title="Festivales"
+                  href="/dashboard/festivals"
+                >
+                  Festivales que han sido organizados por Glitter
                 </NavigationMenuListItem>
               </ul>
             </NavigationMenuContent>

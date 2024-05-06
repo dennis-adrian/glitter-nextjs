@@ -20,6 +20,10 @@ export function formatDateOnlyToISO(date?: string | Date | null): string {
   return new Date(date).toISOString().split("T")[0];
 }
 
+export function capitalize(str: string) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
 export async function generateQRCode(
   url: string,
 ): Promise<{ qrCodeUrl: string; error: boolean }> {

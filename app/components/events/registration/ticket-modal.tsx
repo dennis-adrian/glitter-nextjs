@@ -13,6 +13,7 @@ import {
   DrawerDialog,
   DrawerDialogContent,
 } from "@/components/ui/drawer-dialog";
+import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 
 export default function TicketModal({
   festival,
@@ -27,8 +28,9 @@ export default function TicketModal({
 }) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const ticketRef = useRef(null);
+  const visitorTickets = getVisitorFestivalTickets(visitor, festival);
 
-  if (visitor.tickets.length < 1) {
+  if (visitorTickets.length < 1) {
     return null;
   }
 
@@ -46,7 +48,10 @@ export default function TicketModal({
       <DrawerDialogContent isDesktop={isDesktop}>
         <div className={`${isDesktop ? "" : "px-4"} py-4`}>
           <Ticket festival={festival} ticketRef={ticketRef} visitor={visitor} />
-          <Button className="mt-4 w-full" onClick={downloadTicket}>
+          <Button
+            className="hidden sm:block mt-4 w-full"
+            onClick={downloadTicket}
+          >
             Descargar entrada
           </Button>
         </div>

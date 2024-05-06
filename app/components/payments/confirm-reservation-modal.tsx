@@ -34,8 +34,8 @@ export default function ConfirmReservationModal(
             Confirmar Reserva
           </DrawerDialogTitle>
         </DrawerDialogHeader>
-        <div className={`${isDesktop ? "" : "px-4"} py-4`}>
-          <div className="flex items-center flex-col gap-6 m-auto text-center py-4">
+        <div className={`${isDesktop ? "" : "px-4"} pt-4`}>
+          <div className="flex items-center flex-col gap-6 m-auto text-center">
             <AlertCircleIcon size={48} className="text-amber-500" />
             <div className="flex flex-col gap-2">
               <p>

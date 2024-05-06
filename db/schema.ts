@@ -78,6 +78,7 @@ export const festivals = pgTable(
     status: festivalStatusEnum("status").default("draft").notNull(),
     endDate: timestamp("end_date").notNull(),
     mapsVersion: festivalMapVersionEnum("maps_version").default("v1").notNull(),
+    publicRegistration: boolean("public_registration").default(false).notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

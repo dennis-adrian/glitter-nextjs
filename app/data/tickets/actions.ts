@@ -107,7 +107,7 @@ export async function createTickets(data: {
     client.release();
   }
 
-  revalidatePath("/festivals/[id]/registration");
+  revalidatePath("/festivals");
   return { success: true, error: null };
 }
 

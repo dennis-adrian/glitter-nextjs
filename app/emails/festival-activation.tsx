@@ -28,7 +28,7 @@ export default function FestivalActivationEmailTemplate({
   return (
     <Html>
       <Head />
-      <Preview>Ya abrimos nuestra convatoria</Preview>
+      <Preview>Ya abrimos nuestra convocatoria</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <Section style={styles.section}>

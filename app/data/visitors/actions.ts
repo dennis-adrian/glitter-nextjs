@@ -42,7 +42,9 @@ export async function fetchVisitor(
     return await db.query.visitors.findFirst({
       where: eq(visitors.id, visitorId),
       with: {
-        tickets: true,
+        tickets: {
+          orderBy: tickets.date,
+        },
       },
     });
   } catch (error) {
@@ -69,6 +71,21 @@ export async function createVisitor(
     client.release();
   }
 
-  revalidatePath("/festivals/[id]/registration");
+  revalidatePath("/festivals");
   return { success: true };
+}
+
+export async function fetchVisitors() {
+  const client = await pool.connect();
+
+  try {
+    return await db.query.visitors.findMany({
+      orderBy: desc(visitors.id),
+    });
+  } catch (error) {
+    console.error("Error fetching visitors", error);
+    return [] as VisitorBase[];
+  } finally {
+    client.release();
+  }
 }

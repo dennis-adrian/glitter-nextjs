@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     }
 
     const res = await resend.emails.send({
-      from: "Equipo de Glitter <no-reply@festivalglitter.art>",
+      from: "Equipo Glitter <equipo@productoraglitter.com>",
       to: [visitor.email],
       subject: "Confirmación de Registro para Glitter Vol 2",
       react: TicketEmailTemplate({
