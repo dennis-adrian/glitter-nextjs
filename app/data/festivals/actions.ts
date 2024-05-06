@@ -230,11 +230,8 @@ export async function updateFestivalRegistration(festival: FestivalBase) {
     const visitors = await fetchVisitorsEmails();
     const emailGroups = groupVisitorEmails(visitors);
 
-    // TODO: Remove this after glitter mayo is correctly enabled
-    const tmpEmailGroups = emailGroups.slice(10);
-
     if (updatedFestival.publicRegistration) {
-      await queueEmails(tmpEmailGroups, updatedFestival);
+      await queueEmails(emailGroups, updatedFestival);
     }
   } catch (error) {
     console.error("Error updating festival registration", error);
