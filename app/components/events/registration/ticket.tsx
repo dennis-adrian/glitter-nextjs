@@ -76,7 +76,7 @@ export default function Ticket({
             </span>
             <span className="flex items-center">
               <ClockIcon className="ml-3 mr-1 h-4 w-4" />
-              <span>10:00-19:00</span>
+              <span>10:00-18:00</span>
             </span>
           </div>
         ))}
@@ -85,7 +85,7 @@ export default function Ticket({
         {festival.locationLabel} - {festival.address}
       </div>
       <Image
-        alt="Samy"
+        alt="footer image"
         src={
           "https://utfs.io/f/4d8ce376-781d-4b60-8d49-0e85d28ddb06-67dtvs.png" ||
           "/img/samy-head.png"

@@ -3,7 +3,7 @@ import { DateTime } from "luxon";
 export function formatDate(date: Date): DateTime {
   return DateTime.fromISO(date.toISOString(), {
     zone: "America/La_Paz",
-  });
+  }).setLocale("es");
 }
 
 export function formatDateToTimezone(date: Date): Date {
@@ -11,15 +11,7 @@ export function formatDateToTimezone(date: Date): Date {
 }
 
 export function formatFullDate(date: Date): string {
-  const dateFormatter = new Intl.DateTimeFormat("es-Es", {
-    timeZone: "Etc/GMT",
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-  date = date || new Date();
-
-  return dateFormatter.format(date);
+  return formatDate(date).toLocaleString(DateTime.DATE_FULL);
 }
 
 export function getWeekdayFromDate(
