@@ -29,22 +29,27 @@ export default function VisitorTickets({
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
+  const visitorFestivalTickets = visitor.tickets.filter(
+    (ticket) => ticket.festivalId === festival.id,
+  );
+
   return (
     <>
       <h1 className="text-xl mb-2 font-semibold sm:text-2xl">
         Confirmación de Entradas
       </h1>
-      {visitor.tickets.length > 0 && (
+      {visitorFestivalTickets.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Tus Entradas</CardTitle>
             <CardDescription>
-              Tienes {visitor.tickets.length} entradas para {festival.name}.
+              Tienes {visitorFestivalTickets.length} entradas para{" "}
+              {festival.name}.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2">
-              {visitor.tickets.map((ticket) => (
+              {visitorFestivalTickets.map((ticket) => (
                 <div key={ticket.id} className="rounded-lg border">
                   <div className="flex items-center justify-between rounded-t-lg bg-gradient-to-b from-[#FF9458] to-orange-100 p-4">
                     <h2 className="text-lg font-semibold">{festival.name}</h2>
@@ -64,7 +69,7 @@ export default function VisitorTickets({
           </CardContent>
         </Card>
       )}
-      {!showForm && visitor.tickets.length === 1 && (
+      {!showForm && visitorFestivalTickets.length === 1 && (
         <div
           className="my-4 flex cursor-pointer items-center justify-center hover:underline"
           onClick={() => setShowForm(true)}
@@ -73,8 +78,8 @@ export default function VisitorTickets({
           Adquirir otra entrada
         </div>
       )}
-      {(showForm && visitor.tickets.length === 1) ||
-      visitor.tickets.length === 0 ? (
+      {(showForm && visitorFestivalTickets.length === 1) ||
+      visitorFestivalTickets.length === 0 ? (
         <div className="p-4">
           <TicketCreationForm
             festival={festival}
