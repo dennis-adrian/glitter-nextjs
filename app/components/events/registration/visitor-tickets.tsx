@@ -28,9 +28,10 @@ export default function VisitorTickets({
 }) {
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [showForm, setShowForm] = useState(false);
+
   return (
     <>
-      <h1 className="mb-4 text-xl font-semibold sm:text-2xl">
+      <h1 className="text-xl mb-2 font-semibold sm:text-2xl">
         Confirmación de Entradas
       </h1>
       {visitor.tickets.length > 0 && (
@@ -52,9 +53,9 @@ export default function VisitorTickets({
                     </div>
                   </div>
                   <div className="p-4">
-                    {formatFullDate(new Date(ticket.date))} de 10:00 a 19:00
+                    {formatFullDate(new Date(ticket.date))} de 10:00 a 18:00
                     <p className="text-muted-foreground text-sm">
-                      {festival.locationLabel}
+                      {festival.locationLabel} - {festival.address}
                     </p>
                   </div>
                 </div>

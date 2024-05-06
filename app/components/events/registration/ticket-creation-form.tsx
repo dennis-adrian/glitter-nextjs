@@ -109,11 +109,7 @@ export default function TicketCreationForm({
                   </FormControl>
                   <SelectContent>
                     {attendanceOptions.map((option) => (
-                      <SelectItem
-                        className="capitalize"
-                        key={option.value}
-                        value={option.value}
-                      >
+                      <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
                     ))}

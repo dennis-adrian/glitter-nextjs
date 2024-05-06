@@ -16,13 +16,11 @@ export function formatFullDate(date: Date): string {
 
 export function getWeekdayFromDate(
   date: Date,
-  format: "long" | "short" | "narrow" = "long",
+  format: "long" | "short" = "long",
 ): string {
-  const dateFormatter = new Intl.DateTimeFormat("es-Es", {
-    timeZone: "Etc/GMT",
-    weekday: format,
-  });
-  date = date || new Date();
+  if (format === "short") {
+    return formatDate(date).weekdayShort || "";
+  }
 
-  return dateFormatter.format(date);
+  return formatDate(date).weekdayLong || "";
 }
