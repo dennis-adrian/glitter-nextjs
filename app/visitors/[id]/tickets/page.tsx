@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
 import { TicketStatusPill } from "@/app/components/tickets/status-pill";
 import CheckInForm from "@/app/components/tickets/checkin-form";
+import { fetchActiveFestivalBase } from "@/app/data/festivals/actions";
+import SendEmailForm from "@/app/components/tickets/send-pending-email-form";
 
 export default async function Page({ params }: { params: { id: string } }) {
   const visitor = await fetchVisitor(parseInt(params.id));
@@ -27,8 +29,14 @@ export default async function Page({ params }: { params: { id: string } }) {
     );
   }
 
+  const activeFestival = await fetchActiveFestivalBase();
   // TODO: Why is sorting not working in the drizzle query?
-  const tickets = visitor.tickets.sort((a, b) => (a.date < b.date ? -1 : 1));
+  let tickets = visitor.tickets.sort((a, b) => (a.date < b.date ? -1 : 1));
+  if (activeFestival) {
+    tickets = tickets.filter(
+      (ticket) => ticket.festivalId === activeFestival.id,
+    );
+  }
 
   return (
     <div className="container mx-auto flex min-h-full flex-col gap-2 p-4 md:p-6">
@@ -63,11 +71,19 @@ export default async function Page({ params }: { params: { id: string } }) {
                   <TicketStatusPill status={ticket.status} />
                 </div>
               </CardContent>
-              {ticket.status === "pending" && (
-                <CardFooter>
-                  <CheckInForm id={ticket.id} />
-                </CardFooter>
-              )}
+              <CardFooter>
+                <div className="flex flex-col w-full gap-2">
+                  {ticket.status === "pending" && (
+                    <CheckInForm id={ticket.id} />
+                  )}
+                  {activeFestival && (
+                    <SendEmailForm
+                      visitor={visitor}
+                      festival={activeFestival}
+                    />
+                  )}
+                </div>
+              </CardFooter>
             </Card>
           ))}
         </div>
