@@ -23,13 +23,13 @@ export default function Ticket({
   return (
     <div
       ref={ticketRef}
-      className="flex flex-col items-center rounded-lg bg-gradient-to-b from-[#99A4E6] to-[#52B0E6] p-6 pb-0 md:p-8 md:pb-0"
+      className="flex flex-col items-center rounded-lg bg-gradient-to-b from-[#FF9458] via-[#FF6A96] to-[#9D70FF] p-6 pb-0 md:p-8 md:pb-0"
     >
       <Image
         alt="Logo de Glitter con descripción"
-        src="/img/logo-with-description.png"
-        height={68}
-        width={180}
+        src="https://utfs.io/f/e6820207-3eb1-43fd-b140-d00184fd8182-e81rey.png"
+        height={56}
+        width={170}
       />
       <div className="m-2 flex h-60 w-60 items-center justify-center rounded-lg bg-white/50 backdrop-blur-sm">
         <Image
@@ -46,7 +46,7 @@ export default function Ticket({
       >
         Entrada
       </h1>
-      <div className="my-3 rounded-2xl bg-blue-900 px-3 py-1 font-semibold uppercase text-white">
+      <div className="my-3 rounded-2xl bg-[#44161E] px-3 py-1 font-semibold uppercase text-white">
         {visitor.tickets.length > 1 ? (
           <h3>
             {getWeekdayFromDate(visitor.tickets[0].date)} y{" "}
@@ -56,7 +56,7 @@ export default function Ticket({
           <h3>Día {getWeekdayFromDate(visitor.tickets[0].date)}</h3>
         )}
       </div>
-      <div className="text-center text-lg leading-5 tracking-tight">
+      <div className="text-center text-lg leading-5 tracking-tight text-white">
         <p>
           Esta entrada es válida sólo para 1 persona y debe de ser mostrada al
           momento de ingresar al evento
@@ -81,10 +81,18 @@ export default function Ticket({
           </div>
         ))}
       </div>
-      <div className="mb-3 flex items-center justify-center rounded-lg bg-white/50 px-4 py-2 text-sm backdrop-blur-sm">
-        {festival.locationLabel}
+      <div className="mb-3 flex items-center justify-center rounded-lg bg-white/20 text-white px-4 py-2 text-sm backdrop-blur-lg">
+        {festival.locationLabel} - {festival.address}
       </div>
-      <Image alt="Samy" src="/img/samy-head.png" height={92} width={120} />
+      <Image
+        alt="Samy"
+        src={
+          "https://utfs.io/f/4d8ce376-781d-4b60-8d49-0e85d28ddb06-67dtvs.png" ||
+          "/img/samy-head.png"
+        }
+        height={132}
+        width={320}
+      />
     </div>
   );
 }

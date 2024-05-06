@@ -45,9 +45,9 @@ export default function VisitorTickets({
             <div className="grid gap-4 md:grid-cols-2">
               {visitor.tickets.map((ticket) => (
                 <div key={ticket.id} className="rounded-lg border">
-                  <div className="flex items-center justify-between rounded-t-lg bg-gradient-to-b from-blue-300 to-blue-100 p-4">
+                  <div className="flex items-center justify-between rounded-t-lg bg-gradient-to-b from-[#FF9458] to-orange-100 p-4">
                     <h2 className="text-lg font-semibold">{festival.name}</h2>
-                    <div className="rounded-xl bg-blue-900 px-2 py-1 text-sm capitalize text-white">
+                    <div className="rounded-xl bg-[#44161E] px-2 py-1 text-sm capitalize text-white">
                       {getWeekdayFromDate(ticket.date, "short")}
                     </div>
                   </div>
