@@ -323,6 +323,13 @@
       "when": 1714618492802,
       "tag": "0045_robust_gauntlet",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "5",
+      "when": 1715131227731,
+      "tag": "0046_abandoned_night_thrasher",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "festivals" ADD COLUMN "event_day_registration" boolean DEFAULT false NOT NULL;
