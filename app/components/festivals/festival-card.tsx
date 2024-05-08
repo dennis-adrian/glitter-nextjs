@@ -17,6 +17,7 @@ import { FestivalBase } from "@/app/data/festivals/definitions";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
 import { Button } from "@/components/ui/button";
 import FestivalSwitches from "./festival-switches";
+import { RedirectButton } from "@/app/components/redirect-button";
 
 export default function FestivalCard({ festival }: { festival: FestivalBase }) {
   return (
@@ -32,6 +33,14 @@ export default function FestivalCard({ festival }: { festival: FestivalBase }) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex justify-end">
+            <RedirectButton
+              variant="link"
+              href={`/dashboard/festivals/${festival.id}/tickets`}
+            >
+              Ver tickets
+            </RedirectButton>
+          </div>
           <FestivalSwitches festival={festival} />
           <div className="p-4 border rounded-lg space-y-3">
             <h3 className="font-semibold text-xl">Detalles</h3>

@@ -36,7 +36,7 @@ export default async function Page({ params }: { params: { id: string } }) {
         </RedirectButton>
       </div>
       {profile && profile.role === "admin" && (
-        <div className="flex gap-4 flex-wrap">
+        <div className="flex gap-2 md:gap-4 flex-wrap">
           <TotalsCard
             amount={festival.tickets.length}
             title="entradas en total"
