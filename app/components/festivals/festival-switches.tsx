@@ -2,19 +2,12 @@
 
 import { useState } from "react";
 
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import UpdateFestivalStatusModal from "@/app/components/festivals/modals/update-festival-status";
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import UpdateFestivalRegistrationModal from "@/app/components/festivals/modals/update-festival-registration";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import clsx from "clsx";
 import FestivalSwitch from "@/app/components/festivals/switches/switch";
+import UpdateEventRegistrationModal from "@/app/components/festivals/modals/update-event-day-registration";
 
 type FestivalSwitchesProps = {
   festival: FestivalBase;
@@ -23,6 +16,8 @@ type FestivalSwitchesProps = {
 export default function FestivalSwitches(props: FestivalSwitchesProps) {
   const [showFestivalUpdateModal, setShowFestivalUpdateModal] = useState(false);
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+  const [showEventDayRegistrationModal, setShowEventDayRegistrationModal] =
+    useState(false);
 
   return (
     <div
@@ -47,6 +42,14 @@ export default function FestivalSwitches(props: FestivalSwitchesProps) {
           tooltipContent="Activa el festival para habilitar acreditaciones"
           onChange={() => setShowRegistrationModal(true)}
         />
+        <FestivalSwitch
+          checked={props.festival.eventDayRegistration}
+          disabled={!props.festival.publicRegistration}
+          festival={props.festival}
+          label="Habilitar registro en puerta"
+          tooltipContent="La acreditación debe estar activa para habilitar el registro en puerta"
+          onChange={() => setShowEventDayRegistrationModal(true)}
+        />
       </div>
       <UpdateFestivalStatusModal
         open={showFestivalUpdateModal}
@@ -57,6 +60,11 @@ export default function FestivalSwitches(props: FestivalSwitchesProps) {
         open={showRegistrationModal}
         festival={props.festival}
         setOpen={setShowRegistrationModal}
+      />
+      <UpdateEventRegistrationModal
+        open={showEventDayRegistrationModal}
+        festival={props.festival}
+        setOpen={setShowEventDayRegistrationModal}
       />
     </div>
   );
