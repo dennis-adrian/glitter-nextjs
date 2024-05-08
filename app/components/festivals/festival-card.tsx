@@ -1,9 +1,4 @@
-import {
-  ArchiveIcon,
-  BuildingIcon,
-  CalendarDaysIcon,
-  MapPinIcon,
-} from "lucide-react";
+import { BuildingIcon, CalendarDaysIcon, MapPinIcon } from "lucide-react";
 
 import FestivalStatusBadge from "@/components/festivals/festival-status-badge";
 import {
@@ -15,9 +10,9 @@ import {
 } from "@/components/ui/card";
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
-import { Button } from "@/components/ui/button";
 import FestivalSwitches from "./festival-switches";
 import { RedirectButton } from "@/app/components/redirect-button";
+import ArchiveFestival from "@/app/components/festivals/archive-festival";
 
 export default function FestivalCard({ festival }: { festival: FestivalBase }) {
   return (
@@ -59,12 +54,7 @@ export default function FestivalCard({ festival }: { festival: FestivalBase }) {
               </span>
             </div>
           </div>
-          {festival.status !== "archived" && (
-            <Button className="w-full" variant="outline">
-              <ArchiveIcon className="w-5 h-5 mr-2" />
-              Archivar
-            </Button>
-          )}
+          <ArchiveFestival festival={festival} />
         </CardContent>
       </Card>
     </>

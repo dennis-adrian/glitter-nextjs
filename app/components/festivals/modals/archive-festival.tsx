@@ -1,3 +1,4 @@
+import ArchiveFestivalForm from "@/app/components/festivals/forms/archive-festival";
 import UpdateEventDayRegistrationForm from "@/app/components/festivals/forms/update-event-day-registration";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -12,7 +13,7 @@ import { FestivalBase } from "@/app/data/festivals/definitions";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { AlertCircleIcon } from "lucide-react";
 
-export default function UpdateEventRegistrationModal({
+export default function ArchiveFestivalModal({
   open,
   festival,
   setOpen,
@@ -28,9 +29,7 @@ export default function UpdateEventRegistrationModal({
       <DrawerDialogContent className="sm:max-w-[425px]" isDesktop={isDesktop}>
         <DrawerDialogHeader isDesktop={isDesktop}>
           <DrawerDialogTitle isDesktop={isDesktop}>
-            {festival.publicRegistration
-              ? "Deshabilitar Registro en Puerta"
-              : "Habilitar Registro en Puerta"}
+            Archivar Festival
           </DrawerDialogTitle>
         </DrawerDialogHeader>
 
@@ -38,24 +37,13 @@ export default function UpdateEventRegistrationModal({
           <div className="flex items-center flex-col gap-6 m-auto text-center py-4">
             <AlertCircleIcon size={48} className="text-amber-500" />
             <div className="flex flex-col gap-2">
-              {festival.publicRegistration ? (
-                <>
-                  <p>
-                    ¿Estás seguro que deseas deshabilitar la acreditación para
-                    el festival <strong>{festival.name}</strong>?
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p>
-                    ¿Estás seguro que deseas habilitar el registro en puerta
-                    para el festival <strong>{festival.name}</strong>?
-                  </p>
-                </>
-              )}
+              <p>
+                ¿Estás seguro que deseas archivar el festival{" "}
+                <strong>{festival.name}</strong>?
+              </p>
             </div>
           </div>
-          <UpdateEventDayRegistrationForm
+          <ArchiveFestivalForm
             festival={festival}
             onSuccess={() => setOpen(false)}
           />
