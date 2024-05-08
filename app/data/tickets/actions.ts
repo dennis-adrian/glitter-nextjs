@@ -11,6 +11,7 @@ import { tickets } from "@/db/schema";
 import { VisitorBase, VisitorWithTickets } from "../visitors/actions";
 import { sendEmail } from "@/app/vendors/resend";
 import TicketEmailTemplate from "@/app/emails/ticket";
+import { formatDate } from "@/app/lib/formatters";
 
 export type TicketBase = typeof tickets.$inferSelect;
 export type TicketWithVisitor = TicketBase & { visitor: VisitorBase };
@@ -116,11 +117,27 @@ export async function createTickets(data: {
 export async function createEventDayTicket(data: {
   visitorId: number;
   festivalId: number;
+  festivalStartDate: Date;
+  festivalEndDate: Date;
 }): Promise<{ success: boolean; message: string }> {
   const client = await pool.connect();
 
   try {
-    const { visitorId, festivalId } = data;
+    const { visitorId, festivalId, festivalStartDate, festivalEndDate } = data;
+    const today = formatDate(new Date());
+    const startDate = formatDate(festivalStartDate);
+    const endDate = formatDate(festivalEndDate);
+
+    if (
+      today.startOf("day") < startDate.startOf("day") ||
+      today.startOf("day") > endDate.startOf("day")
+    ) {
+      return {
+        success: false,
+        message: "No se puede crear una entrada para este día",
+      };
+    }
+
     await db.insert(tickets).values({
       visitorId,
       festivalId,

@@ -23,6 +23,8 @@ export default function EventDayTicketCreationForm(
     const res = await createEventDayTicket({
       visitorId: props.visitor.id,
       festivalId: props.festival.id,
+      festivalStartDate: props.festival.startDate,
+      festivalEndDate: props.festival.endDate,
     });
 
     if (res.success) {
