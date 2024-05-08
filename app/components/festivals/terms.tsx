@@ -57,8 +57,8 @@ export default function Terms({
           </div>
           <div>
             <strong>Hora del evento: </strong>
-            {festival.startDate.getHours()}hrs a {festival.endDate.getHours()}
-            hrs
+            {formatDate(festival.startDate).hour}hrs a{" "}
+            {formatDate(festival.endDate).hour}hrs
           </div>
           <div>
             <strong>Lugar: </strong>
