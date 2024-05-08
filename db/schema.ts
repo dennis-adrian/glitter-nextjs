@@ -82,6 +82,9 @@ export const festivals = pgTable(
     eventDayRegistration: boolean("event_day_registration")
       .default(false)
       .notNull(),
+    reservationsStartDate: timestamp("reservations_start_date")
+      .defaultNow()
+      .notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
