@@ -1,22 +1,15 @@
 "use client";
 
 import { FestivalBase } from "@/app/data/festivals/definitions";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/app/components/ui/card";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
-import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
 import { PlusCircleIcon } from "lucide-react";
 import { useState } from "react";
 import TicketCreationForm from "./ticket-creation-form";
 import TicketModal from "./ticket-modal";
-import { ProfileWithParticipationsAndRequests } from "@/app/api/users/definitions";
+import { BaseProfile } from "@/app/api/users/definitions";
 import { RedirectButton } from "../../redirect-button";
 import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
+import Tickets from "@/app/components/events/registration/tickets";
 
 export default function VisitorTickets({
   visitor,
@@ -25,7 +18,7 @@ export default function VisitorTickets({
 }: {
   visitor: VisitorWithTickets;
   festival: FestivalBase;
-  currentUser?: ProfileWithParticipationsAndRequests | null;
+  currentUser?: BaseProfile | null;
 }) {
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -38,35 +31,7 @@ export default function VisitorTickets({
         Confirmación de Entradas
       </h1>
       {visitorFestivalTickets.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Tus Entradas</CardTitle>
-            <CardDescription>
-              Tienes {visitorFestivalTickets.length} entradas para{" "}
-              {festival.name}.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-2">
-              {visitorFestivalTickets.map((ticket) => (
-                <div key={ticket.id} className="rounded-lg border">
-                  <div className="flex items-center justify-between rounded-t-lg bg-gradient-to-b from-[#FF9458] to-orange-100 p-4">
-                    <h2 className="text-lg font-semibold">{festival.name}</h2>
-                    <div className="rounded-xl bg-[#44161E] px-2 py-1 text-sm capitalize text-white">
-                      {getWeekdayFromDate(ticket.date, "short")}
-                    </div>
-                  </div>
-                  <div className="p-4">
-                    {formatFullDate(new Date(ticket.date))} de 10:00 a 18:00
-                    <p className="text-muted-foreground text-sm">
-                      {festival.locationLabel} - {festival.address}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <Tickets tickets={visitorFestivalTickets} festival={festival} />
       )}
       {!showForm && visitorFestivalTickets.length === 1 && (
         <div

@@ -1,4 +1,4 @@
-import { fetchFestival } from "@/app/data/festivals/actions";
+import { fetchBaseFestival } from "@/app/data/festivals/actions";
 
 import { RedirectButton } from "@/app/components/redirect-button";
 import ResourceNotFound from "@/app/components/resource-not-found";
@@ -8,8 +8,11 @@ import VisitorRegistrationForm from "@/app/components/events/registration/visito
 import VisitorTickets from "@/app/components/events/registration/visitor-tickets";
 import { FormBanner } from "@/app/components/events/registration/form-banner";
 import { currentUser } from "@clerk/nextjs/server";
-import { fetchUserProfile } from "@/app/api/users/actions";
-import { redirect } from "next/navigation";
+import {
+  fetchBaseProfileByClerkId,
+  fetchUserProfile,
+} from "@/app/api/users/actions";
+import ThirdStep from "@/app/components/events/registration/steps/third-step";
 
 export default async function Page({
   params,
@@ -25,7 +28,7 @@ export default async function Page({
   const step = searchParams.step || "1";
   const email = searchParams.email || "";
   const visitorId = searchParams.visitorId || "";
-  const festival = await fetchFestival(parseInt(params.id));
+  const festival = await fetchBaseFestival(parseInt(params.id));
   let visitor = null;
   if (visitorId) {
     visitor = await fetchVisitor(parseInt(visitorId));
@@ -67,7 +70,7 @@ export default async function Page({
   const user = await currentUser();
   let profile = null;
   if (user) {
-    profile = await fetchUserProfile(user.id);
+    profile = await fetchBaseProfileByClerkId(user.id);
   }
 
   return (
@@ -86,10 +89,10 @@ export default async function Page({
               </>
             )}
             {step === "3" && visitor && (
-              <VisitorTickets
+              <ThirdStep
                 festival={festival}
                 visitor={visitor}
-                currentUser={profile}
+                profile={profile}
               />
             )}
           </div>
