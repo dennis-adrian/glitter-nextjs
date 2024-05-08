@@ -79,6 +79,9 @@ export const festivals = pgTable(
     endDate: timestamp("end_date").notNull(),
     mapsVersion: festivalMapVersionEnum("maps_version").default("v1").notNull(),
     publicRegistration: boolean("public_registration").default(false).notNull(),
+    eventDayRegistration: boolean("event_day_registration")
+      .default(false)
+      .notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -286,9 +289,10 @@ export const tickets = pgTable("tickets", {
   id: serial("id").primaryKey(),
   date: timestamp("date").notNull(),
   status: ticketStatusEnum("status").default("pending").notNull(),
-  qrcode: text("qr_code").notNull(),
-  qrcodeUrl: text("qr_code_url").notNull(),
+  qrcode: text("qr_code"),
+  qrcodeUrl: text("qr_code_url"),
   visitorId: integer("visitor_id").notNull(),
+  isEventDayCreation: boolean("is_event_day_creation").default(false).notNull(),
   festivalId: integer("festival_id").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

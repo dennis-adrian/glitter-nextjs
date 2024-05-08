@@ -39,7 +39,7 @@ export default function Ticket({
           onLoad={onQrLoad}
           className="rounded-lg"
           alt="Logo de Glitter"
-          src={visitorFestivalTickets[0].qrcode}
+          src={visitorFestivalTickets[0].qrcode || "/img/profile-avatar.png"}
           height={204}
           width={204}
         />

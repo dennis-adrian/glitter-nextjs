@@ -244,6 +244,26 @@ export async function updateFestivalRegistration(festival: FestivalBase) {
   return { success: true, message: "Festival actualizado con éxito" };
 }
 
+export async function updateFestival(festival: FestivalBase) {
+  const client = await pool.connect();
+
+  try {
+    await db
+      .update(festivals)
+      .set(festival)
+      .where(eq(festivals.id, festival.id))
+      .returning();
+  } catch (error) {
+    console.error("Error updating festival", error);
+    return { success: false, message: "Error al actualizar el festival" };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/festivals");
+  return { success: true, message: "Festival actualizado con éxito" };
+}
+
 export async function queueEmails(
   emailGroups: string[][],
   festival: FestivalBase,

@@ -76,7 +76,7 @@ export default function TicketModal({
                 onLoad={() => setShowDownloadButton(true)}
                 className="rounded-lg"
                 alt="Logo de Glitter"
-                src={visitorTickets[0].qrcode}
+                src={visitorTickets[0].qrcode || "/img/profile-avatar.png"}
                 height={204}
                 width={204}
               />

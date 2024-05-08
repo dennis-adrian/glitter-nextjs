@@ -1,4 +1,5 @@
 import { FestivalBase } from "@/app/data/festivals/definitions";
+import { formatDate } from "@/app/lib/formatters";
 
 export function getFestivalsOptions(festivals: FestivalBase[]) {
   return festivals.map((festival) => ({

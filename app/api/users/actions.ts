@@ -466,3 +466,20 @@ export async function fetchBaseProfileById(
     client.release();
   }
 }
+
+export async function fetchBaseProfileByClerkId(
+  id: string,
+): Promise<BaseProfile | null | undefined> {
+  const client = await pool.connect();
+
+  try {
+    return await db.query.users.findFirst({
+      where: eq(users.clerkId, id),
+    });
+  } catch (error) {
+    console.error(error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
