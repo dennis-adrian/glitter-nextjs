@@ -1,0 +1,1 @@
+ALTER TABLE "festivals" ADD COLUMN "reservations_start_date" timestamp DEFAULT now() NOT NULL;

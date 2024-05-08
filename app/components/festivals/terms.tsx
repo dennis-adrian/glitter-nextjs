@@ -5,6 +5,7 @@ import { RedirectButton } from "@/app/components/redirect-button";
 import { Separator } from "@/app/components/ui/separator";
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
+import { formatDate } from "@/app/lib/formatters";
 import { imagesSrc } from "@/app/lib/maps/config";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import Image from "next/image";
@@ -142,7 +143,17 @@ export default function Terms({
         <br />
         <h3 className="font-semibold text-lg my-2">Abono de los espacios</h3>
         <ul className="leading-7 list-inside list-disc">
-          <li>Los espacios se abonan a partir del 08/04/2024.</li>
+          <li>
+            Los espacios se abonan a partir del{" "}
+            <strong>
+              {formatDate(festival.reservationsStartDate).toLocaleString({
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </strong>
+            .
+          </li>
           <li>
             El pago se realiza mediante QR el cual lo pueden descargar al
             momento de hacer la reserva.
@@ -154,11 +165,21 @@ export default function Terms({
           <li>
             A partir del momento en el que se realice la reserva, el expositor
             tendrá 5 días hábiles para realizar el pago total del costo del
-            espacio.{" "}
+            espacio. Sin embargo, para cualquier reserva hecha después del{" "}
+            <strong>
+              {formatDate(festival.startDate)
+                .minus({ days: 10 })
+                .toLocaleString({
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+            </strong>
+            , el pago deberá ser realizado en el momento de la reserva.
           </li>
           <li>
-            Después de los 5 días hábiles si el expositor no sube el comprobante
-            de pago, la reserva se borra del mapa.
+            Después de la fecha límite si el expositor no sube el comprobante de
+            pago, la reserva se borra del mapa.
           </li>
           <li>
             Tener en cuenta que, si el expositor no asiste o no puede asistir el
