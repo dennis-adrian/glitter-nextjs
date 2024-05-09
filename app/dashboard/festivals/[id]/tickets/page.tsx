@@ -2,12 +2,14 @@ import { TicketIcon } from "lucide-react";
 
 import { fetchFestival } from "@/app/data/festivals/actions";
 import TotalsCard from "@/app/components/dashboard/totals/card";
-import { columnTitles, columns } from "@/app/components/tickets/table/columns";
+import { columnTitles, columns } from "@/app/components/tickets/columns";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { currentUser } from "@clerk/nextjs/server";
 import { fetchUserProfile } from "@/app/api/users/actions";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import TicketsTable from "@/app/components/tickets/table";
 
 export default async function Page({ params }: { params: { id: string } }) {
   const user = await currentUser();
@@ -72,32 +74,30 @@ export default async function Page({ params }: { params: { id: string } }) {
         </div>
       )}
 
-      <DataTable
-        columns={columns}
-        columnTitles={columnTitles}
-        data={tickets}
-        filters={[
-          {
-            columnId: "status",
-            label: "Estado de la asistencia",
-            options: [
-              { label: "Pendiente", value: "pending" },
-              { label: "Confirmada", value: "checked_in" },
-            ],
-          },
-          {
-            columnId: "date",
-            label: "Fecha de la entrada",
-            options: [
-              {
-                label: "Primer día",
-                value: formatFullDate(festival.startDate),
-              },
-              { label: "Segundo día", value: formatFullDate(festival.endDate) },
-            ],
-          },
-        ]}
-      />
+      <Tabs defaultValue="pending" className="my-4">
+        <TabsList>
+          <TabsTrigger value="all">Todos</TabsTrigger>
+          <TabsTrigger value="confirmed">Confirmados</TabsTrigger>
+          <TabsTrigger value="pending">Pendientes</TabsTrigger>
+        </TabsList>
+        <TabsContent value="all">
+          <TicketsTable tickets={tickets} festival={festival} />
+        </TabsContent>
+        <TabsContent value="confirmed">
+          <TicketsTable
+            tickets={tickets}
+            status="checked_in"
+            festival={festival}
+          />
+        </TabsContent>
+        <TabsContent value="pending">
+          <TicketsTable
+            tickets={tickets}
+            status="pending"
+            festival={festival}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
