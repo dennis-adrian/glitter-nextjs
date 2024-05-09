@@ -5,14 +5,15 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { TicketWithVisitor } from "@/app/data/tickets/actions";
-import { formatFullDate } from "@/app/lib/formatters";
+import { formatFullDate, formatDateWithTime } from "@/app/lib/formatters";
 import ActionsCell from "./cells/actions";
 
 export const columnTitles = {
   id: "ID",
-  date: "Fecha",
+  date: "Fecha de la entrada",
   visitor: "Visitante",
   status: "Asistencia",
+  creationDate: "Fecha de creación",
 };
 
 export const columns: ColumnDef<TicketWithVisitor>[] = [
@@ -76,9 +77,20 @@ export const columns: ColumnDef<TicketWithVisitor>[] = [
     cell: ({ row }) => <ActionsCell ticket={row.original} />,
     enableHiding: false,
     filterFn: (row, columnId, filterStatus) => {
-      if (filterStatus.length === 0) return true;
+      if (!filterStatus) return true;
       const role = row.getValue(columnId);
       return filterStatus.includes(role);
     },
+  },
+  {
+    id: "creationDate",
+    accessorFn: (ticket) => formatDateWithTime(ticket.createdAt),
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title={columnTitles.creationDate}
+      />
+    ),
+    cell: ({ row }) => formatDateWithTime(row.original.createdAt),
   },
 ];

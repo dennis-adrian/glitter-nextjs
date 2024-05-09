@@ -18,6 +18,10 @@ export function formatFullDate(date: Date): string {
   return formatDate(date).toLocaleString(DateTime.DATE_FULL);
 }
 
+export function formatDateWithTime(date: Date): string {
+  return formatDate(date).toFormat("ff");
+}
+
 export function getWeekdayFromDate(
   date: Date,
   format: "long" | "short" = "long",
