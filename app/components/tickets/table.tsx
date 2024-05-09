@@ -36,10 +36,6 @@ export default function TicketsTable(props: UsersTableProps) {
       ]}
       initialState={{
         columnVisibility: {
-          fullName: false,
-          email: false,
-          phoneNumber: false,
-          status: false,
           ...props.columnVisbility,
         },
         columnFilters: [
