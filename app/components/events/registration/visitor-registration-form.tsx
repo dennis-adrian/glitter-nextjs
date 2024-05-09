@@ -31,11 +31,21 @@ import {
   genderOptions,
 } from "@/app/lib/utils";
 import { eventDiscoveryEnum, genderEnum } from "@/db/schema";
+import { formatDate } from "@/app/lib/formatters";
 
 const FormSchema = z.object({
-  birthdate: z.string().min(1, {
-    message: "La fecha de nacimiento es requerida",
-  }),
+  birthdate: z.coerce
+    .date()
+    .refine((date) => date < new Date(), {
+      message: "La fecha de nacimiento no puede ser en el futuro",
+    })
+    .refine(
+      (date) => {
+        const ageLimit = formatDate(new Date()).minus({ years: 10 });
+        return formatDate(date).startOf("day") < ageLimit.startOf("day");
+      },
+      { message: "Debes tener al menos 10 años para registrarte" },
+    ),
   email: z
     .string({
       required_error: "El correo electronico es requerido",
@@ -67,7 +77,7 @@ export default function VisitorRegistrationForm({
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      birthdate: formatDateOnlyToISO(visitor?.birthdate),
+      birthdate: visitor?.birthdate,
       email: email,
       eventDiscovery: visitor?.eventDiscovery || "instagram",
       firstName: visitor?.firstName || "",
@@ -163,7 +173,11 @@ export default function VisitorRegistrationForm({
               <FormItem>
                 <FormLabel>Fecha de nacimiento</FormLabel>
                 <FormControl>
-                  <Input type="date" {...field} />
+                  <Input
+                    type="date"
+                    {...field}
+                    value={field.value?.toLocaleString()}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
