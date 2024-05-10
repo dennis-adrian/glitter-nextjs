@@ -351,6 +351,13 @@
       "when": 1715169459589,
       "tag": "0049_third_lizard",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "5",
+      "when": 1715299449782,
+      "tag": "0050_brief_mad_thinker",
+      "breakpoints": true
     }
   ]
 }

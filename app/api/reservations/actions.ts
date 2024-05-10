@@ -199,10 +199,6 @@ export async function deleteReservation(
   try {
     await db.transaction(async (tx) => {
       await tx
-        .delete(reservationParticipants)
-        .where(eq(reservationParticipants.reservationId, reservationId));
-
-      await tx
         .delete(standReservations)
         .where(eq(standReservations.id, reservationId));
 
