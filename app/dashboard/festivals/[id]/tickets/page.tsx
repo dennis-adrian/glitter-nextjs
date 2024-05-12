@@ -2,9 +2,7 @@ import { TicketIcon } from "lucide-react";
 
 import { fetchFestival } from "@/app/data/festivals/actions";
 import TotalsCard from "@/app/components/dashboard/totals/card";
-import { columnTitles, columns } from "@/app/components/tickets/columns";
-import { DataTable } from "@/app/components/ui/data_table/data-table";
-import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
+import { formatDate, getWeekdayFromDate } from "@/app/lib/formatters";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { currentUser } from "@clerk/nextjs/server";
 import { fetchUserProfile } from "@/app/api/users/actions";
@@ -28,6 +26,18 @@ export default async function Page({ params }: { params: { id: string } }) {
   }
 
   const tickets = festival.tickets;
+  const firstDayTickets = tickets.filter((ticket) => {
+    return (
+      formatDate(ticket.date).toLocaleString() ===
+      formatDate(festival.startDate).toLocaleString()
+    );
+  });
+  const secondDayTickets = tickets.filter((ticket) => {
+    return (
+      formatDate(ticket.date).toLocaleString() ===
+      formatDate(festival.endDate).toLocaleString()
+    );
+  });
 
   return (
     <div className="container min-h-full p-4 md:px-6">
@@ -46,12 +56,7 @@ export default async function Page({ params }: { params: { id: string } }) {
             Icon={TicketIcon}
           />
           <TotalsCard
-            amount={
-              festival.tickets.filter(
-                (ticket) =>
-                  ticket.date.toString() === festival.startDate.toString(),
-              ).length
-            }
+            amount={firstDayTickets.length}
             title="entradas primer día"
             description={`Entradas para el ${getWeekdayFromDate(
               festival.startDate,
@@ -59,12 +64,7 @@ export default async function Page({ params }: { params: { id: string } }) {
             )}`}
           />
           <TotalsCard
-            amount={
-              festival.tickets.filter(
-                (ticket) =>
-                  ticket.date.toString() === festival.endDate.toString(),
-              ).length
-            }
+            amount={secondDayTickets.length}
             title="entradas segundo día"
             description={`Entradas para el ${getWeekdayFromDate(
               festival.endDate,
