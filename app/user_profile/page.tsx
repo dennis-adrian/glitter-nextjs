@@ -9,9 +9,9 @@ import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 async function UserProfile() {
   const profile = await getCurrentUserProfile();
+  return <div>Loading...</div>;
   if (!profile) {
     // TODO: Redirect to sign in page
-    return <div>Loading...</div>;
   }
 
   const latestInvoice = await fetchLatestInvoiceByProfileId(profile.id);
