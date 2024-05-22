@@ -1,7 +1,6 @@
-import { fetchUserProfile } from "@/app/api/users/actions";
 import PendingPayment from "@/app/components/payments/pending-payment";
 import { fetchLatestInvoiceByProfileId } from "@/app/data/invoices/actions";
-import { currentUser } from "@clerk/nextjs/server";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -13,12 +12,7 @@ export default async function Page({ params }: { params: { id: string } }) {
   const validatedParams = ParamsSchema.safeParse(params);
   if (!validatedParams.success) redirect("/");
 
-  const user = await currentUser();
-  let profile;
-  if (user) {
-    profile = await fetchUserProfile(user.id);
-  }
-
+  const profile = await getCurrentUserProfile();
   if (!profile) redirect("/");
   if (profile.role !== "admin" && profile.id !== validatedParams.data.id)
     redirect("/user_profile");

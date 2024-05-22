@@ -13,6 +13,7 @@ import {
   fetchUserProfile,
 } from "@/app/api/users/actions";
 import ThirdStep from "@/app/components/events/registration/steps/third-step";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export default async function Page({
   params,
@@ -67,11 +68,7 @@ export default async function Page({
     );
   }
 
-  const user = await currentUser();
-  let profile = null;
-  if (user) {
-    profile = await fetchBaseProfileByClerkId(user.id);
-  }
+  const profile = await getCurrentUserProfile();
 
   return (
     <div className="flex min-h-dvh items-center justify-center">
