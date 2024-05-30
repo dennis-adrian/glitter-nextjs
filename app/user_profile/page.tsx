@@ -7,15 +7,11 @@ import { fetchLatestInvoiceByProfileId } from "@/app/data/invoices/actions";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
-async function UserProfile() {
+export default async function UserProfile() {
   const profile = await getCurrentUserProfile();
-  return <div>Loading...</div>;
-  if (!profile) {
-    // TODO: Redirect to sign in page
-  }
+  if (!profile) return null;
 
   const latestInvoice = await fetchLatestInvoiceByProfileId(profile.id);
-
   return (
     <div className="mx-auto max-w-screen-lg p-3 md:p-6">
       <SignedIn>
@@ -41,5 +37,3 @@ async function UserProfile() {
     </div>
   );
 }
-
-export default UserProfile;
