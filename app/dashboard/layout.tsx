@@ -10,7 +10,7 @@ export default async function Layout({
   const user = await currentUser();
 
   if (!user) {
-    redirect("/sign-in");
+    redirect("/sign_in");
   }
 
   const profile = await fetchUserProfile(user.id);
