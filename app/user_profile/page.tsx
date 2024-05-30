@@ -1,4 +1,5 @@
-import { currentUser, SignedIn } from "@clerk/nextjs";
+import { SignedIn } from "@clerk/nextjs";
+import { currentUser } from "@clerk/nextjs/server";
 
 import { fetchUserProfile } from "@/app/api/users/actions";
 import { ProfileType } from "@/app/api/users/definitions";

@@ -1,4 +1,4 @@
-import { currentUser } from "@clerk/nextjs";
+import { currentUser } from "@clerk/nextjs/server";
 
 import { fetchOrCreateProfile } from "@/app/api/users/actions";
 import { redirect } from "next/navigation";
