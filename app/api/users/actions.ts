@@ -2,8 +2,7 @@
 
 import { redirect } from "next/navigation";
 
-import { clerkClient } from "@clerk/nextjs";
-import { User } from "@clerk/nextjs/server";
+import { clerkClient, User } from "@clerk/nextjs/server";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 

@@ -1,6 +1,6 @@
 "use server";
 
-import { clerkClient } from "@clerk/nextjs";
+import { clerkClient } from "@clerk/nextjs/server";
 
 import ProfileCompletionReminderTemplate from "@/app/emails/profile-completion-reminder";
 import ProfileDeletionTemplate from "@/app/emails/profile-deletion";

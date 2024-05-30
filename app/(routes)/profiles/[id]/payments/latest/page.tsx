@@ -1,7 +1,7 @@
 import { fetchUserProfile } from "@/app/api/users/actions";
 import PendingPayment from "@/app/components/payments/pending-payment";
 import { fetchLatestInvoiceByProfileId } from "@/app/data/invoices/actions";
-import { currentUser } from "@clerk/nextjs";
+import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 

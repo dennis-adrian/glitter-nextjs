@@ -2,7 +2,7 @@ import Image from "next/image";
 
 import { junegull } from "@/ui/fonts";
 
-import { currentUser } from "@clerk/nextjs";
+import { currentUser } from "@clerk/nextjs/server";
 import { fetchActiveFestival } from "@/app/data/festivals/actions";
 import LandingRedirectButton from "@/app/components/landing/redirect-button";
 import { FestivalInfo } from "@/app/components/landing/festival-info-card";

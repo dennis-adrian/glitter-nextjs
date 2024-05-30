@@ -1,5 +1,5 @@
 import { fetchUserProfile } from "@/app/api/users/actions";
-import { currentUser } from "@clerk/nextjs";
+import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 
 export default async function Layout({
@@ -10,7 +10,7 @@ export default async function Layout({
   const user = await currentUser();
 
   if (!user) {
-    redirect("/sign-in");
+    redirect("/sign_in");
   }
 
   const profile = await fetchUserProfile(user.id);
