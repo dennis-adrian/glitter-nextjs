@@ -1,8 +1,6 @@
-import { currentUser } from "@clerk/nextjs/server";
 import { Metadata } from "next";
 import { z } from "zod";
 
-import { fetchUserProfile } from "@/app/api/users/actions";
 import Festival from "@/app/components/festivals/festival";
 import { fetchBaseFestival } from "@/app/data/festivals/actions";
 import { userCategoryEnum } from "@/db/schema";
@@ -17,6 +15,7 @@ import { RedirectButton } from "@/app/components/redirect-button";
 import { Suspense } from "react";
 import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
 import { formatDate } from "@/app/lib/formatters";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export const metadata: Metadata = {
   title: "Información del Festival",
@@ -38,13 +37,7 @@ export default async function Page({
     category: string;
   };
 }) {
-  const user = await currentUser();
-  let profile = null;
-
-  if (user) {
-    profile = await fetchUserProfile(user.id);
-  }
-
+  const profile = await getCurrentUserProfile();
   const festival = await fetchBaseFestival(parseInt(params.id));
   if (!festival) {
     return (

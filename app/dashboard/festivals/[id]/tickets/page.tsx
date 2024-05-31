@@ -4,18 +4,12 @@ import { fetchFestival } from "@/app/data/festivals/actions";
 import TotalsCard from "@/app/components/dashboard/totals/card";
 import { formatDate, getWeekdayFromDate } from "@/app/lib/formatters";
 import { RedirectButton } from "@/app/components/redirect-button";
-import { currentUser } from "@clerk/nextjs/server";
-import { fetchUserProfile } from "@/app/api/users/actions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TicketsTable from "@/app/components/tickets/table";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export default async function Page({ params }: { params: { id: string } }) {
-  const user = await currentUser();
-  let profile = null;
-  if (user) {
-    profile = await fetchUserProfile(user.id);
-  }
-
+  const profile = await getCurrentUserProfile();
   const festival = await fetchFestival(parseInt(params.id));
   if (!festival) {
     return (

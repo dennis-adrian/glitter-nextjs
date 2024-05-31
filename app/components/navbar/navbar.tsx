@@ -1,9 +1,7 @@
-import { fetchUserProfile } from "@/app/api/users/actions";
 import NavbarContent from "@/app/components/navbar/content";
-import { currentUser } from "@clerk/nextjs/server";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export default async function Navbar() {
-  const user = await currentUser();
-  const profile = await fetchUserProfile(user?.id || "");
+  const profile = await getCurrentUserProfile();
   return <NavbarContent profile={profile} />;
 }

@@ -5,14 +5,9 @@ import ResourceNotFound from "@/app/components/resource-not-found";
 import EmailSubmissionForm from "@/app/components/events/registration/email-submission-form";
 import { fetchVisitor, fetchVisitorByEmail } from "@/app/data/visitors/actions";
 import VisitorRegistrationForm from "@/app/components/events/registration/visitor-registration-form";
-import VisitorTickets from "@/app/components/events/registration/visitor-tickets";
 import { FormBanner } from "@/app/components/events/registration/form-banner";
-import { currentUser } from "@clerk/nextjs/server";
-import {
-  fetchBaseProfileByClerkId,
-  fetchUserProfile,
-} from "@/app/api/users/actions";
 import ThirdStep from "@/app/components/events/registration/steps/third-step";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export default async function Page({
   params,
@@ -67,11 +62,7 @@ export default async function Page({
     );
   }
 
-  const user = await currentUser();
-  let profile = null;
-  if (user) {
-    profile = await fetchBaseProfileByClerkId(user.id);
-  }
+  const profile = await getCurrentUserProfile();
 
   return (
     <div className="flex min-h-dvh items-center justify-center">

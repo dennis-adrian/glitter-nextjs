@@ -1,5 +1,4 @@
-import { fetchUserProfile } from "@/app/api/users/actions";
-import { currentUser } from "@clerk/nextjs/server";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { redirect } from "next/navigation";
 
 export default async function Layout({
@@ -7,13 +6,11 @@ export default async function Layout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await currentUser();
+  const profile = await getCurrentUserProfile();
 
-  if (!user) {
-    redirect("/sign_in");
+  if (!profile) {
+    redirect("/sign-in");
   }
-
-  const profile = await fetchUserProfile(user.id);
 
   if (
     profile &&

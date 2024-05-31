@@ -1,11 +1,10 @@
-import { currentUser } from "@clerk/nextjs/server";
 import { BanIcon, CheckIcon, HourglassIcon } from "lucide-react";
 
 import { fetchRequests } from "@/app/api/user_requests/actions";
-import { fetchUserProfile } from "@/app/api/users/actions";
 import TotalsCard from "@/app/components/dashboard/totals/card";
 import { DataTable } from "@/components/ui/data_table/data-table";
 import { columns, columnTitles } from "@/components/user_requests/columns";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 const statusOptions = [
   { value: "pending", label: "Pendientes" },
@@ -20,8 +19,7 @@ const typeOptions = [
 
 export default async function Page() {
   // TODO: Improve how this route protecting works
-  const user = await currentUser();
-  const profile = await fetchUserProfile(user!.id);
+  const profile = await getCurrentUserProfile();
 
   if (profile && profile.role !== "admin") {
     return (

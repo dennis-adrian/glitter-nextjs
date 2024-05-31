@@ -1,13 +1,9 @@
-import { fetchUserProfile } from "@/app/api/users/actions";
-import { currentUser } from "@clerk/nextjs/server";
-import Link from "next/link";
-
 import { fetchReservations } from "@/app/api/reservations/actions";
-import { Button } from "@/app/components/ui/button";
 import ReservationsTable from "@/app/components/reservations/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchFestivals } from "@/app/data/festivals/actions";
 import { getFestivalsOptions } from "@/app/data/festivals/helpers";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 const statusOptions = [
   { value: "pending", label: "Pendiente" },
@@ -17,8 +13,7 @@ const statusOptions = [
 
 export default async function Page() {
   // TODO: Improve how this route protecting works
-  const user = await currentUser();
-  const profile = await fetchUserProfile(user!.id);
+  const profile = await getCurrentUserProfile();
 
   if (profile && profile.role !== "admin") {
     return (

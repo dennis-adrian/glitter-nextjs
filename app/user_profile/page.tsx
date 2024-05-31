@@ -1,28 +1,17 @@
 import { SignedIn } from "@clerk/nextjs";
-import { currentUser } from "@clerk/nextjs/server";
-
-import { fetchUserProfile } from "@/app/api/users/actions";
-import { ProfileType } from "@/app/api/users/definitions";
 
 import AnnouncementCard from "@/components/user_profile/announcements_cards/card";
 import PublicProfile from "@/components/user_profile/public_profile/profile";
 import PrivateProfile from "@/app/components/user_profile/private_profile/overview";
 import { fetchLatestInvoiceByProfileId } from "@/app/data/invoices/actions";
 import { RedirectButton } from "@/app/components/redirect-button";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
-async function UserProfile() {
-  const user = await currentUser();
-  let profile: ProfileType | null | undefined;
-  if (user) {
-    profile = await fetchUserProfile(user.id);
-  }
-
-  if (!profile) {
-    return <div>Loading...</div>;
-  }
+export default async function UserProfile() {
+  const profile = await getCurrentUserProfile();
+  if (!profile) return null;
 
   const latestInvoice = await fetchLatestInvoiceByProfileId(profile.id);
-
   return (
     <div className="mx-auto max-w-screen-lg p-3 md:p-6">
       <SignedIn>
@@ -48,5 +37,3 @@ async function UserProfile() {
     </div>
   );
 }
-
-export default UserProfile;

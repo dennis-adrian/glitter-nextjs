@@ -1,15 +1,14 @@
 import { UsersIcon } from "lucide-react";
-import { currentUser } from "@clerk/nextjs/server";
 
-import { fetchProfiles, fetchUserProfile } from "@/app/api/users/actions";
+import { fetchProfiles } from "@/app/api/users/actions";
 import TotalsCard from "@/app/components/dashboard/totals/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import UsersTable from "@/app/components/users/table";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export default async function Page() {
   // TODO: Improve how this route protecting works
-  const user = await currentUser();
-  const profile = await fetchUserProfile(user!.id);
+  const profile = await getCurrentUserProfile();
 
   if (profile && profile.role !== "admin") {
     return (
