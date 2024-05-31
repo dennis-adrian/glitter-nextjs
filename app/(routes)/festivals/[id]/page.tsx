@@ -16,6 +16,7 @@ import { Suspense } from "react";
 import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
 import { formatDate } from "@/app/lib/formatters";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { notFound } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Información del Festival",
@@ -39,15 +40,7 @@ export default async function Page({
 }) {
   const profile = await getCurrentUserProfile();
   const festival = await fetchBaseFestival(parseInt(params.id));
-  if (!festival) {
-    return (
-      <div className="p-20">
-        <p className="text-center text-2xl font-bold text-gray-500">
-          No se encontraron datos
-        </p>
-      </div>
-    );
-  }
+  if (!festival) notFound();
 
   const validatedSearchParams = searchParamsSchema.safeParse(searchParams);
   const canViewCategories: boolean = !profile

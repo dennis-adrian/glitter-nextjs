@@ -13,7 +13,7 @@ export default function GlitterLogo(props: GlitterLogoProps) {
         src={
           props.variant === "dark"
             ? "/img/logo/logo-full-dark-md.png"
-            : "/img/logo/logo-full-white.png"
+            : "/img/logo/logo-full-white-md.png"
         }
         alt="Logo"
         width={160}
