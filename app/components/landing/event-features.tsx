@@ -15,14 +15,14 @@ function Figure({
     <figure className={className}>
       <div className="flex flex-col items-center">
         <Image
-          className="hidden md:block"
+          className="hidden md:block w-auto"
           src={src}
           alt={alt}
           width={250}
           height={240}
         />
         <Image
-          className="md:hidden"
+          className="md:hidden w-auto"
           src={src}
           alt={alt}
           width={200}

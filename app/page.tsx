@@ -66,21 +66,21 @@ export default async function Home() {
               </div>
             </div>
             <Image
-              className="mx-auto hidden xl:block"
+              className="mx-auto hidden xl:block w-auto"
               src="/img/mascot-xl.png"
               alt="Mascota Glitter"
               width={617}
               height={670}
             />
             <Image
-              className="mx-auto hidden lg:block xl:hidden"
+              className="mx-auto hidden lg:block xl:hidden w-auto"
               src="/img/mascot-lg.png"
               alt="Mascota Glitter"
               width={480}
-              height={442}
+              height={443}
             />
             <Image
-              className="mx-auto lg:hidden"
+              className="mx-auto lg:hidden w-auto"
               src="/img/mascot-sm.png"
               alt="Mascota Glitter"
               width={327}
@@ -91,28 +91,22 @@ export default async function Home() {
       </section>
       <section className="container p-0">
         <div className="relative flex flex-col md:py-10">
-          <div className="-z-10">
-            <Image
-              className="hidden md:block"
-              alt="background image"
-              src="/img/landing/landing-banner-lg-2.png"
-              quality={100}
-              fill
-              style={{
-                objectFit: "cover",
-              }}
-            />
-            <Image
-              className="sm:hidden"
-              alt="background image"
-              src="/img/landing/landing-banner-sm-2.png"
-              quality={100}
-              fill
-              style={{
-                objectFit: "cover",
-              }}
-            />
-          </div>
+          <Image
+            className="hidden md:block -z-10 object-cover"
+            alt="background image"
+            src="/img/landing/landing-banner-lg-2.png"
+            quality={100}
+            fill
+            sizes="100vw"
+          />
+          <Image
+            className="sm:hidden -z-10 object-cover"
+            alt="background image"
+            src="/img/landing/landing-banner-sm-2.png"
+            quality={100}
+            fill
+            sizes="100vw"
+          />
           <div className="rounded-md flex-col gap-2 items-center w-full md:hidden">
             <div>
               <div className="text-3xl font-semibold my-2">Próximo Evento</div>

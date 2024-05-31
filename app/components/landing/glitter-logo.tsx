@@ -9,6 +9,7 @@ export default function GlitterLogo(props: GlitterLogoProps) {
   if (props.size === "md") {
     return (
       <Image
+        className="w-auto"
         src={
           props.variant === "dark"
             ? "/img/logo/logo-full-dark-md.png"
@@ -23,6 +24,7 @@ export default function GlitterLogo(props: GlitterLogoProps) {
 
   return (
     <Image
+      className="w-auto"
       src={
         props.variant === "dark"
           ? "/img/logo/logo-full-dark-sm.png"
