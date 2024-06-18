@@ -23,6 +23,21 @@ export const userCategoryEnum = pgEnum("user_category", [
   "gastronomy",
   "entrepreneurship",
 ]);
+
+export const userCategories = pgTable("user_categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").unique().notNull(),
+  description: text("description"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const userCategoriesRelations = relations(
+  userCategories,
+  ({ many }) => ({
+    userCategoryToSectorPermissions: many(userCategoryToSectorPermissions),
+  }),
+);
+
 export const users = pgTable(
   "users",
   {
@@ -97,7 +112,67 @@ export const festivalsRelations = relations(festivals, ({ many }) => ({
   standReservations: many(standReservations),
   stands: many(stands),
   tickets: many(tickets),
+  festivalSectors: many(festivalSectors),
 }));
+
+export const festivalSectors = pgTable(
+  "festival_sectors",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    description: text("description"),
+    mapUrl: text("map_url"),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id),
+    allowedUserCategories: userCategoryEnum("allowed_user_categories"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (festivalSectors) => ({
+    festivalSectorNameIdx: index("festival_sector_name_idx").on(
+      festivalSectors.name,
+    ),
+  }),
+);
+export const festivalSectorsRelations = relations(
+  festivalSectors,
+  ({ many, one }) => ({
+    festival: one(festivals, {
+      fields: [festivalSectors.festivalId],
+      references: [festivals.id],
+    }),
+    userCategoryToSectorPermissions: many(userCategoryToSectorPermissions),
+  }),
+);
+
+export const userCategoryToSectorPermissions = pgTable(
+  "user_category_to_sector_permissions",
+  {
+    id: serial("id").primaryKey(),
+    userCategoryId: integer("user_category_id")
+      .notNull()
+      .references(() => userCategories.id),
+    sectorId: integer("sector_id")
+      .notNull()
+      .references(() => festivalSectors.id),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+);
+export const userCategoryToSectorPermissionsRelations = relations(
+  userCategoryToSectorPermissions,
+  ({ one }) => ({
+    userCategory: one(userCategories, {
+      fields: [userCategoryToSectorPermissions.userCategoryId],
+      references: [userCategories.id],
+    }),
+    sector: one(festivalSectors, {
+      fields: [userCategoryToSectorPermissions.sectorId],
+      references: [festivalSectors.id],
+    }),
+  }),
+);
 
 export const requestStatusEnum = pgEnum("participation_request_status", [
   "pending",
