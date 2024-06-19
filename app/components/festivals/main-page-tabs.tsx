@@ -12,16 +12,18 @@ type TabItemProps = {
 
 function TabItem(props: TabItemProps) {
   return (
-    <Button
-      className={cn("", {
-        "bg-primary text-primary-foreground hover:bg-primary/80":
-          props.selected,
-      })}
-      variant="ghost"
+    <div
+      className={cn(
+        "p-2 text-sm cursor-default transition duration-500 ease-in-out hover:text-primary-400 hover:border-b",
+        {
+          "border-b-2 border-primary-400 text-primary-400": props.selected,
+          "text-muted-foreground": !props.selected,
+        },
+      )}
       onClick={props.onClick}
     >
       {props.children}
-    </Button>
+    </div>
   );
 }
 
@@ -37,7 +39,7 @@ export default function FestivalPageTabs(props: FestivalPageTabsProps) {
   }
 
   return (
-    <div className="flex pt-4 pb-2 border-b-2">
+    <div className="flex pt-4 border-b">
       <TabItem
         selected={props.selectedTab === "general"}
         onClick={() => setSearchParams("general")}
