@@ -379,6 +379,13 @@
       "when": 1718763056803,
       "tag": "0053_certain_spot",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "5",
+      "when": 1718768503523,
+      "tag": "0054_square_rictor",
+      "breakpoints": true
     }
   ]
 }

@@ -1,16 +1,15 @@
 import DateBadge from "@/app/components/date-badge";
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import {
+  FestivalDate,
+  FestivalWithDatesAndSectors,
+} from "@/app/data/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
-import { DateTime } from "luxon";
 import Image from "next/image";
 
-function DateLabel({
-  startDate,
-  endDate,
-}: {
-  startDate: DateTime;
-  endDate: DateTime;
-}) {
+function DateLabel({ date }: { date: FestivalDate }) {
+  const startDate = formatDate(date.startDate);
+  const endDate = formatDate(date.endDate);
+
   return (
     <div className="flex gap-2">
       <DateBadge date={startDate} />
@@ -31,27 +30,29 @@ function DateLabel({
 }
 
 type GeneralInfoProps = {
-  festival: FestivalBase;
+  festival: FestivalWithDatesAndSectors;
 };
 
 export default function GeneralInfo(props: GeneralInfoProps) {
-  const startDate = formatDate(props.festival.startDate);
-  const endDate = formatDate(props.festival.endDate);
+  const dates = props.festival.festivalDates;
 
   return (
-    <div className="grid gap-2 py-4">
+    <div className="flex gap-4 sm:justify-center items-start flex-wrap sm:flex-row-reverse">
       {props.festival.mascotUrl && (
         <Image
           className="mx-auto"
           alt="mascota del evento"
           height={545}
           src={props.festival.mascotUrl}
-          width={429}
+          width={300}
         />
       )}
-      {startDate && <DateLabel startDate={startDate} endDate={endDate} />}
-      {endDate && !endDate.equals(startDate) && (
-        <DateLabel startDate={endDate} endDate={endDate} />
+      {dates && dates.length > 0 && (
+        <div className="flex flex-wrap gap-4 py-4">
+          {dates.map((date) => (
+            <DateLabel key={date.id} date={date} />
+          ))}
+        </div>
       )}
     </div>
   );

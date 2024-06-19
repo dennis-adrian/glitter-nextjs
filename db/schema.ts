@@ -115,6 +115,7 @@ export const festivalsRelations = relations(festivals, ({ many }) => ({
   stands: many(stands),
   tickets: many(tickets),
   festivalSectors: many(festivalSectors),
+  festivalDates: many(festivalDates),
 }));
 
 export const festivalSectors = pgTable(
@@ -147,6 +148,31 @@ export const festivalSectorsRelations = relations(
     userCategoryToSectorPermissions: many(userCategoryToSectorPermissions),
   }),
 );
+
+export const festivalDates = pgTable(
+  "festival_dates",
+  {
+    id: serial("id").primaryKey(),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id),
+    startDate: timestamp("start_date").notNull(),
+    endDate: timestamp("end_date").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (festivalDates) => ({
+    festivalDatesFestivalIdIdx: index("festival_dates_festival_id_idx").on(
+      festivalDates.festivalId,
+    ),
+  }),
+);
+export const festivalDatesRelations = relations(festivalDates, ({ one }) => ({
+  festival: one(festivals, {
+    fields: [festivalDates.festivalId],
+    references: [festivals.id],
+  }),
+}));
 
 export const userCategoryToSectorPermissions = pgTable(
   "user_category_to_sector_permissions",

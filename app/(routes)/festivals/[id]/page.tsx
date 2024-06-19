@@ -2,7 +2,10 @@ import { Metadata } from "next";
 import { z } from "zod";
 
 import Festival from "@/app/components/festivals/festival";
-import { fetchBaseFestival } from "@/app/data/festivals/actions";
+import {
+  fetchBaseFestival,
+  fetchFestivalWithDatesAndSectors,
+} from "@/app/data/festivals/actions";
 import { userCategoryEnum } from "@/db/schema";
 import { UserCategory } from "@/app/api/users/definitions";
 import Terms from "@/app/components/festivals/terms";
@@ -38,7 +41,7 @@ export default async function Page({
   };
 }) {
   const profile = await getCurrentUserProfile();
-  const festival = await fetchBaseFestival(parseInt(params.id));
+  const festival = await fetchFestivalWithDatesAndSectors(parseInt(params.id));
   if (!festival) notFound();
 
   const validatedSearchParams = searchParamsSchema.safeParse(searchParams);
@@ -76,9 +79,6 @@ export default async function Page({
       );
     }
   }
-
-  const mascotSrcSm = imagesSrc[festival.mapsVersion]["mascot"]?.sm;
-  const mascotSrcMd = imagesSrc[festival.mapsVersion]["mascot"]?.md;
 
   return (
     <div className="container p-4 md:p-6">
