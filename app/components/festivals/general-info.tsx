@@ -1,10 +1,12 @@
 import DateBadge from "@/app/components/date-badge";
+import { RedirectButton } from "@/app/components/redirect-button";
+import { Button } from "@/app/components/ui/button";
 import {
   FestivalDate,
   FestivalWithDatesAndSectors,
 } from "@/app/data/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
-import { ArrowUpRightIcon, MapPinIcon } from "lucide-react";
+import { ArrowUpRightIcon, MapPinIcon, TicketIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -13,7 +15,7 @@ function DateLabel({ date }: { date: FestivalDate }) {
   const endDate = formatDate(date.endDate);
 
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2 items-center">
       <DateBadge date={startDate} />
       <div className="flex flex-col">
         {startDate.toLocaleString({
@@ -37,10 +39,12 @@ type GeneralInfoProps = {
 
 export default function GeneralInfo(props: GeneralInfoProps) {
   const dates = props.festival.festivalDates;
+  const isRegistrationOpen =
+    props.festival.publicRegistration && !props.festival.eventDayRegistration;
 
   return (
     <div>
-      <div className="flex gap-4 pt-4 md:p-6 sm:justify-center items-start flex-wrap sm:flex-row-reverse">
+      <div className="flex gap-4 pt-4 md:p-6 justify-start flex-col">
         {props.festival.mascotUrl && (
           <Image
             className="mx-auto flex-grow-0"
@@ -54,7 +58,7 @@ export default function GeneralInfo(props: GeneralInfoProps) {
           {dates &&
             dates.length > 0 &&
             dates.map((date) => <DateLabel key={date.id} date={date} />)}
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <div className="w-12 h-12 rounded-sm border flex justify-center items-center">
               <MapPinIcon className="w-7 h-7 text-muted-foreground" />
             </div>
@@ -76,11 +80,39 @@ export default function GeneralInfo(props: GeneralInfoProps) {
               </span>
             </div>
           </div>
+          <div className="flex gap-2 items-center">
+            <div className="w-12 h-12 rounded-sm border flex justify-center items-center">
+              <TicketIcon className="w-7 h-7 text-muted-foreground" />
+            </div>
+            Entrada libre al evento
+          </div>
         </div>
       </div>
+      {props.festival.status === "active" && (
+        <div className="flex justify-center items-center">
+          {isRegistrationOpen ? (
+            <RedirectButton
+              href={`/festivals/${props.festival.id}/registration`}
+            >
+              Reservar entrada
+            </RedirectButton>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <Button disabled>Reservar entrada</Button>
+              <div className="text-muted-foreground text-sm">
+                {props.festival.eventDayRegistration ? (
+                  <span>Registro habilitado en puerta</span>
+                ) : (
+                  <span>La reserva de entradas no está habilitada</span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       {props.festival.generalMapUrl && (
-        <div>
-          <h2 className="font-semibold text-xl">Distribución General</h2>
+        <div className="py-4">
+          <h2 className="font-semibold text-xl mt-4">Distribución General</h2>
           <span className="flex flex-wrap text-muted-foreground text-sm">
             <p className="mr-1">
               Para ven en detalle los participantes y los sectores del evento
