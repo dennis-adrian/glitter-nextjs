@@ -6,17 +6,14 @@ import { fetchBaseFestival } from "@/app/data/festivals/actions";
 import { userCategoryEnum } from "@/db/schema";
 import { UserCategory } from "@/app/api/users/definitions";
 import Terms from "@/app/components/festivals/terms";
-import { CalendarIcon, ClockIcon, LocateIcon } from "lucide-react";
-import { getFestivalDateLabel } from "@/app/helpers/next_event";
-import Image from "next/image";
 import { imagesSrc } from "@/app/lib/maps/config";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Suspense } from "react";
 import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
-import { formatDate } from "@/app/lib/formatters";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { notFound } from "next/navigation";
 import FestivalPageTabs from "@/app/components/festivals/main-page-tabs";
+import GeneralInfo from "@/app/components/festivals/general-info";
 
 export const metadata: Metadata = {
   title: "Información del Festival",
@@ -82,20 +79,12 @@ export default async function Page({
 
   const mascotSrcSm = imagesSrc[festival.mapsVersion]["mascot"]?.sm;
   const mascotSrcMd = imagesSrc[festival.mapsVersion]["mascot"]?.md;
-  const generalMapSm = imagesSrc[festival.mapsVersion]["general"]?.sm;
-  const generalMapMd = imagesSrc[festival.mapsVersion]["general"]?.md;
 
   return (
     <div className="container p-4 md:p-6">
       <section className="flex flex-col md:flex-row md:justify-between gap-6">
         <div>
           <div>
-            {/* <Badge
-              className="mb-1 font-normal sm:mb-2 sm:text-base"
-              variant="secondary"
-            >
-              Siguiente evento
-            </Badge> */}
             <div>
               <h1 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none">
                 {festival.name}
@@ -106,64 +95,11 @@ export default async function Page({
             </div>
           </div>
           <FestivalPageTabs selectedTab={validatedSearchParams.data.tab} />
-          {validatedSearchParams.data.tab !== "sectors" && (
-            <div className="grid gap-2 py-4">
-              <div>
-                <CalendarIcon className="mr-2 inline-block h-4 w-4" />
-                Fecha: {getFestivalDateLabel(festival)}
-              </div>
-              <div>
-                <ClockIcon className="mr-2 inline-block h-4 w-4" />
-                Hora: {formatDate(festival.startDate).hour}hrs a{" "}
-                {formatDate(festival.endDate).hour}hrs
-              </div>
-              <div>
-                <LocateIcon className="mr-2 inline-block h-4 w-4" />
-                Ubicación: {festival.locationLabel} - {festival.address}
-              </div>
-            </div>
-          )}
         </div>
-        {mascotSrcSm &&
-          mascotSrcMd &&
-          validatedSearchParams.data.tab !== "sectors" && (
-            <>
-              <Image
-                className="mx-auto md:mx-0"
-                alt="mascota del evento"
-                height={240}
-                src={mascotSrcSm}
-                width={240}
-              />
-            </>
-          )}
       </section>
       <section>
         {validatedSearchParams.data.tab !== "sectors" ? (
-          <>
-            <h2 className="font-semibold text-2xl my-4">Mapas del evento</h2>
-            {generalMapSm && generalMapMd && (
-              <>
-                <h3 className="font-semibold text-xl my-2">
-                  Distribución general del evento
-                </h3>
-                <Image
-                  className="md:hidden mx-auto"
-                  alt="mapa el evento"
-                  height={545}
-                  src={generalMapSm}
-                  width={429}
-                />
-                <Image
-                  className="hidden md:block mx-auto"
-                  alt="mapa del evento"
-                  height={1091}
-                  src={generalMapMd}
-                  width={858}
-                />
-              </>
-            )}
-          </>
+          <GeneralInfo festival={festival} />
         ) : (
           <>
             <Suspense fallback={<FestivalSkeleton />}>
@@ -203,18 +139,6 @@ export default async function Page({
           </>
         )}
       </section>
-      {/* {confirmedReservations.length > 0 && (
-        <section className="m-auto max-w-screen-xl py-12">
-          <div className="container px-4 md:px-6">
-            <div className="mb-4 w-full text-left">
-              <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none">
-                Participantes
-              </h2>
-            </div>
-            <Participants festivalId={festival.id} />
-          </div>
-        </section>
-      )} */}
     </div>
   );
 }
