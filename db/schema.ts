@@ -100,6 +100,8 @@ export const festivals = pgTable(
     reservationsStartDate: timestamp("reservations_start_date")
       .defaultNow()
       .notNull(),
+    generalMapUrl: text("general_map_url"),
+    mascotUrl: text("mascot_url"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

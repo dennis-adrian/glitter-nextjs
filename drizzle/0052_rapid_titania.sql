@@ -1,0 +1,1 @@
+ALTER TABLE "festivals" ADD COLUMN "general_map_url" text;
