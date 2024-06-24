@@ -2,7 +2,6 @@ import { CSSProperties } from "react";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 
 import { getStandSize } from "@/app/components/next_event/helpers";
-import { ProfileType } from "@/app/api/users/definitions";
 import {
   standsPositions,
   standProportions,
@@ -28,10 +27,10 @@ export function StandShape({
     standsPositions.find((position) => position.id === stand.standNumber)
       ?.top ||
     0;
-  const widht = stand.width || standProportions.wide || 0;
+  const width = stand.width || standProportions.wide || 0;
   const height = stand.height || standProportions.narrow || 0;
   const { orientation, standNumber, status } = stand;
-  const size = getStandSize(imageSize, { wide: widht, narrow: height });
+  const size = getStandSize(imageSize, { wide: width, narrow: height });
 
   const style: CSSProperties = {
     position: "absolute",

@@ -12,6 +12,16 @@ type FestivalSectorsProps = {
 };
 
 export default function FestivalSectors(props: FestivalSectorsProps) {
+  if (props.festival.festivalSectors.length === 0) {
+    return (
+      <div>
+        <p className="text-center text-gray-500 pt-8">
+          No se han encontrado sectores para este festival.
+        </p>
+      </div>
+    );
+  }
+
   const orderedSectors = orderSectors(
     props.festival.festivalSectors,
   ) as FestivalSectorWithStandsWithReservationsWithParticipants[];

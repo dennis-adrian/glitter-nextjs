@@ -90,9 +90,9 @@ export const festivals = pgTable(
     address: text("address"),
     locationLabel: text("location_label"),
     locationUrl: text("location_url"),
-    startDate: timestamp("start_date").notNull(),
+    startDate: timestamp("start_date"),
     status: festivalStatusEnum("status").default("draft").notNull(),
-    endDate: timestamp("end_date").notNull(),
+    endDate: timestamp("end_date"),
     mapsVersion: festivalMapVersionEnum("maps_version").default("v1").notNull(),
     publicRegistration: boolean("public_registration").default(false).notNull(),
     eventDayRegistration: boolean("event_day_registration")
@@ -290,7 +290,7 @@ export const stands = pgTable(
     positionLeft: real("position_left"),
     positionTop: real("position_top"),
     price: real("price").notNull().default(0),
-    festivalId: integer("festival_id").notNull(),
+    festivalId: integer("festival_id"),
     festivalSectorId: integer("festival_sector_id").references(
       () => festivalSectors.id,
     ),
