@@ -100,31 +100,8 @@ export default async function Page({
         ) : (
           <>
             <FestivalSectors festival={festival} />
-            <Suspense fallback={<FestivalSkeleton />}>
-              <Festival
-                isGeneralView
-                profile={profile!}
-                festival={festival}
-                category="illustration"
-              />
-            </Suspense>
-            <Suspense fallback={<FestivalSkeleton />}>
-              <Festival
-                isGeneralView
-                profile={profile!}
-                festival={festival}
-                category="entrepreneurship"
-              />
-            </Suspense>
-            <Suspense fallback={<FestivalSkeleton />}>
-              <Festival
-                isGeneralView
-                profile={profile!}
-                festival={festival}
-                category="gastronomy"
-              />
-            </Suspense>
-            {canViewCategories && festival.status === "active" && (
+            {/* TODO; Redirigir a nueva url exclusiva para reservas */}
+            {/* {canViewCategories && festival.status === "active" && (
               <div className="flex w-full justify-center my-4">
                 <RedirectButton
                   className="mx-auto"
@@ -133,7 +110,7 @@ export default async function Page({
                   Reserva tu espacio
                 </RedirectButton>
               </div>
-            )}
+            )} */}
           </>
         )}
       </section>

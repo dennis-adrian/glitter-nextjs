@@ -1,4 +1,5 @@
 import MapImage from "@/app/components/festivals/map-image";
+import ParticipantsGrid from "@/app/components/festivals/participants";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/data/festivals/definitions";
 
 type FestivalSectorProps = {
@@ -10,12 +11,18 @@ export default function FestivalSector(props: FestivalSectorProps) {
     <div key={props.sector.id}>
       <h3 className="font-semibold text-xl my-4">{props.sector.name}</h3>
       {props.sector.stands.length > 0 && props.sector.mapUrl ? (
-        <div className="flex flex-wrap gap-2">
-          <MapImage mapSrc={props.sector.mapUrl} stands={props.sector.stands} />
+        <div className="flex flex-wrap gap-4">
+          <div className="mx-auto">
+            <MapImage
+              mapSrc={props.sector.mapUrl}
+              stands={props.sector.stands}
+            />
+          </div>
+          <ParticipantsGrid stands={props.sector.stands} />
         </div>
       ) : (
         <div className="text-muted-foreground text-sm">
-          No hay mapa definido para este sector
+          Espacios no definidos para este sector
         </div>
       )}
     </div>

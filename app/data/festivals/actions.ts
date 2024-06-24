@@ -142,7 +142,15 @@ export async function fetchFestivalWithDatesAndSectors(
           with: {
             stands: {
               with: {
-                reservations: true,
+                reservations: {
+                  with: {
+                    participants: {
+                      with: {
+                        user: true,
+                      },
+                    },
+                  },
+                },
               },
             },
           },
