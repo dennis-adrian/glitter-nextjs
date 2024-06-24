@@ -10,7 +10,12 @@ import {
   users,
   reservationParticipants,
 } from "@/db/schema";
-import { Festival, FestivalBase, FestivalWithTickets } from "./definitions";
+import {
+  Festival,
+  FestivalBase,
+  FestivalWithDatesAndSectors,
+  FestivalWithTickets,
+} from "./definitions";
 import { sendEmail } from "@/app/vendors/resend";
 import React from "react";
 import EmailTemplate from "@/app/emails/festival-activation";
@@ -114,6 +119,43 @@ export async function fetchBaseFestival(
   const client = await pool.connect();
   try {
     return await db.query.festivals.findFirst({
+      where: eq(festivals.id, id),
+    });
+  } catch (error) {
+    console.error("Error fetching active festival", error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+export async function fetchFestivalWithDatesAndSectors(
+  id: number,
+): Promise<FestivalWithDatesAndSectors | null | undefined> {
+  const client = await pool.connect();
+
+  try {
+    return await db.query.festivals.findFirst({
+      with: {
+        festivalDates: true,
+        festivalSectors: {
+          with: {
+            stands: {
+              with: {
+                reservations: {
+                  with: {
+                    participants: {
+                      with: {
+                        user: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       where: eq(festivals.id, id),
     });
   } catch (error) {

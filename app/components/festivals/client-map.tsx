@@ -61,7 +61,6 @@ export default function ClientMap({
     <>
       <MapImage
         mapSrc={imageSrc}
-        profile={profile}
         stands={stands}
         onStandClick={handleStandClick}
       />

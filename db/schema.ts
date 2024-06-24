@@ -7,6 +7,7 @@ import {
   pgTable,
   real,
   serial,
+  smallint,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
@@ -23,6 +24,21 @@ export const userCategoryEnum = pgEnum("user_category", [
   "gastronomy",
   "entrepreneurship",
 ]);
+
+export const userCategories = pgTable("user_categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").unique().notNull(),
+  description: text("description"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const userCategoriesRelations = relations(
+  userCategories,
+  ({ many }) => ({
+    userCategoryToSectorPermissions: many(userCategoryToSectorPermissions),
+  }),
+);
+
 export const users = pgTable(
   "users",
   {
@@ -85,6 +101,8 @@ export const festivals = pgTable(
     reservationsStartDate: timestamp("reservations_start_date")
       .defaultNow()
       .notNull(),
+    generalMapUrl: text("general_map_url"),
+    mascotUrl: text("mascot_url"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -97,7 +115,94 @@ export const festivalsRelations = relations(festivals, ({ many }) => ({
   standReservations: many(standReservations),
   stands: many(stands),
   tickets: many(tickets),
+  festivalSectors: many(festivalSectors),
+  festivalDates: many(festivalDates),
 }));
+
+export const festivalSectors = pgTable(
+  "festival_sectors",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    description: text("description"),
+    mapUrl: text("map_url"),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id),
+    orderInFestival: smallint("order_in_festival").notNull().default(1),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (festivalSectors) => ({
+    festivalSectorNameIdx: index("festival_sector_name_idx").on(
+      festivalSectors.name,
+    ),
+  }),
+);
+export const festivalSectorsRelations = relations(
+  festivalSectors,
+  ({ many, one }) => ({
+    festival: one(festivals, {
+      fields: [festivalSectors.festivalId],
+      references: [festivals.id],
+    }),
+    userCategoryToSectorPermissions: many(userCategoryToSectorPermissions),
+    stands: many(stands),
+  }),
+);
+
+export const festivalDates = pgTable(
+  "festival_dates",
+  {
+    id: serial("id").primaryKey(),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id),
+    startDate: timestamp("start_date").notNull(),
+    endDate: timestamp("end_date").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (festivalDates) => ({
+    festivalDatesFestivalIdIdx: index("festival_dates_festival_id_idx").on(
+      festivalDates.festivalId,
+    ),
+  }),
+);
+export const festivalDatesRelations = relations(festivalDates, ({ one }) => ({
+  festival: one(festivals, {
+    fields: [festivalDates.festivalId],
+    references: [festivals.id],
+  }),
+}));
+
+export const userCategoryToSectorPermissions = pgTable(
+  "user_category_to_sector_permissions",
+  {
+    id: serial("id").primaryKey(),
+    userCategoryId: integer("user_category_id")
+      .notNull()
+      .references(() => userCategories.id),
+    sectorId: integer("sector_id")
+      .notNull()
+      .references(() => festivalSectors.id),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+);
+export const userCategoryToSectorPermissionsRelations = relations(
+  userCategoryToSectorPermissions,
+  ({ one }) => ({
+    userCategory: one(userCategories, {
+      fields: [userCategoryToSectorPermissions.userCategoryId],
+      references: [userCategories.id],
+    }),
+    sector: one(festivalSectors, {
+      fields: [userCategoryToSectorPermissions.sectorId],
+      references: [festivalSectors.id],
+    }),
+  }),
+);
 
 export const requestStatusEnum = pgEnum("participation_request_status", [
   "pending",
@@ -186,6 +291,9 @@ export const stands = pgTable(
     positionTop: real("position_top"),
     price: real("price").notNull().default(0),
     festivalId: integer("festival_id").notNull(),
+    festivalSectorId: integer("festival_sector_id").references(
+      () => festivalSectors.id,
+    ),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -198,6 +306,10 @@ export const standRelations = relations(stands, ({ many, one }) => ({
   festival: one(festivals, {
     fields: [stands.festivalId],
     references: [festivals.id],
+  }),
+  festivalSector: one(festivalSectors, {
+    fields: [stands.festivalSectorId],
+    references: [festivalSectors.id],
   }),
 }));
 
