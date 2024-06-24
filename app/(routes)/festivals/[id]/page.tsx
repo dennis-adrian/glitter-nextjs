@@ -2,14 +2,10 @@ import { Metadata } from "next";
 import { z } from "zod";
 
 import Festival from "@/app/components/festivals/festival";
-import {
-  fetchBaseFestival,
-  fetchFestivalWithDatesAndSectors,
-} from "@/app/data/festivals/actions";
+import { fetchFestivalWithDatesAndSectors } from "@/app/data/festivals/actions";
 import { userCategoryEnum } from "@/db/schema";
 import { UserCategory } from "@/app/api/users/definitions";
 import Terms from "@/app/components/festivals/terms";
-import { imagesSrc } from "@/app/lib/maps/config";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Suspense } from "react";
 import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
@@ -17,6 +13,7 @@ import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { notFound } from "next/navigation";
 import FestivalPageTabs from "@/app/components/festivals/main-page-tabs";
 import GeneralInfo from "@/app/components/festivals/general-info";
+import FestivalSectors from "@/app/components/festivals/sectors/festival-sectors";
 
 export const metadata: Metadata = {
   title: "Información del Festival",
@@ -102,6 +99,7 @@ export default async function Page({
           <GeneralInfo festival={festival} />
         ) : (
           <>
+            <FestivalSectors festival={festival} />
             <Suspense fallback={<FestivalSkeleton />}>
               <Festival
                 isGeneralView

@@ -138,7 +138,15 @@ export async function fetchFestivalWithDatesAndSectors(
     return await db.query.festivals.findFirst({
       with: {
         festivalDates: true,
-        festivalSectors: true,
+        festivalSectors: {
+          with: {
+            stands: {
+              with: {
+                reservations: true,
+              },
+            },
+          },
+        },
       },
       where: eq(festivals.id, id),
     });

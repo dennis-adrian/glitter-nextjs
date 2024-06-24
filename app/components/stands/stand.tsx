@@ -15,9 +15,8 @@ export function StandShape({
   onClick,
 }: {
   imageSize: { width: number; height: number };
-  profile?: ProfileType | null;
   stand: StandWithReservationsWithParticipants;
-  onClick: (stand: StandWithReservationsWithParticipants) => void;
+  onClick?: (stand: StandWithReservationsWithParticipants) => void;
 }) {
   const positionLeft =
     stand.positionLeft ||
@@ -38,7 +37,7 @@ export function StandShape({
     position: "absolute",
     left: `${positionLeft}%`,
     top: `${positionTop}%`,
-    cursor: `${status === "available" ? "pointer" : "not-allowed"}`,
+    cursor: `${status === "available" && onClick ? "pointer" : "not-allowed"}`,
     height: `${orientation === "landscape" ? size.narrow : size.wide}px`,
     width: `${orientation === "landscape" ? size.wide : size.narrow}px`,
   };
@@ -55,7 +54,7 @@ export function StandShape({
   }
 
   const handleClick = () => {
-    if (stand.status !== "available") return;
+    if (stand.status !== "available" || !onClick) return;
     onClick(stand);
   };
 

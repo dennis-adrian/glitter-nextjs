@@ -8,14 +8,12 @@ import { useEffect, useRef, useState } from "react";
 
 export default function MapImage({
   mapSrc,
-  profile,
   stands,
   onStandClick,
 }: {
   mapSrc: string;
-  profile?: ProfileType | null;
   stands: StandWithReservationsWithParticipants[];
-  onStandClick: (stand: StandWithReservationsWithParticipants) => void;
+  onStandClick?: (stand: StandWithReservationsWithParticipants) => void;
 }) {
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -61,7 +59,6 @@ export default function MapImage({
           <StandShape
             key={stand.id}
             imageSize={dimensions}
-            profile={profile}
             stand={stand}
             onClick={onStandClick}
           />
