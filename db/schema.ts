@@ -128,7 +128,6 @@ export const festivalSectors = pgTable(
     festivalId: integer("festival_id")
       .notNull()
       .references(() => festivals.id),
-    allowedUserCategories: userCategoryEnum("allowed_user_categories"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -146,6 +145,7 @@ export const festivalSectorsRelations = relations(
       references: [festivals.id],
     }),
     userCategoryToSectorPermissions: many(userCategoryToSectorPermissions),
+    stands: many(stands),
   }),
 );
 
@@ -289,6 +289,9 @@ export const stands = pgTable(
     positionTop: real("position_top"),
     price: real("price").notNull().default(0),
     festivalId: integer("festival_id").notNull(),
+    festivalSectorId: integer("festival_sector_id").references(
+      () => festivalSectors.id,
+    ),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -301,6 +304,10 @@ export const standRelations = relations(stands, ({ many, one }) => ({
   festival: one(festivals, {
     fields: [stands.festivalId],
     references: [festivals.id],
+  }),
+  festivalSector: one(festivalSectors, {
+    fields: [stands.festivalSectorId],
+    references: [festivalSectors.id],
   }),
 }));
 

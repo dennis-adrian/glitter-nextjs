@@ -1,0 +1,1 @@
+ALTER TABLE "festival_sectors" DROP COLUMN IF EXISTS "allowed_user_categories";
