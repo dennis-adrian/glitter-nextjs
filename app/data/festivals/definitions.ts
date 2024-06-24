@@ -31,6 +31,7 @@ export type FestivalWithTickets = FestivalBase & {
   tickets: TicketWithVisitor[];
 };
 export type FestivalMapVersion = FestivalBase["mapsVersion"];
+export type FestivalSectorBase = typeof festivalSectors.$inferSelect;
 export type FestivalSectorWithStandsWithReservationsWithParticipants =
   typeof festivalSectors.$inferSelect & {
     stands: StandWithReservationsWithParticipants[];

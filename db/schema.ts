@@ -7,6 +7,7 @@ import {
   pgTable,
   real,
   serial,
+  smallint,
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
@@ -128,6 +129,7 @@ export const festivalSectors = pgTable(
     festivalId: integer("festival_id")
       .notNull()
       .references(() => festivals.id),
+    orderInFestival: smallint("order_in_festival").notNull().default(1),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
