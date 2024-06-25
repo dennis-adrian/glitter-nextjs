@@ -421,6 +421,13 @@
       "when": 1719252603701,
       "tag": "0059_broad_brother_voodoo",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "5",
+      "when": 1719347820232,
+      "tag": "0060_bumpy_jean_grey",
+      "breakpoints": true
     }
   ]
 }
