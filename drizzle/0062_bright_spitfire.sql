@@ -1,0 +1,1 @@
+ALTER TYPE "user_category" ADD VALUE 'new_artist';

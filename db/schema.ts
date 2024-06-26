@@ -23,6 +23,7 @@ export const userCategoryEnum = pgEnum("user_category", [
   "illustration",
   "gastronomy",
   "entrepreneurship",
+  "new_artist",
 ]);
 
 export const users = pgTable(
