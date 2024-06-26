@@ -1,6 +1,6 @@
 import MapImage from "@/app/components/festivals/map-image";
 import ParticipantsGrid from "@/app/components/festivals/participants";
-import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/data/festivals/definitions";
+import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 
 type FestivalSectorProps = {
   sector: FestivalSectorWithStandsWithReservationsWithParticipants;

@@ -11,7 +11,10 @@ import MapImage from "@/app/components/festivals/map-image";
 import { ReservationModal } from "@/app/components/next_event/reservation/modal";
 import { profileHasReservation } from "@/app/helpers/next_event";
 import { imagesSrc } from "@/app/lib/maps/config";
-import { FestivalMapVersion } from "@/app/data/festivals/definitions";
+import {
+  FestivalBase,
+  FestivalMapVersion,
+} from "@/app/data/festivals/definitions";
 import {
   StandWithReservationsWithParticipants,
   StandZone,
@@ -20,30 +23,30 @@ import { isProfileInFestival } from "@/app/components/next_event/helpers";
 
 export default function ClientMap({
   artists,
+  festival,
+  imageSrc,
   profile,
   stands,
-  category,
-  mapVersion,
-  zone,
 }: {
   artists: BaseProfile[];
+  imageSrc?: string | null;
+  festival: FestivalBase;
   profile: ProfileType | null;
   stands: StandWithReservationsWithParticipants[];
-  category: Exclude<UserCategory, "none">;
-  mapVersion: FestivalMapVersion;
-  zone: StandZone;
 }) {
   const [openModal, setOpenModal] = useState(false);
   const [selectedStand, setSelectedStand] =
     useState<StandWithReservationsWithParticipants | null>(null);
 
+  if (!imageSrc) return null;
+
   function handleStandClick(stand: StandWithReservationsWithParticipants) {
     if (!profile) return;
 
     if (profile.role !== "admin") {
-      const inFestival = isProfileInFestival(stand.festivalId, profile);
-      if (!inFestival || profile.category !== category) return;
-      if (profileHasReservation(profile, stand.festivalId)) return;
+      const inFestival = isProfileInFestival(festival.id, profile);
+      if (!inFestival || profile.category !== stand.standCategory) return;
+      if (profileHasReservation(profile, festival.id)) return;
     }
 
     setSelectedStand(stand);
@@ -54,8 +57,6 @@ export default function ClientMap({
     setSelectedStand(null);
     setOpenModal(false);
   }
-
-  const imageSrc = imagesSrc[mapVersion][category][zone]!.sm;
 
   return (
     <>

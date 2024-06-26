@@ -3,7 +3,7 @@ import { RedirectButton } from "@/app/components/redirect-button";
 import { Button } from "@/app/components/ui/button";
 import {
   FestivalDate,
-  FestivalWithDatesAndSectors,
+  FestivalWithDates,
 } from "@/app/data/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { ArrowUpRightIcon, MapPinIcon, TicketIcon } from "lucide-react";
@@ -34,7 +34,7 @@ function DateLabel({ date }: { date: FestivalDate }) {
 }
 
 type GeneralInfoProps = {
-  festival: FestivalWithDatesAndSectors;
+  festival: FestivalWithDates;
 };
 
 export default function GeneralInfo(props: GeneralInfoProps) {

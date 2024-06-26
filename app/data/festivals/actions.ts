@@ -13,7 +13,7 @@ import {
 import {
   Festival,
   FestivalBase,
-  FestivalWithDatesAndSectors,
+  FestivalWithDates,
   FestivalWithTickets,
 } from "./definitions";
 import { sendEmail } from "@/app/vendors/resend";
@@ -129,32 +129,14 @@ export async function fetchBaseFestival(
   }
 }
 
-export async function fetchFestivalWithDatesAndSectors(
+export async function fetchFestivalWithDates(
   id: number,
-): Promise<FestivalWithDatesAndSectors | null | undefined> {
+): Promise<FestivalWithDates | null | undefined> {
   const client = await pool.connect();
-
   try {
     return await db.query.festivals.findFirst({
       with: {
         festivalDates: true,
-        festivalSectors: {
-          with: {
-            stands: {
-              with: {
-                reservations: {
-                  with: {
-                    participants: {
-                      with: {
-                        user: true,
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
       },
       where: eq(festivals.id, id),
     });

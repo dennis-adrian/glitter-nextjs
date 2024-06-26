@@ -1,8 +1,4 @@
-import {
-  FestivalBase,
-  FestivalSectorBase,
-} from "@/app/data/festivals/definitions";
-import { formatDate } from "@/app/lib/formatters";
+import { FestivalBase } from "@/app/data/festivals/definitions";
 
 export function getFestivalsOptions(festivals: FestivalBase[]) {
   return festivals.map((festival) => ({
@@ -20,8 +16,4 @@ export function groupVisitorEmails(visitors: { id: number; email: string }[]) {
   }
 
   return emailGroups;
-}
-
-export function orderSectors(sectors: FestivalSectorBase[]) {
-  return sectors.sort((a, b) => a.orderInFestival - b.orderInFestival);
 }
