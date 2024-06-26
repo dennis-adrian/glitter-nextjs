@@ -14,12 +14,14 @@ import ReservationForm from "@/app/components/next_event/reservation/form";
 import { Button } from "@/app/components/ui/button";
 import { BaseProfile, ProfileType } from "@/app/api/users/definitions";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
+import { FestivalBase } from "@/app/data/festivals/definitions";
 
 export function ReservationModal({
   artists,
   open,
   profile,
   stand,
+  festival,
   onOpenChange,
   onClose,
 }: {
@@ -27,6 +29,7 @@ export function ReservationModal({
   open: boolean;
   profile?: ProfileType | null;
   stand: StandWithReservationsWithParticipants | null;
+  festival: FestivalBase;
   onClose: () => void;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -49,6 +52,7 @@ export function ReservationModal({
         <ReservationForm
           artists={artists}
           isDesktop={isDesktop}
+          festival={festival}
           profile={profile}
           stand={stand}
           onModalClose={onClose}

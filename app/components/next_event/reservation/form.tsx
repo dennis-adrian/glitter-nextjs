@@ -19,6 +19,10 @@ import { Label } from "@/app/components/ui/label";
 import { useRouter } from "next/navigation";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { getParticipantsOptions } from "@/app/api/reservations/helpers";
+import { FestivalBase } from "@/app/data/festivals/definitions";
+import SubmitButton from "@/app/components/simple-submit-button";
+import { useForm } from "react-hook-form";
+import { Form } from "@/app/components/ui/form";
 
 type Profile = Omit<
   ProfileType,
@@ -26,12 +30,14 @@ type Profile = Omit<
 >;
 export default function ReservationForm({
   artists,
+  festival,
   isDesktop,
   profile,
   stand,
   onModalClose,
 }: {
   artists: BaseProfile[];
+  festival: FestivalBase;
   isDesktop: boolean;
   profile: ProfileType;
   stand: StandWithReservationsWithParticipants;
@@ -41,6 +47,7 @@ export default function ReservationForm({
   const searchOptions = getParticipantsOptions(artists);
   const [selectedArtist, setSelectedArtist] = useState<Profile | undefined>();
   const [addPartner, setAddPartner] = useState(false);
+  const form = useForm();
 
   function handleSelectArtist(artistId: number) {
     const foundArtist = artists.find((artist) => artist.id === artistId);
@@ -63,14 +70,14 @@ export default function ReservationForm({
     });
   }
 
-  async function handleConfirm() {
+  const action: () => void = form.handleSubmit(async () => {
     const participantIds = [profile.id, selectedArtist?.id].filter(
       Boolean,
     ) as number[];
 
     const reservation = {
       standId: stand.id,
-      festivalId: stand.festivalId,
+      festivalId: festival.id,
       participantIds,
     } as NewStandReservation;
 
@@ -90,7 +97,7 @@ export default function ReservationForm({
         description: "Inténtalo de nuevo",
       });
     }
-  }
+  });
 
   return (
     <div className={`${isDesktop ? "" : "px-4"}`}>
@@ -129,11 +136,16 @@ export default function ReservationForm({
           )}
         </div>
       )}
-      <div className="flex justify-end">
-        <Button className="mt-4" type="submit" onClick={handleConfirm}>
-          Confirmar reserva
-        </Button>
-      </div>
+      <Form {...form}>
+        <form onSubmit={action}>
+          <SubmitButton
+            className="mt-4"
+            disabled={form.formState.isSubmitting}
+            label="Reservar espacio"
+            loading={form.formState.isSubmitting}
+          />
+        </form>
+      </Form>
     </div>
   );
 }

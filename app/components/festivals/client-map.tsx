@@ -70,6 +70,7 @@ export default function ClientMap({
         profile={profile}
         open={openModal}
         stand={selectedStand}
+        festival={festival}
         onOpenChange={setOpenModal}
         onClose={handleModalClose}
       />

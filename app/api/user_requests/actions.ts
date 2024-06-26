@@ -157,15 +157,14 @@ export async function createReservation(
         }),
       }) as React.ReactElement,
     });
+
+    return { success: true, message: "Reserva creada" };
   } catch (error) {
     console.error("Error creating reservation", error);
     return { success: false, message: "No se pudo crear la reserva" };
   } finally {
     client.release();
   }
-
-  revalidatePath("/next_event");
-  return { success: true, message: "Reserva creada" };
 }
 
 export async function updateReservationSimple(
