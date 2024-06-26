@@ -1,20 +1,21 @@
 "use client";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { ProfileType } from "@/app/api/users/definitions";
+import { BaseProfile } from "@/app/api/users/definitions";
 import { StandShape } from "@/app/components/stands/stand";
+import { canStandBeReserved } from "@/app/lib/stands/helpers";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
-export default function MapImage({
-  mapSrc,
-  stands,
-  onStandClick,
-}: {
+type MapImageProps = {
   mapSrc: string;
   stands: StandWithReservationsWithParticipants[];
+  forReservation?: boolean;
+  profile?: BaseProfile | null;
   onStandClick?: (stand: StandWithReservationsWithParticipants) => void;
-}) {
+};
+
+export default function MapImage(props: MapImageProps) {
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const imgRef = useRef<HTMLImageElement>(null);
@@ -49,18 +50,22 @@ export default function MapImage({
       <Image
         ref={imgRef}
         alt="mapa del evento"
-        src={mapSrc}
+        src={props.mapSrc}
         width={420}
         height={646}
         onLoad={() => setIsMapLoaded(true)}
       />
-      {stands.map((stand) => {
+      {props.stands.map((stand) => {
+        const canBeReserved =
+          props.forReservation && canStandBeReserved(stand, props.profile);
+
         return (
           <StandShape
             key={stand.id}
+            canBeReserved={canBeReserved}
             imageSize={dimensions}
             stand={stand}
-            onClick={onStandClick}
+            onClick={props.onStandClick}
           />
         );
       })}

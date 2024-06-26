@@ -63,6 +63,8 @@ export default function ClientMap({
       <MapImage
         mapSrc={imageSrc}
         stands={stands}
+        forReservation
+        profile={profile}
         onStandClick={handleStandClick}
       />
       <ReservationModal

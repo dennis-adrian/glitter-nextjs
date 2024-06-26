@@ -1,5 +1,6 @@
 import ClientMap from "@/app/components/festivals/client-map";
 import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
+import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { Badge } from "@/app/components/ui/badge";
 import {
   fetchAvailableArtistsInFestival,
@@ -24,6 +25,15 @@ export default async function Page({ params }: { params: { id: string } }) {
 
   const festival = await fetchBaseFestival(parseInt(params.id));
   if (!festival) notFound();
+
+  const inFestival = isProfileInFestival(festival.id, profile);
+  if (!inFestival) {
+    return (
+      <div className="text-muted-foreground flex pt-8 justify-center">
+        No estás habilitado para participar en este evento
+      </div>
+    );
+  }
 
   const sectors = await fetchFestivalSectorsByUserCategory(
     festival.id,
