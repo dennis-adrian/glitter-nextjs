@@ -1,6 +1,9 @@
+import CategoryBadge from "@/app/components/category-badge";
 import MapImage from "@/app/components/festivals/map-image";
 import ParticipantsGrid from "@/app/components/festivals/participants";
+import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
+import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
 
 type FestivalSectorProps = {
   sector: FestivalSectorWithStandsWithReservationsWithParticipants;
@@ -9,7 +12,7 @@ type FestivalSectorProps = {
 export default function FestivalSector(props: FestivalSectorProps) {
   return (
     <div key={props.sector.id}>
-      <h3 className="font-semibold text-xl my-4">{props.sector.name}</h3>
+      <FestivalSectorTitle sector={props.sector} />
       {props.sector.stands.length > 0 && props.sector.mapUrl ? (
         <div className="flex flex-wrap gap-4 justify-center">
           <div className="flex flex-col items-center gap-2">

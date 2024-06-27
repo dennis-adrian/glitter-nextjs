@@ -67,6 +67,7 @@ export function StandShape({
       onClick={handleClick}
     >
       <StandContent
+        canBeReserved={canBeReserved}
         stand={stand}
         standPosition={{ top: positionTop || 0, left: positionLeft || 0 }}
       />

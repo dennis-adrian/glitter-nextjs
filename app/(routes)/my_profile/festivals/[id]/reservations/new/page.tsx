@@ -1,5 +1,7 @@
+import CategoryBadge from "@/app/components/category-badge";
 import ClientMap from "@/app/components/festivals/client-map";
 import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
+import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { Badge } from "@/app/components/ui/badge";
 import {
@@ -51,23 +53,10 @@ export default async function Page({ params }: { params: { id: string } }) {
       ) : (
         <div className="flex flex-col gap-4">
           {sectors.map((sector) => {
-            const sectorCategories = getFestivalSectorAllowedCategories(sector);
-
             return (
               <Suspense key={sector.id} fallback={<FestivalSkeleton />}>
                 <div className="flex flex-col items-center gap-2">
-                  <div className="flex flex-col gap-2 my-4 self-start">
-                    <h3 className="font-semibold text-xl">{sector.name}</h3>
-                    {sectorCategories.length > 0 && (
-                      <div className="flex gap-2 items-center">
-                        {sectorCategories.map((category) => (
-                          <Badge key={category} variant="outline">
-                            {category}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <FestivalSectorTitle sector={sector} />
                   <div className="mx-auto">
                     <ClientMap
                       artists={acceptedArtists}
