@@ -1,7 +1,6 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -52,7 +51,7 @@ export default function TermsForm({
       const res = await addUserToFestival(profile.id, festival.id);
       if (res.success) {
         toast.success(res.message);
-        router.push(`/festivals/${festival.id}?category=${category}`);
+        router.push(`/my_profile/festivals/${festival.id}/reservations/new`);
       } else {
         toast.error(res.message);
       }

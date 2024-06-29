@@ -1,13 +1,14 @@
 import { ProfileType, UserCategory } from "@/app/api/users/definitions";
+import GeneralInfoDetails from "@/app/components/festivals/general-info-details";
 import TermsForm from "@/app/components/festivals/terms-form";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Separator } from "@/app/components/ui/separator";
-import { FestivalBase } from "@/app/data/festivals/definitions";
-import { getFestivalDateLabel } from "@/app/helpers/next_event";
+import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { imagesSrc } from "@/app/lib/maps/config";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
+import { DateTime } from "luxon";
 import Image from "next/image";
 
 export default function Terms({
@@ -15,19 +16,21 @@ export default function Terms({
   festival,
   category,
 }: {
-  festival: FestivalBase;
+  festival: FestivalWithDates;
   profile: ProfileType;
   category: Exclude<UserCategory, "none">;
 }) {
-  const standImageSrc = imagesSrc[festival.mapsVersion][category]["stand"];
-  const mascotImageSrc = imagesSrc[festival.mapsVersion][category]["mascot"];
+  const mapCategory = category === "new_artist" ? "illustration" : category;
+  const standImageSrc = imagesSrc[festival.mapsVersion][mapCategory]["stand"];
+  const userCategory = category === "new_artist" ? "illustration" : category;
+  // const mascotImageSrc = imagesSrc[festival.mapsVersion][category]["mascot"];
 
   return (
     <div className="container p-4 md:p-6 max-w-screen-lg">
       <h1 className="font-bold text-3xl my-4">
         Información para {getCategoryOccupationLabel(category)}
       </h1>
-      {mascotImageSrc && (
+      {/* {mascotImageSrc && (
         <Image
           className="mx-auto"
           alt="Mascota de la categoría"
@@ -35,13 +38,17 @@ export default function Terms({
           width={320}
           height={200}
         />
-      )}
+      )} */}
       <h2 className="font-bold text-2xl my-4">Términos y condiciones</h2>
       <section>
         <p>
-          A continuación te presentamos las bases para el próximo Festival
-          Glitter. Para evitar malentendidos a futuro, debes de leer con
-          atención <strong>antes</strong> de continuar.
+          A continuación te presentamos las bases para el próximo{" "}
+          <strong>
+            Festival{" "}
+            {festival.festivalType === "glitter" ? "Glitter" : "Twinkler"}
+          </strong>
+          . Para evitar malentendidos a futuro, debes de leer con atención{" "}
+          <strong>antes</strong> de continuar.
         </p>
         <p>
           Al darle al botón &quot;<strong>¡Quiero reservar!</strong>&quot; estás
@@ -50,37 +57,24 @@ export default function Terms({
         <br />
         <h3 className="font-semibold text-lg my-2">Información General</h3>
         <div>
-          <div>
-            <strong>Fecha: </strong>
-            {getFestivalDateLabel(festival, true).charAt(0).toUpperCase() +
-              getFestivalDateLabel(festival, true).slice(1)}
-          </div>
-          <div>
-            <strong>Hora del evento: </strong>
-            {formatDate(festival.startDate).hour}hrs a{" "}
-            {formatDate(festival.endDate).hour}hrs
-          </div>
-          <div>
-            <strong>Lugar: </strong>
-            {festival.locationLabel} - {festival.address}
-          </div>
+          <GeneralInfoDetails festival={festival} />
         </div>
         <br />
         <h3 className="font-semibold text-lg my-2">Espacios</h3>
         <ul className="leading-7 list-disc list-inside">
-          {category === "gastronomy" ? (
+          {userCategory === "gastronomy" ? (
             <li>El espacio del expositor mide 1 metro x 60cm.</li>
           ) : (
             <li>El espacio del expositor mide 120cm x 60cm (media mesa)</li>
           )}
-          <li>Cada espacio de Ilustrador incluye 2 (dos) sillas.</li>
+          <li>Cada espacio incluye 2 (dos) sillas.</li>
           <li>
             El espacio no incluye mantel, el expositor es responsable de llevar
             un mantel.
           </li>
         </ul>
         {standImageSrc && (
-          <figure className="text-center text-muted-foreground mx-auto max-w-[320px]">
+          <figure className="text-center text-muted-foreground text-sm mx-auto max-w-[320px]">
             <Image
               alt="Imagen del espacio en el evento"
               src={standImageSrc}
@@ -88,19 +82,19 @@ export default function Terms({
               height={320}
             />
             <figcaption>
-              El costo del espacio corresponde a ambos días del evento
+              El costo del espacio corresponde a la duración total del evento
             </figcaption>
           </figure>
         )}
         <br />
-        {category === "illustration" && (
+        {userCategory === "illustration" && (
           <p>
             Se permite compartir espacio con otro ilustrador siempre y cuando se
             cumplan con los siguientes puntos:
           </p>
         )}
         <ul className="leading-7 list-inside list-disc">
-          {category === "illustration" ? (
+          {userCategory === "illustration" ? (
             <>
               <li>
                 El Ilustrador con el que se compartirá mesa debe de tener su
@@ -114,8 +108,8 @@ export default function Terms({
                 hacer la reserva.
               </li>
               <li>
-                Ambos expositores deben de ser parte de la categoría
-                “ilustrador”
+                Ambos expositores deben estar categorizados como
+                &quot;ilustrador&quot;.
               </li>
               <li>
                 Compartir espacio con otro ilustrador implica la responsabilidad
@@ -167,7 +161,7 @@ export default function Terms({
             tendrá 5 días hábiles para realizar el pago total del costo del
             espacio. Sin embargo, para cualquier reserva hecha después del{" "}
             <strong>
-              {formatDate(festival.startDate)
+              {formatDate(festival.festivalDates[0].startDate)
                 .minus({ days: 10 })
                 .toLocaleString({
                   month: "long",
@@ -195,27 +189,66 @@ export default function Terms({
         </h3>
         <p>El armado de espacio será: </p>
         <ul className="leading-7 list-inside list-disc">
-          <li>Sábado de 9:00 a 10:00</li>
-          <li>Domingo de 9:45 a 10:15</li>
+          {festival.festivalDates.map((date, index) => (
+            <li key={index}>
+              <span className="capitalize">
+                {formatDate(date.startDate).weekdayLong}
+              </span>{" "}
+              de{" "}
+              {formatDate(date.startDate)
+                .minus({ hour: 1 })
+                .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+              a{" "}
+              {formatDate(date.startDate).toLocaleString(
+                DateTime.TIME_24_SIMPLE,
+              )}
+            </li>
+          ))}
         </ul>
         <p>
-          El ingreso del teatro queda sobre la calle Sucre, para poder ingresar
-          deben hacer una fila ordenada.{" "}
+          El ingreso{" "}
+          {festival.festivalType === "glitter" ? "del teatro" : "a la galería"}{" "}
+          queda sobre la calle Sucre, para poder ingresar deben hacer una fila
+          ordenada.{" "}
           <strong>
-            Nadie puede ingresar al recinto antes de las 9:00 el sábado y antes
-            de las 9:45 el domingo
+            Nadie puede ingresar al recinto antes de los horarios especificados
+            anteriormente
           </strong>
           .
         </p>
         <p>
-          El día sábado todos los espacios deben estar listos para recibir al
-          público a las 10:00
+          Todos los espacios deben estar listos para recibir al público en el
+          siguiente horario:
         </p>
-        <p>
-          El día domingo todos los espacios deben estar listos para recibir al
-          público a las 10:15
-        </p>
-        <p>El desarme de espacios ambos días es a partir de las 18:00 horas.</p>
+        <ul className="leading-7 list-inside list-disc">
+          {festival.festivalDates.map((date, index) => (
+            <li key={index}>
+              <span className="capitalize">
+                {formatDate(date.startDate).weekdayLong}
+              </span>{" "}
+              a las{" "}
+              {formatDate(date.startDate).toLocaleString(
+                DateTime.TIME_24_SIMPLE,
+              )}
+            </li>
+          ))}
+        </ul>
+        <p>El desarme de espacios se debe hacer en los siguientes horarios:</p>
+        <ul className="leading-7 list-inside list-disc">
+          {festival.festivalDates.map((date, index) => (
+            <li key={index}>
+              <span className="capitalize">
+                {formatDate(date.endDate).weekdayLong}
+              </span>{" "}
+              de{" "}
+              {formatDate(date.endDate).toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+              a{" "}
+              {formatDate(date.endDate)
+                .plus({ minutes: 45 })
+                .toLocaleString(DateTime.TIME_24_SIMPLE)}
+            </li>
+          ))}
+        </ul>
         <br />
         <Separator />
         <br />
@@ -281,13 +314,17 @@ export default function Terms({
             y/o estupefacientes en el evento así como no está permitido llegar
             al evento en estado de ebriedad o que demuestre haber hecho uso de
             sustancias. Cualquier artista que viole esta regla será retirado del
-            evento y no podrá participar de siguientes ediciones de Glitter.
+            evento y no podrá participar de festival o evento realizado por la
+            organización.
           </li>
-          {category === "illustration" && (
+          {userCategory === "illustration" && (
             <li>
               Es un evento de ilustradores que impulsa a que muestren productos
-              de autoría propia. Está prohibido vender material plagiado o
-              imprimir stickers sacados de internet.
+              de autoría propia.{" "}
+              <strong>
+                Está prohibido vender material plagiado o imprimir stickers
+                sacados de internet.
+              </strong>
             </li>
           )}
         </ul>
@@ -303,9 +340,9 @@ export default function Terms({
           </div>
           <div className="flex justify-end mt-4">
             <RedirectButton
-              href={`/festivals/${festival.id}?category=${category}`}
+              href={`/my_profile/festivals/${festival.id}/reservations/new`}
             >
-              ¡Ir al mapa!
+              ¡Ir a reservar!
             </RedirectButton>
           </div>
         </>

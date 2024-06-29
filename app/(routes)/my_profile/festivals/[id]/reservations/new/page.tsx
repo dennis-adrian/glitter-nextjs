@@ -1,16 +1,12 @@
-import CategoryBadge from "@/app/components/category-badge";
 import ClientMap from "@/app/components/festivals/client-map";
 import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
 import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
-import { Badge } from "@/app/components/ui/badge";
 import {
   fetchAvailableArtistsInFestival,
   fetchBaseFestival,
-  fetchFestivalWithDates,
 } from "@/app/data/festivals/actions";
 import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/actions";
-import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";

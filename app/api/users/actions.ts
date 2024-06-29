@@ -58,7 +58,7 @@ export async function createUserProfile(user: User) {
     client.release();
   }
 
-  redirect("/user_profile");
+  redirect("/my_profile");
 }
 
 export async function fetchUserProfileById(
@@ -281,7 +281,7 @@ export async function updateProfile(
     client.release();
   }
 
-  revalidatePath("/user_profile");
+  revalidatePath("/my_profile");
 }
 
 export async function updateProfileWithValidatedData(
@@ -362,7 +362,7 @@ export async function updateProfileWithValidatedData(
     client.release();
   }
 
-  revalidatePath("/user_profile");
+  revalidatePath("/my_profile");
   return { success: true };
 }
 

@@ -323,7 +323,7 @@ export async function createUserRequest(
     client.release();
   }
 
-  revalidatePath("/user_profile");
+  revalidatePath("/my_profile");
   return { success: true, message: "Solicitud enviada correctamente" };
 }
 

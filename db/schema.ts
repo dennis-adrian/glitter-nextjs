@@ -68,6 +68,10 @@ export const festivalMapVersionEnum = pgEnum("festival_map_version", [
   "v2",
   "v3",
 ]);
+export const festivalTypeEnum = pgEnum("festival_type", [
+  "glitter",
+  "twinkler",
+]);
 export const festivals = pgTable(
   "festivals",
   {
@@ -90,6 +94,9 @@ export const festivals = pgTable(
       .notNull(),
     generalMapUrl: text("general_map_url"),
     mascotUrl: text("mascot_url"),
+    festivalType: festivalTypeEnum("festival_type")
+      .default("glitter")
+      .notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

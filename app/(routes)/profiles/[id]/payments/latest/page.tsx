@@ -15,7 +15,7 @@ export default async function Page({ params }: { params: { id: string } }) {
   const profile = await getCurrentUserProfile();
   if (!profile) redirect("/");
   if (profile.role !== "admin" && profile.id !== validatedParams.data.id)
-    redirect("/user_profile");
+    redirect("/my_profile");
 
   const invoice = await fetchLatestInvoiceByProfileId(profile.id);
 
