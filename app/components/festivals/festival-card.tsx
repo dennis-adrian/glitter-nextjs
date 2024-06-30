@@ -12,7 +12,6 @@ import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import FestivalSwitches from "./festival-switches";
 import { RedirectButton } from "@/app/components/redirect-button";
 import ArchiveFestival from "@/app/components/festivals/archive-festival";
-import { getFestivalDateLabel } from "@/app/helpers/next_event";
 import { formatDate } from "@/app/lib/formatters";
 
 export default function FestivalCard({

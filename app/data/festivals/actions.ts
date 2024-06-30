@@ -25,7 +25,6 @@ import { BaseProfile } from "@/app/api/users/definitions";
 import { fetchVisitorsEmails } from "@/app/data/visitors/actions";
 import RegistrationInvitationEmailTemplate from "@/app/emails/registration-invitation";
 import { groupVisitorEmails } from "@/app/data/festivals/helpers";
-import { get } from "http";
 import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
 
 export async function fetchActiveFestivalBase() {
@@ -207,19 +206,11 @@ export async function updateFestivalStatus(festival: FestivalBase) {
           ),
         );
 
-      availableUsers.forEach(async (user) => {
-        await sendEmail({
-          to: [user.email],
-          from: "Equipo Glitter <no-reply@productoraglitter.com>",
-          subject: `¡Hola ${
-            user.displayName || ""
-          }! Te invitamos a participar en ${festival.name}`,
-          react: EmailTemplate({
-            name: user.displayName || "Participante",
-            festivalId: festival.id,
-          }) as React.ReactElement,
-        });
-      });
+      await queueEmails<BaseProfile>(
+        availableUsers,
+        festival,
+        sendEmailToUsers,
+      );
     }
   } catch (error) {
     console.error("Error activating festival", error);
@@ -247,7 +238,11 @@ export async function updateFestivalRegistration(festival: FestivalBase) {
     const emailGroups = groupVisitorEmails(visitors);
 
     if (updatedFestival.publicRegistration) {
-      await queueEmails(emailGroups, updatedFestival);
+      await queueEmails<string[]>(
+        emailGroups,
+        updatedFestival,
+        sendEmailToVisitors,
+      );
     }
   } catch (error) {
     console.error("Error updating festival registration", error);
@@ -280,16 +275,17 @@ export async function updateFestival(festival: FestivalBase) {
   return { success: true, message: "Festival actualizado con éxito" };
 }
 
-export async function queueEmails(
-  emailGroups: string[][],
+export async function queueEmails<T>(
+  entities: T[],
   festival: FestivalBase,
+  callback: (entity: T, festival: FestivalBase) => Promise<void>,
 ) {
   let counter = 0;
-  for (let group of emailGroups) {
+  for (let entity of entities) {
     if (counter % 10 === 0) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
-    await sendEmailToVisitors(group, festival);
+    await callback(entity, festival);
     counter++;
   }
 }
@@ -306,9 +302,28 @@ export async function sendEmailToVisitors(
       festival: festival,
     }) as React.ReactElement,
   });
-
   if (error) {
     console.error("Error sending email to visitors", error);
+  }
+}
+
+export async function sendEmailToUsers(
+  user: BaseProfile,
+  festival: FestivalBase,
+) {
+  const { error } = await sendEmail({
+    to: [user.email],
+    from: "Equipo Glitter <no-reply@productoraglitter.com>",
+    subject: `¡Hola ${user.displayName || ""}! Te invitamos a participar en ${
+      festival.name
+    }`,
+    react: EmailTemplate({
+      name: user.displayName || "Participante",
+      festivalId: festival.id,
+    }) as React.ReactElement,
+  });
+  if (error) {
+    console.error("Error sending email to users", error);
   }
 }
 

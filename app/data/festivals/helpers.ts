@@ -1,3 +1,4 @@
+import { BaseProfile } from "@/app/api/users/definitions";
 import { FestivalBase } from "@/app/data/festivals/definitions";
 
 export function getFestivalsOptions(festivals: FestivalBase[]) {

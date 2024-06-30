@@ -33,7 +33,7 @@ export default function FestivalActivationEmailTemplate({
           <Section style={styles.section}>
             <Text style={styles.text}>¡Hola {name}!</Text>
             <Text style={styles.text}>
-              Acabamos de habilitar las reservas para nuetro próximo festival{" "}
+              Acabamos de habilitar las reservas para nuestro próximo festival{" "}
             </Text>
             <Text style={styles.text}>
               El primer paso para reservar tu espacio es leer los términos y
