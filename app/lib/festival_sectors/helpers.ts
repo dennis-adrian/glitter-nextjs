@@ -3,9 +3,13 @@ import { FestivalSectorWithStands } from "@/app/lib/festival_sectors/definitions
 
 export function getFestivalSectorAllowedCategories(
   sector: FestivalSectorWithStands,
+  allCategories?: boolean,
 ): UserCategory[] {
-  const allCategories = [
+  const categories = [
     ...new Set(sector.stands.map((stand) => stand.standCategory)),
   ];
-  return allCategories.filter((category) => category !== "new_artist");
+
+  if (allCategories) return categories;
+
+  return categories.filter((category) => category !== "new_artist");
 }

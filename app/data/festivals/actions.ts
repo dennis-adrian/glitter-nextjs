@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq, isNull, not } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, not } from "drizzle-orm";
 
 import { db, pool } from "@/db";
 import {
@@ -9,6 +9,7 @@ import {
   stands,
   users,
   reservationParticipants,
+  festivalSectors,
 } from "@/db/schema";
 import {
   Festival,
@@ -24,6 +25,8 @@ import { BaseProfile } from "@/app/api/users/definitions";
 import { fetchVisitorsEmails } from "@/app/data/visitors/actions";
 import RegistrationInvitationEmailTemplate from "@/app/emails/registration-invitation";
 import { groupVisitorEmails } from "@/app/data/festivals/helpers";
+import { get } from "http";
+import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
 
 export async function fetchActiveFestivalBase() {
   const client = await pool.connect();
@@ -148,16 +151,19 @@ export async function fetchFestivalWithDates(
   }
 }
 
-export async function fetchFestivals(): Promise<FestivalBase[]> {
+export async function fetchFestivals(): Promise<FestivalWithDates[]> {
   const client = await pool.connect();
 
   try {
     return await db.query.festivals.findMany({
+      with: {
+        festivalDates: true,
+      },
       orderBy: desc(festivals.id),
     });
   } catch (error) {
     console.error("Error fetching festivals", error);
-    return [] as FestivalBase[];
+    return [];
   } finally {
     client.release();
   }
@@ -175,55 +181,41 @@ export async function updateFestivalStatus(festival: FestivalBase) {
       .returning();
 
     if (updatedFestival.status === "active") {
-      const verifiedUsers = await db
+      const sectors = await db.query.festivalSectors.findMany({
+        with: {
+          stands: true,
+        },
+        where: eq(festivalSectors.festivalId, festival.id),
+      });
+
+      const categories = [
+        ...new Set(
+          sectors.flatMap((sector) =>
+            getFestivalSectorAllowedCategories(sector, true),
+          ),
+        ),
+      ];
+
+      const availableUsers = await db
         .select()
         .from(users)
-        .where(eq(users.verified, true));
+        .where(
+          and(
+            eq(users.verified, true),
+            eq(users.banned, false),
+            inArray(users.category, categories),
+          ),
+        );
 
-      const entrepreneurs = verifiedUsers.filter(
-        (user) => user.category === "entrepreneurship",
-      );
-      const illustrators = verifiedUsers.filter(
-        (user) => user.category === "illustration",
-      );
-      const gastronmics = verifiedUsers.filter(
-        (user) => user.category === "gastronomy",
-      );
-
-      entrepreneurs.forEach(async (user) => {
+      availableUsers.forEach(async (user) => {
         await sendEmail({
           to: [user.email],
-          from: "Equipo Glitter <no-reply@festivalglitter.art>",
-          subject: "Participa en Glitter",
+          from: "Equipo Glitter <no-reply@productoraglitter.com>",
+          subject: `¡Hola ${
+            user.displayName || ""
+          }! Te invitamos a participar en ${festival.name}`,
           react: EmailTemplate({
-            category: "entrepreneurship",
-            name: user.displayName || "Emprendedor",
-            festivalId: festival.id,
-          }) as React.ReactElement,
-        });
-      });
-
-      illustrators.forEach(async (user) => {
-        await sendEmail({
-          to: [user.email],
-          from: "Equipo Glitter <no-reply@festivalglitter.art>",
-          subject: "Participa en Glitter",
-          react: EmailTemplate({
-            category: "illustration",
-            name: user.displayName || "Ilustrador",
-            festivalId: festival.id,
-          }) as React.ReactElement,
-        });
-      });
-
-      gastronmics.forEach(async (user) => {
-        await sendEmail({
-          to: [user.email],
-          from: "Equipo Glitter <no-reply@festivalglitter.art>",
-          subject: "Participa en Glitter",
-          react: EmailTemplate({
-            category: "gastronomy",
-            name: user.displayName || "Emprendedor Gastronómico",
+            name: user.displayName || "Participante",
             festivalId: festival.id,
           }) as React.ReactElement,
         });
@@ -330,6 +322,7 @@ export async function fetchAvailableArtistsInFestival(
       return await tx
         .selectDistinctOn([users.id], {
           id: users.id,
+          banned: users.banned,
           bio: users.bio,
           birthdate: users.birthdate,
           clerkId: users.clerkId,

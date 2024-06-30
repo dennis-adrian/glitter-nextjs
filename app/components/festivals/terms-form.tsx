@@ -32,11 +32,9 @@ const FormSchema = z.object({
 export default function TermsForm({
   profile,
   festival,
-  category,
 }: {
   profile: ProfileType;
   festival: FestivalBase;
-  category: Exclude<UserCategory, "none">;
 }) {
   const router = useRouter();
   const form = useForm<z.infer<typeof FormSchema>>({

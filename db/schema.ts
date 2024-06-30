@@ -42,6 +42,7 @@ export const users = pgTable(
     role: userRoleEnum("role").default("user").notNull(),
     category: userCategoryEnum("category").default("none").notNull(),
     verified: boolean("verified").default(false).notNull(),
+    banned: boolean("banned").default(false).notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

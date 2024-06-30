@@ -28,7 +28,7 @@ export default function Terms({
   return (
     <div className="container p-4 md:p-6 max-w-screen-lg">
       <h1 className="font-bold text-3xl my-4">
-        Información para {getCategoryOccupationLabel(category)}
+        Información para {getCategoryOccupationLabel(mapCategory)}
       </h1>
       {/* {mascotImageSrc && (
         <Image
@@ -347,7 +347,7 @@ export default function Terms({
           </div>
         </>
       ) : (
-        <TermsForm category={category} festival={festival} profile={profile} />
+        <TermsForm festival={festival} profile={profile} />
       )}
     </div>
   );

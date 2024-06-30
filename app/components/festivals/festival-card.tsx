@@ -8,13 +8,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { FestivalBase } from "@/app/data/festivals/definitions";
-import { getFestivalDateLabel } from "@/app/helpers/next_event";
+import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import FestivalSwitches from "./festival-switches";
 import { RedirectButton } from "@/app/components/redirect-button";
 import ArchiveFestival from "@/app/components/festivals/archive-festival";
+import { getFestivalDateLabel } from "@/app/helpers/next_event";
+import { formatDate } from "@/app/lib/formatters";
 
-export default function FestivalCard({ festival }: { festival: FestivalBase }) {
+export default function FestivalCard({
+  festival,
+}: {
+  festival: FestivalWithDates;
+}) {
   return (
     <>
       <Card>
@@ -40,10 +45,16 @@ export default function FestivalCard({ festival }: { festival: FestivalBase }) {
           <div className="p-4 border rounded-lg space-y-3">
             <h3 className="font-semibold text-xl">Detalles</h3>
             <div>
-              <span className="flex gap-2 items-center">
-                <CalendarDaysIcon className="w-5 h-5" />{" "}
-                {getFestivalDateLabel(festival)}
-              </span>
+              {festival.festivalDates.map((date) => (
+                <span className="flex gap-2 items-center" key={date.id}>
+                  <CalendarDaysIcon className="w-5 h-5" />{" "}
+                  {formatDate(date.startDate).toLocaleString({
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </span>
+              ))}
               <span className="flex gap-2 items-center">
                 <BuildingIcon className="w-5 h-5" />{" "}
                 {festival.locationLabel || "No definido"}
