@@ -16,12 +16,14 @@ interface FestivalActivationTemplateProps {
   name: string;
   category: Exclude<UserCategory, "none">;
   festivalId?: number;
+  profileId?: number;
 }
 
 export default function VerificationConfirmationEmailTemplate({
   name,
   category,
   festivalId,
+  profileId,
 }: FestivalActivationTemplateProps) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
@@ -50,14 +52,14 @@ export default function VerificationConfirmationEmailTemplate({
                   tenemos novedades.
                 </Text>
                 <Button href={baseUrl} style={styles.button}>
-                  Ir a la página de Glitter
+                  Ir a la página web
                 </Button>
               </>
             ) : (
               <>
                 <Text style={styles.text}>
-                  El festival de mayo ya está cerca y te invitamos a que
-                  reserves tu espacio con anticipación.
+                  Un nuevo festival se acerca y te invitamos a que reserves tu
+                  espacio con anticipación.
                 </Text>
                 <Text style={styles.text}>
                   El primer paso para reservar tu espacio es leer los términos y
@@ -83,7 +85,7 @@ export default function VerificationConfirmationEmailTemplate({
                   nosotros para que podamos ayudarte.
                 </Text>
                 <Button
-                  href={`${baseUrl}/festivals/${festivalId}/?category=${category}&terms=true`}
+                  href={`${baseUrl}/profiles/${profileId}/festivals/${festivalId}/terms`}
                   style={styles.button}
                 >
                   Leer términos y condiciones
@@ -101,4 +103,5 @@ VerificationConfirmationEmailTemplate.PreviewProps = {
   name: "John Doe",
   category: "illustration",
   festivalId: 9,
+  profileId: 90,
 } as FestivalActivationTemplateProps;

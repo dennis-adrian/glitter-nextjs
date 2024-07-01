@@ -10,6 +10,7 @@ import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { getStandUrlByCategory } from "@/app/lib/payments/helpers";
 import { DateTime } from "luxon";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function Terms({
   profile,
@@ -42,7 +43,7 @@ export default function Terms({
       <h2 className="font-bold text-2xl my-4">Términos y condiciones</h2>
       <section>
         <p>
-          A continuación te presentamos las bases para el próximo{" "}
+          A continuación te presentamos las bases para el{" "}
           <strong>
             Festival{" "}
             {festival.festivalType === "glitter" ? "Glitter" : "Twinkler"}
@@ -131,6 +132,21 @@ export default function Terms({
             <li>El expositor puede llevar máximo un acompañante.</li>
           )}
           <li>No estaremos brindando sillas adicionales a espacio.</li>
+          {/* TODO: Think of a better way to handle this point for future festivals */}
+          <li>
+            No está permitido colocar nada <strong>fuera</strong> de la mesa que
+            obstruya el paso de la gente (por ejemplo: sillas, cubos,
+            percheros). Si tu caso es particular, comunícate con{" "}
+            <Link
+              href="mailto:soporte@productoraglitter.com"
+              style={{
+                color: "#15c",
+                textDecoration: "underline",
+              }}
+            >
+              soporte@productoraglitter.com
+            </Link>
+          </li>
         </ul>
         <br />
         <Separator />
