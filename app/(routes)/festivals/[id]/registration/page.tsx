@@ -1,4 +1,4 @@
-import { fetchBaseFestival } from "@/app/data/festivals/actions";
+import { fetchFestivalWithDates } from "@/app/data/festivals/actions";
 
 import { RedirectButton } from "@/app/components/redirect-button";
 import ResourceNotFound from "@/app/components/resource-not-found";
@@ -23,7 +23,7 @@ export default async function Page({
   const step = searchParams.step || "1";
   const email = searchParams.email || "";
   const visitorId = searchParams.visitorId || "";
-  const festival = await fetchBaseFestival(parseInt(params.id));
+  const festival = await fetchFestivalWithDates(parseInt(params.id));
   let visitor = null;
   if (visitorId) {
     visitor = await fetchVisitor(parseInt(visitorId));

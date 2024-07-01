@@ -6,7 +6,6 @@ import { RedirectButton } from "@/app/components/redirect-button";
 import { Separator } from "@/app/components/ui/separator";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
-import { imagesSrc } from "@/app/lib/maps/config";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { getStandUrlByCategory } from "@/app/lib/payments/helpers";
 import { DateTime } from "luxon";

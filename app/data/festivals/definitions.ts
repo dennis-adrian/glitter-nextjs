@@ -15,6 +15,7 @@ type UserRequest = typeof userRequests.$inferSelect & {
   user: ProfileWithParticipationsAndRequests;
 };
 export type Festival = FestivalBase & {
+  festivalDates: FestivalDate[];
   userRequests: UserRequest[];
   standReservations: (typeof standReservations.$inferSelect)[];
   stands: StandBase[];
@@ -25,7 +26,8 @@ export type FestivalWithUserRequests = Omit<
   "standReservations" | "stands"
 >;
 
-export type FestivalWithTickets = FestivalBase & {
+export type FestivalWithTicketsAndDates = FestivalBase & {
+  festivalDates: FestivalDate[];
   tickets: TicketWithVisitor[];
 };
 export type FestivalMapVersion = FestivalBase["mapsVersion"];

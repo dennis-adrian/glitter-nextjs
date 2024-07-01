@@ -1,14 +1,14 @@
 import { ProfileType } from "@/app/api/users/definitions";
 import ParticipationForm from "./participation-form";
 import BaseCard from "./base-card";
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
 
 export default async function ParticipationCard({
   profile,
   festival,
 }: {
-  festival: FestivalBase;
+  festival: FestivalWithDates;
   profile: ProfileType;
 }) {
   return (
@@ -16,9 +16,8 @@ export default async function ParticipationCard({
       className="bg-gradient-to-r from-purple-500 to-purple-900"
       content={
         <p>
-          La siguiente versión de <strong>Glitter</strong> será el{" "}
-          {getFestivalDateLabel(festival)}. Para reservar tu espacio haz click
-          en el botón
+          Nuestro siguiente evento será el {getFestivalDateLabel(festival)}.
+          Para reservar tu espacio haz click en el botón
         </p>
       }
       footer={

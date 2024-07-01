@@ -1,6 +1,6 @@
 "use client";
 
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import { PlusCircleIcon } from "lucide-react";
 import { useState } from "react";
@@ -17,7 +17,7 @@ export default function VisitorTickets({
   currentUser,
 }: {
   visitor: VisitorWithTickets;
-  festival: FestivalBase;
+  festival: FestivalWithDates;
   currentUser?: BaseProfile | null;
 }) {
   const [showTicketModal, setShowTicketModal] = useState(false);

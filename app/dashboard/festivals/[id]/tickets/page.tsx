@@ -1,6 +1,9 @@
 import { TicketIcon } from "lucide-react";
 
-import { fetchFestival } from "@/app/data/festivals/actions";
+import {
+  fetchFestivalWithTicketsAndDates,
+  fetchFestivalWithDates,
+} from "@/app/data/festivals/actions";
 import TotalsCard from "@/app/components/dashboard/totals/card";
 import { formatDate, getWeekdayFromDate } from "@/app/lib/formatters";
 import { RedirectButton } from "@/app/components/redirect-button";
@@ -10,7 +13,7 @@ import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export default async function Page({ params }: { params: { id: string } }) {
   const profile = await getCurrentUserProfile();
-  const festival = await fetchFestival(parseInt(params.id));
+  const festival = await fetchFestivalWithTicketsAndDates(parseInt(params.id));
   if (!festival) {
     return (
       <div className="text-muted-foreground flex min-h-full items-center justify-center">
@@ -20,18 +23,20 @@ export default async function Page({ params }: { params: { id: string } }) {
   }
 
   const tickets = festival.tickets;
+  const dayOne = formatDate(festival.festivalDates[0].startDate);
+  const dayTwo = formatDate(festival.festivalDates[1].startDate);
   const firstDayTickets = tickets.filter((ticket) => {
-    return (
-      formatDate(ticket.date).toLocaleString() ===
-      formatDate(festival.startDate).toLocaleString()
-    );
+    return formatDate(ticket.date).toLocaleString() === dayOne.toLocaleString();
   });
-  const secondDayTickets = tickets.filter((ticket) => {
-    return (
-      formatDate(ticket.date).toLocaleString() ===
-      formatDate(festival.endDate).toLocaleString()
-    );
-  });
+
+  let secondDayTickets = [];
+  if (dayTwo) {
+    secondDayTickets = tickets.filter((ticket) => {
+      return (
+        formatDate(ticket.date).toLocaleString() === dayTwo.toLocaleString()
+      );
+    });
+  }
 
   return (
     <div className="container min-h-full p-4 md:px-6">
@@ -52,19 +57,15 @@ export default async function Page({ params }: { params: { id: string } }) {
           <TotalsCard
             amount={firstDayTickets.length}
             title="entradas primer día"
-            description={`Entradas para el ${getWeekdayFromDate(
-              festival.startDate,
-              "long",
-            )}`}
+            description={`Entradas para el ${dayOne.weekdayLong}`}
           />
-          <TotalsCard
-            amount={secondDayTickets.length}
-            title="entradas segundo día"
-            description={`Entradas para el ${getWeekdayFromDate(
-              festival.endDate,
-              "long",
-            )}`}
-          />
+          {dayTwo && (
+            <TotalsCard
+              amount={secondDayTickets.length}
+              title="entradas segundo día"
+              description={`Entradas para el ${dayTwo.weekdayLong}`}
+            />
+          )}
         </div>
       )}
 

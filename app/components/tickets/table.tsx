@@ -1,18 +1,17 @@
-import { ProfileType } from "@/app/api/users/definitions";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { columnTitles, columns } from "@/app/components/tickets/columns";
-import { userCategoryOptions } from "@/app/lib/utils";
 import { TicketWithVisitor } from "@/app/data/tickets/actions";
 import { formatFullDate } from "@/app/lib/formatters";
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import { FestivalWithDates } from "@/app/data/festivals/definitions";
 
 type UsersTableProps = {
-  festival: FestivalBase;
+  festival: FestivalWithDates;
   tickets: TicketWithVisitor[];
   status?: TicketWithVisitor["status"];
   columnVisbility?: Record<string, boolean>;
 };
 export default function TicketsTable(props: UsersTableProps) {
+  const dates = props.festival.festivalDates;
   return (
     <DataTable
       columns={columns}
@@ -25,11 +24,11 @@ export default function TicketsTable(props: UsersTableProps) {
           options: [
             {
               label: "Primer día",
-              value: formatFullDate(props.festival.startDate),
+              value: formatFullDate(dates[0]?.startDate),
             },
             {
               label: "Segundo día",
-              value: formatFullDate(props.festival.endDate),
+              value: formatFullDate(dates[dates.length - 1]?.startDate),
             },
           ],
         },

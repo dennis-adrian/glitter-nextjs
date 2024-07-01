@@ -32,6 +32,7 @@ export default async function Page() {
       <CreateReservationForm
         artists={artists}
         artistsOptions={options}
+        festival={festival!}
         stands={stands}
       />
     </div>

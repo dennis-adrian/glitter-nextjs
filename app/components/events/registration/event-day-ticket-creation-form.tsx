@@ -2,7 +2,7 @@
 
 import { Button } from "@/app/components/ui/button";
 import { Form } from "@/app/components/ui/form";
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { createEventDayTicket } from "@/app/data/tickets/actions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import { Loader2Icon } from "lucide-react";
@@ -10,7 +10,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 type EventDayTicketCreationFormProps = {
-  festival: FestivalBase;
+  festival: FestivalWithDates;
   visitor: VisitorWithTickets;
 };
 
@@ -20,11 +20,12 @@ export default function EventDayTicketCreationForm(
   const form = useForm();
 
   const action: () => void = form.handleSubmit(async () => {
+    const dates = props.festival.festivalDates;
     const res = await createEventDayTicket({
       visitorId: props.visitor.id,
       festivalId: props.festival.id,
-      festivalStartDate: props.festival.startDate,
-      festivalEndDate: props.festival.endDate,
+      festivalStartDate: dates[0]?.startDate || new Date(),
+      festivalEndDate: dates[dates.length - 1]?.startDate || new Date(),
     });
 
     if (res.success) {

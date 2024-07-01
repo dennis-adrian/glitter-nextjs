@@ -16,7 +16,7 @@ import {
   Festival,
   FestivalBase,
   FestivalWithDates,
-  FestivalWithTickets,
+  FestivalWithTicketsAndDates,
 } from "./definitions";
 import { sendEmail } from "@/app/vendors/resend";
 import React from "react";
@@ -64,6 +64,7 @@ export async function fetchActiveFestival({
     return await db.query.festivals.findFirst({
       ...festivalWhereCondition,
       with: {
+        festivalDates: true,
         userRequests: {
           with: {
             user: {
@@ -93,14 +94,15 @@ export async function fetchActiveFestival({
   }
 }
 
-export async function fetchFestival(
+export async function fetchFestivalWithTicketsAndDates(
   id: number,
-): Promise<FestivalWithTickets | null | undefined> {
+): Promise<FestivalWithTicketsAndDates | null | undefined> {
   const client = await pool.connect();
   try {
     return await db.query.festivals.findFirst({
       where: eq(festivals.id, id),
       with: {
+        festivalDates: true,
         tickets: {
           with: {
             visitor: true,
@@ -180,6 +182,8 @@ export async function updateFestivalStatus(festival: FestivalBase) {
       .where(eq(festivals.id, festival.id))
       .returning();
 
+    const festivalWithDates = await fetchFestivalWithDates(updatedFestival.id);
+
     if (updatedFestival.status === "active") {
       const sectors = await db.query.festivalSectors.findMany({
         with: {
@@ -209,7 +213,7 @@ export async function updateFestivalStatus(festival: FestivalBase) {
 
       await queueEmails<BaseProfile>(
         availableUsers,
-        festival,
+        festivalWithDates!,
         sendEmailToUsers,
       );
     }
@@ -233,15 +237,19 @@ export async function updateFestivalRegistration(festival: FestivalBase) {
       .update(festivals)
       .set({ publicRegistration })
       .where(eq(festivals.id, festival.id))
-      .returning();
+      .returning({ festivalId: festivals.id });
+
+    const festivalWithDates = await fetchFestivalWithDates(
+      updatedFestival.festivalId,
+    );
 
     const visitors = await fetchVisitorsEmails();
     const emailGroups = groupVisitorEmails(visitors);
 
-    if (updatedFestival.publicRegistration) {
+    if (festivalWithDates?.publicRegistration) {
       await queueEmails<string[]>(
         emailGroups,
-        updatedFestival,
+        festivalWithDates,
         sendEmailToVisitors,
       );
     }
@@ -278,8 +286,8 @@ export async function updateFestival(festival: FestivalBase) {
 
 export async function queueEmails<T>(
   entities: T[],
-  festival: FestivalBase,
-  callback: (entity: T, festival: FestivalBase) => Promise<void>,
+  festival: FestivalWithDates,
+  callback: (entity: T, festival: FestivalWithDates) => Promise<void>,
 ) {
   let counter = 0;
   for (let entity of entities) {
@@ -293,7 +301,7 @@ export async function queueEmails<T>(
 
 export async function sendEmailToVisitors(
   emails: string[],
-  festival: FestivalBase,
+  festival: FestivalWithDates,
 ) {
   const { error } = await sendEmail({
     to: emails,
@@ -310,7 +318,7 @@ export async function sendEmailToVisitors(
 
 export async function sendEmailToUsers(
   user: BaseProfile,
-  festival: FestivalBase,
+  festival: FestivalWithDates,
 ) {
   const { error } = await sendEmail({
     to: [user.email],

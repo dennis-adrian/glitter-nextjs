@@ -7,13 +7,6 @@ export function formatDate(date: Date | string): DateTime {
   }).setLocale("es");
 }
 
-/**
- * deprecated
- */
-export function formatDateToTimezone(date: Date): Date {
-  return new Date(date.getTime() - 4 * 60 * 60 * 1000);
-}
-
 export function formatFullDate(date: Date): string {
   return formatDate(date).toLocaleString(DateTime.DATE_FULL);
 }

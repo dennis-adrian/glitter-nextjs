@@ -25,11 +25,7 @@ import {
   SelectValue,
 } from "@/app/components/ui/select";
 import { VisitorBase, createVisitor } from "@/app/data/visitors/actions";
-import {
-  eventDiscoveryOptions,
-  formatDateOnlyToISO,
-  genderOptions,
-} from "@/app/lib/utils";
+import { eventDiscoveryOptions, genderOptions } from "@/app/lib/utils";
 import { eventDiscoveryEnum, genderEnum } from "@/db/schema";
 import { formatDate } from "@/app/lib/formatters";
 

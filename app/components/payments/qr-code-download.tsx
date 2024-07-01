@@ -3,7 +3,6 @@
 import * as htmlToImage from "html-to-image";
 import { useRef } from "react";
 import { ProfileType, UserCategory } from "@/app/api/users/definitions";
-import { imagesSrc } from "@/app/lib/maps/config";
 import Image from "next/image";
 import { Button } from "@/app/components/ui/button";
 import { FestivalBase } from "@/app/data/festivals/definitions";
