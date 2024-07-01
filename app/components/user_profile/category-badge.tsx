@@ -1,6 +1,6 @@
 import { ProfileType } from "@/app/api/users/definitions";
-import { Badge } from "@/app/components/ui/badge";
-import { BriefcaseIcon, BrushIcon, ChefHatIcon } from "lucide-react";
+import { Badge, BadgeProps } from "@/app/components/ui/badge";
+import { BanIcon, BriefcaseIcon, BrushIcon, ChefHatIcon } from "lucide-react";
 
 export default function ProfileCategoryBadge({
   profile,
@@ -8,6 +8,7 @@ export default function ProfileCategoryBadge({
   profile: ProfileType;
 }) {
   let content;
+  let variant: BadgeProps["variant"] = "default";
   if (profile.category === "illustration") {
     content = (
       <>
@@ -35,5 +36,15 @@ export default function ProfileCategoryBadge({
     );
   }
 
-  return <Badge>{content}</Badge>;
+  if (profile.banned) {
+    variant = "destructive";
+    content = (
+      <>
+        <BanIcon className="h-4 w-4 mr-1" />
+        Perfil deshabilitado
+      </>
+    );
+  }
+
+  return <Badge variant={variant}>{content}</Badge>;
 }

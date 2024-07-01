@@ -34,7 +34,7 @@ export default async function UserProfile() {
               </div>
             </div>
           ) : (
-            <AnnouncementCard profile={profile} />
+            !profile.banned && <AnnouncementCard profile={profile} />
           )}
           <PublicProfile profile={profile} />
           <PrivateProfile profile={profile} />

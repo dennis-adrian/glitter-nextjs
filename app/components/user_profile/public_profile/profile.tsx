@@ -39,7 +39,7 @@ export default function PublicProfile({
                 title="Editar Perfil"
                 FormComponent={Form}
               >
-                <Button variant="ghost">
+                <Button variant="outline" disabled={profile.banned}>
                   <FilePenLineIcon className="mr-1 h-4 w-4" />
                   Editar
                 </Button>
@@ -54,7 +54,7 @@ export default function PublicProfile({
           <div className="flex flex-col items-center gap-4">
             <ProfilePicField profile={profile} />
             <div className="flex gap-2">
-              <VerificationStatusBadge profile={profile} />
+              {!profile.banned && <VerificationStatusBadge profile={profile} />}
               {profile.category !== "none" && (
                 <ProfileCategoryBadge profile={profile} />
               )}
