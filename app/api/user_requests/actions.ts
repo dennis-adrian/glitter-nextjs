@@ -22,6 +22,7 @@ import {
 import { sendEmail } from "@/app/vendors/resend";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { BaseProfile } from "@/app/api/users/definitions";
 
 export async function fetchRequestsByUserId(userId: number) {
   const client = await pool.connect();
@@ -101,9 +102,17 @@ export type NewStandReservation = typeof standReservations.$inferInsert & {
 export async function createReservation(
   reservation: NewStandReservation,
   price: number,
+  forUser: BaseProfile,
 ) {
   const client = await pool.connect();
   try {
+    if (!forUser.verified || forUser.banned) {
+      return {
+        success: false,
+        message: "No tienes permisos para realizar esta acción",
+      };
+    }
+
     const { festivalId, standId, participantIds } = reservation;
     const newReservation = await db.transaction(async (tx) => {
       const rows = await tx

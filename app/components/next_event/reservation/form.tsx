@@ -81,7 +81,7 @@ export default function ReservationForm({
       participantIds,
     } as NewStandReservation;
 
-    const res = await createReservation(reservation, stand.price);
+    const res = await createReservation(reservation, stand.price, profile);
     if (res.success) {
       onModalClose();
       setSelectedArtist(undefined);
