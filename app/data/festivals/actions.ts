@@ -10,6 +10,7 @@ import {
   users,
   reservationParticipants,
   festivalSectors,
+  standReservations,
 } from "@/db/schema";
 import {
   Festival,
@@ -318,8 +319,8 @@ export async function sendEmailToUsers(
       festival.name
     }`,
     react: EmailTemplate({
-      profileId: user.id,
       name: user.displayName || "Participante",
+      profileId: user.id,
       festivalId: festival.id,
     }) as React.ReactElement,
   });
@@ -335,6 +336,36 @@ export async function fetchAvailableArtistsInFestival(
 
   try {
     return await db.transaction(async (tx) => {
+      const festivalParticipantIds = await tx
+        .select({ participantId: reservationParticipants.userId })
+        .from(reservationParticipants)
+        .leftJoin(
+          standReservations,
+          eq(standReservations.id, reservationParticipants.reservationId),
+        )
+        .where(eq(standReservations.festivalId, festivalId));
+
+      const participantsWhereCondition = [
+        eq(users.banned, false),
+        inArray(users.category, ["illustration", "new_artist"]),
+        not(eq(users.role, "admin")),
+        eq(userRequests.status, "accepted"),
+        eq(userRequests.festivalId, festivalId),
+      ];
+
+      if (festivalParticipantIds.length > 0) {
+        participantsWhereCondition.push(
+          not(
+            inArray(
+              users.id,
+              festivalParticipantIds.map(
+                (participant) => participant.participantId,
+              ),
+            ),
+          ),
+        );
+      }
+
       return await tx
         .selectDistinctOn([users.id], {
           id: users.id,
@@ -360,15 +391,7 @@ export async function fetchAvailableArtistsInFestival(
           reservationParticipants,
           eq(reservationParticipants.userId, users.id),
         )
-        .where(
-          and(
-            eq(users.category, "illustration"),
-            not(eq(users.role, "admin")),
-            eq(userRequests.status, "accepted"),
-            eq(userRequests.festivalId, festivalId),
-            isNull(reservationParticipants.id),
-          ),
-        );
+        .where(and(...participantsWhereCondition));
     });
   } catch (error) {
     console.error("Error fetching profiles in festival", error);

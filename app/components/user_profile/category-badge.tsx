@@ -9,7 +9,10 @@ export default function ProfileCategoryBadge({
 }) {
   let content;
   let variant: BadgeProps["variant"] = "default";
-  if (profile.category === "illustration") {
+  if (
+    profile.category === "illustration" ||
+    profile.category === "new_artist"
+  ) {
     content = (
       <>
         <BrushIcon className="h-4 w-4 mr-1" />

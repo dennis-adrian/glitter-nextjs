@@ -113,7 +113,8 @@ export default function ReservationForm({
         </span>
       </div>
 
-      {stand.standCategory === "illustration" && (
+      {(stand.standCategory === "illustration" ||
+        stand.standCategory === "new_artist") && (
         <div className="grid items-start gap-2">
           {addPartner ? (
             <>
