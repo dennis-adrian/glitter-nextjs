@@ -17,14 +17,14 @@ export function TermsCard(props: TermsCardProps) {
     <BaseCard
       content={
         <p>
-          Se viene una nueva versión del festival 🥳🎉 Lee los términos y
-          condiciones para reservar tu espacio.
+          Se viene un nuevo festival 🥳🎉 Lee los términos y condiciones para
+          reservar tu espacio.
         </p>
       }
       footer={
         <RedirectButton
           size="sm"
-          href={`/festivals/${props.festival.id}?category=${props.profile.category}&terms=true`}
+          href={`/profiles/${props.profile.id}/festivals/${props.festival.id}/terms`}
         >
           Leer términos y condiciones
           <ArrowRightIcon className="ml-2 w-4 h-4" />

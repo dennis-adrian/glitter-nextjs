@@ -167,6 +167,9 @@ export async function createReservation(
       }) as React.ReactElement,
     });
 
+    revalidatePath("profiles");
+    revalidatePath("/my_profile");
+
     return {
       success: true,
       message: "Reserva creada",
