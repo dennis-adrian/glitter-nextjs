@@ -27,7 +27,9 @@ export default async function UserProfile() {
                 Tienes un pago pendiente. Puedes realizarlo dando clic en al
                 botón
               </span>
-              <RedirectButton href={`/profiles/${profile.id}/payments/latest`}>
+              <RedirectButton
+                href={`/profiles/${profile.id}/festivals/${latestInvoice.reservation.festivalId}/reservations/${latestInvoice.reservationId}/payments`}
+              >
                 Realizar pago
               </RedirectButton>
             </div>

@@ -15,11 +15,13 @@ import {
 
 interface FestivalActivationTemplateProps {
   name: string;
+  profileId: number;
   festivalId: number;
 }
 
 export default function FestivalActivationEmailTemplate({
   name,
+  profileId,
   festivalId,
 }: FestivalActivationTemplateProps) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
@@ -59,7 +61,7 @@ export default function FestivalActivationEmailTemplate({
               para que podamos ayudarte.
             </Text>
             <Button
-              href={`${baseUrl}/my_profile/festivals/${festivalId}/terms`}
+              href={`${baseUrl}/profiles/${profileId}/festivals/${festivalId}/terms`}
               style={styles.button}
             >
               Leer términos y condiciones
@@ -83,6 +85,7 @@ export default function FestivalActivationEmailTemplate({
 }
 
 FestivalActivationEmailTemplate.PreviewProps = {
+  profileId: 90,
   name: "John Doe",
   category: "illustration",
   festivalId: 11,

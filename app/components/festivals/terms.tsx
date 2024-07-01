@@ -340,7 +340,7 @@ export default function Terms({
           </div>
           <div className="flex justify-end mt-4">
             <RedirectButton
-              href={`/my_profile/festivals/${festival.id}/reservations/new`}
+              href={`/profiles/${profile.id}/festivals/${festival.id}/reservations/new`}
             >
               ¡Ir a reservar!
             </RedirectButton>

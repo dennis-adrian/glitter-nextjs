@@ -92,7 +92,7 @@ export default function ReservationForm({
       });
       toast.success(res.message);
       router.push(
-        `/my_profile/festivals/${festival.id}/reservations/${res.reservationId}/payments`,
+        `/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.reservationId}/payments`,
       );
     } else {
       toast.error(res.message, {

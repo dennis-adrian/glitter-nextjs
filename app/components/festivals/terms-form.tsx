@@ -49,7 +49,7 @@ export default function TermsForm({
       const res = await addUserToFestival(profile.id, festival.id);
       if (res.success) {
         toast.success(res.message);
-        router.push(`/my_profile/festivals/${festival.id}/reservations/new`);
+        router.push(`/profiles/${profile.id}/festivals/${festival.id}/reservations/new`);
       } else {
         toast.error(res.message);
       }
