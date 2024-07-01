@@ -1,17 +1,32 @@
 "use client";
 
 import * as htmlToImage from "html-to-image";
-import { InvoiceBase } from "@/app/data/invoices/defiinitions";
 import { useRef } from "react";
 import { ProfileType, UserCategory } from "@/app/api/users/definitions";
-import { imagesSrc } from "@/app/lib/maps/config";
 import Image from "next/image";
 import { Button } from "@/app/components/ui/button";
+import { FestivalBase } from "@/app/data/festivals/definitions";
+import { getPaymentQrCodeUrlByCategory } from "@/app/lib/payments/helpers";
 
-export default function QrCodeDownload({ profile }: { profile: ProfileType }) {
+export default function QrCodeDownload({
+  festival,
+  profile,
+}: {
+  festival: FestivalBase;
+  profile: ProfileType;
+}) {
   const qrCodeRef = useRef(null);
-  const qrCodeSrc =
-    imagesSrc["v3"][profile.category as Exclude<UserCategory, "none">].qrCode;
+  const qrCodeSrc = getPaymentQrCodeUrlByCategory(
+    festival,
+    profile.category as Exclude<UserCategory, "none">,
+  );
+
+  if (!qrCodeSrc)
+    return (
+      <div className="text-muted-foreground">
+        <span>No se encontró un código QR para el pago</span>
+      </div>
+    );
 
   const downloadQRCode = async () => {
     const dataUrl = await htmlToImage.toPng(qrCodeRef.current!);
@@ -28,7 +43,7 @@ export default function QrCodeDownload({ profile }: { profile: ProfileType }) {
         ref={qrCodeRef}
         className="mx-auto"
         alt="Código QR"
-        src={qrCodeSrc!}
+        src={qrCodeSrc}
         width={322}
         height={488}
       />

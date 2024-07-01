@@ -1,26 +1,24 @@
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
-import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
+import { formatDate, formatFullDate } from "@/app/lib/formatters";
 import { AttendanceType } from "./ticket-creation-form";
 import { capitalize } from "@/app/lib/utils";
 import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 
 export function getAttendanceOptions(
   visitor: VisitorWithTickets,
-  festival: FestivalBase,
+  festival: FestivalWithDates,
 ): { label: string; value: AttendanceType }[] {
   const visitorFestivalTickets = getVisitorFestivalTickets(visitor, festival);
+  const dateOne = festival.festivalDates[0];
+  const dateTwo = festival.festivalDates[1];
 
   const dayOneOption = {
-    label: `${capitalize(
-      getWeekdayFromDate(festival.startDate),
-    )}, ${formatFullDate(festival.startDate)}`,
+    label: capitalize(formatFullDate(dateOne.startDate)),
     value: "day_one" as AttendanceType,
   };
   const dayTwoOption = {
-    label: `${capitalize(
-      getWeekdayFromDate(festival.endDate),
-    )}, ${formatFullDate(festival.endDate)}`,
+    label: capitalize(formatFullDate(dateTwo?.startDate)),
     value: "day_two" as AttendanceType,
   };
   const bothDaysOption = {
@@ -30,12 +28,14 @@ export function getAttendanceOptions(
 
   if (visitorFestivalTickets.length === 1) {
     if (
-      visitorFestivalTickets[0].date.toString() ===
-      festival.startDate.toString()
+      formatDate(visitorFestivalTickets[0].date).startOf("day") ===
+      formatDate(dateOne.startDate).startOf("day")
     ) {
       return [dayTwoOption];
     } else if (
-      visitorFestivalTickets[0].date.toString() === festival.endDate.toString()
+      dateTwo &&
+      formatDate(visitorFestivalTickets[0].date).startOf("day") ===
+        formatDate(dateTwo.startDate).startOf("day")
     ) {
       return [dayOneOption];
     }
@@ -44,6 +44,8 @@ export function getAttendanceOptions(
   if (visitorFestivalTickets.length === 2) {
     return [];
   }
+
+  if (!dateTwo) return [dayOneOption];
 
   return [dayOneOption, dayTwoOption, bothDaysOption];
 }

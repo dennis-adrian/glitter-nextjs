@@ -24,14 +24,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select";
+import { FestivalBase } from "@/app/data/festivals/definitions";
 
 export function CreateReservationForm({
   artists,
   artistsOptions,
+  festival,
   stands,
 }: {
   artists: BaseProfile[];
   artistsOptions: SearchOption[];
+  festival: FestivalBase;
   stands: StandBase[];
 }) {
   const [participants, setParticipants] = useState<(BaseProfile | undefined)[]>(
@@ -40,7 +43,7 @@ export function CreateReservationForm({
 
   const createReservationWithParticipants = createReservation.bind(
     null,
-    stands[0].festivalId,
+    festival.id,
     participants.filter(Boolean) as BaseProfile[],
   );
 

@@ -1,0 +1,1 @@
+ALTER TABLE "stands" ALTER COLUMN "festival_id" DROP NOT NULL;

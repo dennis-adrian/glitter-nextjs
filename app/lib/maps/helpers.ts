@@ -13,7 +13,9 @@ export function getCategoryOccupationLabel(
   return "Sin categoría";
 }
 
-export function getCategoryLabel(category: Exclude<UserCategory, "none">) {
+export function getCategoryLabel(
+  category: UserCategory | Exclude<UserCategory, "none">,
+) {
   if (category === "illustration") return "Ilustración";
   if (category === "gastronomy") return "Gastronomía";
   if (category === "entrepreneurship") return "Emprendimiento";

@@ -1,5 +1,5 @@
 import {
-  FestivalBase,
+  FestivalWithDates,
   FestivalWithUserRequests,
 } from "@/app/data/festivals/definitions";
 import {
@@ -9,31 +9,22 @@ import {
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
 import { getParticipantsOptions } from "@/app/api/reservations/helpers";
-import { formatDateToTimezone } from "@/app/lib/formatters";
+import { formatDate } from "@/app/lib/formatters";
+import { DateTime } from "luxon";
 
-export function getFestivalDateLabel(
-  festival: FestivalBase,
-  withWeekday = false,
-) {
-  const startWeekday = festival.startDate.toLocaleString("es-ES", {
-    weekday: "long",
-  });
-  const endWeekday = festival.endDate.toLocaleString("es-ES", {
-    weekday: "long",
-  });
-  const startDate = formatDateToTimezone(festival.startDate);
-  const endDate = formatDateToTimezone(festival.endDate);
-  const startDateDay = startDate.getDate();
-  const endDateDay = endDate.getDate();
-  const startDateMonth = startDate.toLocaleString("es-ES", {
-    month: "long",
-  });
+export function getFestivalDateLabel(festival: FestivalWithDates) {
+  const dates = festival.festivalDates;
 
-  if (withWeekday) {
-    return `${startWeekday} ${startDateDay} y ${endWeekday} ${endDateDay} de ${startDateMonth}`;
+  const startDate = formatDate(dates[0]?.startDate);
+  const endDate = formatDate(dates[dates.length - 1]?.startDate);
+
+  if (dates.length === 1) {
+    return startDate.toLocaleString(DateTime.DATE_MED_WITH_WEEKDAY);
   }
 
-  return `${startDateDay} y ${endDateDay} de ${startDateMonth}`;
+  return `${startDate.toLocaleString(
+    DateTime.DATE_MED_WITH_WEEKDAY,
+  )} a ${endDate.toLocaleString(DateTime.DATE_MED_WITH_WEEKDAY)}`;
 }
 
 export function profileHasReservation(

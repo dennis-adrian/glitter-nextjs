@@ -49,7 +49,7 @@ export default function ProfileCompletionReminderTemplate({
             <Text style={styles.text}>
               Para ir a tu perfil, haz click en el botón.
             </Text>
-            <Button href={`${baseUrl}/user_profile`} style={styles.button}>
+            <Button href={`${baseUrl}/my_profile`} style={styles.button}>
               Ir al perfil
             </Button>
           </Section>

@@ -23,21 +23,8 @@ export const userCategoryEnum = pgEnum("user_category", [
   "illustration",
   "gastronomy",
   "entrepreneurship",
+  "new_artist",
 ]);
-
-export const userCategories = pgTable("user_categories", {
-  id: serial("id").primaryKey(),
-  name: text("name").unique().notNull(),
-  description: text("description"),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-export const userCategoriesRelations = relations(
-  userCategories,
-  ({ many }) => ({
-    userCategoryToSectorPermissions: many(userCategoryToSectorPermissions),
-  }),
-);
 
 export const users = pgTable(
   "users",
@@ -55,6 +42,7 @@ export const users = pgTable(
     role: userRoleEnum("role").default("user").notNull(),
     category: userCategoryEnum("category").default("none").notNull(),
     verified: boolean("verified").default(false).notNull(),
+    banned: boolean("banned").default(false).notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -81,6 +69,10 @@ export const festivalMapVersionEnum = pgEnum("festival_map_version", [
   "v2",
   "v3",
 ]);
+export const festivalTypeEnum = pgEnum("festival_type", [
+  "glitter",
+  "twinkler",
+]);
 export const festivals = pgTable(
   "festivals",
   {
@@ -90,9 +82,9 @@ export const festivals = pgTable(
     address: text("address"),
     locationLabel: text("location_label"),
     locationUrl: text("location_url"),
-    startDate: timestamp("start_date").notNull(),
+    startDate: timestamp("start_date"),
     status: festivalStatusEnum("status").default("draft").notNull(),
-    endDate: timestamp("end_date").notNull(),
+    endDate: timestamp("end_date"),
     mapsVersion: festivalMapVersionEnum("maps_version").default("v1").notNull(),
     publicRegistration: boolean("public_registration").default(false).notNull(),
     eventDayRegistration: boolean("event_day_registration")
@@ -103,6 +95,17 @@ export const festivals = pgTable(
       .notNull(),
     generalMapUrl: text("general_map_url"),
     mascotUrl: text("mascot_url"),
+    festivalType: festivalTypeEnum("festival_type")
+      .default("glitter")
+      .notNull(),
+    illustrationPaymentQrCodeUrl: text("illustration_payment_qr_code_url"),
+    gastronomyPaymentQrCodeUrl: text("gastronomy_payment_qr_code_url"),
+    entrepreneurshipPaymentQrCodeUrl: text(
+      "entrepreneurship_payment_qr_code_url",
+    ),
+    illustrationStandUrl: text("illustration_stand_url"),
+    gastronomyStandUrl: text("gastronomy_stand_url"),
+    entrepreneurshipStandUrl: text("entrepreneurship_stand_url"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -130,6 +133,7 @@ export const festivalSectors = pgTable(
       .notNull()
       .references(() => festivals.id),
     orderInFestival: smallint("order_in_festival").notNull().default(1),
+    mascotUrl: text("mascot_url"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -146,7 +150,6 @@ export const festivalSectorsRelations = relations(
       fields: [festivalSectors.festivalId],
       references: [festivals.id],
     }),
-    userCategoryToSectorPermissions: many(userCategoryToSectorPermissions),
     stands: many(stands),
   }),
 );
@@ -175,34 +178,6 @@ export const festivalDatesRelations = relations(festivalDates, ({ one }) => ({
     references: [festivals.id],
   }),
 }));
-
-export const userCategoryToSectorPermissions = pgTable(
-  "user_category_to_sector_permissions",
-  {
-    id: serial("id").primaryKey(),
-    userCategoryId: integer("user_category_id")
-      .notNull()
-      .references(() => userCategories.id),
-    sectorId: integer("sector_id")
-      .notNull()
-      .references(() => festivalSectors.id),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-  },
-);
-export const userCategoryToSectorPermissionsRelations = relations(
-  userCategoryToSectorPermissions,
-  ({ one }) => ({
-    userCategory: one(userCategories, {
-      fields: [userCategoryToSectorPermissions.userCategoryId],
-      references: [userCategories.id],
-    }),
-    sector: one(festivalSectors, {
-      fields: [userCategoryToSectorPermissions.sectorId],
-      references: [festivalSectors.id],
-    }),
-  }),
-);
 
 export const requestStatusEnum = pgEnum("participation_request_status", [
   "pending",
@@ -290,7 +265,7 @@ export const stands = pgTable(
     positionLeft: real("position_left"),
     positionTop: real("position_top"),
     price: real("price").notNull().default(0),
-    festivalId: integer("festival_id").notNull(),
+    festivalId: integer("festival_id"),
     festivalSectorId: integer("festival_sector_id").references(
       () => festivalSectors.id,
     ),

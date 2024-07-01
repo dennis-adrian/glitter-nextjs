@@ -6,6 +6,7 @@ import {
   Container,
   Head,
   Html,
+  Img,
   Link,
   Preview,
   Section,
@@ -14,13 +15,13 @@ import {
 
 interface FestivalActivationTemplateProps {
   name: string;
-  category: Exclude<UserCategory, "none">;
+  profileId: number;
   festivalId: number;
 }
 
 export default function FestivalActivationEmailTemplate({
   name,
-  category,
+  profileId,
   festivalId,
 }: FestivalActivationTemplateProps) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
@@ -28,14 +29,13 @@ export default function FestivalActivationEmailTemplate({
   return (
     <Html>
       <Head />
-      <Preview>Ya abrimos nuestra convocatoria</Preview>
+      <Preview>Reserva tu espacio en nuestro próximo festival</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <Section style={styles.section}>
             <Text style={styles.text}>¡Hola {name}!</Text>
             <Text style={styles.text}>
-              El festival de mayo ya está cerca y te invitamos a que reserves tu
-              espacio con anticipación.
+              Acabamos de habilitar las reservas para nuestro próximo festival{" "}
             </Text>
             <Text style={styles.text}>
               El primer paso para reservar tu espacio es leer los términos y
@@ -47,8 +47,8 @@ export default function FestivalActivationEmailTemplate({
               reserva.
             </Text>
             <Text style={styles.text}>
-              Si tienes dudas o problemas con la reserva, comunícate con al
-              correo{" "}
+              Si tienes dudas o problemas con la reserva, comunícate con
+              nosotros al correo{" "}
               <Link
                 href="mailto:soporte@productoraglitter.com"
                 style={{
@@ -58,15 +58,26 @@ export default function FestivalActivationEmailTemplate({
               >
                 soporte@productoraglitter.com
               </Link>{" "}
-              nosotros para que podamos ayudarte.
+              para que podamos ayudarte.
             </Text>
             <Button
-              href={`${baseUrl}/festivals/${festivalId}/?category=${category}&terms=true`}
+              href={`${baseUrl}/profiles/${profileId}/festivals/${festivalId}/terms`}
               style={styles.button}
             >
               Leer términos y condiciones
             </Button>
           </Section>
+        </Container>
+        <Container style={styles.footer}>
+          <Img
+            style={{ margin: "4px auto" }}
+            src="https://utfs.io/f/a4e5ba5d-5403-4c59-99c0-7e170bb2d6f5-f0kpla.png"
+            width={32}
+          />
+          <Text style={styles.footerText}>Enviado por el equipo Glitter</Text>
+          <Text style={styles.footerText}>
+            © 2024 | Productora Glitter, Santa Cruz, Bolivia{" "}
+          </Text>
         </Container>
       </Body>
     </Html>
@@ -74,7 +85,8 @@ export default function FestivalActivationEmailTemplate({
 }
 
 FestivalActivationEmailTemplate.PreviewProps = {
+  profileId: 90,
   name: "John Doe",
   category: "illustration",
-  festivalId: 9,
+  festivalId: 11,
 } as FestivalActivationTemplateProps;

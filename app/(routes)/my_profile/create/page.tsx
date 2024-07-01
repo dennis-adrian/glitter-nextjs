@@ -19,7 +19,7 @@ export default async function UserProfileCreate() {
     );
   }
 
-  if (isProfileComplete(profile)) redirect("/user_profile");
+  if (isProfileComplete(profile)) redirect("/my_profile");
 
   return (
     <div className="container p-4 md:p-6">

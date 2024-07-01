@@ -2,13 +2,20 @@ import { cn } from "@/app/lib/utils";
 
 import { UserCategory } from "@/app/api/users/definitions";
 import { Badge } from "@/app/components/ui/badge";
-import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
+import {
+  getCategoryLabel,
+  getCategoryOccupationLabel,
+} from "@/app/lib/maps/helpers";
 
 type CategoryBadgeProps = {
   category: UserCategory;
+  useOccupationLabel?: boolean;
 };
 
-export default function CategoryBadge({ category }: CategoryBadgeProps) {
+export default function CategoryBadge({
+  category,
+  useOccupationLabel = true,
+}: CategoryBadgeProps) {
   let styles;
   if (category === "gastronomy") {
     styles = "bg-amber-500 hover:bg-amber-400";
@@ -23,7 +30,9 @@ export default function CategoryBadge({ category }: CategoryBadgeProps) {
       className={cn(styles, "max-w-fit")}
       variant={category === "none" ? "dark" : "default"}
     >
-      {getCategoryOccupationLabel(category, { singular: true })}
+      {useOccupationLabel
+        ? getCategoryOccupationLabel(category, { singular: true })
+        : getCategoryLabel(category)}
     </Badge>
   );
 }

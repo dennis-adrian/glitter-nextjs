@@ -87,3 +87,24 @@ export async function fetchInvoices(): Promise<
     client.release();
   }
 }
+
+export async function fetchInvoicesByReservation(reservationId: number) {
+  const client = await pool.connect();
+
+  try {
+    return await db.query.invoices.findMany({
+      with: {
+        payments: true,
+        reservation: {
+          with: {
+            stand: true,
+          },
+        },
+      },
+      where: eq(invoices.reservationId, reservationId),
+    });
+  } catch {
+  } finally {
+    client.release();
+  }
+}

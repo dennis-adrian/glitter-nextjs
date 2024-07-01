@@ -2,12 +2,11 @@
 
 import Image from "next/image";
 
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { FestivalInfo } from "@/components/landing/festival-info-card";
-import { imagesSrc } from "@/app/lib/maps/config";
 
-export function FormBanner({ festival }: { festival: FestivalBase }) {
-  const mascotSrc = imagesSrc[festival.mapsVersion].mascot?.sm;
+export function FormBanner({ festival }: { festival: FestivalWithDates }) {
+  const mascotSrc = festival.mascotUrl;
   return (
     <>
       <div className="text-primary-foreground relative mt-5 flex w-full items-center justify-center p-6 sm:mt-0">

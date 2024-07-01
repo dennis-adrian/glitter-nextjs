@@ -58,7 +58,7 @@ export async function createUserProfile(user: User) {
     client.release();
   }
 
-  redirect("/user_profile");
+  redirect("/my_profile");
 }
 
 export async function fetchUserProfileById(
@@ -281,7 +281,7 @@ export async function updateProfile(
     client.release();
   }
 
-  revalidatePath("/user_profile");
+  revalidatePath("/my_profile");
 }
 
 export async function updateProfileWithValidatedData(
@@ -344,7 +344,7 @@ export async function updateProfileWithValidatedData(
         const adminEmails = admins.map((admin) => admin.email);
         await sendEmail({
           to: [...adminEmails, "perfiles@productoraglitter.com"],
-          from: "Perfiles Glitter <perfiles@festivalglitter.art>",
+          from: "Perfiles Glitter <perfiles@productoraglitter.com>",
           subject: "Perfil completado",
           react: ProfileCompletionEmailTemplate({
             profileId: profile.id,
@@ -362,7 +362,7 @@ export async function updateProfileWithValidatedData(
     client.release();
   }
 
-  revalidatePath("/user_profile");
+  revalidatePath("/my_profile");
   return { success: true };
 }
 

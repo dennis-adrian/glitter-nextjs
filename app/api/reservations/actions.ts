@@ -242,7 +242,7 @@ export async function confirmReservation(
 
     await sendEmail({
       to: [user.email],
-      from: "Reservas Glitter <reservas@festivalglitter.art>",
+      from: "Reservas Glitter <reservas@productoraglitter.com>",
       subject: "Reserva confirmada",
       react: EmailTemplate({
         name: user.displayName!,

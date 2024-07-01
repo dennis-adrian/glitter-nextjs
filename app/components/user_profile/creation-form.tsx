@@ -127,7 +127,7 @@ export default function ProfileCreationForm({
       socials: socials.filter(Boolean) as ProfileType["userSocials"],
     });
     if (result.success) {
-      redirect("/user_profile");
+      redirect("/my_profile");
     } else {
       toast.error(result.message);
     }

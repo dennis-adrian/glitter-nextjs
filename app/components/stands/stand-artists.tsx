@@ -30,6 +30,7 @@ const StandArtists = ({ stand }: Props) => {
       key: artist.id,
       src: artist.imageUrl || "/img/profile-avatar.png",
       alt: "imagen de usuario",
+      newUser: artist.category === "new_artist",
     }));
 
     cardBody = <AvatarGroup avatarsInfo={avatarsInfo} />;

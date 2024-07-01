@@ -22,6 +22,7 @@ import {
 import { sendEmail } from "@/app/vendors/resend";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { BaseProfile } from "@/app/api/users/definitions";
 
 export async function fetchRequestsByUserId(userId: number) {
   const client = await pool.connect();
@@ -101,9 +102,17 @@ export type NewStandReservation = typeof standReservations.$inferInsert & {
 export async function createReservation(
   reservation: NewStandReservation,
   price: number,
+  forUser: BaseProfile,
 ) {
   const client = await pool.connect();
   try {
+    if (!forUser.verified || forUser.banned) {
+      return {
+        success: false,
+        message: "No tienes permisos para realizar esta acción",
+      };
+    }
+
     const { festivalId, standId, participantIds } = reservation;
     const newReservation = await db.transaction(async (tx) => {
       const rows = await tx
@@ -145,7 +154,7 @@ export async function createReservation(
     const adminEmails = admins.map((admin) => admin.email);
     await sendEmail({
       to: [...adminEmails, "reservas@productoraglitter.com"],
-      from: "Reservas Glitter <reservas@festivalglitter.art>",
+      from: "Reservas Glitter <reservas@productoraglitter.com>",
       subject: "Nueva reserva creada",
       react: ReservationCreatedEmailTemplate({
         festivalName: festival?.name || "Festival",
@@ -157,15 +166,21 @@ export async function createReservation(
         }),
       }) as React.ReactElement,
     });
+
+    revalidatePath("profiles");
+    revalidatePath("/my_profile");
+
+    return {
+      success: true,
+      message: "Reserva creada",
+      reservationId: newReservation.id,
+    };
   } catch (error) {
     console.error("Error creating reservation", error);
     return { success: false, message: "No se pudo crear la reserva" };
   } finally {
     client.release();
   }
-
-  revalidatePath("/next_event");
-  return { success: true, message: "Reserva creada" };
 }
 
 export async function updateReservationSimple(
@@ -324,7 +339,7 @@ export async function createUserRequest(
     client.release();
   }
 
-  revalidatePath("/user_profile");
+  revalidatePath("/my_profile");
   return { success: true, message: "Solicitud enviada correctamente" };
 }
 

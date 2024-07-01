@@ -18,11 +18,12 @@ import { StandStatusBadge } from "@/app/components/stands/status-badge";
 import clsx from "clsx";
 
 type Props = {
+  canBeReserved: boolean;
   stand: StandWithReservationsWithParticipants;
   standPosition: Omit<StandPosition, "id">;
 };
 
-const StandContent = ({ stand, standPosition }: Props) => {
+const StandContent = ({ canBeReserved, stand, standPosition }: Props) => {
   const { label, standNumber, status } = stand;
   const { left } = standPosition;
 
@@ -60,13 +61,25 @@ const StandContent = ({ stand, standPosition }: Props) => {
             Espacio {label}
             {standNumber}
           </CardTitle>
-          <CardDescription>
-            <StandStatusBadge status={status} />
-          </CardDescription>
+          {canBeReserved && (
+            <CardDescription>
+              <StandStatusBadge status={status} />
+            </CardDescription>
+          )}
         </CardHeader>
         <CardContent>
           <div className="min-w-36">
-            {status !== "disabled" && <StandArtists stand={stand} />}
+            {stand.status === "disabled" ? (
+              <div className="text-center text-sm text-muted-foreground">
+                Espacio deshabilitado
+              </div>
+            ) : canBeReserved ? (
+              <StandArtists stand={stand} />
+            ) : (
+              <div className="text-center text-sm text-muted-foreground">
+                No puedes reservar en este espacio
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

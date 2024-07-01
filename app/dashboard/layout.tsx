@@ -9,7 +9,7 @@ export default async function Layout({
   const profile = await getCurrentUserProfile();
 
   if (!profile) {
-    redirect("/sign-in");
+    redirect("/sign_in");
   }
 
   if (

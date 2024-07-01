@@ -24,7 +24,7 @@ export function ReserveStandCard(props: ReserveStandCardProps) {
       footer={
         <RedirectButton
           size="sm"
-          href={`/festivals/${props.festival.id}?category=${props.profile.category}`}
+          href={`/profiles/${props.profile.id}/festivals/${props.festival.id}/reservations/new`}
         >
           Ir a reservar espacio
           <ArrowRightIcon className="ml-2 w-4 h-4" />

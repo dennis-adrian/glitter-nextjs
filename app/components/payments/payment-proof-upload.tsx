@@ -56,7 +56,7 @@ export default function PaymentProofUpload({
 
       if (data.success) {
         toast.success(data.message);
-        router.push("/user_profile");
+        router.push("/my_profile");
       } else {
         toast.error(data.message);
       }

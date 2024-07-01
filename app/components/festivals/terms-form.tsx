@@ -1,7 +1,6 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -33,11 +32,9 @@ const FormSchema = z.object({
 export default function TermsForm({
   profile,
   festival,
-  category,
 }: {
   profile: ProfileType;
   festival: FestivalBase;
-  category: Exclude<UserCategory, "none">;
 }) {
   const router = useRouter();
   const form = useForm<z.infer<typeof FormSchema>>({
@@ -52,7 +49,7 @@ export default function TermsForm({
       const res = await addUserToFestival(profile.id, festival.id);
       if (res.success) {
         toast.success(res.message);
-        router.push(`/festivals/${festival.id}?category=${category}`);
+        router.push(`/profiles/${profile.id}/festivals/${festival.id}/reservations/new`);
       } else {
         toast.error(res.message);
       }

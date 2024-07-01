@@ -28,7 +28,7 @@ export default function PrivateProfileOverview({
             title="Editar Información Personal"
             FormComponent={Form}
           >
-            <Button variant="ghost">
+            <Button variant="outline" disabled={profile.banned}>
               <FilePenLineIcon className="mr-1 h-4 w-4" />
               Editar
             </Button>

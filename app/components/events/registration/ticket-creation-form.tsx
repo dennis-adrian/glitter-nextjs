@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { Button } from "@/app/components/ui/button";
 import {
   Select,
@@ -36,7 +36,7 @@ export default function TicketCreationForm({
   visitor,
   onSuccess,
 }: {
-  festival: FestivalBase;
+  festival: FestivalWithDates;
   visitor: VisitorWithTickets;
   onSuccess: () => void;
 }) {
@@ -53,8 +53,8 @@ export default function TicketCreationForm({
       attendance: data.attendance,
       visitorId: visitor.id,
       festivalId: festival.id,
-      festivalStartDate: festival.startDate,
-      festivalEndDate: festival.endDate,
+      festivalStartDate: festival.festivalDates[0].startDate,
+      festivalEndDate: festival.festivalDates[1]?.startDate,
     });
     const toastId = toast("loading");
     toast.loading("Enviando confirmación...", {

@@ -11,12 +11,15 @@ import {
   Section,
   Text,
 } from "@react-email/components";
-import { FestivalBase } from "@/app/data/festivals/definitions";
-import { formatDate } from "@/app/lib/formatters";
+import {
+  FestivalBase,
+  FestivalWithDates,
+} from "@/app/data/festivals/definitions";
+import { formatDate, formatFullDate } from "@/app/lib/formatters";
 import { Interval } from "luxon";
 
 interface RegistrationInvitationEmailTemplateProps {
-  festival: FestivalBase;
+  festival: FestivalWithDates;
 }
 
 export default function RegistrationInvitationEmailTemplate(
@@ -25,15 +28,21 @@ export default function RegistrationInvitationEmailTemplate(
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const daysInterval = Interval.fromDateTimes(
     formatDate(new Date()).startOf("day"),
-    formatDate(props.festival.startDate).startOf("day"),
+    formatDate(props.festival.festivalDates[0].startDate).startOf("day"),
   )
     .toDuration()
     .toFormat("d");
 
+  const dates = props.festival.festivalDates;
+  const festivalLabel =
+    props.festival.festivalType === "glitter" ? "Glitter" : "Twinkler";
+
   return (
     <Html>
       <Head />
-      <Preview>Quedan {daysInterval} días para Glitter</Preview>
+      <Preview>
+        Quedan {daysInterval} días para el festival {festivalLabel}
+      </Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <Section style={styles.banner}>
@@ -49,16 +58,27 @@ export default function RegistrationInvitationEmailTemplate(
             </Text>
             <Text style={styles.text}>
               Este{" "}
-              <strong>
-                sábado {formatDate(props.festival.startDate).day} y domingo{" "}
-                {formatDate(props.festival.endDate).day} de mayo
-              </strong>{" "}
-              tendremos una nueva versión del festival <strong>Glitter</strong>.
+              {dates.length > 1 ? (
+                <strong>
+                  {formatFullDate(dates[0].startDate)} a{" "}
+                  {formatFullDate(dates[dates.length - 1].startDate)}
+                </strong>
+              ) : (
+                <strong>{formatFullDate(dates[0].startDate)}</strong>
+              )}{" "}
+              tendremos una nueva versión del festival{" "}
+              <strong>{festivalLabel}</strong>.
             </Text>
             <Text style={styles.text}>
               El ingreso al público es desde las{" "}
-              <strong>10 de la mañana</strong> y tendremos sorpresas para las
-              primeras 400 personas en entrar al evento.
+              <strong>
+                {formatDate(dates[0].startDate).toLocaleString({
+                  hour: "numeric",
+                  minute: "numeric",
+                })}
+              </strong>{" "}
+              y tendremos sorpresas para las primeras 200 personas en entrar al
+              evento.
             </Text>
             <Text style={styles.text}>
               ¡Evita colas y ahorra tiempo durante el registro en puerta! Haz
@@ -92,7 +112,13 @@ export default function RegistrationInvitationEmailTemplate(
 RegistrationInvitationEmailTemplate.PreviewProps = {
   festival: {
     id: 1,
-    startDate: formatDate(new Date()).plus({ days: 7 }).toJSDate(),
-    endDate: formatDate(new Date()).plus({ days: 8 }).toJSDate(),
+    festivalDates: [
+      {
+        startDate: formatDate(new Date()).plus({ days: 7 }).toJSDate(),
+      },
+      {
+        startDate: formatDate(new Date()).plus({ days: 8 }).toJSDate(),
+      },
+    ],
   },
 } as RegistrationInvitationEmailTemplateProps;
