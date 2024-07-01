@@ -7,23 +7,25 @@ import {
   fetchBaseFestival,
 } from "@/app/data/festivals/actions";
 import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/actions";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { z } from "zod";
 
 const ParamsSchema = z.object({
   festivalId: z.coerce.number(),
+  profileId: z.coerce.number(),
 });
 
 export default async function Page({
   params,
 }: {
-  params: { festivalId: string };
+  params: { festivalId: string; profileId: string };
 }) {
   const profile = await getCurrentUserProfile();
   const validatedParams = ParamsSchema.safeParse(params);
   if (!validatedParams.success) notFound();
+  await protectRoute(profile || undefined, validatedParams.data.profileId);
 
   const festival = await fetchBaseFestival(parseInt(params.festivalId));
   if (!festival) notFound();

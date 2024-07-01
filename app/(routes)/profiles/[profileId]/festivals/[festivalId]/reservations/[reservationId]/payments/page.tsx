@@ -1,19 +1,20 @@
 import PendingPayment from "@/app/components/payments/pending-payment";
 import { fetchBaseFestival } from "@/app/data/festivals/actions";
 import { fetchInvoicesByReservation } from "@/app/data/invoices/actions";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 
 const ParamsSchema = z.object({
   festivalId: z.coerce.number(),
+  profileId: z.coerce.number(),
   reservationId: z.coerce.number(),
 });
 
 export default async function Page({
   params,
 }: {
-  params: { festivalId: string; reservationId: string };
+  params: { festivalId: string; profileId: string; reservationId: string };
 }) {
   const validatedParams = ParamsSchema.safeParse(params);
   if (!validatedParams.success) redirect("/");
@@ -21,6 +22,7 @@ export default async function Page({
   const profile = await getCurrentUserProfile();
   const festival = await fetchBaseFestival(validatedParams.data.festivalId);
   if (!festival || !profile) notFound();
+  await protectRoute(profile, validatedParams.data.profileId);
 
   const invoices = await fetchInvoicesByReservation(
     validatedParams.data.reservationId,
