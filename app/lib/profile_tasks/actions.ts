@@ -88,7 +88,7 @@ export async function sendReminderEmails(): Promise<ProfileTaskWithProfile[]> {
 
       pendingTasks.forEach(async (task) => {
         await sendEmail({
-          from: "Equipo de Glitter <no-reply@festivalglitter.art>",
+          from: "Equipo de Glitter <no-reply@productoraglitter.com>",
           to: [task.profile.email],
           subject: "Completa tu perfil para participar de nuestros eventos",
           react: ProfileCompletionReminderTemplate({
@@ -142,7 +142,7 @@ export async function sendDeletionEmails(): Promise<ProfileTaskWithProfile[]> {
 
       overdueTasks.forEach(async (task) => {
         await sendEmail({
-          from: "Equipo de Glitter <no-reply@festivalglitter.art>",
+          from: "Equipo de Glitter <no-reply@productoraglitter.com>",
           to: [task.profile.email],
           subject: "Tu cuenta ha sido eliminada",
           react: ProfileDeletionTemplate({

@@ -297,7 +297,7 @@ export async function sendEmailToVisitors(
 ) {
   const { error } = await sendEmail({
     to: emails,
-    from: "Equipo Glitter <equipo@festivalglitter.art>",
+    from: "Equipo Glitter <equipo@productoraglitter.com>",
     subject: "Pre-registro abierto para nuestro próximo festival",
     react: RegistrationInvitationEmailTemplate({
       festival: festival,

@@ -154,7 +154,7 @@ export async function createReservation(
     const adminEmails = admins.map((admin) => admin.email);
     await sendEmail({
       to: [...adminEmails, "reservas@productoraglitter.com"],
-      from: "Reservas Glitter <reservas@festivalglitter.art>",
+      from: "Reservas Glitter <reservas@productoraglitter.com>",
       subject: "Nueva reserva creada",
       react: ReservationCreatedEmailTemplate({
         festivalName: festival?.name || "Festival",
