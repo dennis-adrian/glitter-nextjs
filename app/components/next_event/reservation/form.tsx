@@ -91,7 +91,9 @@ export default function ReservationForm({
         origin: { y: 0.6 },
       });
       toast.success(res.message);
-      router.push(`/profiles/${profile.id}/payments/latest`);
+      router.push(
+        `/my_profile/festivals/${festival.id}/reservations/${res.reservationId}/payments`,
+      );
     } else {
       toast.error(res.message, {
         description: "Inténtalo de nuevo",

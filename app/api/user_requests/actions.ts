@@ -158,7 +158,11 @@ export async function createReservation(
       }) as React.ReactElement,
     });
 
-    return { success: true, message: "Reserva creada" };
+    return {
+      success: true,
+      message: "Reserva creada",
+      reservationId: newReservation.id,
+    };
   } catch (error) {
     console.error("Error creating reservation", error);
     return { success: false, message: "No se pudo crear la reserva" };

@@ -13,15 +13,19 @@ import { Suspense } from "react";
 import { z } from "zod";
 
 const ParamsSchema = z.object({
-  id: z.coerce.number(),
+  festivalId: z.coerce.number(),
 });
 
-export default async function Page({ params }: { params: { id: string } }) {
+export default async function Page({
+  params,
+}: {
+  params: { festivalId: string };
+}) {
   const profile = await getCurrentUserProfile();
   const validatedParams = ParamsSchema.safeParse(params);
   if (!validatedParams.success) notFound();
 
-  const festival = await fetchBaseFestival(parseInt(params.id));
+  const festival = await fetchBaseFestival(parseInt(params.festivalId));
   if (!festival) notFound();
 
   const inFestival = isProfileInFestival(festival.id, profile);

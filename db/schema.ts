@@ -98,6 +98,11 @@ export const festivals = pgTable(
     festivalType: festivalTypeEnum("festival_type")
       .default("glitter")
       .notNull(),
+    illustrationPaymentQrCodeUrl: text("illustration_payment_qr_code_url"),
+    gastronomyPaymentQrCodeUrl: text("gastronomy_payment_qr_code_url"),
+    entrepreneurshipPaymentQrCodeUrl: text(
+      "entrepreneurship_payment_qr_code_url",
+    ),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -125,6 +130,7 @@ export const festivalSectors = pgTable(
       .notNull()
       .references(() => festivals.id),
     orderInFestival: smallint("order_in_festival").notNull().default(1),
+    mascotUrl: text("mascot_url"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

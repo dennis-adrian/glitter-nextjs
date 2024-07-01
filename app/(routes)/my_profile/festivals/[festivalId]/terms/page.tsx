@@ -7,15 +7,19 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 
 const ParamsSchema = z.object({
-  id: z.coerce.number(),
+  festivalId: z.coerce.number(),
 });
 
-export default async function Page({ params }: { params: { id: string } }) {
+export default async function Page({
+  params,
+}: {
+  params: { festivalId: string };
+}) {
   const profile = await getCurrentUserProfile();
   const validatedParams = ParamsSchema.safeParse(params);
   if (!validatedParams.success) notFound();
 
-  const festival = await fetchFestivalWithDates(parseInt(params.id));
+  const festival = await fetchFestivalWithDates(parseInt(params.festivalId));
   if (!festival) notFound();
 
   if (profile?.role !== "admin" && festival.status !== "active") {
