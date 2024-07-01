@@ -13,7 +13,7 @@ export function getInvoiceStatusLabel(status: InvoiceStatus) {
   }
 }
 
-export function getPaymentQrCodeByCategory(
+export function getPaymentQrCodeUrlByCategory(
   festival: FestivalBase,
   category: Exclude<UserCategory, "none">,
 ) {
@@ -27,5 +27,22 @@ export function getPaymentQrCodeByCategory(
 
   if (category === "gastronomy") {
     return festival.gastronomyPaymentQrCodeUrl;
+  }
+}
+
+export function getStandUrlByCategory(
+  festival: FestivalBase,
+  category: Exclude<UserCategory, "none">,
+) {
+  if (category === "illustration" || category === "new_artist") {
+    return festival.illustrationStandUrl;
+  }
+
+  if (category === "gastronomy") {
+    return festival.gastronomyStandUrl;
+  }
+
+  if (category === "entrepreneurship") {
+    return festival.entrepreneurshipStandUrl;
   }
 }

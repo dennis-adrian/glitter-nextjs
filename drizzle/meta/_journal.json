@@ -470,6 +470,13 @@
       "when": 1719721184427,
       "tag": "0066_ambitious_miracleman",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "5",
+      "when": 1719806940297,
+      "tag": "0067_blue_captain_midlands",
+      "breakpoints": true
     }
   ]
 }

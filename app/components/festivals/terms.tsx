@@ -8,6 +8,7 @@ import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { imagesSrc } from "@/app/lib/maps/config";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
+import { getStandUrlByCategory } from "@/app/lib/payments/helpers";
 import { DateTime } from "luxon";
 import Image from "next/image";
 
@@ -21,7 +22,7 @@ export default function Terms({
   category: Exclude<UserCategory, "none">;
 }) {
   const mapCategory = category === "new_artist" ? "illustration" : category;
-  const standImageSrc = imagesSrc[festival.mapsVersion][mapCategory]["stand"];
+  const standImageSrc = getStandUrlByCategory(festival, mapCategory);
   const userCategory = category === "new_artist" ? "illustration" : category;
   // const mascotImageSrc = imagesSrc[festival.mapsVersion][category]["mascot"];
 
@@ -254,6 +255,13 @@ export default function Terms({
         <br />
         <h3 className="font-semibold text-lg my-2">Importante</h3>
         <ul className="leading-7 list-inside list-disc">
+          {mapCategory === "gastronomy" && (
+            <li>
+              Los productos que el expositor ofrezca a la venta deben estar
+              previamente preparados. No se permite el uso de garrafas o
+              cualquier artefacto que provoque fuego.
+            </li>
+          )}
           <li>Todos los espacios son con reserva previa de ubicación.</li>
           <li>
             Ningún espacio puede exceder las medidas establecidas por la

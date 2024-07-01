@@ -103,6 +103,9 @@ export const festivals = pgTable(
     entrepreneurshipPaymentQrCodeUrl: text(
       "entrepreneurship_payment_qr_code_url",
     ),
+    illustrationStandUrl: text("illustration_stand_url"),
+    gastronomyStandUrl: text("gastronomy_stand_url"),
+    entrepreneurshipStandUrl: text("entrepreneurship_stand_url"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

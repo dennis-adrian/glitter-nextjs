@@ -7,7 +7,7 @@ import { imagesSrc } from "@/app/lib/maps/config";
 import Image from "next/image";
 import { Button } from "@/app/components/ui/button";
 import { FestivalBase } from "@/app/data/festivals/definitions";
-import { getPaymentQrCodeByCategory } from "@/app/lib/payments/helpers";
+import { getPaymentQrCodeUrlByCategory } from "@/app/lib/payments/helpers";
 
 export default function QrCodeDownload({
   festival,
@@ -17,7 +17,7 @@ export default function QrCodeDownload({
   profile: ProfileType;
 }) {
   const qrCodeRef = useRef(null);
-  const qrCodeSrc = getPaymentQrCodeByCategory(
+  const qrCodeSrc = getPaymentQrCodeUrlByCategory(
     festival,
     profile.category as Exclude<UserCategory, "none">,
   );
