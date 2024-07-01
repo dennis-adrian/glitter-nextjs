@@ -1,9 +1,7 @@
-import CategoryBadge from "@/app/components/category-badge";
 import MapImage from "@/app/components/festivals/map-image";
 import ParticipantsGrid from "@/app/components/festivals/participants";
 import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
-import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
 
 type FestivalSectorProps = {
   sector: FestivalSectorWithStandsWithReservationsWithParticipants;
