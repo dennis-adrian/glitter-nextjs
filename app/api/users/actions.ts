@@ -9,7 +9,12 @@ import { z } from "zod";
 import { pool, db } from "@/db";
 import { profileTasks, userRequests, userSocials, users } from "@/db/schema";
 import { revalidatePath } from "next/cache";
-import { BaseProfile, NewUserSocial, ProfileType } from "./definitions";
+import {
+  BaseProfile,
+  NewUserSocial,
+  ProfileType,
+  UserCategory,
+} from "./definitions";
 import { buildNewUser, buildUserSocials } from "@/app/api/users/helpers";
 import { isProfileComplete } from "@/app/lib/utils";
 import { sendEmail } from "@/app/vendors/resend";
@@ -393,13 +398,14 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
   return { success: true, message: "Perfil eliminado" };
 }
 
-export async function verifyProfile(profileId: number) {
+export async function verifyProfile(profileId: number, category: UserCategory) {
   const client = await pool.connect();
 
   try {
+    const userCategory = category === "illustration" ? "new_artist" : category;
     const [updatedUser] = await db
       .update(users)
-      .set({ verified: true, updatedAt: new Date() })
+      .set({ verified: true, updatedAt: new Date(), category: userCategory })
       .where(eq(users.id, profileId))
       .returning();
 

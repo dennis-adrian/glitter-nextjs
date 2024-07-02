@@ -17,7 +17,11 @@ export function VerifyProfileForm({
     message: "",
     success: false,
   };
-  const verifyProfileWithIds = verifyProfile.bind(null, profile.id);
+  const verifyProfileWithIds = verifyProfile.bind(
+    null,
+    profile.id,
+    profile.category,
+  );
   const [state, action] = useFormState(verifyProfileWithIds, initialState);
 
   if (state.success) onSuccess();
