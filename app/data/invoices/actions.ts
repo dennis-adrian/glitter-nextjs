@@ -19,6 +19,11 @@ export async function fetchLatestInvoiceByProfileId(
         reservation: {
           with: {
             stand: true,
+            festival: {
+              with: {
+                festivalDates: true,
+              },
+            },
           },
         },
       },
@@ -75,6 +80,11 @@ export async function fetchInvoices(): Promise<
         reservation: {
           with: {
             stand: true,
+            festival: {
+              with: {
+                festivalDates: true,
+              },
+            },
           },
         },
         user: true,
@@ -98,6 +108,11 @@ export async function fetchInvoicesByReservation(reservationId: number) {
         reservation: {
           with: {
             stand: true,
+            festival: {
+              with: {
+                festivalDates: true,
+              },
+            },
           },
         },
       },

@@ -1,11 +1,9 @@
 "use client";
 
 import { columns, columnTitles } from "@/app/components/payments/columns";
-import PaymentProofModal from "@/app/components/payments/payment-proof-modal";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/defiinitions";
-import { invoiceStatusOptions, userCategoryOptions } from "@/app/lib/utils";
-import { useState } from "react";
+import { userCategoryOptions } from "@/app/lib/utils";
 
 type PaymentsTableProps = {
   invoices: InvoiceWithPaymentsAndStandAndProfile[];

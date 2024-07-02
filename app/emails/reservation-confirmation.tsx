@@ -1,4 +1,6 @@
+import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import * as styles from "@/app/emails/styles";
+import { formatDate, formatFullDate } from "@/app/lib/formatters";
 import {
   Body,
   Button,
@@ -9,10 +11,11 @@ import {
   Section,
   Text,
 } from "@react-email/components";
+import { DateTime } from "luxon";
 
 interface FestivalActivationTemplateProps {
   name: string;
-  festivalId: number;
+  festival: FestivalWithDates;
   standLabel: string;
 }
 
@@ -25,7 +28,8 @@ export default function ReservationConfirmationEmailTemplate(
     <Html>
       <Head />
       <Preview>
-        Tu reserva para el espacio {props.standLabel} ha sido confirmada
+        Tu reserva para el espacio {props.standLabel} para {props.festival.name}{" "}
+        ha sido confirmada
       </Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
@@ -37,19 +41,23 @@ export default function ReservationConfirmationEmailTemplate(
             </Text>
             <Text style={styles.text}>
               Muchas gracias por seguir todos los pasos y confirmar tu
-              participación en el siguiente evento organizado por{" "}
-              <strong>Glitter</strong>
+              participación en el <strong>{props.festival.name}</strong>
             </Text>
             <Text style={styles.text}>
-              Te esparamos el 11 de mayo en el Teatro CBA a las 9:00 AM para el
-              armado de tu espacio
+              Te esparamos el{" "}
+              {formatFullDate(props.festival.festivalDates[0].startDate)} en{" "}
+              {props.festival.locationLabel} a las{" "}
+              {formatDate(props.festival.festivalDates[0].startDate)
+                .minus({ hour: 1 })
+                .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+              para el armado de tu espacio
             </Text>
             <Text style={styles.text}>
               También recuerda que puedes ver la página del evento en cualquier
               momento y ver a los demás participantes que estarán presentes.
             </Text>
             <Button
-              href={`${baseUrl}/festivals/${props.festivalId}`}
+              href={`${baseUrl}/festivals/${props.festival.id}`}
               style={styles.button}
             >
               Ir a la página del evento
@@ -63,6 +71,22 @@ export default function ReservationConfirmationEmailTemplate(
 
 ReservationConfirmationEmailTemplate.PreviewProps = {
   name: "John Doe",
-  festivalId: 9,
   standLabel: "A52",
+  festival: {
+    id: 9,
+    name: "Nombre del festival",
+    locationLabel: "Galería del CBA",
+    festivalDates: [
+      {
+        id: 1,
+        startDate: new Date(),
+        endDate: new Date(),
+      },
+      {
+        id: 2,
+        startDate: new Date(),
+        endDate: new Date(),
+      },
+    ],
+  },
 } as FestivalActivationTemplateProps;

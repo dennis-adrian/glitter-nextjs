@@ -1,3 +1,4 @@
+import { StandReservationWithFestival } from "@/app/api/stands/actions";
 import { StandBase } from "@/app/api/stands/definitions";
 import { invoices, payments, standReservations, users } from "@/db/schema";
 
@@ -6,7 +7,7 @@ export type InvoiceWithPayments = InvoiceBase & {
   payments: (typeof payments.$inferSelect)[];
 };
 export type InvoiceWithPaymentsAndStand = InvoiceWithPayments & {
-  reservation: typeof standReservations.$inferSelect & {
+  reservation: StandReservationWithFestival & {
     stand: StandBase;
   };
 };

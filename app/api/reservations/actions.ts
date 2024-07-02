@@ -19,6 +19,7 @@ import {
   ReservationWithParticipantsAndUsersAndStand,
   ReservationWithParticipantsAndUsersAndStandAndFestival,
 } from "@/app/api/reservations/definitions";
+import { FestivalWithDates } from "@/app/data/festivals/definitions";
 
 export async function fetchReservations(): Promise<
   ReservationWithParticipantsAndUsersAndStandAndFestival[]
@@ -223,7 +224,7 @@ export async function confirmReservation(
   user: BaseProfile,
   standId: number,
   standLabel: string,
-  festivalId: number,
+  festival: FestivalWithDates,
 ) {
   const client = await pool.connect();
 
@@ -247,7 +248,7 @@ export async function confirmReservation(
       react: EmailTemplate({
         name: user.displayName!,
         standLabel,
-        festivalId,
+        festival,
       }) as React.ReactElement,
     });
   } catch (error) {

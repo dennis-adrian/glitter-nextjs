@@ -21,7 +21,7 @@ export function ConfirmReservationForm(props: ConfirmReservationFormProps) {
     props.invoice.user,
     props.invoice.reservation.standId,
     `${props.invoice.reservation.stand.label}${props.invoice.reservation.stand.standNumber}`,
-    props.invoice.reservation.festivalId,
+    props.invoice.reservation.festival,
   );
   const [state, action] = useFormState(
     confirmReservationWithIdAndEmail,
