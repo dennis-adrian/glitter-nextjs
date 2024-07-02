@@ -38,7 +38,7 @@ const StandArtists = ({ stand }: Props) => {
       <RedirectButton
         key={participant.id}
         className="p-0"
-        href={`/profiles/${participant.userId}`}
+        href={`/public_profiles/${participant.userId}`}
         variant="link"
         size="inline"
       >
