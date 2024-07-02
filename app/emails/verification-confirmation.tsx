@@ -1,5 +1,4 @@
 import * as styles from "@/app/emails/styles";
-import { UserCategory } from "@/app/api/users/definitions";
 import {
   Body,
   Button,
@@ -14,14 +13,12 @@ import {
 
 interface FestivalActivationTemplateProps {
   name: string;
-  category: Exclude<UserCategory, "none">;
   festivalId?: number;
-  profileId?: number;
+  profileId: number;
 }
 
 export default function VerificationConfirmationEmailTemplate({
   name,
-  category,
   festivalId,
   profileId,
 }: FestivalActivationTemplateProps) {
@@ -101,7 +98,6 @@ export default function VerificationConfirmationEmailTemplate({
 
 VerificationConfirmationEmailTemplate.PreviewProps = {
   name: "John Doe",
-  category: "illustration",
   festivalId: 9,
   profileId: 90,
 } as FestivalActivationTemplateProps;

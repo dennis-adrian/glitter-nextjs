@@ -419,11 +419,8 @@ export async function verifyProfile(profileId: number, category: UserCategory) {
       subject: "Perfil verificado",
       react: EmailTemplate({
         name: updatedUser.displayName || "Usuario",
-        category: updatedUser.category as
-          | "entrepreneurship"
-          | "illustration"
-          | "gastronomy",
         festivalId: activeFestival?.id,
+        profileId: updatedUser.id,
       }) as React.ReactElement,
     });
   } catch (error) {

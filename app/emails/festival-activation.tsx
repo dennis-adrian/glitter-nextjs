@@ -1,5 +1,4 @@
 import * as styles from "@/app/emails/styles";
-import { UserCategory } from "@/app/api/users/definitions";
 import {
   Body,
   Button,
