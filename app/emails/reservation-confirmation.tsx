@@ -7,6 +7,7 @@ import {
   Container,
   Head,
   Html,
+  Img,
   Preview,
   Section,
   Text,
@@ -63,6 +64,17 @@ export default function ReservationConfirmationEmailTemplate(
               Ir a la página del evento
             </Button>
           </Section>
+        </Container>
+        <Container style={styles.footer}>
+          <Img
+            style={{ margin: "4px auto" }}
+            src="https://utfs.io/f/a4e5ba5d-5403-4c59-99c0-7e170bb2d6f5-f0kpla.png"
+            width={32}
+          />
+          <Text style={styles.footerText}>Enviado por el equipo Glitter</Text>
+          <Text style={styles.footerText}>
+            © 2024 | Productora Glitter, Santa Cruz, Bolivia{" "}
+          </Text>
         </Container>
       </Body>
     </Html>
