@@ -5,7 +5,7 @@ export function getCategoryOccupationLabel(
   category?: UserCategory | Exclude<UserCategory, "none">,
   options?: { singular?: boolean },
 ) {
-  if (category === "illustration")
+  if (category === "illustration" || category === "new_artist")
     return options?.singular ? "Ilustrador" : "Ilustradores";
   if (category === "gastronomy") return "Gastronomía";
   if (category === "entrepreneurship")

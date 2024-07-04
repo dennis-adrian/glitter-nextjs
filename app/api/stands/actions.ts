@@ -9,12 +9,13 @@ import {
 } from "@/app/data/festivals/definitions";
 import { db, pool } from "@/db";
 import {
+  festivalSectors,
   reservationParticipants,
   standReservations,
   stands,
   users,
 } from "@/db/schema";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 
 export type Participant = typeof reservationParticipants.$inferSelect & {
   user: typeof users.$inferSelect;
@@ -38,26 +39,40 @@ export async function fetchStandsByFestivalId(
   const client = await pool.connect();
 
   try {
-    const standsRes = await db.query.stands.findMany({
-      where: and(
-        eq(stands.festivalId, festivalId),
-        eq(stands.standCategory, category),
-      ),
-      orderBy: asc(stands.standNumber),
-      with: {
-        reservations: {
-          with: {
-            participants: {
-              with: {
-                user: true,
+    return await db.transaction(async (tx) => {
+      const standIds = await tx
+        .select({ id: stands.id })
+        .from(stands)
+        .leftJoin(
+          festivalSectors,
+          eq(stands.festivalSectorId, festivalSectors.id),
+        )
+        .where(
+          and(
+            eq(festivalSectors.festivalId, festivalId),
+            eq(stands.standCategory, category),
+          ),
+        );
+
+      return await tx.query.stands.findMany({
+        where: inArray(
+          stands.id,
+          standIds.map((stand) => stand.id),
+        ),
+        with: {
+          reservations: {
+            with: {
+              participants: {
+                with: {
+                  user: true,
+                },
               },
             },
           },
         },
-      },
+        orderBy: asc(stands.standNumber),
+      });
     });
-
-    return standsRes;
   } catch (error) {
     console.error("Error fetching stands", error);
     return [];

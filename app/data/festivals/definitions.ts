@@ -3,6 +3,7 @@
 import { StandBase } from "@/app/api/stands/actions";
 import { ProfileWithParticipationsAndRequests } from "@/app/api/users/definitions";
 import { TicketWithVisitor } from "@/app/data/tickets/actions";
+import { FestivalSectorWithStands } from "@/app/lib/festival_sectors/definitions";
 import {
   festivalDates,
   festivals,
@@ -18,7 +19,7 @@ export type Festival = FestivalBase & {
   festivalDates: FestivalDate[];
   userRequests: UserRequest[];
   standReservations: (typeof standReservations.$inferSelect)[];
-  stands: StandBase[];
+  festivalSectors: FestivalSectorWithStands[];
 };
 
 export type FestivalWithUserRequests = Omit<
@@ -35,4 +36,8 @@ export type FestivalMapVersion = FestivalBase["mapsVersion"];
 export type FestivalDate = typeof festivalDates.$inferSelect;
 export type FestivalWithDates = FestivalBase & {
   festivalDates: FestivalDate[];
+};
+
+export type FestivalWithSectors = FestivalBase & {
+  festivalSectors: FestivalSectorWithStands[];
 };
