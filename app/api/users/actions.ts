@@ -18,9 +18,14 @@ import {
 import { buildNewUser, buildUserSocials } from "@/app/api/users/helpers";
 import { isProfileComplete } from "@/app/lib/utils";
 import { sendEmail } from "@/app/vendors/resend";
-import EmailTemplate from "@/app/emails/verification-confirmation";
+import EmailTemplate from "@/app/emails/verification_confimation/email-template";
 import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
 import { fetchActiveFestival } from "@/app/data/festivals/actions";
+import {
+  getFestivalAvaibleStandsByCategory,
+  getFestivalCategories,
+} from "@/app/lib/festivals/utils";
+import { CloudCog } from "lucide-react";
 
 export type NewUser = typeof users.$inferInsert;
 export type UserProfileType = typeof users.$inferSelect;
@@ -413,13 +418,24 @@ export async function verifyProfile(profileId: number, category: UserCategory) {
       acceptedUsersOnly: true,
     });
 
+    const availableStands = getFestivalAvaibleStandsByCategory(
+      activeFestival,
+      updatedUser.category,
+    );
+
+    const festivalCategories = getFestivalCategories(activeFestival);
+
     await sendEmail({
       to: [updatedUser.email],
       from: "Equipo Glitter <equipo@productoraglitter.com>",
       subject: "Perfil verificado",
       react: EmailTemplate({
         name: updatedUser.displayName || "Usuario",
-        festivalId: activeFestival?.id,
+        category: updatedUser.category,
+        festivalId: festivalCategories.includes(updatedUser.category)
+          ? activeFestival?.id
+          : undefined,
+        isFestivalFull: availableStands.length === 0,
         profileId: updatedUser.id,
       }) as React.ReactElement,
     });

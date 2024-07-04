@@ -81,8 +81,10 @@ export async function fetchActiveFestival({
           ...whereCondition,
         },
         standReservations: true,
-        stands: {
-          orderBy: (stands.label, stands.standNumber),
+        festivalSectors: {
+          with: {
+            stands: true,
+          },
         },
       },
     });
