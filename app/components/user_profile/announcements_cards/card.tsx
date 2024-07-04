@@ -12,7 +12,7 @@ import { TermsCard } from "@/app/components/user_profile/announcements_cards/ter
 export default async function Card({ profile }: { profile: ProfileType }) {
   if (!profile || profile?.role === "admin") return null;
 
-  if (!profile.verified) {
+  if (profile.status !== "verified") {
     if (isProfileComplete(profile)) {
       return <PendingArtistCard />;
     }

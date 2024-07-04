@@ -349,7 +349,7 @@ export async function updateProfileWithValidatedData(
 
       // // we only want to send the email hopefully once, for the profile to be verified
       // // once verified we don't care to send it again
-      if (!profile.verified) {
+      if (profile.status !== "verified") {
         const admins = await fetchAdminUsers();
         const adminEmails = admins.map((admin) => admin.email);
         await sendEmail({
@@ -410,7 +410,11 @@ export async function verifyProfile(profileId: number, category: UserCategory) {
     const userCategory = category === "illustration" ? "new_artist" : category;
     const [updatedUser] = await db
       .update(users)
-      .set({ verified: true, updatedAt: new Date(), category: userCategory })
+      .set({
+        status: "verified",
+        updatedAt: new Date(),
+        category: userCategory,
+      })
       .where(eq(users.id, profileId))
       .returning();
 

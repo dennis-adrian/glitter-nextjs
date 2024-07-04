@@ -131,7 +131,7 @@ export default function PublicProfileForm({
               </FormItem>
             )}
           />
-          {!profile.verified && (
+          {profile.status !== "verified" && (
             <FormField
               control={form.control}
               name="category"

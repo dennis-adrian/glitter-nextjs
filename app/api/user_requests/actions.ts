@@ -106,7 +106,7 @@ export async function createReservation(
 ) {
   const client = await pool.connect();
   try {
-    if (!forUser.verified || forUser.banned) {
+    if (forUser.status !== "verified") {
       return {
         success: false,
         message: "No tienes permisos para realizar esta acción",

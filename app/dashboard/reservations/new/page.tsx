@@ -1,5 +1,4 @@
 import { fetchActiveFestival } from "@/app/data/festivals/actions";
-import { fetchStandsByFestivalId, StandBase } from "@/app/api/stands/actions";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { CreateReservationForm } from "@/app/components/reservations/create-form";
 import Breadcrumbs from "@/app/components/ui/breadcrumbs";
@@ -11,7 +10,8 @@ export default async function Page() {
   const festival = await fetchActiveFestival({ acceptedUsersOnly: true });
   if (!festival) notFound();
 
-  const stands = await fetchStandsByFestivalId(festival?.id);
+  // TODO: Fix this
+  // const stands = [];
   const artists = festival?.userRequests.map((r) => r.user) || [];
   const filteredArtists = artists.filter((artist) => {
     return isProfileInFestival(festival!.id, artist);
@@ -36,7 +36,7 @@ export default async function Page() {
         artists={artists}
         artistsOptions={options}
         festival={festival!}
-        stands={stands}
+        stands={[]}
       />
     </div>
   );

@@ -114,7 +114,7 @@ export const columns: ColumnDef<ProfileType>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.verified} />
     ),
-    cell: ({ row }) => (row.original.verified ? "Sí" : "No"),
+    cell: ({ row }) => (row.original.status === "verified" ? "Sí" : "No"),
     filterFn: (row, columnId, filterStatus) => {
       if (filterStatus.length === 0) return true;
       const status = row.getValue(columnId) ? "verified" : "unverified";

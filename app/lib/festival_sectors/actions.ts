@@ -21,7 +21,11 @@ export async function fetchFestivalSectors(
               with: {
                 participants: {
                   with: {
-                    user: true,
+                    user: {
+                      with: {
+                        userSocials: true,
+                      },
+                    },
                   },
                 },
               },

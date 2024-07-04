@@ -30,7 +30,7 @@ export function ActionsCell({ user }: { user: ProfileType }) {
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {!user.verified && (
+        {user.status !== "verified" && (
           <DropdownMenuItem onClick={() => setOpenVerifyModal(true)}>
             <CheckIcon className="h-4 w-4 mr-1" />
             Verificar
