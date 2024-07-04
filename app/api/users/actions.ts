@@ -505,3 +505,22 @@ export async function fetchBaseProfileByClerkId(
     client.release();
   }
 }
+
+export async function disableProfile(id: number) {
+  const client = await pool.connect();
+
+  try {
+    await db.update(users).set({ status: "banned" }).where(eq(users.id, id));
+  } catch (error) {
+    console.error(error);
+    return {
+      success: false,
+      message: "Error al deshabilitar el usuario",
+    };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/users");
+  return { success: true, message: "Usuario deshabilitado correctamente" };
+}

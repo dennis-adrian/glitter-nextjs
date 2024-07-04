@@ -8,11 +8,11 @@ import {
   DrawerDialogHeader,
   DrawerDialogTitle,
 } from "@/app/components/ui/drawer-dialog";
-import { DeleteProfileForm } from "@/app/components/users/form/delete-profile-form";
+import DisableProfileForm from "@/app/components/users/form/disable-profile-form";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { AlertCircleIcon } from "lucide-react";
 
-export function DeleteProfileModal({
+export function DisableProfileModal({
   open,
   profile,
   setOpen,
@@ -31,7 +31,7 @@ export function DeleteProfileModal({
       <DrawerDialogContent className="sm:max-w-[425px]" isDesktop={isDesktop}>
         <DrawerDialogHeader isDesktop={isDesktop}>
           <DrawerDialogTitle isDesktop={isDesktop}>
-            Eliminar Usuario
+            Deshabilitar Usuario
           </DrawerDialogTitle>
         </DrawerDialogHeader>
 
@@ -40,16 +40,16 @@ export function DeleteProfileModal({
             <AlertCircleIcon size={48} className="text-red-500" />
             <div className="flex flex-col gap-2">
               <p>
-                ¿Estás seguro que deseas eliminar a <strong>{userLabel}</strong>
-                ?
+                ¿Estás seguro que deseas deshabilitar a{" "}
+                <strong>{userLabel}</strong>?
               </p>
               <p>
-                El usuario será eliminado de la base de datos. Esta acción no se
-                puede deshacer.
+                El usuario NO será notificado de que su cuenta ha sido
+                deshabilitada.
               </p>
             </div>
           </div>
-          <DeleteProfileForm
+          <DisableProfileForm
             profile={profile}
             onSuccess={() => setOpen(false)}
           />

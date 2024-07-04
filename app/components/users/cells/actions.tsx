@@ -1,4 +1,12 @@
-import { CheckIcon, MoreHorizontal, Trash2Icon } from "lucide-react";
+import {
+  BanIcon,
+  CheckCheckIcon,
+  CheckIcon,
+  MoreHorizontal,
+  TagsIcon,
+  Trash2Icon,
+  UserIcon,
+} from "lucide-react";
 
 import { ProfileType } from "@/app/api/users/definitions";
 import { Button } from "@/components/ui/button";
@@ -14,10 +22,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { DeleteProfileModal } from "@/app/components/users/form/delete-profile-modal";
 import { VerifyProfileModal } from "@/app/components/users/form/verify-user-modal";
+import { DisableProfileModal } from "@/app/components/users/form/disable-profile-modal";
 
 export function ActionsCell({ user }: { user: ProfileType }) {
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
   const [openVerifyModal, setOpenVerifyModal] = useState(false);
+  const [openDisableModal, setOpenDisableModal] = useState(false);
+  const allowVerify = user.status !== "verified";
 
   return (
     <DropdownMenu>
@@ -29,27 +40,61 @@ export function ActionsCell({ user }: { user: ProfileType }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {user.status !== "verified" && (
-          <DropdownMenuItem onClick={() => setOpenVerifyModal(true)}>
-            <CheckIcon className="h-4 w-4 mr-1" />
-            Verificar
+        <DropdownMenuItem
+          disabled={!allowVerify}
+          onClick={() => setOpenVerifyModal(true)}
+        >
+          {allowVerify ? (
+            <span className="flex items-center gap-1">
+              <CheckIcon className="h-4 w-4" />
+              {user.status === "banned" ? "Habilitar" : "Verificar"}
+            </span>
+          ) : (
+            <span className="flex items-center gap-1">
+              <CheckCheckIcon className="h-4 w-4" />
+              Verificado
+            </span>
+          )}
+        </DropdownMenuItem>
+        {user.status !== "pending" && (
+          <DropdownMenuItem
+            disabled={user.status === "banned"}
+            onClick={() => setOpenDisableModal(true)}
+          >
+            {user.status === "banned" ? (
+              <span className="flex items-center gap-1">
+                <BanIcon className="h-4 w-4" />
+                Deshabilitado
+              </span>
+            ) : (
+              <span className="flex items-center gap-1">
+                <BanIcon className="h-4 w-4" />
+                Deshabilitar
+              </span>
+            )}
           </DropdownMenuItem>
         )}
         <DropdownMenuItem asChild>
-          <Link href={`/dashboard/users/${user.id}`}>Ver perfil</Link>
+          <Link href={`/dashboard/users/${user.id}`}>
+            <UserIcon className="h-4 w-4 mr-1" />
+            Ver perfil
+          </Link>
         </DropdownMenuItem>
         {user.userRequests.length > 0 && (
           <DropdownMenuItem>
-            <Link href={`/dashboard/users/${user.id}/requests`}>
+            <Link
+              className="flex items-center gap-1"
+              href={`/dashboard/users/${user.id}/requests`}
+            >
+              <TagsIcon className="h-4 w-4" />
               Ver solicitudes
             </Link>
           </DropdownMenuItem>
         )}
-        {/* {user.role !== "admin" && (
-          <DropdownMenuItem> Volver admin</DropdownMenuItem>
-        )} */}
-        <DropdownMenuItem onClick={() => setOpenDeleteModal(true)}>
+        <DropdownMenuItem
+          className="text-destructive hover:text-destructive-foreground hover:bg-destructive"
+          onClick={() => setOpenDeleteModal(true)}
+        >
           <Trash2Icon className="h-4 w-4 mr-1" />
           Eliminar
         </DropdownMenuItem>
@@ -63,6 +108,11 @@ export function ActionsCell({ user }: { user: ProfileType }) {
         open={openVerifyModal}
         profile={user}
         setOpen={setOpenVerifyModal}
+      />
+      <DisableProfileModal
+        open={openDisableModal}
+        profile={user}
+        setOpen={setOpenDisableModal}
       />
     </DropdownMenu>
   );
