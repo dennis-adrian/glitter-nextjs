@@ -1,3 +1,5 @@
+import { BaseProfile } from "@/app/api/users/definitions";
+import EmailFooter from "@/app/emails/email-footer";
 import * as styles from "@/app/emails/styles";
 import { formatFullDate } from "@/app/lib/formatters";
 import { ProfileTaskWithProfile } from "@/app/lib/profile_tasks/definitions";
@@ -14,25 +16,24 @@ import {
 } from "@react-email/components";
 
 type ProfileDeletionTemplateProps = {
-  task: ProfileTaskWithProfile;
+  profile: BaseProfile;
 };
 
-export default function ProfileDeletionTemplate({
-  task = {} as ProfileTaskWithProfile,
-}: ProfileDeletionTemplateProps) {
-  const { profile } = task;
+export default function ProfileDeletionTemplate(
+  props: ProfileDeletionTemplateProps,
+) {
+  const { profile } = props;
   const name =
     profile.displayName ||
     profile.firstName ||
     profile.lastName ||
     "Participante";
-  const dueDate = formatFullDate(task.dueDate);
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
   return (
     <Html>
       <Head />
-      <Preview>Completa tu perfil para participar de nuestros eventos</Preview>
+      <Preview>Tu cuenta ha sido eliminada</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <Text style={styles.title}>
@@ -52,20 +53,15 @@ export default function ProfileDeletionTemplate({
               Crear perfil
             </Button>
           </Section>
-          <Text style={styles.footer}>
-            Productora Glitter・Santa Cruz, Bolivia
-          </Text>
         </Container>
+        <EmailFooter />
       </Body>
     </Html>
   );
 }
 
 ProfileDeletionTemplate.PreviewProps = {
-  task: {
-    profile: {
-      displayName: "John Doe",
-    },
-    dueDate: new Date(),
+  profile: {
+    displayName: "John Doe",
   },
 } as ProfileDeletionTemplateProps;

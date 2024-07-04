@@ -1,3 +1,4 @@
+import EmailFooter from "@/app/emails/email-footer";
 import * as styles from "@/app/emails/styles";
 import { formatFullDate } from "@/app/lib/formatters";
 import { ProfileTaskWithProfile } from "@/app/lib/profile_tasks/definitions";
@@ -7,7 +8,6 @@ import {
   Container,
   Head,
   Html,
-  Link,
   Preview,
   Section,
   Text,
@@ -37,26 +37,24 @@ export default function ProfileCompletionReminderTemplate({
           <Section style={styles.section}>
             <Text style={styles.text}>¡Hola {name}!</Text>
             <Text style={styles.text}>
-              Hemos notado que tu perfil en Festival Glitter está incompleto.
-              Para poder participar de nuestros eventos, necesitamos que
-              completes tu perfil.
+              Hemos notado que tu perfil aún está incompleto. Para poder
+              participar de nuestros eventos, necesitamos que completes tu
+              perfil.
             </Text>
             <Text style={styles.text}>
-              Las cuentas incompletas se eliminan automáticamente después de 5
-              días sin completarse. Tu cuenta esta programada para eliminarse el{" "}
+              Las cuentas incompletas se eliminan automáticamente después de 3
+              días de su creación. Tu cuenta esta programada para eliminarse el{" "}
               {dueDate}.
             </Text>
             <Text style={styles.text}>
-              Para ir a tu perfil, haz click en el botón.
+              Para ir a tu perfil y completar tus datos, haz click en el botón.
             </Text>
             <Button href={`${baseUrl}/my_profile`} style={styles.button}>
               Ir al perfil
             </Button>
           </Section>
-          <Text style={styles.footer}>
-            Productora Glitter・Santa Cruz, Bolivia
-          </Text>
         </Container>
+        <EmailFooter />
       </Body>
     </Html>
   );

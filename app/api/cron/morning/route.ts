@@ -1,17 +1,17 @@
 import {
-  sendDeletionEmails,
-  sendReminderEmails,
+  handleDeletionEmails,
+  handleReminderEmails,
 } from "@/app/lib/profile_tasks/actions";
 
 export async function GET(req: Request) {
-  const pendingTasks = await sendReminderEmails();
-  const overdueTasks = await sendDeletionEmails();
+  const pendingTasks = await handleReminderEmails();
+  const overdueTasks = await handleDeletionEmails();
 
   return new Response(
     JSON.stringify({
       data: {
-        pending: pendingTasks,
-        overdue: overdueTasks,
+        remindersTasks: pendingTasks,
+        deletionTasks: overdueTasks,
       },
     }),
     { status: 200 },
