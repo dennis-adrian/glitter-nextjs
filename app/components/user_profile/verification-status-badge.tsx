@@ -7,7 +7,7 @@ export default function VerificationStatusBadge({
 }: {
   profile: ProfileType;
 }) {
-  if (profile.verified) {
+  if (profile.status === "verified") {
     return (
       <Badge variant="dark">
         <BadgeCheckIcon className="h-4 w-4 mr-1" />

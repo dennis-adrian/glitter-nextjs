@@ -31,7 +31,7 @@ export default function ProfileQuickViewInfo(props: UserQuickViewInfoProps) {
         <span className="flex gap-1 items-center">
           <h3 className="font-medium text-sm">{props.profile.displayName}</h3>
 
-          {props.profile.verified && (
+          {props.profile.status === "verified" && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>

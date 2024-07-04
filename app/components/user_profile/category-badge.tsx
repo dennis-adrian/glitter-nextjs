@@ -39,7 +39,7 @@ export default function ProfileCategoryBadge({
     );
   }
 
-  if (profile.banned) {
+  if (profile.status === "banned") {
     variant = "destructive";
     content = (
       <>

@@ -34,7 +34,7 @@ export default function ProfileQuickActions(props: ProfileQuickActionsProps) {
         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          disabled={props.profile.verified}
+          disabled={props.profile.status !== "verified"}
           onClick={() => setOpenVerifyModal(true)}
         >
           <CheckIcon className="h-4 w-4 mr-2" />

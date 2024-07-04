@@ -47,8 +47,6 @@ export const users = pgTable(
     phoneNumber: text("phone_number"),
     role: userRoleEnum("role").default("user").notNull(),
     category: userCategoryEnum("category").default("none").notNull(),
-    verified: boolean("verified").default(false).notNull(),
-    banned: boolean("banned").default(false).notNull(),
     status: userStatusEnum("status").default("pending").notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),

@@ -207,8 +207,7 @@ export async function updateFestivalStatus(festival: FestivalBase) {
         .from(users)
         .where(
           and(
-            eq(users.verified, true),
-            eq(users.banned, false),
+            eq(users.status, "verified"),
             inArray(users.category, categories),
           ),
         );
@@ -356,7 +355,7 @@ export async function fetchAvailableArtistsInFestival(
         .where(eq(standReservations.festivalId, festivalId));
 
       const participantsWhereCondition = [
-        eq(users.banned, false),
+        eq(users.status, "verified"),
         inArray(users.category, ["illustration", "new_artist"]),
         not(eq(users.role, "admin")),
         eq(userRequests.status, "accepted"),
@@ -379,7 +378,6 @@ export async function fetchAvailableArtistsInFestival(
       return await tx
         .selectDistinctOn([users.id], {
           id: users.id,
-          banned: users.banned,
           bio: users.bio,
           birthdate: users.birthdate,
           clerkId: users.clerkId,
@@ -392,7 +390,6 @@ export async function fetchAvailableArtistsInFestival(
           category: users.category,
           role: users.role,
           status: users.status,
-          verified: users.verified,
           updatedAt: users.updatedAt,
           createdAt: users.createdAt,
         })
