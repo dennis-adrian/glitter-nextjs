@@ -4,90 +4,57 @@ import { clerkClient } from "@clerk/nextjs/server";
 
 import ProfileCompletionReminderTemplate from "@/app/emails/profile-completion-reminder";
 import ProfileDeletionTemplate from "@/app/emails/profile-deletion";
-import { ProfileTaskWithProfile } from "@/app/lib/profile_tasks/definitions";
+import {
+  BaseProfileTask,
+  ProfileTaskWithProfile,
+} from "@/app/lib/profile_tasks/definitions";
 import { db, pool } from "@/db";
 import { profileTasks, users } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
 import { and, eq, gt, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 
-export async function fetchPendingTasks(): Promise<ProfileTaskWithProfile[]> {
-  const client = await pool.connect();
-  try {
-    return await db.query.profileTasks.findMany({
-      where: and(
-        isNull(profileTasks.completedAt),
-        isNull(profileTasks.reminderSentAt),
-        gt(profileTasks.dueDate, sql`now()`),
-        lte(profileTasks.reminderTime, sql`now()`),
-      ),
-      with: {
-        profile: true,
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching pending tasks", error);
-    return [] as ProfileTaskWithProfile[];
-  } finally {
-    client.release();
-  }
-}
-
-export async function fetchOverdueTasks() {
-  const client = await pool.connect();
-  try {
-    return await db.query.profileTasks.findMany({
-      where: and(
-        isNull(profileTasks.completedAt),
-        isNotNull(profileTasks.reminderSentAt),
-        lte(profileTasks.dueDate, sql`now()`),
-      ),
-      with: {
-        profile: true,
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching overdue tasks", error);
-    return [];
-  } finally {
-    client.release();
-  }
-}
+// export async function fetchOverdueTasks() {
+//   const client = await pool.connect();
+//   try {
+//     return await db.query.profileTasks.findMany({
+//       where: and(
+//         isNull(profileTasks.completedAt),
+//         isNotNull(profileTasks.reminderSentAt),
+//         lte(profileTasks.dueDate, sql`now()`),
+//       ),
+//       with: {
+//         profile: true,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Error fetching overdue tasks", error);
+//     return [];
+//   } finally {
+//     client.release();
+//   }
+// }
 
 export async function sendReminderEmails(): Promise<ProfileTaskWithProfile[]> {
   const client = await pool.connect();
 
   try {
     return await db.transaction(async (tx) => {
-      const updatedIds = await tx
-        .update(profileTasks)
-        .set({
-          reminderSentAt: new Date(),
-        })
-        .where(
-          and(
-            isNull(profileTasks.completedAt),
-            isNull(profileTasks.reminderSentAt),
-            gt(profileTasks.dueDate, sql`now()`),
-            lte(profileTasks.reminderTime, sql`now()`),
-            eq(profileTasks.taskType, "profile_creation"),
-          ),
-        )
-        .returning({ id: profileTasks.id });
-
-      if (updatedIds.length === 0) return [] as ProfileTaskWithProfile[];
-
-      const pendingTasks = await tx.query.profileTasks.findMany({
-        where: inArray(
-          profileTasks.id,
-          updatedIds.map((task) => task.id),
+      const pendingTasks = await db.query.profileTasks.findMany({
+        where: and(
+          isNull(profileTasks.completedAt),
+          isNull(profileTasks.reminderSentAt),
+          gt(profileTasks.dueDate, sql`now()`),
+          lte(profileTasks.reminderTime, sql`now()`),
+          eq(profileTasks.taskType, "profile_creation"),
         ),
         with: {
           profile: true,
         },
       });
 
+      let updatedTaskIds: number[] = [];
       pendingTasks.forEach(async (task) => {
-        await sendEmail({
+        const { data } = await sendEmail({
           from: "Equipo de Glitter <no-reply@productoraglitter.com>",
           to: [task.profile.email],
           subject: "Completa tu perfil para participar de nuestros eventos",
@@ -95,9 +62,21 @@ export async function sendReminderEmails(): Promise<ProfileTaskWithProfile[]> {
             task,
           }) as React.ReactElement,
         });
+
+        if (data) {
+          const updatedTaskId = await tx
+            .update(profileTasks)
+            .set({
+              reminderSentAt: new Date(),
+            })
+            .where(eq(profileTasks.id, task.id))
+            .returning({ id: profileTasks.id });
+
+          updatedTaskIds = [...updatedTaskIds, updatedTaskId[0].id];
+        }
       });
 
-      return pendingTasks;
+      return pendingTasks.filter((task) => updatedTaskIds.includes(task.id));
     });
   } catch (error) {
     console.log("Error sending reminder emails", error);
