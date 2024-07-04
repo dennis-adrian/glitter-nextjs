@@ -54,6 +54,8 @@ export async function fetchStandsByFestivalId(
           ),
         );
 
+      if (standIds.length === 0) return [];
+
       return await tx.query.stands.findMany({
         where: inArray(
           stands.id,

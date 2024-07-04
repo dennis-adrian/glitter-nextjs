@@ -1,19 +1,24 @@
-export async function queueEmails<T, U, V>(
+import { DrizzleTransactionScope } from "@/db/drizzleTransactionScope";
+
+export type QueueEmailCallbackOptions<U> = {
+  referenceEntity?: U;
+  transactionScope?: DrizzleTransactionScope;
+};
+
+export async function queueEmails<T, U>(
   entities: T[],
-  referenceEntity: U,
   callback: (
     entity: T,
-    referenceEntity: U,
-    transactionScope: V,
+    options?: QueueEmailCallbackOptions<U>,
   ) => Promise<void>,
-  transactionScope: V,
+  callbackOptions?: QueueEmailCallbackOptions<U>,
 ) {
   let counter = 0;
   for (let entity of entities) {
     if (counter % 10 === 0) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
-    await callback(entity, referenceEntity, transactionScope);
+    await callback(entity, callbackOptions);
     counter++;
   }
 }
