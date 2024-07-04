@@ -2,10 +2,13 @@ import {
   BanIcon,
   CheckCheckIcon,
   CheckIcon,
+  CircleCheckBigIcon,
+  CircleCheckIcon,
   MoreHorizontal,
   TagsIcon,
   Trash2Icon,
   UserIcon,
+  XCircleIcon,
 } from "lucide-react";
 
 import { ProfileType } from "@/app/api/users/definitions";
@@ -23,11 +26,13 @@ import { useState } from "react";
 import { DeleteProfileModal } from "@/app/components/users/form/delete-profile-modal";
 import { VerifyProfileModal } from "@/app/components/users/form/verify-user-modal";
 import { DisableProfileModal } from "@/app/components/users/form/disable-profile-modal";
+import { RejectProfileModal } from "@/app/components/users/form/reject-profile-modal";
 
 export function ActionsCell({ user }: { user: ProfileType }) {
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
   const [openVerifyModal, setOpenVerifyModal] = useState(false);
   const [openDisableModal, setOpenDisableModal] = useState(false);
+  const [openRejectModal, setOpenRejectModal] = useState(false);
   const allowVerify = user.status !== "verified";
 
   return (
@@ -46,17 +51,26 @@ export function ActionsCell({ user }: { user: ProfileType }) {
         >
           {allowVerify ? (
             <span className="flex items-center gap-1">
-              <CheckIcon className="h-4 w-4" />
+              <CircleCheckIcon className="h-4 w-4" />
               {user.status === "banned" ? "Habilitar" : "Verificar"}
             </span>
           ) : (
             <span className="flex items-center gap-1">
-              <CheckCheckIcon className="h-4 w-4" />
+              <CircleCheckBigIcon className="h-4 w-4" />
               Verificado
             </span>
           )}
         </DropdownMenuItem>
-        {user.status !== "pending" && (
+        {user.status !== "verified" && user.status !== "banned" ? (
+          <DropdownMenuItem
+            disabled={user.status === "rejected"}
+            onClick={() => setOpenRejectModal(true)}
+          >
+            <XCircleIcon className="h-4 w-4 mr-1" />
+            {user.status === "pending" ? "Rechazar" : "Rechazado"}
+          </DropdownMenuItem>
+        ) : null}
+        {user.status !== "pending" && user.status !== "rejected" && (
           <DropdownMenuItem
             disabled={user.status === "banned"}
             onClick={() => setOpenDisableModal(true)}
@@ -113,6 +127,11 @@ export function ActionsCell({ user }: { user: ProfileType }) {
         open={openDisableModal}
         profile={user}
         setOpen={setOpenDisableModal}
+      />
+      <RejectProfileModal
+        open={openRejectModal}
+        profile={user}
+        setOpen={setOpenRejectModal}
       />
     </DropdownMenu>
   );

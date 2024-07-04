@@ -26,6 +26,7 @@ import {
   getFestivalCategories,
 } from "@/app/lib/festivals/utils";
 import { CloudCog } from "lucide-react";
+import ProfileRejectionEmailTemplate from "@/app/emails/profile-rejection";
 
 export type NewUser = typeof users.$inferInsert;
 export type UserProfileType = typeof users.$inferSelect;
@@ -523,4 +524,41 @@ export async function disableProfile(id: number) {
 
   revalidatePath("/dashboard/users");
   return { success: true, message: "Usuario deshabilitado correctamente" };
+}
+
+export async function rejectProfile(
+  profile: BaseProfile,
+  rejectReason: string,
+) {
+  const client = await pool.connect();
+
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(users)
+        .set({ status: "rejected" })
+        .where(eq(users.id, profile.id));
+
+      await sendEmail({
+        to: [profile.email],
+        from: "Equipo Glitter <equipo@productoraglitter.com>",
+        subject: "No pudimos verificar tu perfil",
+        react: ProfileRejectionEmailTemplate({
+          profile: profile,
+          reason: rejectReason,
+        }) as React.ReactElement,
+      });
+    });
+  } catch (error) {
+    console.error("Error rejecting profile", error);
+    return {
+      success: false,
+      message: "Error al rechazar el perfil",
+    };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/users");
+  return { success: true, message: "Perfil rechazado correctamente" };
 }
