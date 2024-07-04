@@ -432,9 +432,9 @@ export async function verifyProfile(profileId: number, category: UserCategory) {
       react: EmailTemplate({
         name: updatedUser.displayName || "Usuario",
         category: updatedUser.category,
-        festivalId: festivalCategories.includes(updatedUser.category)
-          ? activeFestival?.id
-          : undefined,
+        festival: festivalCategories.includes(updatedUser.category)
+          ? activeFestival
+          : null,
         isFestivalFull: availableStands.length === 0,
         profileId: updatedUser.id,
       }) as React.ReactElement,

@@ -12,7 +12,7 @@ export default function RegularBody(props: RegularBodyProps) {
   return (
     <>
       <Text style={styles.text}>
-        Cuando lancemos un nuevo evento para{" "}
+        Cuando lancemos un nuevo evento con espacio para{" "}
         <strong>
           {getCategoryOccupationLabel(props.category, { singular: false })}{" "}
         </strong>

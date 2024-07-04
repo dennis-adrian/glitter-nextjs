@@ -1,18 +1,19 @@
+import { FestivalBase } from "@/app/data/festivals/definitions";
 import * as styles from "@/app/emails/styles";
 import { Button, Link, Text } from "@react-email/components";
 
 type ActiveFestivalBodyProps = {
   baseUrl: string;
+  festival: FestivalBase;
   profileId: number;
-  festivalId: number;
 };
 
 export default function ActiveFestivalBody(props: ActiveFestivalBodyProps) {
   return (
     <>
       <Text style={styles.text}>
-        Un nuevo festival se acerca y te invitamos a que reserves tu espacio con
-        anticipación.
+        El festival <strong>{props.festival.name}</strong> se acerca y te
+        invitamos a que reserves tu espacio con anticipación.
       </Text>
       <Text style={styles.text}>
         El primer paso para reservar tu espacio es leer los términos y
@@ -37,7 +38,7 @@ export default function ActiveFestivalBody(props: ActiveFestivalBodyProps) {
         nosotros para que podamos ayudarte.
       </Text>
       <Button
-        href={`${props.baseUrl}/profiles/${props.profileId}/festivals/${props.festivalId}/terms`}
+        href={`${props.baseUrl}/profiles/${props.profileId}/festivals/${props.festival.id}/terms`}
         style={styles.button}
       >
         Leer términos y condiciones

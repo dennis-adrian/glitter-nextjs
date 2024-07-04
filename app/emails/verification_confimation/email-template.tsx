@@ -4,7 +4,6 @@ import {
   Container,
   Head,
   Html,
-  Img,
   Preview,
   Section,
   Text,
@@ -14,10 +13,11 @@ import ActiveFestivalBody from "./active-festival-body";
 import { UserCategory } from "@/app/api/users/definitions";
 import FullFestivalBody from "./full-festival-body";
 import EmailFooter from "../email-footer";
+import { FestivalWithDates } from "@/app/data/festivals/definitions";
 
 interface FestivalActivationTemplateProps {
   name: string;
-  festivalId?: number;
+  festival?: FestivalWithDates | null;
   isFestivalFull?: boolean;
   profileId: number;
   category: UserCategory;
@@ -39,17 +39,23 @@ export default function VerificationConfirmationEmailTemplate(
             <Text style={styles.text}>
               ¡Felicidades! Tu cuenta ha sido verificada
             </Text>
-            {!props.festivalId && (
+            {!props.festival && (
               <RegularBody category={props.category} baseUrl={baseUrl} />
             )}
-            {props.festivalId && !props.isFestivalFull && (
+            {props.festival && !props.isFestivalFull && (
               <ActiveFestivalBody
                 baseUrl={baseUrl}
-                festivalId={props.festivalId}
+                festival={props.festival}
                 profileId={props.profileId}
               />
             )}
-            {props.festivalId && props.isFestivalFull && <FullFestivalBody />}
+            {props.festival && props.isFestivalFull && (
+              <FullFestivalBody
+                baseUrl={baseUrl}
+                festival={props.festival}
+                category={props.category}
+              />
+            )}
           </Section>
         </Container>
         <EmailFooter />
@@ -60,6 +66,8 @@ export default function VerificationConfirmationEmailTemplate(
 
 VerificationConfirmationEmailTemplate.PreviewProps = {
   name: "John Doe",
-  festivalId: 9,
+  festival: {
+    id: 9,
+  },
   profileId: 90,
 } as FestivalActivationTemplateProps;

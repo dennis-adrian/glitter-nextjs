@@ -1,14 +1,17 @@
 import { fetchActiveFestival } from "@/app/data/festivals/actions";
-import { StandBase } from "@/app/api/stands/actions";
+import { fetchStandsByFestivalId, StandBase } from "@/app/api/stands/actions";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { CreateReservationForm } from "@/app/components/reservations/create-form";
 import Breadcrumbs from "@/app/components/ui/breadcrumbs";
 import { SearchOption } from "@/app/components/ui/search-input/search-content";
 import { getParticipantsOptions } from "@/app/api/reservations/helpers";
+import { notFound } from "next/navigation";
 
 export default async function Page() {
   const festival = await fetchActiveFestival({ acceptedUsersOnly: true });
-  const stands = festival?.stands as StandBase[];
+  if (!festival) notFound();
+
+  const stands = await fetchStandsByFestivalId(festival?.id);
   const artists = festival?.userRequests.map((r) => r.user) || [];
   const filteredArtists = artists.filter((artist) => {
     return isProfileInFestival(festival!.id, artist);
