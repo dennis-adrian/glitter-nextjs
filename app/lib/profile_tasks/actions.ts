@@ -4,14 +4,23 @@ import { clerkClient } from "@clerk/nextjs/server";
 
 import ProfileCompletionReminderTemplate from "@/app/emails/profile-completion-reminder";
 import ProfileDeletionTemplate from "@/app/emails/profile-deletion";
-import {
-  BaseProfileTask,
-  ProfileTaskWithProfile,
-} from "@/app/lib/profile_tasks/definitions";
+import { ProfileTaskWithProfile } from "@/app/lib/profile_tasks/definitions";
 import { db, pool } from "@/db";
 import { profileTasks, users } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
-import { and, eq, gt, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import {
+  and,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
+import { queueEmails } from "@/app/lib/emails/helpers";
+import { DrizzleTransactionScope } from "@/db/drizzleTransactionScope";
 
 // export async function fetchOverdueTasks() {
 //   const client = await pool.connect();
@@ -34,7 +43,9 @@ import { and, eq, gt, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 //   }
 // }
 
-export async function sendReminderEmails(): Promise<ProfileTaskWithProfile[]> {
+export async function handleReminderEmails(): Promise<
+  ProfileTaskWithProfile[]
+> {
   const client = await pool.connect();
 
   try {
@@ -43,8 +54,8 @@ export async function sendReminderEmails(): Promise<ProfileTaskWithProfile[]> {
         where: and(
           isNull(profileTasks.completedAt),
           isNull(profileTasks.reminderSentAt),
-          gt(profileTasks.dueDate, sql`now()`),
           lte(profileTasks.reminderTime, sql`now()`),
+          gt(profileTasks.dueDate, sql`now()`),
           eq(profileTasks.taskType, "profile_creation"),
         ),
         with: {
@@ -53,28 +64,11 @@ export async function sendReminderEmails(): Promise<ProfileTaskWithProfile[]> {
       });
 
       let updatedTaskIds: number[] = [];
-      pendingTasks.forEach(async (task) => {
-        const { data } = await sendEmail({
-          from: "Equipo de Glitter <no-reply@productoraglitter.com>",
-          to: [task.profile.email],
-          subject: "Completa tu perfil para participar de nuestros eventos",
-          react: ProfileCompletionReminderTemplate({
-            task,
-          }) as React.ReactElement,
-        });
-
-        if (data) {
-          const updatedTaskId = await tx
-            .update(profileTasks)
-            .set({
-              reminderSentAt: new Date(),
-            })
-            .where(eq(profileTasks.id, task.id))
-            .returning({ id: profileTasks.id });
-
-          updatedTaskIds = [...updatedTaskIds, updatedTaskId[0].id];
-        }
-      });
+      await queueEmails<
+        ProfileTaskWithProfile,
+        number[],
+        DrizzleTransactionScope
+      >(pendingTasks, updatedTaskIds, sendReminderEmails, tx);
 
       return pendingTasks.filter((task) => updatedTaskIds.includes(task.id));
     });
@@ -137,5 +131,38 @@ export async function sendDeletionEmails(): Promise<ProfileTaskWithProfile[]> {
     return [] as ProfileTaskWithProfile[];
   } finally {
     client.release();
+  }
+}
+
+async function sendReminderEmails(
+  task: ProfileTaskWithProfile,
+  updatedTaskIds: number[],
+  tx?: DrizzleTransactionScope,
+) {
+  if (!tx) return;
+
+  const { data, error } = await sendEmail({
+    from: "Equipo de Glitter <no-reply@productoraglitter.com>",
+    to: [task.profile.email],
+    subject: "Completa tu perfil para participar de nuestros eventos",
+    react: ProfileCompletionReminderTemplate({
+      task,
+    }) as React.ReactElement,
+  });
+
+  if (data) {
+    const updatedTaskId = await tx
+      .update(profileTasks)
+      .set({
+        reminderSentAt: sql`now()`,
+      })
+      .where(eq(profileTasks.id, task.id))
+      .returning({ id: profileTasks.id });
+
+    updatedTaskIds.push(updatedTaskId[0].id);
+  }
+
+  if (error) {
+    console.error("Error sending reminder emails", error);
   }
 }
