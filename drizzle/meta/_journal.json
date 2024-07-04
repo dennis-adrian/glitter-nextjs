@@ -477,6 +477,20 @@
       "when": 1719806940297,
       "tag": "0067_blue_captain_midlands",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "5",
+      "when": 1720118796920,
+      "tag": "0068_quick_sabretooth",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "5",
+      "when": 1720118880224,
+      "tag": "0069_sloppy_matthew_murdock",
+      "breakpoints": true
     }
   ]
 }
