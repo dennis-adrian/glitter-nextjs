@@ -6,15 +6,11 @@ import {
   Head,
   Html,
   Img,
-  Link,
   Preview,
   Section,
   Text,
 } from "@react-email/components";
-import {
-  FestivalBase,
-  FestivalWithDates,
-} from "@/app/data/festivals/definitions";
+import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { formatDate, formatFullDate } from "@/app/lib/formatters";
 import { Interval } from "luxon";
 

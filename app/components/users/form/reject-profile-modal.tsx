@@ -8,11 +8,12 @@ import {
   DrawerDialogHeader,
   DrawerDialogTitle,
 } from "@/app/components/ui/drawer-dialog";
-import { DeleteProfileForm } from "@/app/components/users/form/delete-profile-form";
+import DisableProfileForm from "@/app/components/users/form/disable-profile-form";
+import RejectProfileForm from "@/app/components/users/form/reject-profile-form";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { AlertCircleIcon } from "lucide-react";
 
-export function DeleteProfileModal({
+export function RejectProfileModal({
   open,
   profile,
   setOpen,
@@ -31,25 +32,25 @@ export function DeleteProfileModal({
       <DrawerDialogContent className="sm:max-w-[425px]" isDesktop={isDesktop}>
         <DrawerDialogHeader isDesktop={isDesktop}>
           <DrawerDialogTitle isDesktop={isDesktop}>
-            Eliminar Usuario
+            Rechazar Perfil
           </DrawerDialogTitle>
         </DrawerDialogHeader>
 
         <div className={`${isDesktop ? "" : "px-4"}`}>
           <div className="flex items-center flex-col gap-6 m-auto text-center py-4">
-            <AlertCircleIcon size={48} className="text-red-500" />
+            <AlertCircleIcon size={48} className="text-amber-500" />
             <div className="flex flex-col gap-2">
               <p>
-                ¿Estás seguro que deseas eliminar a <strong>{userLabel}</strong>
-                ?
+                ¿Estás seguro que deseas rechazar el perifl de{" "}
+                <strong>{userLabel}</strong>?
               </p>
               <p>
-                El usuario será eliminado de la base de datos. Esta acción no se
-                puede deshacer.
+                Necesitas agregar una razón para rechazar el perfil. Y el
+                usuario la recibirá por correo electrónico.
               </p>
             </div>
           </div>
-          <DeleteProfileForm
+          <RejectProfileForm
             profile={profile}
             onSuccess={() => setOpen(false)}
           />
