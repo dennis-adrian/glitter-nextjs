@@ -148,47 +148,6 @@ type FormState = {
   success: boolean;
   message: string;
 };
-export async function createReservation(
-  festivalId: number,
-  participants: BaseProfile[],
-  prevState: FormState,
-  data: FormData,
-) {
-  const client = await pool.connect();
-  try {
-    const standId = parseInt(data.get("stand") as string);
-    await db.transaction(async (tx) => {
-      const newReservation = await tx
-        .insert(standReservations)
-        .values({ standId, festivalId })
-        .returning({ reservationId: standReservations.id });
-
-      await tx
-        .update(stands)
-        .set({ status: "reserved", updatedAt: new Date() })
-        .where(eq(stands.id, standId));
-
-      const reservationId = newReservation[0].reservationId;
-
-      if (participants.length > 0) {
-        const participantsValues = participants.map((participant) => ({
-          userId: participant.id,
-          reservationId,
-        }));
-
-        await tx.insert(reservationParticipants).values(participantsValues);
-      }
-    });
-  } catch (error) {
-    console.error(error);
-    return { success: false, message: "Error al crear la reserva" };
-  } finally {
-    client.release();
-  }
-
-  revalidatePath("/dashboard/reservations");
-  return { success: true, message: "Reserva creada" };
-}
 
 export async function deleteReservation(
   reservationId: number,

@@ -57,7 +57,7 @@ export default function PublicProfile({
           <div className="flex flex-col items-center gap-4">
             <ProfilePicField profile={profile} />
             <div className="flex gap-2">
-              {profile.status === "verified" && (
+              {profile.status !== "banned" && (
                 <VerificationStatusBadge profile={profile} />
               )}
               {profile.category !== "none" && (
