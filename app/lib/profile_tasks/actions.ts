@@ -4,7 +4,7 @@ import ProfileCompletionReminderTemplate from "@/app/emails/profile-completion-r
 import ProfileDeletionTemplate from "@/app/emails/profile-deletion";
 import { ProfileTaskWithProfile } from "@/app/lib/profile_tasks/definitions";
 import { db, pool } from "@/db";
-import { profileTasks, users } from "@/db/schema";
+import { scheduledTasks, users } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
 import { and, eq, gt, inArray, isNull, lte, sql } from "drizzle-orm";
 import {
@@ -21,13 +21,13 @@ export async function handleReminderEmails(): Promise<
 
   try {
     return await db.transaction(async (tx) => {
-      const pendingTasks = await tx.query.profileTasks.findMany({
+      const pendingTasks = await tx.query.scheduledTasks.findMany({
         where: and(
-          isNull(profileTasks.completedAt),
-          isNull(profileTasks.reminderSentAt),
-          lte(profileTasks.reminderTime, sql`now()`),
-          gt(profileTasks.dueDate, sql`now()`),
-          eq(profileTasks.taskType, "profile_creation"),
+          isNull(scheduledTasks.completedAt),
+          isNull(scheduledTasks.reminderSentAt),
+          lte(scheduledTasks.reminderTime, sql`now()`),
+          gt(scheduledTasks.dueDate, sql`now()`),
+          eq(scheduledTasks.taskType, "profile_creation"),
         ),
         with: {
           profile: true,
@@ -60,11 +60,11 @@ export async function handleDeletionEmails(): Promise<
 
   try {
     return await db.transaction(async (tx) => {
-      const overdueTasks = await tx.query.profileTasks.findMany({
+      const overdueTasks = await tx.query.scheduledTasks.findMany({
         where: and(
-          isNull(profileTasks.completedAt),
-          lte(profileTasks.dueDate, sql`now()`),
-          eq(profileTasks.taskType, "profile_creation"),
+          isNull(scheduledTasks.completedAt),
+          lte(scheduledTasks.dueDate, sql`now()`),
+          eq(scheduledTasks.taskType, "profile_creation"),
         ),
         with: {
           profile: true,
@@ -122,12 +122,12 @@ async function sendReminderEmails(
 
   if (data) {
     const updatedTaskId = await tx
-      .update(profileTasks)
+      .update(scheduledTasks)
       .set({
         reminderSentAt: sql`now()`,
       })
-      .where(eq(profileTasks.id, task.id))
-      .returning({ id: profileTasks.id });
+      .where(eq(scheduledTasks.id, task.id))
+      .returning({ id: scheduledTasks.id });
 
     updatedTaskIds.push(updatedTaskId[0].id);
   }

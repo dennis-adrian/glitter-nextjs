@@ -75,7 +75,11 @@ export async function fetchFestivalSectorsByUserCategory(
                 with: {
                   participants: {
                     with: {
-                      user: true,
+                      user: {
+                        with: {
+                          userSocials: true,
+                        },
+                      },
                     },
                   },
                 },
