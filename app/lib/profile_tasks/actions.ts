@@ -76,10 +76,8 @@ export async function handleDeletionEmails(): Promise<
     return await db.transaction(async (tx) => {
       const overdueTasks = await tx.query.scheduledTasks.findMany({
         where: and(
-          or(
-            isNull(scheduledTasks.completedAt),
-            eq(scheduledTasks.ranAfterDueDate, false),
-          ),
+          isNull(scheduledTasks.completedAt),
+          eq(scheduledTasks.ranAfterDueDate, false),
           lte(scheduledTasks.dueDate, sql`now()`),
           eq(scheduledTasks.taskType, "profile_creation"),
         ),
