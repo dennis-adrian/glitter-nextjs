@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { clerkClient, User } from "@clerk/nextjs/server";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { pool, db } from "@/db";
@@ -33,44 +33,6 @@ export type UserProfileType = typeof users.$inferSelect;
 export type UserProfileWithRequests = UserProfileType & {
   userRequests: (typeof userRequests.$inferSelect)[];
 };
-
-export async function createUserProfile(user: User) {
-  const client = await pool.connect();
-
-  try {
-    const newUser = buildNewUser(user);
-
-    await db.transaction(async (tx) => {
-      const newUsers = await tx
-        .insert(users)
-        .values(newUser)
-        .returning({ userId: users.id });
-
-      const userId = newUsers[0].userId;
-      const userSocialsValues = buildUserSocials(userId);
-
-      if (userId) {
-        await tx.insert(userSocials).values(userSocialsValues);
-        await tx.insert(scheduledTasks).values({
-          dueDate: sql`now() + interval '5 days'`,
-          reminderTime: sql`now() + interval '3 days'`,
-          profileId: userId,
-          taskType: "profile_creation",
-          updatedAt: new Date(),
-          createdAt: new Date(),
-        });
-      }
-    });
-  } catch (error) {
-    console.error("Error creating user profile", error);
-    await deleteClerkUser(user);
-    return null;
-  } finally {
-    client.release();
-  }
-
-  redirect("/my_profile");
-}
 
 export async function fetchUserProfileById(
   id: number,
@@ -131,6 +93,7 @@ export async function fetchOrCreateProfile(
 
   try {
     if (!user) throw new Error("No logged in user provided");
+    const userEmail = user.emailAddresses[0].emailAddress;
     return await db.transaction(async (tx) => {
       const profile = await tx.query.users.findFirst({
         with: {
@@ -142,10 +105,19 @@ export async function fetchOrCreateProfile(
             },
           },
         },
-        where: eq(users.clerkId, user.id),
+        where: eq(users.email, userEmail),
       });
 
-      if (profile) return profile;
+      if (profile) {
+        if (profile.clerkId === user.id) return profile;
+
+        await tx
+          .update(users)
+          .set({ clerkId: user.id })
+          .where(eq(users.email, userEmail));
+
+        return { ...profile, clerkId: user.id };
+      }
 
       const [newUser] = await tx
         .insert(users)
