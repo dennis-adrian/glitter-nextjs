@@ -1,21 +1,18 @@
 "use server";
 
 import { ReservationBase } from "@/app/api/reservations/definitions";
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { UserCategory } from "@/app/api/users/definitions";
 import {
   FestivalWithDates,
   FestivalWithUserRequests,
 } from "@/app/data/festivals/definitions";
 import { db, pool } from "@/db";
 import {
-  festivalSectors,
   reservationParticipants,
   standReservations,
   stands,
   users,
 } from "@/db/schema";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 export type Participant = typeof reservationParticipants.$inferSelect & {
   user: typeof users.$inferSelect;

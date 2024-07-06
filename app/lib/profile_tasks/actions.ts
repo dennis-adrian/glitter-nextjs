@@ -2,20 +2,34 @@
 
 import ProfileCompletionReminderTemplate from "@/app/emails/profile-completion-reminder";
 import ProfileDeletionTemplate from "@/app/emails/profile-deletion";
-import { ProfileTaskWithProfile } from "@/app/lib/profile_tasks/definitions";
+import {
+  ScheduledTaskWithProfile,
+  ScheduledTaskWithProfileAndReservation,
+} from "@/app/lib/profile_tasks/definitions";
 import { db, pool } from "@/db";
 import { scheduledTasks, users } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
-import { and, eq, gt, inArray, isNull, lte, sql } from "drizzle-orm";
+import {
+  and,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
 import {
   QueueEmailCallbackOptions,
   queueEmails,
 } from "@/app/lib/emails/helpers";
 import { BaseProfile } from "@/app/api/users/definitions";
 import { clerkClient } from "@clerk/nextjs/server";
+import ReservationReminderTemplate from "@/app/emails/reservation-reminder";
 
 export async function handleReminderEmails(): Promise<
-  ProfileTaskWithProfile[]
+  ScheduledTaskWithProfile[]
 > {
   const client = await pool.connect();
 
@@ -37,7 +51,7 @@ export async function handleReminderEmails(): Promise<
       if (pendingTasks.length === 0) return [];
 
       let updatedTaskIds: number[] = [];
-      await queueEmails<ProfileTaskWithProfile, number[]>(
+      await queueEmails<ScheduledTaskWithProfile, number[]>(
         pendingTasks,
         sendReminderEmails,
         { referenceEntity: updatedTaskIds, transactionScope: tx },
@@ -47,14 +61,14 @@ export async function handleReminderEmails(): Promise<
     });
   } catch (error) {
     console.error("Error sending reminder emails", error);
-    return [] as ProfileTaskWithProfile[];
+    return [] as ScheduledTaskWithProfile[];
   } finally {
     client.release();
   }
 }
 
 export async function handleDeletionEmails(): Promise<
-  ProfileTaskWithProfile[]
+  ScheduledTaskWithProfile[]
 > {
   const client = await pool.connect();
 
@@ -62,7 +76,10 @@ export async function handleDeletionEmails(): Promise<
     return await db.transaction(async (tx) => {
       const overdueTasks = await tx.query.scheduledTasks.findMany({
         where: and(
-          isNull(scheduledTasks.completedAt),
+          or(
+            isNull(scheduledTasks.completedAt),
+            eq(scheduledTasks.ranAfterDueDate, false),
+          ),
           lte(scheduledTasks.dueDate, sql`now()`),
           eq(scheduledTasks.taskType, "profile_creation"),
         ),
@@ -78,7 +95,7 @@ export async function handleDeletionEmails(): Promise<
         .where(
           inArray(
             users.id,
-            overdueTasks.map((task) => task.profileId),
+            overdueTasks.map((task) => task.profileId!),
           ),
         )
         .returning();
@@ -92,18 +109,28 @@ export async function handleDeletionEmails(): Promise<
         sendDeletionEmails,
       );
 
+      await tx
+        .update(scheduledTasks)
+        .set({ ranAfterDueDate: true })
+        .where(
+          inArray(
+            scheduledTasks.id,
+            deletedUsers.map((user) => user.id),
+          ),
+        );
+
       return overdueTasks.filter((task) => deletedUsers.includes(task.profile));
     });
   } catch (error) {
     console.error("Error sending reminder emails", error);
-    return [] as ProfileTaskWithProfile[];
+    return [] as ScheduledTaskWithProfile[];
   } finally {
     client.release();
   }
 }
 
 async function sendReminderEmails(
-  task: ProfileTaskWithProfile,
+  task: ScheduledTaskWithProfile,
   options?: QueueEmailCallbackOptions<number[]>,
 ) {
   if (!options) return;
@@ -146,6 +173,88 @@ async function sendDeletionEmails(profile: BaseProfile) {
       profile,
     }) as React.ReactElement,
   });
+
+  if (error) {
+    console.error("Error sending reminder emails", error);
+  }
+}
+
+export async function handleReservationReminderEmails(): Promise<
+  ScheduledTaskWithProfileAndReservation[]
+> {
+  const client = await pool.connect();
+
+  try {
+    return await db.transaction(async (tx) => {
+      const pendingTasks = (await tx.query.scheduledTasks.findMany({
+        where: and(
+          isNull(scheduledTasks.completedAt),
+          isNull(scheduledTasks.reminderSentAt),
+          isNotNull(scheduledTasks.reservationId),
+          lte(scheduledTasks.reminderTime, sql`now()`),
+          gt(scheduledTasks.dueDate, sql`now()`),
+          eq(scheduledTasks.taskType, "stand_reservation"),
+        ),
+        with: {
+          reservation: {
+            with: {
+              stand: true,
+              festival: true,
+            },
+          },
+          profile: true,
+        },
+      })) as ScheduledTaskWithProfileAndReservation[];
+
+      if (pendingTasks.length === 0) return [];
+
+      let updatedTaskIds: number[] = [];
+      await queueEmails<ScheduledTaskWithProfileAndReservation, number[]>(
+        pendingTasks,
+        sendReservationReminderEmails,
+        { referenceEntity: updatedTaskIds, transactionScope: tx },
+      );
+
+      return pendingTasks.filter((task) => updatedTaskIds.includes(task.id));
+    });
+  } catch (error) {
+    console.error("Error sending reminder emails", error);
+    return [] as ScheduledTaskWithProfileAndReservation[];
+  } finally {
+    client.release();
+  }
+}
+
+async function sendReservationReminderEmails(
+  task: ScheduledTaskWithProfileAndReservation,
+  options?: QueueEmailCallbackOptions<number[]>,
+) {
+  if (!options) return;
+
+  const { referenceEntity: updatedTaskIds, transactionScope: tx } = options;
+  if (!(tx && updatedTaskIds)) return;
+
+  const { data, error } = await sendEmail({
+    from: "Equipo de Glitter <reservas@productoraglitter.com>",
+    to: [task.profile.email],
+    subject: "Recordatorio de pago de reserva",
+    react: ReservationReminderTemplate({
+      task,
+    }) as React.ReactElement,
+  });
+
+  if (data) {
+    const updatedTaskId = await tx
+      .update(scheduledTasks)
+      .set({
+        reminderSentAt: sql`now()`,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(scheduledTasks.id, task.id))
+      .returning({ id: scheduledTasks.id });
+
+    updatedTaskIds.push(updatedTaskId[0].id);
+  }
 
   if (error) {
     console.error("Error sending reminder emails", error);

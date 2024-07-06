@@ -1,7 +1,7 @@
 import EmailFooter from "@/app/emails/email-footer";
 import * as styles from "@/app/emails/styles";
 import { formatFullDate } from "@/app/lib/formatters";
-import { ProfileTaskWithProfile } from "@/app/lib/profile_tasks/definitions";
+import { ScheduledTaskWithProfile } from "@/app/lib/profile_tasks/definitions";
 import {
   Body,
   Button,
@@ -14,11 +14,11 @@ import {
 } from "@react-email/components";
 
 type ProfileCompletionReminderTemplateProps = {
-  task: ProfileTaskWithProfile;
+  task: ScheduledTaskWithProfile;
 };
 
 export default function ProfileCompletionReminderTemplate({
-  task = {} as ProfileTaskWithProfile,
+  task = {} as ScheduledTaskWithProfile,
 }: ProfileCompletionReminderTemplateProps) {
   const { profile } = task;
   const name = profile.displayName || profile.firstName || "participante";
