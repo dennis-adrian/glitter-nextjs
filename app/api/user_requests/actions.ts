@@ -10,13 +10,14 @@ import { db, pool } from "@/db";
 import {
   invoices,
   reservationParticipants,
+  scheduledTasks,
   standReservations,
   stands,
   userRequests,
   users,
 } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
-import { and, eq, not } from "drizzle-orm";
+import { and, eq, not, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { BaseProfile } from "@/app/api/users/definitions";
 
@@ -153,6 +154,14 @@ export async function createReservation(
         userId: participantIds[0],
         reservationId: reservationId,
         amount: price,
+      });
+
+      await tx.insert(scheduledTasks).values({
+        dueDate: sql`now() + interval '5 days'`,
+        reminderTime: sql`now() + interval '4 days'`,
+        profileId: participantIds[0],
+        reservationId: reservationId,
+        taskType: "stand_reservation",
       });
 
       return rows[0];
