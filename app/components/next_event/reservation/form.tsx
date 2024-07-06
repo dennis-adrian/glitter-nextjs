@@ -96,7 +96,7 @@ export default function ReservationForm({
       );
     } else {
       toast.error(res.message, {
-        description: "Inténtalo de nuevo",
+        description: res.description,
       });
     }
   });

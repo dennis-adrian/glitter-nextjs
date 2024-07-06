@@ -59,7 +59,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   userRequests: many(userRequests),
   userSocials: many(userSocials),
   participations: many(reservationParticipants),
-  profileTasks: many(profileTasks),
+  scheduledTasks: many(scheduledTasks),
   invoices: many(invoices),
 }));
 
@@ -314,6 +314,7 @@ export const standReservationsRelations = relations(
     }),
     participants: many(reservationParticipants),
     invoices: many(invoices),
+    scheduledTasks: many(scheduledTasks),
   }),
 );
 
@@ -405,26 +406,37 @@ export const ticketRelations = relations(tickets, ({ one }) => ({
   }),
 }));
 
-export const profileTaskTypeEnum = pgEnum("profile_task_type", [
+export const scheduledTaskTypeEnum = pgEnum("scheduled_task_type", [
   "profile_creation",
+  "stand_reservation",
 ]);
-export const profileTasks = pgTable("profile_tasks", {
+export const scheduledTasks = pgTable("scheduled_tasks", {
   id: serial("id").primaryKey(),
-  taskType: profileTaskTypeEnum("task_type").notNull(),
+  taskType: scheduledTaskTypeEnum("task_type")
+    .default("profile_creation")
+    .notNull(),
   dueDate: timestamp("due_date").notNull(),
   completedAt: timestamp("completed_at"),
   reminderTime: timestamp("reminder_time").notNull(),
   reminderSentAt: timestamp("reminder_sent_at"),
   profileId: integer("profile_id")
-    .references(() => users.id, { onDelete: "cascade" })
+    .references(() => users.id)
     .notNull(),
+  reservationId: integer("reservation_id").references(
+    () => standReservations.id,
+  ),
+  ranAfterDueDate: boolean("ran_after_due_date").default(false).notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
-export const profileTasksRelations = relations(profileTasks, ({ one }) => ({
+export const scheduledTasksRelations = relations(scheduledTasks, ({ one }) => ({
   profile: one(users, {
-    fields: [profileTasks.profileId],
+    fields: [scheduledTasks.profileId],
     references: [users.id],
+  }),
+  reservation: one(standReservations, {
+    fields: [scheduledTasks.reservationId],
+    references: [standReservations.id],
   }),
 }));
 

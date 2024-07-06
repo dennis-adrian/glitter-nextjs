@@ -1,15 +1,12 @@
 import { BaseProfile } from "@/app/api/users/definitions";
 import EmailFooter from "@/app/emails/email-footer";
 import * as styles from "@/app/emails/styles";
-import { formatFullDate } from "@/app/lib/formatters";
-import { ProfileTaskWithProfile } from "@/app/lib/profile_tasks/definitions";
 import {
   Body,
   Button,
   Container,
   Head,
   Html,
-  Link,
   Preview,
   Section,
   Text,

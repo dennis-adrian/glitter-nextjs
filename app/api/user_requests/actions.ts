@@ -2,11 +2,7 @@
 
 import { fetchStandById } from "@/app/api/stands/actions";
 import { UserRequest } from "@/app/api/user_requests/definitions";
-import {
-  fetchAdminUsers,
-  fetchBaseProfileById,
-  fetchUserProfile,
-} from "@/app/api/users/actions";
+import { fetchAdminUsers, fetchBaseProfileById } from "@/app/api/users/actions";
 import { fetchBaseFestival } from "@/app/data/festivals/actions";
 import ReservationCreatedEmailTemplate from "@/app/emails/reservation-created";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
@@ -14,13 +10,14 @@ import { db, pool } from "@/db";
 import {
   invoices,
   reservationParticipants,
+  scheduledTasks,
   standReservations,
   stands,
   userRequests,
   users,
 } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
-import { eq } from "drizzle-orm";
+import { and, eq, not, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { BaseProfile } from "@/app/api/users/definitions";
 
@@ -113,6 +110,21 @@ export async function createReservation(
       };
     }
 
+    const blockingReservations = await db.query.standReservations.findMany({
+      where: and(
+        eq(standReservations.standId, reservation.standId),
+        not(eq(standReservations.status, "rejected")),
+      ),
+    });
+
+    if (blockingReservations.length > 0) {
+      return {
+        success: false,
+        message: "Ups! Ya hay una reserva para este espacio",
+        description: "Recarga la página e intenta de nuevo",
+      };
+    }
+
     const { festivalId, standId, participantIds } = reservation;
     const newReservation = await db.transaction(async (tx) => {
       const rows = await tx
@@ -142,6 +154,14 @@ export async function createReservation(
         userId: participantIds[0],
         reservationId: reservationId,
         amount: price,
+      });
+
+      await tx.insert(scheduledTasks).values({
+        dueDate: sql`now() + interval '5 days'`,
+        reminderTime: sql`now() + interval '4 days'`,
+        profileId: participantIds[0],
+        reservationId: reservationId,
+        taskType: "stand_reservation",
       });
 
       return rows[0];
@@ -177,7 +197,7 @@ export async function createReservation(
     };
   } catch (error) {
     console.error("Error creating reservation", error);
-    return { success: false, message: "No se pudo crear la reserva" };
+    return { success: false, message: "Ups! No pudimos crear la reserva" };
   } finally {
     client.release();
   }

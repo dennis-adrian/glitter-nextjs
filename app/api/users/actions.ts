@@ -7,7 +7,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { pool, db } from "@/db";
-import { profileTasks, userRequests, userSocials, users } from "@/db/schema";
+import { scheduledTasks, userRequests, userSocials, users } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import {
   BaseProfile,
@@ -51,7 +51,7 @@ export async function createUserProfile(user: User) {
 
       if (userId) {
         await tx.insert(userSocials).values(userSocialsValues);
-        await tx.insert(profileTasks).values({
+        await tx.insert(scheduledTasks).values({
           dueDate: sql`now() + interval '5 days'`,
           reminderTime: sql`now() + interval '3 days'`,
           profileId: userId,
@@ -156,7 +156,7 @@ export async function fetchOrCreateProfile(
         if (newUser?.id) {
           const userSocialsValues = buildUserSocials(newUser.id);
           await tx2.insert(userSocials).values(userSocialsValues);
-          await tx2.insert(profileTasks).values({
+          await tx2.insert(scheduledTasks).values({
             dueDate: sql`now() + interval '3 days'`,
             reminderTime: sql`now() + interval '1 days'`,
             profileId: newUser.id,
@@ -339,12 +339,12 @@ export async function updateProfileWithValidatedData(
     const profile = await fetchUserProfileById(id);
     if (profile && isProfileComplete(profile)) {
       await db
-        .update(profileTasks)
+        .update(scheduledTasks)
         .set({ completedAt: new Date(), updatedAt: new Date() })
         .where(
           and(
-            eq(profileTasks.profileId, id),
-            eq(profileTasks.taskType, "profile_creation"),
+            eq(scheduledTasks.profileId, id),
+            eq(scheduledTasks.taskType, "profile_creation"),
           ),
         );
 
