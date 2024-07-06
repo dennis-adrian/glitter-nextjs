@@ -314,6 +314,7 @@ export const standReservationsRelations = relations(
     }),
     participants: many(reservationParticipants),
     invoices: many(invoices),
+    scheduledTasks: many(scheduledTasks),
   }),
 );
 
@@ -419,8 +420,12 @@ export const scheduledTasks = pgTable("scheduled_tasks", {
   reminderTime: timestamp("reminder_time").notNull(),
   reminderSentAt: timestamp("reminder_sent_at"),
   profileId: integer("profile_id")
-    .references(() => users.id, { onDelete: "cascade" })
+    .references(() => users.id)
     .notNull(),
+  reservationId: integer("reservation_id").references(
+    () => standReservations.id,
+  ),
+  ranAfterDueDate: boolean("ran_after_due_date").default(false).notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -428,6 +433,10 @@ export const scheduledTasksRelations = relations(scheduledTasks, ({ one }) => ({
   profile: one(users, {
     fields: [scheduledTasks.profileId],
     references: [users.id],
+  }),
+  reservation: one(standReservations, {
+    fields: [scheduledTasks.reservationId],
+    references: [standReservations.id],
   }),
 }));
 

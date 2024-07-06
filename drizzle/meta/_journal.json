@@ -519,6 +519,20 @@
       "when": 1720212345024,
       "tag": "0073_yellow_reavers",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "5",
+      "when": 1720273761398,
+      "tag": "0074_bouncy_sister_grimm",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "5",
+      "when": 1720273801237,
+      "tag": "0075_cuddly_infant_terrible",
+      "breakpoints": true
     }
   ]
 }
