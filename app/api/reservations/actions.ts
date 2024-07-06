@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { db, pool } from "@/db";
 import {
   reservationParticipants,
+  scheduledTasks,
   standReservations,
   stands,
 } from "@/db/schema";
@@ -198,6 +199,16 @@ export async function confirmReservation(
         .update(stands)
         .set({ status: "confirmed" })
         .where(eq(stands.id, standId));
+
+      await tx
+        .update(scheduledTasks)
+        .set({ completedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(scheduledTasks.reservationId, reservationId),
+            eq(scheduledTasks.taskType, "stand_reservation"),
+          ),
+        );
     });
 
     await sendEmail({
