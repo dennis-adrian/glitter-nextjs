@@ -29,7 +29,7 @@ export default function ParticipantInfo(props: ParticipantInfoProps) {
         <RedirectButton
           variant="link"
           size="sm"
-          href={`/profiles/${props.profile.id}`}
+          href={`/public_profiles/${props.profile.id}`}
         >
           Ver perfil
         </RedirectButton>
