@@ -1,17 +1,10 @@
-import Image from "next/image";
-
-import { junegull } from "@/ui/fonts";
-
-import LandingRedirectButton from "@/app/components/landing/redirect-button";
-import { FestivalInfo } from "@/app/components/landing/festival-info-card";
+import GeneralInfoDetails from "@/app/components/festivals/general-info-details";
 import Carousel from "@/app/components/landing/carousel";
 import EventFeatures from "@/app/components/landing/event-features";
-import LandingBanner from "@/app/components/landing/banner";
+import LandingRedirectButton from "@/app/components/landing/redirect-button";
 import { RedirectButton } from "@/app/components/redirect-button";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { getActiveFestival } from "@/app/lib/festivals/helpers";
-import GeneralInfoDetails from "@/app/components/festivals/general-info-details";
-import GeneralInfo from "@/app/components/festivals/general-info";
+import Image from "next/image";
 
 export default async function Home() {
   const festival = await getActiveFestival();

@@ -68,7 +68,7 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
           <SheetTitle>
             <SheetClose>
               <Link href="/">
-                <GlitterLogo variant="dark" />
+                <GlitterLogo variant="dark" height={48} width={48} />
               </Link>
             </SheetClose>
           </SheetTitle>

@@ -33,7 +33,18 @@ export default function NavbarContent({
           </li>
           <li className="justify-self-center md:justify-self-start">
             <Link href="/">
-              <GlitterLogo variant="dark" />
+              <GlitterLogo
+                className="md:hidden"
+                variant="dark"
+                height={40}
+                width={40}
+              />
+              <GlitterLogo
+                className="hidden md:block"
+                variant="dark"
+                height={48}
+                width={48}
+              />
             </Link>
           </li>
           <li className="hidden justify-self-center md:block">

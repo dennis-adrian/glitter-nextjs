@@ -27,10 +27,12 @@ export default function Footer() {
       )}
     >
       <div className="container m-auto py-5 px-4 md:px-6">
-        <div className="grid md:grid-cols-2">
-          <div className="">
-            <GlitterLogo variant="light" />
+        <div className="grid md:grid-cols-3">
+          <div className="pb-2">
+            <GlitterLogo className="md:hidden" height={40} width={40} />
+            <GlitterLogo className="hidden md:block" height={56} width={56} />
           </div>
+          <div></div>
           <div>
             <p className="font-semibold text-base md:text-lg">
               Conéctate a nuestras redes
