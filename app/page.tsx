@@ -20,7 +20,7 @@ export default async function Home() {
     <div className="container p-4 md:p-6">
       {festival && (
         <>
-          <div className="relative p-4">
+          <div className="relative p-4 flex flex-col items-center">
             {/* got this code for the background from nextjs image docs */}
             <Image
               className="-z-10 object-cover rounded-md brightness-50 md:hidden"
@@ -39,42 +39,40 @@ export default async function Home() {
               sizes="100vw"
             />
             <Image
-              className="mx-auto mt-4"
+              className="mt-4"
               alt="twinkler logo"
               src="/img/twinkler/twinkler-logo-white.png"
               height={80}
               width={270}
             />
-            <div className="backdrop-blur-sm bg-white/60 m-4 rounded-md px-4">
+            <div className="backdrop-blur-sm bg-white/60 m-4 rounded-md px-4 md:max-w-fit">
               <GeneralInfoDetails
                 className="pt-0"
                 festival={festival}
                 noMascot
               />
             </div>
-            <div className="flex justify-center">
-              {festival.publicRegistration ? (
-                <div className="space-x-2 my-2">
-                  <RedirectButton
-                    variant="outline"
-                    href={`/festivals/${festival.id}`}
-                  >
-                    Ver evento
-                  </RedirectButton>
-                  <RedirectButton
-                    variant="cta"
-                    href={`/festivals/${festival.id}/registration`}
-                  >
-                    Registrar asistencia
-                  </RedirectButton>
-                </div>
-              ) : (
-                <LandingRedirectButton
-                  className="w-80"
-                  festivalId={festival?.id}
-                />
-              )}
-            </div>
+            {festival.publicRegistration ? (
+              <div className="space-x-2 my-2">
+                <RedirectButton
+                  variant="outline"
+                  href={`/festivals/${festival.id}`}
+                >
+                  Ver evento
+                </RedirectButton>
+                <RedirectButton
+                  variant="cta"
+                  href={`/festivals/${festival.id}/registration`}
+                >
+                  Registrar asistencia
+                </RedirectButton>
+              </div>
+            ) : (
+              <LandingRedirectButton
+                className="w-80"
+                festivalId={festival?.id}
+              />
+            )}
           </div>
         </>
       )}
