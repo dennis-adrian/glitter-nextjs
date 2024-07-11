@@ -43,7 +43,7 @@ export default function RootLayout({
         <body className={`${inter.variable} font-sans`}>
           <EdgeStoreProvider>
             <Navbar />
-            <main className="min-h-[calc(100vh-64px-200px)] md:min-h-[calc(100vh-80px-140px)]">
+            <main className="min-h-[calc(100vh-64px-180px)] md:min-h-[calc(100vh-80px-140px)]">
               {children}
             </main>
             <Footer />

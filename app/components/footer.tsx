@@ -18,7 +18,7 @@ export default function Footer() {
   return (
     <footer
       className={cn(
-        "bg-gradient-to-br from-violet-500 to-primary-600 text-primary-foreground text-sm md:text-base h-[188px] md:h-[140px]",
+        "bg-gradient-to-br from-violet-500 to-primary-600 text-primary-foreground text-sm md:text-base h-[180px] md:h-[140px]",
         {
           hidden:
             pathname?.includes("festivals") &&

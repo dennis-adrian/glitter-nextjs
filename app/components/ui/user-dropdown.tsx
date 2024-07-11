@@ -29,6 +29,9 @@ export default function UserDropdown({
   const clerk = useUser();
   const pathname = usePathname();
 
+  if (pathname.includes("festivals") && pathname.includes("registration"))
+    return null;
+
   if (!clerk.isLoaded || (clerk.isSignedIn && !profile)) {
     return <UserDropdownSkeleton />;
   }
