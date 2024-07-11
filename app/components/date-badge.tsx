@@ -5,7 +5,7 @@ export default function DateBadge({ date }: { date: Date | DateTime }) {
   const formattedDate = date instanceof DateTime ? date : formatDate(date);
 
   return (
-    <div className="w-12 h-12 rounded-sm flex flex-col">
+    <div className="w-12 h-12 bg-white rounded-sm flex flex-col">
       <span className="text-muted-foreground text-xs text-center bg-red-500 text-white rounded-t-sm">
         {formattedDate.toLocaleString({ month: "short" })}
       </span>
