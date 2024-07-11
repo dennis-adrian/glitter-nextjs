@@ -1,7 +1,4 @@
-"use client";
-
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 
 import { MenuIcon } from "lucide-react";
 
@@ -10,18 +7,19 @@ import MobileSidebar from "@/app/components/ui/mobile-sidebar";
 import UserDropdown from "@/app/components/ui/user-dropdown";
 import NavbarNavigationMenu from "@/app/components/navbar/navigation-menu";
 import { ProfileType } from "@/app/api/users/definitions";
+import { headers } from "next/headers";
 
 export default function NavbarContent({
   profile,
 }: {
   profile?: ProfileType | null;
 }) {
-  const pathname = usePathname();
+  const pathname = headers().get("x-current-path");
 
   return (
     <header
       className={
-        pathname.includes("festivals") && pathname.includes("registration")
+        pathname?.includes("festivals") && pathname.includes("registration")
           ? "hidden"
           : ""
       }
@@ -34,11 +32,8 @@ export default function NavbarContent({
             </MobileSidebar>
           </li>
           <li className="justify-self-center md:justify-self-start">
-            <Link className="hidden md:block" href="/">
-              <GlitterLogo variant="dark" size="md" />
-            </Link>
-            <Link className="md:hidden" href="/">
-              <GlitterLogo variant="dark" size="sm" />
+            <Link href="/">
+              <GlitterLogo variant="dark" />
             </Link>
           </li>
           <li className="hidden justify-self-center md:block">

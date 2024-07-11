@@ -75,9 +75,9 @@ export default async function Home() {
               />
             )}
           </div>
-          <section className="container p-0 text-center">
+          <section className="text-center">
             <div className="mt-8">
-              <div className="px-3">
+              <div>
                 <h1 className="text-4xl font-bold md:text-6xl text-shadow-sm shadow-primary-200">
                   Nuestros festivales
                 </h1>
@@ -89,7 +89,7 @@ export default async function Home() {
               <div className="pt-4 md:pt-8">
                 <Carousel />
               </div>
-              <div className="px-3 py-4 md:py-14 md:px-6">
+              <div className="py-4 md:py-14">
                 <h1 className="text-4xl font-bold md:text-6xl text-shadow-sm shadow-gray-400 my-6 md:my-0">
                   El mejor lugar para encontrar
                 </h1>

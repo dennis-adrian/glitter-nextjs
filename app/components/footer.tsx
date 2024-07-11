@@ -1,7 +1,4 @@
-"use client";
-
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 
 import { cn } from "@/app/lib/utils";
 
@@ -13,9 +10,10 @@ import {
   faInstagram,
   faTiktok,
 } from "@fortawesome/free-brands-svg-icons";
+import { headers } from "next/headers";
 
 export default function Footer() {
-  const pathname = usePathname();
+  const pathname = headers().get("x-current-path");
 
   return (
     <footer
@@ -23,19 +21,15 @@ export default function Footer() {
         "bg-gradient-to-br from-violet-500 to-primary-600 text-primary-foreground text-sm md:text-base h-[188px] md:h-[140px]",
         {
           hidden:
-            pathname.includes("festivals") && pathname.includes("registration"),
+            pathname?.includes("festivals") &&
+            pathname.includes("registration"),
         },
       )}
     >
       <div className="container m-auto py-5 px-4 md:px-6">
-        <div className="grid gap-4 sm:gap-8 md:grid-cols-3">
-          <div className="md:hidden">
-            <GlitterLogo />
-            <p className="text-xs">Un festival para que los artistas brillen</p>
-          </div>
-          <div className="hidden md:block col-span-2">
-            <GlitterLogo size="md" />
-            <p className="ml-1">Un festival para que los artistas brillen</p>
+        <div className="grid md:grid-cols-2">
+          <div className="">
+            <GlitterLogo variant="light" />
           </div>
           <div>
             <p className="font-semibold text-base md:text-lg">
