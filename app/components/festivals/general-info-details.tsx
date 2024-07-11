@@ -7,6 +7,7 @@ import { formatDate } from "@/app/lib/formatters";
 import Image from "next/image";
 import { ArrowUpRightIcon, MapPinIcon, TicketIcon } from "lucide-react";
 import Link from "next/link";
+import { cn } from "@/app/lib/utils";
 
 function DateLabel({ date }: { date: FestivalDate }) {
   const startDate = formatDate(date.startDate);
@@ -32,15 +33,23 @@ function DateLabel({ date }: { date: FestivalDate }) {
 }
 
 type GeneralInfoDetailsProps = {
+  className?: string;
   festival: FestivalWithDates;
+  noMascot?: boolean;
+  secondaryTextColor?: string;
 };
 
 export default function GeneralInfoDetails(props: GeneralInfoDetailsProps) {
   const dates = props.festival.festivalDates;
 
   return (
-    <div className="flex gap-4 pt-4 md:p-6 justify-start flex-col">
-      {props.festival.mascotUrl && (
+    <div
+      className={cn(
+        "flex gap-4 pt-4 md:p-6 justify-start flex-col",
+        props.className,
+      )}
+    >
+      {props.festival.mascotUrl && !props.noMascot && (
         <div className="relative w-[300px] h-[400px] mx-auto">
           <Image
             className="object-cover"
@@ -56,7 +65,7 @@ export default function GeneralInfoDetails(props: GeneralInfoDetailsProps) {
           dates.length > 0 &&
           dates.map((date) => <DateLabel key={date.id} date={date} />)}
         <div className="flex gap-2 items-center">
-          <div className="w-12 h-12 rounded-sm border flex justify-center items-center">
+          <div className="w-12 h-12 bg-white rounded-sm border flex justify-center items-center">
             <MapPinIcon className="w-7 h-7 text-muted-foreground" />
           </div>
           <div className="flex flex-col">
@@ -78,7 +87,7 @@ export default function GeneralInfoDetails(props: GeneralInfoDetailsProps) {
           </div>
         </div>
         <div className="flex gap-2 items-center">
-          <div className="w-12 h-12 rounded-sm border flex justify-center items-center">
+          <div className="w-12 h-12 bg-white rounded-sm border flex justify-center items-center">
             <TicketIcon className="w-7 h-7 text-muted-foreground" />
           </div>
           Entrada libre al evento

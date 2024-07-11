@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { SignedIn, SignedOut, useClerk } from "@clerk/nextjs";
 
@@ -53,6 +53,10 @@ type MobileSidebarProps = {
 const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
   const { signOut } = useClerk();
   const router = useRouter();
+  const pathname = usePathname();
+
+  if (pathname.includes("festivals") && pathname.includes("registration"))
+    return null;
 
   return (
     <Sheet>
@@ -68,7 +72,7 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
           <SheetTitle>
             <SheetClose>
               <Link href="/">
-                <GlitterLogo variant="dark" size="md" />
+                <GlitterLogo variant="dark" height={48} width={48} />
               </Link>
             </SheetClose>
           </SheetTitle>

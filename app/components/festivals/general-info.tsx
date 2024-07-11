@@ -10,7 +10,6 @@ type GeneralInfoProps = {
 };
 
 export default function GeneralInfo(props: GeneralInfoProps) {
-  const dates = props.festival.festivalDates;
   const isRegistrationOpen =
     props.festival.publicRegistration && !props.festival.eventDayRegistration;
 

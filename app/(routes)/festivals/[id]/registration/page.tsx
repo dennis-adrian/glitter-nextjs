@@ -35,7 +35,7 @@ export default async function Page({
 
   if (festival.status !== "active" || !festival.publicRegistration) {
     return (
-      <section className="flex h-dvh flex-col items-center justify-center">
+      <section className="flex flex-col items-center justify-center">
         <h1 className="text-xl md:text-2xl">
           El evento ya no se encuentra activo
         </h1>
@@ -48,7 +48,7 @@ export default async function Page({
 
   if (!["1", "2", "3"].includes(step)) {
     return (
-      <section className="flex min-h-dvh flex-col items-center justify-center">
+      <section className="flex flex-col items-center justify-center">
         <h1 className="text-xl md:text-2xl">
           El paso que intentas acceder no existe
         </h1>
@@ -65,7 +65,7 @@ export default async function Page({
   const profile = await getCurrentUserProfile();
 
   return (
-    <div className="flex min-h-dvh items-center justify-center">
+    <div className="flex items-center justify-center">
       {step === "1" && <EmailSubmissionForm />}
       {step !== "1" && (
         <div className="container px-3 grid grid-cols-1 gap-y-4 lg:grid-cols-3 md:gap-4">
