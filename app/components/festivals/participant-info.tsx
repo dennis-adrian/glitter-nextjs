@@ -2,6 +2,7 @@ import { StandBase } from "@/app/api/stands/definitions";
 import { BaseProfile } from "@/app/api/users/definitions";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import { Badge } from "@/app/components/ui/badge";
 
 type ParticipantInfoProps = {
   profile: BaseProfile;
@@ -12,12 +13,19 @@ export default function ParticipantInfo(props: ParticipantInfoProps) {
   return (
     <div className="relative p-4 border rounded-lg overflow-hidde mt-8 border-primary-100">
       <div className="absolute top-0 left-0 w-full flex justify-center -translate-y-1/2">
-        <Avatar className="w-12 h-12">
+        <Avatar className="w-16 h-16">
           <AvatarImage alt="avatar" src={props.profile.imageUrl!} />
         </Avatar>
+        {props.profile.category === "new_artist" && (
+          <div className="absolute -bottom-2">
+            <Badge className="bg-white text-foreground" variant="outline">
+              Nuevo
+            </Badge>
+          </div>
+        )}
       </div>
       <div className="flex flex-col items-center text-center h-full justify-between gap-2">
-        <div>
+        <div className="mt-4">
           <h2 className="mt-4 max-w-[100px] overflow-hidden text-ellipsis font-semibold text-sm md:text-base">
             {props.profile.displayName}
           </h2>
