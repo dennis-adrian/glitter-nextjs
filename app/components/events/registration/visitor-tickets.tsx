@@ -23,6 +23,7 @@ export default function VisitorTickets({
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
+  const festivalDates = festival.festivalDates;
   const visitorFestivalTickets = getVisitorFestivalTickets(visitor, festival);
 
   return (
@@ -33,15 +34,16 @@ export default function VisitorTickets({
       {visitorFestivalTickets.length > 0 && (
         <Tickets tickets={visitorFestivalTickets} festival={festival} />
       )}
-      {!showForm && visitorFestivalTickets.length === 1 && (
-        <div
-          className="my-4 flex cursor-pointer items-center justify-center hover:underline"
-          onClick={() => setShowForm(true)}
-        >
-          <PlusCircleIcon className="mr-1 inline-block h-4 w-4" />
-          Adquirir otra entrada
-        </div>
-      )}
+      {!showForm &&
+        visitorFestivalTickets.length < festivalDates.length - 1 && (
+          <div
+            className="my-4 flex cursor-pointer items-center justify-center hover:underline"
+            onClick={() => setShowForm(true)}
+          >
+            <PlusCircleIcon className="mr-1 inline-block h-4 w-4" />
+            Adquirir otra entrada
+          </div>
+        )}
       {(showForm && visitorFestivalTickets.length === 1) ||
       visitorFestivalTickets.length === 0 ? (
         <div className="p-4">
