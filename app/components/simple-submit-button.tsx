@@ -4,6 +4,7 @@ import { Loader2Icon } from "lucide-react";
 
 type SubmitButtonProps = {
   className?: string;
+  children?: React.ReactNode;
   disabled: boolean;
   label: string;
   loading: boolean;
@@ -22,6 +23,8 @@ export default function SubmitButton(props: SubmitButtonProps) {
           <Loader2Icon className="w-4 h-4 animate-spin" />
           {props.loadingLabel || "Cargando"}
         </span>
+      ) : props.children ? (
+        props.children
       ) : (
         <span>{props.label}</span>
       )}

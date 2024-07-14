@@ -23,6 +23,7 @@ import {
   FormMessage,
 } from "@/app/components/ui/form";
 import { Input } from "@/app/components/ui/input";
+import SubmitButton from "@/app/components/simple-submit-button";
 
 const FormSchema = z.object({
   email: z
@@ -47,7 +48,11 @@ export default function EmailSubmissionForm() {
     const visitor = await fetchVisitorByEmail(data.email);
     if (visitor) {
       router.push(
-        `?${new URLSearchParams({ email: data.email, step: "3", visitorId: visitor.id.toString() })}`,
+        `?${new URLSearchParams({
+          email: data.email,
+          step: "3",
+          visitorId: visitor.id.toString(),
+        })}`,
       );
     } else {
       router.push(`?${new URLSearchParams({ email: data.email, step: "2" })}`);
@@ -56,13 +61,13 @@ export default function EmailSubmissionForm() {
 
   return (
     <Form {...form}>
-      <form onSubmit={action}>
-        <div className="flex items-end gap-2">
+      <form className="mt-4" onSubmit={action}>
+        <div>
           <FormField
             control={form.control}
             name="email"
             render={({ field }) => (
-              <FormItem className="w-[250px] sm:w-[300px] md:w-[500px]">
+              <FormItem className="w-full">
                 <FormLabel className="text-base sm:text-lg md:text-xl">
                   ¿Cuál es tu correo electrónico?
                 </FormLabel>
@@ -77,13 +82,17 @@ export default function EmailSubmissionForm() {
               </FormItem>
             )}
           />
-          <Button disabled={form.formState.isSubmitting} size="icon">
-            {form.formState.isSubmitting ? (
-              <Loader2Icon className="h-4 w-4 animate-spin" />
-            ) : (
+          <SubmitButton
+            className=" mt-4"
+            disabled={form.formState.isSubmitting}
+            label="Continuar"
+            loading={form.formState.isSubmitting}
+          >
+            <span className="flex items-center gap-2">
+              Continuar
               <SendHorizonalIcon className="h-4 w-4" />
-            )}
-          </Button>
+            </span>
+          </SubmitButton>
         </div>
       </form>
     </Form>
