@@ -2,12 +2,12 @@ import { fetchFestivalWithDates } from "@/app/data/festivals/actions";
 
 import { RedirectButton } from "@/app/components/redirect-button";
 import ResourceNotFound from "@/app/components/resource-not-found";
-import EmailSubmissionForm from "@/app/components/events/registration/email-submission-form";
 import { fetchVisitor, fetchVisitorByEmail } from "@/app/data/visitors/actions";
 import VisitorRegistrationForm from "@/app/components/events/registration/visitor-registration-form";
 import { FormBanner } from "@/app/components/events/registration/form-banner";
 import ThirdStep from "@/app/components/events/registration/steps/third-step";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import EmailCard from "@/app/components/events/registration/email-card";
 
 export default async function Page({
   params,
@@ -66,7 +66,11 @@ export default async function Page({
 
   return (
     <div className="flex items-center justify-center">
-      {step === "1" && <EmailSubmissionForm />}
+      {step === "1" && (
+        <div className="container p-4 md:p-6">
+          <EmailCard festival={festival} />
+        </div>
+      )}
       {step !== "1" && (
         <div className="container px-3 grid grid-cols-1 gap-y-4 lg:grid-cols-3 md:gap-4">
           <FormBanner festival={festival} />

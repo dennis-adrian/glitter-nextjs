@@ -50,7 +50,7 @@ export default function GeneralInfoDetails(props: GeneralInfoDetailsProps) {
       )}
     >
       {props.festival.mascotUrl && !props.noMascot && (
-        <div className="relative w-[300px] h-[400px] mx-auto">
+        <div className="relative w-[300px] h-[400px] mx-auto pb-4">
           <Image
             className="object-cover"
             alt="mascota del evento"
@@ -60,7 +60,7 @@ export default function GeneralInfoDetails(props: GeneralInfoDetailsProps) {
           />
         </div>
       )}
-      <div className="flex flex-wrap gap-4 py-4 flex-grow md:justify-around">
+      <div className="flex flex-wrap gap-4 pb-4 flex-grow md:justify-around">
         {dates &&
           dates.length > 0 &&
           dates.map((date) => <DateLabel key={date.id} date={date} />)}

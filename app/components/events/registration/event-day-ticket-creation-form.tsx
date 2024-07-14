@@ -24,8 +24,8 @@ export default function EventDayTicketCreationForm(
     const res = await createEventDayTicket({
       visitorId: props.visitor.id,
       festivalId: props.festival.id,
-      festivalStartDate: dates[0]?.startDate || new Date(),
-      festivalEndDate: dates[dates.length - 1]?.startDate || new Date(),
+      festivalStartDate: dates[0]?.startDate,
+      festivalEndDate: dates[dates.length - 1]?.startDate,
     });
 
     if (res.success) {

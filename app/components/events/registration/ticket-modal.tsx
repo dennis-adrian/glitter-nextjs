@@ -34,6 +34,10 @@ export default function TicketModal({
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const ticketRef = useRef(null);
   const visitorTickets = getVisitorFestivalTickets(visitor, festival);
+  const eventLogoUrl =
+    festival.festivalType === "glitter"
+      ? "https://utfs.io/f/e6820207-3eb1-43fd-b140-d00184fd8182-e81rey.png"
+      : "/img/twinkler/twinkler-logo-white.png";
 
   const downloadTicket = useCallback(() => {
     if (ticketRef.current === null) {
@@ -63,19 +67,14 @@ export default function TicketModal({
         <div className={`${isDesktop ? "" : "px-4"} py-4`}>
           <div
             ref={ticketRef}
-            className="flex flex-col items-center rounded-lg bg-gradient-to-b from-[#FF9458] via-[#FF6A96] to-[#9D70FF] p-6 pb-0 md:p-8 md:pb-0"
+            className="flex flex-col items-center rounded-lg bg-gradient-to-b from-[#6173CD] via-[#b0b8e2] to-[#96B440] p-6 pb-0 md:p-8 md:pb-0"
           >
-            <Image
-              alt="Logo de Glitter con descripción"
-              src="https://utfs.io/f/e6820207-3eb1-43fd-b140-d00184fd8182-e81rey.png"
-              height={56}
-              width={170}
-            />
+            <Image alt="logo" src={eventLogoUrl} height={80} width={270} />
             <div className="m-2 flex h-60 w-60 items-center justify-center rounded-lg bg-white/50 backdrop-blur-sm">
               <Image
                 onLoad={() => setShowDownloadButton(true)}
                 className="rounded-lg"
-                alt="Logo de Glitter"
+                alt="código QR"
                 src={visitorTickets[0].qrcode || "/img/profile-avatar.png"}
                 height={204}
                 width={204}
@@ -86,7 +85,7 @@ export default function TicketModal({
             >
               Entrada
             </h1>
-            <div className="my-3 rounded-2xl bg-[#44161E] px-3 py-1 font-semibold uppercase text-white">
+            <div className="my-3 rounded-2xl bg-[#6173CD] px-3 py-1 font-semibold uppercase text-white">
               {visitorTickets.length > 1 ? (
                 <h3>
                   {getWeekdayFromDate(visitorTickets[0].date)} y{" "}
@@ -96,7 +95,7 @@ export default function TicketModal({
                 <h3>Día {getWeekdayFromDate(visitorTickets[0].date)}</h3>
               )}
             </div>
-            <div className="text-center text-lg leading-5 tracking-tight text-white">
+            <div className="text-center leading-5 tracking-tight text-white">
               <p>
                 Esta entrada es válida sólo para 1 persona y debe de ser
                 mostrada al momento de ingresar al evento
@@ -119,22 +118,22 @@ export default function TicketModal({
                   </span>
                   <span className="flex items-center">
                     <ClockIcon className="ml-3 mr-1 h-4 w-4" />
-                    <span>10:00-18:00</span>
+                    <span>13:00-21:00</span>
                   </span>
                 </div>
               ))}
             </div>
-            <div className="mb-3 flex text-center items-center justify-center rounded-lg bg-white/20 text-white px-4 py-2 text-sm backdrop-blur-lg">
+            <div className="mb-3 flex text-center items-center justify-center rounded-lg bg-black/20 text-white px-4 py-2 text-sm backdrop-blur-lg">
               {festival.locationLabel} - {festival.address}
             </div>
             <Image
               alt="footer image"
               src={
-                "https://utfs.io/f/4d8ce376-781d-4b60-8d49-0e85d28ddb06-67dtvs.png" ||
-                "/img/samy-head.png"
+                "https://utfs.io/f/3b37a55f-bde5-496c-923f-b90630ed456f-nj1kyl.png" ||
+                "https://utfs.io/f/4d8ce376-781d-4b60-8d49-0e85d28ddb06-67dtvs.png"
               }
-              height={132}
-              width={320}
+              width={80}
+              height={118}
             />
           </div>
           <Button
