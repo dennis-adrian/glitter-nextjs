@@ -10,6 +10,11 @@ import {
 } from "@/db/schema";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { getInvoiceStatusLabel } from "@/app/lib/payments/helpers";
+import { FestivalBase } from "@/app/data/festivals/definitions";
+import {
+  GLITTER_EMAIL_LOGO_URL,
+  TWINKLER_LOGO_URL_270X80,
+} from "@/app/lib/constants";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -159,3 +164,11 @@ export const invoiceStatusOptions = [
     label: getInvoiceStatusLabel(invoiceStatusEnum.enumValues[2]),
   },
 ];
+
+export function getFestivalLogo(festivalType: FestivalBase["festivalType"]) {
+  if (festivalType === "glitter") {
+    return GLITTER_EMAIL_LOGO_URL;
+  }
+
+  return TWINKLER_LOGO_URL_270X80;
+}

@@ -13,6 +13,9 @@ import {
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { formatDate, formatFullDate } from "@/app/lib/formatters";
 import { Interval } from "luxon";
+import { getFestivalDateLabel } from "@/app/helpers/next_event";
+import { GLITTER_EMAIL_LOGO_URL } from "@/app/lib/constants";
+import { getFestivalLogo } from "@/app/lib/utils";
 
 interface RegistrationInvitationEmailTemplateProps {
   festival: FestivalWithDates;
@@ -32,6 +35,7 @@ export default function RegistrationInvitationEmailTemplate(
   const dates = props.festival.festivalDates;
   const festivalLabel =
     props.festival.festivalType === "glitter" ? "Glitter" : "Twinkler";
+  const festivalLogo = getFestivalLogo(props.festival.festivalType);
 
   return (
     <Html>
@@ -42,11 +46,7 @@ export default function RegistrationInvitationEmailTemplate(
       <Body style={styles.main}>
         <Container style={styles.container}>
           <Section style={styles.banner}>
-            <Img
-              style={{ margin: "0 auto" }}
-              width={170}
-              src="https://utfs.io/f/e6820207-3eb1-43fd-b140-d00184fd8182-e81rey.png"
-            />
+            <Img style={{ margin: "0 auto" }} width={170} src={festivalLogo} />
           </Section>
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.titleWithBanner}>
@@ -55,14 +55,11 @@ export default function RegistrationInvitationEmailTemplate(
             <Text style={styles.text}>
               Este{" "}
               {dates.length > 1 ? (
-                <strong>
-                  {formatFullDate(dates[0].startDate)} a{" "}
-                  {formatFullDate(dates[dates.length - 1].startDate)}
-                </strong>
+                <strong>{getFestivalDateLabel(props.festival)}</strong>
               ) : (
                 <strong>{formatFullDate(dates[0].startDate)}</strong>
               )}{" "}
-              tendremos una nueva versión del festival{" "}
+              te invitamos a ser parte del festival{" "}
               <strong>{festivalLabel}</strong>.
             </Text>
             <Text style={styles.text}>
@@ -110,10 +107,10 @@ RegistrationInvitationEmailTemplate.PreviewProps = {
     id: 1,
     festivalDates: [
       {
-        startDate: formatDate(new Date()).plus({ days: 7 }).toJSDate(),
+        startDate: formatDate(new Date()).plus({ days: 6 }).toJSDate(),
       },
       {
-        startDate: formatDate(new Date()).plus({ days: 8 }).toJSDate(),
+        startDate: formatDate(new Date()).plus({ days: 7 }).toJSDate(),
       },
     ],
   },

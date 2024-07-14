@@ -14,7 +14,7 @@ import {
   EMAIL_FOOTER_IMG_URL,
   GLITTER_EMAIL_HEADING_URL,
   GLITTER_EMAIL_LOGO_URL,
-} from "@/app/lib/costants";
+} from "@/app/lib/constants";
 import {
   formatDate,
   formatFullDate,
