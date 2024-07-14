@@ -10,11 +10,7 @@ import {
   Text,
 } from "@react-email/components";
 
-import {
-  EMAIL_FOOTER_IMG_URL,
-  GLITTER_EMAIL_HEADING_URL,
-  GLITTER_EMAIL_LOGO_URL,
-} from "@/app/lib/constants";
+import { GLITTER_EMAIL_HEADING_URL } from "@/app/lib/constants";
 import {
   formatDate,
   formatFullDate,
@@ -23,6 +19,8 @@ import {
 import { FestivalBase } from "../data/festivals/definitions";
 import { VisitorWithTickets } from "../data/visitors/actions";
 import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
+import EmailFooter from "@/app/emails/email-footer";
+import { getFestivalLogo } from "@/app/lib/utils";
 
 type TicketEmailTemplateProps = {
   festival: FestivalBase;
@@ -34,18 +32,20 @@ export default function TicketEmailTemplate({
   festival,
 }: TicketEmailTemplateProps) {
   const festivalTickets = getVisitorFestivalTickets(visitor, festival);
+  const festivalLogo = getFestivalLogo(festival.festivalType);
   const qrCodeSrc =
     festivalTickets[0]?.qrcodeUrl || "https://via.placeholder.com/200";
 
   let weekDayLabel = "sábado y domingo";
   if (festivalTickets) {
     if (festivalTickets.length > 1) {
-      getWeekdayFromDate(festivalTickets[0].date) +
+      weekDayLabel =
+        getWeekdayFromDate(festivalTickets[0].date) +
         " y " +
         getWeekdayFromDate(festivalTickets[1].date);
     }
     if (festivalTickets.length === 1) {
-      getWeekdayFromDate(festivalTickets[0].date);
+      weekDayLabel = getWeekdayFromDate(festivalTickets[0].date);
     }
   }
 
@@ -65,10 +65,10 @@ export default function TicketEmailTemplate({
           <Section style={ticketContainer}>
             <Img
               style={marginAuto}
-              alt="Logo de Glitter con descripción"
-              src={GLITTER_EMAIL_LOGO_URL}
-              height={56}
-              width={170}
+              alt="logo"
+              src={festivalLogo}
+              height={80}
+              width={270}
             />
             <Section style={qrCodeContainer}>
               <Img
@@ -101,7 +101,7 @@ export default function TicketEmailTemplate({
                 festivalTickets.map((ticket) => (
                   <Row key={ticket.id}>
                     <Text style={ticketDate}>
-                      {formatFullDate(ticket.date)} de 10:00 a 18:00
+                      {formatFullDate(ticket.date)} de 13:00 a 21:00
                     </Text>
                   </Row>
                 ))}
@@ -112,12 +112,13 @@ export default function TicketEmailTemplate({
             <Img
               style={marginAuto}
               alt="email footer"
-              src={EMAIL_FOOTER_IMG_URL}
-              height={132}
-              width={320}
+              src="https://utfs.io/f/3b37a55f-bde5-496c-923f-b90630ed456f-nj1kyl.png"
+              height={118}
+              width={80}
             />
           </Section>
         </Container>
+        <EmailFooter />
       </Body>
     </Html>
   );
@@ -129,7 +130,7 @@ TicketEmailTemplate.PreviewProps = {
     tickets: [
       {
         id: 1,
-        date: formatDate(new Date()).plus({ days: 2 }).toJSDate(),
+        date: formatDate(new Date()).plus({ days: 6 }).toJSDate(),
       },
     ],
   },
@@ -158,8 +159,8 @@ const roundedLg = {
 };
 
 const textLg = {
-  fontSize: "18px",
-  lineHeight: "24px",
+  fontSize: "16px",
+  lineHeight: "20px",
 };
 
 const maxWidthFit = {
@@ -172,7 +173,7 @@ const container = {
 };
 
 const ticketContainer = {
-  background: "linear-gradient(#FF9458, #FF6A96, #9D70FF)",
+  background: "linear-gradient(#6173CD, #b0b8e2, #96B440)",
   padding: "24px 24px 0",
   ...roundedLg,
 };
@@ -197,7 +198,7 @@ const qrCodeContainer = {
 };
 
 const weekDayPill = {
-  backgroundColor: "#44161E",
+  backgroundColor: "#6173CD",
   borderRadius: "16px",
   color: "white",
   fontWeight: "600",
