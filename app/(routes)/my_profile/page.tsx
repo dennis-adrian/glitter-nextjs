@@ -18,19 +18,21 @@ export default async function UserProfile() {
       <div className="flex flex-col gap-4">
         <SignedIn>
           {latestInvoice && latestInvoice.status === "pending" ? (
-            <div className="sticky bottom-0 border rounded-3xl min-w-80 md:min-w-[400px] bg-card p-3">
-              <div className="flex flex-wrap md:flex-row gap-4 justify-center items-center text-center md:text-left">
-                <span>
-                  Tienes un pago pendiente. Puedes realizarlo dando clic en al
-                  botón
-                </span>
-                <RedirectButton
-                  size="sm"
-                  href={`/profiles/${profile.id}/festivals/${latestInvoice.reservation.festivalId}/reservations/${latestInvoice.reservationId}/payments`}
-                >
-                  Realizar pago
-                  <ArrowUpRightIcon className="ml-2 w-4 h-4" />
-                </RedirectButton>
+            <div className="sticky top-0 z-10 bg-white pt-3 w-full">
+              <div className="border p-3 rounded-lg drop-shadow-lg bg-card">
+                <div className="flex flex-wrap md:flex-row gap-4 justify-center items-center text-center md:text-left">
+                  <span>
+                    Tienes un pago pendiente. Puedes realizarlo dando clic en al
+                    botón
+                  </span>
+                  <RedirectButton
+                    size="sm"
+                    href={`/profiles/${profile.id}/festivals/${latestInvoice.reservation.festivalId}/reservations/${latestInvoice.reservationId}/payments`}
+                  >
+                    Realizar pago
+                    <ArrowUpRightIcon className="ml-2 w-4 h-4" />
+                  </RedirectButton>
+                </div>
               </div>
             </div>
           ) : (
