@@ -20,15 +20,15 @@ const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
 export const metadata: Metadata = {
   title: {
-    template: `${getEnvLabel()} %s | Festival Glitter`,
-    default: `${getEnvLabel()} Festival Glitter`,
+    template: `${getEnvLabel()} %s | Productora Glitter`,
+    default: `${getEnvLabel()} Productora Glitter`,
   },
-  description: "Un festival para que los artistas brillen",
+  description: "Creamos festivales para que los artistas brillen",
   keywords: ["festival", "glitter", "artistas", "ilustración", "arte"],
-  metadataBase: new URL(baseUrl || "https://www.festivalglitter.com"),
+  metadataBase: new URL(baseUrl || "https://www.productoraglitter.com"),
   openGraph: {
-    title: "Festival Glitter",
-    description: "Un festival para que los artistas brillen",
+    title: "Productora Glitter",
+    description: "Creamos festivales para que los artistas brillen",
   },
 };
 

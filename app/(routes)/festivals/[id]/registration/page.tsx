@@ -8,6 +8,12 @@ import { FormBanner } from "@/app/components/events/registration/form-banner";
 import ThirdStep from "@/app/components/events/registration/steps/third-step";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import EmailCard from "@/app/components/events/registration/email-card";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Registro para evento",
+  description: "Adquiere tu entrada para nuestro próximo festival",
+};
 
 export default async function Page({
   params,

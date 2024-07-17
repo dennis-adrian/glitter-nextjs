@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Próximo Evento",
-  description: "Participa en el próximo evento de Festival Glitter",
+  description: "Participa en el próximo evento de la Productora Glitter",
 };
 
 export default async function Page() {

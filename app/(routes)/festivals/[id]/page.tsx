@@ -10,7 +10,7 @@ import FestivalSectors from "@/app/components/festivals/sectors/festival-sectors
 
 export const metadata: Metadata = {
   title: "Información del Festival",
-  description: "Festival Glitter",
+  description: "Productora Glitter",
 };
 
 const searchParamsSchema = z.object({
