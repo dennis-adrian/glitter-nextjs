@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
-
-import { UserIcon, UsersIcon } from "lucide-react";
 import { cn } from "@/app/lib/utils";
+import { UserIcon, UsersIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 const cardContent = {
   individual: {
@@ -32,7 +31,6 @@ function TypeCard({
 
   return (
     <div
-      // className="w-80 h-24 rounded-md flex gap-2 p-4 border items-center hover:bg-primary-100/30 hover:text-primary-500 hover:border-primary-500 shadow-md transition-all duration-300"
       className={cn(
         `w-80 h-32 rounded-md flex gap-2 p-4 border items-center shadow-md transition-all duration-300 cursor-pointer ${
           selected
@@ -54,10 +52,12 @@ function TypeCard({
   );
 }
 
-export default function RegistrationTypeCards() {
-  const [selectedType, setSelectedType] = useState<
-    "individual" | "family" | null
-  >(null);
+export default function RegistrationTypeCards({
+  selectedType,
+}: {
+  selectedType: "individual" | "family" | undefined;
+}) {
+  const router = useRouter();
 
   return (
     <div className="flex flex-wrap justify-center gap-4 relative">
@@ -67,13 +67,17 @@ export default function RegistrationTypeCards() {
         }
         selected={selectedType === "individual"}
         type="individual"
-        onClick={() => setSelectedType("individual")}
+        onClick={() =>
+          router.push(`?${new URLSearchParams({ type: "individual" })}`)
+        }
       />
       <TypeCard
         className={selectedType !== "family" && selectedType ? "hidden" : ""}
         selected={selectedType === "family"}
         type="family"
-        onClick={() => setSelectedType("family")}
+        onClick={() =>
+          router.push(`?${new URLSearchParams({ type: "family" })}`)
+        }
       />
     </div>
   );
