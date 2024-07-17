@@ -39,7 +39,10 @@ export default async function Page({
           Elige el tipo de registro
         </h3>
       )}
-      <RegistrationTypeCards selectedType={registrationType.data.type} />
+      <RegistrationTypeCards
+        festivalId={validatedParams.data.id}
+        selectedType={registrationType.data.type}
+      />
     </div>
   );
 }
