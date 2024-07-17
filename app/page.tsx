@@ -39,11 +39,7 @@ export default async function Home() {
               width={270}
             />
             <div className="backdrop-blur-sm bg-white/60 m-4 rounded-md px-4 md:max-w-fit">
-              <GeneralInfoDetails
-                className="pt-0"
-                festival={festival}
-                noMascot
-              />
+              <GeneralInfoDetails festival={festival} noMascot />
             </div>
             {festival.publicRegistration ? (
               <div className="space-x-2 my-2">
