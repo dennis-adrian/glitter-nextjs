@@ -75,8 +75,8 @@ export default function RegistrationInvitationEmailTemplate(
             </Text>
             <Text style={styles.text}>
               ¡Evita colas y ahorra tiempo durante el registro en puerta! Haz
-              clic en el botón para adquirir tu boleto virtual. El acceso al
-              público es completamente gratuito.
+              clic en el botón para adquirir tu boleto virtual. El ingreso es
+              libre al evento.
             </Text>
             <Button
               href={`${baseUrl}/festivals/${props.festival.id}/registration`}
