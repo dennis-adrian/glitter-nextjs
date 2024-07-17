@@ -35,13 +35,11 @@ export default async function Page({
 
   if (festival.status !== "active" || !festival.publicRegistration) {
     return (
-      <section className="flex flex-col items-center justify-center">
-        <h1 className="text-xl md:text-2xl">
-          El evento ya no se encuentra activo
+      <section className="container flex flex-col gap-4 md:gap-6 items-center justify-center min-h-[calc(100vh-64px-180px)] md:min-h-[calc(100vh-80px-140px)]">
+        <h1 className="text-lg md:text-2xl text-muted-foreground text-center leading-5">
+          El registro para este evento no se encuentra activo
         </h1>
-        <RedirectButton href="/" className="mt-4">
-          Volver al inicio
-        </RedirectButton>
+        <RedirectButton href="/">Volver al inicio</RedirectButton>
       </section>
     );
   }
