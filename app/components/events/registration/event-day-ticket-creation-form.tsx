@@ -12,6 +12,7 @@ import { toast } from "sonner";
 type EventDayTicketCreationFormProps = {
   festival: FestivalWithDates;
   visitor: VisitorWithTickets;
+  onSuccess?: () => void;
 };
 
 export default function EventDayTicketCreationForm(
@@ -20,16 +21,14 @@ export default function EventDayTicketCreationForm(
   const form = useForm();
 
   const action: () => void = form.handleSubmit(async () => {
-    const dates = props.festival.festivalDates;
     const res = await createEventDayTicket({
       visitorId: props.visitor.id,
-      festivalId: props.festival.id,
-      festivalStartDate: dates[0]?.startDate,
-      festivalEndDate: dates[dates.length - 1]?.startDate,
+      festival: props.festival,
     });
 
     if (res.success) {
       toast.success(res.message);
+      if (props.onSuccess) props.onSuccess();
     } else {
       toast.error(res.message);
     }

@@ -1,4 +1,5 @@
 import RegistrationTypeCards from "@/app/components/festivals/registration/registration-type-cards";
+import StepDescription from "@/app/components/festivals/registration/steps/step-decription";
 
 type RegistrationTypeStepProps = {
   festivalId: number;
@@ -9,12 +10,10 @@ export default function RegistrationTypeStep(props: RegistrationTypeStepProps) {
   return (
     <>
       {!props.type && (
-        <div className="text-center my-6">
-          <h3 className="text-xl font-semibold">¿Cómo vienes al evento?</h3>
-          <span className="text-muted-foreground">
-            Elige la opción que mejor refleje tu situación
-          </span>
-        </div>
+        <StepDescription
+          title="¿Cómo vienes al evento?"
+          description="Elige la opción que mejor refleje tu situación"
+        />
       )}
       <RegistrationTypeCards
         festivalId={props.festivalId}

@@ -40,9 +40,9 @@ export default async function Page({
         festivalId={validatedParams.data.id}
         type={validatedSearchParams.data.type}
       />
-      {validatedSearchParams.data.type && festival && (
+      {validatedSearchParams.data.type && festival ? (
         <EventDaySteps festival={festival} />
-      )}
+      ) : null}
     </div>
   );
 }

@@ -62,10 +62,10 @@ export async function createVisitor(
   try {
     await db.insert(visitors).values(visitor);
   } catch (error) {
-    console.error("Error creating visitor", error);
+    console.error("Error creando visitante", error);
     return {
       success: false,
-      error: "Error creating visitor",
+      error: "Error creando visitante",
     };
   } finally {
     client.release();

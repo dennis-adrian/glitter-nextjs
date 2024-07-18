@@ -37,7 +37,7 @@ export default function Tickets(props: TicketsProps) {
                 </div>
               </div>
               <div className="p-4">
-                {formatFullDate(ticket.date)} de 13:00 a 21:00
+                {formatFullDate(ticket.date)}
                 <p className="text-muted-foreground text-sm">
                   {props.festival.locationLabel} - {props.festival.address}
                 </p>

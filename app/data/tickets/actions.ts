@@ -3,7 +3,10 @@
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import {
+  FestivalBase,
+  FestivalWithDates,
+} from "@/app/data/festivals/definitions";
 import { uploadQrCode } from "@/app/data/tickets/helpers";
 import { generateQRCode } from "@/app/lib/utils";
 import { db, pool } from "@/db";
@@ -116,31 +119,23 @@ export async function createTickets(data: {
 
 export async function createEventDayTicket(data: {
   visitorId: number;
-  festivalId: number;
-  festivalStartDate: Date;
-  festivalEndDate: Date;
+  festival: FestivalWithDates;
 }): Promise<{ success: boolean; message: string }> {
   const client = await pool.connect();
 
   try {
-    const { visitorId, festivalId, festivalStartDate, festivalEndDate } = data;
-    const today = formatDate(new Date());
-    const startDate = formatDate(festivalStartDate);
-    const endDate = formatDate(festivalEndDate);
+    const { visitorId, festival } = data;
 
-    if (
-      today.startOf("day") < startDate.startOf("day") ||
-      today.startOf("day") > endDate.startOf("day")
-    ) {
+    if (!festival.eventDayRegistration) {
       return {
         success: false,
-        message: "No se puede crear una entrada para este día",
+        message: "La creación de entradas para este evento no está habilitada",
       };
     }
 
     await db.insert(tickets).values({
       visitorId,
-      festivalId,
+      festivalId: festival.id,
       date: sql`NOW()`,
       isEventDayCreation: true,
       status: "checked_in",
