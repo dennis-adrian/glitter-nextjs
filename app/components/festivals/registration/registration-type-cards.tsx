@@ -3,19 +3,20 @@
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Button } from "@/app/components/ui/button";
 import { cn } from "@/app/lib/utils";
+import clsx from "clsx";
 import { Undo2Icon, UserIcon, UsersIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 const cardContent = {
   individual: {
-    title: "Registro individual",
-    description: "Vengo por mi cuenta o con amigos",
+    title: "Registro personal",
+    description: "Conozco y puedo llenar mis datos personales",
     icon: UserIcon,
   },
   family: {
     title: "Registro familiar",
-    description: "Vengo con mi familia",
+    description: "Vengo acompañado de familiares a mi cargo",
     icon: UsersIcon,
   },
 };
@@ -37,21 +38,28 @@ function TypeCard({
   return (
     <div
       className={cn(
-        `w-80 h-32 rounded-md flex p-4 border items-center justify-between shadow-md transition-all duration-300 cursor-pointer ${
+        `w-80 rounded-md flex border items-center justify-between shadow-md transition-all duration-300 ${
           selected
-            ? "transition-[width] duration-300 w-full bg-primary-100/30 border-primary-500 text-primary-500 h-20"
-            : "hover:bg-primary-100/30 hover:text-primary-500 hover:border-primary-500"
+            ? "p-3 transition-[width] duration-300 w-full border-border"
+            : "px-4 py-6 hover:bg-primary-100/30 hover:text-primary-500 hover:border-primary-500 cursor-pointer"
         }`,
         className,
       )}
       onClick={selected ? () => {} : props.onClick}
     >
-      <div className="flex items-center gap-2">
-        <Icon className="w-8 h-8 text-primary-500" />
+      <div
+        className={clsx("flex items-center gap-4 text-center", {
+          "flex-col": !selected,
+          "flex-row": selected,
+        })}
+      >
+        <Icon
+          className={!selected ? "w-12 h-12 hover:text-primary-500" : "w-5 h-5"}
+        />
         <div>
-          <h1 className="">{content.title}</h1>
-          <span className="text-sm text-muted-foreground">
-            {content.description}
+          <h1 className="h3 font-medium">{content.title}</h1>
+          <span className="text-muted-foreground leading-3">
+            {!selected && content.description}
           </span>
         </div>
       </div>
@@ -60,7 +68,7 @@ function TypeCard({
           className="p-2 border border-primary-200 rounded-md hover:bg-primary-100/30 hover:text-primary-500 hover:border-primary-500"
           href={`/festivals/${festivalId}/event_day_registration`}
         >
-          <Undo2Icon className="w-5 h-5" />
+          <Undo2Icon className="w-4 h-4" />
         </Link>
       )}
     </div>
