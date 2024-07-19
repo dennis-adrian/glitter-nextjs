@@ -9,13 +9,24 @@ import { z } from "zod";
 
 const FormSchema = z
   .object({
-    day: z.coerce.number().min(1, { message: "Mes no válido" }),
+    day: z.coerce
+      .number({
+        invalid_type_error: "El día no es válido",
+        required_error: "El día es requerido",
+      })
+      .min(1, { message: "Mes no válido" }),
     month: z.coerce
-      .number()
+      .number({
+        invalid_type_error: "El mes no es válido",
+        required_error: "El mes es requerido",
+      })
       .min(1, { message: "Mes no válido" })
       .max(12, { message: "Mes no válido" }),
     year: z.coerce
-      .number()
+      .number({
+        invalid_type_error: "El año no es válido",
+        required_error: "El año es requerido",
+      })
       .min(1900, { message: "El año no puede ser menor a 1900" })
       .max(2015, {
         message: "El año no puede ser mayor a 2015",

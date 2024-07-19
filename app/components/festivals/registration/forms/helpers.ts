@@ -14,3 +14,10 @@ export function getMaxDateNumber(month: number, year: number) {
 
   return 31;
 }
+
+export function validatePhoneNumber(phoneNumber: string) {
+  const isNumeric = phoneNumber.match(/^\d+$/);
+  if (!isNumeric) return false;
+
+  return phoneNumber.startsWith("6") || phoneNumber.startsWith("7");
+}

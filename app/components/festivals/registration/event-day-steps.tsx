@@ -4,6 +4,7 @@ import BirthdayStep from "@/app/components/festivals/registration/steps/brithday
 import EmailStep from "@/app/components/festivals/registration/steps/email-step";
 import FamilyMembersStep from "@/app/components/festivals/registration/steps/family-members-step";
 import NameStep from "@/app/components/festivals/registration/steps/name-step";
+import PhoneStep from "@/app/components/festivals/registration/steps/phone-step";
 import StepZero from "@/app/components/festivals/registration/steps/step-zero";
 import TicketCreationStep from "@/app/components/festivals/registration/steps/ticket-creation-step";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
@@ -24,7 +25,7 @@ export default function EventDaySteps(props: EventDayStepsProps) {
   const [newVisitor, setNewVisitor] = useState<NewVisitor>({
     firstName: "",
     lastName: "",
-    email: "",
+    email: props.email || "",
     birthdate: new Date(),
     phoneNumber: "",
   });
@@ -46,6 +47,14 @@ export default function EventDaySteps(props: EventDayStepsProps) {
     setStep(3);
   }
 
+  function handlePhoneStep(phoneNumber: string) {
+    setNewVisitor((prevState) => ({
+      ...prevState,
+      phoneNumber,
+    }));
+    setStep(4);
+  }
+
   console.log(newVisitor);
 
   return (
@@ -62,6 +71,7 @@ export default function EventDaySteps(props: EventDayStepsProps) {
         <>
           {step === 1 && <NameStep updateVisitor={handleNameStep} />}
           {step === 2 && <BirthdayStep updateVisitor={handleBirthdayStep} />}
+          {step === 3 && <PhoneStep updateVisitor={handlePhoneStep} />}
         </>
       )}
       {props.enableTicketCreation && props.visitor && (
