@@ -2,14 +2,15 @@
 
 import EventDayTicketCreationForm from "@/app/components/events/registration/event-day-ticket-creation-form";
 import Tickets from "@/app/components/events/registration/tickets";
-import StepDescription from "@/app/components/festivals/registration/steps/step-decription";
+import StepDescription from "@/app/components/festivals/registration/steps/step-description";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
-import { VisitorWithTickets } from "@/app/data/visitors/actions";
+import { NewVisitor, VisitorWithTickets } from "@/app/data/visitors/actions";
 import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 
 type TicketCreationStepProps = {
   festival: FestivalWithDates;
-  visitor: VisitorWithTickets;
+  visitor?: VisitorWithTickets | null;
+  newVisitor?: NewVisitor | null;
   numberOfVisitors?: number;
 };
 

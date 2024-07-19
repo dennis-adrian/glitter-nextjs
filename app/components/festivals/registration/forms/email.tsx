@@ -31,6 +31,7 @@ const FormSchema = z.object({
 
 type EmailFormProps = {
   setVisitor?: (visitor: VisitorWithTickets) => void;
+  onSubmit: () => void;
 };
 
 export default function EmailForm(props: EmailFormProps) {
@@ -51,8 +52,10 @@ export default function EmailForm(props: EmailFormProps) {
     if (visitor) {
       currentParams.set("visitorId", visitor.id.toString());
       currentParams.set("enableTicketCreation", "true");
-      router.push(`?${currentParams.toString()}`);
     }
+
+    props.onSubmit();
+    router.push(`?${currentParams.toString()}`);
   });
 
   return (

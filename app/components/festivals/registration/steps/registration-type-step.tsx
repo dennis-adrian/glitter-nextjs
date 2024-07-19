@@ -1,5 +1,5 @@
 import RegistrationTypeCards from "@/app/components/festivals/registration/registration-type-cards";
-import StepDescription from "@/app/components/festivals/registration/steps/step-decription";
+import StepDescription from "@/app/components/festivals/registration/steps/step-description";
 
 type RegistrationTypeStepProps = {
   festivalId: number;

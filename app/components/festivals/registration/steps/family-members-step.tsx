@@ -1,7 +1,7 @@
 "use client";
 
 import { Slider } from "@/components/ui/slider";
-import StepDescription from "@/app/components/festivals/registration/steps/step-decription";
+import StepDescription from "@/app/components/festivals/registration/steps/step-description";
 import { useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/app/components/ui/button";

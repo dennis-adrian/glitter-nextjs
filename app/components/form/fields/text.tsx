@@ -10,13 +10,15 @@ import { InputHTMLAttributes } from "react";
 import { UseFormReturn } from "react-hook-form";
 
 export default function TextInput({
+  bottomBorderOnly,
   formControl,
   label,
   name,
   ...props
 }: {
+  bottomBorderOnly?: boolean;
   formControl: UseFormReturn<any>["control"];
-  label: string;
+  label?: string;
   name: string;
   placeholder?: string;
 } & InputHTMLAttributes<HTMLInputElement>) {
@@ -26,9 +28,9 @@ export default function TextInput({
       name={name}
       render={({ field }) => (
         <FormItem className="grid gap-2">
-          <FormLabel>{label}</FormLabel>
+          {label && <FormLabel>{label}</FormLabel>}
           <FormControl>
-            <Input {...field} {...props} />
+            <Input bottomBorderOnly={bottomBorderOnly} {...field} {...props} />
           </FormControl>
           <FormMessage />
         </FormItem>
