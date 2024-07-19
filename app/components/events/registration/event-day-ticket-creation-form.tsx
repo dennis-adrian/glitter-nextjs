@@ -12,7 +12,6 @@ import { toast } from "sonner";
 type EventDayTicketCreationFormProps = {
   festival: FestivalWithDates;
   visitor: VisitorWithTickets;
-  onSuccess?: () => void;
 };
 
 export default function EventDayTicketCreationForm(
@@ -28,7 +27,6 @@ export default function EventDayTicketCreationForm(
 
     if (res.success) {
       toast.success(res.message);
-      if (props.onSuccess) props.onSuccess();
     } else {
       toast.error(res.message);
     }

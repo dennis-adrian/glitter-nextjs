@@ -7,7 +7,12 @@ import {
 } from "@/app/components/ui/card";
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import { TicketBase } from "@/app/data/tickets/actions";
-import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
+import {
+  formatDate,
+  formatFullDate,
+  getWeekdayFromDate,
+} from "@/app/lib/formatters";
+import { DateTime } from "luxon";
 
 type TicketsProps = {
   tickets: TicketBase[];
@@ -30,10 +35,12 @@ export default function Tickets(props: TicketsProps) {
               key={ticket.id}
               className="rounded-lg border  bg-gradient-to-b from-[#CDE6D2] via-[#fff] to-[#FFFFFF]"
             >
-              <div className="flex items-center justify-between rounded-t-lg p-4">
-                <h2 className="text-lg font-semibold">{props.festival.name}</h2>
-                <div className="rounded-xl bg-[#64731F] px-2 py-1 text-sm capitalize text-white">
-                  {getWeekdayFromDate(ticket.date, "short")}
+              <div className="flex items-center justify-between rounded-t-lg p-4 pb-0">
+                <h2 className="text-xl font-semibold">Entrada</h2>
+                <div className="rounded-xl bg-[#64731F] px-2 py-1 text-sm text-white">
+                  {formatDate(new Date()).toLocaleString(
+                    DateTime.DATE_MED_WITH_WEEKDAY,
+                  )}
                 </div>
               </div>
               <div className="p-4">

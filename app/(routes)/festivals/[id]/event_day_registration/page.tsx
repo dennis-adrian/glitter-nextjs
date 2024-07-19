@@ -3,6 +3,7 @@ import EventDaySteps from "@/app/components/festivals/registration/event-day-ste
 import RegistrationTypeCards from "@/app/components/festivals/registration/registration-type-cards";
 import RegistrationTypeStep from "@/app/components/festivals/registration/steps/registration-type-step";
 import { fetchFestivalWithDates } from "@/app/data/festivals/actions";
+import { fetchVisitor } from "@/app/data/visitors/actions";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -11,7 +12,10 @@ const ParamsSchema = z.object({
 });
 
 const searchParamsSchema = z.object({
+  email: z.string().email().optional(),
+  enableTicketCreation: z.coerce.boolean().default(false).optional(),
   type: z.enum(["individual", "family"]).optional(),
+  visitorId: z.coerce.number().optional(),
 });
 
 export default async function Page({
@@ -28,8 +32,14 @@ export default async function Page({
   if (!festival) notFound();
 
   const validatedSearchParams = searchParamsSchema.safeParse(searchParams);
-  if (!validatedSearchParams.success)
+  if (!validatedSearchParams.success) {
     redirect(`/festivals/${validatedParams.data.id}/event_day_registration`);
+  }
+
+  let visitor = null;
+  if (validatedSearchParams.data.visitorId) {
+    visitor = await fetchVisitor(validatedSearchParams.data.visitorId);
+  }
 
   return (
     <div className="p-4 md:p-6 max-w-screen-md mx-auto">
@@ -41,7 +51,15 @@ export default async function Page({
         type={validatedSearchParams.data.type}
       />
       {validatedSearchParams.data.type && festival ? (
-        <EventDaySteps festival={festival} />
+        <EventDaySteps
+          email={validatedSearchParams.data.email}
+          enableTicketCreation={
+            !!validatedSearchParams.data.enableTicketCreation
+          }
+          festival={festival}
+          registrationType={validatedSearchParams.data.type}
+          visitor={visitor}
+        />
       ) : null}
     </div>
   );

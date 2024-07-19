@@ -5,7 +5,7 @@ import StepDescription from "@/app/components/festivals/registration/steps/step-
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
 
 type EmailStepProps = {
-  setVisitor: (visitor: VisitorWithTickets) => void;
+  setVisitor?: (visitor: VisitorWithTickets) => void;
 };
 
 export default function EmailStep(props: EmailStepProps) {
@@ -15,7 +15,7 @@ export default function EmailStep(props: EmailStepProps) {
         title="¿Cuál es tu correo electrónico?"
         description="Si ya participaste de alguno de nuestros eventos, todos tus datos están guardados con tu correo electrónico"
       />
-      <EmailForm setVisitor={props.setVisitor} />
+      <EmailForm />
     </div>
   );
 }
