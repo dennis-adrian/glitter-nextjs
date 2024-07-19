@@ -22,10 +22,10 @@ export default function SelectInput({
   placeholder,
 }: {
   formControl: UseFormReturn<any>["control"];
-  label: string;
+  label?: string;
   name: string;
   options: { value: string; label: string }[];
-  placeholder: string;
+  placeholder?: string;
 }) {
   return (
     <FormField
@@ -33,7 +33,7 @@ export default function SelectInput({
       name={name}
       render={({ field }) => (
         <FormItem className="grid gap-2">
-          <FormLabel>{label}</FormLabel>
+          {label && <FormLabel>{label}</FormLabel>}
           <FormControl>
             <Select onValueChange={field.onChange} defaultValue={field.value}>
               <FormControl>

@@ -10,7 +10,6 @@ import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 type TicketCreationStepProps = {
   festival: FestivalWithDates;
   visitor?: VisitorWithTickets | null;
-  newVisitor?: NewVisitor | null;
   numberOfVisitors?: number;
 };
 

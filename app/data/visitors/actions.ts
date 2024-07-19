@@ -55,12 +55,13 @@ export async function fetchVisitor(
   }
 }
 
-export async function createVisitor(
-  visitor: NewVisitor,
-): Promise<{ success: boolean; error?: string }> {
+export async function createVisitor(visitor: NewVisitor) {
   const client = await pool.connect();
+
+  let createdVisitor = null;
   try {
-    await db.insert(visitors).values(visitor);
+    const [newVisitor] = await db.insert(visitors).values(visitor).returning();
+    createdVisitor = newVisitor;
   } catch (error) {
     console.error("Error creando visitante", error);
     return {
@@ -72,7 +73,7 @@ export async function createVisitor(
   }
 
   revalidatePath("/festivals");
-  return { success: true };
+  return { success: true, visitor: createdVisitor };
 }
 
 export async function fetchVisitorsEmails() {
