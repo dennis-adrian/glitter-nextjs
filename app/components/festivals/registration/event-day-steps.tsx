@@ -1,5 +1,6 @@
 "use client";
 
+import BirthdayStep from "@/app/components/festivals/registration/steps/brithday-step";
 import EmailStep from "@/app/components/festivals/registration/steps/email-step";
 import FamilyMembersStep from "@/app/components/festivals/registration/steps/family-members-step";
 import NameStep from "@/app/components/festivals/registration/steps/name-step";
@@ -37,10 +38,18 @@ export default function EventDaySteps(props: EventDayStepsProps) {
     setStep(2);
   }
 
+  function handleBirthdayStep(birthdate: Date) {
+    setNewVisitor((prevState) => ({
+      ...prevState,
+      birthdate,
+    }));
+    setStep(3);
+  }
+
   console.log(newVisitor);
 
   return (
-    <div className="md:mt-6">
+    <div className="w-full md:mt-6">
       {step === 0 && (
         <StepZero
           numberOfVisitors={props.numberOfVisitors}
@@ -49,8 +58,11 @@ export default function EventDaySteps(props: EventDayStepsProps) {
           onSubmit={() => setStep(1)}
         />
       )}
-      {step === 1 && !props.enableTicketCreation && props.email && (
-        <NameStep updateVisitor={handleNameStep} />
+      {!props.enableTicketCreation && props.email && (
+        <>
+          {step === 1 && <NameStep updateVisitor={handleNameStep} />}
+          {step === 2 && <BirthdayStep updateVisitor={handleBirthdayStep} />}
+        </>
       )}
       {props.enableTicketCreation && props.visitor && (
         <TicketCreationStep

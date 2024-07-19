@@ -79,7 +79,7 @@ export default function EmailForm(props: EmailFormProps) {
           )}
         />
         <SubmitButton
-          className="mt-4 md:max-w-[320px]"
+          className="mt-4 md:max-w-80"
           disabled={form.formState.isSubmitting}
           label="Continuar"
           loading={form.formState.isSubmitting}

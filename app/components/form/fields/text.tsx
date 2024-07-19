@@ -14,11 +14,13 @@ export default function TextInput({
   formControl,
   label,
   name,
+  messagePosition = "bottom",
   ...props
 }: {
   bottomBorderOnly?: boolean;
   formControl: UseFormReturn<any>["control"];
   label?: string;
+  messagePosition?: "top" | "bottom";
   name: string;
   placeholder?: string;
 } & InputHTMLAttributes<HTMLInputElement>) {
@@ -27,12 +29,13 @@ export default function TextInput({
       control={formControl}
       name={name}
       render={({ field }) => (
-        <FormItem className="grid gap-2">
+        <FormItem className="w-full grid gap-2">
           {label && <FormLabel>{label}</FormLabel>}
+          {messagePosition === "top" && <FormMessage />}
           <FormControl>
             <Input bottomBorderOnly={bottomBorderOnly} {...field} {...props} />
           </FormControl>
-          <FormMessage />
+          {messagePosition === "bottom" && <FormMessage />}
         </FormItem>
       )}
     />
