@@ -36,11 +36,15 @@ export default function Tickets(props: TicketsProps) {
               className="rounded-lg border  bg-gradient-to-b from-[#CDE6D2] via-[#fff] to-[#FFFFFF]"
             >
               <div className="flex items-center justify-between rounded-t-lg p-4 pb-0">
-                <h2 className="text-xl font-semibold">Entrada</h2>
-                <div className="rounded-xl bg-[#64731F] px-2 py-1 text-sm text-white">
-                  {formatDate(new Date()).toLocaleString(
-                    DateTime.DATE_MED_WITH_WEEKDAY,
-                  )}
+                <span className="flex flex-wrap gap-1 items-center">
+                  <h2 className="text-xl font-semibold">Entrada </h2>
+                  <span className="text-muted-foreground text-sm">
+                    ({ticket.numberOfVisitors} persona
+                    {ticket.numberOfVisitors > 1 ? "s" : ""})
+                  </span>
+                </span>
+                <div className="self-start rounded-xl bg-[#64731F] px-2 py-1 text-sm text-white">
+                  {formatDate(new Date()).toLocaleString(DateTime.DATE_MED)}
                 </div>
               </div>
               <div className="p-4">

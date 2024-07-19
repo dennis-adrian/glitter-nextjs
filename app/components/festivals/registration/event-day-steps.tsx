@@ -33,7 +33,11 @@ export default function EventDaySteps(props: EventDayStepsProps) {
         props.registrationType === "family" &&
         props.numberOfVisitors && <EmailStep />}
       {props.enableTicketCreation && props.visitor && (
-        <TicketCreationStep festival={props.festival} visitor={props.visitor} />
+        <TicketCreationStep
+          festival={props.festival}
+          numberOfVisitors={props.numberOfVisitors}
+          visitor={props.visitor}
+        />
       )}
     </div>
   );

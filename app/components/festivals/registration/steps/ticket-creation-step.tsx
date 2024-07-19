@@ -10,6 +10,7 @@ import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 type TicketCreationStepProps = {
   festival: FestivalWithDates;
   visitor: VisitorWithTickets;
+  numberOfVisitors?: number;
 };
 
 export default function TicketCreationStep(props: TicketCreationStepProps) {
@@ -27,6 +28,7 @@ export default function TicketCreationStep(props: TicketCreationStepProps) {
         ) : (
           <EventDayTicketCreationForm
             festival={props.festival}
+            numberOfVisitors={props.numberOfVisitors}
             visitor={props.visitor}
           />
         )}

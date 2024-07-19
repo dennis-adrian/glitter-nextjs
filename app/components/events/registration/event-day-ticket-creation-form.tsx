@@ -12,6 +12,7 @@ import { toast } from "sonner";
 type EventDayTicketCreationFormProps = {
   festival: FestivalWithDates;
   visitor: VisitorWithTickets;
+  numberOfVisitors?: number;
 };
 
 export default function EventDayTicketCreationForm(
@@ -23,6 +24,7 @@ export default function EventDayTicketCreationForm(
     const res = await createEventDayTicket({
       visitorId: props.visitor.id,
       festival: props.festival,
+      numberOfVisitors: props.numberOfVisitors || 1,
     });
 
     if (res.success) {

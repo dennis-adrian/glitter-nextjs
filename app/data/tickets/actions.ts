@@ -120,11 +120,12 @@ export async function createTickets(data: {
 export async function createEventDayTicket(data: {
   visitorId: number;
   festival: FestivalWithDates;
+  numberOfVisitors: number;
 }): Promise<{ success: boolean; message: string }> {
   const client = await pool.connect();
 
   try {
-    const { visitorId, festival } = data;
+    const { visitorId, festival, numberOfVisitors } = data;
 
     if (!festival.eventDayRegistration) {
       return {
@@ -139,6 +140,7 @@ export async function createEventDayTicket(data: {
       date: sql`NOW()`,
       isEventDayCreation: true,
       status: "checked_in",
+      numberOfVisitors,
     });
   } catch (error) {
     console.error("Error creating event day ticket", error);
