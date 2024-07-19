@@ -1,12 +1,10 @@
 "use client";
 
-import { RedirectButton } from "@/app/components/redirect-button";
-import { Button } from "@/app/components/ui/button";
 import { cn } from "@/app/lib/utils";
 import clsx from "clsx";
 import { Undo2Icon, UserIcon, UsersIcon } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const cardContent = {
   individual: {
@@ -32,6 +30,8 @@ function TypeCard({
   type: "individual" | "family";
   selected: boolean;
 } & JSX.IntrinsicElements["div"]) {
+  const searchParmas = useSearchParams();
+  const numberOfVisitors = searchParmas.get("numberOfVisitors");
   const content = cardContent[type];
   const Icon = content.icon;
 
@@ -57,7 +57,14 @@ function TypeCard({
           className={!selected ? "w-12 h-12 hover:text-primary-500" : "w-5 h-5"}
         />
         <div>
-          <h1 className="h3 font-medium">{content.title}</h1>
+          <span className="flex flex-wrap gap-1 items-center justify-center">
+            <h1 className="h3 font-medium">{content.title}</h1>
+            {numberOfVisitors && (
+              <span className="text-muted-foreground text-sm">
+                ({numberOfVisitors} personas)
+              </span>
+            )}
+          </span>
           <span className="text-muted-foreground leading-3">
             {!selected && content.description}
           </span>

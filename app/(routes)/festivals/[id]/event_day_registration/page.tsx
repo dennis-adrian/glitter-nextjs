@@ -5,7 +5,7 @@ import RegistrationTypeStep from "@/app/components/festivals/registration/steps/
 import { fetchFestivalWithDates } from "@/app/data/festivals/actions";
 import { fetchVisitor } from "@/app/data/visitors/actions";
 import { notFound, redirect } from "next/navigation";
-import { z } from "zod";
+import { number, z } from "zod";
 
 const ParamsSchema = z.object({
   id: z.coerce.number(),
@@ -14,6 +14,7 @@ const ParamsSchema = z.object({
 const searchParamsSchema = z.object({
   email: z.string().email().optional(),
   enableTicketCreation: z.coerce.boolean().default(false).optional(),
+  numberOfVisitors: z.coerce.number().optional(),
   type: z.enum(["individual", "family"]).optional(),
   visitorId: z.coerce.number().optional(),
 });
@@ -57,6 +58,7 @@ export default async function Page({
             !!validatedSearchParams.data.enableTicketCreation
           }
           festival={festival}
+          numberOfVisitors={validatedSearchParams.data.numberOfVisitors}
           registrationType={validatedSearchParams.data.type}
           visitor={visitor}
         />
