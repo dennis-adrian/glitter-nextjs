@@ -61,12 +61,14 @@ export const columns: ColumnDef<TicketWithVisitor>[] = [
   {
     id: "visitor",
     accessorFn: (ticket) =>
-      `${ticket.visitor.firstName} ${ticket.visitor.lastName}`,
+      `${ticket.visitor?.firstName || ""} ${ticket.visitor?.lastName || ""}`,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.visitor} />
     ),
     cell: ({ row }) =>
-      `${row.original.visitor.firstName} ${row.original.visitor.lastName}`,
+      `${row.original.visitor?.firstName || ""} ${
+        row.original.visitor?.lastName || ""
+      }`,
   },
   {
     id: "status",

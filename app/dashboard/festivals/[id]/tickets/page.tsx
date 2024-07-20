@@ -1,11 +1,8 @@
 import { TicketIcon } from "lucide-react";
 
-import {
-  fetchFestivalWithTicketsAndDates,
-  fetchFestivalWithDates,
-} from "@/app/data/festivals/actions";
+import { fetchFestivalWithTicketsAndDates } from "@/app/data/festivals/actions";
 import TotalsCard from "@/app/components/dashboard/totals/card";
-import { formatDate, getWeekdayFromDate } from "@/app/lib/formatters";
+import { formatDate } from "@/app/lib/formatters";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TicketsTable from "@/app/components/tickets/table";
@@ -24,7 +21,10 @@ export default async function Page({ params }: { params: { id: string } }) {
 
   const tickets = festival.tickets;
   const dayOne = formatDate(festival.festivalDates[0].startDate);
-  const dayTwo = formatDate(festival.festivalDates[1].startDate);
+  const dayTwo =
+    festival.festivalDates.length > 1
+      ? formatDate(festival.festivalDates[1]?.startDate)
+      : null;
   const firstDayTickets = tickets.filter((ticket) => {
     return formatDate(ticket.date).toLocaleString() === dayOne.toLocaleString();
   });
@@ -49,27 +49,31 @@ export default async function Page({ params }: { params: { id: string } }) {
       {profile && profile.role === "admin" && (
         <div className="flex gap-2 md:gap-4 flex-wrap">
           <TotalsCard
-            amount={festival.tickets.length}
-            title="entradas en total"
+            amount={festival.tickets
+              .map((ticket) => ticket.numberOfVisitors)
+              .reduce((a, b) => a + b, 0)}
+            title="visitantes en total"
             description="Entradas para el evento"
             Icon={TicketIcon}
           />
-          <TotalsCard
-            amount={firstDayTickets.length}
-            title="entradas primer día"
-            description={`Entradas para el ${dayOne.weekdayLong}`}
-          />
           {dayTwo && (
-            <TotalsCard
-              amount={secondDayTickets.length}
-              title="entradas segundo día"
-              description={`Entradas para el ${dayTwo.weekdayLong}`}
-            />
+            <>
+              <TotalsCard
+                amount={firstDayTickets.length}
+                title="entradas primer día"
+                description={`Entradas para el ${dayOne.weekdayLong}`}
+              />
+              <TotalsCard
+                amount={secondDayTickets.length}
+                title="entradas segundo día"
+                description={`Entradas para el ${dayTwo.weekdayLong}`}
+              />
+            </>
           )}
         </div>
       )}
 
-      <Tabs defaultValue="pending" className="my-4">
+      {/* <Tabs defaultValue="pending" className="my-4">
         <TabsList>
           <TabsTrigger value="all">Todos</TabsTrigger>
           <TabsTrigger value="confirmed">Confirmados</TabsTrigger>
@@ -92,7 +96,7 @@ export default async function Page({ params }: { params: { id: string } }) {
             festival={festival}
           />
         </TabsContent>
-      </Tabs>
+      </Tabs> */}
     </div>
   );
 }

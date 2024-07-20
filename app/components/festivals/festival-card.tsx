@@ -37,7 +37,7 @@ export default function FestivalCard({
               variant="link"
               href={`/dashboard/festivals/${festival.id}/tickets`}
             >
-              Ver tickets
+              Ver visitantes
             </RedirectButton>
           </div>
           <FestivalSwitches festival={festival} />

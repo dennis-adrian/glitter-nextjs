@@ -42,7 +42,7 @@ export default function Tickets(props: TicketsProps) {
                   </span>
                 </span>
                 <div className="self-start rounded-xl bg-[#64731F] px-2 py-1 text-sm text-white">
-                  {formatDate(new Date()).toLocaleString(DateTime.DATE_MED)}
+                  {formatDate(new Date()).toFormat("d MMM")}
                 </div>
               </div>
               <div className="p-4">
