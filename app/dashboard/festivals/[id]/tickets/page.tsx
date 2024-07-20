@@ -7,6 +7,7 @@ import { RedirectButton } from "@/app/components/redirect-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TicketsTable from "@/app/components/tickets/table";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import TicketsChart from "@/app/components/tickets/chart/chart";
 
 export default async function Page({ params }: { params: { id: string } }) {
   const profile = await getCurrentUserProfile();
@@ -72,6 +73,10 @@ export default async function Page({ params }: { params: { id: string } }) {
           )}
         </div>
       )}
+
+      <div className="my-6">
+        <TicketsChart tickets={tickets} />
+      </div>
 
       {/* <Tabs defaultValue="pending" className="my-4">
         <TabsList>

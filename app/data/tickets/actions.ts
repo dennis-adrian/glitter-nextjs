@@ -200,7 +200,7 @@ export async function sendTicketEmail(
     const { error, data } = await sendEmail({
       from: "Equipo Glitter <entradas@productoraglitter.com>",
       to: [visitor.email],
-      subject: "Confirmación de Registro para Glitter Vol 2",
+      subject: `Confirmación de Registro para ${festival.name}`,
       react: TicketEmailTemplate({
         visitor,
         festival,
