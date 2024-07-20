@@ -18,28 +18,25 @@ export default function FamilyMembersStep(props: FamilyMembersStepProps) {
 
   function updateSearchParams() {
     const currentParams = new URLSearchParams(searchParams.toString());
-    currentParams.set("numberOfVisitors", (sliderValue[0] + 1).toString());
+    currentParams.set("numberOfVisitors", sliderValue[0].toString());
     router.push(`?${currentParams.toString()}`);
   }
 
   return (
     <div className="flex flex-col items-center justify-center">
       <StepDescription
-        title="¿Cuántas personas ingresarán contigo?"
+        title="¿Cuántas personas ingresarán?"
         description="Saber la cantidad de personas que nos visitan nos ayudará a mejorar la experiencia"
       />
       <div className="w-full flex flex-col gap-3 text-center my-4">
         <span className="font-semibold text-5xl mr-1">{sliderValue[0]}</span>
         <Slider
           defaultValue={[sliderValue[0]]}
-          max={9}
+          max={10}
           min={1}
           step={1}
           onValueChange={setSliderValue}
         />
-        <span className="text-muted-foreground">
-          Ingresan {sliderValue[0] + 1} personas incluyéndote a ti
-        </span>
       </div>
       <Button className="w-full md:max-w-80" onClick={updateSearchParams}>
         Continuar
