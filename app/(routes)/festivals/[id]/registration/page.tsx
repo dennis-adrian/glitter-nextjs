@@ -40,9 +40,6 @@ export default async function Page({
 
   if (!festival) return <ResourceNotFound />;
 
-  if (festival.eventDayRegistration)
-    redirect(`/festivals/${festival.id}/event_day_registration`);
-
   if (festival.status !== "active" || !festival.publicRegistration) {
     return (
       <section className="container flex flex-col gap-4 md:gap-6 items-center justify-center min-h-[calc(100vh-64px-180px)] md:min-h-[calc(100vh-80px-140px)]">
