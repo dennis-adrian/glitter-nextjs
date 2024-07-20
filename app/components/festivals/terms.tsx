@@ -336,9 +336,9 @@ export default function Terms({
             Queda terminantemente prohibido el consumo de bebidas alcohólicas
             y/o estupefacientes en el evento así como no está permitido llegar
             al evento en estado de ebriedad o que demuestre haber hecho uso de
-            sustancias. Cualquier artista que viole esta regla será retirado del
-            evento y no podrá participar de festival o evento realizado por la
-            organización.
+            sustancias. Cualquier participante que viole esta regla será
+            retirado del evento y no podrá participar de festival o evento
+            realizado por la organización.
           </li>
           {userCategory === "illustration" && (
             <li>

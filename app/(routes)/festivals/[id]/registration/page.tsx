@@ -9,6 +9,7 @@ import ThirdStep from "@/app/components/events/registration/steps/third-step";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import EmailCard from "@/app/components/events/registration/email-card";
 import { Metadata } from "next";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Registro para evento",
@@ -38,6 +39,9 @@ export default async function Page({
   }
 
   if (!festival) return <ResourceNotFound />;
+
+  if (festival.eventDayRegistration)
+    redirect(`/festivals/${festival.id}/event_day_registration`);
 
   if (festival.status !== "active" || !festival.publicRegistration) {
     return (

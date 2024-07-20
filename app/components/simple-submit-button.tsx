@@ -6,7 +6,7 @@ type SubmitButtonProps = {
   className?: string;
   children?: React.ReactNode;
   disabled: boolean;
-  label: string;
+  label?: string;
   loading: boolean;
   loadingLabel?: string;
 };

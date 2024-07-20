@@ -41,7 +41,11 @@ export default function ThirdStep(props: ThirdStepProps) {
 
   return (
     <div>
-      <Tickets tickets={tickets} festival={props.festival} />
+      <Tickets
+        visitor={props.visitor}
+        tickets={tickets}
+        festival={props.festival}
+      />
     </div>
   );
 }
