@@ -24,7 +24,6 @@ const FormSchema = z.object({
 type GenderFormProps = {
   festival: FestivalWithDates;
   numberOfVisitors?: number;
-  visitor: NewVisitor;
 };
 export default function GenderForm(props: GenderFormProps) {
   const router = useRouter();
@@ -39,9 +38,12 @@ export default function GenderForm(props: GenderFormProps) {
   const action: () => void = form.handleSubmit(async (data) => {
     const currentParams = new URLSearchParams(searchParams.toString());
     const res = await createVisitor({
-      ...props.visitor,
+      firstName: searchParams.get("firstName") || "",
+      lastName: searchParams.get("lastName") || "",
       email: searchParams.get("email") || "",
+      phoneNumber: searchParams.get("phoneNumber") || "",
       gender: data.gender,
+      birthdate: new Date(searchParams.get("birthdate") || ""),
     });
 
     if (res.success) {
