@@ -25,7 +25,6 @@ type GenderFormProps = {
   festival: FestivalWithDates;
   numberOfVisitors?: number;
   visitor: NewVisitor;
-  onSubmit: () => void;
 };
 export default function GenderForm(props: GenderFormProps) {
   const router = useRouter();
@@ -58,7 +57,6 @@ export default function GenderForm(props: GenderFormProps) {
 
       if (ticketRes.success) {
         toast.success(ticketRes.message);
-        props.onSubmit();
       } else {
         toast.error(ticketRes.message);
       }

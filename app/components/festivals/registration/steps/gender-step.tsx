@@ -7,7 +7,6 @@ type GenderStepProps = {
   festival: FestivalWithDates;
   numberOfVisitors?: number;
   visitor: NewVisitor;
-  updateVisitor: () => void;
 };
 
 export default function GenderStep(props: GenderStepProps) {
@@ -21,7 +20,6 @@ export default function GenderStep(props: GenderStepProps) {
         festival={props.festival}
         numberOfVisitors={props.numberOfVisitors}
         visitor={props.visitor}
-        onSubmit={props.updateVisitor}
       />
     </>
   );

@@ -8,7 +8,7 @@ import {
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import { TicketBase } from "@/app/data/tickets/actions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
-import { formatDate, formatFullDate } from "@/app/lib/formatters";
+import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 
 type TicketsProps = {

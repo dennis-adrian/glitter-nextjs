@@ -34,7 +34,6 @@ export default function EventDaySteps(props: EventDayStepsProps) {
   });
 
   function updateStep(step: number) {
-    console.log("updating step", step);
     const currentParams = new URLSearchParams(searchParams.toString());
     currentParams.set("step", step.toString());
     router.push(`?${currentParams.toString()}`);
@@ -65,8 +64,6 @@ export default function EventDaySteps(props: EventDayStepsProps) {
     updateStep(4);
   }
 
-  function handleGenderStep() {}
-
   return (
     <div className="w-full md:mt-6">
       {(!props.step || props.step === 0) && (
@@ -88,7 +85,6 @@ export default function EventDaySteps(props: EventDayStepsProps) {
             <GenderStep
               festival={props.festival}
               numberOfVisitors={props.numberOfVisitors}
-              updateVisitor={handleGenderStep}
               visitor={newVisitor}
             />
           )}

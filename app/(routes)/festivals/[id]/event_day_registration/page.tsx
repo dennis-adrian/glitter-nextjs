@@ -1,11 +1,10 @@
-import { FormBanner } from "@/app/components/events/registration/form-banner";
 import EventDaySteps from "@/app/components/festivals/registration/event-day-steps";
-import RegistrationTypeCards from "@/app/components/festivals/registration/registration-type-cards";
 import RegistrationTypeStep from "@/app/components/festivals/registration/steps/registration-type-step";
+import { Progress } from "@/app/components/ui/progress";
 import { fetchFestivalWithDates } from "@/app/data/festivals/actions";
 import { fetchVisitor } from "@/app/data/visitors/actions";
 import { notFound, redirect } from "next/navigation";
-import { number, z } from "zod";
+import { z } from "zod";
 
 const ParamsSchema = z.object({
   id: z.coerce.number(),
@@ -52,6 +51,17 @@ export default async function Page({
         festivalId={validatedParams.data.id}
         type={validatedSearchParams.data.type}
       />
+      {validatedSearchParams.data.step && (
+        <div className="flex flex-col items-center my-4 gap-2">
+          <span className="w-fit min-w-fit text-center text-sm text-muted-foreground">
+            Paso {validatedSearchParams.data.step} de 5
+          </span>
+          <Progress
+            className="h-1 bg-gray-200"
+            value={(validatedSearchParams.data.step * 100) / 5}
+          />
+        </div>
+      )}
       {validatedSearchParams.data.type && festival ? (
         <EventDaySteps
           email={validatedSearchParams.data.email}
