@@ -15,6 +15,7 @@ const searchParamsSchema = z.object({
   email: z.string().email().optional(),
   enableTicketCreation: z.coerce.boolean().default(false).optional(),
   numberOfVisitors: z.coerce.number().optional(),
+  step: z.coerce.number().optional(),
   type: z.enum(["individual", "family"]).optional(),
   visitorId: z.coerce.number().optional(),
 });
@@ -60,6 +61,7 @@ export default async function Page({
           festival={festival}
           numberOfVisitors={validatedSearchParams.data.numberOfVisitors}
           registrationType={validatedSearchParams.data.type}
+          step={validatedSearchParams.data.step}
           visitor={visitor}
         />
       ) : null}

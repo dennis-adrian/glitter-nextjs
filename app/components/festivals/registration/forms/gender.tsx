@@ -46,10 +46,9 @@ export default function GenderForm(props: GenderFormProps) {
     });
 
     if (res.success) {
-      props.onSubmit();
       toast.success("La información ha sido guardada");
       currentParams.set("visitorId", res.visitor!.id.toString());
-      router.push(`?${currentParams.toString()}`);
+      currentParams.set("step", "5");
 
       const ticketRes = await createEventDayTicket({
         festival: props.festival,
@@ -58,13 +57,16 @@ export default function GenderForm(props: GenderFormProps) {
       });
 
       if (ticketRes.success) {
-        toast.success("Se ha creado el ticket");
+        toast.success(ticketRes.message);
+        props.onSubmit();
       } else {
-        toast.error("Ups! No se pudo crear el ticket");
+        toast.error(ticketRes.message);
       }
     } else {
       toast.error("Ups! No se pudo guardar la información");
     }
+
+    router.push(`?${currentParams.toString()}`);
   });
 
   return (

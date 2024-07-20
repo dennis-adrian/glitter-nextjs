@@ -19,7 +19,11 @@ export default function CreatedTicket(props: CreatedTicketProps) {
         description="Tus datos fueron guardados para que puedas tener una mejor experiencia en próximos eventos"
       />
       {tickets.length > 0 && (
-        <Tickets tickets={tickets} festival={props.festival} />
+        <Tickets
+          visitor={props.visitor}
+          tickets={tickets}
+          festival={props.festival}
+        />
       )}
     </>
   );

@@ -48,6 +48,7 @@ export default function EmailForm(props: EmailFormProps) {
     const visitor = await fetchVisitorByEmail(data.email);
     const currentParams = new URLSearchParams(searchParams.toString());
     currentParams.set("email", data.email);
+    currentParams.set("step", "1");
 
     if (visitor) {
       currentParams.set("visitorId", visitor.id.toString());

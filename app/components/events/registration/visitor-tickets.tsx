@@ -32,7 +32,11 @@ export default function VisitorTickets({
         Confirmación de Entradas
       </h1>
       {visitorFestivalTickets.length > 0 && (
-        <Tickets tickets={visitorFestivalTickets} festival={festival} />
+        <Tickets
+          visitor={visitor}
+          tickets={visitorFestivalTickets}
+          festival={festival}
+        />
       )}
       {!showForm &&
         visitorFestivalTickets.length < festivalDates.length - 1 && (

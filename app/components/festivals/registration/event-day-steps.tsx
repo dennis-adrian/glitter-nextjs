@@ -18,11 +18,13 @@ type EventDayStepsProps = {
   festival: FestivalWithDates;
   numberOfVisitors?: number;
   registrationType: "individual" | "family";
+  step?: number;
   visitor?: VisitorWithTickets | null;
 };
 
 export default function EventDaySteps(props: EventDayStepsProps) {
-  const [step, setStep] = useState(0);
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [newVisitor, setNewVisitor] = useState<NewVisitor>({
     firstName: "",
     lastName: "",
@@ -31,13 +33,20 @@ export default function EventDaySteps(props: EventDayStepsProps) {
     phoneNumber: "",
   });
 
+  function updateStep(step: number) {
+    console.log("updating step", step);
+    const currentParams = new URLSearchParams(searchParams.toString());
+    currentParams.set("step", step.toString());
+    router.push(`?${currentParams.toString()}`);
+  }
+
   function handleNameStep(firstName: string, lastName: string) {
     setNewVisitor((prevState) => ({
       ...prevState,
       firstName,
       lastName,
     }));
-    setStep(2);
+    updateStep(2);
   }
 
   function handleBirthdayStep(birthdate: Date) {
@@ -45,7 +54,7 @@ export default function EventDaySteps(props: EventDayStepsProps) {
       ...prevState,
       birthdate,
     }));
-    setStep(3);
+    updateStep(3);
   }
 
   function handlePhoneStep(phoneNumber: string) {
@@ -53,38 +62,29 @@ export default function EventDaySteps(props: EventDayStepsProps) {
       ...prevState,
       phoneNumber,
     }));
-    setStep(4);
+    updateStep(4);
   }
 
-  function handleGenderStep() {
-    setNewVisitor({
-      firstName: "",
-      lastName: "",
-      email: "",
-      birthdate: new Date(),
-      phoneNumber: "",
-    });
-    setStep(5);
-  }
-
-  console.log(newVisitor);
+  function handleGenderStep() {}
 
   return (
     <div className="w-full md:mt-6">
-      {step === 0 && (
+      {(!props.step || props.step === 0) && (
         <StepZero
           numberOfVisitors={props.numberOfVisitors}
           registrationType={props.registrationType}
           visitor={props.visitor}
-          onSubmit={() => setStep(1)}
+          onSubmit={() => updateStep(1)}
         />
       )}
       {!props.enableTicketCreation && props.email && (
         <>
-          {step === 1 && <NameStep updateVisitor={handleNameStep} />}
-          {step === 2 && <BirthdayStep updateVisitor={handleBirthdayStep} />}
-          {step === 3 && <PhoneStep updateVisitor={handlePhoneStep} />}
-          {step === 4 && (
+          {props.step === 1 && <NameStep updateVisitor={handleNameStep} />}
+          {props.step === 2 && (
+            <BirthdayStep updateVisitor={handleBirthdayStep} />
+          )}
+          {props.step === 3 && <PhoneStep updateVisitor={handlePhoneStep} />}
+          {props.step === 4 && (
             <GenderStep
               festival={props.festival}
               numberOfVisitors={props.numberOfVisitors}
@@ -92,7 +92,7 @@ export default function EventDaySteps(props: EventDayStepsProps) {
               visitor={newVisitor}
             />
           )}
-          {step === 5 && props.visitor && (
+          {props.step === 5 && props.visitor && (
             <CreatedTicket festival={props.festival} visitor={props.visitor} />
           )}
         </>

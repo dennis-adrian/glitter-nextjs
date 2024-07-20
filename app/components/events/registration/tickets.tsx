@@ -7,14 +7,12 @@ import {
 } from "@/app/components/ui/card";
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import { TicketBase } from "@/app/data/tickets/actions";
-import {
-  formatDate,
-  formatFullDate,
-  getWeekdayFromDate,
-} from "@/app/lib/formatters";
+import { VisitorWithTickets } from "@/app/data/visitors/actions";
+import { formatDate, formatFullDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 
 type TicketsProps = {
+  visitor: VisitorWithTickets;
   tickets: TicketBase[];
   festival: FestivalBase;
 };
@@ -48,7 +46,7 @@ export default function Tickets(props: TicketsProps) {
                 </div>
               </div>
               <div className="p-4">
-                {formatFullDate(ticket.date)}
+                {props.visitor.firstName || ""} {props.visitor.lastName || ""}
                 <p className="text-muted-foreground text-sm">
                   {props.festival.locationLabel} - {props.festival.address}
                 </p>

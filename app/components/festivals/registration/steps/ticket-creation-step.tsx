@@ -24,7 +24,11 @@ export default function TicketCreationStep(props: TicketCreationStepProps) {
           description="Gracias por visitarnos nuevamente, esperamos tengas la mejor de las experiencias "
         />
         {tickets.length > 0 ? (
-          <Tickets tickets={tickets} festival={props.festival} />
+          <Tickets
+            visitor={props.visitor}
+            tickets={tickets}
+            festival={props.festival}
+          />
         ) : (
           <EventDayTicketCreationForm
             festival={props.festival}
