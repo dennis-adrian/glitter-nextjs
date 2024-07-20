@@ -11,8 +11,12 @@ const ParamsSchema = z.object({
 });
 
 const searchParamsSchema = z.object({
+  birthdate: z.coerce.date().optional(),
   email: z.string().email().optional(),
   enableTicketCreation: z.coerce.boolean().default(false).optional(),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  phoneNumber: z.string().optional(),
   numberOfVisitors: z.coerce.number().optional(),
   step: z.coerce.number().optional(),
   type: z.enum(["individual", "family"]).optional(),

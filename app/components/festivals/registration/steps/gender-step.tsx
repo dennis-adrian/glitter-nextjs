@@ -6,7 +6,6 @@ import { NewVisitor } from "@/app/data/visitors/actions";
 type GenderStepProps = {
   festival: FestivalWithDates;
   numberOfVisitors?: number;
-  visitor: NewVisitor;
 };
 
 export default function GenderStep(props: GenderStepProps) {
@@ -19,7 +18,6 @@ export default function GenderStep(props: GenderStepProps) {
       <GenderForm
         festival={props.festival}
         numberOfVisitors={props.numberOfVisitors}
-        visitor={props.visitor}
       />
     </>
   );

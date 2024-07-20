@@ -57,6 +57,7 @@ export async function fetchVisitor(
 
 export async function createVisitor(visitor: NewVisitor) {
   const client = await pool.connect();
+  console.log(visitor);
 
   let createdVisitor = null;
   try {

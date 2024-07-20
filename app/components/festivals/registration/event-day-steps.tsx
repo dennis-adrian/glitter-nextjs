@@ -8,9 +8,8 @@ import PhoneStep from "@/app/components/festivals/registration/steps/phone-step"
 import StepZero from "@/app/components/festivals/registration/steps/step-zero";
 import TicketCreationStep from "@/app/components/festivals/registration/steps/ticket-creation-step";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
-import { NewVisitor, VisitorWithTickets } from "@/app/data/visitors/actions";
+import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
 
 type EventDayStepsProps = {
   email?: string;
@@ -25,42 +24,26 @@ type EventDayStepsProps = {
 export default function EventDaySteps(props: EventDayStepsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [newVisitor, setNewVisitor] = useState<NewVisitor>({
-    firstName: "",
-    lastName: "",
-    email: "",
-    birthdate: new Date(),
-    phoneNumber: "",
-  });
+  const currentParams = new URLSearchParams(searchParams.toString());
 
   function updateStep(step: number) {
-    const currentParams = new URLSearchParams(searchParams.toString());
     currentParams.set("step", step.toString());
     router.push(`?${currentParams.toString()}`);
   }
 
   function handleNameStep(firstName: string, lastName: string) {
-    setNewVisitor((prevState) => ({
-      ...prevState,
-      firstName,
-      lastName,
-    }));
+    currentParams.set("firstName", firstName);
+    currentParams.set("lastName", lastName);
     updateStep(2);
   }
 
   function handleBirthdayStep(birthdate: Date) {
-    setNewVisitor((prevState) => ({
-      ...prevState,
-      birthdate,
-    }));
+    currentParams.set("birthdate", birthdate.toISOString());
     updateStep(3);
   }
 
   function handlePhoneStep(phoneNumber: string) {
-    setNewVisitor((prevState) => ({
-      ...prevState,
-      phoneNumber,
-    }));
+    currentParams.set("phoneNumber", phoneNumber);
     updateStep(4);
   }
 
@@ -85,7 +68,6 @@ export default function EventDaySteps(props: EventDayStepsProps) {
             <GenderStep
               festival={props.festival}
               numberOfVisitors={props.numberOfVisitors}
-              visitor={newVisitor}
             />
           )}
           {props.step === 5 && props.visitor && (
