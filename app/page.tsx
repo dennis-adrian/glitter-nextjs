@@ -1,6 +1,7 @@
 import GeneralInfoDetails from "@/app/components/festivals/general-info-details";
 import Carousel from "@/app/components/landing/carousel";
 import EventFeatures from "@/app/components/landing/event-features";
+import NoFestivalBanner from "@/app/components/landing/no-festival-banner";
 import LandingRedirectButton from "@/app/components/landing/redirect-button";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { getActiveFestival } from "@/app/lib/festivals/helpers";
@@ -18,7 +19,7 @@ export default async function Home() {
 
   return (
     <div className="container p-4 md:p-6">
-      {festival && (
+      {festival ? (
         <>
           <div className="relative p-4 flex flex-col items-center">
             {/* got this code for the background from nextjs image docs */}
@@ -65,7 +66,10 @@ export default async function Home() {
               <LandingRedirectButton
                 className="w-80"
                 festivalId={festival?.id}
-              />
+                href={`/festivals/${festival.id}`}
+              >
+                ¡Ver evento!
+              </LandingRedirectButton>
             )}
           </div>
           <section className="text-center">
@@ -91,6 +95,8 @@ export default async function Home() {
             </div>
           </section>
         </>
+      ) : (
+        <NoFestivalBanner />
       )}
     </div>
   );
