@@ -25,7 +25,7 @@ export default function NoFestivalBanner() {
         <Image
           className="-z-10 object-cover rounded-md hidden md:hidden lg:block"
           alt="imagen de fondo"
-          src="/img/landing/no-event-landing-banner-1280x670.png"
+          src="/img/landing/no-event-landing-banner-1512x670.png"
           quality={100}
           fill
           sizes="100vw"
@@ -38,7 +38,7 @@ export default function NoFestivalBanner() {
             Si te gustaría participar en alguno de nuestros eventos pero aún no
             tienes un perfil Glitter, estás es tu oportunidad para crearte uno
           </p>
-          <p className="text-center hidden md:block max-w-[520px]">
+          <p className="text-center hidden md:block max-w-[520px] lg:max-w-[1000px] text-xl">
             Si te gustaría participar en alguno de nuestros eventos pero aún no
             tienes un perfil Glitter, estás es tu oportunidad para crearte uno
           </p>
