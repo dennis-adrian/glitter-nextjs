@@ -4,20 +4,28 @@ import Image from "next/image";
 export default function NoFestivalBanner() {
   return (
     <div className="relative">
-      <div className="relative p-6 flex flex-col items-center h-[415px]">
+      <div className="relative px-6 py-8 flex flex-col items-center min-h-[450px] mb-20">
         {/* got this code for the background from nextjs image docs */}
         <Image
           className="-z-10 object-cover rounded-md md:hidden"
           alt="imagen de fondo"
-          src="/img/landing/no-event-banner-938x415.png"
+          src="/img/landing/no-event-landing-banner-393x415.png"
           quality={100}
           fill
           sizes="100vw"
         />
         <Image
-          className="-z-10 object-cover rounded-md hidden md:block"
+          className="-z-10 object-cover rounded-md hidden md:block lg:hidden"
           alt="imagen de fondo"
-          src="/img/landing/no-event-banner-1518x670.png"
+          src="/img/landing/no-event-landing-banner-834x720.png"
+          quality={100}
+          fill
+          sizes="100vw"
+        />
+        <Image
+          className="-z-10 object-cover rounded-md hidden md:hidden lg:block"
+          alt="imagen de fondo"
+          src="/img/landing/no-event-landing-banner-1280x670.png"
           quality={100}
           fill
           sizes="100vw"
@@ -31,20 +39,20 @@ export default function NoFestivalBanner() {
             tienes un perfil Glitter, estás es tu oportunidad para crearte uno
           </p>
           <LandingRedirectButton
-            className="text-base lg:text-lg"
+            className="text-base lg:text-lg my-4"
             href="/sign_up"
           >
             Crear mi perfil Glitter
           </LandingRedirectButton>
         </section>
+        <Image
+          className="absolute -bottom-20"
+          alt="imagen de fondo"
+          src="/img/glitter-mascot.png"
+          height={252}
+          width={200}
+        />
       </div>
-      <Image
-        className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2"
-        alt="imagen de fondo"
-        src="/img/glitter-mascot.png"
-        height={252}
-        width={200}
-      />
     </div>
   );
 }
