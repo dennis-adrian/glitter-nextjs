@@ -72,7 +72,11 @@ export const columns: ColumnDef<ProfileType>[] = [
     cell: ({ row }) => <CategoryBadge category={row.original.category} />,
     filterFn: (row, columnId, filterCategories) => {
       if (filterCategories.length === 0) return true;
-      return filterCategories.includes(row.original.category);
+      const category =
+        row.original.category === "new_artist"
+          ? "illustration"
+          : row.original.category;
+      return filterCategories.includes(category);
     },
   },
   {
