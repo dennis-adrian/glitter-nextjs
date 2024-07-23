@@ -18,6 +18,7 @@ import { socialsIcons, socialsUrls } from "@/app/lib/users/utils";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/user_profile/modal";
 import Form from "./form";
+import ProfileTag from "@/app/components/user_profile/profile-tag";
 
 export default function PublicProfile({
   profile,
@@ -64,6 +65,13 @@ export default function PublicProfile({
                 <ProfileCategoryBadge profile={profile} />
               )}
             </div>
+            {profile.profileTags.length > 0 && (
+              <div>
+                {profile.profileTags.map((profileTag) => (
+                  <ProfileTag key={profileTag.id} profileTag={profileTag} />
+                ))}
+              </div>
+            )}
             <div className="relative min-w-full">
               <div className="flex flex-col gap-1 text-center">
                 {profile.displayName ? (

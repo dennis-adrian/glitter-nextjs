@@ -1,0 +1,1 @@
+ALTER TABLE "tags" ADD COLUMN "category" "user_category" DEFAULT 'none' NOT NULL;
