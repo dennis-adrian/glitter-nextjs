@@ -7,6 +7,7 @@ import {
   genderEnum,
   invoiceStatusEnum,
   userCategoryEnum,
+  userStatusEnum,
 } from "@/db/schema";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { getInvoiceStatusLabel } from "@/app/lib/payments/helpers";
@@ -15,6 +16,7 @@ import {
   GLITTER_EMAIL_LOGO_URL,
   TWINKLER_LOGO_URL_270X80,
 } from "@/app/lib/constants";
+import { getProfileStatusLabel } from "@/app/lib/users/utils";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -162,6 +164,25 @@ export const invoiceStatusOptions = [
   {
     value: invoiceStatusEnum.enumValues[2],
     label: getInvoiceStatusLabel(invoiceStatusEnum.enumValues[2]),
+  },
+];
+
+export const profileStatusOptions = [
+  {
+    value: userStatusEnum.enumValues[0],
+    label: getProfileStatusLabel(userStatusEnum.enumValues[0]),
+  },
+  {
+    value: userStatusEnum.enumValues[1],
+    label: getProfileStatusLabel(userStatusEnum.enumValues[1]),
+  },
+  {
+    value: userStatusEnum.enumValues[2],
+    label: getProfileStatusLabel(userStatusEnum.enumValues[2]),
+  },
+  {
+    value: userStatusEnum.enumValues[3],
+    label: getProfileStatusLabel(userStatusEnum.enumValues[3]),
   },
 ];
 

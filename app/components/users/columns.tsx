@@ -4,24 +4,28 @@ import { ColumnDef } from "@tanstack/react-table";
 
 import { ProfileType } from "@/app/api/users/definitions";
 import { ActionsCell } from "@/app/components/users/cells/actions";
-import SocialsCell from "@/app/components/users/cells/socials";
 import { DataTableColumnHeader } from "@/components/ui/data_table/column-header";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
 import CategoryBadge from "@/app/components/category-badge";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { isProfileComplete } from "@/app/lib/utils";
+import ProfileStatusCell from "@/app/components/users/cells/profile-status";
+import UserInfoCell from "@/app/components/users/cells/user-info";
+import { formatDate } from "@/app/lib/formatters";
+import { DateTime } from "luxon";
 
 export const columnTitles = {
   id: "ID",
   category: "Categoría",
-  displayName: "Nombre de artista",
+  createdAt: "Fecha de creación",
+  displayName: "Perfil",
   fullName: "Nombre",
   email: "Email",
   socials: "Redes",
   status: "Estado",
   phoneNumber: "Teléfono",
-  verified: "Verificado",
+  profileStatus: "Estado del perfil",
 };
 
 export const columns: ColumnDef<ProfileType>[] = [
@@ -45,13 +49,19 @@ export const columns: ColumnDef<ProfileType>[] = [
       />
     ),
     enableSorting: false,
-    enableHiding: false,
   },
   {
     accessorKey: "id",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.id} />
     ),
+  },
+  {
+    accessorKey: "displayName",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.displayName} />
+    ),
+    cell: ({ row }) => <UserInfoCell profile={row.original} />,
   },
   {
     id: "category",
@@ -64,7 +74,11 @@ export const columns: ColumnDef<ProfileType>[] = [
     cell: ({ row }) => <CategoryBadge category={row.original.category} />,
     filterFn: (row, columnId, filterCategories) => {
       if (filterCategories.length === 0) return true;
-      return filterCategories.includes(row.original.category);
+      const category =
+        row.original.category === "new_artist"
+          ? "illustration"
+          : row.original.category;
+      return filterCategories.includes(category);
     },
   },
   {
@@ -72,23 +86,6 @@ export const columns: ColumnDef<ProfileType>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.displayName} />
     ),
-  },
-  {
-    id: "fullName",
-    accessorFn: (row) => `${row.firstName} ${row.lastName}`,
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Nombre" />
-    ),
-  },
-  {
-    id: "socials",
-    header: columnTitles.socials,
-    accessorFn: (row) =>
-      row.userSocials
-        .map((social) => social.username)
-        .filter(Boolean)
-        .join(", "),
-    cell: ({ row }) => <SocialsCell socials={row.original.userSocials} />,
   },
   {
     id: "status",
@@ -109,17 +106,27 @@ export const columns: ColumnDef<ProfileType>[] = [
     },
   },
   {
-    id: "verified",
-    accessorKey: "verified",
+    id: "profileStatus",
+    accessorFn: (row) => row.status,
+    accessorKey: "profileStatus",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={columnTitles.verified} />
+      <DataTableColumnHeader
+        column={column}
+        title={columnTitles.profileStatus}
+      />
     ),
-    cell: ({ row }) => (row.original.status === "verified" ? "Sí" : "No"),
+    cell: ({ row }) => <ProfileStatusCell status={row.original.status} />,
     filterFn: (row, columnId, filterStatus) => {
       if (filterStatus.length === 0) return true;
-      const status = row.getValue(columnId) ? "verified" : "unverified";
-      return filterStatus.includes(status);
+      return filterStatus.includes(row.original.status);
     },
+  },
+  {
+    id: "fullName",
+    accessorFn: (row) => `${row.firstName} ${row.lastName}`,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Nombre" />
+    ),
   },
   {
     header: ({ column }) => (
@@ -137,10 +144,19 @@ export const columns: ColumnDef<ProfileType>[] = [
     accessorKey: "phoneNumber",
   },
   {
+    accessorKey: "createdAt",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.createdAt} />
+    ),
+    cell: ({ row }) =>
+      formatDate(row.original.createdAt).toLocaleString(
+        DateTime.DATETIME_SHORT,
+      ),
+  },
+  {
     id: "actions",
     cell: ({ row }) => {
       const user = row.original;
-
       return <ActionsCell user={user} />;
     },
   },

@@ -1,7 +1,7 @@
 import { ProfileType } from "@/app/api/users/definitions";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { columnTitles, columns } from "@/components/users/columns";
-import { userCategoryOptions } from "@/app/lib/utils";
+import { profileStatusOptions, userCategoryOptions } from "@/app/lib/utils";
 
 type UsersTableProps = {
   users: ProfileType[];
@@ -24,18 +24,16 @@ export default function UsersTable(props: UsersTableProps) {
           ],
         },
         {
-          label: "¿Verificado?",
-          columnId: "verified",
-          options: [
-            { value: "verified", label: "Verificado" },
-            { value: "unverified", label: "No verificado" },
-          ],
+          label: "Estado del perfil",
+          columnId: "profileStatus",
+          options: [...profileStatusOptions],
         },
       ]}
       initialState={{
         columnVisibility: {
           fullName: false,
           email: false,
+          id: false,
           phoneNumber: false,
           status: false,
           ...props.columnVisbility,
