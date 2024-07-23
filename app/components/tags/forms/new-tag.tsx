@@ -1,8 +1,13 @@
+import SelectInput from "@/app/components/form/fields/select";
 import TextInput from "@/app/components/form/fields/text";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
+import { createTag } from "@/app/lib/tags/actions";
+import { userCategoryOptions } from "@/app/lib/utils";
+import { userCategoryEnum } from "@/db/schema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 
 const FormSchema = z.object({
@@ -10,15 +15,31 @@ const FormSchema = z.object({
     .string({ required_error: "La etiqueta es requerida" })
     .trim()
     .min(3, { message: "La etiqueta es requerida" }),
-  categoryId: z.number().min(1, { message: "La categoría es requerida" }),
+  category: z.enum(userCategoryEnum.enumValues),
 });
 
-export default function NewTagForm() {
+type NewTagFormProps = {
+  onSuccess: () => void;
+};
+export default function NewTagForm(props: NewTagFormProps) {
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
+    defaultValues: {
+      label: "",
+      category: "none",
+    },
   });
 
-  const action: () => void = form.handleSubmit(async (data) => {});
+  const action: () => void = form.handleSubmit(async (data) => {
+    const res = await createTag(data);
+
+    if (res.success) {
+      toast.success(res.message);
+      props.onSuccess();
+    } else {
+      toast.error(res.message);
+    }
+  });
 
   return (
     <Form {...form}>
@@ -28,6 +49,13 @@ export default function NewTagForm() {
           label="Etiqueta"
           name="label"
           placeholder="Nombre de la etiqueta"
+        />
+        <SelectInput
+          formControl={form.control}
+          label="Categoría"
+          name="category"
+          options={userCategoryOptions}
+          placeholder="Elige una opción"
         />
         <SubmitButton
           disabled={form.formState.isSubmitting}

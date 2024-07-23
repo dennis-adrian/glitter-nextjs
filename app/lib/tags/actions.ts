@@ -1,3 +1,5 @@
+"use server";
+
 import { NewTag, Tag } from "@/app/lib/tags/definitions";
 import { db, pool } from "@/db";
 import { tags } from "@/db/schema";

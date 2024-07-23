@@ -30,7 +30,7 @@ export default function NewTagModal(props: NewTagModalProps) {
         </DrawerDialogHeader>
 
         <div className={`${isDesktop ? "" : "px-4"}`}>
-          <NewTagForm />
+          <NewTagForm onSuccess={() => setOpen(false)} />
         </div>
         {isDesktop ? null : (
           <DrawerDialogFooter isDesktop={isDesktop} className="pt-2">

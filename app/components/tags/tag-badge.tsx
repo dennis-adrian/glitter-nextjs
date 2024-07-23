@@ -7,7 +7,7 @@ type TagProps = {
 };
 export default function TagBadge(props: TagProps) {
   return (
-    <Badge className="font-normal" variant="outline">
+    <Badge className="font-normal max-w-fit" variant="outline">
       {props.tag.label}
       <TagIcon className="ml-1 h-4 w-4" />
     </Badge>
