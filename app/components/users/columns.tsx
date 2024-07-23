@@ -111,6 +111,7 @@ export const columns: ColumnDef<ProfileType>[] = [
   },
   {
     id: "profileStatus",
+    accessorFn: (row) => row.status,
     accessorKey: "profileStatus",
     header: ({ column }) => (
       <DataTableColumnHeader
@@ -119,12 +120,10 @@ export const columns: ColumnDef<ProfileType>[] = [
       />
     ),
     cell: ({ row }) => <ProfileStatusCell status={row.original.status} />,
-    // filterFn: (row, columnId, filterStatus) => {
-    //   debugger;
-    //   if (filterStatus.length === 0) return true;
-    //   const status = row.getValue(columnId) ? "verified" : "unverified";
-    //   return filterStatus.includes(status);
-    // },
+    filterFn: (row, columnId, filterStatus) => {
+      if (filterStatus.length === 0) return true;
+      return filterStatus.includes(row.original.status);
+    },
   },
   {
     header: ({ column }) => (
