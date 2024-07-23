@@ -18,7 +18,7 @@ import { socialsIcons, socialsUrls } from "@/app/lib/users/utils";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/user_profile/modal";
 import Form from "./form";
-import ProfileTag from "@/app/components/user_profile/profile-tag";
+import TagBadge from "@/app/components/tags/tag-badge";
 
 export default function PublicProfile({
   profile,
@@ -68,7 +68,7 @@ export default function PublicProfile({
             {profile.profileTags.length > 0 && (
               <div>
                 {profile.profileTags.map((profileTag) => (
-                  <ProfileTag key={profileTag.id} profileTag={profileTag} />
+                  <TagBadge key={profileTag.id} tag={profileTag.tag} />
                 ))}
               </div>
             )}

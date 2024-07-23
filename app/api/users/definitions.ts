@@ -1,3 +1,4 @@
+import { Tag } from "@/app/lib/tags/definitions";
 import {
   users,
   userRequests,
@@ -5,7 +6,6 @@ import {
   reservationParticipants,
   standReservations,
   scheduledTasks,
-  tags,
   profileTags,
 } from "@/db/schema";
 
@@ -19,7 +19,6 @@ export type BaseProfile = typeof users.$inferSelect;
 export type ProfileWithSocials = BaseProfile & {
   userSocials: UserSocial[];
 };
-export type Tag = typeof tags.$inferSelect;
 export type ProfileTag = typeof profileTags.$inferSelect;
 export type ProfileTagWithTag = typeof profileTags.$inferSelect & {
   tag: Tag;

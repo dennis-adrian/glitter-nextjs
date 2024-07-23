@@ -81,6 +81,12 @@ const NavbarNavigationMenu = ({
                 >
                   Festivales que han sido organizados por Glitter
                 </NavigationMenuListItem>
+                <NavigationMenuListItem
+                  title="Etiquetas"
+                  href="/dashboard/tags"
+                >
+                  Etiquetas para los usuarios
+                </NavigationMenuListItem>
               </ul>
             </NavigationMenuContent>
           </NavigationMenuItem>
