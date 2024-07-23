@@ -12,10 +12,13 @@ import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { isProfileComplete } from "@/app/lib/utils";
 import ProfileStatusCell from "@/app/components/users/cells/profile-status";
 import UserInfoCell from "@/app/components/users/cells/user-info";
+import { formatDate } from "@/app/lib/formatters";
+import { DateTime } from "luxon";
 
 export const columnTitles = {
   id: "ID",
   category: "Categoría",
+  createdAt: "Fecha de creación",
   displayName: "Perfil",
   fullName: "Nombre",
   email: "Email",
@@ -46,7 +49,6 @@ export const columns: ColumnDef<ProfileType>[] = [
       />
     ),
     enableSorting: false,
-    enableHiding: false,
   },
   {
     accessorKey: "id",
@@ -140,6 +142,16 @@ export const columns: ColumnDef<ProfileType>[] = [
       <DataTableColumnHeader column={column} title={columnTitles.phoneNumber} />
     ),
     accessorKey: "phoneNumber",
+  },
+  {
+    accessorKey: "createdAt",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.createdAt} />
+    ),
+    cell: ({ row }) =>
+      formatDate(row.original.createdAt).toLocaleString(
+        DateTime.DATETIME_SHORT,
+      ),
   },
   {
     id: "actions",

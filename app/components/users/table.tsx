@@ -33,6 +33,7 @@ export default function UsersTable(props: UsersTableProps) {
         columnVisibility: {
           fullName: false,
           email: false,
+          id: false,
           phoneNumber: false,
           status: false,
           ...props.columnVisbility,

@@ -26,7 +26,8 @@ export default function UserInfoCell({
       </div>
       <div className="flex flex-col">
         <span>
-          <span className="font-semibold mr-2">{profile.displayName}</span>
+          <span className="text-muted-foreground mr-1">#{profile.id}</span>
+          <span className="font-semibold mr-1">{profile.displayName}</span>
           <span>({fullName})</span>
         </span>
         <span className="text-muted-foreground text-sm">{profile.email}</span>
