@@ -11,7 +11,7 @@ type ParticipantInfoProps = {
 
 export default function ParticipantInfo(props: ParticipantInfoProps) {
   return (
-    <div className="relative p-4 border rounded-lg overflow-hidde mt-8 border-primary-100">
+    <div className="relative p-4 border rounded-lg mt-8 border-primary-100">
       <div className="absolute top-0 left-0 w-full flex justify-center -translate-y-1/2">
         <Avatar className="w-16 h-16">
           <AvatarImage alt="avatar" src={props.profile.imageUrl!} />

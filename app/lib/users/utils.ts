@@ -1,4 +1,11 @@
 import { BaseProfile } from "@/app/api/users/definitions";
+import {
+  faFacebook,
+  faInstagram,
+  faTiktok,
+  faTwitter,
+  faYoutube,
+} from "@fortawesome/free-brands-svg-icons";
 
 // This methods are meant to be used in both ui and sever
 export function getUserName(user: BaseProfile) {
@@ -19,3 +26,19 @@ export function getProfileStatusLabel(status: BaseProfile["status"]) {
       return "Deshabilitado";
   }
 }
+
+export const socialsUrls = {
+  instagram: "https://www.instagram.com/",
+  tiktok: "https://www.tiktok.com/@",
+  facebook: "https://www.facebook.com/",
+  twitter: "https://www.twitter.com/",
+  youtube: "https://www.youtube.com/",
+};
+
+export const socialsIcons = {
+  instagram: faInstagram,
+  tiktok: faTiktok,
+  facebook: faFacebook,
+  twitter: faTwitter,
+  youtube: faYoutube,
+};

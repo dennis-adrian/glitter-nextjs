@@ -4,7 +4,6 @@ import { ColumnDef } from "@tanstack/react-table";
 
 import { ProfileType } from "@/app/api/users/definitions";
 import { ActionsCell } from "@/app/components/users/cells/actions";
-import SocialsCell from "@/app/components/users/cells/socials";
 import { DataTableColumnHeader } from "@/components/ui/data_table/column-header";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
@@ -12,11 +11,12 @@ import CategoryBadge from "@/app/components/category-badge";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { isProfileComplete } from "@/app/lib/utils";
 import ProfileStatusCell from "@/app/components/users/cells/profile-status";
+import UserInfoCell from "@/app/components/users/cells/user-info";
 
 export const columnTitles = {
   id: "ID",
   category: "Categoría",
-  displayName: "Nombre de artista",
+  displayName: "Perfil",
   fullName: "Nombre",
   email: "Email",
   socials: "Redes",
@@ -55,6 +55,13 @@ export const columns: ColumnDef<ProfileType>[] = [
     ),
   },
   {
+    accessorKey: "displayName",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.displayName} />
+    ),
+    cell: ({ row }) => <UserInfoCell profile={row.original} />,
+  },
+  {
     id: "category",
     // i'm using a formated value here because i want these to be recognized by the search filter
     accessorFn: (row) =>
@@ -74,23 +81,6 @@ export const columns: ColumnDef<ProfileType>[] = [
       <DataTableColumnHeader column={column} title={columnTitles.displayName} />
     ),
   },
-  // {
-  //   id: "fullName",
-  //   accessorFn: (row) => `${row.firstName} ${row.lastName}`,
-  //   header: ({ column }) => (
-  //     <DataTableColumnHeader column={column} title="Nombre" />
-  //   ),
-  // },
-  // {
-  //   id: "socials",
-  //   header: columnTitles.socials,
-  //   accessorFn: (row) =>
-  //     row.userSocials
-  //       .map((social) => social.username)
-  //       .filter(Boolean)
-  //       .join(", "),
-  //   cell: ({ row }) => <SocialsCell socials={row.original.userSocials} />,
-  // },
   {
     id: "status",
     header: ({ column }) => (
@@ -126,6 +116,13 @@ export const columns: ColumnDef<ProfileType>[] = [
     },
   },
   {
+    id: "fullName",
+    accessorFn: (row) => `${row.firstName} ${row.lastName}`,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Nombre" />
+    ),
+  },
+  {
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Email" />
     ),
@@ -144,7 +141,6 @@ export const columns: ColumnDef<ProfileType>[] = [
     id: "actions",
     cell: ({ row }) => {
       const user = row.original;
-
       return <ActionsCell user={user} />;
     },
   },
