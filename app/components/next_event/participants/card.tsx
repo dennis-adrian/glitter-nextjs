@@ -6,7 +6,7 @@ import {
   CardContent,
   CardFooter,
 } from "@/app/components/ui/card";
-import { socialsIcons, socialsUrls } from "@/app/lib/config";
+import { socialsIcons, socialsUrls } from "@/app/lib/users/utils";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Image from "next/image";
 

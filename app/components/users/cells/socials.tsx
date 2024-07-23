@@ -1,31 +1,7 @@
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 import { UserSocial } from "@/api/users/definitions";
-
-import {
-  faFacebook,
-  faInstagram,
-  faTiktok,
-  faTwitter,
-  faYoutube,
-} from "@fortawesome/free-brands-svg-icons";
-
-// TODO: Remove this once the import from /lib/config give no errors
-export const socialsUrls = {
-  instagram: "https://www.instagram.com/",
-  tiktok: "https://www.tiktok.com/",
-  facebook: "https://www.facebook.com/",
-  twitter: "https://www.twitter.com/",
-  youtube: "https://www.youtube.com/",
-};
-
-export const socialsIcons = {
-  instagram: faInstagram,
-  tiktok: faTiktok,
-  facebook: faFacebook,
-  twitter: faTwitter,
-  youtube: faYoutube,
-};
+import { socialsIcons, socialsUrls } from "@/app/lib/users/utils";
 
 export default function SocialsCell({ socials }: { socials: UserSocial[] }) {
   const filteredSocials = socials.filter((social) => social.username);
