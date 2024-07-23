@@ -6,3 +6,16 @@ export function getUserName(user: BaseProfile) {
     user.displayName || `${user.firstName || ""} ${user.lastName || ""}`.trim()
   );
 }
+
+export function getProfileStatusLabel(status: BaseProfile["status"]) {
+  switch (status) {
+    case "verified":
+      return "Verificado";
+    case "pending":
+      return "Por verificar";
+    case "rejected":
+      return "Rechazado";
+    case "banned":
+      return "Deshabilitado";
+  }
+}

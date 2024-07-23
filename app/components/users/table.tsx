@@ -23,14 +23,14 @@ export default function UsersTable(props: UsersTableProps) {
             ...userCategoryOptions,
           ],
         },
-        {
-          label: "¿Verificado?",
-          columnId: "verified",
-          options: [
-            { value: "verified", label: "Verificado" },
-            { value: "unverified", label: "No verificado" },
-          ],
-        },
+        // {
+        //   label: "¿Verificado?",
+        //   columnId: "verificationStatus",
+        //   options: [
+        //     { value: "verified", label: "Verificado" },
+        //     { value: "unverified", label: "Sin verificar" },
+        //   ],
+        // },
       ]}
       initialState={{
         columnVisibility: {

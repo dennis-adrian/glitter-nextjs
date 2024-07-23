@@ -11,6 +11,7 @@ import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
 import CategoryBadge from "@/app/components/category-badge";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { isProfileComplete } from "@/app/lib/utils";
+import ProfileStatusCell from "@/app/components/users/cells/profile-status";
 
 export const columnTitles = {
   id: "ID",
@@ -21,7 +22,7 @@ export const columnTitles = {
   socials: "Redes",
   status: "Estado",
   phoneNumber: "Teléfono",
-  verified: "Verificado",
+  profileStatus: "Estado del perfil",
 };
 
 export const columns: ColumnDef<ProfileType>[] = [
@@ -73,23 +74,23 @@ export const columns: ColumnDef<ProfileType>[] = [
       <DataTableColumnHeader column={column} title={columnTitles.displayName} />
     ),
   },
-  {
-    id: "fullName",
-    accessorFn: (row) => `${row.firstName} ${row.lastName}`,
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Nombre" />
-    ),
-  },
-  {
-    id: "socials",
-    header: columnTitles.socials,
-    accessorFn: (row) =>
-      row.userSocials
-        .map((social) => social.username)
-        .filter(Boolean)
-        .join(", "),
-    cell: ({ row }) => <SocialsCell socials={row.original.userSocials} />,
-  },
+  // {
+  //   id: "fullName",
+  //   accessorFn: (row) => `${row.firstName} ${row.lastName}`,
+  //   header: ({ column }) => (
+  //     <DataTableColumnHeader column={column} title="Nombre" />
+  //   ),
+  // },
+  // {
+  //   id: "socials",
+  //   header: columnTitles.socials,
+  //   accessorFn: (row) =>
+  //     row.userSocials
+  //       .map((social) => social.username)
+  //       .filter(Boolean)
+  //       .join(", "),
+  //   cell: ({ row }) => <SocialsCell socials={row.original.userSocials} />,
+  // },
   {
     id: "status",
     header: ({ column }) => (
@@ -109,17 +110,21 @@ export const columns: ColumnDef<ProfileType>[] = [
     },
   },
   {
-    id: "verified",
-    accessorKey: "verified",
+    id: "profileStatus",
+    accessorKey: "profileStatus",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={columnTitles.verified} />
+      <DataTableColumnHeader
+        column={column}
+        title={columnTitles.profileStatus}
+      />
     ),
-    cell: ({ row }) => (row.original.status === "verified" ? "Sí" : "No"),
-    filterFn: (row, columnId, filterStatus) => {
-      if (filterStatus.length === 0) return true;
-      const status = row.getValue(columnId) ? "verified" : "unverified";
-      return filterStatus.includes(status);
-    },
+    cell: ({ row }) => <ProfileStatusCell status={row.original.status} />,
+    // filterFn: (row, columnId, filterStatus) => {
+    //   debugger;
+    //   if (filterStatus.length === 0) return true;
+    //   const status = row.getValue(columnId) ? "verified" : "unverified";
+    //   return filterStatus.includes(status);
+    // },
   },
   {
     header: ({ column }) => (
