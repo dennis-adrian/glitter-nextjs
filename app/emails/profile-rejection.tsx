@@ -46,16 +46,6 @@ export default function ProfileRejectionEmailTemplate(
               describimos acontinuación:
             </Text>
             <Text style={styles.standoutText}>{props.reason}</Text>
-            <Text style={styles.text}>
-              Te invitamos a revisarlo y corregir lo que te señalamos para que
-              verifiquemos tu pefil y puedas participar en nuestros eventos.
-            </Text>
-            <Button
-              href={`${baseUrl}/my_profile`}
-              style={styles.buttonWithBanner}
-            >
-              Ir a mi perfil
-            </Button>
           </Section>
         </Container>
         <EmailFooter />

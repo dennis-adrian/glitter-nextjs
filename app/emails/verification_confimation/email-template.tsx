@@ -66,8 +66,6 @@ export default function VerificationConfirmationEmailTemplate(
 
 VerificationConfirmationEmailTemplate.PreviewProps = {
   name: "John Doe",
-  festival: {
-    id: 9,
-  },
   profileId: 90,
+  category: "illustration",
 } as FestivalActivationTemplateProps;
