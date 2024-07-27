@@ -1,7 +1,10 @@
 import { Metadata } from "next";
 import { z } from "zod";
 
-import { fetchFestivalWithDates } from "@/app/data/festivals/actions";
+import {
+  fetchFestivals,
+  fetchFestivalWithDates,
+} from "@/app/data/festivals/actions";
 import { userCategoryEnum } from "@/db/schema";
 import { notFound } from "next/navigation";
 import FestivalPageTabs from "@/app/components/festivals/main-page-tabs";
@@ -12,6 +15,15 @@ export const metadata: Metadata = {
   title: "Información del Festival",
   description: "Productora Glitter",
 };
+
+export const dynamicParams = true;
+export async function generateStaticParams() {
+  const festivals = await fetchFestivals();
+
+  return festivals.map((festival) => ({
+    id: festival.id.toString(),
+  }));
+}
 
 const searchParamsSchema = z.object({
   category: z.enum(userCategoryEnum.enumValues).optional(),
