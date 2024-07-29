@@ -3,7 +3,7 @@ import TextInput from "@/app/components/form/fields/text";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { createTag } from "@/app/lib/tags/actions";
-import { userCategoryOptions } from "@/app/lib/utils";
+import { userCategoryOptions, userOccupationsLabel } from "@/app/lib/utils";
 import { userCategoryEnum } from "@/db/schema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -26,7 +26,7 @@ export default function NewTagForm(props: NewTagFormProps) {
     resolver: zodResolver(FormSchema),
     defaultValues: {
       label: "",
-      category: "none",
+      category: "illustration",
     },
   });
 
@@ -54,7 +54,7 @@ export default function NewTagForm(props: NewTagFormProps) {
           formControl={form.control}
           label="Categoría"
           name="category"
-          options={userCategoryOptions}
+          options={userOccupationsLabel}
           placeholder="Elige una opción"
         />
         <SubmitButton

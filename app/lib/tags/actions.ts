@@ -22,6 +22,15 @@ export async function createTag(tag: NewTag) {
   const client = await pool.connect();
 
   try {
+    let category = tag.category;
+    if (tag.category === "new_artist") {
+      category = "illustration";
+    }
+
+    if (tag.category === "none") {
+      throw new Error("Categoría inválida");
+    }
+
     await db.insert(tags).values(tag);
   } catch (error) {
     console.error("Error creating tag", error);
