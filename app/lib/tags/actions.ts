@@ -3,6 +3,7 @@
 import { NewTag, Tag } from "@/app/lib/tags/definitions";
 import { db, pool } from "@/db";
 import { tags } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function fetchTags(): Promise<Tag[]> {
@@ -46,5 +47,27 @@ export async function createTag(tag: NewTag) {
   return {
     success: true,
     message: "Etiqueta creada correctamente",
+  };
+}
+
+export async function deleteTag(tagId: number) {
+  const client = await pool.connect();
+
+  try {
+    await db.delete(tags).where(eq(tags.id, tagId));
+  } catch (error) {
+    console.error("Error deleting tag", error);
+    return {
+      success: false,
+      message: "Error al eliminar la etiqueta",
+    };
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/dashboard/tags");
+  return {
+    success: true,
+    message: "Etiqueta eliminada correctamente",
   };
 }

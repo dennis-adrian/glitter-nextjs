@@ -24,10 +24,6 @@ import SubmitButton from "@/app/components/simple-submit-button";
 import { useForm } from "react-hook-form";
 import { Form } from "@/app/components/ui/form";
 
-type Profile = Omit<
-  ProfileType,
-  "userSocials" | "userRequests" | "participations"
->;
 export default function ReservationForm({
   artists,
   festival,
@@ -45,7 +41,9 @@ export default function ReservationForm({
 }) {
   const router = useRouter();
   const searchOptions = getParticipantsOptions(artists);
-  const [selectedArtist, setSelectedArtist] = useState<Profile | undefined>();
+  const [selectedArtist, setSelectedArtist] = useState<
+    BaseProfile | undefined
+  >();
   const [addPartner, setAddPartner] = useState(false);
   const form = useForm();
 
