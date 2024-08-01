@@ -1,9 +1,7 @@
 "use server";
 
-import { redirect } from "next/navigation";
-
 import { clerkClient, User } from "@clerk/nextjs/server";
-import { and, desc, eq, or, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { pool, db } from "@/db";
@@ -25,7 +23,6 @@ import {
   getFestivalAvaibleStandsByCategory,
   getFestivalCategories,
 } from "@/app/lib/festivals/utils";
-import { CloudCog } from "lucide-react";
 import ProfileRejectionEmailTemplate from "@/app/emails/profile-rejection";
 
 export type NewUser = typeof users.$inferInsert;
@@ -47,6 +44,11 @@ export async function fetchUserProfileById(
         participations: {
           with: {
             reservation: true,
+          },
+        },
+        profileTags: {
+          with: {
+            tag: true,
           },
         },
       },
@@ -73,6 +75,11 @@ export async function fetchUserProfile(
         participations: {
           with: {
             reservation: true,
+          },
+        },
+        profileTags: {
+          with: {
+            tag: true,
           },
         },
       },
@@ -102,6 +109,11 @@ export async function fetchOrCreateProfile(
           participations: {
             with: {
               reservation: true,
+            },
+          },
+          profileTags: {
+            with: {
+              tag: true,
             },
           },
         },
@@ -146,6 +158,11 @@ export async function fetchOrCreateProfile(
                   reservation: true,
                 },
               },
+              profileTags: {
+                with: {
+                  tag: true,
+                },
+              },
             },
             where: eq(users.id, newUser.id),
           });
@@ -171,6 +188,11 @@ export async function fetchProfiles(): Promise<ProfileType[]> {
         participations: {
           with: {
             reservation: true,
+          },
+        },
+        profileTags: {
+          with: {
+            tag: true,
           },
         },
       },

@@ -9,7 +9,10 @@ import {
   userCategoryEnum,
   userStatusEnum,
 } from "@/db/schema";
-import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
+import {
+  getCategoryLabel,
+  getCategoryOccupationLabel,
+} from "@/app/lib/maps/helpers";
 import { getInvoiceStatusLabel } from "@/app/lib/payments/helpers";
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import {
@@ -149,6 +152,21 @@ export const userCategoryOptions = [
     label: getCategoryOccupationLabel(userCategoryEnum.enumValues[3], {
       singular: true,
     }),
+  },
+];
+
+export const userOccupationsLabel = [
+  {
+    value: userCategoryEnum.enumValues[1],
+    label: getCategoryLabel(userCategoryEnum.enumValues[1]),
+  },
+  {
+    value: userCategoryEnum.enumValues[2],
+    label: getCategoryLabel(userCategoryEnum.enumValues[2]),
+  },
+  {
+    value: userCategoryEnum.enumValues[3],
+    label: getCategoryLabel(userCategoryEnum.enumValues[3]),
   },
 ];
 

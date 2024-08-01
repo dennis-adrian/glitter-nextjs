@@ -22,6 +22,7 @@ import {
   CreditCardIcon,
   HomeIcon,
   LogOutIcon,
+  TagsIcon,
   UsersIcon,
 } from "lucide-react";
 import { ProfileType } from "@/app/api/users/definitions";
@@ -108,6 +109,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
                 <MobileSidebarItem href="/dashboard/festivals">
                   <CalendarIcon className="mr-2 h-6 w-6" />
                   Festivales
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/tags">
+                  <TagsIcon className="mr-2 h-6 w-6" />
+                  Etiquetas
                 </MobileSidebarItem>
               </div>
             </>

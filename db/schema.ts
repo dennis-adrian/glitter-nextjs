@@ -62,6 +62,40 @@ export const usersRelations = relations(users, ({ many }) => ({
   participations: many(reservationParticipants),
   scheduledTasks: many(scheduledTasks),
   invoices: many(invoices),
+  profileTags: many(profileTags),
+}));
+
+export const tags = pgTable("tags", {
+  id: serial("id").primaryKey(),
+  label: text("name").notNull(),
+  category: userCategoryEnum("category").default("none").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const tagsRelations = relations(tags, ({ many }) => ({
+  profileTags: many(profileTags),
+}));
+
+export const profileTags = pgTable("profile_tags", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  tagId: integer("tag_id")
+    .notNull()
+    .references(() => tags.id, { onDelete: "cascade" }),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const profileTagsRelations = relations(profileTags, ({ one }) => ({
+  profile: one(users, {
+    fields: [profileTags.profileId],
+    references: [users.id],
+  }),
+  tag: one(tags, {
+    fields: [profileTags.tagId],
+    references: [tags.id],
+  }),
 }));
 
 export const festivalStatusEnum = pgEnum("festival_status", [
