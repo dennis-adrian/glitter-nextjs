@@ -554,6 +554,13 @@
       "when": 1721700705536,
       "tag": "0078_awesome_whiplash",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "5",
+      "when": 1722635947160,
+      "tag": "0079_modern_pride",
+      "breakpoints": true
     }
   ]
 }

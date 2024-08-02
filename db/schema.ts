@@ -63,6 +63,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   scheduledTasks: many(scheduledTasks),
   invoices: many(invoices),
   profileTags: many(profileTags),
+  profileSubcategories: many(profileSubcategories),
 }));
 
 export const tags = pgTable("tags", {
@@ -97,6 +98,43 @@ export const profileTagsRelations = relations(profileTags, ({ one }) => ({
     references: [tags.id],
   }),
 }));
+
+export const subcategories = pgTable("subcategories", {
+  id: serial("id").primaryKey(),
+  label: text("name").notNull(),
+  descrption: text("description"),
+  category: userCategoryEnum("category").notNull().default("none"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const subcategoriesRelations = relations(subcategories, ({ many }) => ({
+  profileSubcategories: many(profileSubcategories),
+}));
+
+export const profileSubcategories = pgTable("profile_subcategories", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  subcategoryId: integer("subcategory_id")
+    .notNull()
+    .references(() => subcategories.id, { onDelete: "cascade" }),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const profileSubcategoriesRelations = relations(
+  profileSubcategories,
+  ({ one }) => ({
+    profile: one(users, {
+      fields: [profileSubcategories.profileId],
+      references: [users.id],
+    }),
+    subcategory: one(subcategories, {
+      fields: [profileSubcategories.subcategoryId],
+      references: [subcategories.id],
+    }),
+  }),
+);
 
 export const festivalStatusEnum = pgEnum("festival_status", [
   "draft",
