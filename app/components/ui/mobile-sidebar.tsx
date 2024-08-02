@@ -115,6 +115,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
                   <CalendarIcon className="mr-2 h-6 w-6" />
                   Festivales
                 </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/subcategories">
+                  <BoxesIcon className="mr-2 h-6 w-6" />
+                  Subcategorías
+                </MobileSidebarItem>
                 <MobileSidebarItem href="/dashboard/tags">
                   <TagsIcon className="mr-2 h-6 w-6" />
                   Etiquetas
