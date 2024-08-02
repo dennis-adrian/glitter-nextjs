@@ -1,9 +1,17 @@
 import CategoryCard from "@/app/(routes)/festivals/categories/category-card";
+import Image from "next/image";
 
 export default async function Page() {
   return (
     <div className="container p-4 md:p-6">
       <h1 className="mb-2 text-2xl font-bold md:text-3xl">Categorías</h1>
+      <Image
+        className="mx-auto mb-6 h-auto"
+        alt="mascota de glitter"
+        src="/img/glitter-mascot-with-stand-sm.png"
+        height={320}
+        width={198}
+      />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <CategoryCard title="Ilustración">
           <p>
@@ -34,7 +42,7 @@ export default async function Page() {
         </CategoryCard>
         <CategoryCard title="Bisutería / Bijouteria">
           <p>
-            El arte de la bisutería/bijouteria consiste en el armado de
+            El arte de la bisutería / bijouteria consiste en el armado de
             manillas, collares, aretes, etc., a partir de la mano creativa de su
             creador que elige cuidadosamente las perlas, dijes y demás
             accesorios variados similares a la joyería.

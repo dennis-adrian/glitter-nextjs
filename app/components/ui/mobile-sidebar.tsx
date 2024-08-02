@@ -17,6 +17,7 @@ import {
 import { Button } from "@/app/components/ui/button";
 import {
   AlbumIcon,
+  BoxesIcon,
   CalendarCheck2Icon,
   CalendarIcon,
   CreditCardIcon,
@@ -87,6 +88,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
           <MobileSidebarItem href="/next_event">
             <CalendarCheck2Icon className="mr-2 h-6 w-6" />
             Próximo Evento
+          </MobileSidebarItem>
+          <MobileSidebarItem href="/festivals/categories">
+            <BoxesIcon className="w-6 h-6 mr-2" />
+            Categorías Glitter
           </MobileSidebarItem>
           {profile && profile.role === "admin" && (
             <>
