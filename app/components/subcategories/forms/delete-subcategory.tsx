@@ -1,20 +1,19 @@
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
-import { deleteTag } from "@/app/lib/tags/actions";
-import { Tag } from "@/app/lib/tags/definitions";
+import { deleteSubcategory } from "@/app/lib/subcategories/actions";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
-export default function DeleteTagForm({
-  tagId,
+export default function DeleteSubcategoryForm({
+  subcategoryId: subcategoryId,
   onSuccess,
 }: {
-  tagId: number;
+  subcategoryId: number;
   onSuccess: () => void;
 }) {
   const form = useForm();
   const action: () => void = form.handleSubmit(async () => {
-    const res = await deleteTag(tagId);
+    const res = await deleteSubcategory(subcategoryId);
     if (res.success) {
       toast.success(res.message);
       onSuccess();
