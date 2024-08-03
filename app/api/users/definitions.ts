@@ -1,3 +1,4 @@
+import { Subcategory } from "@/app/lib/subcategories/definitions";
 import { Tag } from "@/app/lib/tags/definitions";
 import {
   users,
@@ -7,6 +8,7 @@ import {
   standReservations,
   scheduledTasks,
   profileTags,
+  profileSubcategories,
 } from "@/db/schema";
 
 export type UserSocial = typeof userSocials.$inferSelect;
@@ -15,6 +17,8 @@ type Participation = typeof reservationParticipants.$inferSelect & {
   reservation: typeof standReservations.$inferSelect;
 };
 
+export type NewUser = typeof users.$inferInsert;
+export type UpdateUser = Partial<NewUser>;
 export type BaseProfile = typeof users.$inferSelect;
 export type ProfileWithSocials = BaseProfile & {
   userSocials: UserSocial[];
@@ -24,11 +28,16 @@ export type ProfileTagWithTag = typeof profileTags.$inferSelect & {
   tag: Tag;
 };
 
+export type ProfileSubcategory = typeof profileSubcategories.$inferSelect;
+export type ProfileSubcategoryWithSubcategory = ProfileSubcategory & {
+  subcategory: Subcategory;
+};
 export type ProfileType = BaseProfile & {
   userSocials: UserSocial[];
   userRequests: UserRequest[];
   participations: Participation[];
   profileTags: ProfileTagWithTag[];
+  profileSubcategories: ProfileSubcategory[];
 };
 export type ProfileWithParticipationsAndRequests = typeof users.$inferSelect & {
   participations: Participation[];

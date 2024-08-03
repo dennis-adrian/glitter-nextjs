@@ -1,5 +1,6 @@
 import { fetchUserProfile } from "@/app/api/users/actions";
 import { updateProfile } from "@/app/lib/users/actions";
+import { utapi } from "@/app/server/uploadthing";
 import { currentUser } from "@clerk/nextjs/server";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { UploadThingError } from "uploadthing/server";
@@ -12,7 +13,7 @@ const f = createUploadthing();
 // FileRouter for your app, can contain multiple FileRoutes
 export const ourFileRouter = {
   // Define as many FileRoutes as you like, each with a unique routeSlug
-  profilePicture: f(["image"])
+  profilePicture: f({ image: { maxFileSize: "2MB" } })
     .middleware(async ({ req }) => {
       // This code runs on your server before upload
       const user = await currentUser();
@@ -36,12 +37,17 @@ export const ourFileRouter = {
     })
     .onUploadComplete(async ({ metadata, file }) => {
       const { profile } = metadata;
+      const oldImageUrl = profile.imageUrl;
       const imageUrl = (file as { url: string }).url;
+
       const res = await updateProfile(profile.id, {
-        clerkId: profile.clerkId,
-        email: profile.email,
         imageUrl,
       });
+
+      if (oldImageUrl) {
+        const [_, key] = oldImageUrl.split("/f/");
+        await utapi.deleteFiles(key);
+      }
 
       return res;
     }),
