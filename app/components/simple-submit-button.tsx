@@ -18,7 +18,7 @@ export default function SubmitButton(props: SubmitButtonProps) {
       type="submit"
       className={cn("w-full", props.className)}
     >
-      {props.disabled ? (
+      {props.loading ? (
         <span className="flex gap-2 items-center">
           <Loader2Icon className="w-4 h-4 animate-spin" />
           {props.loadingLabel || "Cargando"}

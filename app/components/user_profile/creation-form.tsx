@@ -19,6 +19,7 @@ export default function ProfileCreationForm(props: ProfileCreationFormProps) {
   const step = searchParams.get("step");
 
   const setStep = useCallback((step: number) => {
+    console.log("step", step);
     currentParams.set("step", step.toString());
     router.push(`?${currentParams.toString()}`);
   }, []);
@@ -42,6 +43,7 @@ export default function ProfileCreationForm(props: ProfileCreationFormProps) {
         <CategoriesStep
           profile={props.profile}
           step={parseInt(step)}
+          setStep={setStep}
           subcategories={props.subcategories}
         />
       )}

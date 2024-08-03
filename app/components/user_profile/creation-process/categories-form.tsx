@@ -1,113 +1,61 @@
+"use client";
+
+import { ProfileType, UserCategory } from "@/app/api/users/definitions";
+import SubmitButton from "@/app/components/simple-submit-button";
 import { Button } from "@/app/components/ui/button";
+import { Form } from "@/app/components/ui/form";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
-import { useState } from "react";
+import { updateProfileCategories } from "@/app/lib/users/actions";
+import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 
 type CategoriesFormProps = {
-  subcategories: Subcategory[];
+  profile: ProfileType;
+  mainCategory: Subcategory | null;
+  additionalCategories: Subcategory[];
+  onBack: () => void;
+  onSubmit: () => void;
 };
 
 export default function CategoriesForm(props: CategoriesFormProps) {
-  const [mainCategory, setMainCategory] = useState<Subcategory | null>(null);
-  const [availableCategories, setAvailableCategories] = useState<Subcategory[]>(
-    props.subcategories,
-  );
-  const [additionalCategories, setAdditionalCategories] = useState<
-    Subcategory[]
-  >([]);
+  const form = useForm();
 
-  function handleSelectCategory(mainCategory: Subcategory) {
-    setMainCategory(mainCategory);
-    setAvailableCategories(
-      props.subcategories.filter(
-        (subcategory) =>
-          subcategory.id !== mainCategory.id &&
-          subcategory.category === "entrepreneurship" &&
-          subcategory.label !== "Skincare",
-      ),
+  const action: () => void = form.handleSubmit(async () => {
+    if (!props.mainCategory) return;
+
+    const subcategories = [props.mainCategory, ...props.additionalCategories];
+    const res = await updateProfileCategories(
+      props.profile.id,
+      props.mainCategory?.category as UserCategory,
+      subcategories.map((subcategory) => subcategory.id),
     );
-  }
 
-  function handleSubcategoryClick(subcategory: Subcategory) {
-    const newAdditionalCategories = [...additionalCategories, subcategory];
-    setAdditionalCategories(newAdditionalCategories);
-    const newAvailableCategories = availableCategories.filter(
-      (category) =>
-        category.id !== subcategory.id &&
-        subcategory.category === "entrepreneurship",
-    );
-    setAvailableCategories(newAvailableCategories);
-  }
+    if (res.success) {
+      toast.success(res.message);
+      props.onSubmit();
+    } else {
+      toast.error(res.message);
+    }
+  });
 
-  if (mainCategory) {
-    return (
-      <div className="text-center">
-        <div className="flex flex-col min-w-80 min-h-44 p-5 justify-center items-center mx-auto gap-5 border rounded-lg">
-          <div className="flex flex-col">
-            <span className="text-muted-foreground">Categoría</span>
-            <span className="font-semibold text-xl">{mainCategory.label}</span>
-          </div>
-          {mainCategory.category === "entrepreneurship" &&
-            additionalCategories.length > 0 && (
-              <div className="flex flex-col">
-                <span className="text-muted-foreground">
-                  Categoría adicionales
-                </span>
-                {additionalCategories
-                  .map((subcategory) => subcategory.label)
-                  .join(" - ")}
-              </div>
-            )}
+  return (
+    <Form {...form}>
+      <form className="w-full flex flex-col gap-4 my-4" onSubmit={action}>
+        <div className="flex justify-end items-center gap-2">
+          <Button type="button" variant="outline" onClick={props.onBack}>
+            <ArrowLeftIcon className="w-4 h-4 mr-2" />
+            Volver
+          </Button>
+          <SubmitButton
+            disabled={!props.mainCategory || form.formState.isSubmitting}
+            loading={form.formState.isSubmitting}
+          >
+            <span>Continuar</span>
+            <ArrowRightIcon className="ml-2 w-4 h-4" />
+          </SubmitButton>
         </div>
-        {mainCategory.category === "entrepreneurship" &&
-          mainCategory.label !== "Skincare" &&
-          availableCategories.length > 0 && (
-            <div className="flex flex-col my-6">
-              <span className="font-semibold text-lg">
-                ¿Te gustaría agregar categorías adicionales?
-              </span>
-              <span className="text-muted-foreground text-sm">
-                En los eventos no podrás ofrecer productos que no estén dentro
-                de tus categorías
-              </span>
-              <div className="my-4">
-                <CategoriesCard
-                  subcategories={availableCategories}
-                  onClick={handleSubcategoryClick}
-                />
-              </div>
-            </div>
-          )}
-      </div>
-    );
-  }
-
-  return (
-    <CategoriesCard
-      subcategories={availableCategories}
-      onClick={handleSelectCategory}
-    />
-  );
-}
-
-function CategoriesCard({
-  subcategories,
-  onClick,
-}: {
-  subcategories: Subcategory[];
-  onClick: (subcategory: Subcategory) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-4">
-      {subcategories.map((subcategory) => (
-        <Button
-          className="border py-2 px-4 rounded-lg cursor-pointer overflow-hidden transition-all hover:border-primary-500 hover:scale-105 focus:border-primary-500 focus:outline-none"
-          key={subcategory.id}
-          variant="ghost"
-          onClick={() => onClick(subcategory)}
-        >
-          {subcategory.label}
-        </Button>
-      ))}
-    </div>
+      </form>
+    </Form>
   );
 }
