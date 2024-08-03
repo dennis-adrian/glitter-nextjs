@@ -35,21 +35,26 @@ export const ourFileRouter = {
 
       return { profile };
     })
-    .onUploadComplete(async ({ metadata, file }) => {
-      const { profile } = metadata;
-      const oldImageUrl = profile.imageUrl;
-      const imageUrl = (file as { url: string }).url;
+    .onUploadComplete(({ metadata, file }) => {
+      // const { profile } = metadata;
+      // const oldImageUrl = profile.imageUrl;
+      // const imageUrl = (file as { url: string }).url;
 
-      const res = await updateProfile(profile.id, {
-        imageUrl,
-      });
+      // const res = await updateProfile(profile.id, {
+      //   imageUrl,
+      // });
 
-      if (oldImageUrl) {
-        const [_, key] = oldImageUrl.split("/f/");
-        await utapi.deleteFiles(key);
-      }
+      // if (oldImageUrl) {
+      //   const [_, key] = oldImageUrl.split("/f/");
+      //   await utapi.deleteFiles(key);
+      // }
 
-      return res;
+      return {
+        results: {
+          profileId: metadata.profile.id,
+          imageUrl: (file as { url: string }).url,
+        },
+      };
     }),
   imageUploader: f({ image: { maxFileSize: "4MB" } })
     // Set permissions and file types for this FileRoute
