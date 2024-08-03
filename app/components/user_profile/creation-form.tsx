@@ -1,13 +1,16 @@
 "use client";
 
 import { ProfileType } from "@/app/api/users/definitions";
+import CategoriesStep from "@/app/components/user_profile/creation-process/categories-step";
 import DisplayNameStep from "@/app/components/user_profile/creation-process/display-name-step";
 import UserPicStep from "@/app/components/user_profile/creation-process/user-pic-step";
+import { Subcategory } from "@/app/lib/subcategories/definitions";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 
 type ProfileCreationFormProps = {
   profile: ProfileType;
+  subcategories: Subcategory[];
 };
 export default function ProfileCreationForm(props: ProfileCreationFormProps) {
   const router = useRouter();
@@ -33,6 +36,13 @@ export default function ProfileCreationForm(props: ProfileCreationFormProps) {
           profile={props.profile}
           step={parseInt(step)}
           setStep={setStep}
+        />
+      )}
+      {step === "3" && (
+        <CategoriesStep
+          profile={props.profile}
+          step={parseInt(step)}
+          subcategories={props.subcategories}
         />
       )}
     </div>

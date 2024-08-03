@@ -5,17 +5,9 @@ import { redirect } from "next/navigation";
 import { RedirectDrawer } from "@/app/components/redirect-drawer";
 import ProfileCreationForm from "@/app/components/user_profile/creation-form";
 import { isProfileComplete } from "@/app/lib/utils";
-import { z } from "zod";
+import { fetchSubcategories } from "@/app/lib/subcategories/actions";
 
-const SearchParamsSchema = z.object({
-  step: z.coerce.number().optional(),
-});
-
-export default async function UserProfileCreatePage({
-  searchParams,
-}: {
-  searchParams: { step?: string };
-}) {
+export default async function UserProfileCreatePage() {
   const user = await currentUser();
   const profile = await fetchOrCreateProfile(user);
 
@@ -29,12 +21,11 @@ export default async function UserProfileCreatePage({
   }
 
   if (isProfileComplete(profile)) redirect("/my_profile");
-  const validatedSearchParams = SearchParamsSchema.safeParse(searchParams);
-  // if (!validatedSearchParams.success) redirect("/my_profile");
+  const subcategories = await fetchSubcategories();
 
   return (
     <div className="container p-4 md:p-6">
-      <ProfileCreationForm profile={profile} />
+      <ProfileCreationForm profile={profile} subcategories={subcategories} />
     </div>
   );
 }
