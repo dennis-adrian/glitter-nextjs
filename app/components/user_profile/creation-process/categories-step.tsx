@@ -1,3 +1,5 @@
+"use client";
+
 import { ProfileType } from "@/app/api/users/definitions";
 import StepDescription from "@/app/components/festivals/registration/steps/step-description";
 import CategoriesOptions from "@/app/components/user_profile/creation-process/categories-options";
