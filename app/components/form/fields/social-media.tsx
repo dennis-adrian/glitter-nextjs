@@ -36,14 +36,17 @@ export default function SocialMediaInput({
     <FormField
       control={formControl}
       name={name}
-      render={({ field, formState, fieldState }) => {
+      render={({ field }) => {
         return (
           <FormItem className="grid gap-2 w-full">
             <FormLabel>{label}</FormLabel>
             <FormControl>
               <div className="flex items-end gap-2">
                 {icon && (
-                  <FontAwesomeIcon className="w-5 h-5 mb-2" icon={icon} />
+                  <FontAwesomeIcon
+                    className="w-5 h-5 mb-2 text-muted-foreground"
+                    icon={icon}
+                  />
                 )}
                 <div className="relative flex items-center w-full">
                   <span className="absolute text-muted-foreground">@</span>

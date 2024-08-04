@@ -1,4 +1,4 @@
-import { ProfileType } from "@/app/api/users/definitions";
+import { ProfileType, UserSocial } from "@/app/api/users/definitions";
 
 export function findUserSocial(profile: ProfileType, socialType: string) {
   return profile.userSocials.find((social) => social.type === socialType);
@@ -7,18 +7,20 @@ export function findUserSocial(profile: ProfileType, socialType: string) {
 export function formatUserSocialsForInsertion(
   data: {
     instagramProfile: string;
-    tiktokProfile: string;
-    facebookProfile: string;
+    tiktokProfile?: string;
+    facebookProfile?: string;
   },
   profile: ProfileType,
 ) {
-  return Object.entries(data).map(([key, value]) => {
+  const socials = Object.entries(data).map(([key, value]) => {
     const social = findUserSocial(profile, key.replace("Profile", ""));
     if (social) {
       return {
-        id: social.id,
+        ...social,
         username: value,
       };
     }
   });
+
+  return socials.filter((social) => social?.username !== "") as UserSocial[];
 }

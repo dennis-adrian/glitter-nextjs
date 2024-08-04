@@ -3,16 +3,18 @@ import SocialMediaInput from "@/app/components/form/fields/social-media";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Button } from "@/app/components/ui/button";
 import { Form } from "@/app/components/ui/form";
+import { formatUserSocialsForInsertion } from "@/app/components/user_profile/public_profile/utils";
+import { updateProfileSocials } from "@/app/lib/users/actions";
 import { usernameRegex } from "@/app/lib/users/utils";
 import {
   faFacebookF,
   faInstagram,
   faTiktok,
-  faYoutube,
 } from "@fortawesome/free-brands-svg-icons";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 
 const FormSchema = z.object({
@@ -41,13 +43,6 @@ const FormSchema = z.object({
       message: "El nombre de usuario no puede tener caracteres especiales",
     })
     .optional(),
-  youtubeProfile: z
-    .string()
-    .trim()
-    .refine((value) => value === "" || usernameRegex.test(value), {
-      message: "El nombre de usuario no puede tener caracteres especiales",
-    })
-    .optional(),
 });
 
 type UserSocialsFormProps = {
@@ -69,14 +64,19 @@ export default function UserSocialsForm(props: UserSocialsFormProps) {
       facebookProfile:
         props.profile.userSocials.find((social) => social.type === "facebook")
           ?.username || "",
-      youtubeProfile:
-        props.profile.userSocials.find((social) => social.type === "youtube")
-          ?.username || "",
     },
   });
 
-  const action: () => void = form.handleSubmit(async () => {
-    console.log("submitting");
+  const action: () => void = form.handleSubmit(async (data) => {
+    const socials = formatUserSocialsForInsertion(data, props.profile);
+    const res = await updateProfileSocials(props.profile.id, socials);
+
+    if (res.success) {
+      toast.success(res.message);
+      props.onSubmit();
+    } else {
+      toast.error(res.message);
+    }
   });
 
   return (
