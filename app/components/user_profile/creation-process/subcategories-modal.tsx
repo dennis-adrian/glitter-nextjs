@@ -1,7 +1,12 @@
 "use client";
 
 import SubcategoriesDescription from "@/app/components/festivals/subcategories/sucategores-description";
-import BaseModal from "@/app/components/modals/base-modal";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type SubcategoriesModalProps = {
   open: boolean;
@@ -9,12 +14,13 @@ type SubcategoriesModalProps = {
 };
 export default function SubcategoriesModal(props: SubcategoriesModalProps) {
   return (
-    <BaseModal
-      title="Categorías Glitter"
-      show={props.open}
-      onOpenChange={props.setOpen}
-    >
-      <SubcategoriesDescription className="flex flex-col gap-2" />
-    </BaseModal>
+    <Dialog open={props.open} onOpenChange={props.setOpen}>
+      <DialogContent className="max-h-full overflow-auto">
+        <DialogHeader>
+          <DialogTitle>Categorías Glitter</DialogTitle>
+        </DialogHeader>
+        <SubcategoriesDescription className="flex flex-col gap-2" />
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -12,10 +12,10 @@ type CategoryCardProps = {
 export default function CategoryCard(props: CategoryCardProps) {
   return (
     <Card>
-      <CardHeader className="px-5 pt-5 pb-3">
-        <CardTitle className="text-xl">{props.title}</CardTitle>
+      <CardHeader className="px-4 pt-4 pb-3">
+        <CardTitle className="text-lg">{props.title}</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col gap-2 text-sm px-5 pb-5">
+      <CardContent className="flex flex-col gap-2 text-sm px-4 pb-4">
         {props.children}
       </CardContent>
     </Card>
