@@ -32,6 +32,13 @@ export const userStatusEnum = pgEnum("user_status", [
   "rejected",
   "banned",
 ]);
+export const genderEnum = pgEnum("gender", [
+  "male",
+  "female",
+  "non_binary",
+  "other",
+  "undisclosed",
+]);
 
 export const users = pgTable(
   "users",
@@ -49,6 +56,8 @@ export const users = pgTable(
     role: userRoleEnum("role").default("user").notNull(),
     category: userCategoryEnum("category").default("none").notNull(),
     status: userStatusEnum("status").default("pending").notNull(),
+    gender: genderEnum("gender").default("undisclosed").notNull(),
+    state: text("state"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -426,13 +435,6 @@ export const eventDiscoveryEnum = pgEnum("event_discovery", [
   "casual",
   "la_rota",
   "other",
-]);
-export const genderEnum = pgEnum("gender", [
-  "male",
-  "female",
-  "non_binary",
-  "other",
-  "undisclosed",
 ]);
 export const visitors = pgTable("visitors", {
   id: serial("id").primaryKey(),

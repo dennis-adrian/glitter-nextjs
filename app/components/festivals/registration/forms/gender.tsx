@@ -1,15 +1,11 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { number, z } from "zod";
+import { z } from "zod";
 import { genderEnum } from "@/db/schema";
 import { Form } from "@/app/components/ui/form";
 import SelectInput from "@/app/components/form/fields/select";
 import { genderOptions } from "@/app/lib/utils";
-import {
-  createVisitor,
-  NewVisitor,
-  VisitorWithTickets,
-} from "@/app/data/visitors/actions";
+import { createVisitor } from "@/app/data/visitors/actions";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { ArrowRightIcon } from "lucide-react";
 import { toast } from "sonner";

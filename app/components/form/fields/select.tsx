@@ -11,6 +11,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectVariants,
 } from "@/app/components/ui/select";
 import { UseFormReturn } from "react-hook-form";
 
@@ -20,13 +21,14 @@ export default function SelectInput({
   name,
   options,
   placeholder,
+  variant,
 }: {
   formControl: UseFormReturn<any>["control"];
   label?: string;
   name: string;
   options: { value: string; label: string }[];
   placeholder?: string;
-}) {
+} & SelectVariants) {
   return (
     <FormField
       control={formControl}
@@ -37,7 +39,7 @@ export default function SelectInput({
           <FormControl>
             <Select onValueChange={field.onChange} defaultValue={field.value}>
               <FormControl>
-                <SelectTrigger>
+                <SelectTrigger variant={variant}>
                   <SelectValue placeholder={placeholder} />
                 </SelectTrigger>
               </FormControl>

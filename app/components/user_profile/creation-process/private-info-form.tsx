@@ -1,11 +1,14 @@
 import { ProfileType } from "@/app/api/users/definitions";
 import PhoneInput from "@/app/components/form/fields/phone";
+import SelectInput from "@/app/components/form/fields/select";
 import TextInput from "@/app/components/form/fields/text";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Button } from "@/app/components/ui/button";
 import { Form } from "@/app/components/ui/form";
 import { updateProfile } from "@/app/lib/users/actions";
 import { phoneRegex } from "@/app/lib/users/utils";
+import { genderOptions, stateOptions } from "@/app/lib/utils";
+import { genderEnum } from "@/db/schema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeftIcon, SendIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -26,6 +29,12 @@ const FormSchema = z.object({
     .trim()
     .regex(phoneRegex, "Número de teléfono inválido")
     .min(8, { message: "El número de teléfono necesita de 8 dígitos" }),
+  gender: z.enum([...genderEnum.enumValues]),
+  state: z
+    .string({
+      required_error: "El departamento es requerido",
+    })
+    .trim(),
 });
 
 type PrivateInfoFormProps = {
@@ -41,6 +50,8 @@ export default function PrivateInfoForm(props: PrivateInfoFormProps) {
       firstName: props.profile.firstName || "",
       lastName: props.profile.lastName || "",
       phoneNumber: props.profile.phoneNumber || "",
+      gender: props.profile.gender,
+      state: props.profile.state || "",
     },
   });
 
@@ -82,6 +93,22 @@ export default function PrivateInfoForm(props: PrivateInfoFormProps) {
           formControl={form.control}
           label="Teléfono"
           name="phoneNumber"
+        />
+        <SelectInput
+          formControl={form.control}
+          label="Género"
+          name="gender"
+          options={genderOptions}
+          placeholder="Elige una opción"
+          variant="quiet"
+        />
+        <SelectInput
+          formControl={form.control}
+          label="Departamento de residencia"
+          name="state"
+          options={stateOptions}
+          placeholder="Elige una opción"
+          variant="quiet"
         />
         <div className="flex gap-2 my-4 col-span-1 sm:col-span-2">
           <Button type="button" variant="outline" onClick={props.onBack}>

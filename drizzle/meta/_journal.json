@@ -561,6 +561,13 @@
       "when": 1722635947160,
       "tag": "0079_modern_pride",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "5",
+      "when": 1722784271153,
+      "tag": "0080_whole_lionheart",
+      "breakpoints": true
     }
   ]
 }
