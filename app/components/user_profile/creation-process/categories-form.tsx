@@ -6,7 +6,7 @@ import { Button } from "@/app/components/ui/button";
 import { Form } from "@/app/components/ui/form";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
 import { updateProfileCategories } from "@/app/lib/users/actions";
-import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, RotateCwIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -44,8 +44,16 @@ export default function CategoriesForm(props: CategoriesFormProps) {
       <form className="w-full flex flex-col gap-4 my-4" onSubmit={action}>
         <div className="flex justify-end items-center gap-2">
           <Button type="button" variant="outline" onClick={props.onBack}>
-            <ArrowLeftIcon className="w-4 h-4 mr-2" />
-            Volver
+            <ArrowLeftIcon className="w-4 h-4 md:mr-2" />
+            <span className="hidden md:block">Volver</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => window.location.reload()}
+          >
+            <RotateCwIcon className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:block">Reiniciar</span>
           </Button>
           <SubmitButton
             disabled={!props.mainCategory || form.formState.isSubmitting}

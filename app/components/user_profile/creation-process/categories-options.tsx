@@ -1,6 +1,7 @@
 import { ProfileType } from "@/app/api/users/definitions";
 import { Button } from "@/app/components/ui/button";
 import CategoriesForm from "@/app/components/user_profile/creation-process/categories-form";
+import { getInitialAvailableCategories } from "@/app/components/user_profile/creation-process/helpers";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
 import { useState } from "react";
 
@@ -13,13 +14,24 @@ type CategoriesOptionsProps = {
 
 export default function CategoriesOptions(props: CategoriesOptionsProps) {
   const step = props.step;
-  const [mainCategory, setMainCategory] = useState<Subcategory | null>(null);
+  const [mainCategory, setMainCategory] = useState<Subcategory | null>(
+    props.profile.profileSubcategories[0]?.subcategory,
+  );
   const [availableCategories, setAvailableCategories] = useState<Subcategory[]>(
-    props.subcategories,
+    getInitialAvailableCategories(
+      props.profile.profileSubcategories.map(
+        (subcategory) => subcategory.subcategory,
+      ),
+      props.subcategories,
+    ),
   );
   const [additionalCategories, setAdditionalCategories] = useState<
     Subcategory[]
-  >([]);
+  >(
+    props.profile.profileSubcategories
+      .slice(1)
+      .map((subcategory) => subcategory.subcategory),
+  );
 
   function handleSelectCategory(mainCategory: Subcategory) {
     setMainCategory(mainCategory);
