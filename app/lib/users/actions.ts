@@ -48,6 +48,11 @@ export async function updateProfileCategories(
         .set({ category, updatedAt: new Date() })
         .where(eq(users.id, profileId));
 
+      // Any subcategory that was previously associated with the profile is now removed
+      await tx
+        .delete(profileSubcategories)
+        .where(eq(profileSubcategories.profileId, profileId));
+
       subcategoryIds.forEach(async (subcategoryId) => {
         await tx
           .insert(profileSubcategories)

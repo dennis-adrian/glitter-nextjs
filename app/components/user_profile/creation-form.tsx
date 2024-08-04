@@ -4,6 +4,7 @@ import { ProfileType } from "@/app/api/users/definitions";
 import CategoriesStep from "@/app/components/user_profile/creation-process/categories-step";
 import DisplayNameStep from "@/app/components/user_profile/creation-process/display-name-step";
 import UserPicStep from "@/app/components/user_profile/creation-process/user-pic-step";
+import UserSocialsStep from "@/app/components/user_profile/creation-process/user-socials-step";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
@@ -45,6 +46,13 @@ export default function ProfileCreationForm(props: ProfileCreationFormProps) {
           step={parseInt(step)}
           setStep={setStep}
           subcategories={props.subcategories}
+        />
+      )}
+      {step === "4" && (
+        <UserSocialsStep
+          profile={props.profile}
+          step={parseInt(step)}
+          setStep={setStep}
         />
       )}
     </div>
