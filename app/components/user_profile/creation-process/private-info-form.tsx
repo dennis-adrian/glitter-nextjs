@@ -5,6 +5,7 @@ import TextInput from "@/app/components/form/fields/text";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Button } from "@/app/components/ui/button";
 import { Form } from "@/app/components/ui/form";
+import { formatDate } from "@/app/lib/formatters";
 import { updateProfile } from "@/app/lib/users/actions";
 import { phoneRegex } from "@/app/lib/users/utils";
 import { genderOptions, stateOptions } from "@/app/lib/utils";
@@ -16,6 +17,21 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 const FormSchema = z.object({
+  birthdate: z.coerce
+    .date()
+    .refine((date) => date < new Date(), {
+      message: "La fecha de nacimiento no puede ser en el futuro",
+    })
+    .refine(
+      (date) => {
+        const ageLimit = formatDate(new Date()).minus({ years: 16 });
+        return formatDate(date).startOf("day") < ageLimit.startOf("day");
+      },
+      {
+        message:
+          "Debes tener al menos 16 años para participar de nuestros eventos",
+      },
+    ),
   firstName: z
     .string()
     .trim()
@@ -39,7 +55,6 @@ const FormSchema = z.object({
 
 type PrivateInfoFormProps = {
   profile: ProfileType;
-  onSubmit: () => void;
   onBack: () => void;
 };
 
@@ -47,6 +62,7 @@ export default function PrivateInfoForm(props: PrivateInfoFormProps) {
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
+      birthdate: props.profile.birthdate || new Date(),
       firstName: props.profile.firstName || "",
       lastName: props.profile.lastName || "",
       phoneNumber: props.profile.phoneNumber || "",
@@ -62,7 +78,6 @@ export default function PrivateInfoForm(props: PrivateInfoFormProps) {
 
     if (res.success) {
       toast.success(res.message);
-      props.onSubmit();
     } else {
       toast.error(res.message);
     }
@@ -87,6 +102,14 @@ export default function PrivateInfoForm(props: PrivateInfoFormProps) {
           label="Apellido"
           name="lastName"
           placeholder="Ingresa tu apellido"
+        />
+        <TextInput
+          bottomBorderOnly
+          formControl={form.control}
+          label="Fecha de nacimiento"
+          name="birthdate"
+          placeholder="Ingresa tu fecha de nacimiento"
+          type="date"
         />
         <PhoneInput
           bottomBorderOnly

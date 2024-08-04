@@ -17,7 +17,6 @@ export default function PrivateInfoStep(props: PrivateInfoStepProps) {
       <PrivateInfoForm
         profile={props.profile}
         onBack={() => props.setStep(props.step - 1)}
-        onSubmit={() => {}}
       />
     </>
   );
