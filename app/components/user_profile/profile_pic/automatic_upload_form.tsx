@@ -6,6 +6,7 @@ import { UploadButton } from "@/app/vendors/uploadthing";
 import Image from "next/image";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Loader2Icon } from "lucide-react";
 
 type ResponseType = {
   success: boolean;
@@ -24,7 +25,6 @@ async function updateProfile(profileId: number, imageUrl: string) {
 }
 
 export default function AutomaticProfilePicUploadForm({
-  afterUploadComponent,
   profile,
   size,
   onSuccess,
@@ -34,7 +34,6 @@ export default function AutomaticProfilePicUploadForm({
   size?: "sm" | "md" | "lg";
   onSuccess?: () => void;
 }) {
-  const [showUploadButton, setShowUploadButton] = useState(true);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
 
   let containerSize = "w-32 h-32";
@@ -57,31 +56,54 @@ export default function AutomaticProfilePicUploadForm({
           fill
         />
       </div>
-      {showUploadButton ? (
-        <UploadButton
-          endpoint="profilePicture"
-          onClientUploadComplete={async (res) => {
-            const serverData = res[0].serverData;
-            const { profileId, imageUrl } = serverData.results;
-            const response = await updateProfile(profileId, imageUrl);
-            if (response.success) {
-              toast.success("Imagen actualizada correctamente", {
-                description: "Los cambios se aplicarán en breve",
-              });
-              setUploadedImageUrl(imageUrl);
-              if (onSuccess) onSuccess();
-              setShowUploadButton(false);
-            } else {
-              toast.error(response.message);
+      <UploadButton
+        content={{
+          button({ ready, isUploading, uploadProgress }) {
+            if (isUploading && uploadProgress === 100) {
+              return (
+                <Loader2Icon className="w-4 h-4 text-primary-500 animate-spin" />
+              );
             }
-          }}
-          onUploadError={(error: Error) => {
-            toast.error("Error al subir la imagen");
-          }}
-        />
-      ) : (
-        afterUploadComponent || null
-      )}
+            if (isUploading) return <div>{uploadProgress}%</div>;
+            if (ready) return <div>Elige una imagen</div>;
+            return "Cargando...";
+          },
+          allowedContent({ ready, isUploading }) {
+            if (!ready) return null;
+            if (isUploading) return "Subiendo imagen...";
+            return "Imagen hasta 2MB";
+          },
+        }}
+        appearance={{
+          button: ({ ready, isUploading }) => {
+            if (!ready) {
+              return "bg-transparent text-xs text-muted-foreground border";
+            }
+            if (isUploading) {
+              return "bg-transparent text-xs text-muted-foreground border after:bg-primary-400/60";
+            }
+            return "bg-transparent text-xs text-foreground border hover:text-primary-500 hover:border-primary-500";
+          },
+        }}
+        endpoint="profilePicture"
+        onClientUploadComplete={async (res) => {
+          const serverData = res[0].serverData;
+          const { profileId, imageUrl } = serverData.results;
+          const response = await updateProfile(profileId, imageUrl);
+          if (response.success) {
+            toast.success("Imagen actualizada correctamente", {
+              description: "Los cambios se aplicarán en breve",
+            });
+            setUploadedImageUrl(imageUrl);
+            if (onSuccess) onSuccess();
+          } else {
+            toast.error(response.message);
+          }
+        }}
+        onUploadError={(error: Error) => {
+          toast.error("Error al subir la imagen");
+        }}
+      />
     </>
   );
 }
