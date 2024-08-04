@@ -1,5 +1,6 @@
 import CategoryCard from "@/app/components/festivals/subcategories/category-card";
 import { cn } from "@/app/lib/utils";
+import Link from "next/link";
 import { ComponentProps } from "react";
 
 type SubcategoriesDescriptionProps = ComponentProps<"div">;
@@ -226,7 +227,14 @@ export default function SubcategoriesDescription(
         </p>
         <p>
           El festival no permite la venta de productos con imágenes sacadas de
-          internet.
+          internet. Si quieres ser parte de esta categoría, comunícate con el
+          equipo Glitter al correo{" "}
+          <Link
+            className="text-blue-500"
+            href="mailto:equipo@productoraglitter.com"
+          >
+            equipo@productoraglitter.com
+          </Link>
         </p>
       </CategoryCard>
     </div>

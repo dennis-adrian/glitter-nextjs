@@ -6,6 +6,7 @@ import DisplayNameStep from "@/app/components/user_profile/creation-process/disp
 import PrivateInfoStep from "@/app/components/user_profile/creation-process/private-info-step";
 import UserPicStep from "@/app/components/user_profile/creation-process/user-pic-step";
 import UserSocialsStep from "@/app/components/user_profile/creation-process/user-socials-step";
+import { sortCategories } from "@/app/components/user_profile/helpers";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
@@ -25,6 +26,28 @@ export default function ProfileCreationForm(props: ProfileCreationFormProps) {
     currentParams.set("step", step.toString());
     router.push(`?${currentParams.toString()}`);
   }, []);
+
+  const orderedSubcategories = [
+    ...sortCategories(
+      props.subcategories.filter(
+        (subcategory) => subcategory.category === "illustration",
+      ),
+    ),
+    ...sortCategories(
+      props.subcategories.filter(
+        (subcategory) => subcategory.category === "gastronomy",
+      ),
+    ),
+    ...sortCategories(
+      props.subcategories.filter((subcategory) => {
+        // We don't want to show 'Sublimación colaborativa' in the creation process
+        return (
+          subcategory.category === "entrepreneurship" &&
+          subcategory.label !== "Sublimación colaborativa"
+        );
+      }),
+    ),
+  ];
 
   return (
     <div className="flex flex-col items-center max-w-screen-sm mx-auto">
@@ -46,7 +69,7 @@ export default function ProfileCreationForm(props: ProfileCreationFormProps) {
           profile={props.profile}
           step={parseInt(step)}
           setStep={setStep}
-          subcategories={props.subcategories}
+          subcategories={orderedSubcategories}
         />
       )}
       {step === "4" && (
