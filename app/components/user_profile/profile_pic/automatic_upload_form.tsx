@@ -44,7 +44,7 @@ export default function AutomaticProfilePicUploadForm({
   }
 
   return (
-    <>
+    <div className="flex flex-col items-center justify-center">
       <div className={cn("relative mb-4 border border-dashed", containerSize)}>
         <Image
           className="object-cover"
@@ -92,7 +92,9 @@ export default function AutomaticProfilePicUploadForm({
           const response = await updateProfile(profileId, imageUrl);
           if (response.success) {
             toast.success("Imagen actualizada correctamente", {
-              description: "Los cambios se aplicarán en breve",
+              cancel: true,
+              description:
+                "Los cambios se aplicarán en breve. O recarga la página",
             });
             setUploadedImageUrl(imageUrl);
             if (onSuccess) onSuccess();
@@ -104,6 +106,6 @@ export default function AutomaticProfilePicUploadForm({
           toast.error("Error al subir la imagen");
         }}
       />
-    </>
+    </div>
   );
 }

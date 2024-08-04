@@ -9,6 +9,7 @@ import { useEdgeStore } from "@/app/lib/edgestore";
 import { SingleImageDropzone } from "@/components/single-image-dropzone";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import AutomaticProfilePicUploadForm from "@/app/components/user_profile/profile_pic/automatic_upload_form";
 
 export default function ProfilePictureForm({
   profile,
@@ -54,28 +55,7 @@ export default function ProfilePictureForm({
 
   return (
     <div className="flex flex-col items-center justify-center gap-4">
-      {showProgress ? (
-        <div className="flex items-center justify-center w-full h-[200px]">
-          <Progress value={progress} className="w-[60%]" />
-        </div>
-      ) : (
-        <div className="mt-4">
-          <SingleImageDropzone
-            width={200}
-            height={200}
-            value={file}
-            dropzoneOptions={{
-              maxSize: 1024 * 1024 * 3, // 3MB,
-            }}
-            onChange={(file) => {
-              setFile(file);
-            }}
-          />
-        </div>
-      )}
-      <Button className="w-full" onClick={handleImageUpload}>
-        Guardar cambios
-      </Button>
+      <AutomaticProfilePicUploadForm profile={profile} />
     </div>
   );
 }

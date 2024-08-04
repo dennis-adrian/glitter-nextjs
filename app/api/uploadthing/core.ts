@@ -1,10 +1,8 @@
 import { fetchUserProfile } from "@/app/api/users/actions";
-import { updateProfile } from "@/app/lib/users/actions";
-import { utapi } from "@/app/server/uploadthing";
 import { currentUser } from "@clerk/nextjs/server";
+import { revalidatePath } from "next/cache";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { UploadThingError } from "uploadthing/server";
-import { UploadedFileData } from "uploadthing/types";
 
 const f = createUploadthing();
 
@@ -36,19 +34,6 @@ export const ourFileRouter = {
       return { profile };
     })
     .onUploadComplete(({ metadata, file }) => {
-      // const { profile } = metadata;
-      // const oldImageUrl = profile.imageUrl;
-      // const imageUrl = (file as { url: string }).url;
-
-      // const res = await updateProfile(profile.id, {
-      //   imageUrl,
-      // });
-
-      // if (oldImageUrl) {
-      //   const [_, key] = oldImageUrl.split("/f/");
-      //   await utapi.deleteFiles(key);
-      // }
-
       return {
         results: {
           profileId: metadata.profile.id,
