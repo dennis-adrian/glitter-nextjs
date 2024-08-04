@@ -1,11 +1,10 @@
-import { currentUser } from "@clerk/nextjs/server";
-
 import { fetchOrCreateProfile } from "@/app/api/users/actions";
-import { redirect } from "next/navigation";
 import { RedirectDrawer } from "@/app/components/redirect-drawer";
 import ProfileCreationForm from "@/app/components/user_profile/creation-form";
-import { isProfileComplete } from "@/app/lib/utils";
 import { fetchSubcategories } from "@/app/lib/subcategories/actions";
+import { isProfileComplete } from "@/app/lib/utils";
+import { currentUser } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 
 export default async function UserProfileCreatePage() {
   const user = await currentUser();

@@ -37,7 +37,7 @@ export type ProfileType = BaseProfile & {
   userRequests: UserRequest[];
   participations: Participation[];
   profileTags: ProfileTagWithTag[];
-  profileSubcategories: ProfileSubcategory[];
+  profileSubcategories: ProfileSubcategoryWithSubcategory[];
 };
 export type ProfileWithParticipationsAndRequests = typeof users.$inferSelect & {
   participations: Participation[];

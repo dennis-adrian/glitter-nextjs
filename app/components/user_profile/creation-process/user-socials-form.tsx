@@ -33,18 +33,16 @@ const FormSchema = z.object({
   tiktokProfile: z
     .string()
     .trim()
-    .regex(
-      usernameRegex,
-      "El nombre de usuario no puede tener caracteres especiales",
-    )
+    .refine((value) => value === "" || usernameRegex.test(value), {
+      message: "El nombre de usuario no puede tener caracteres especiales",
+    })
     .optional(),
   facebookProfile: z
     .string()
     .trim()
-    .regex(
-      usernameRegex,
-      "El nombre de usuario no puede tener caracteres especiales",
-    )
+    .refine((value) => value === "" || usernameRegex.test(value), {
+      message: "El nombre de usuario no puede tener caracteres especiales",
+    })
     .optional(),
 });
 
