@@ -3,6 +3,7 @@
 import { ProfileType } from "@/app/api/users/definitions";
 import CategoriesStep from "@/app/components/user_profile/creation-process/categories-step";
 import DisplayNameStep from "@/app/components/user_profile/creation-process/display-name-step";
+import PrivateInfoStep from "@/app/components/user_profile/creation-process/private-info-step";
 import UserPicStep from "@/app/components/user_profile/creation-process/user-pic-step";
 import UserSocialsStep from "@/app/components/user_profile/creation-process/user-socials-step";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
@@ -50,6 +51,13 @@ export default function ProfileCreationForm(props: ProfileCreationFormProps) {
       )}
       {step === "4" && (
         <UserSocialsStep
+          profile={props.profile}
+          step={parseInt(step)}
+          setStep={setStep}
+        />
+      )}
+      {step === "5" && (
+        <PrivateInfoStep
           profile={props.profile}
           step={parseInt(step)}
           setStep={setStep}

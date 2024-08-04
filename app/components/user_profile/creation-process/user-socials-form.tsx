@@ -26,22 +26,25 @@ const FormSchema = z.object({
     .min(2, {
       message: "El nombre de tu perfil de Instagram no puede estar vacío",
     })
-    .refine((value) => value === "" || usernameRegex.test(value), {
-      message: "El nombre de usuario no puede tener caracteres especiales",
-    }),
+    .regex(
+      usernameRegex,
+      "El nombre de usuario no puede tener caracteres especiales",
+    ),
   tiktokProfile: z
     .string()
     .trim()
-    .refine((value) => value === "" || usernameRegex.test(value), {
-      message: "El nombre de usuario no puede tener caracteres especiales",
-    })
+    .regex(
+      usernameRegex,
+      "El nombre de usuario no puede tener caracteres especiales",
+    )
     .optional(),
   facebookProfile: z
     .string()
     .trim()
-    .refine((value) => value === "" || usernameRegex.test(value), {
-      message: "El nombre de usuario no puede tener caracteres especiales",
-    })
+    .regex(
+      usernameRegex,
+      "El nombre de usuario no puede tener caracteres especiales",
+    )
     .optional(),
 });
 
@@ -83,7 +86,7 @@ export default function UserSocialsForm(props: UserSocialsFormProps) {
     <Form {...form}>
       <form
         onSubmit={action}
-        className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-start"
+        className="w-full my-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-start"
       >
         <SocialMediaInput
           bottomBorderOnly
