@@ -134,6 +134,18 @@ export const genderOptions = [
   { value: genderEnum.enumValues[4], label: "Prefiero no decir" },
 ];
 
+export const stateOptions = [
+  { value: "Beni", label: "Beni" },
+  { value: "Chuquisaca", label: "Chuquisaca" },
+  { value: "Cochabamba", label: "Cochabamba" },
+  { value: "La Paz", label: "La Paz" },
+  { value: "Oruro", label: "Oruro" },
+  { value: "Pando", label: "Pando" },
+  { value: "Potosí", label: "Potosí" },
+  { value: "Santa Cruz", label: "Santa Cruz" },
+  { value: "Tarija", label: "Tarija" },
+];
+
 export const userCategoryOptions = [
   {
     value: userCategoryEnum.enumValues[1],

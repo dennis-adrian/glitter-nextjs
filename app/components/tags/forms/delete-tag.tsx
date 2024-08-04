@@ -31,7 +31,7 @@ export default function DeleteTagForm({
             disabled={form.formState.isSubmitting}
             loading={form.formState.isSubmitting}
           >
-            Confirmar rechazo
+            Eliminar subcategoría
           </SubmitButton>
         </div>
       </form>

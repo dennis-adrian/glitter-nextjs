@@ -42,3 +42,6 @@ export const socialsIcons = {
   twitter: faTwitter,
   youtube: faYoutube,
 };
+
+export const usernameRegex = new RegExp(/^[a-zA-Z0-9_.-]+$/);
+export const phoneRegex = new RegExp(/^\d{8}$/);

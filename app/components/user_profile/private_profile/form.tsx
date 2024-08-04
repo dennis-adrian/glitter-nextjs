@@ -18,8 +18,8 @@ import { Input } from "@/app/components/ui/input";
 import { Button } from "@/app/components/ui/button";
 import { ProfileType } from "@/app/api/users/definitions";
 import { updateProfileWithValidatedData } from "@/app/api/users/actions";
+import { phoneRegex } from "@/app/lib/users/utils";
 
-const phoneRegex = new RegExp(/^\d{8}$/);
 const FormSchema = z.object({
   birthdate: z.string().min(1, {
     message: "La fecha de nacimiento es requerida",

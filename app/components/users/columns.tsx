@@ -7,25 +7,27 @@ import { ActionsCell } from "@/app/components/users/cells/actions";
 import { DataTableColumnHeader } from "@/components/ui/data_table/column-header";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { EmailCell } from "@/app/components/dashboard/data_table/cells/email";
-import CategoryBadge from "@/app/components/category-badge";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { isProfileComplete } from "@/app/lib/utils";
 import ProfileStatusCell from "@/app/components/users/cells/profile-status";
 import UserInfoCell from "@/app/components/users/cells/user-info";
 import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
+import ProfileCategoryBadge from "@/app/components/user_profile/category-badge";
+import { userInfo } from "os";
 
 export const columnTitles = {
   id: "ID",
   category: "Categoría",
   createdAt: "Fecha de creación",
-  displayName: "Perfil",
+  displayName: "Nombre público",
   fullName: "Nombre",
   email: "Email",
   socials: "Redes",
   status: "Estado",
   phoneNumber: "Teléfono",
   profileStatus: "Estado del perfil",
+  userInfo: "Perfil",
 };
 
 export const columns: ColumnDef<ProfileType>[] = [
@@ -57,9 +59,9 @@ export const columns: ColumnDef<ProfileType>[] = [
     ),
   },
   {
-    accessorKey: "displayName",
+    accessorKey: "userInfo",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={columnTitles.displayName} />
+      <DataTableColumnHeader column={column} title={columnTitles.userInfo} />
     ),
     cell: ({ row }) => <UserInfoCell profile={row.original} />,
   },
@@ -71,7 +73,7 @@ export const columns: ColumnDef<ProfileType>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.category} />
     ),
-    cell: ({ row }) => <CategoryBadge category={row.original.category} />,
+    cell: ({ row }) => <ProfileCategoryBadge profile={row.original} />,
     filterFn: (row, columnId, filterCategories) => {
       if (filterCategories.length === 0) return true;
       const category =

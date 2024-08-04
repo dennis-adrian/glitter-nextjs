@@ -12,12 +12,22 @@ import {
 import Modal from "@/components/user_profile/modal";
 import Form from "./form";
 import { ShowField } from "@/app/components/user_profile/show-field";
+import { formatDate } from "@/app/lib/formatters";
 
 export default function PrivateProfileOverview({
   profile,
 }: {
   profile: ProfileType;
 }) {
+  let age = 0;
+  if (profile.birthdate) {
+    const calculation = formatDate(new Date()).minus({
+      years: formatDate(profile.birthdate).year,
+    });
+
+    age = calculation.year;
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -46,7 +56,9 @@ export default function PrivateProfileOverview({
           />
           <ShowField
             label="Fecha de nacimiento"
-            value={profile.birthdate?.toLocaleDateString("es-ES")}
+            value={`${formatDate(
+              profile.birthdate!,
+            ).toLocaleString()} (${age} años)`}
           />
           <ShowField label="Correo electrónico" value={profile.email} />
           <ShowField

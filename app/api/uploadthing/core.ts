@@ -1,4 +1,6 @@
+import { fetchUserProfile } from "@/app/api/users/actions";
 import { currentUser } from "@clerk/nextjs/server";
+import { revalidatePath } from "next/cache";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { UploadThingError } from "uploadthing/server";
 
@@ -9,6 +11,36 @@ const f = createUploadthing();
 // FileRouter for your app, can contain multiple FileRoutes
 export const ourFileRouter = {
   // Define as many FileRoutes as you like, each with a unique routeSlug
+  profilePicture: f({ image: { maxFileSize: "2MB" } })
+    .middleware(async ({ req }) => {
+      // This code runs on your server before upload
+      const user = await currentUser();
+
+      // Throw if user isn't signed in
+      if (!user) {
+        throw new UploadThingError(
+          "You must be logged in to upload a profile picture",
+        );
+      }
+
+      const profile = await fetchUserProfile(user.id);
+
+      if (!profile) {
+        throw new UploadThingError(
+          "You must be logged in to upload a profile picture",
+        );
+      }
+
+      return { profile };
+    })
+    .onUploadComplete(({ metadata, file }) => {
+      return {
+        results: {
+          profileId: metadata.profile.id,
+          imageUrl: (file as { url: string }).url,
+        },
+      };
+    }),
   imageUploader: f({ image: { maxFileSize: "4MB" } })
     // Set permissions and file types for this FileRoute
     .middleware(async ({ req }) => {
@@ -36,7 +68,7 @@ export const ourFileRouter = {
       // This code RUNS ON YOUR SERVER after upload
       // console.log("Upload complete for userId:", metadata.userId);
 
-      console.log("file url", file.url);
+      // console.log("file url", file.url);
 
       // !!! Whatever is returned here is sent to the clientside `onClientUploadComplete` callback
       return { uploadedBy: metadata.userId };

@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import Modal from "@/components/user_profile/modal";
 import Form from "./form";
 import TagBadge from "@/app/components/tags/tag-badge";
+import { RedirectButton } from "@/app/components/redirect-button";
 
 export default function PublicProfile({
   profile,
@@ -28,26 +29,39 @@ export default function PublicProfile({
   title?: string;
 }) {
   const socials = profile.userSocials.filter((social) => social.username);
+  const showEditCategoriesButton =
+    profile.role === "admin" ||
+    (profile.status !== "banned" && profile.category === "entrepreneurship");
   return (
     <>
       <Card>
         <CardHeader>
           <CardTitle className="flex justify-between items-center">
             {title}
-            <div>
-              <Modal
-                profile={profile}
-                title="Editar Perfil"
-                FormComponent={Form}
-              >
-                <Button
-                  variant="outline"
-                  disabled={profile.status === "banned"}
+            <div className="flex gap-2">
+              <div>
+                <Modal
+                  profile={profile}
+                  title="Editar Perfil"
+                  FormComponent={Form}
                 >
-                  <FilePenLineIcon className="mr-1 h-4 w-4" />
-                  Editar
-                </Button>
-              </Modal>
+                  <Button
+                    variant="outline"
+                    disabled={profile.status === "banned"}
+                  >
+                    <FilePenLineIcon className="mr-1 h-4 w-4" />
+                    Editar
+                  </Button>
+                </Modal>
+              </div>
+              {showEditCategoriesButton && (
+                <RedirectButton
+                  href={`/my_profile/edit/categories`}
+                  className="w-full"
+                >
+                  Editar categoría
+                </RedirectButton>
+              )}
             </div>
           </CardTitle>
           <CardDescription>

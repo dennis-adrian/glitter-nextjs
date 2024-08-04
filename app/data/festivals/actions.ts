@@ -1,12 +1,11 @@
 "use server";
 
-import { and, desc, eq, inArray, isNull, not } from "drizzle-orm";
+import { and, desc, eq, inArray, not } from "drizzle-orm";
 
 import { db, pool } from "@/db";
 import {
   userRequests,
   festivals,
-  stands,
   users,
   reservationParticipants,
   festivalSectors,
@@ -383,6 +382,7 @@ export async function fetchAvailableArtistsInFestival(
           clerkId: users.clerkId,
           displayName: users.displayName,
           firstName: users.firstName,
+          gender: users.gender,
           email: users.email,
           imageUrl: users.imageUrl,
           lastName: users.lastName,
@@ -390,6 +390,7 @@ export async function fetchAvailableArtistsInFestival(
           category: users.category,
           role: users.role,
           status: users.status,
+          state: users.state,
           updatedAt: users.updatedAt,
           createdAt: users.createdAt,
         })

@@ -1,9 +1,9 @@
 import Image from "next/image";
 
 import { fetchUserProfileById } from "@/app/api/users/actions";
-import CategoryBadge from "@/app/components/category-badge";
 import SocialMediaBadge from "@/app/components/social-media-badge";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import ProfileCategoryBadge from "@/app/components/user_profile/category-badge";
 
 export default async function Page({ params }: { params: { id: string } }) {
   const profile = await fetchUserProfileById(parseInt(params.id));
@@ -35,7 +35,7 @@ export default async function Page({ params }: { params: { id: string } }) {
           <h1 className="font-bold text-xl md:text-3xl">
             {profile.displayName}
           </h1>
-          <CategoryBadge category={profile.category} />
+          <ProfileCategoryBadge profile={profile} />
           <div className="text-sm md:text-base max-w-screen-md text-muted-foreground">
             {profile.bio}
           </div>

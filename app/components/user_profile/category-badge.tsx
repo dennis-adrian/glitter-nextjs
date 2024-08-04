@@ -9,6 +9,13 @@ export default function ProfileCategoryBadge({
 }) {
   let content;
   let variant: BadgeProps["variant"] = "default";
+  let styles = "";
+  const subcategoryLabel = profile.profileSubcategories[0]?.subcategory?.label;
+
+  if (!subcategoryLabel) {
+    return <Badge variant="outline">Sin categoría</Badge>;
+  }
+
   if (
     profile.category === "illustration" ||
     profile.category === "new_artist"
@@ -16,25 +23,27 @@ export default function ProfileCategoryBadge({
     content = (
       <>
         <BrushIcon className="h-4 w-4 mr-1" />
-        Ilustrador
+        {subcategoryLabel}
       </>
     );
   }
 
   if (profile.category === "gastronomy") {
+    styles = "bg-amber-500 hover:bg-amber-400";
     content = (
       <>
         <ChefHatIcon className="h-4 w-4 mr-1" />
-        Gastronomía
+        {subcategoryLabel}
       </>
     );
   }
 
   if (profile.category === "entrepreneurship") {
+    styles = "bg-pink-500 hover:bg-pink-400";
     content = (
       <>
         <BriefcaseIcon className="h-4 w-4 mr-1" />
-        Emprendedor
+        {subcategoryLabel}
       </>
     );
   }
@@ -49,5 +58,9 @@ export default function ProfileCategoryBadge({
     );
   }
 
-  return <Badge variant={variant}>{content}</Badge>;
+  return (
+    <Badge className={styles} variant={variant}>
+      {content}
+    </Badge>
+  );
 }

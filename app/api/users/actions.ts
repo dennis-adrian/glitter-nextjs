@@ -51,6 +51,11 @@ export async function fetchUserProfileById(
             tag: true,
           },
         },
+        profileSubcategories: {
+          with: {
+            subcategory: true,
+          },
+        },
       },
       where: eq(users.id, id),
     });
@@ -80,6 +85,11 @@ export async function fetchUserProfile(
         profileTags: {
           with: {
             tag: true,
+          },
+        },
+        profileSubcategories: {
+          with: {
+            subcategory: true,
           },
         },
       },
@@ -114,6 +124,11 @@ export async function fetchOrCreateProfile(
           profileTags: {
             with: {
               tag: true,
+            },
+          },
+          profileSubcategories: {
+            with: {
+              subcategory: true,
             },
           },
         },
@@ -163,6 +178,11 @@ export async function fetchOrCreateProfile(
                   tag: true,
                 },
               },
+              profileSubcategories: {
+                with: {
+                  subcategory: true,
+                },
+              },
             },
             where: eq(users.id, newUser.id),
           });
@@ -193,6 +213,11 @@ export async function fetchProfiles(): Promise<ProfileType[]> {
         profileTags: {
           with: {
             tag: true,
+          },
+        },
+        profileSubcategories: {
+          with: {
+            subcategory: true,
           },
         },
       },

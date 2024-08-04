@@ -32,6 +32,13 @@ export const userStatusEnum = pgEnum("user_status", [
   "rejected",
   "banned",
 ]);
+export const genderEnum = pgEnum("gender", [
+  "male",
+  "female",
+  "non_binary",
+  "other",
+  "undisclosed",
+]);
 
 export const users = pgTable(
   "users",
@@ -49,6 +56,8 @@ export const users = pgTable(
     role: userRoleEnum("role").default("user").notNull(),
     category: userCategoryEnum("category").default("none").notNull(),
     status: userStatusEnum("status").default("pending").notNull(),
+    gender: genderEnum("gender").default("undisclosed").notNull(),
+    state: text("state"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -63,6 +72,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   scheduledTasks: many(scheduledTasks),
   invoices: many(invoices),
   profileTags: many(profileTags),
+  profileSubcategories: many(profileSubcategories),
 }));
 
 export const tags = pgTable("tags", {
@@ -97,6 +107,43 @@ export const profileTagsRelations = relations(profileTags, ({ one }) => ({
     references: [tags.id],
   }),
 }));
+
+export const subcategories = pgTable("subcategories", {
+  id: serial("id").primaryKey(),
+  label: text("name").notNull(),
+  descrption: text("description"),
+  category: userCategoryEnum("category").notNull().default("none"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const subcategoriesRelations = relations(subcategories, ({ many }) => ({
+  profileSubcategories: many(profileSubcategories),
+}));
+
+export const profileSubcategories = pgTable("profile_subcategories", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  subcategoryId: integer("subcategory_id")
+    .notNull()
+    .references(() => subcategories.id, { onDelete: "cascade" }),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const profileSubcategoriesRelations = relations(
+  profileSubcategories,
+  ({ one }) => ({
+    profile: one(users, {
+      fields: [profileSubcategories.profileId],
+      references: [users.id],
+    }),
+    subcategory: one(subcategories, {
+      fields: [profileSubcategories.subcategoryId],
+      references: [subcategories.id],
+    }),
+  }),
+);
 
 export const festivalStatusEnum = pgEnum("festival_status", [
   "draft",
@@ -388,13 +435,6 @@ export const eventDiscoveryEnum = pgEnum("event_discovery", [
   "casual",
   "la_rota",
   "other",
-]);
-export const genderEnum = pgEnum("gender", [
-  "male",
-  "female",
-  "non_binary",
-  "other",
-  "undisclosed",
 ]);
 export const visitors = pgTable("visitors", {
   id: serial("id").primaryKey(),
