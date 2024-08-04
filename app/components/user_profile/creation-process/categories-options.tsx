@@ -59,7 +59,7 @@ export default function CategoriesOptions(props: CategoriesOptionsProps) {
   if (mainCategory) {
     return (
       <div className="text-center w-full">
-        <div className="flex flex-col min-w-80 min-h-44 p-5 justify-center items-center mx-auto gap-5 border rounded-lg">
+        <div className="flex flex-col w-full min-h-44 p-5 justify-center items-center mx-auto gap-5 border rounded-lg">
           <div className="flex flex-col">
             <span className="text-muted-foreground">Categoría</span>
             <span className="font-semibold text-xl">{mainCategory.label}</span>

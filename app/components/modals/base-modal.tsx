@@ -30,7 +30,7 @@ export const BaseModal: FC<{
         {isDesktop ? null : (
           <DrawerDialogFooter isDesktop={isDesktop} className="pt-2">
             <DrawerDialogClose isDesktop={isDesktop}>
-              <Button variant="outline">Cancelar</Button>
+              <Button variant="outline">Cerrar</Button>
             </DrawerDialogClose>
           </DrawerDialogFooter>
         )}
