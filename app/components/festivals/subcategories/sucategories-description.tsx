@@ -32,12 +32,6 @@ export default function SubcategoriesDescription(
           tejidas a ganchillo o gancho? Sí es así, ¡el crochet es lo tuyo!
         </p>
         <p>
-          El arte del crochet involucra la técnica de tejido con la ayuda de un
-          ganchillo, por medio del cual pueden se crear piezas únicas y muy
-          tiernas. Por ello y más ha obtenido muchísima popularidad y se ha
-          vuelto mundialmente conocido.
-        </p>
-        <p>
           La categoría crochet se ha abierto gracias a la alta demanda de
           artistas de crochet que han participado del festival.
         </p>
@@ -97,11 +91,6 @@ export default function SubcategoriesDescription(
           Desde tazas, platos, ceniceros, hasta esculturas de animalitos, ¡la
           arcilla es un material que permite la creación de un montón de
           maravillas!
-        </p>
-        <p>
-          La arcilla es un barro ideal para el modelado, perfecta por su
-          plasticidad y su acabado rígido. Además, una vez finalizada la pieza,
-          puede añadirse color haciendo más viva la obra.
         </p>
         <p>
           Si eres un artista que realiza sus obras en arcilla, ¡el festival creó

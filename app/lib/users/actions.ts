@@ -43,9 +43,9 @@ export async function updateProfile(userId: number, profile: UpdateUser) {
           ),
         );
 
-      // // we only want to send the email hopefully once, for the profile to be verified
-      // // once verified we don't care to send it again
-      if (profile.status !== "verified") {
+      // we only want to send the email hopefully once, for the profile to be verified
+      // once verified we don't care to send it again
+      if (fullProfile.status !== "verified") {
         const admins = await fetchAdminUsers();
         const adminEmails = admins.map((admin) => admin.email);
         await sendEmail({
