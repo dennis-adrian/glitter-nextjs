@@ -52,7 +52,8 @@ const FormSchema = z.object({
     .string({
       required_error: "El departamento es requerido",
     })
-    .trim(),
+    .trim()
+    .min(3, { message: "El departamento es requerido" }),
 });
 
 type PrivateInfoFormProps = {
@@ -77,7 +78,6 @@ export default function PrivateInfoForm(props: PrivateInfoFormProps) {
     const res = await updateProfile(props.profile.id, {
       ...data,
     });
-
     if (res.success) {
       toast.success(res.message);
     } else {

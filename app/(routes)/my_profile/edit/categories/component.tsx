@@ -22,7 +22,9 @@ export default async function EditCategories() {
   let filteredSubcategories = subcategories;
   if (profile.role !== "admin") {
     filteredSubcategories = subcategories.filter(
-      (subcategory) => subcategory.category === "entrepreneurship",
+      (subcategory) =>
+        subcategory.category === "entrepreneurship" &&
+        subcategory.label !== "Sublimación colaborativa",
     );
   }
 

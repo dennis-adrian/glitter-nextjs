@@ -1,4 +1,4 @@
-import SubcategoriesDescription from "@/app/components/festivals/subcategories/sucategores-description";
+import SubcategoriesDescription from "@/app/components/festivals/subcategories/sucategories-description";
 import Image from "next/image";
 
 export default async function Page() {

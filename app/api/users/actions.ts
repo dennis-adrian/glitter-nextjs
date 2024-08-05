@@ -375,10 +375,9 @@ export async function updateProfileWithValidatedData(
         await sendEmail({
           to: [...adminEmails, "perfiles@productoraglitter.com"],
           from: "Perfiles Glitter <perfiles@productoraglitter.com>",
-          subject: "Perfil completado",
+          subject: `${profile.displayName} ha completado su perfil`,
           react: ProfileCompletionEmailTemplate({
-            profileId: profile.id,
-            displayName: profile.displayName!,
+            profile: profile,
           }) as React.ReactElement,
         });
       }

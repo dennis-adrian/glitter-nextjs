@@ -1,6 +1,6 @@
 "use client";
 
-import SubcategoriesDescription from "@/app/components/festivals/subcategories/sucategores-description";
+import SubcategoriesDescription from "@/app/components/festivals/subcategories/sucategories-description";
 import {
   Dialog,
   DialogContent,

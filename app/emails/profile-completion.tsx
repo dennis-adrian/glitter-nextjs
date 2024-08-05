@@ -1,3 +1,4 @@
+import { BaseProfile } from "@/app/api/users/definitions";
 import * as styles from "@/app/emails/styles";
 import {
   Body,
@@ -11,8 +12,7 @@ import {
 } from "@react-email/components";
 
 type ProfileCompletionEmailTemplateProps = {
-  profileId: number;
-  displayName: string;
+  profile: BaseProfile;
 };
 
 export default function ProfileCompletionEmailTemplate(
@@ -31,14 +31,18 @@ export default function ProfileCompletionEmailTemplate(
         </Text>
         <Section style={styles.section}>
           <Text style={styles.text}>
-            El usuario <strong>{props.displayName}</strong> ha completado su
-            perfil.
+            El usuario{" "}
+            <strong>
+              {props.profile.displayName} ({props.profile.firstName || ""}{" "}
+              {props.profile.lastName || ""})
+            </strong>{" "}
+            ha completado su perfil.
           </Text>
           <Text style={styles.text}>
             Puedes revisar su perfil en el siguiente enlace:
           </Text>
           <Button
-            href={`${baseUrl}/dashboard/users/${props.profileId}`}
+            href={`${baseUrl}/dashboard/users/${props.profile.id}`}
             style={styles.button}
           >
             Ir a perfil
@@ -50,6 +54,10 @@ export default function ProfileCompletionEmailTemplate(
 }
 
 ProfileCompletionEmailTemplate.PreviewProps = {
-  profileId: 123,
-  displayName: "John Doe Experience",
+  profile: {
+    id: 123,
+    displayName: "John Doe Experience",
+    firstName: "John",
+    lastName: "Doe",
+  },
 } as ProfileCompletionEmailTemplateProps;
