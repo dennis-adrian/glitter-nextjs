@@ -37,7 +37,7 @@ export default function PublicProfile({
       <Card>
         <CardHeader>
           <CardTitle className="flex justify-between items-center">
-            {title}
+            <span className="text-lg md:text-2xl font-bold">{title}</span>
             <div className="flex gap-2">
               <div>
                 <Modal

@@ -1,12 +1,21 @@
 "use server";
 
+import { fetchAdminUsers, fetchUserProfileById } from "@/app/api/users/actions";
 import {
   UpdateUser,
   UserCategory,
   UserSocial,
 } from "@/app/api/users/definitions";
+import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
+import { isProfileComplete } from "@/app/lib/utils";
+import { sendEmail } from "@/app/vendors/resend";
 import { db, pool } from "@/db";
-import { profileSubcategories, users, userSocials } from "@/db/schema";
+import {
+  profileSubcategories,
+  scheduledTasks,
+  users,
+  userSocials,
+} from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -21,6 +30,35 @@ export async function updateProfile(userId: number, profile: UpdateUser) {
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
+
+    const fullProfile = await fetchUserProfileById(userId);
+    if (fullProfile && isProfileComplete(fullProfile)) {
+      await db
+        .update(scheduledTasks)
+        .set({ completedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(scheduledTasks.profileId, userId),
+            eq(scheduledTasks.taskType, "profile_creation"),
+          ),
+        );
+
+      // // we only want to send the email hopefully once, for the profile to be verified
+      // // once verified we don't care to send it again
+      if (profile.status !== "verified") {
+        const admins = await fetchAdminUsers();
+        const adminEmails = admins.map((admin) => admin.email);
+        await sendEmail({
+          to: [...adminEmails, "perfiles@productoraglitter.com"],
+          from: "Perfiles Glitter <perfiles@productoraglitter.com>",
+          subject: "Perfil completado",
+          react: ProfileCompletionEmailTemplate({
+            profileId: fullProfile.id,
+            displayName: fullProfile.displayName!,
+          }) as React.ReactElement,
+        });
+      }
+    }
   } catch (error) {
     console.error("Error updating profile", error);
     return {

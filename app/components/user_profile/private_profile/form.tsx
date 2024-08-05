@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import { formatDateOnlyToISO } from "@/app/lib/utils";
+import { genderOptions, stateOptions } from "@/app/lib/utils";
 
 import {
   Form,
@@ -15,24 +15,53 @@ import {
   FormMessage,
 } from "@/app/components/ui/form";
 import { Input } from "@/app/components/ui/input";
-import { Button } from "@/app/components/ui/button";
 import { ProfileType } from "@/app/api/users/definitions";
-import { updateProfileWithValidatedData } from "@/app/api/users/actions";
 import { phoneRegex } from "@/app/lib/users/utils";
+import { genderEnum } from "@/db/schema";
+import SelectInput from "@/app/components/form/fields/select";
+import SubmitButton from "@/app/components/simple-submit-button";
+import TextInput from "@/app/components/form/fields/text";
+import { formatDate } from "@/app/lib/formatters";
+import { toast } from "sonner";
+import { updateProfile } from "@/app/lib/users/actions";
 
 const FormSchema = z.object({
-  birthdate: z.string().min(1, {
-    message: "La fecha de nacimiento es requerida",
-  }),
+  birthdate: z.coerce
+    .date()
+    .refine((date) => date < new Date(), {
+      message: "La fecha de nacimiento no puede ser en el futuro",
+    })
+    .refine(
+      (date) => {
+        const ageLimit = formatDate(new Date()).minus({ years: 16 });
+        return formatDate(date).startOf("day") < ageLimit.startOf("day");
+      },
+      {
+        message:
+          "Debes tener al menos 16 años para participar de nuestros eventos",
+      },
+    ),
   firstName: z
     .string()
+    .trim()
     .min(2, { message: "El nombre tiene que tener al menos dos letras" }),
   lastName: z
     .string()
+    .trim()
     .min(2, { message: "El apellido tiene que tener al menos dos letras" }),
   phoneNumber: z
     .string()
+    .trim()
     .regex(phoneRegex, "Número de teléfono inválido. Necesita tener 8 dígitos"),
+  gender: z.enum([...genderEnum.enumValues], {
+    required_error: "El género es requerido",
+  }),
+  state: z
+    .string({
+      required_error: "El departamento es requerido",
+    })
+    .trim()
+    .min(3, { message: "El departamento es requerido" }),
 });
 
 export default function PrivateProfileForm({
@@ -45,25 +74,31 @@ export default function PrivateProfileForm({
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      birthdate: formatDateOnlyToISO(profile?.birthdate) || "",
+      birthdate: profile.birthdate || new Date(),
       firstName: profile.firstName || "",
       lastName: profile.lastName || "",
       phoneNumber: profile.phoneNumber || "",
+      gender: profile.gender,
+      state: profile.state || "",
     },
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    const result = await updateProfileWithValidatedData(profile.id, {
-      ...profile,
+    const result = await updateProfile(profile.id, {
       ...data,
-      birthdate: new Date(data.birthdate),
     });
-    if (result.success) onSuccess();
+
+    if (result.success) {
+      toast.success(result.message);
+      onSuccess();
+    } else {
+      toast.error(result.message);
+    }
   });
 
   return (
     <Form {...form}>
-      <form action={action} className="grid items-start gap-4 mt-4">
+      <form onSubmit={action} className="grid items-start gap-4 mt-4">
         <FormField
           control={form.control}
           name="firstName"
@@ -94,22 +129,12 @@ export default function PrivateProfileForm({
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
+        <TextInput
+          formControl={form.control}
+          label="Fecha de nacimiento"
           name="birthdate"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Fecha de nacimiento</FormLabel>
-              <FormControl>
-                <Input
-                  type="date"
-                  max={formatDateOnlyToISO(new Date())}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+          placeholder="Ingresa tu fecha de nacimiento"
+          type="date"
         />
         <FormField
           control={form.control}
@@ -134,7 +159,26 @@ export default function PrivateProfileForm({
             </FormItem>
           )}
         />
-        <Button type="submit">Guardar cambios</Button>
+        <SelectInput
+          formControl={form.control}
+          label="Género"
+          name="gender"
+          options={genderOptions}
+          placeholder="Elige una opción"
+        />
+        <SelectInput
+          formControl={form.control}
+          label="Departamento de residencia"
+          name="state"
+          options={stateOptions}
+          placeholder="Elige una opción"
+        />
+        <SubmitButton
+          disabled={form.formState.isSubmitting}
+          loading={form.formState.isSubmitting}
+        >
+          Guardar cambios
+        </SubmitButton>
       </form>
     </Form>
   );

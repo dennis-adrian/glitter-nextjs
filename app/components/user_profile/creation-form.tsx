@@ -52,7 +52,7 @@ export default function ProfileCreationForm(props: ProfileCreationFormProps) {
   return (
     <div className="flex flex-col items-center max-w-screen-sm mx-auto">
       <h1 className="font-semibold text-2xl text-muted-foreground">
-        Completando tu perfil
+        Completa tu perfil
       </h1>
       {(!step || step === "1") && (
         <UserPicStep setStep={setStep} profile={props.profile} />
