@@ -4,16 +4,16 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  DrawerDialog,
-  DrawerDialogClose,
-  DrawerDialogContent,
-  DrawerDialogFooter,
-  DrawerDialogHeader,
-  DrawerDialogTitle,
-  DrawerDialogTrigger,
-} from "@/components/ui/drawer-dialog";
 import { ProfileType } from "@/app/api/users/definitions";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/app/components/ui/dialog";
 
 type EditUserModalProps = {
   children: React.ReactNode;
@@ -35,26 +35,21 @@ export default function EditUserModal({
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
   return (
-    <DrawerDialog isDesktop={isDesktop} open={open} onOpenChange={setOpen}>
-      <DrawerDialogTrigger isDesktop={isDesktop}>
-        {children}
-      </DrawerDialogTrigger>
-      <DrawerDialogContent className="sm:max-w-[425px]" isDesktop={isDesktop}>
-        <DrawerDialogHeader isDesktop={isDesktop}>
-          <DrawerDialogTitle isDesktop={isDesktop}>{title}</DrawerDialogTitle>
-        </DrawerDialogHeader>
-
-        <div className={`${isDesktop ? "" : "px-4"}`}>
-          <FormComponent profile={profile} onSuccess={() => setOpen(false)} />
-        </div>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <FormComponent profile={profile} onSuccess={() => setOpen(false)} />
         {isDesktop ? null : (
-          <DrawerDialogFooter isDesktop={isDesktop} className="pt-2">
-            <DrawerDialogClose isDesktop={isDesktop}>
+          <DialogFooter>
+            <DialogClose asChild>
               <Button variant="outline">Cancelar</Button>
-            </DrawerDialogClose>
-          </DrawerDialogFooter>
+            </DialogClose>
+          </DialogFooter>
         )}
-      </DrawerDialogContent>
-    </DrawerDialog>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -13,6 +13,7 @@ import Modal from "@/components/user_profile/modal";
 import Form from "./form";
 import { ShowField } from "@/app/components/user_profile/show-field";
 import { formatDate } from "@/app/lib/formatters";
+import { genderLabels } from "@/app/lib/utils";
 
 export default function PrivateProfileOverview({
   profile,
@@ -32,7 +33,9 @@ export default function PrivateProfileOverview({
     <Card>
       <CardHeader>
         <CardTitle className="flex justify-between items-center">
-          Información Personal
+          <span className="text-lg md:text-2xl font-bold">
+            Información Personal
+          </span>
           <Modal
             profile={profile}
             title="Editar Información Personal"
@@ -64,6 +67,14 @@ export default function PrivateProfileOverview({
           <ShowField
             label="Número de teléfono"
             value={profile?.phoneNumber && `+591 ${profile?.phoneNumber}`}
+          />
+          <ShowField
+            label="Género"
+            value={genderLabels[profile.gender] || "No especificado"}
+          />
+          <ShowField
+            label="Departamento de residencia"
+            value={profile.state || "No especificado"}
           />
         </div>
       </CardContent>

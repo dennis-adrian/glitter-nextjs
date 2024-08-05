@@ -29,6 +29,9 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { userCategoryEnum } from "@/db/schema";
 import { findUserSocial, formatUserSocialsForInsertion } from "./utils";
+import SubmitButton from "@/app/components/simple-submit-button";
+import { updateProfile, updateProfileSocials } from "@/app/lib/users/actions";
+import { toast } from "sonner";
 
 const usernameRegex = new RegExp(/^[a-zA-Z0-9_.-]+$/);
 const FormSchema = z.object({
@@ -83,19 +86,24 @@ export default function PublicProfileForm({
 
   const action: () => void = form.handleSubmit(async (data) => {
     const socials = formatUserSocialsForInsertion(data, profile);
-    const result = await updateProfileWithValidatedData(profile.id, {
-      ...profile,
+    const resultSocials = await updateProfileSocials(profile.id, socials);
+    const result = await updateProfile(profile.id, {
       ...data,
-      socials: socials.filter(Boolean) as ProfileType["userSocials"],
     });
-    if (result.success) onSuccess();
+
+    if (result.success && resultSocials.success) {
+      toast.success(result.message);
+      onSuccess();
+    } else {
+      toast.error(result.message);
+    }
   });
 
   return (
     <>
       <AutomaticProfilePicUploadForm profile={profile} />
       <Form {...form}>
-        <form action={action} className="grid items-start gap-4">
+        <form onSubmit={action} className="grid items-start gap-4">
           <FormField
             control={form.control}
             name="displayName"
@@ -225,7 +233,12 @@ export default function PublicProfileForm({
               </FormItem>
             )}
           />
-          <Button type="submit">Guardar cambios</Button>
+          <SubmitButton
+            disabled={form.formState.isSubmitting}
+            loading={form.formState.isSubmitting}
+          >
+            Guardar cambios
+          </SubmitButton>
         </form>
       </Form>
     </>

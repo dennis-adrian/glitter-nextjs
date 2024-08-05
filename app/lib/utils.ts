@@ -53,6 +53,7 @@ export function isProfileComplete(profile?: ProfileType | null) {
   if (!profile) return false;
 
   const socials = profile.userSocials.filter((social) => !!social.username);
+  const hasSubcategory = profile.profileSubcategories.length > 0;
 
   return (
     !!profile.bio &&
@@ -63,7 +64,10 @@ export function isProfileComplete(profile?: ProfileType | null) {
     !!profile.phoneNumber &&
     !!profile.displayName &&
     !!profile.email &&
+    !!profile.gender &&
+    !!profile.state &&
     profile.category !== "none" &&
+    hasSubcategory &&
     socials.length > 0
   );
 }
@@ -77,11 +81,14 @@ const requiredProfileFields = [
   { key: "phoneNumber", label: "Número de teléfono" },
   { key: "displayName", label: "Nombre de artista", isPublic: true },
   { key: "email", label: "Correo electrónico" },
+  { key: "gender", label: "Género" },
+  { key: "state", label: "Departamento de residencia" },
 ] as { key: keyof ProfileType; label: string; isPublic: boolean }[];
 
 export function getMissingProfileFields(profile: ProfileType) {
   const missingFields = [];
   const socials = profile.userSocials.filter((social) => !!social.username);
+  const subcategories = profile.profileSubcategories;
 
   requiredProfileFields.forEach((field) => {
     if (!profile[field.key]) missingFields.push(field);
@@ -91,6 +98,14 @@ export function getMissingProfileFields(profile: ProfileType) {
     missingFields.push({
       key: "userSocials",
       label: "Al menos una red social",
+      isPublic: true,
+    });
+  }
+
+  if (subcategories.length === 0) {
+    missingFields.push({
+      key: "profileSubcategories",
+      label: "Una categoría en la que participar",
       isPublic: true,
     });
   }
@@ -125,6 +140,14 @@ export const eventDiscoveryOptions = [
   { value: eventDiscoveryEnum.enumValues[7], label: "La Rota Carlota" },
   { value: eventDiscoveryEnum.enumValues[8], label: "Otro" },
 ];
+
+export const genderLabels = {
+  [genderEnum.enumValues[0]]: "Masculino",
+  [genderEnum.enumValues[1]]: "Femenino",
+  [genderEnum.enumValues[2]]: "No binario",
+  [genderEnum.enumValues[3]]: "Otro",
+  [genderEnum.enumValues[4]]: "Prefiero no decir",
+};
 
 export const genderOptions = [
   { value: genderEnum.enumValues[0], label: "Masculino" },

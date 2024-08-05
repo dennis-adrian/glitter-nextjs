@@ -45,7 +45,9 @@ const FormSchema = z.object({
     .trim()
     .regex(phoneRegex, "Número de teléfono inválido")
     .min(8, { message: "El número de teléfono necesita de 8 dígitos" }),
-  gender: z.enum([...genderEnum.enumValues]),
+  gender: z.enum([...genderEnum.enumValues], {
+    required_error: "El género es requerido",
+  }),
   state: z
     .string({
       required_error: "El departamento es requerido",
