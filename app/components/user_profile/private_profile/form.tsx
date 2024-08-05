@@ -4,11 +4,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import {
-  formatDateOnlyToISO,
-  genderOptions,
-  stateOptions,
-} from "@/app/lib/utils";
+import { genderOptions, stateOptions } from "@/app/lib/utils";
 
 import {
   Form,
@@ -19,9 +15,7 @@ import {
   FormMessage,
 } from "@/app/components/ui/form";
 import { Input } from "@/app/components/ui/input";
-import { Button } from "@/app/components/ui/button";
 import { ProfileType } from "@/app/api/users/definitions";
-import { updateProfileWithValidatedData } from "@/app/api/users/actions";
 import { phoneRegex } from "@/app/lib/users/utils";
 import { genderEnum } from "@/db/schema";
 import SelectInput from "@/app/components/form/fields/select";
