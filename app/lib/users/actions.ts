@@ -16,7 +16,6 @@ import {
   users,
   userSocials,
 } from "@/db/schema";
-import { profile } from "console";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 

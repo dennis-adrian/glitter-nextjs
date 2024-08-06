@@ -8,6 +8,7 @@ import { Form } from "@/app/components/ui/form";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
 import { updateProfileCategories } from "@/app/lib/users/actions";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -25,6 +26,7 @@ type UpdateCategoriesFormProps = {
 };
 
 export default function UpdateCategoriesForm(props: UpdateCategoriesFormProps) {
+  const router = useRouter();
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -51,6 +53,7 @@ export default function UpdateCategoriesForm(props: UpdateCategoriesFormProps) {
 
     if (res.success) {
       toast.success(res.message);
+      router.back();
     } else {
       toast.error(res.message);
     }
