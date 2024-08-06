@@ -22,16 +22,17 @@ import TagBadge from "@/app/components/tags/tag-badge";
 import { RedirectButton } from "@/app/components/redirect-button";
 
 export default function PublicProfile({
+  hideEditCategoriesButton,
   profile,
   title = "Perfil Público",
 }: {
+  hideEditCategoriesButton?: boolean;
   profile: ProfileType;
   title?: string;
 }) {
   const socials = profile.userSocials.filter((social) => social.username);
-  const showEditCategoriesButton =
-    profile.role === "admin" ||
-    (profile.status !== "banned" && profile.category === "entrepreneurship");
+  const canUserEditCategory =
+    profile.status !== "banned" && profile.category === "entrepreneurship";
   return (
     <>
       <Card>
@@ -54,7 +55,7 @@ export default function PublicProfile({
                   </Button>
                 </Modal>
               </div>
-              {showEditCategoriesButton && (
+              {!hideEditCategoriesButton && canUserEditCategory && (
                 <RedirectButton
                   href={`/my_profile/edit/categories`}
                   className="w-full"

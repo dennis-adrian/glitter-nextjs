@@ -25,7 +25,11 @@ export default async function DashboardUserPage(props: DashboardUserPageProps) {
             </Button>
           </ProfileQuickActions>
         </div>
-        <PublicProfile profile={forProfile} title="Perfil de Usuario" />
+        <PublicProfile
+          hideEditCategoriesButton
+          profile={forProfile}
+          title="Perfil de Usuario"
+        />
         <PrivateProfile profile={forProfile} />
       </div>
     </div>
