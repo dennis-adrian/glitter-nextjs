@@ -28,6 +28,7 @@ export const columnTitles = {
   phoneNumber: "Teléfono",
   profileStatus: "Estado del perfil",
   userInfo: "Perfil",
+  verifiedAt: "Fecha de verificación",
 };
 
 export const columns: ColumnDef<ProfileType>[] = [
@@ -144,6 +145,20 @@ export const columns: ColumnDef<ProfileType>[] = [
       <DataTableColumnHeader column={column} title={columnTitles.phoneNumber} />
     ),
     accessorKey: "phoneNumber",
+  },
+  {
+    id: "verifiedAt",
+    accessorKey: "verifiedAt",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.verifiedAt} />
+    ),
+    cell: ({ row }) => {
+      if (!row.original.verifiedAt) return "--";
+
+      return formatDate(row.original.verifiedAt).toLocaleString(
+        DateTime.DATETIME_SHORT,
+      );
+    },
   },
   {
     accessorKey: "createdAt",

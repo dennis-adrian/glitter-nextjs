@@ -568,6 +568,13 @@
       "when": 1722784271153,
       "tag": "0080_whole_lionheart",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "5",
+      "when": 1722902601632,
+      "tag": "0081_secret_sugar_man",
+      "breakpoints": true
     }
   ]
 }

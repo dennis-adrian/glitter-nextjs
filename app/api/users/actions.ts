@@ -431,6 +431,7 @@ export async function verifyProfile(profileId: number, category: UserCategory) {
       .update(users)
       .set({
         status: "verified",
+        verifiedAt: new Date(),
         updatedAt: new Date(),
         category: userCategory,
       })
