@@ -25,15 +25,12 @@ import { DeleteProfileModal } from "@/app/components/users/form/delete-profile-m
 import { VerifyProfileModal } from "@/app/components/users/form/verify-user-modal";
 import { DisableProfileModal } from "@/app/components/users/form/disable-profile-modal";
 import { RejectProfileModal } from "@/app/components/users/form/reject-profile-modal";
-import UpdateCategoriesModal from "@/app/components/users/form/update-categories-modal";
 
 export function ActionsCell({ user }: { user: ProfileType }) {
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
   const [openVerifyModal, setOpenVerifyModal] = useState(false);
   const [openDisableModal, setOpenDisableModal] = useState(false);
   const [openRejectModal, setOpenRejectModal] = useState(false);
-  const [openUpdateCategoriesModal, setOpenUpdateCategoriesModal] =
-    useState(false);
   const allowVerify = user.status !== "verified";
 
   return (
@@ -53,10 +50,10 @@ export function ActionsCell({ user }: { user: ProfileType }) {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <span onClick={() => setOpenUpdateCategoriesModal(true)}>
+          <Link href={`/dashboard/users/${user.id}/edit-categories`}>
             <PenBoxIcon className="h-4 w-4 mr-1" />
             Editar categorías
-          </span>
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={!allowVerify}
@@ -139,11 +136,6 @@ export function ActionsCell({ user }: { user: ProfileType }) {
         open={openRejectModal}
         profile={user}
         setOpen={setOpenRejectModal}
-      />
-      <UpdateCategoriesModal
-        open={openUpdateCategoriesModal}
-        profile={user}
-        setOpen={setOpenUpdateCategoriesModal}
       />
     </DropdownMenu>
   );

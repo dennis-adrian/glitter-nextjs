@@ -1,7 +1,7 @@
 import { fetchRequestsByUserId } from "@/app/api/user_requests/actions";
 
 import { Badge } from "@/app/components/ui/badge";
-import Form from "@/app/dashboard/users/[id]/requests/form";
+import Form from "./form";
 import {
   Card,
   CardContent,
@@ -10,8 +10,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export default async function Page({ params }: { params: { id: string } }) {
-  const userId = params.id;
+export default async function Page({
+  params,
+}: {
+  params: { profileId: string };
+}) {
+  const userId = params.profileId;
   const requests = await fetchRequestsByUserId(parseInt(userId));
 
   if (requests.length === 0) {

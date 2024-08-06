@@ -1,30 +1,26 @@
-import { ProfileType } from "@/app/api/users/definitions";
-import BaseModal from "@/app/components/modals/base-modal";
+import { fetchUserProfileById } from "@/app/api/users/actions";
 import { Card, CardContent } from "@/app/components/ui/card";
-import CategoriesForm from "@/app/components/user_profile/creation-process/categories-form";
-import CategoriesOptions from "@/app/components/user_profile/creation-process/categories-options";
-import CategoriesStep from "@/app/components/user_profile/creation-process/categories-step";
 import UpdateCategoriesForm from "@/app/components/users/form/update-categories-form";
+import { fetchSubcategories } from "@/app/lib/subcategories/actions";
+import { notFound } from "next/navigation";
 
-type UpdateCategoriesModalProps = {
-  profile: ProfileType;
-  open: boolean;
-  setOpen: (open: boolean) => void;
+type EditUserCategoriesPageProps = {
+  forProfileId: number;
 };
-export default function UpdateCategoriesModal(
-  props: UpdateCategoriesModalProps,
+export default async function EditUserCategoriesPage(
+  props: EditUserCategoriesPageProps,
 ) {
-  const mainCategory = props.profile.profileSubcategories[0]?.subcategory;
-  const subcategories = props.profile.profileSubcategories
+  const forProfile = await fetchUserProfileById(props.forProfileId);
+  if (!forProfile) return notFound();
+
+  const allSubcategories = await fetchSubcategories();
+  const mainCategory = forProfile.profileSubcategories[0]?.subcategory;
+  const profileSubcategories = forProfile.profileSubcategories
     .slice(1)
-    .map((ps) => ps.subcategory);
+    .map((subcategory) => subcategory.subcategory);
 
   return (
-    <BaseModal
-      title={`Editar categorías de ${props.profile.displayName}`}
-      show={props.open}
-      onOpenChange={props.setOpen}
-    >
+    <div className="container">
       <h2 className="font-semibold text-center my-2">Categorías Actuales</h2>
       <Card>
         <CardContent className="p-4 flex flex-col items-center justify-center gap-4">
@@ -36,13 +32,13 @@ export default function UpdateCategoriesModal(
                 </h3>
                 <span>{mainCategory.label}</span>
               </div>
-              {subcategories.length > 0 && (
+              {profileSubcategories.length > 0 && (
                 <div className="flex flex-col gap-1 items-center">
                   <h4 className="text-muted-foreground text-sm">
                     Subcategorías
                   </h4>
                   <div className="text-sm text-center">
-                    {subcategories
+                    {profileSubcategories
                       .map((subcategory) => subcategory.label)
                       .join(" - ")}
                   </div>
@@ -58,11 +54,11 @@ export default function UpdateCategoriesModal(
       <Card>
         <CardContent className="p-4 flex flex-col items-center justify-center gap-4">
           <UpdateCategoriesForm
-            profile={props.profile}
-            subcategories={subcategories}
+            profile={forProfile}
+            subcategories={allSubcategories}
           />
         </CardContent>
       </Card>
-    </BaseModal>
+    </div>
   );
 }

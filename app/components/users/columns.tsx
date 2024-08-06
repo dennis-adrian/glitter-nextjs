@@ -14,7 +14,6 @@ import UserInfoCell from "@/app/components/users/cells/user-info";
 import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import ProfileCategoryBadge from "@/app/components/user_profile/category-badge";
-import { userInfo } from "os";
 
 export const columnTitles = {
   id: "ID",

@@ -1,3 +1,5 @@
+"use client";
+
 import { ProfileType } from "@/app/api/users/definitions";
 import CheckboxInput from "@/app/components/form/fields/checkbox";
 import SelectInput from "@/app/components/form/fields/select";
