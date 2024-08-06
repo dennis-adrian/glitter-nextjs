@@ -7,6 +7,7 @@ import {
   UserSocial,
 } from "@/app/api/users/definitions";
 import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
+import SubcategoryUpdateEmailTemplate from "@/app/emails/subcategory-update";
 import { isProfileComplete } from "@/app/lib/utils";
 import { sendEmail } from "@/app/vendors/resend";
 import { db, pool } from "@/db";
@@ -23,14 +24,13 @@ export async function updateProfile(userId: number, profile: UpdateUser) {
   const client = await pool.connect();
 
   try {
-    const [user] = await db
+    await db
       .update(users)
       .set({
         ...profile,
         updatedAt: new Date(),
       })
-      .where(eq(users.id, userId))
-      .returning();
+      .where(eq(users.id, userId));
 
     await verifyProfileCompletion(userId);
   } catch (error) {
@@ -54,6 +54,7 @@ export async function updateProfileCategories(
   profileId: number,
   category: UserCategory,
   subcategoryIds: number[],
+  options?: { sendUserEmail?: boolean },
 ) {
   const client = await pool.connect();
 
@@ -75,6 +76,18 @@ export async function updateProfileCategories(
           .values({ profileId, subcategoryId });
       });
     });
+
+    if (options && options.sendUserEmail) {
+      const fullProfile = await fetchUserProfileById(profileId);
+      await sendEmail({
+        to: [fullProfile!.email],
+        from: "Perfiles Glitter <perfiles@productoraglitter.com>",
+        subject: "Actualización de perfil",
+        react: SubcategoryUpdateEmailTemplate({
+          profile: fullProfile!,
+        }) as React.ReactElement,
+      });
+    }
   } catch (error) {
     console.error("Error updating profile", error);
     return {

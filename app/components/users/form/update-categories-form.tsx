@@ -49,6 +49,7 @@ export default function UpdateCategoriesForm(props: UpdateCategoriesFormProps) {
       props.profile.id,
       mainCategory?.category as UserCategory,
       newSubcategoriesIds,
+      { sendUserEmail: true },
     );
 
     if (res.success) {
