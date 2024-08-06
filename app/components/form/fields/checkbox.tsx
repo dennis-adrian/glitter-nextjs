@@ -37,40 +37,48 @@ export default function CheckboxInput({
       render={() => (
         <FormItem>
           <div className="mb-4">
-            {label && <FormLabel className="text-base">{label}</FormLabel>}
-            {description && <FormDescription>{description}</FormDescription>}
+            {label && <FormLabel>{label}</FormLabel>}
+            {description && (
+              <FormDescription className="text-xs">
+                {description}
+              </FormDescription>
+            )}
           </div>
-          {items.map((item) => (
-            <FormField
-              key={item.id}
-              control={formControl}
-              name={name}
-              render={({ field }) => {
-                return (
-                  <FormItem
-                    key={item.id}
-                    className="flex flex-row items-start space-x-3 space-y-0"
-                  >
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value?.includes(item.id)}
-                        onCheckedChange={(checked) => {
-                          return checked
-                            ? field.onChange([...field.value, item.id])
-                            : field.onChange(
-                                field.value?.filter(
-                                  (value: string) => value !== item.id,
-                                ),
-                              );
-                        }}
-                      />
-                    </FormControl>
-                    <FormLabel className="font-normal">{item.label}</FormLabel>
-                  </FormItem>
-                );
-              }}
-            />
-          ))}
+          <div className="flex flex-col gap-1">
+            {items.map((item) => (
+              <FormField
+                key={item.id}
+                control={formControl}
+                name={name}
+                render={({ field }) => {
+                  return (
+                    <FormItem
+                      key={item.id}
+                      className="flex flex-row items-start space-x-3 space-y-0"
+                    >
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value?.includes(item.id)}
+                          onCheckedChange={(checked) => {
+                            return checked
+                              ? field.onChange([...field.value, item.id])
+                              : field.onChange(
+                                  field.value?.filter(
+                                    (value: string) => value !== item.id,
+                                  ),
+                                );
+                          }}
+                        />
+                      </FormControl>
+                      <FormLabel className="font-normal">
+                        {item.label}
+                      </FormLabel>
+                    </FormItem>
+                  );
+                }}
+              />
+            ))}
+          </div>
           <FormMessage />
         </FormItem>
       )}
