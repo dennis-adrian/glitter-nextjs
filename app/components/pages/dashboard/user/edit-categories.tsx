@@ -50,8 +50,8 @@ export default async function EditUserCategoriesPage(
           )}
         </CardContent>
       </Card>
-      <h2 className="font-semibold text-center mt-6 mb-2">Nuevas Categorías</h2>
-      <Card>
+      <h2 className="font-semibold text-center mt-6">Nuevas Categorías</h2>
+      <Card className="mb-4 mt-2">
         <CardContent className="p-4 flex flex-col items-center justify-center gap-4">
           <UpdateCategoriesForm
             profile={forProfile}

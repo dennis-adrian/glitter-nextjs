@@ -1,13 +1,15 @@
 "use client";
 
-import { ProfileType } from "@/app/api/users/definitions";
+import { ProfileType, UserCategory } from "@/app/api/users/definitions";
 import CheckboxInput from "@/app/components/form/fields/checkbox";
 import SelectInput from "@/app/components/form/fields/select";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
+import { updateProfileCategories } from "@/app/lib/users/actions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 
 const FormSchema = z.object({
@@ -31,7 +33,27 @@ export default function UpdateCategoriesForm(props: UpdateCategoriesFormProps) {
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    console.log(data);
+    const mainCategory = props.subcategories.find(
+      (subcategory) => subcategory.id === Number(data.mainCategory),
+    );
+
+    if (!mainCategory) return;
+    const newSubcategoriesIds = [mainCategory.id];
+    if (data.subcategories && data.subcategories.length > 0) {
+      newSubcategoriesIds.push(...data.subcategories.map((id) => Number(id)));
+    }
+
+    const res = await updateProfileCategories(
+      props.profile.id,
+      mainCategory?.category as UserCategory,
+      newSubcategoriesIds,
+    );
+
+    if (res.success) {
+      toast.success(res.message);
+    } else {
+      toast.error(res.message);
+    }
   });
 
   return (
