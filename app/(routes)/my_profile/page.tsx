@@ -13,11 +13,13 @@ export default async function UserProfile() {
   if (!profile) return null;
 
   const latestInvoice = await fetchLatestInvoiceByProfileId(profile.id);
+  const hasPendingPayment = latestInvoice?.reservation?.status === "pending";
+
   return (
     <div className="mx-auto max-w-screen-lg p-3 md:p-6">
       <div className="flex flex-col gap-4">
         <SignedIn>
-          {latestInvoice && latestInvoice.status === "pending" ? (
+          {hasPendingPayment ? (
             <div className="sticky top-0 z-10 bg-white pt-3 w-full">
               <div className="border p-3 rounded-lg drop-shadow-lg bg-card">
                 <div className="flex flex-wrap md:flex-row gap-4 justify-center items-center text-center md:text-left">

@@ -20,6 +20,7 @@ import Modal from "@/components/user_profile/modal";
 import Form from "./form";
 import TagBadge from "@/app/components/tags/tag-badge";
 import { RedirectButton } from "@/app/components/redirect-button";
+import { Badge } from "@/app/components/ui/badge";
 
 export default function PublicProfile({
   hideEditCategoriesButton,
@@ -31,6 +32,10 @@ export default function PublicProfile({
   title?: string;
 }) {
   const socials = profile.userSocials.filter((social) => social.username);
+  // The first subcategory is the main category that's why we slice it
+  const subcategories = profile.profileSubcategories
+    .map((ps) => ps.subcategory)
+    .slice(1);
   const canUserEditCategory =
     profile.status !== "banned" && profile.category === "entrepreneurship";
   return (
@@ -72,12 +77,21 @@ export default function PublicProfile({
         <CardContent>
           <div className="flex flex-col items-center gap-4">
             <ProfilePicField profile={profile} />
-            <div className="flex gap-2">
+            <div className="flex flex-wrap justify-center gap-2">
               {profile.status !== "banned" && (
                 <VerificationStatusBadge profile={profile} />
               )}
               {profile.category !== "none" && (
                 <ProfileCategoryBadge profile={profile} />
+              )}
+              {subcategories.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {subcategories.map((subcategory) => (
+                    <Badge key={subcategory.id} variant="outline">
+                      {subcategory.label}
+                    </Badge>
+                  ))}
+                </div>
               )}
             </div>
             {profile.profileTags.length > 0 && (

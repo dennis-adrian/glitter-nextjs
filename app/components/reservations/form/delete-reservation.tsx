@@ -1,10 +1,12 @@
 "use client";
 
-import { useFormState } from "react-dom";
 import { deleteReservation } from "@/app/api/reservations/actions";
 import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
 
-import { SubmitButton } from "@/components/submit-button";
+import { useForm } from "react-hook-form";
+import { Form } from "@/app/components/ui/form";
+import { toast } from "sonner";
+import SubmitButton from "@/app/components/simple-submit-button";
 
 export function DeleteReservationForm({
   reservation,
@@ -13,29 +15,30 @@ export function DeleteReservationForm({
   reservation: ReservationWithParticipantsAndUsersAndStand;
   onSuccess: () => void;
 }) {
-  const initialState = {
-    message: "",
-    success: false,
-  };
-  const deleteReservationWithIds = deleteReservation.bind(
-    null,
-    reservation.id,
-    reservation.standId,
-  );
-  const [state, action] = useFormState(deleteReservationWithIds, initialState);
+  const form = useForm();
 
-  if (state.success) onSuccess();
+  const action: () => void = form.handleSubmit(async () => {
+    const res = await deleteReservation(reservation.id, reservation.standId);
+    if (res.success) {
+      toast.success(res.message);
+      onSuccess();
+    } else {
+      toast.error(res.message);
+    }
+  });
 
   return (
-    <form className="w-full mt-4" action={action}>
-      <SubmitButton
-        className="flex w-full"
-        formState={state}
-        variant="destructive"
-        size="sm"
-      >
-        Eliminar Reserva
-      </SubmitButton>
-    </form>
+    <Form {...form}>
+      <form className="w-full mt-4" onSubmit={action}>
+        <SubmitButton
+          className="flex w-full"
+          loading={form.formState.isSubmitting}
+          disabled={form.formState.isSubmitting}
+          variant="destructive"
+        >
+          Eliminar Reserva
+        </SubmitButton>
+      </form>
+    </Form>
   );
 }
