@@ -1,7 +1,7 @@
 "use client";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { BaseProfile } from "@/app/api/users/definitions";
+import { BaseProfile, ProfileType } from "@/app/api/users/definitions";
 import { StandShape } from "@/app/components/stands/stand";
 import { canStandBeReserved } from "@/app/lib/stands/helpers";
 import Image from "next/image";
@@ -11,7 +11,7 @@ type MapImageProps = {
   mapSrc: string;
   stands: StandWithReservationsWithParticipants[];
   forReservation?: boolean;
-  profile?: BaseProfile | null;
+  profile?: ProfileType | BaseProfile | null;
   onStandClick?: (stand: StandWithReservationsWithParticipants) => void;
 };
 
@@ -57,7 +57,8 @@ export default function MapImage(props: MapImageProps) {
       />
       {props.stands.map((stand) => {
         const canBeReserved =
-          props.forReservation && canStandBeReserved(stand, props.profile);
+          props.forReservation &&
+          canStandBeReserved(stand, props.profile as ProfileType);
 
         return (
           <StandShape

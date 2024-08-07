@@ -31,6 +31,9 @@ export default async function Card({ profile }: { profile: ProfileType }) {
     );
 
     if (currentFestivalResevation) {
+      const reservationStatus = currentFestivalResevation.reservation.status;
+      if (reservationStatus === "rejected") return null;
+
       const standId = currentFestivalResevation.reservation.standId;
       const stand = await fetchStandById(standId);
       if (stand) {
