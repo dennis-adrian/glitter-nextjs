@@ -19,3 +19,11 @@ export function getParticipantProfilesWithStand(
     }));
   });
 }
+
+export function getParticipantIds(
+  reservations: ReservationWithParticipantsAndUsers[],
+) {
+  return reservations.flatMap((reservation) =>
+    reservation.participants.map((participant) => participant.user.id),
+  );
+}

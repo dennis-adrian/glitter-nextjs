@@ -1,7 +1,7 @@
 "use server";
 
 import { clerkClient, User } from "@clerk/nextjs/server";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { pool, db } from "@/db";
@@ -222,6 +222,43 @@ export async function fetchProfiles(): Promise<ProfileType[]> {
         },
       },
       orderBy: desc(users.updatedAt),
+    });
+  } catch (error) {
+    console.error(error);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
+export async function fetchProfilesByIds(
+  ids: number[],
+): Promise<ProfileType[]> {
+  const client = await pool.connect();
+
+  try {
+    return await db.query.users.findMany({
+      with: {
+        userRequests: true,
+        userSocials: true,
+        participations: {
+          with: {
+            reservation: true,
+          },
+        },
+        profileTags: {
+          with: {
+            tag: true,
+          },
+        },
+        profileSubcategories: {
+          with: {
+            subcategory: true,
+          },
+        },
+      },
+      orderBy: desc(users.updatedAt),
+      where: inArray(users.id, ids),
     });
   } catch (error) {
     console.error(error);
