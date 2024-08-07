@@ -7,7 +7,10 @@ export function canStandBeReserved(
 ) {
   if (!profile) return false;
 
+  const profileCategory =
+    profile.category === "new_artist" ? "illustration" : profile.category;
+
   return (
-    stand.standCategory === profile.category && stand.status === "available"
+    stand.standCategory === profileCategory && stand.status === "available"
   );
 }

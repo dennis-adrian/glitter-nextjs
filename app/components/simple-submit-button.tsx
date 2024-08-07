@@ -1,5 +1,6 @@
-import { Button } from "@/app/components/ui/button";
+import { Button, buttonVariants } from "@/app/components/ui/button";
 import { cn } from "@/app/lib/utils";
+import { VariantProps } from "class-variance-authority";
 import { Loader2Icon } from "lucide-react";
 
 type SubmitButtonProps = {
@@ -9,11 +10,12 @@ type SubmitButtonProps = {
   label?: string;
   loading: boolean;
   loadingLabel?: string;
-};
+} & VariantProps<typeof buttonVariants>;
 
 export default function SubmitButton(props: SubmitButtonProps) {
   return (
     <Button
+      variant={props.variant}
       disabled={props.disabled}
       type="submit"
       className={cn("w-full", props.className)}

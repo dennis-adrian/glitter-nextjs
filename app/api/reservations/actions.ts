@@ -153,12 +153,15 @@ type FormState = {
 export async function deleteReservation(
   reservationId: number,
   standId: number,
-  prevState: FormState,
 ) {
   const client = await pool.connect();
 
   try {
     await db.transaction(async (tx) => {
+      await tx
+        .delete(scheduledTasks)
+        .where(eq(scheduledTasks.reservationId, reservationId));
+
       await tx
         .delete(standReservations)
         .where(eq(standReservations.id, reservationId));

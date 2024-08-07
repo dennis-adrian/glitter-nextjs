@@ -497,10 +497,11 @@ export const scheduledTasks = pgTable("scheduled_tasks", {
   reminderTime: timestamp("reminder_time").notNull(),
   reminderSentAt: timestamp("reminder_sent_at"),
   profileId: integer("profile_id")
-    .references(() => users.id)
+    .references(() => users.id, { onDelete: "cascade" })
     .notNull(),
   reservationId: integer("reservation_id").references(
     () => standReservations.id,
+    { onDelete: "cascade" },
   ),
   ranAfterDueDate: boolean("ran_after_due_date").default(false).notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
