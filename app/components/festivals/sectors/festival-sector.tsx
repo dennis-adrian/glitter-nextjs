@@ -2,6 +2,7 @@ import MapImage from "@/app/components/festivals/map-image";
 import ParticipantsGrid from "@/app/components/festivals/participants";
 import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
+import { Suspense } from "react";
 
 type FestivalSectorProps = {
   sector: FestivalSectorWithStandsWithReservationsWithParticipants;
@@ -26,7 +27,13 @@ export default function FestivalSector(props: FestivalSectorProps) {
               estimadas y se utilizan de manera orientativa.
             </p>
           </div>
-          <ParticipantsGrid stands={props.sector.stands} />
+          <Suspense
+            fallback={
+              <div className="w-full justify-center mt-5">Cargando...</div>
+            }
+          >
+            <ParticipantsGrid stands={props.sector.stands} />
+          </Suspense>
         </div>
       ) : (
         <div className="text-muted-foreground text-sm">

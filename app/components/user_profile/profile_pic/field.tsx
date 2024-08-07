@@ -8,28 +8,12 @@ import { ProfileType } from "@/app/api/users/definitions";
 
 import Modal from "@/components/user_profile/modal";
 import Form from "./form";
-import { Badge } from "@/app/components/ui/badge";
+import ProfileAvatar from "@/app/components/common/profile-avatar";
 
 const ProfilePictureField = ({ profile }: { profile: ProfileType }) => {
   return (
     <div className="relative group flex justify-center">
-      <div className="relative w-32 h-32 rounded-full bg-gray-200">
-        <Image
-          src={profile?.imageUrl || `/img/profile-avatar.png`}
-          alt="Imagen de perfil"
-          fill
-          sizes="150px, 150px"
-          className="rounded-full object-cover"
-          blurDataURL="/img/profile-avatar.png"
-        />
-      </div>
-      {profile.category === "new_artist" && (
-        <div className="absolute -bottom-2">
-          <Badge className="bg-white text-foreground" variant="outline">
-            Nuevo
-          </Badge>
-        </div>
-      )}
+      <ProfileAvatar className="h-32 w-32" profile={profile} />
       <Modal
         title="Editar Imagen de Perfil"
         profile={profile}

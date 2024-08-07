@@ -7,16 +7,19 @@ import {
   standProportions,
 } from "@/app/components/next_event/config";
 import StandContent from "@/app/components/stands/stand-content";
+import { ProfileType } from "@/app/api/users/definitions";
 
 export function StandShape({
   canBeReserved = true,
   imageSize,
   stand,
+  participantProfiles,
   onClick,
 }: {
   canBeReserved?: boolean;
   imageSize: { width: number; height: number };
   stand: StandWithReservationsWithParticipants;
+  participantProfiles: ProfileType[];
   onClick?: (stand: StandWithReservationsWithParticipants) => void;
 }) {
   const positionLeft =
@@ -69,6 +72,7 @@ export function StandShape({
       <StandContent
         canBeReserved={canBeReserved}
         stand={stand}
+        participantProfiles={participantProfiles}
         standPosition={{ top: positionTop || 0, left: positionLeft || 0 }}
       />
     </div>

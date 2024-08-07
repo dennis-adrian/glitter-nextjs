@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import {
-  ElementSize,
   StandPosition,
   StandWithReservationsWithParticipants,
 } from "@/app/api/stands/definitions";
@@ -16,14 +15,21 @@ import {
 import StandArtists from "@/app/components/stands/stand-artists";
 import { StandStatusBadge } from "@/app/components/stands/status-badge";
 import clsx from "clsx";
+import { ProfileType } from "@/app/api/users/definitions";
 
 type Props = {
   canBeReserved: boolean;
   stand: StandWithReservationsWithParticipants;
   standPosition: Omit<StandPosition, "id">;
+  participantProfiles: ProfileType[];
 };
 
-const StandContent = ({ canBeReserved, stand, standPosition }: Props) => {
+const StandContent = ({
+  canBeReserved,
+  stand,
+  standPosition,
+  participantProfiles,
+}: Props) => {
   const { label, standNumber, status } = stand;
   const { left } = standPosition;
 
@@ -74,7 +80,7 @@ const StandContent = ({ canBeReserved, stand, standPosition }: Props) => {
                 Espacio deshabilitado
               </div>
             ) : canBeReserved ? (
-              <StandArtists stand={stand} />
+              <StandArtists participants={participantProfiles} />
             ) : (
               <div className="text-center text-sm text-muted-foreground">
                 No puedes reservar en este espacio

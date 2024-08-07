@@ -1,19 +1,13 @@
-import AvatarGroup from "@/app/components/ui/avatar-group";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import Link from "next/link";
 import { RedirectButton } from "@/app/components/redirect-button";
+import { ProfileType } from "@/app/api/users/definitions";
+import ProfileAvatarGroup from "@/app/components/common/profile-avatar-group";
 
 type Props = {
-  stand: StandWithReservationsWithParticipants;
+  participants?: ProfileType[];
 };
 
-const StandArtists = ({ stand }: Props) => {
-  const participants = stand.reservations?.find(
-    (reservation) =>
-      reservation.status === "pending" || reservation.status === "accepted",
-  )?.participants;
-
+const StandArtists = ({ participants }: Props) => {
   let cardBody;
   let label;
   if (!participants?.length) {
@@ -26,23 +20,16 @@ const StandArtists = ({ stand }: Props) => {
   }
 
   if (participants?.length && participants.length > 0) {
-    const avatarsInfo = participants.map(({ user: artist }) => ({
-      key: artist.id,
-      src: artist.imageUrl || "/img/profile-avatar.png",
-      alt: "imagen de usuario",
-      newUser: artist.category === "new_artist",
-    }));
-
-    cardBody = <AvatarGroup avatarsInfo={avatarsInfo} />;
+    cardBody = <ProfileAvatarGroup profiles={participants} />;
     const profileButtons = participants.map((participant) => (
       <RedirectButton
         key={participant.id}
         className="p-0"
-        href={`/public_profiles/${participant.userId}`}
+        href={`/public_profiles/${participant.id}`}
         variant="link"
         size="inline"
       >
-        {participant.user.displayName}
+        {participant.displayName}
       </RedirectButton>
     ));
 
