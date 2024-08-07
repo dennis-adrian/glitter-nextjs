@@ -21,8 +21,6 @@ export function Avatar({
 export function AvatarImage({
   src = "/img/profile-avatar.png",
   alt,
-  height = 64,
-  width = 64,
 }: ImageProps) {
   return (
     <Image

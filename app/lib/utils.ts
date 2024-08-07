@@ -246,3 +246,13 @@ export function getFestivalLogo(festivalType: FestivalBase["festivalType"]) {
 
   return TWINKLER_LOGO_URL_270X80;
 }
+
+export function isNewProfile(profile: ProfileType) {
+  const confirmedParticipations = profile.participations.filter(
+    (participation) => participation.reservation.status === "accepted",
+  );
+
+  // if the user has 1 participation, we consider it as a new profile
+  // until they get a second confirmed participation
+  return confirmedParticipations.length < 2;
+}
