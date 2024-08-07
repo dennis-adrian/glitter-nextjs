@@ -5,6 +5,7 @@ import { getUserName } from "@/app/lib/users/utils";
 import { isNewProfile } from "@/app/lib/utils";
 
 type ProfileAvatarProps = {
+  className?: string;
   profile: ProfileType;
 };
 export default function ProfileAvatar(props: ProfileAvatarProps) {
@@ -13,7 +14,7 @@ export default function ProfileAvatar(props: ProfileAvatarProps) {
 
   return (
     <div className="relative flex justify-center">
-      <Avatar>
+      <Avatar className={props.className || ""}>
         <AvatarImage
           src={profile.imageUrl || "/img/profile-avatar.png"}
           alt={

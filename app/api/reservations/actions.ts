@@ -4,12 +4,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db, pool } from "@/db";
-import {
-  reservationParticipants,
-  scheduledTasks,
-  standReservations,
-  stands,
-} from "@/db/schema";
+import { scheduledTasks, standReservations, stands } from "@/db/schema";
 
 import { BaseProfile } from "@/app/api/users/definitions";
 import { sendEmail } from "@/app/vendors/resend";

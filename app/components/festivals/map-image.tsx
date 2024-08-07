@@ -18,6 +18,9 @@ type MapImageProps = {
 export default function MapImage(props: MapImageProps) {
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [participantProfiles, setParticipantProfiles] = useState<ProfileType[]>(
+    [],
+  );
   const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
@@ -45,6 +48,26 @@ export default function MapImage(props: MapImageProps) {
     };
   }, [isMapLoaded, imgRef]);
 
+  useEffect(() => {
+    const reservations = props.stands.flatMap((stand) => stand.reservations);
+    const participantIds = reservations.flatMap((reservation) =>
+      reservation.participants.map((participant) => participant.user.id),
+    );
+
+    fetch("/api/users_by_id", {
+      method: "POST",
+      body: JSON.stringify({
+        ids: participantIds,
+      }),
+    }).then((res) => {
+      if (res.ok) {
+        (res.json() as Promise<ProfileType[]>).then((profiles) => {
+          setParticipantProfiles(profiles);
+        });
+      }
+    });
+  }, [props.stands]);
+
   return (
     <div className="relative">
       <Image
@@ -60,11 +83,20 @@ export default function MapImage(props: MapImageProps) {
           props.forReservation &&
           canStandBeReserved(stand, props.profile as ProfileType);
 
+        const participantIds = stand.reservations?.flatMap((reservation) =>
+          reservation.participants.map((participant) => participant.user.id),
+        );
+
+        const profiles = participantProfiles.filter((profile) =>
+          participantIds.includes(profile.id),
+        );
+
         return (
           <StandShape
             key={stand.id}
             canBeReserved={canBeReserved}
             imageSize={dimensions}
+            participantProfiles={profiles}
             stand={stand}
             onClick={props.onStandClick}
           />
