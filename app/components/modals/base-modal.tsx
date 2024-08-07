@@ -1,15 +1,15 @@
 "use client";
 
 import { Button } from "@/app/components/ui/button";
-import { useMediaQuery } from "@/app/hooks/use-media-query";
 import {
-  DrawerDialog,
-  DrawerDialogClose,
-  DrawerDialogContent,
-  DrawerDialogFooter,
-  DrawerDialogHeader,
-  DrawerDialogTitle,
-} from "@/components/ui/drawer-dialog";
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/app/components/ui/dialog";
+import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { FC } from "react";
 
 export const BaseModal: FC<{
@@ -21,21 +21,23 @@ export const BaseModal: FC<{
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
   return (
-    <DrawerDialog isDesktop={isDesktop} open={show} onOpenChange={onOpenChange}>
-      <DrawerDialogContent isDesktop={isDesktop}>
-        <DrawerDialogHeader isDesktop={isDesktop}>
-          <DrawerDialogTitle isDesktop={isDesktop}>{title}</DrawerDialogTitle>
-        </DrawerDialogHeader>
+    <Dialog open={show} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
         <div className={`${isDesktop ? "" : "px-4"}`}>{children}</div>
         {isDesktop ? null : (
-          <DrawerDialogFooter isDesktop={isDesktop} className="pt-2">
-            <DrawerDialogClose isDesktop={isDesktop}>
-              <Button variant="outline">Cerrar</Button>
-            </DrawerDialogClose>
-          </DrawerDialogFooter>
+          <DialogFooter className="pt-2">
+            <DialogClose>
+              <Button className="w-full" variant="outline">
+                Cerrar
+              </Button>
+            </DialogClose>
+          </DialogFooter>
         )}
-      </DrawerDialogContent>
-    </DrawerDialog>
+      </DialogContent>
+    </Dialog>
   );
 };
 

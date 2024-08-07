@@ -1,12 +1,9 @@
 import * as styles from "@/app/emails/styles";
 import {
   Body,
-  Button,
   Container,
   Head,
   Html,
-  Img,
-  Link,
   Preview,
   Section,
   Text,
