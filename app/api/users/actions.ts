@@ -463,14 +463,13 @@ export async function verifyProfile(profileId: number, category: UserCategory) {
   const client = await pool.connect();
 
   try {
-    const userCategory = category === "illustration" ? "new_artist" : category;
     const [updatedUser] = await db
       .update(users)
       .set({
         status: "verified",
         verifiedAt: new Date(),
         updatedAt: new Date(),
-        category: userCategory,
+        category: category,
       })
       .where(eq(users.id, profileId))
       .returning();
