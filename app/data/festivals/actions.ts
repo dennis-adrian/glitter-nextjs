@@ -10,6 +10,7 @@ import {
   reservationParticipants,
   festivalSectors,
   standReservations,
+  profileSubcategories,
 } from "@/db/schema";
 import {
   Festival,
@@ -201,15 +202,21 @@ export async function updateFestivalStatus(festival: FestivalBase) {
         ),
       ];
 
-      const availableUsers = await db
+      const result = await db
         .select()
         .from(users)
+        .innerJoin(
+          profileSubcategories,
+          eq(users.id, profileSubcategories.profileId),
+        )
         .where(
           and(
             eq(users.status, "verified"),
             inArray(users.category, categories),
           ),
         );
+
+      const availableUsers = result.map((result) => result.users);
 
       await queueEmails<BaseProfile>(
         availableUsers,
