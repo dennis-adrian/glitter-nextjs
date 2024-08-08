@@ -4,7 +4,6 @@ import EmailHeader from "@/app/emails/email-header";
 import * as styles from "@/app/emails/styles";
 import { formatDate } from "@/app/lib/formatters";
 import { getUserName } from "@/app/lib/users/utils";
-import { getFestivalLogo } from "@/app/lib/utils";
 import {
   Body,
   Button,
@@ -45,20 +44,22 @@ export default function FestivalActivationEmailTemplate({
         <Container style={styles.container}>
           <EmailHeader />
           <Section style={styles.sectionWithBanner}>
-            <Text style={styles.text}>¡Hola {userName}!</Text>
-            <Text style={styles.text}>
-              Acabamos de lanzar nuestro próximo festival{" "}
-              <strong>{festival.name}</strong>
+            <Img
+              style={{ margin: "0 auto" }}
+              src="http://s.mmgo.io/t/CzgA"
+              alt="countdown"
+            />
+            <Text style={{ ...styles.text, marginTop: "10px" }}>
+              ¡Hola {userName}!
             </Text>
             <Text style={styles.text}>
-              Las reservas se habilitarán el día {fullDate} a las {hour}. El
-              primer paso para reservar tu espacio es leer los términos y
-              condiciones en el botón de abajo.
+              Las reservas para el <strong>{festival.name}</strong> se
+              habilitarán el día {fullDate} a las {hour} ¡Ya comenzó la cuenta
+              regresiva!
             </Text>
             <Text style={styles.text}>
-              Luego de leer y aceptar, puedes darle al botón &quot;
-              <strong>¡Quiero reservar!&quot;</strong> y comenzar tu proceso de
-              reserva.
+              Hasta mientras te pedimos que por favor leas con atención los
+              términos y condiciones dándole al botón lila a continuación
             </Text>
             <Text style={styles.text}>
               Si tienes dudas o problemas con la reserva, comunícate con

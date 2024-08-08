@@ -2,7 +2,6 @@ import ClientMap from "@/app/components/festivals/client-map";
 import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
 import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
-import EventCountdown from "@/app/components/pages/profiles/festivals/event-countdown";
 import {
   fetchAvailableArtistsInFestival,
   fetchBaseFestival,
