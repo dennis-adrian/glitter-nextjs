@@ -327,9 +327,8 @@ export async function sendEmailToUsers(
       festival.name
     }`,
     react: EmailTemplate({
-      name: user.displayName || "Participante",
-      profileId: user.id,
-      festivalId: festival.id,
+      profile: user,
+      festival: festival,
     }) as React.ReactElement,
   });
   if (error) {

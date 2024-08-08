@@ -1,4 +1,10 @@
+import { BaseProfile } from "@/app/api/users/definitions";
+import { FestivalBase } from "@/app/data/festivals/definitions";
+import EmailHeader from "@/app/emails/email-header";
 import * as styles from "@/app/emails/styles";
+import { formatDate } from "@/app/lib/formatters";
+import { getUserName } from "@/app/lib/users/utils";
+import { getFestivalLogo } from "@/app/lib/utils";
 import {
   Body,
   Button,
@@ -11,19 +17,25 @@ import {
   Section,
   Text,
 } from "@react-email/components";
+import { DateTime } from "luxon";
 
 interface FestivalActivationTemplateProps {
-  name: string;
-  profileId: number;
-  festivalId: number;
+  profile: BaseProfile;
+  festival: FestivalBase;
 }
 
 export default function FestivalActivationEmailTemplate({
-  name,
-  profileId,
-  festivalId,
+  profile,
+  festival,
 }: FestivalActivationTemplateProps) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  const userName = getUserName(profile);
+  const fullDate = formatDate(festival.reservationsStartDate).toLocaleString(
+    DateTime.DATE_FULL,
+  );
+  const hour = formatDate(festival.reservationsStartDate).toLocaleString(
+    DateTime.TIME_24_SIMPLE,
+  );
 
   return (
     <Html>
@@ -31,13 +43,16 @@ export default function FestivalActivationEmailTemplate({
       <Preview>Reserva tu espacio en nuestro próximo festival</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
-          <Section style={styles.section}>
-            <Text style={styles.text}>¡Hola {name}!</Text>
+          <EmailHeader />
+          <Section style={styles.sectionWithBanner}>
+            <Text style={styles.text}>¡Hola {userName}!</Text>
             <Text style={styles.text}>
-              Acabamos de habilitar las reservas para nuestro próximo festival{" "}
+              Acabamos de lanzar nuestro próximo festival{" "}
+              <strong>{festival.name}</strong>
             </Text>
             <Text style={styles.text}>
-              El primer paso para reservar tu espacio es leer los términos y
+              Las reservas se habilitarán el día {fullDate} a las {hour}. El
+              primer paso para reservar tu espacio es leer los términos y
               condiciones en el botón de abajo.
             </Text>
             <Text style={styles.text}>
@@ -60,7 +75,7 @@ export default function FestivalActivationEmailTemplate({
               para que podamos ayudarte.
             </Text>
             <Button
-              href={`${baseUrl}/profiles/${profileId}/festivals/${festivalId}/terms`}
+              href={`${baseUrl}/profiles/${profile.id}/festivals/${festival.id}/terms`}
               style={styles.button}
             >
               Leer términos y condiciones
@@ -84,8 +99,13 @@ export default function FestivalActivationEmailTemplate({
 }
 
 FestivalActivationEmailTemplate.PreviewProps = {
-  profileId: 90,
-  name: "John Doe",
-  category: "illustration",
-  festivalId: 11,
+  profile: {
+    id: 90,
+    displayName: "John Doe",
+  },
+  festival: {
+    id: 11,
+    name: "Festival Glitter 10ma edición",
+    reservationsStartDate: new Date("2024-08-12 12:00:00"),
+  },
 } as FestivalActivationTemplateProps;
