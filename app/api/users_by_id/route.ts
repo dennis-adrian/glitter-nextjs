@@ -20,6 +20,10 @@ export async function POST(req: Request) {
     );
   }
 
+  if (validatedRequest.data.ids.length === 0) {
+    return new Response(JSON.stringify([]), { status: 200 });
+  }
+
   const profiles = await fetchProfilesByIds(validatedRequest.data.ids);
   return new Response(JSON.stringify(profiles), { status: 200 });
 }

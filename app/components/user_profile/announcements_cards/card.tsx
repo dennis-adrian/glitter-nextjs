@@ -16,7 +16,9 @@ export default async function Card({ profile }: { profile: ProfileType }) {
     if (isProfileComplete(profile)) {
       return <PendingArtistCard />;
     }
+  }
 
+  if (!isProfileComplete(profile)) {
     return <MissingFieldsCard profile={profile} />;
   }
 

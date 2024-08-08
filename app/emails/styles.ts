@@ -12,7 +12,8 @@ export const container = {
 };
 
 export const title = {
-  fontSize: "20px",
+  fontSize: "24px",
+  lineHeight: 1.25,
 };
 
 export const section = {
@@ -34,7 +35,6 @@ export const button = {
   lineHeight: 1.5,
   borderRadius: "0.5em",
   padding: "10px 16px",
-  width: "fit-content",
 };
 
 export const footer = {
