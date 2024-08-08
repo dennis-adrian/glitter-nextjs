@@ -1,11 +1,12 @@
 "use client";
 
 import CopyToClipboardButton from "@/app/components/common/copy-to-clipboard-button";
-import { RedirectButton } from "@/app/components/redirect-button";
+import { Button } from "@/app/components/ui/button";
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { RotateCwIcon } from "lucide-react";
 import { DateTime } from "luxon";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 type EventCountdownProps = {
@@ -13,6 +14,8 @@ type EventCountdownProps = {
 };
 export default function EventCountdown(props: EventCountdownProps) {
   const [timeLeft, setTimeLeft] = useState(3600000);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const reservationStartDate = formatDate(
@@ -44,10 +47,25 @@ export default function EventCountdown(props: EventCountdownProps) {
             Reservas habilitadas
           </h2>
           <p className="text-sm">Recarga la página para hacer tu reserva</p>
-          <RedirectButton href={window.location.href}>
-            <RotateCwIcon className="w-4 h-4 mr-1" />
-            Recargar página
-          </RedirectButton>
+          <Button
+            disabled={isRefreshing}
+            onClick={() => {
+              setIsRefreshing(true);
+              router.refresh();
+            }}
+          >
+            {isRefreshing ? (
+              <>
+                <RotateCwIcon className="w-4 h-4 mr-1 animate-spin" />
+                Recargando...
+              </>
+            ) : (
+              <>
+                <RotateCwIcon className="w-4 h-4 mr-1" />
+                Recargar página
+              </>
+            )}
+          </Button>
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center text-center gap-2 md:gap-3">
