@@ -2,14 +2,23 @@ import ClientMap from "@/app/components/festivals/client-map";
 import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
 import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
+import EventCountdown from "@/app/components/pages/profiles/festivals/event-countdown";
 import {
   fetchAvailableArtistsInFestival,
   fetchBaseFestival,
 } from "@/app/data/festivals/actions";
 import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/actions";
+import { formatDate } from "@/app/lib/formatters";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
+import { DateTime } from "luxon";
+import dynamic from "next/dynamic";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+
+const EventCountdownComponent = dynamic(
+  () => import("@/app/components/pages/profiles/festivals/event-countdown"),
+  { ssr: false },
+);
 
 type NewReservationPageProps = {
   profileId: number;
@@ -23,6 +32,14 @@ export default async function NewReservationPage(
 
   const festival = await fetchBaseFestival(props.festivalId);
   if (!festival) notFound();
+
+  const reservationStartDate = formatDate(
+    festival.reservationsStartDate,
+  ).toJSDate();
+  const currentTime = DateTime.now().toJSDate();
+  if (currentTime < reservationStartDate) {
+    return <EventCountdownComponent festival={festival} />;
+  }
 
   const inFestival = isProfileInFestival(festival.id, profile);
   if (!inFestival) {
