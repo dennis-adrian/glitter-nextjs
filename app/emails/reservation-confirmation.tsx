@@ -1,6 +1,9 @@
+import { BaseProfile } from "@/app/api/users/definitions";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
+import EmailHeader from "@/app/emails/email-header";
 import * as styles from "@/app/emails/styles";
 import { formatDate, formatFullDate } from "@/app/lib/formatters";
+import { getUserName } from "@/app/lib/users/utils";
 import {
   Body,
   Button,
@@ -8,6 +11,7 @@ import {
   Head,
   Html,
   Img,
+  Link,
   Preview,
   Section,
   Text,
@@ -15,8 +19,8 @@ import {
 import { DateTime } from "luxon";
 
 interface FestivalActivationTemplateProps {
-  name: string;
   festival: FestivalWithDates;
+  profile: BaseProfile;
   standLabel: string;
 }
 
@@ -24,25 +28,29 @@ export default function ReservationConfirmationEmailTemplate(
   props: FestivalActivationTemplateProps,
 ) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  const userName = getUserName(props.profile);
+  let whatsAppGroupLink;
+  if (props.profile.category === "illustration") {
+    whatsAppGroupLink = process.env.NEXT_PUBLIC_ILLUSTRATION_GROUP_LINK;
+  } else if (props.profile.category === "gastronomy") {
+    whatsAppGroupLink = process.env.NEXT_PUBLIC_GASTRONOMY_GROUP_LINK;
+  } else if (props.profile.category === "entrepreneurship") {
+    whatsAppGroupLink = process.env.NEXT_PUBLIC_ENTREPRENEURSHIP_GROUP_LINK;
+  }
 
   return (
     <Html>
       <Head />
-      <Preview>
-        Tu reserva para el espacio {props.standLabel} para {props.festival.name}{" "}
-        ha sido confirmada
-      </Preview>
+      <Preview>El festival {props.festival.name} te espera</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
-          <Section style={styles.section}>
-            <Text style={styles.text}>¡Hola {props.name}!</Text>
+          <EmailHeader />
+          <Section style={styles.sectionWithBanner}>
+            <Text style={styles.text}>¡Hola {userName}!</Text>
             <Text style={styles.text}>
-              ¡Tu reserva para el espacio <strong>{props.standLabel}</strong> ha
-              sido confirmada!
-            </Text>
-            <Text style={styles.text}>
-              Muchas gracias por seguir todos los pasos y confirmar tu
-              participación en el <strong>{props.festival.name}</strong>
+              ¡Tu reserva para el espacio <strong>{props.standLabel}</strong> en
+              el festival <strong>{props.festival.name}</strong> ha sido
+              confirmada!
             </Text>
             <Text style={styles.text}>
               Te esparamos el{" "}
@@ -51,11 +59,16 @@ export default function ReservationConfirmationEmailTemplate(
               {formatDate(props.festival.festivalDates[0].startDate)
                 .minus({ hour: 1 })
                 .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
-              para el armado de tu espacio
+              para el armado de tu espacio.
             </Text>
             <Text style={styles.text}>
-              También recuerda que puedes ver la página del evento en cualquier
-              momento y ver a los demás participantes que estarán presentes.
+              Te invitamos a unirte a nuestra comunidad de WhatsApp haciendo
+              clic en{" "}
+              <Link href={whatsAppGroupLink || baseUrl}>este enlace</Link>
+            </Text>
+            <Text style={styles.text}>
+              Puedes ver la página del evento en cualquier momento y ver a los
+              demás participantes que estarán presentes.
             </Text>
             <Button
               href={`${baseUrl}/festivals/${props.festival.id}`}
@@ -82,11 +95,10 @@ export default function ReservationConfirmationEmailTemplate(
 }
 
 ReservationConfirmationEmailTemplate.PreviewProps = {
-  name: "John Doe",
   standLabel: "A52",
   festival: {
     id: 9,
-    name: "Nombre del festival",
+    name: "Glitter 10ma edición",
     locationLabel: "Galería del CBA",
     festivalDates: [
       {
@@ -100,5 +112,10 @@ ReservationConfirmationEmailTemplate.PreviewProps = {
         endDate: new Date(),
       },
     ],
+  },
+  profile: {
+    id: 1,
+    displayName: "John Doe",
+    category: "illustration",
   },
 } as FestivalActivationTemplateProps;

@@ -53,7 +53,7 @@ export default function FestivalActivationEmailTemplate({
               ¡Hola {userName}!
             </Text>
             <Text style={styles.text}>
-              Las reservas para el <strong>{festival.name}</strong> se
+              Las reservas para el festival <strong>{festival.name}</strong> se
               habilitarán el día {fullDate} a las {hour} ¡Ya comenzó la cuenta
               regresiva!
             </Text>
@@ -106,7 +106,7 @@ FestivalActivationEmailTemplate.PreviewProps = {
   },
   festival: {
     id: 11,
-    name: "Festival Glitter 10ma edición",
+    name: "Glitter 10ma edición",
     reservationsStartDate: new Date("2024-08-12 12:00:00"),
   },
 } as FestivalActivationTemplateProps;
