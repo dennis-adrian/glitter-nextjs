@@ -37,6 +37,7 @@ type GeneralInfoDetailsProps = {
   festival: FestivalWithDates;
   noMascot?: boolean;
   secondaryTextColor?: string;
+  detailsClassName?: string;
 };
 
 export default function GeneralInfoDetails(props: GeneralInfoDetailsProps) {
@@ -60,7 +61,12 @@ export default function GeneralInfoDetails(props: GeneralInfoDetailsProps) {
           />
         </div>
       )}
-      <div className="flex flex-wrap gap-4 pb-4 flex-grow md:justify-around">
+      <div
+        className={cn(
+          "flex flex-wrap gap-4 pb-4 flex-grow md:justify-around",
+          props.detailsClassName,
+        )}
+      >
         {dates &&
           dates.length > 0 &&
           dates.map((date) => <DateLabel key={date.id} date={date} />)}

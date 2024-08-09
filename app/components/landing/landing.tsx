@@ -21,56 +21,57 @@ export default async function Landing() {
     <div className="container p-4 md:p-6">
       {festival ? (
         <>
-          <div className="relative p-4 flex flex-col items-center">
-            {/* got this code for the background from nextjs image docs */}
-            <Image
-              className="-z-10 object-cover rounded-md brightness-50 md:hidden"
-              alt="imagen de fondo"
-              src="/img/twinkler/twinkler-banner-500x500.png"
-              quality={100}
-              fill
-              sizes="100vw"
-            />
-            <Image
-              className="-z-10 object-cover rounded-md brightness-50 hidden md:block"
-              alt="imagen de fondo"
-              src="/img/twinkler/twinkler-banner-1500x720.png"
-              quality={100}
-              fill
-              sizes="100vw"
-            />
-            <Image
-              className="mt-4"
-              alt="twinkler logo"
-              src="/img/twinkler/twinkler-logo-white.png"
-              height={80}
-              width={270}
-            />
-            <div className="backdrop-blur-sm bg-white/60 m-4 rounded-md px-4 md:max-w-fit">
-              <GeneralInfoDetails festival={festival} noMascot />
-            </div>
-            {festival.publicRegistration ? (
-              <div className="space-x-2 my-2">
-                <RedirectButton
-                  className="hover:bg-white"
-                  variant="outline"
+          <div className="flex justify-center items-center max-w-screen-lg mx-auto gap-8 lg:gap-20">
+            <div className="flex flex-col items-center">
+              <Image
+                alt="logo glitter"
+                src="/img/glitter/logo-max-w-bg-382x120.png"
+                height={120}
+                width={382}
+              />
+              <Image
+                className="lg:hidden"
+                alt="mascota max el caiman"
+                src="/img/glitter/max-300x300.png"
+                height={300}
+                width={300}
+              />
+              <GeneralInfoDetails
+                className="p-0 mb-4 lg:mb-0"
+                detailsClassName="flex-col items-start p-0"
+                festival={festival}
+                noMascot
+              />
+              {festival.publicRegistration ? (
+                <div className="space-x-2 my-2">
+                  <RedirectButton
+                    className="hover:bg-white"
+                    variant="outline"
+                    href={`/festivals/${festival.id}`}
+                  >
+                    Ver evento
+                  </RedirectButton>
+                  <RedirectButton variant="cta" href={eventRegistrationLink}>
+                    Registrar asistencia
+                  </RedirectButton>
+                </div>
+              ) : (
+                <LandingRedirectButton
+                  className="w-80"
+                  festivalId={festival?.id}
                   href={`/festivals/${festival.id}`}
                 >
-                  Ver evento
-                </RedirectButton>
-                <RedirectButton variant="cta" href={eventRegistrationLink}>
-                  Registrar asistencia
-                </RedirectButton>
-              </div>
-            ) : (
-              <LandingRedirectButton
-                className="w-80"
-                festivalId={festival?.id}
-                href={`/festivals/${festival.id}`}
-              >
-                ¡Ver evento!
-              </LandingRedirectButton>
-            )}
+                  ¡Ver evento!
+                </LandingRedirectButton>
+              )}
+            </div>
+            <Image
+              className="hidden lg:block"
+              alt="mascota max el caiman"
+              src="/img/glitter/max-500x500.png"
+              height={500}
+              width={500}
+            />
           </div>
           <section className="text-center">
             <div className="mt-8">
