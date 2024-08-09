@@ -212,9 +212,9 @@ export async function confirmReservation(
     await sendEmail({
       to: [user.email],
       from: "Reservas Glitter <reservas@productoraglitter.com>",
-      subject: "Reserva confirmada",
+      subject: `Reserva confirmada para el fesival ${festival.name}`,
       react: EmailTemplate({
-        name: user.displayName!,
+        profile: user,
         standLabel,
         festival,
       }) as React.ReactElement,
