@@ -1,3 +1,4 @@
+import { fetchUserProfileById } from "@/app/api/users/actions";
 import ClientMap from "@/app/components/festivals/client-map";
 import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
 import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
@@ -26,8 +27,8 @@ type NewReservationPageProps = {
 export default async function NewReservationPage(
   props: NewReservationPageProps,
 ) {
-  const profile = await getCurrentUserProfile();
-  await protectRoute(profile || undefined, props.profileId);
+  const currentProfile = await getCurrentUserProfile();
+  await protectRoute(currentProfile || undefined, props.profileId);
 
   const festival = await fetchBaseFestival(props.festivalId);
   if (!festival) notFound();
@@ -36,11 +37,14 @@ export default async function NewReservationPage(
     festival.reservationsStartDate,
   ).toJSDate();
   const currentTime = DateTime.now().toJSDate();
-  if (currentTime < reservationStartDate && profile?.role !== "admin") {
+  if (currentTime < reservationStartDate && currentProfile?.role !== "admin") {
     return <EventCountdownComponent festival={festival} />;
   }
 
-  const inFestival = isProfileInFestival(festival.id, profile);
+  const forProfile = await fetchUserProfileById(props.profileId);
+  if (!forProfile) notFound();
+
+  const inFestival = isProfileInFestival(festival.id, forProfile);
   if (!inFestival) {
     return (
       <div className="text-muted-foreground flex pt-8 justify-center">
@@ -51,7 +55,7 @@ export default async function NewReservationPage(
 
   const sectors = await fetchFestivalSectorsByUserCategory(
     festival.id,
-    profile!.category,
+    forProfile.category,
   );
 
   const acceptedArtists = await fetchAvailableArtistsInFestival(festival.id);
@@ -74,7 +78,7 @@ export default async function NewReservationPage(
                       artists={acceptedArtists}
                       imageSrc={sector.mapUrl}
                       festival={festival}
-                      profile={profile!}
+                      profile={forProfile}
                       stands={sector.stands}
                     />
                   </div>
