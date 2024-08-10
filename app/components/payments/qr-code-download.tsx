@@ -7,6 +7,7 @@ import Image from "next/image";
 import { Button } from "@/app/components/ui/button";
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import { getPaymentQrCodeUrlByCategory } from "@/app/lib/payments/helpers";
+import { DownloadIcon, UploadIcon } from "lucide-react";
 
 export default function QrCodeDownload({
   festival,
@@ -47,9 +48,18 @@ export default function QrCodeDownload({
         width={322}
         height={488}
       />
-      <div className="flex items-center justify-center gap-4 max-w-80 mx-auto mt-4">
-        <Button variant="outline" onClick={downloadQRCode}>
+      <div className="flex flex-wrap gap-2">
+        <Button className="order-first md:order-last w-full md:max-w-fit">
+          Subir comprobante
+          <UploadIcon className="ml-2 w-4 h-4" />
+        </Button>
+        <Button
+          className="w-full md:max-w-fit"
+          variant="outline"
+          onClick={downloadQRCode}
+        >
           Descargar código QR
+          <DownloadIcon className="ml-2 w-4 h-4" />
         </Button>
       </div>
     </div>
