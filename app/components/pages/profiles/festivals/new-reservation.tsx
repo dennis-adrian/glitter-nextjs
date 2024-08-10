@@ -36,7 +36,7 @@ export default async function NewReservationPage(
     festival.reservationsStartDate,
   ).toJSDate();
   const currentTime = DateTime.now().toJSDate();
-  if (currentTime < reservationStartDate) {
+  if (currentTime < reservationStartDate && profile?.role !== "admin") {
     return <EventCountdownComponent festival={festival} />;
   }
 
