@@ -13,7 +13,9 @@ export default async function MyProfilePage() {
   if (!profile) return null;
 
   const latestInvoice = await fetchLatestInvoiceByProfileId(profile.id);
-  const hasPendingPayment = latestInvoice?.status === "pending";
+  const hasPendingPayment =
+    latestInvoice?.status === "pending" &&
+    latestInvoice.reservation.status === "pending";
 
   return (
     <div className="mx-auto max-w-screen-lg p-3 md:p-6">
