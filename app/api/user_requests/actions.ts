@@ -2,7 +2,11 @@
 
 import { fetchStandById } from "@/app/api/stands/actions";
 import { UserRequest } from "@/app/api/user_requests/definitions";
-import { fetchAdminUsers, fetchBaseProfileById } from "@/app/api/users/actions";
+import {
+  fetchAdminUsers,
+  fetchBaseProfileById,
+  fetchUserProfileById,
+} from "@/app/api/users/actions";
 import { fetchBaseFestival } from "@/app/data/festivals/actions";
 import ReservationCreatedEmailTemplate from "@/app/emails/reservation-created";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
@@ -20,6 +24,8 @@ import { sendEmail } from "@/app/vendors/resend";
 import { and, eq, not, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { BaseProfile } from "@/app/api/users/definitions";
+import { FestivalBase } from "@/app/data/festivals/definitions";
+import TermsAcceptanceEmailTemplate from "@/app/emails/terms-acceptance";
 
 export async function fetchRequestsByUserId(userId: number) {
   const client = await pool.connect();
@@ -363,16 +369,33 @@ export async function createUserRequest(
   return { success: true, message: "Solicitud enviada correctamente" };
 }
 
-export async function addUserToFestival(userId: number, festivalId: number) {
+export async function addUserToFestival(
+  profile: BaseProfile,
+  festival: FestivalBase,
+) {
   const client = await pool.connect();
 
   try {
     await db.insert(userRequests).values({
-      userId,
-      festivalId,
+      userId: profile.id,
+      festivalId: festival.id,
       status: "accepted",
       type: "festival_participation",
     });
+
+    const admins = await fetchAdminUsers();
+    const adminEmails = admins.map((admin) => admin.email);
+    if (admins.length > 0) {
+      await sendEmail({
+        to: [...adminEmails, "reservas@productoraglitter.com"],
+        from: "Reservas Glitter <reservas@productoraglitter.com>",
+        subject: `${profile.displayName} se ha inscrito a ${festival.name}`,
+        react: TermsAcceptanceEmailTemplate({
+          profile: profile,
+          festival: festival,
+        }) as React.ReactElement,
+      });
+    }
   } catch (error) {
     console.error(error);
     return { success: false, message: "Error al solicitar participación" };
