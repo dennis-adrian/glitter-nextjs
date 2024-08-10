@@ -29,7 +29,7 @@ export default function EventCountdown(props: EventCountdownProps) {
       setTimeLeft((prevTimeLeft) => prevTimeLeft - 1000);
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [props.festival.reservationsStartDate]);
 
   const days = Math.floor(timeLeft / (24 * 60 * 60 * 1000));
   const hours = Math.floor((timeLeft / (60 * 60 * 1000)) % 24);

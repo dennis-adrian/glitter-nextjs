@@ -2,10 +2,12 @@
 
 import { ProfileType } from "@/app/api/users/definitions";
 import { Festival } from "@/app/data/festivals/definitions";
+import { formatDate } from "@/app/lib/formatters";
 import { RedirectButton } from "@/components/redirect-button";
 
 import BaseCard from "@/components/user_profile/announcements_cards/base-card";
 import { ArrowRightIcon } from "lucide-react";
+import { DateTime } from "luxon";
 
 type ReserveStandCardProps = {
   festival: Festival;
@@ -13,6 +15,24 @@ type ReserveStandCardProps = {
 };
 
 export function ReserveStandCard(props: ReserveStandCardProps) {
+  const reservationsStartDate = formatDate(
+    props.festival.reservationsStartDate,
+  );
+  if (reservationsStartDate.toJSDate() > new Date()) {
+    return (
+      <BaseCard
+        content={
+          <p className="text-center">
+            Podrás hacer tu reserva el{" "}
+            {reservationsStartDate.toLocaleString(DateTime.DATE_FULL)} a partir
+            de las{" "}
+            {reservationsStartDate.toLocaleString(DateTime.TIME_24_SIMPLE)}
+          </p>
+        }
+      />
+    );
+  }
+
   return (
     <BaseCard
       content={

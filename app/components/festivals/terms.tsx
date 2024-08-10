@@ -388,8 +388,8 @@ export default function Terms({
       {isProfileInFestival(festival.id, profile) ? (
         <>
           <div className="rounded-md border p-4">
-            Gracias por aceptar los términos y condiciones. Ya puedes hacer tu
-            reserva haciendo clic en el botón de abajo.
+            Gracias por aceptar los términos y condiciones. Para hacer tu
+            reserva haz clic en el botón de abajo.
           </div>
           <div className="flex justify-end mt-4">
             <RedirectButton
