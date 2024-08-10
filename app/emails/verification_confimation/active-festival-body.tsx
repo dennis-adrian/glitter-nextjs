@@ -1,6 +1,8 @@
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import * as styles from "@/app/emails/styles";
-import { Button, Link, Text } from "@react-email/components";
+import { formatDate } from "@/app/lib/formatters";
+import { Button, Img, Link, Text } from "@react-email/components";
+import { DateTime } from "luxon";
 
 type ActiveFestivalBodyProps = {
   baseUrl: string;
@@ -9,23 +11,30 @@ type ActiveFestivalBodyProps = {
 };
 
 export default function ActiveFestivalBody(props: ActiveFestivalBodyProps) {
+  const reservationsStartDate = formatDate(
+    props.festival.reservationsStartDate,
+  );
   return (
     <>
+      <Img
+        style={{ margin: "1rem auto" }}
+        src="http://s.mmgo.io/t/CzgA"
+        alt="countdown"
+      />
       <Text style={styles.text}>
-        El festival <strong>{props.festival.name}</strong> se acerca y te
-        invitamos a que reserves tu espacio con anticipación.
+        Las reservas para el festival <strong>{props.festival.name}</strong> se
+        habilitarán el día{" "}
+        {reservationsStartDate.toLocaleString(DateTime.DATE_FULL)} a las{" "}
+        {reservationsStartDate.toLocaleString(DateTime.TIME_24_SIMPLE)} ¡Ya
+        comenzó la cuenta regresiva!
       </Text>
       <Text style={styles.text}>
-        El primer paso para reservar tu espacio es leer los términos y
-        condiciones en el botón de abajo.
+        Hasta mientras te pedimos que por favor leas con atención los términos y
+        condiciones dándole al botón lila a continuación
       </Text>
       <Text style={styles.text}>
-        Luego de leer y aceptar, puedes darle al botón &quot;
-        <strong>¡Quiero reservar!&quot;</strong> y comenzar tu proceso de
-        reserva.
-      </Text>
-      <Text style={styles.text}>
-        Si tienes dudas o problemas con la reserva, comunícate con al correo{" "}
+        Si tienes dudas o problemas con la reserva, comunícate con nosotros al
+        correo{" "}
         <Link
           href="mailto:soporte@productoraglitter.com"
           style={{
@@ -35,7 +44,7 @@ export default function ActiveFestivalBody(props: ActiveFestivalBodyProps) {
         >
           soporte@productoraglitter.com
         </Link>{" "}
-        nosotros para que podamos ayudarte.
+        para que podamos ayudarte.
       </Text>
       <Button
         href={`${props.baseUrl}/profiles/${props.profileId}/festivals/${props.festival.id}/terms`}
