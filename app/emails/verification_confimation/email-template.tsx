@@ -32,7 +32,9 @@ export default function VerificationConfirmationEmailTemplate(
   return (
     <Html>
       <Head />
-      <Preview>Ya eres parte de la comunidad Glitter</Preview>
+      <Preview>
+        Tu perfil ha sido verificado y ya puedes participar en nuestros eventos
+      </Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <EmailHeader />
@@ -85,5 +87,5 @@ VerificationConfirmationEmailTemplate.PreviewProps = {
       },
     ],
   },
-  isFestivalFull: true,
+  isFestivalFull: false,
 } as FestivalActivationTemplateProps;
