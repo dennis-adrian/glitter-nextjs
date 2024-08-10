@@ -1,50 +1,17 @@
 "use client";
 
-import { useState } from "react";
-
-import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/defiinitions";
-import {
-  CreatePaymentResponseType,
-  CreatePaymentRequestType,
-} from "@/app/api/payments/route";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 import { UploadButton } from "@/app/vendors/uploadthing";
 import Image from "next/image";
 import { Loader2Icon } from "lucide-react";
 
-const handlePaymentCreation = async (
-  invoice: InvoiceWithPaymentsAndStand,
-  voucherUrl: string,
-  oldVoucherUrl?: string,
-) => {
-  const reqBody: CreatePaymentRequestType = {
-    id: invoice.id,
-    amount: invoice.amount,
-    date: new Date(),
-    invoiceId: invoice.id,
-    voucherUrl,
-    oldVoucherUrl,
-  };
-
-  const res = await fetch("/api/payments", {
-    method: "POST",
-    body: JSON.stringify(reqBody),
-  });
-
-  const data = await res.json();
-  return data as CreatePaymentResponseType;
-};
 export default function PaymentProofUpload({
-  invoice,
+  voucherImageUrl,
+  onUploadComplete,
 }: {
-  invoice: InvoiceWithPaymentsAndStand;
+  voucherImageUrl?: string;
+  onUploadComplete: (imageUrl: string) => void;
 }) {
-  const router = useRouter();
-  const [voucherImageUrl, setVoucherImageUrl] = useState<string | null>(
-    invoice.payments[0]?.voucherUrl,
-  );
-
   return (
     <div className="flex flex-col gap-4">
       {voucherImageUrl ? (
@@ -56,7 +23,7 @@ export default function PaymentProofUpload({
           height={400}
         />
       ) : (
-        <div className="h-[200px] w-[200px] border border-dashed mx-auto flex justify-center items-center">
+        <div className="h-[200px] w-[200px] p-4 border border-dashed mx-auto flex justify-center items-center">
           <p className="text-xs text-muted-foreground text-center">
             Haz clic en el botón para subir el comprobante
           </p>
@@ -71,25 +38,13 @@ export default function PaymentProofUpload({
             return;
           }
 
-          setVoucherImageUrl(results.imageUrl);
-          const response = await handlePaymentCreation(
-            invoice,
-            results.imageUrl,
-            invoice.payments[0]?.voucherUrl,
-          );
-
-          if (response.success) {
-            toast.success(response.message);
-            router.push("/my_profile");
-          } else {
-            toast.error(response.message);
-          }
+          onUploadComplete(results.imageUrl);
         }}
         content={{
           button({ ready, isUploading, uploadProgress }) {
             if (isUploading && uploadProgress === 100) {
               return (
-                <Loader2Icon className="w-4 h-4 text-white animate-spin" />
+                <Loader2Icon className="w-4 h-4 text-primary-500 animate-spin" />
               );
             }
             if (isUploading) return <div>{uploadProgress}%</div>;
@@ -105,12 +60,12 @@ export default function PaymentProofUpload({
         appearance={{
           button: ({ ready, isUploading }) => {
             if (!ready) {
-              return "bg-primary text-xs";
+              return "bg-transparent text-xs text-muted-foreground border";
             }
             if (isUploading) {
-              return "bg-primary text-xs after:bg-primary-400/60 after:text-white";
+              return "bg-transparent text-xs text-muted-foreground border after:bg-primary-400/60";
             }
-            return "bg-primary text-xs hover:bg-primary-400";
+            return "bg-transparent text-xs text-foreground border hover:text-primary-500 hover:border-primary-500";
           },
         }}
       />
