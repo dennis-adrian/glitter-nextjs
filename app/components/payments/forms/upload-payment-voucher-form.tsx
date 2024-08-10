@@ -20,18 +20,19 @@ export default function UploadPaymentVoucherForm(
   const form = useForm();
 
   const action: () => void = form.handleSubmit(async () => {
+    const payment = props.invoice.payments[props.invoice.payments.length - 1];
     if (!props.newVoucherUrl) {
       toast.error("Se necesita un comprobante para confirmar el pago");
     } else {
       const res = await createPayment(
         {
-          id: props.invoice.id,
-          amount: props.invoice.amount,
+          id: payment?.id,
           date: new Date(),
+          amount: props.invoice.amount,
           invoiceId: props.invoice.id,
           voucherUrl: props.newVoucherUrl,
         },
-        props.invoice.payments[0]?.voucherUrl,
+        payment?.voucherUrl,
       );
 
       if (res.success) {

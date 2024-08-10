@@ -14,8 +14,9 @@ type UploadPaymentVoucherModalProps = {
 export default function UploadPaymentVoucherModal(
   props: UploadPaymentVoucherModalProps,
 ) {
+  const payments = props.invoice.payments;
   const [voucherUrl, setVoucherUrl] = useState<string | undefined>(
-    props.invoice.payments[0]?.voucherUrl,
+    payments[payments?.length - 1]?.voucherUrl,
   );
 
   return (
