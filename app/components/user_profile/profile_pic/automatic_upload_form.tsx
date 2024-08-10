@@ -8,21 +8,21 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Loader2Icon } from "lucide-react";
 
-type ResponseType = {
-  success: boolean;
-  message: string;
-};
+// type ResponseType = {
+//   success: boolean;
+//   message: string;
+// };
 
-async function updateProfile(profileId: number, imageUrl: string) {
-  const res = await fetch("/api/users", {
-    method: "PUT",
-    body: JSON.stringify({
-      profileId,
-      imageUrl,
-    }),
-  });
-  return (await res.json()) as ResponseType;
-}
+// async function updateProfile(profileId: number, imageUrl: string) {
+//   const res = await fetch("/api/users", {
+//     method: "PUT",
+//     body: JSON.stringify({
+//       profileId,
+//       imageUrl,
+//     }),
+//   });
+//   return (await res.json()) as ResponseType;
+// }
 
 export default function AutomaticProfilePicUploadForm({
   profile,
@@ -88,10 +88,9 @@ export default function AutomaticProfilePicUploadForm({
         endpoint="profilePicture"
         onClientUploadComplete={async (res) => {
           const serverData = res[0].serverData;
-          const { profileId, imageUrl } = serverData.results;
-          const response = await updateProfile(profileId, imageUrl);
-          if (response.success) {
-            toast.success("Imagen actualizada correctamente", {
+          const { success, message, imageUrl } = serverData;
+          if (success && imageUrl) {
+            toast.success(message, {
               cancel: true,
               description:
                 "Los cambios se aplicarán en breve. O recarga la página",
@@ -99,7 +98,7 @@ export default function AutomaticProfilePicUploadForm({
             setUploadedImageUrl(imageUrl);
             if (onSuccess) onSuccess();
           } else {
-            toast.error(response.message);
+            toast.error(message);
           }
         }}
         onUploadError={(error: Error) => {
