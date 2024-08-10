@@ -140,11 +140,6 @@ export async function updateReservation(
   return { success: true, message: "Reserva actualizada" };
 }
 
-type FormState = {
-  success: boolean;
-  message: string;
-};
-
 export async function deleteReservation(
   reservationId: number,
   standId: number,

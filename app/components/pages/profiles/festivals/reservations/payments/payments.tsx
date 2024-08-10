@@ -2,8 +2,7 @@ import PendingPayment from "@/app/components/payments/pending-payment";
 import { fetchBaseFestival } from "@/app/data/festivals/actions";
 import { fetchInvoicesByReservation } from "@/app/data/invoices/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
-import { notFound, redirect } from "next/navigation";
-import { z } from "zod";
+import { notFound } from "next/navigation";
 
 type PaymentsPageProps = {
   festivalId: number;
