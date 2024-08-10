@@ -7,14 +7,17 @@ import { ReservationStatus } from "@/app/components/reservations/cells/status";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/defiinitions";
+import { formatDate } from "@/app/lib/formatters";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { getInvoiceStatusLabel } from "@/app/lib/payments/helpers";
 import { ColumnDef } from "@tanstack/react-table";
+import { DateTime } from "luxon";
 
 export const columnTitles = {
   id: "ID",
   amount: "Monto",
   category: "Categoría",
+  createdAt: "Fecha de creación",
   paymentProof: "Comprobante de pago",
   profile: "Perfil",
   stand: "Espacio",
@@ -108,6 +111,14 @@ export const columns: ColumnDef<InvoiceWithPaymentsAndStandAndProfile>[] = [
     ),
     accessorFn: (row) =>
       `${row.reservation.stand.label}${row.reservation.stand.standNumber}`,
+  },
+  {
+    accessorKey: "createdAt",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.createdAt} />
+    ),
+    cell: ({ row }) =>
+      formatDate(row.original.createdAt).toLocaleString(DateTime.DATETIME_MED),
   },
   {
     id: "reservationStatus",
