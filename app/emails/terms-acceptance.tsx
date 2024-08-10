@@ -56,7 +56,7 @@ export default function TermsAcceptanceEmailTemplate({
               Si te gustaría ver el perfil del participante haz clic en el botón
             </Text>
             <Button
-              href={`${baseUrl}/profiles/${profile.id}`}
+              href={`${baseUrl}/dashboard/users/${profile.id}`}
               style={styles.button}
             >
               Ir a perfil
