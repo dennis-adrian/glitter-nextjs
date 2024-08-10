@@ -105,8 +105,8 @@ export default function Terms({
               </li>
               <li>
                 La reserva del espacio la hace únicamente una persona, la cual
-                debe agregar el nombre de su compañero de espacio al momento de
-                hacer la reserva.
+                debe buscar a su compañero de espacio con su nombre de usuario y
+                agregarlo al momento de hacer la reserva.
               </li>
               <li>
                 Ambos expositores deben estar categorizados como
@@ -129,7 +129,14 @@ export default function Terms({
               </li>
             </>
           ) : (
-            <li>El expositor puede llevar máximo un acompañante.</li>
+            <>
+              <li>
+                El expositor puede llevar máximo un acompañante. El stand
+                incluye 2 credenciales. Uno con el nombre del emprendimiento y
+                otro que dice &quot;Acompañante&quot;. No está permitido que
+                hayan personas sin credencial en los stands.
+              </li>
+            </>
           )}
           <li>No estaremos brindando sillas adicionales a espacio.</li>
           {/* TODO: Think of a better way to handle this point for future festivals */}
@@ -270,6 +277,15 @@ export default function Terms({
         <br />
         <h3 className="font-semibold text-lg my-2">Importante</h3>
         <ul className="leading-7 list-inside list-disc">
+          {mapCategory === "entrepreneurship" && (
+            <li>
+              Queda prohibida la venta de material con imagenes sacadas de
+              internet: Stickers, llaveros, posters entre otros. Es un festival
+              que impulsa a los ilustradores y el trabajo original de los
+              artistas. Tampoco se puede vender productos fuera de la categoria
+              o subcategorias puestas en el perfil del sitio web.
+            </li>
+          )}
           {mapCategory === "gastronomy" && (
             <li>
               Los productos que el expositor ofrezca a la venta deben estar
@@ -286,7 +302,15 @@ export default function Terms({
           </li>
           <li>
             Los expositores que lleguen una vez comenzado el evento no podrán
-            ingresar a participar del evento.
+            ingresar a participar del evento. Los expositores deben llegar a las{" "}
+            {formatDate(festival.festivalDates[0].startDate)
+              .minus({ hours: 1 })
+              .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+            puntual.
+          </li>
+          <li>
+            No pueden haber más de 2 personas en el stand. Tampoco pueden haber
+            personas sin credencial en los stands
           </li>
           <li>
             Todos los participantes del evento incluyendo los que comparten
@@ -305,6 +329,11 @@ export default function Terms({
             correcto funcionamiento.
           </li>
           <li>No está permitida la presencia de niños en los espacios.</li>
+          <li>
+            No esta permitido la venta de productos que contengas bebidas
+            alcohólicas, ni productos que generen olores desagradables,
+            específicamente la venta de Ramen de Queso
+          </li>
         </ul>
         <br />
         <Separator />
@@ -318,7 +347,8 @@ export default function Terms({
           <li>
             Cada participante es responsable de su espacio y de sus
             pertenencias, así como el mobiliario (mesa y silla/sillas) que le
-            fueron entregados.
+            fueron entregados. El CBA y la productora no se hacen responsables
+            de pérdidas de objetos.
           </li>
           <li>Deben mantener la limpieza, no tiren basura al suelo.</li>
           <li>No está permitido pegar nada en las paredes.</li>
