@@ -46,10 +46,12 @@ export default function TermsForm({
 
   async function onSubmit(data: z.infer<typeof FormSchema>) {
     if (data.consent) {
-      const res = await addUserToFestival(profile.id, festival.id);
+      const res = await addUserToFestival(profile, festival);
       if (res.success) {
         toast.success(res.message);
-        router.push(`/profiles/${profile.id}/festivals/${festival.id}/reservations/new`);
+        router.push(
+          `/profiles/${profile.id}/festivals/${festival.id}/reservations/new`,
+        );
       } else {
         toast.error(res.message);
       }
