@@ -3,7 +3,10 @@
 import { useState } from "react";
 
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/defiinitions";
-import { CreatePaymentResponseType } from "@/app/api/payments/route";
+import {
+  CreatePaymentResponseType,
+  CreatePaymentRequestType,
+} from "@/app/api/payments/route";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { UploadButton } from "@/app/vendors/uploadthing";
@@ -13,16 +16,20 @@ import { Loader2Icon } from "lucide-react";
 const handlePaymentCreation = async (
   invoice: InvoiceWithPaymentsAndStand,
   voucherUrl: string,
+  oldVoucherUrl?: string,
 ) => {
+  const reqBody: CreatePaymentRequestType = {
+    id: invoice.id,
+    amount: invoice.amount,
+    date: new Date(),
+    invoiceId: invoice.id,
+    voucherUrl,
+    oldVoucherUrl,
+  };
+
   const res = await fetch("/api/payments", {
     method: "POST",
-    body: JSON.stringify({
-      id: invoice.id,
-      amount: invoice.amount,
-      date: new Date(),
-      invoiceId: invoice.id,
-      voucherUrl,
-    }),
+    body: JSON.stringify(reqBody),
   });
 
   const data = await res.json();
@@ -68,6 +75,7 @@ export default function PaymentProofUpload({
           const response = await handlePaymentCreation(
             invoice,
             results.imageUrl,
+            invoice.payments[0]?.voucherUrl,
           );
 
           if (response.success) {

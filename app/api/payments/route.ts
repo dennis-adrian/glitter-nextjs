@@ -6,8 +6,11 @@ const PaymentSchema = z.object({
   amount: z.number(),
   date: z.coerce.date(),
   invoiceId: z.number(),
-  voucherUrl: z.string(),
+  voucherUrl: z.string().url(),
+  oldVoucherUrl: z.string().url().optional(),
 });
+
+export type CreatePaymentRequestType = z.infer<typeof PaymentSchema>;
 
 export type CreatePaymentResponseType = {
   success: boolean;
@@ -31,8 +34,17 @@ export async function POST(req: Request) {
     );
   }
 
-  const payment = validatedPayment.data;
-  const result = await createPayment(payment);
+  const { data } = validatedPayment;
+  const result = await createPayment(
+    {
+      id: data.invoiceId,
+      amount: data.amount,
+      date: data.date,
+      invoiceId: data.invoiceId,
+      voucherUrl: data.voucherUrl,
+    },
+    data.oldVoucherUrl,
+  );
   if (!result.success) {
     return new Response(JSON.stringify(result), { status: 400 });
   }

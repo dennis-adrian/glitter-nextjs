@@ -6,6 +6,7 @@ import {
 import { pool, db } from "@/db";
 import { invoices, payments } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
+import { UTApi } from "uploadthing/server";
 
 export async function fetchLatestInvoiceByProfileId(
   profileId: number,
@@ -38,7 +39,10 @@ export async function fetchLatestInvoiceByProfileId(
   }
 }
 
-export async function createPayment(payment: NewPayment) {
+export async function createPayment(
+  payment: NewPayment,
+  oldVoucherUrl?: string,
+) {
   const client = await pool.connect();
 
   try {
@@ -53,6 +57,11 @@ export async function createPayment(payment: NewPayment) {
         .set({ status: "paid" })
         .where(eq(invoices.id, payment.invoiceId));
     });
+
+    if (oldVoucherUrl) {
+      const [_, key] = oldVoucherUrl.split("/f/");
+      await new UTApi().deleteFiles(key);
+    }
   } catch (error) {
     console.error("Error creating payment", error);
     return {
