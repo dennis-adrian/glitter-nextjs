@@ -1,11 +1,13 @@
 "use server";
 
+import { fetchAdminUsers } from "@/app/api/users/actions";
 import {
   InvoiceBase,
   InvoiceWithPaymentsAndStand,
   InvoiceWithPaymentsAndStandAndProfile,
   NewPayment,
 } from "@/app/data/invoices/defiinitions";
+import PaymentConfirmationForAdminsEmailTemplate from "@/app/emails/payment-confirmation-for-admins";
 import PaymentConfirmationForUserEmailTemplate from "@/app/emails/payment-confirmation-for-user";
 import { sendEmail } from "@/app/vendors/resend";
 import { pool, db } from "@/db";
@@ -82,11 +84,24 @@ export async function createPayment(
       await sendEmail({
         to: [invoice.user.email],
         from: "Reservas Glitter <reservas@productoraglitter.com>",
-        subject: `Tu pago el festival ${invoice.reservation.festival.name} fue registrado`,
+        subject: "Tu pago ha sido registrado",
         react: PaymentConfirmationForUserEmailTemplate({
           invoice,
         }),
       });
+
+      const admins = await fetchAdminUsers();
+      const adminEmails = admins.map((admin) => admin.email);
+      if (adminEmails.length > 0) {
+        await sendEmail({
+          to: [...adminEmails, "reservas@productoraglitter.com"],
+          from: "Reservas Glitter <reservas@productoraglitter.com>",
+          subject: `${invoice.user.displayName} hizo el pago de su reserva`,
+          react: PaymentConfirmationForAdminsEmailTemplate({
+            invoice,
+          }),
+        });
+      }
     }
   } catch (error) {
     console.error("Error creating payment", error);

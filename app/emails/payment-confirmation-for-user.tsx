@@ -14,12 +14,12 @@ import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
 import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/defiinitions";
 
-type ProfileRejectionEmailTemplateProps = {
+type PaymentConfirmationForUserEmailTemplateProps = {
   invoice: InvoiceWithPaymentsAndStandAndProfile;
 };
 
 export default function PaymentConfirmationForUserEmailTemplate(
-  props: ProfileRejectionEmailTemplateProps,
+  props: PaymentConfirmationForUserEmailTemplateProps,
 ) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const userName = getUserName(props.invoice.user);
@@ -27,21 +27,23 @@ export default function PaymentConfirmationForUserEmailTemplate(
   return (
     <Html>
       <Head />
-      <Preview>Hay algunas cosas que necesitas corregir en tu perfil</Preview>
+      <Preview>
+        Tu pago para el festival {props.invoice.reservation.festival.name} fue
+        registrado
+      </Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <EmailHeader />
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.text}>¡Hola {userName}!</Text>
             <Text style={styles.text}>
-              Tu pago para el espacio{" "}
+              Hemos recibido el comprobante de pago que subiste para el espacio{" "}
               <strong>
                 {props.invoice.reservation.stand.label}
                 {props.invoice.reservation.stand.standNumber}
               </strong>{" "}
               en el festival{" "}
-              <strong>{props.invoice.reservation.festival.name}</strong> fue
-              registrado.
+              <strong>{props.invoice.reservation.festival.name}</strong>
             </Text>
             <Text style={styles.text}>
               El equipo Glitter confirmará tu reserva en el transcurso del día.
@@ -77,4 +79,4 @@ PaymentConfirmationForUserEmailTemplate.PreviewProps = {
       },
     },
   },
-} as ProfileRejectionEmailTemplateProps;
+} as PaymentConfirmationForUserEmailTemplateProps;
