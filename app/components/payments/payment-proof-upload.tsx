@@ -2,106 +2,118 @@
 
 import { useState } from "react";
 
-import { useEdgeStore } from "@/app/lib/edgestore";
-
-import { SingleImageDropzone } from "@/components/single-image-dropzone";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/defiinitions";
-import { CreatePaymentResponseType } from "@/app/api/payments/route";
+import {
+  CreatePaymentResponseType,
+  CreatePaymentRequestType,
+} from "@/app/api/payments/route";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { UploadButton } from "@/app/vendors/uploadthing";
+import Image from "next/image";
+import { Loader2Icon } from "lucide-react";
 
+const handlePaymentCreation = async (
+  invoice: InvoiceWithPaymentsAndStand,
+  voucherUrl: string,
+  oldVoucherUrl?: string,
+) => {
+  const reqBody: CreatePaymentRequestType = {
+    id: invoice.id,
+    amount: invoice.amount,
+    date: new Date(),
+    invoiceId: invoice.id,
+    voucherUrl,
+    oldVoucherUrl,
+  };
+
+  const res = await fetch("/api/payments", {
+    method: "POST",
+    body: JSON.stringify(reqBody),
+  });
+
+  const data = await res.json();
+  return data as CreatePaymentResponseType;
+};
 export default function PaymentProofUpload({
   invoice,
 }: {
   invoice: InvoiceWithPaymentsAndStand;
 }) {
   const router = useRouter();
-  const [file, setFile] = useState<File>();
-  const { edgestore } = useEdgeStore();
-  const [showProgress, setShowProgress] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const payment = invoice.payments[invoice.payments.length - 1];
-
-  let uploadOptions = {};
-  if (payment?.voucherUrl && payment?.voucherUrl.includes("edgestore")) {
-    uploadOptions = {
-      replaceTargetUrl: payment.voucherUrl,
-    };
-  }
-
-  async function handleImageUpload() {
-    if (file) {
-      const res = await edgestore.publicFiles.upload({
-        file,
-        options: uploadOptions,
-        onProgressChange: (progress) => {
-          setShowProgress(true);
-          setProgress(progress);
-        },
-      });
-
-      const paymentRes = await fetch("/api/payments", {
-        method: "POST",
-        body: JSON.stringify({
-          id: payment?.id,
-          amount: invoice.reservation.stand.price,
-          date: new Date(),
-          invoiceId: invoice.id,
-          voucherUrl: res.url,
-        }),
-      });
-      const data = (await paymentRes.json()) as CreatePaymentResponseType;
-
-      if (data.success) {
-        toast.success(data.message);
-        router.push("/my_profile");
-      } else {
-        toast.error(data.message);
-      }
-
-      setShowProgress(false);
-    }
-  }
+  const [voucherImageUrl, setVoucherImageUrl] = useState<string | null>(
+    invoice.payments[0]?.voucherUrl,
+  );
 
   return (
-    <div className="my-4">
-      <h2 className="font-semibold text-lg text-center">Comprobante de pago</h2>
-      <div className="flex flex-col items-center justify-center gap-6">
-        {showProgress ? (
-          <div className="flex items-center justify-center w-full">
-            <Progress value={progress} className="w-[60%]" />
-          </div>
-        ) : (
-          <div className="mt-4">
-            <SingleImageDropzone
-              canRemove={false}
-              width={320}
-              height={460}
-              value={file || payment?.voucherUrl}
-              dropzoneOptions={{
-                maxSize: 1024 * 1024 * 5, // 5MB,
-              }}
-              onChange={(file) => {
-                setFile(file);
-              }}
-            />
-          </div>
-        )}
-        <Button
-          disabled={!file || showProgress}
-          className="max-w-80"
-          type="submit"
-          onClick={handleImageUpload}
-        >
-          {payment?.voucherUrl ? (
-            <span>Reemplazar comprobante</span>
-          ) : (
-            <span>Subir comprobante</span>
-          )}
-        </Button>
-      </div>
+    <div className="flex flex-col gap-4">
+      {voucherImageUrl ? (
+        <Image
+          className="mx-auto"
+          src={voucherImageUrl}
+          alt="comprobante de pago"
+          width={300}
+          height={400}
+        />
+      ) : (
+        <div className="h-[200px] w-[200px] border border-dashed mx-auto flex justify-center items-center">
+          <p className="text-xs text-muted-foreground text-center">
+            Haz clic en el botón para subir el comprobante
+          </p>
+        </div>
+      )}
+      <UploadButton
+        endpoint="reservationPayment"
+        onClientUploadComplete={async (res) => {
+          const { results } = res[0].serverData;
+          if (!results.imageUrl) {
+            toast.error("Error al subir el comprobante");
+            return;
+          }
+
+          setVoucherImageUrl(results.imageUrl);
+          const response = await handlePaymentCreation(
+            invoice,
+            results.imageUrl,
+            invoice.payments[0]?.voucherUrl,
+          );
+
+          if (response.success) {
+            toast.success(response.message);
+            router.push("/my_profile");
+          } else {
+            toast.error(response.message);
+          }
+        }}
+        content={{
+          button({ ready, isUploading, uploadProgress }) {
+            if (isUploading && uploadProgress === 100) {
+              return (
+                <Loader2Icon className="w-4 h-4 text-white animate-spin" />
+              );
+            }
+            if (isUploading) return <div>{uploadProgress}%</div>;
+            if (ready) return <div>Elige una imagen</div>;
+            return "Cargando...";
+          },
+          allowedContent({ ready, isUploading }) {
+            if (!ready) return null;
+            if (isUploading) return "Subiendo imagen...";
+            return "Imagen hasta 4MB";
+          },
+        }}
+        appearance={{
+          button: ({ ready, isUploading }) => {
+            if (!ready) {
+              return "bg-primary text-xs";
+            }
+            if (isUploading) {
+              return "bg-primary text-xs after:bg-primary-400/60 after:text-white";
+            }
+            return "bg-primary text-xs hover:bg-primary-400";
+          },
+        }}
+      />
     </div>
   );
 }

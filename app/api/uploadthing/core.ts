@@ -1,8 +1,8 @@
 import { fetchUserProfile } from "@/app/api/users/actions";
+import { updateProfile } from "@/app/lib/users/actions";
 import { currentUser } from "@clerk/nextjs/server";
-import { revalidatePath } from "next/cache";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
-import { UploadThingError } from "uploadthing/server";
+import { UploadThingError, UTApi } from "uploadthing/server";
 
 const f = createUploadthing();
 
@@ -27,7 +27,52 @@ export const ourFileRouter = {
 
       if (!profile) {
         throw new UploadThingError(
+          "You must have a profile to upload a profile picture",
+        );
+      }
+
+      return { profile };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      const oldImageUrl = metadata.profile.imageUrl;
+      const res = await updateProfile(metadata.profile.id, {
+        imageUrl: metadata.profile.imageUrl,
+      });
+
+      if (res.success) {
+        if (oldImageUrl) {
+          const [_, key] = oldImageUrl.split("/f/");
+          await new UTApi().deleteFiles(key);
+        }
+
+        return {
+          ...res,
+          imageUrl: file.url,
+        };
+      }
+
+      return {
+        ...res,
+        imageUrl: null,
+      };
+    }),
+  reservationPayment: f({ image: { maxFileSize: "4MB" } })
+    .middleware(async ({ req }) => {
+      // This code runs on your server before upload
+      const user = await currentUser();
+
+      // Throw if user isn't signed in
+      if (!user) {
+        throw new UploadThingError(
           "You must be logged in to upload a profile picture",
+        );
+      }
+
+      const profile = await fetchUserProfile(user.id);
+
+      if (!profile) {
+        throw new UploadThingError(
+          "You must have a profile to upload a payment proof",
         );
       }
 

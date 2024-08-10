@@ -1,14 +1,13 @@
 import { ProfileType } from "@/app/api/users/definitions";
 import { Button } from "@/app/components/ui/button";
 import {
-  DrawerDialog,
-  DrawerDialogClose,
-  DrawerDialogContent,
-  DrawerDialogFooter,
-  DrawerDialogHeader,
-  DrawerDialogTitle,
-} from "@/app/components/ui/drawer-dialog";
-import DisableProfileForm from "@/app/components/users/form/disable-profile-form";
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/app/components/ui/dialog";
 import RejectProfileForm from "@/app/components/users/form/reject-profile-form";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { AlertCircleIcon } from "lucide-react";
@@ -28,13 +27,11 @@ export function RejectProfileModal({
     `${profile.firstName || ""} ${profile.lastName || ""}`;
 
   return (
-    <DrawerDialog isDesktop={isDesktop} open={open} onOpenChange={setOpen}>
-      <DrawerDialogContent className="sm:max-w-[425px]" isDesktop={isDesktop}>
-        <DrawerDialogHeader isDesktop={isDesktop}>
-          <DrawerDialogTitle isDesktop={isDesktop}>
-            Rechazar Perfil
-          </DrawerDialogTitle>
-        </DrawerDialogHeader>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Rechazar Perfil</DialogTitle>
+        </DialogHeader>
 
         <div className={`${isDesktop ? "" : "px-4"}`}>
           <div className="flex items-center flex-col gap-6 m-auto text-center py-4">
@@ -56,13 +53,13 @@ export function RejectProfileModal({
           />
         </div>
         {isDesktop ? null : (
-          <DrawerDialogFooter isDesktop={isDesktop} className="pt-2">
-            <DrawerDialogClose isDesktop={isDesktop}>
+          <DialogFooter className="pt-2">
+            <DialogClose>
               <Button variant="outline">Cancelar</Button>
-            </DrawerDialogClose>
-          </DrawerDialogFooter>
+            </DialogClose>
+          </DialogFooter>
         )}
-      </DrawerDialogContent>
-    </DrawerDialog>
+      </DialogContent>
+    </Dialog>
   );
 }

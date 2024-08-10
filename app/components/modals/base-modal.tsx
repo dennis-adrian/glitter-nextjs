@@ -29,7 +29,7 @@ export const BaseModal: FC<{
         <div className={`${isDesktop ? "" : "px-4"}`}>{children}</div>
         {isDesktop ? null : (
           <DialogFooter className="pt-2">
-            <DialogClose>
+            <DialogClose asChild>
               <Button className="w-full" variant="outline">
                 Cerrar
               </Button>
