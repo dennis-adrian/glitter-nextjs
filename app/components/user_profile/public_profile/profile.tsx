@@ -19,15 +19,12 @@ import { Button } from "@/components/ui/button";
 import Modal from "@/components/user_profile/modal";
 import Form from "./form";
 import TagBadge from "@/app/components/tags/tag-badge";
-import { RedirectButton } from "@/app/components/redirect-button";
 import { Badge } from "@/app/components/ui/badge";
 
 export default function PublicProfile({
-  hideEditCategoriesButton,
   profile,
   title = "Perfil Público",
 }: {
-  hideEditCategoriesButton?: boolean;
   profile: ProfileType;
   title?: string;
 }) {

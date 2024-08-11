@@ -6,6 +6,8 @@ import AnnouncementCard from "@/components/user_profile/announcements_cards/card
 import ProfileQuickActions from "@/app/components/user_profile/public_profile/quick-actions";
 import { Button } from "@/app/components/ui/button";
 import { CogIcon } from "lucide-react";
+import { fetchLatestInvoiceByProfileId } from "@/app/data/invoices/actions";
+import PendingPaymentBanner from "@/app/components/users/pending-payment-banner";
 
 type DashboardUserPageProps = {
   profileId: number;
@@ -14,10 +16,25 @@ export default async function DashboardUserPage(props: DashboardUserPageProps) {
   const forProfile = await fetchUserProfileById(props.profileId);
   if (!forProfile) return notFound();
 
+  const latestInvoice = await fetchLatestInvoiceByProfileId(props.profileId);
+  const hasPendingPayment =
+    latestInvoice?.status === "pending" &&
+    latestInvoice.reservation.status === "pending";
+
   return (
     <div className="mx-auto max-w-screen-lg p-3 md:p-6">
       <div className="flex flex-col gap-4">
-        <AnnouncementCard profile={forProfile} />
+        {hasPendingPayment ? (
+          <PendingPaymentBanner
+            profileId={props.profileId}
+            festivalId={latestInvoice.reservation.festivalId}
+            reservationId={latestInvoice.reservationId}
+          />
+        ) : (
+          forProfile.status !== "banned" && (
+            <AnnouncementCard profile={forProfile} />
+          )
+        )}
         <div className="self-end">
           <ProfileQuickActions hideViewProfile profile={forProfile}>
             <Button variant="outline" size="icon">
@@ -25,11 +42,7 @@ export default async function DashboardUserPage(props: DashboardUserPageProps) {
             </Button>
           </ProfileQuickActions>
         </div>
-        <PublicProfile
-          hideEditCategoriesButton
-          profile={forProfile}
-          title="Perfil de Usuario"
-        />
+        <PublicProfile profile={forProfile} title="Perfil de Usuario" />
         <PrivateProfile profile={forProfile} />
       </div>
     </div>
