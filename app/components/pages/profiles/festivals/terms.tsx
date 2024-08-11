@@ -1,3 +1,4 @@
+import { fetchUserProfileById } from "@/app/api/users/actions";
 import { UserCategory } from "@/app/api/users/definitions";
 import Terms from "@/app/components/festivals/terms";
 import { fetchFestivalWithDates } from "@/app/data/festivals/actions";
@@ -10,12 +11,12 @@ type TermsPageProps = {
   festivalId: number;
 };
 export default async function TermsPage(props: TermsPageProps) {
-  const profile = await getCurrentUserProfile();
-  await protectRoute(profile || undefined, props.profileId);
+  const currentProfile = await getCurrentUserProfile();
+  await protectRoute(currentProfile || undefined, props.profileId);
   const festival = await fetchFestivalWithDates(props.festivalId);
   if (!festival) notFound();
 
-  if (profile?.role !== "admin" && festival.status !== "active") {
+  if (currentProfile?.role !== "admin" && festival.status !== "active") {
     return (
       <div className="flex flex-col items-center justify-center my-8 text-muted-foreground gap-2">
         <HeartCrackIcon className="h-12 w-12" />
@@ -24,15 +25,19 @@ export default async function TermsPage(props: TermsPageProps) {
     );
   }
 
+  const forProfile = await fetchUserProfileById(props.profileId);
+  if (!forProfile) notFound();
+
   const hasSubcategories =
-    profile?.profileSubcategories && profile.profileSubcategories.length > 0;
+    forProfile.profileSubcategories &&
+    forProfile.profileSubcategories.length > 0;
   if (!hasSubcategories) notFound();
 
   return (
     <Terms
-      profile={profile!}
+      profile={forProfile}
       festival={festival}
-      category={profile!.category as Exclude<UserCategory, "none">}
+      category={forProfile.category as Exclude<UserCategory, "none">}
     />
   );
 }
