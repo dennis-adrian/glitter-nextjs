@@ -36,8 +36,7 @@ export default function PublicProfile({
   const subcategories = profile.profileSubcategories
     .map((ps) => ps.subcategory)
     .slice(1);
-  const canUserEditCategory =
-    profile.status !== "banned" && profile.category === "entrepreneurship";
+
   return (
     <>
       <Card>
@@ -60,14 +59,6 @@ export default function PublicProfile({
                   </Button>
                 </Modal>
               </div>
-              {!hideEditCategoriesButton && canUserEditCategory && (
-                <RedirectButton
-                  href={`/my_profile/edit/categories`}
-                  className="w-full"
-                >
-                  Editar categoría
-                </RedirectButton>
-              )}
             </div>
           </CardTitle>
           <CardDescription>
