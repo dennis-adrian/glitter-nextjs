@@ -1,7 +1,5 @@
 "use client";
 
-import Image from "next/image";
-
 import { CameraIcon, FilePenLineIcon } from "lucide-react";
 
 import { ProfileType } from "@/app/api/users/definitions";

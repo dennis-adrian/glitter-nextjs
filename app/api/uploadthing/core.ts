@@ -34,27 +34,11 @@ export const ourFileRouter = {
       return { profile };
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      const oldImageUrl = metadata.profile.imageUrl;
-      const imageUrl = file.url;
-      const res = await updateProfile(metadata.profile.id, {
-        imageUrl,
-      });
-
-      if (res.success) {
-        if (oldImageUrl && oldImageUrl.includes("utfs")) {
-          const [_, key] = oldImageUrl.split("/f/");
-          await new UTApi().deleteFiles(key);
-        }
-
-        return {
-          ...res,
-          imageUrl,
-        };
-      }
-
       return {
-        ...res,
-        imageUrl: null,
+        results: {
+          profileId: metadata.profile.id,
+          imageUrl: (file as { url: string }).url,
+        },
       };
     }),
   reservationPayment: f({ image: { maxFileSize: "4MB" } })
