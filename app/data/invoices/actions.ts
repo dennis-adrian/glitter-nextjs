@@ -94,7 +94,7 @@ export async function createPayment(
       const adminEmails = admins.map((admin) => admin.email);
       if (adminEmails.length > 0) {
         await sendEmail({
-          to: [...adminEmails, "reservas@productoraglitter.com"],
+          to: [...adminEmails],
           from: "Reservas Glitter <reservas@productoraglitter.com>",
           subject: `${invoice.user.displayName} hizo el pago de su reserva`,
           react: PaymentConfirmationForAdminsEmailTemplate({

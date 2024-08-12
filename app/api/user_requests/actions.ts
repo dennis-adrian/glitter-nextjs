@@ -179,7 +179,7 @@ export async function createReservation(
     const admins = await fetchAdminUsers();
     const adminEmails = admins.map((admin) => admin.email);
     await sendEmail({
-      to: [...adminEmails, "reservas@productoraglitter.com"],
+      to: [...adminEmails],
       from: "Reservas Glitter <reservas@productoraglitter.com>",
       subject: "Nueva reserva creada",
       react: ReservationCreatedEmailTemplate({
@@ -387,7 +387,7 @@ export async function addUserToFestival(
     const adminEmails = admins.map((admin) => admin.email);
     if (admins.length > 0) {
       await sendEmail({
-        to: [...adminEmails, "reservas@productoraglitter.com"],
+        to: [...adminEmails],
         from: "Reservas Glitter <reservas@productoraglitter.com>",
         subject: `${profile.displayName} se ha inscrito a ${festival.name}`,
         react: TermsAcceptanceEmailTemplate({
