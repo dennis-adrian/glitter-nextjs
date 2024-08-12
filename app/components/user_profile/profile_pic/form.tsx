@@ -32,6 +32,7 @@ export default function ProfilePictureForm(props: ProfilePictureFormProps) {
       <ProfilePicUpload
         imageUrl={uploadedImageUrl}
         setImageUrl={setUploadedImageUrl}
+        profile={props.profile}
       />
       <Form {...form}>
         <form onSubmit={action}>

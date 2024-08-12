@@ -1,21 +1,23 @@
 "use client";
 
-import { ProfileType } from "@/app/api/users/definitions";
 import { cn } from "@/app/lib/utils";
 import { UploadButton } from "@/app/vendors/uploadthing";
 import Image from "next/image";
-import { useState } from "react";
 import { toast } from "sonner";
 import { Loader2Icon } from "lucide-react";
+import { BaseProfile } from "@/app/api/users/definitions";
+import { getUserName } from "@/app/lib/users/utils";
 
 export default function ProfilePicUpload({
   size,
   imageUrl,
   setImageUrl,
+  profile,
 }: {
   imageUrl: string | null;
   setImageUrl: (imageUrl: string) => void;
   size?: "sm" | "md" | "lg";
+  profile: BaseProfile;
 }) {
   let containerSize = "w-32 h-32";
   if (size === "md") {
@@ -23,6 +25,10 @@ export default function ProfilePicUpload({
   } else if (size === "lg") {
     containerSize = "w-80 h-80";
   }
+  const username = getUserName(profile);
+  const fileName = `${username
+    .toLowerCase()
+    .replaceAll(" ", "_")}_profile_picture`;
 
   return (
     <div className="flex flex-col items-center justify-center">
@@ -65,6 +71,15 @@ export default function ProfilePicUpload({
           },
         }}
         endpoint="profilePicture"
+        onBeforeUploadBegin={(files) => {
+          // Preprocess files before uploading (e.g. rename them)
+          return files.map((f) => {
+            const fileExtension = f.name.split(".").pop();
+            return new File([f], `${fileName}.${fileExtension}`, {
+              type: f.type,
+            });
+          });
+        }}
         onClientUploadComplete={async (res) => {
           const serverData = res[0].serverData;
           const { results } = serverData;
