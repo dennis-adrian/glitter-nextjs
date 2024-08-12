@@ -9,17 +9,14 @@ import { toast } from "sonner";
 import { Loader2Icon } from "lucide-react";
 
 export default function ProfilePicUpload({
-  profile,
   size,
-  onSuccess,
+  imageUrl,
+  setImageUrl,
 }: {
-  afterUploadComponent?: React.ReactNode;
-  profile: ProfileType;
+  imageUrl: string | null;
+  setImageUrl: (imageUrl: string) => void;
   size?: "sm" | "md" | "lg";
-  onSuccess?: () => void;
 }) {
-  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
-
   let containerSize = "w-32 h-32";
   if (size === "md") {
     containerSize = "w-60 h-60";
@@ -33,9 +30,7 @@ export default function ProfilePicUpload({
         <Image
           className="object-cover"
           alt="Imagen de perfil"
-          src={
-            uploadedImageUrl || profile.imageUrl || "/img/profile-avatar.png"
-          }
+          src={imageUrl || "/img/profile-avatar.png"}
           sizes="240px, 240px"
           fill
         />
@@ -74,8 +69,7 @@ export default function ProfilePicUpload({
           const serverData = res[0].serverData;
           const { results } = serverData;
           if (results.imageUrl) {
-            setUploadedImageUrl(results.imageUrl);
-            if (onSuccess) onSuccess();
+            setImageUrl(results.imageUrl);
           }
         }}
         onUploadError={(error: Error) => {
