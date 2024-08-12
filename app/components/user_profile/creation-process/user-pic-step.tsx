@@ -2,9 +2,10 @@ import { ProfileType } from "@/app/api/users/definitions";
 import StepDescription from "@/app/components/festivals/registration/steps/step-description";
 import { Button } from "@/app/components/ui/button";
 import ProfilePictureField from "@/app/components/user_profile/profile_pic/field";
-import { ArrowRightIcon, RotateCwIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, RotateCwIcon } from "lucide-react";
 
 type UserPicStepProps = {
+  step: number;
   setStep: (step: number) => void;
   profile: ProfileType;
 };
@@ -21,17 +22,18 @@ export default function UserPicStep(props: UserPicStepProps) {
         </div>
         <div className="flex gap-2 my-4 w-full">
           <Button
+            className="grow"
             type="button"
             variant="outline"
-            onClick={() => window.location.reload()}
+            onClick={() => props.setStep(props.step - 1)}
           >
-            <RotateCwIcon className="w-4 h-4 mr-2" />
-            Recargar
+            <ArrowLeftIcon className="w-4 h-4 mr-2" />
+            Volver
           </Button>
           <Button
             className="w-full"
             type="button"
-            onClick={() => props.setStep(2)}
+            onClick={() => props.setStep(props.step + 1)}
           >
             Continuar
             <ArrowRightIcon className="w-4 h-4 ml-2" />

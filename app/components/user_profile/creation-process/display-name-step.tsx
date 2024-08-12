@@ -17,7 +17,6 @@ export default function DisplayNameStep(props: DisplayNameStepProps) {
       />
       <DisplayNameForm
         profile={props.profile}
-        onBack={() => props.setStep(step - 1)}
         onSubmit={() => props.setStep(step + 1)}
       />
     </>
