@@ -35,19 +35,20 @@ export const ourFileRouter = {
     })
     .onUploadComplete(async ({ metadata, file }) => {
       const oldImageUrl = metadata.profile.imageUrl;
+      const imageUrl = file.url;
       const res = await updateProfile(metadata.profile.id, {
-        imageUrl: metadata.profile.imageUrl,
+        imageUrl,
       });
 
       if (res.success) {
-        if (oldImageUrl) {
+        if (oldImageUrl && oldImageUrl.includes("utfs")) {
           const [_, key] = oldImageUrl.split("/f/");
           await new UTApi().deleteFiles(key);
         }
 
         return {
           ...res,
-          imageUrl: file.url,
+          imageUrl,
         };
       }
 
