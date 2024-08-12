@@ -29,7 +29,6 @@ import { findUserSocial, formatUserSocialsForInsertion } from "./utils";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { updateProfile, updateProfileSocials } from "@/app/lib/users/actions";
 import { toast } from "sonner";
-import ProfilePictureForm from "@/app/components/user_profile/profile_pic/form";
 
 const usernameRegex = new RegExp(/^[a-zA-Z0-9_.-]+$/);
 const FormSchema = z.object({

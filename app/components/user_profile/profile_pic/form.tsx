@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 type ProfilePictureFormProps = {
   profile: ProfileType;
+  onSuccess?: () => void;
 };
 export default function ProfilePictureForm(props: ProfilePictureFormProps) {
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(
@@ -22,6 +23,7 @@ export default function ProfilePictureForm(props: ProfilePictureFormProps) {
     const res = await updateProfilePicture(props.profile, uploadedImageUrl);
     if (res.success) {
       toast.success(res.message);
+      if (props.onSuccess) props.onSuccess();
     } else {
       toast.error(res.message);
     }
