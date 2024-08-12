@@ -21,7 +21,6 @@ export const generateChartData = (tickets: TicketWithVisitor[]) => {
   }, {} as Record<string, number>);
 
   Object.keys(ticketsByHour).forEach((date) => {
-    debugger;
     DateTime.fromFormat;
     chartData.push({
       date,

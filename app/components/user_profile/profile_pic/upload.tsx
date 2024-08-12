@@ -69,6 +69,7 @@ export default function ProfilePicUpload({
           const serverData = res[0].serverData;
           const { results } = serverData;
           if (results.imageUrl) {
+            toast.success("La imagen se verá en un momento");
             setImageUrl(results.imageUrl);
           }
         }}

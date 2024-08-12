@@ -9,7 +9,6 @@ import { toast } from "sonner";
 
 type ProfilePictureFormProps = {
   profile: ProfileType;
-  // onSuccess: () => void;
 };
 export default function ProfilePictureForm(props: ProfilePictureFormProps) {
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(

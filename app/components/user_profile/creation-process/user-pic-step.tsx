@@ -1,7 +1,7 @@
 import { ProfileType } from "@/app/api/users/definitions";
 import StepDescription from "@/app/components/festivals/registration/steps/step-description";
 import { Button } from "@/app/components/ui/button";
-import ProfilePictureForm from "@/app/components/user_profile/profile_pic/form";
+import ProfilePictureField from "@/app/components/user_profile/profile_pic/field";
 import { ArrowRightIcon, RotateCwIcon } from "lucide-react";
 
 type UserPicStepProps = {
@@ -16,7 +16,9 @@ export default function UserPicStep(props: UserPicStepProps) {
         description="Ayuda a las personas que ingresan a nuestra página a reconocerte con tu foto de perfil"
       />
       <div className="flex flex-col items-center w-full">
-        <ProfilePictureForm profile={props.profile} />
+        <div className="mb-4">
+          <ProfilePictureField profile={props.profile} />
+        </div>
         <div className="flex gap-2 my-4 w-full">
           <Button
             type="button"
