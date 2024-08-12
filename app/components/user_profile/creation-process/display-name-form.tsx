@@ -25,7 +25,6 @@ const FormSchema = z.object({
 
 type DisplayNameFormProps = {
   profile: ProfileType;
-  onBack: () => void;
   onSubmit: () => void;
 };
 
@@ -69,15 +68,6 @@ export default function DisplayNameForm(props: DisplayNameFormProps) {
           placeholder="Escribe un poco sobre ti"
         />
         <div className="flex justify-end items-center gap-2">
-          <Button
-            className="grow"
-            type="button"
-            variant="outline"
-            onClick={props.onBack}
-          >
-            <ArrowLeftIcon className="w-4 h-4 mr-2" />
-            Volver
-          </Button>
           <SubmitButton
             disabled={form.formState.isSubmitting}
             loading={form.formState.isSubmitting}

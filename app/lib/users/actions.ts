@@ -2,6 +2,7 @@
 
 import { fetchAdminUsers, fetchUserProfileById } from "@/app/api/users/actions";
 import {
+  BaseProfile,
   UpdateUser,
   UserCategory,
   UserSocial,
@@ -9,6 +10,7 @@ import {
 import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
 import SubcategoryUpdateEmailTemplate from "@/app/emails/subcategory-update";
 import { isProfileComplete } from "@/app/lib/utils";
+import { utapi } from "@/app/server/uploadthing";
 import { sendEmail } from "@/app/vendors/resend";
 import { db, pool } from "@/db";
 import {
@@ -174,4 +176,37 @@ export async function verifyProfileCompletion(userId: number) {
       });
     }
   }
+}
+
+export async function updateProfilePicture(
+  profile: BaseProfile,
+  imageUrl: string,
+) {
+  const oldImageUrl = profile.imageUrl;
+  try {
+    await db
+      .update(users)
+      .set({
+        imageUrl,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, profile.id));
+
+    if (oldImageUrl && oldImageUrl.includes("utfs")) {
+      const [_, key] = oldImageUrl.split("/f/");
+      await utapi.deleteFiles(key);
+    }
+  } catch (error) {
+    console.error("Error updating profile picture", error);
+    return {
+      success: false,
+      message: "Error al actualizar la imagen de perfil",
+    };
+  }
+
+  revalidatePath("/my_profile");
+  return {
+    success: true,
+    message: "Imagen de perfil actualizada correctamente",
+  };
 }

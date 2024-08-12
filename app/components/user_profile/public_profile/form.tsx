@@ -4,7 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { updateProfileWithValidatedData } from "@/app/api/users/actions";
 import { ProfileType } from "@/app/api/users/definitions";
 
 import { Input } from "@/app/components/ui/input";
@@ -15,9 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select";
-import AutomaticProfilePicUploadForm from "@/app/components/user_profile/profile_pic/automatic_upload_form";
 import { userCategoryOptions } from "@/app/lib/utils";
-import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
@@ -101,7 +98,6 @@ export default function PublicProfileForm({
 
   return (
     <>
-      <AutomaticProfilePicUploadForm profile={profile} />
       <Form {...form}>
         <form onSubmit={action} className="grid items-start gap-4">
           <FormField

@@ -1,47 +1,34 @@
 "use client";
 
-import { ProfileType } from "@/app/api/users/definitions";
 import { cn } from "@/app/lib/utils";
 import { UploadButton } from "@/app/vendors/uploadthing";
 import Image from "next/image";
-import { useState } from "react";
 import { toast } from "sonner";
 import { Loader2Icon } from "lucide-react";
+import { BaseProfile } from "@/app/api/users/definitions";
+import { getUserName } from "@/app/lib/users/utils";
 
-// type ResponseType = {
-//   success: boolean;
-//   message: string;
-// };
-
-// async function updateProfile(profileId: number, imageUrl: string) {
-//   const res = await fetch("/api/users", {
-//     method: "PUT",
-//     body: JSON.stringify({
-//       profileId,
-//       imageUrl,
-//     }),
-//   });
-//   return (await res.json()) as ResponseType;
-// }
-
-export default function AutomaticProfilePicUploadForm({
-  profile,
+export default function ProfilePicUpload({
   size,
-  onSuccess,
+  imageUrl,
+  setImageUrl,
+  profile,
 }: {
-  afterUploadComponent?: React.ReactNode;
-  profile: ProfileType;
+  imageUrl: string | null;
+  setImageUrl: (imageUrl: string) => void;
   size?: "sm" | "md" | "lg";
-  onSuccess?: () => void;
+  profile: BaseProfile;
 }) {
-  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
-
   let containerSize = "w-32 h-32";
   if (size === "md") {
     containerSize = "w-60 h-60";
   } else if (size === "lg") {
     containerSize = "w-80 h-80";
   }
+  const username = getUserName(profile);
+  const fileName = `${username
+    .toLowerCase()
+    .replaceAll(" ", "_")}_profile_picture`;
 
   return (
     <div className="flex flex-col items-center justify-center">
@@ -49,9 +36,7 @@ export default function AutomaticProfilePicUploadForm({
         <Image
           className="object-cover"
           alt="Imagen de perfil"
-          src={
-            uploadedImageUrl || profile.imageUrl || "/img/profile-avatar.png"
-          }
+          src={imageUrl || "/img/profile-avatar.png"}
           sizes="240px, 240px"
           fill
         />
@@ -86,19 +71,21 @@ export default function AutomaticProfilePicUploadForm({
           },
         }}
         endpoint="profilePicture"
+        onBeforeUploadBegin={(files) => {
+          // Preprocess files before uploading (e.g. rename them)
+          return files.map((f) => {
+            const fileExtension = f.name.split(".").pop();
+            return new File([f], `${fileName}.${fileExtension}`, {
+              type: f.type,
+            });
+          });
+        }}
         onClientUploadComplete={async (res) => {
           const serverData = res[0].serverData;
-          const { success, message, imageUrl } = serverData;
-          if (success && imageUrl) {
-            toast.success(message, {
-              cancel: true,
-              description:
-                "Los cambios se aplicarán en breve. O recarga la página",
-            });
-            setUploadedImageUrl(imageUrl);
-            if (onSuccess) onSuccess();
-          } else {
-            toast.error(message);
+          const { results } = serverData;
+          if (results.imageUrl) {
+            toast.success("La imagen se verá en un momento");
+            setImageUrl(results.imageUrl);
           }
         }}
         onUploadError={(error: Error) => {

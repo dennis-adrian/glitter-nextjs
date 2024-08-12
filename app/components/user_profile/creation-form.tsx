@@ -55,13 +55,17 @@ export default function ProfileCreationForm(props: ProfileCreationFormProps) {
         Completa tu perfil
       </h1>
       {(!step || step === "1") && (
-        <UserPicStep setStep={setStep} profile={props.profile} />
-      )}
-      {step === "2" && (
         <DisplayNameStep
           profile={props.profile}
-          step={parseInt(step)}
+          step={step ? parseInt(step) : 1}
           setStep={setStep}
+        />
+      )}
+      {step === "2" && (
+        <UserPicStep
+          setStep={setStep}
+          profile={props.profile}
+          step={parseInt(step)}
         />
       )}
       {step === "3" && (
