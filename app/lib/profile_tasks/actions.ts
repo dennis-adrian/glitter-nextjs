@@ -7,7 +7,7 @@ import {
   ScheduledTaskWithProfileAndReservation,
 } from "@/app/lib/profile_tasks/definitions";
 import { db, pool } from "@/db";
-import { scheduledTasks, users } from "@/db/schema";
+import { scheduledTasks, standReservations, users } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
 import {
   and,
@@ -190,7 +190,6 @@ export async function handleReservationReminderEmails(): Promise<
           isNull(scheduledTasks.reminderSentAt),
           isNotNull(scheduledTasks.reservationId),
           lte(scheduledTasks.reminderTime, sql`now()`),
-          gt(scheduledTasks.dueDate, sql`now()`),
           eq(scheduledTasks.taskType, "stand_reservation"),
         ),
         with: {
@@ -206,14 +205,19 @@ export async function handleReservationReminderEmails(): Promise<
 
       if (pendingTasks.length === 0) return [];
 
+      const tasksWithPendingReservations = pendingTasks.filter(
+        (task) => task.reservation.status === "pending",
+      );
       let updatedTaskIds: number[] = [];
       await queueEmails<ScheduledTaskWithProfileAndReservation, number[]>(
-        pendingTasks,
+        tasksWithPendingReservations,
         sendReservationReminderEmails,
         { referenceEntity: updatedTaskIds, transactionScope: tx },
       );
 
-      return pendingTasks.filter((task) => updatedTaskIds.includes(task.id));
+      return tasksWithPendingReservations.filter((task) =>
+        updatedTaskIds.includes(task.id),
+      );
     });
   } catch (error) {
     console.error("Error sending reminder emails", error);
