@@ -1,9 +1,10 @@
-import { ProfileType } from "@/app/api/users/definitions";
+import { ProfileType, UsersAggregates } from "@/app/api/users/definitions";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { columnTitles, columns } from "@/components/users/columns";
 import { profileStatusOptions, userCategoryOptions } from "@/app/lib/utils";
 
 type UsersTableProps = {
+  aggregates: UsersAggregates;
   users: ProfileType[];
   status?: "complete" | "missingFields";
   columnVisbility?: Record<string, boolean>;

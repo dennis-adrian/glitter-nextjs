@@ -6,6 +6,7 @@ import {
   ProfileType,
   UpdateUser,
   UserCategory,
+  UsersAggregates,
   UserSocial,
 } from "@/app/api/users/definitions";
 import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
@@ -20,7 +21,7 @@ import {
   users,
   userSocials,
 } from "@/db/schema";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function updateProfile(userId: number, profile: UpdateUser) {
@@ -210,6 +211,20 @@ export async function updateProfilePicture(
     success: true,
     message: "Imagen de perfil actualizada correctamente",
   };
+}
+
+export async function fetchUsersAggregates(): Promise<UsersAggregates> {
+  try {
+    const rows = await db.select({ total: count() }).from(users);
+    return {
+      total: rows[0].total,
+    };
+  } catch (error) {
+    console.error("Error fetching users aggregates", error);
+    return {
+      total: 0,
+    };
+  }
 }
 
 export async function fetchUserProfiles(filters: {

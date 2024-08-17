@@ -4,7 +4,10 @@ import { UsersIcon } from "lucide-react";
 import TotalsCard from "@/app/components/dashboard/totals/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import UsersTable from "@/app/components/users/table";
-import { fetchUserProfiles } from "@/app/lib/users/actions";
+import {
+  fetchUserProfiles,
+  fetchUsersAggregates,
+} from "@/app/lib/users/actions";
 import {
   SearchParamsSchema,
   SearchParamsSchemaType,
@@ -37,11 +40,17 @@ export default async function Page({
     offset,
     includeAdmins,
   });
+  const aggregates = await fetchUsersAggregates();
 
   return (
     <div className="container mx-auto min-h-full p-4 md:p-6">
       <h1 className="mb-2 text-2xl font-bold md:text-3xl">Usuarios</h1>
-      <UsersTable users={users} limit={limit} offset={offset} />
+      <UsersTable
+        aggregates={aggregates}
+        users={users}
+        limit={limit}
+        offset={offset}
+      />
     </div>
   );
 }
