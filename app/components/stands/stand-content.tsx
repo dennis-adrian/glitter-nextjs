@@ -67,7 +67,7 @@ const StandContent = ({
             Espacio {label}
             {standNumber}
           </CardTitle>
-          {canBeReserved && (
+          {(canBeReserved || status !== "available") && (
             <CardDescription>
               <StandStatusBadge status={status} />
             </CardDescription>
@@ -79,7 +79,7 @@ const StandContent = ({
               <div className="text-center text-sm text-muted-foreground">
                 Espacio deshabilitado
               </div>
-            ) : canBeReserved ? (
+            ) : canBeReserved || status !== "available" ? (
               <StandArtists participants={participantProfiles} />
             ) : (
               <div className="text-center text-sm text-muted-foreground">
