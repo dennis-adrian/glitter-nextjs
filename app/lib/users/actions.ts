@@ -3,6 +3,7 @@
 import { fetchAdminUsers, fetchUserProfileById } from "@/app/api/users/actions";
 import {
   BaseProfile,
+  ProfileType,
   UpdateUser,
   UserCategory,
   UserSocial,
@@ -19,7 +20,7 @@ import {
   users,
   userSocials,
 } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function updateProfile(userId: number, profile: UpdateUser) {
@@ -209,4 +210,44 @@ export async function updateProfilePicture(
     success: true,
     message: "Imagen de perfil actualizada correctamente",
   };
+}
+
+export async function fetchUserProfiles(filters: {
+  limit?: number;
+  offset?: number;
+  includeAdmins?: boolean;
+}): Promise<ProfileType[]> {
+  const { limit, offset, includeAdmins } = filters;
+  const allowedRoles = includeAdmins
+    ? ["admin", "festival_admin", "user"]
+    : ["user"];
+  try {
+    return await db.query.users.findMany({
+      with: {
+        userRequests: true,
+        userSocials: true,
+        participations: {
+          with: {
+            reservation: true,
+          },
+        },
+        profileTags: {
+          with: {
+            tag: true,
+          },
+        },
+        profileSubcategories: {
+          with: {
+            subcategory: true,
+          },
+        },
+      },
+      limit: limit || 100,
+      offset: offset || 0,
+      where: inArray(users.role, allowedRoles as BaseProfile["role"][]),
+    });
+  } catch (error) {
+    console.error("Error fetching user profiles", error);
+    return [];
+  }
 }
