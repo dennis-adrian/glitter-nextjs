@@ -83,9 +83,11 @@ export default function MapImage(props: MapImageProps) {
           props.forReservation &&
           canStandBeReserved(stand, props.profile as ProfileType);
 
-        const participantIds = stand.reservations?.flatMap((reservation) =>
-          reservation.participants.map((participant) => participant.user.id),
-        );
+        const participantIds = stand.reservations
+          ?.filter((reservation) => reservation.status !== "rejected")
+          .flatMap((reservation) =>
+            reservation.participants.map((participant) => participant.user.id),
+          );
 
         const profiles = participantProfiles.filter((profile) =>
           participantIds.includes(profile.id),
