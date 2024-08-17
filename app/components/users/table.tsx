@@ -7,6 +7,8 @@ type UsersTableProps = {
   users: ProfileType[];
   status?: "complete" | "missingFields";
   columnVisbility?: Record<string, boolean>;
+  limit: number;
+  offset: number;
 };
 export default function UsersTable(props: UsersTableProps) {
   return (
@@ -45,6 +47,7 @@ export default function UsersTable(props: UsersTableProps) {
           },
         ],
       }}
+      {...props}
     />
   );
 }

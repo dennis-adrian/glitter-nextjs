@@ -48,6 +48,8 @@ interface DataTableProps<TData, TValue> {
   columnTitles: Record<string, string>;
   filters?: DataTableFiltersProps[];
   initialState?: DataTableInitialState;
+  limit: number;
+  offset: number;
 }
 
 export function DataTable<TData, TValue>({
@@ -56,6 +58,8 @@ export function DataTable<TData, TValue>({
   data,
   filters = [],
   initialState,
+  limit,
+  offset,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchFilter, setSearchFilter] = useState<string>("");
@@ -76,6 +80,7 @@ export function DataTable<TData, TValue>({
       sorting,
       columnFilters,
       globalFilter: searchFilter,
+      pagination: { pageSize: limit, pageIndex: offset },
     },
     initialState: {
       columnPinning: {
