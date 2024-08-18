@@ -215,15 +215,32 @@ export async function updateProfilePicture(
 
 export async function fetchUsersAggregates(filters?: {
   includeAdmins?: boolean;
+  status?: BaseProfile["status"][];
 }): Promise<UsersAggregates> {
-  const allowedRoles = filters?.includeAdmins
-    ? ["admin", "festival_admin", "user"]
-    : ["user"];
+  let allowedRoles: BaseProfile["role"][] = ["admin", "festival_admin", "user"];
+  let allowedStatuses: BaseProfile["status"][] = [
+    "pending",
+    "verified",
+    "banned",
+    "rejected",
+  ];
+
+  if (filters) {
+    const { includeAdmins, status } = filters;
+    allowedRoles = includeAdmins ? allowedRoles : ["user"];
+    allowedStatuses = status && status.length > 0 ? status : allowedStatuses;
+  }
+
   try {
     const rows = await db
       .select({ total: count() })
       .from(users)
-      .where(inArray(users.role, allowedRoles as BaseProfile["role"][]));
+      .where(
+        and(
+          inArray(users.role, allowedRoles),
+          inArray(users.status, allowedStatuses),
+        ),
+      );
     return {
       total: rows[0].total,
     };
@@ -239,11 +256,18 @@ export async function fetchUserProfiles(filters: {
   limit?: number;
   offset?: number;
   includeAdmins?: boolean;
+  status?: BaseProfile["status"][];
 }): Promise<ProfileType[]> {
-  const { limit, offset, includeAdmins } = filters;
+  const { limit, offset, includeAdmins, status } = filters;
   const allowedRoles = includeAdmins
     ? ["admin", "festival_admin", "user"]
     : ["user"];
+  const allowedStatuses = (
+    status && status.length > 0
+      ? status
+      : ["pending", "verified", "banned", "rejected"]
+  ) as BaseProfile["status"][];
+
   try {
     return await db.query.users.findMany({
       with: {
@@ -267,7 +291,10 @@ export async function fetchUserProfiles(filters: {
       },
       limit: limit || 100,
       offset: offset || 0,
-      where: inArray(users.role, allowedRoles as BaseProfile["role"][]),
+      where: and(
+        inArray(users.role, allowedRoles as BaseProfile["role"][]),
+        inArray(users.status, allowedStatuses as BaseProfile["status"][]),
+      ),
     });
   } catch (error) {
     console.error("Error fetching user profiles", error);

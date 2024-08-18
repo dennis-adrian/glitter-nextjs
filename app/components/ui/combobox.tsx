@@ -28,6 +28,7 @@ type ComboboxOption = {
 type ComboboxProps = {
   label: string;
   options: ComboboxOption[];
+  onSelect?: (options: string[]) => void;
 };
 
 export function MultipleSelecteCombobox(props: ComboboxProps) {
@@ -38,13 +39,15 @@ export function MultipleSelecteCombobox(props: ComboboxProps) {
     const option = props.options.find((option) => option.value === value);
     if (!option) return;
 
+    let newSelected = [];
     if (selected.map((option) => option.value).includes(value)) {
-      setSelected((selected) =>
-        selected.filter((option) => option.value !== value),
-      );
+      newSelected = selected.filter((option) => option.value !== value);
     } else {
-      setSelected((selected) => [...selected, option]);
+      newSelected = [...selected, option];
     }
+    setSelected(newSelected);
+    if (props.onSelect)
+      props.onSelect(newSelected.map((option) => option.value));
   };
 
   return (

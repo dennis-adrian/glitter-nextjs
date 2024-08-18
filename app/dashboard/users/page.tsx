@@ -1,8 +1,5 @@
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import { UsersIcon } from "lucide-react";
 
-import TotalsCard from "@/app/components/dashboard/totals/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import UsersTable from "@/app/components/users/table";
 import {
   fetchUserProfiles,
@@ -22,7 +19,7 @@ export default async function Page({
   const validatedSearchParams = SearchParamsSchema.safeParse(searchParams);
   if (!validatedSearchParams.success) notFound();
 
-  const { limit, offset, includeAdmins } = validatedSearchParams.data;
+  const { limit, offset, includeAdmins, status } = validatedSearchParams.data;
   const profile = await getCurrentUserProfile();
 
   if (profile && profile.role !== "admin") {
@@ -39,9 +36,11 @@ export default async function Page({
     limit,
     offset,
     includeAdmins,
+    status,
   });
   const aggregates = await fetchUsersAggregates({
     includeAdmins,
+    status,
   });
 
   return (

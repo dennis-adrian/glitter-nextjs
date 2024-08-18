@@ -36,34 +36,42 @@ export default function UsersTableComponent(props: UsersTableProps) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {props.users.map((user) => (
-          <TableRow key={user.id}>
-            <TableCell>
-              <UserInfoCell profile={user} />
-            </TableCell>
-            <TableCell>
-              <ProfileCategoryBadge profile={user} />
-            </TableCell>
-            <TableCell>
-              <ProfileStatusCell status={user.status} />
-            </TableCell>
-            <TableCell>
-              {user.verifiedAt
-                ? formatDate(user.verifiedAt).toLocaleString(
-                    DateTime.DATETIME_SHORT,
-                  )
-                : "--"}
-            </TableCell>
-            <TableCell>
-              {formatDate(user.createdAt).toLocaleString(
-                DateTime.DATETIME_SHORT,
-              )}
-            </TableCell>
-            <TableCell className="sticky right-0 z-20 bg-white shadow-inner">
-              <ActionsCell user={user} />
+        {props.users?.length ? (
+          props.users.map((user) => (
+            <TableRow key={user.id}>
+              <TableCell>
+                <UserInfoCell profile={user} />
+              </TableCell>
+              <TableCell>
+                <ProfileCategoryBadge profile={user} />
+              </TableCell>
+              <TableCell>
+                <ProfileStatusCell status={user.status} />
+              </TableCell>
+              <TableCell>
+                {user.verifiedAt
+                  ? formatDate(user.verifiedAt).toLocaleString(
+                      DateTime.DATETIME_SHORT,
+                    )
+                  : "--"}
+              </TableCell>
+              <TableCell>
+                {formatDate(user.createdAt).toLocaleString(
+                  DateTime.DATETIME_SHORT,
+                )}
+              </TableCell>
+              <TableCell className="sticky right-0 z-20 bg-white shadow-inner">
+                <ActionsCell user={user} />
+              </TableCell>
+            </TableRow>
+          ))
+        ) : (
+          <TableRow>
+            <TableCell colSpan={6} className="h-24 text-center">
+              Sin resultados
             </TableCell>
           </TableRow>
-        ))}
+        )}
       </TableBody>
     </Table>
   );

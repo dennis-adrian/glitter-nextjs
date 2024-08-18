@@ -33,6 +33,7 @@ export default function UsersTablePagination(props: UsersTablePaginationProps) {
   const handlePageSizeChange = (pageSize: string) => {
     const currentSearchParams = new URLSearchParams(searchParams.toString());
     currentSearchParams.set("limit", pageSize);
+    currentSearchParams.set("offset", "0");
     router.push(`?${currentSearchParams.toString()}`);
   };
 
