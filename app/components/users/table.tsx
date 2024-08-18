@@ -1,33 +1,59 @@
-import { ProfileType, UsersAggregates } from "@/app/api/users/definitions";
+import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import UsersTableComponent from "@/app/components/users/users-table";
 import UsersTableFilters from "@/app/components/users/filters/users-table-filters";
 import UsersTablePagination from "@/app/components/users/users-table-pagination";
+import {
+  fetchUserProfiles,
+  fetchUsersAggregates,
+} from "@/app/lib/users/actions";
 
 type UsersTableProps = {
-  aggregates: UsersAggregates;
-  users: ProfileType[];
-  status?: "complete" | "missingFields";
+  includeAdmins?: boolean;
+  status?: BaseProfile["status"][];
+  category?: UserCategory[];
+  query?: string;
   columnVisbility?: Record<string, boolean>;
   limit: number;
   offset: number;
 };
-export default function UsersTable(props: UsersTableProps) {
-  const canNextPage = props.offset + props.limit < props.aggregates.total;
-  const canPreviousPage = props.offset > 0;
-  const pageCount = Math.ceil(props.aggregates.total / props.limit);
+export default async function UsersTable({
+  limit,
+  offset,
+  status,
+  includeAdmins,
+  category,
+  query,
+}: UsersTableProps) {
+  const users = await fetchUserProfiles({
+    limit,
+    offset,
+    includeAdmins,
+    status,
+    category,
+    query: query,
+  });
+  const aggregates = await fetchUsersAggregates({
+    includeAdmins,
+    status,
+    category,
+  });
+
+  const canNextPage = offset + limit < aggregates.total;
+  const canPreviousPage = offset > 0;
+  const pageCount = Math.ceil(aggregates.total / limit);
 
   return (
     <>
       <UsersTableFilters />
-      <UsersTableComponent {...props} />
+      <UsersTableComponent users={users} />
       <UsersTablePagination
         canNextPage={canNextPage}
         canPreviousPage={canPreviousPage}
-        pageIndex={Math.floor(props.offset / props.limit) + 1}
+        pageIndex={Math.floor(offset / limit) + 1}
         pageCount={pageCount}
-        pageSize={props.limit.toString()}
-        rowCount={props.users.length || 0}
-        total={props.aggregates.total || 0}
+        pageSize={limit.toString()}
+        rowCount={users.length || 0}
+        total={aggregates.total || 0}
       />
     </>
   );

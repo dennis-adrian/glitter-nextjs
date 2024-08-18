@@ -1,7 +1,4 @@
-"use client";
-
 import { ProfileType } from "@/app/api/users/definitions";
-import { Button } from "@/app/components/ui/button";
 import {
   Table,
   TableBody,
@@ -19,8 +16,6 @@ import { DateTime } from "luxon";
 
 type UsersTableProps = {
   users: ProfileType[];
-  status?: "complete" | "missingFields";
-  columnVisbility?: Record<string, boolean>;
 };
 export default function UsersTableComponent(props: UsersTableProps) {
   return (

@@ -10,6 +10,8 @@ import {
   SearchParamsSchemaType,
 } from "@/app/dashboard/users/schemas";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
+import UsersTableSkeleton from "@/app/components/users/table-skeleton";
 
 export default async function Page({
   searchParams,
@@ -33,29 +35,19 @@ export default async function Page({
     );
   }
 
-  const users = await fetchUserProfiles({
-    limit,
-    offset,
-    includeAdmins,
-    status,
-    category,
-    query: query,
-  });
-  const aggregates = await fetchUsersAggregates({
-    includeAdmins,
-    status,
-    category,
-  });
-
   return (
     <div className="container mx-auto min-h-full p-4 md:p-6">
       <h1 className="mb-2 text-2xl font-bold md:text-3xl">Usuarios</h1>
-      <UsersTable
-        aggregates={aggregates}
-        users={users}
-        limit={limit || 10}
-        offset={offset || 0}
-      />
+      <Suspense fallback={<UsersTableSkeleton />}>
+        <UsersTable
+          category={category}
+          includeAdmins={includeAdmins}
+          limit={limit || 10}
+          offset={offset || 0}
+          query={query}
+          status={status}
+        />
+      </Suspense>
     </div>
   );
 }
