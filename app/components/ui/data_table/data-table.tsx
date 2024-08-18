@@ -45,7 +45,7 @@ export interface DataTableInitialState {
 }
 
 interface DataTableProps<TData, TValue> {
-  aggregates: { total: number };
+  aggregates?: { total: number };
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   columnTitles: Record<string, string>;
@@ -80,7 +80,7 @@ export function DataTable<TData, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnFiltersChange: setColumnFilters,
-    rowCount: aggregates.total,
+    rowCount: aggregates?.total || 0,
     state: {
       sorting,
       columnFilters,

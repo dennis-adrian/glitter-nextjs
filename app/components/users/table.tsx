@@ -1,7 +1,6 @@
 import { ProfileType, UsersAggregates } from "@/app/api/users/definitions";
-import { DataTable } from "@/app/components/ui/data_table/data-table";
-import { columnTitles, columns } from "@/components/users/columns";
-import { profileStatusOptions, userCategoryOptions } from "@/app/lib/utils";
+import UsersTableComponent from "@/app/components/users/users-table";
+import UsersTablePagination from "@/app/components/users/users-table-pagination";
 
 type UsersTableProps = {
   aggregates: UsersAggregates;
@@ -12,43 +11,23 @@ type UsersTableProps = {
   offset: number;
 };
 export default function UsersTable(props: UsersTableProps) {
+  const canNextPage = props.offset + props.limit < props.aggregates.total;
+  const canPreviousPage = props.offset > 0;
+  const pageCount = Math.ceil(props.aggregates.total / props.limit);
+  console.log("total", props.aggregates.total);
+
   return (
-    <DataTable
-      columns={columns}
-      columnTitles={columnTitles}
-      data={props.users}
-      filters={[
-        {
-          label: "Categoría",
-          columnId: "category",
-          options: [
-            { value: "none", label: "Sin categoría" },
-            ...userCategoryOptions,
-          ],
-        },
-        {
-          label: "Estado del perfil",
-          columnId: "profileStatus",
-          options: [...profileStatusOptions],
-        },
-      ]}
-      initialState={{
-        columnVisibility: {
-          fullName: false,
-          email: false,
-          id: false,
-          phoneNumber: false,
-          status: false,
-          ...props.columnVisbility,
-        },
-        columnFilters: [
-          {
-            id: "status",
-            value: props.status,
-          },
-        ],
-      }}
-      {...props}
-    />
+    <>
+      <UsersTableComponent {...props} />
+      <UsersTablePagination
+        canNextPage={canNextPage}
+        canPreviousPage={canPreviousPage}
+        pageIndex={Math.floor(props.offset / props.limit) + 1}
+        pageCount={pageCount}
+        pageSize={props.limit.toString()}
+        rowCount={props.users.length || 0}
+        total={props.aggregates.total || 0}
+      />
+    </>
   );
 }
