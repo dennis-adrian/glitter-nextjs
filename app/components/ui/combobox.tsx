@@ -26,14 +26,19 @@ type ComboboxOption = {
 };
 
 type ComboboxProps = {
+  defaultValue?: string[];
   label: string;
   options: ComboboxOption[];
   onSelect?: (options: string[]) => void;
 };
 
-export function MultipleSelecteCombobox(props: ComboboxProps) {
+export function MultipleSelectCombobox(props: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
-  const [selected, setSelected] = React.useState<ComboboxOption[]>([]);
+  const [selected, setSelected] = React.useState<ComboboxOption[]>(
+    props.options.filter((option) =>
+      props.defaultValue?.includes(option.value),
+    ),
+  );
 
   const handleSelect = (value: string) => {
     const option = props.options.find((option) => option.value === value);

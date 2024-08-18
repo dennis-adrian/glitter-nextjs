@@ -21,7 +21,7 @@ import {
   users,
   userSocials,
 } from "@/db/schema";
-import { and, asc, count, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function updateProfile(userId: number, profile: UpdateUser) {
@@ -295,6 +295,7 @@ export async function fetchUserProfiles(filters: {
         inArray(users.role, allowedRoles as BaseProfile["role"][]),
         inArray(users.status, allowedStatuses as BaseProfile["status"][]),
       ),
+      orderBy: desc(users.updatedAt),
     });
   } catch (error) {
     console.error("Error fetching user profiles", error);
