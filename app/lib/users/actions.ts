@@ -213,9 +213,17 @@ export async function updateProfilePicture(
   };
 }
 
-export async function fetchUsersAggregates(): Promise<UsersAggregates> {
+export async function fetchUsersAggregates(filters?: {
+  includeAdmins?: boolean;
+}): Promise<UsersAggregates> {
+  const allowedRoles = filters?.includeAdmins
+    ? ["admin", "festival_admin", "user"]
+    : ["user"];
   try {
-    const rows = await db.select({ total: count() }).from(users);
+    const rows = await db
+      .select({ total: count() })
+      .from(users)
+      .where(inArray(users.role, allowedRoles as BaseProfile["role"][]));
     return {
       total: rows[0].total,
     };

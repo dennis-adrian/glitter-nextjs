@@ -14,7 +14,6 @@ export default function UsersTable(props: UsersTableProps) {
   const canNextPage = props.offset + props.limit < props.aggregates.total;
   const canPreviousPage = props.offset > 0;
   const pageCount = Math.ceil(props.aggregates.total / props.limit);
-  console.log("total", props.aggregates.total);
 
   return (
     <>

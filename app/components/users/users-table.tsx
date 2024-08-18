@@ -1,6 +1,7 @@
 "use client";
 
 import { ProfileType } from "@/app/api/users/definitions";
+import { Button } from "@/app/components/ui/button";
 import {
   Table,
   TableBody,
@@ -26,24 +27,12 @@ export default function UsersTableComponent(props: UsersTableProps) {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>
-            <TableCell>Perfil</TableCell>
-          </TableHead>
-          <TableHead>
-            <TableCell>Categoría</TableCell>
-          </TableHead>
-          <TableHead>
-            <TableCell>Estado del perfil</TableCell>
-          </TableHead>
-          <TableHead>
-            <TableCell>Fecha de verificación</TableCell>
-          </TableHead>
-          <TableHead>
-            <TableCell>Fecha de creación</TableCell>
-          </TableHead>
-          <TableHead className="sticky right-0 z-20 bg-white shadow-inner">
-            <TableCell>Acciones</TableCell>
-          </TableHead>
+          <TableHead>Perfil</TableHead>
+          <TableHead>Categoría</TableHead>
+          <TableHead>Estado del perfil</TableHead>
+          <TableHead>Fecha de verificación</TableHead>
+          <TableHead>Fecha de creación</TableHead>
+          <TableHead className="sticky right-0 z-20 bg-white shadow-inner"></TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>

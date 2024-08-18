@@ -40,7 +40,9 @@ export default async function Page({
     offset,
     includeAdmins,
   });
-  const aggregates = await fetchUsersAggregates();
+  const aggregates = await fetchUsersAggregates({
+    includeAdmins,
+  });
 
   return (
     <div className="container mx-auto min-h-full p-4 md:p-6">
