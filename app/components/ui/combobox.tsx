@@ -63,11 +63,10 @@ export function MultipleSelectCombobox(props: ComboboxProps) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
-          className="border-dashed"
+          className="border-dashed h-fit"
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          size="sm"
         >
           <CirclePlusIcon className="h-4 w-4 mr-1" />
           {props.label}
@@ -78,15 +77,21 @@ export function MultipleSelectCombobox(props: ComboboxProps) {
                 orientation="vertical"
                 className="mx-2 h-4"
               />
-              <div className="space-x-1">
-                {selected.map((option) => (
-                  <span
-                    key={option.value}
-                    className="text-sm font-normal bg-primary-50 py-1 px-2 rounded-md"
-                  >
-                    {option.label}
+              <div className="flex gap-1 flex-wrap">
+                {selected.length > 2 ? (
+                  <span className="text-muted-foreground">
+                    {selected.length} seleccionados
                   </span>
-                ))}
+                ) : (
+                  selected.map((option) => (
+                    <span
+                      key={option.value}
+                      className="text-sm font-normal bg-primary-50 py-1 px-2 rounded-md"
+                    >
+                      {option.label}
+                    </span>
+                  ))
+                )}
               </div>
             </>
           )}

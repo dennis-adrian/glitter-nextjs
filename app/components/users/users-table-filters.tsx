@@ -36,7 +36,7 @@ export default function UsersTableFilters() {
   };
 
   return (
-    <div className="flex items-center gap-2 my-4">
+    <div className="flex flex-wrap items-center gap-2 my-4">
       <MultipleSelectCombobox
         defaultValue={status}
         label="Estado"
