@@ -13,20 +13,11 @@ export default function UsersTableFilters() {
   const validatedSearchParams = SearchParamsSchema.safeParse({
     includeAdmins: searchParams.get("includeAdmins"),
     status: searchParams.get("status"),
+    category: searchParams.get("category"),
   });
   if (!validatedSearchParams.success) return null;
 
   const { includeAdmins, status, category } = validatedSearchParams.data;
-
-  const onStatusSelect = (values: string[]) => {
-    const currentSearchParams = new URLSearchParams(searchParams.toString());
-    currentSearchParams.delete("status");
-    values.forEach((value) => {
-      currentSearchParams.append("status", value);
-    });
-    currentSearchParams.set("offset", "0");
-    router.push(`?${currentSearchParams.toString()}`);
-  };
 
   const handleShowAdminsChange = (value: boolean) => {
     const currentSearchParams = new URLSearchParams(searchParams.toString());
@@ -34,11 +25,11 @@ export default function UsersTableFilters() {
     router.push(`?${currentSearchParams.toString()}`);
   };
 
-  const handleCategorySelect = (values: string[]) => {
+  const handleFilterSelect = (filter: string, values: string[]) => {
     const currentSearchParams = new URLSearchParams(searchParams.toString());
-    currentSearchParams.delete("category");
+    currentSearchParams.delete(filter);
     values.forEach((value) => {
-      currentSearchParams.append("category", value);
+      currentSearchParams.append(filter, value);
     });
     currentSearchParams.set("offset", "0");
     router.push(`?${currentSearchParams.toString()}`);
@@ -49,17 +40,19 @@ export default function UsersTableFilters() {
       <MultipleSelectCombobox
         defaultValue={status}
         label="Estado"
+        name="status"
         options={profileStatusOptions}
-        onSelect={onStatusSelect}
+        onSelect={handleFilterSelect}
       />
       <MultipleSelectCombobox
         defaultValue={category}
         label="Categoría"
+        name="category"
         options={[
           { value: "none", label: "Sin categoría" },
           ...userCategoryOptions,
         ]}
-        onSelect={handleCategorySelect}
+        onSelect={handleFilterSelect}
       />
       <IncludeAdminsFilter
         checked={!!includeAdmins}
