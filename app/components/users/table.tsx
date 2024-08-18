@@ -1,6 +1,6 @@
 import { ProfileType, UsersAggregates } from "@/app/api/users/definitions";
 import UsersTableComponent from "@/app/components/users/users-table";
-import UsersTableFilters from "@/app/components/users/users-table-filters";
+import UsersTableFilters from "@/app/components/users/filters/users-table-filters";
 import UsersTablePagination from "@/app/components/users/users-table-pagination";
 
 type UsersTableProps = {

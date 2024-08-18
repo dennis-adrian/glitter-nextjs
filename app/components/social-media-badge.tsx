@@ -5,13 +5,13 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Link from "next/link";
 
 type SocialMediaBadgeProps = {
-  socialMediaType: UserSocial["type"];
+  socialMediaType: UserSocial["type"] | "whatsapp";
   username: string;
 };
 
 export default function SocialMediaBadge(props: SocialMediaBadgeProps) {
   return (
-    <Badge className="max-w-fit" variant="dark">
+    <Badge className="max-w-fit font-normal" variant="outline">
       <Link
         className="flex items-center"
         href={`${socialsUrls[props.socialMediaType]}${props.username}`}
