@@ -45,25 +45,19 @@ export interface DataTableInitialState {
 }
 
 interface DataTableProps<TData, TValue> {
-  aggregates?: { total: number };
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   columnTitles: Record<string, string>;
   filters?: DataTableFiltersProps[];
   initialState?: DataTableInitialState;
-  limit: number;
-  offset: number;
 }
 
 export function DataTable<TData, TValue>({
-  aggregates,
   columns,
   columnTitles,
   data,
   filters = [],
   initialState,
-  limit,
-  offset,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchFilter, setSearchFilter] = useState<string>("");
@@ -80,12 +74,10 @@ export function DataTable<TData, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnFiltersChange: setColumnFilters,
-    rowCount: aggregates?.total || 0,
     state: {
       sorting,
       columnFilters,
       globalFilter: searchFilter,
-      pagination: { pageSize: limit, pageIndex: offset },
     },
     initialState: {
       columnPinning: {

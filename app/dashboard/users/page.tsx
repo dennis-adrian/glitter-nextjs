@@ -49,8 +49,8 @@ export default async function Page({
       <UsersTable
         aggregates={aggregates}
         users={users}
-        limit={limit}
-        offset={offset}
+        limit={limit || 10}
+        offset={offset || 0}
       />
     </div>
   );

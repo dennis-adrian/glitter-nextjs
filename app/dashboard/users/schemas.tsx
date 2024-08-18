@@ -2,13 +2,14 @@ import { userStatusEnum } from "@/db/schema";
 import { z } from "zod";
 
 export const SearchParamsSchema = z.object({
-  limit: z.coerce.number().default(10),
-  offset: z.coerce.number().default(0),
+  limit: z.coerce.number().optional(),
+  offset: z.coerce.number().optional(),
   includeAdmins: z
     .string()
     .toLowerCase()
     .transform((x) => x === "true")
-    .pipe(z.boolean()),
+    .pipe(z.boolean())
+    .optional(),
   status: z
     .union([
       z.enum(userStatusEnum.enumValues),
