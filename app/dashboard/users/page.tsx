@@ -19,7 +19,7 @@ export default async function Page({
   const validatedSearchParams = SearchParamsSchema.safeParse(searchParams);
   if (!validatedSearchParams.success) notFound();
 
-  const { limit, offset, includeAdmins, status, category } =
+  const { limit, offset, includeAdmins, status, category, query } =
     validatedSearchParams.data;
   const profile = await getCurrentUserProfile();
 
@@ -39,6 +39,7 @@ export default async function Page({
     includeAdmins,
     status,
     category,
+    query: query,
   });
   const aggregates = await fetchUsersAggregates({
     includeAdmins,

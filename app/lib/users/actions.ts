@@ -21,7 +21,7 @@ import {
   users,
   userSocials,
 } from "@/db/schema";
-import { and, count, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function updateProfile(userId: number, profile: UpdateUser) {
@@ -268,8 +268,9 @@ export async function fetchUserProfiles(filters: {
   includeAdmins?: boolean;
   status?: BaseProfile["status"][];
   category?: UserCategory[];
+  query?: string;
 }): Promise<ProfileType[]> {
-  const { limit, offset, includeAdmins, status, category } = filters;
+  const { limit, offset, includeAdmins, status, category, query } = filters;
   const allowedRoles = includeAdmins
     ? ["admin", "festival_admin", "user"]
     : ["user"];
@@ -312,6 +313,13 @@ export async function fetchUserProfiles(filters: {
         inArray(users.role, allowedRoles as BaseProfile["role"][]),
         inArray(users.status, allowedStatuses as BaseProfile["status"][]),
         inArray(users.category, allowedCategories),
+        or(
+          ilike(users.displayName, "%" + query + "%"),
+          ilike(users.firstName, "%" + query + "%"),
+          ilike(users.lastName, "%" + query + "%"),
+          ilike(users.email, "%" + query + "%"),
+          ilike(users.phoneNumber, "%" + query + "%"),
+        ),
       ),
       orderBy: desc(users.updatedAt),
     });

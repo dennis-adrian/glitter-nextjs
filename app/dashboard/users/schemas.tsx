@@ -30,6 +30,7 @@ export const SearchParamsSchema = z.object({
       if (typeof value === "string") return [value];
       return value;
     }),
+  query: z.string().trim().default(""),
 });
 
 export type SearchParamsSchemaType = z.infer<typeof SearchParamsSchema>;
