@@ -24,7 +24,7 @@ type UsersTableProps = {
 };
 export default function UsersTableComponent(props: UsersTableProps) {
   return (
-    <Table>
+    <Table className="border">
       <TableHeader>
         <TableRow>
           <TableHead>Perfil</TableHead>

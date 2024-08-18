@@ -19,7 +19,8 @@ export default async function Page({
   const validatedSearchParams = SearchParamsSchema.safeParse(searchParams);
   if (!validatedSearchParams.success) notFound();
 
-  const { limit, offset, includeAdmins, status } = validatedSearchParams.data;
+  const { limit, offset, includeAdmins, status, category } =
+    validatedSearchParams.data;
   const profile = await getCurrentUserProfile();
 
   if (profile && profile.role !== "admin") {
@@ -37,10 +38,12 @@ export default async function Page({
     offset,
     includeAdmins,
     status,
+    category,
   });
   const aggregates = await fetchUsersAggregates({
     includeAdmins,
     status,
+    category,
   });
 
   return (

@@ -216,6 +216,7 @@ export async function updateProfilePicture(
 export async function fetchUsersAggregates(filters?: {
   includeAdmins?: boolean;
   status?: BaseProfile["status"][];
+  category?: UserCategory[];
 }): Promise<UsersAggregates> {
   let allowedRoles: BaseProfile["role"][] = ["admin", "festival_admin", "user"];
   let allowedStatuses: BaseProfile["status"][] = [
@@ -224,11 +225,19 @@ export async function fetchUsersAggregates(filters?: {
     "banned",
     "rejected",
   ];
+  let allowedCategories: UserCategory[] = [
+    "none",
+    "illustration",
+    "gastronomy",
+    "entrepreneurship",
+  ];
 
   if (filters) {
-    const { includeAdmins, status } = filters;
+    const { includeAdmins, status, category } = filters;
     allowedRoles = includeAdmins ? allowedRoles : ["user"];
     allowedStatuses = status && status.length > 0 ? status : allowedStatuses;
+    allowedCategories =
+      category && category.length > 0 ? category : allowedCategories;
   }
 
   try {
@@ -239,6 +248,7 @@ export async function fetchUsersAggregates(filters?: {
         and(
           inArray(users.role, allowedRoles),
           inArray(users.status, allowedStatuses),
+          inArray(users.category, allowedCategories),
         ),
       );
     return {
@@ -257,8 +267,9 @@ export async function fetchUserProfiles(filters: {
   offset?: number;
   includeAdmins?: boolean;
   status?: BaseProfile["status"][];
+  category?: UserCategory[];
 }): Promise<ProfileType[]> {
-  const { limit, offset, includeAdmins, status } = filters;
+  const { limit, offset, includeAdmins, status, category } = filters;
   const allowedRoles = includeAdmins
     ? ["admin", "festival_admin", "user"]
     : ["user"];
@@ -267,6 +278,12 @@ export async function fetchUserProfiles(filters: {
       ? status
       : ["pending", "verified", "banned", "rejected"]
   ) as BaseProfile["status"][];
+  const allowedCategories: UserCategory[] = category || [
+    "entrepreneurship",
+    "illustration",
+    "gastronomy",
+    "none",
+  ];
 
   try {
     return await db.query.users.findMany({
@@ -294,6 +311,7 @@ export async function fetchUserProfiles(filters: {
       where: and(
         inArray(users.role, allowedRoles as BaseProfile["role"][]),
         inArray(users.status, allowedStatuses as BaseProfile["status"][]),
+        inArray(users.category, allowedCategories),
       ),
       orderBy: desc(users.updatedAt),
     });
