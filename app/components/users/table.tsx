@@ -1,5 +1,6 @@
 import { ProfileType, UsersAggregates } from "@/app/api/users/definitions";
 import UsersTableComponent from "@/app/components/users/users-table";
+import UsersTableFilters from "@/app/components/users/users-table-filters";
 import UsersTablePagination from "@/app/components/users/users-table-pagination";
 
 type UsersTableProps = {
@@ -17,6 +18,7 @@ export default function UsersTable(props: UsersTableProps) {
 
   return (
     <>
+      <UsersTableFilters />
       <UsersTableComponent {...props} />
       <UsersTablePagination
         canNextPage={canNextPage}
