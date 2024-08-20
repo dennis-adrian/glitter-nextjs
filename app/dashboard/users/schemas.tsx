@@ -43,6 +43,7 @@ export const SearchParamsSchema = z.object({
     ])
     .default("updatedAt"),
   direction: z.enum(["asc", "desc"]).default("desc"),
+  profileCompletion: z.enum(["complete", "incomplete", "all"]).default("all"),
 });
 
 export type SearchParamsSchemaType = z.infer<typeof SearchParamsSchema>;

@@ -17,6 +17,7 @@ type UsersTableProps = {
   offset?: number;
   sort: keyof BaseProfile;
   direction: "asc" | "desc";
+  profileCompletion: "complete" | "incomplete" | "all";
 };
 export default async function UsersTable({
   limit = 10,
@@ -27,7 +28,9 @@ export default async function UsersTable({
   query,
   sort,
   direction,
+  profileCompletion,
 }: UsersTableProps) {
+  console.log("profile completion", profileCompletion);
   const users = await fetchUserProfiles({
     limit,
     offset,
@@ -37,6 +40,7 @@ export default async function UsersTable({
     query,
     sort,
     direction,
+    profileCompletion,
   });
   const aggregates = await fetchUsersAggregates({
     includeAdmins,

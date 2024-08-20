@@ -21,7 +21,7 @@ import {
   users,
   userSocials,
 } from "@/db/schema";
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNotNull, not, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function updateProfile(userId: number, profile: UpdateUser) {
@@ -220,12 +220,15 @@ export async function fetchUsersAggregates(filters?: {
   query?: string;
 }): Promise<UsersAggregates> {
   const { includeAdmins, status, category, query } = filters || {};
-  const whereClause = await buildWhereClauseForProfileFetching({
-    includeAdmins,
-    status,
-    category,
-    query,
-  });
+  const whereClause = await buildWhereClauseForProfileFetching(
+    {
+      includeAdmins,
+      status,
+      category,
+      query,
+    },
+    false,
+  );
 
   try {
     const rows = await db
@@ -252,6 +255,7 @@ export async function fetchUserProfiles(filters: {
   query?: string;
   sort: keyof BaseProfile;
   direction: "asc" | "desc";
+  profileCompletion: "complete" | "incomplete" | "all";
 }) {
   const {
     limit,
@@ -262,14 +266,19 @@ export async function fetchUserProfiles(filters: {
     query,
     sort,
     direction,
+    profileCompletion,
   } = filters;
 
-  const whereClause = await buildWhereClauseForProfileFetching({
-    includeAdmins,
-    status,
-    category,
-    query,
-  });
+  const whereClause = await buildWhereClauseForProfileFetching(
+    {
+      includeAdmins,
+      status,
+      category,
+      query,
+      profileCompletion,
+    },
+    true,
+  );
 
   const orderByDirection = direction === "asc" ? asc : desc;
 
