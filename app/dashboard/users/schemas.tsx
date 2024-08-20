@@ -1,3 +1,4 @@
+import { BaseProfile } from "@/app/api/users/definitions";
 import { userCategoryEnum, userStatusEnum } from "@/db/schema";
 import { z } from "zod";
 
@@ -31,6 +32,17 @@ export const SearchParamsSchema = z.object({
       return value;
     }),
   query: z.string().trim().default(""),
+  sort: z
+    .enum([
+      "displayName",
+      "category",
+      "status",
+      "verifiedAt",
+      "updatedAt",
+      "createdAt",
+    ])
+    .default("updatedAt"),
+  direction: z.enum(["asc", "desc"]).default("desc"),
 });
 
 export type SearchParamsSchemaType = z.infer<typeof SearchParamsSchema>;

@@ -21,8 +21,6 @@ export default async function Page({
   const validatedSearchParams = SearchParamsSchema.safeParse(searchParams);
   if (!validatedSearchParams.success) notFound();
 
-  const { limit, offset, includeAdmins, status, category, query } =
-    validatedSearchParams.data;
   const profile = await getCurrentUserProfile();
 
   if (profile && profile.role !== "admin") {
@@ -39,14 +37,7 @@ export default async function Page({
     <div className="container mx-auto min-h-full p-4 md:p-6">
       <h1 className="mb-2 text-2xl font-bold md:text-3xl">Usuarios</h1>
       <Suspense fallback={<UsersTableSkeleton />}>
-        <UsersTable
-          category={category}
-          includeAdmins={includeAdmins}
-          limit={limit || 10}
-          offset={offset || 0}
-          query={query}
-          status={status}
-        />
+        <UsersTable {...validatedSearchParams.data} />
       </Suspense>
     </div>
   );

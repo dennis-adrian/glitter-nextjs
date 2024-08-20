@@ -1,4 +1,5 @@
 import { ProfileType } from "@/app/api/users/definitions";
+import { Button } from "@/app/components/ui/button";
 import {
   Table,
   TableBody,
@@ -11,6 +12,7 @@ import ProfileCategoryBadge from "@/app/components/user_profile/category-badge";
 import { ActionsCell } from "@/app/components/users/cells/actions";
 import ProfileStatusCell from "@/app/components/users/cells/profile-status";
 import UserInfoCell from "@/app/components/users/cells/user-info";
+import { HeaderCell } from "@/app/components/users/header-cell";
 import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 
@@ -22,11 +24,16 @@ export default function UsersTableComponent(props: UsersTableProps) {
     <Table className="border">
       <TableHeader>
         <TableRow>
-          <TableHead>Perfil</TableHead>
-          <TableHead>Categoría</TableHead>
-          <TableHead>Estado del perfil</TableHead>
-          <TableHead>Fecha de verificación</TableHead>
-          <TableHead>Fecha de creación</TableHead>
+          <HeaderCell canSort value="displayName" label="Perfil" />
+          <HeaderCell canSort value="category" label="Categoría" />
+          <HeaderCell canSort value="status" label="Estado del perfil" />
+          <HeaderCell
+            canSort
+            value="verifiedAt"
+            label="Fecha de verificación"
+          />
+          <HeaderCell canSort value="createdAt" label="Fecha de creación" />
+          <HeaderCell canSort value="updatedAt" label="Última actualización" />
           <TableHead className="sticky right-0 z-20 bg-white shadow-inner"></TableHead>
         </TableRow>
       </TableHeader>
@@ -46,13 +53,18 @@ export default function UsersTableComponent(props: UsersTableProps) {
               <TableCell>
                 {user.verifiedAt
                   ? formatDate(user.verifiedAt).toLocaleString(
-                      DateTime.DATETIME_SHORT,
+                      DateTime.DATETIME_SHORT_WITH_SECONDS,
                     )
                   : "--"}
               </TableCell>
               <TableCell>
                 {formatDate(user.createdAt).toLocaleString(
-                  DateTime.DATETIME_SHORT,
+                  DateTime.DATETIME_SHORT_WITH_SECONDS,
+                )}
+              </TableCell>
+              <TableCell>
+                {formatDate(user.updatedAt).toLocaleString(
+                  DateTime.DATETIME_SHORT_WITH_SECONDS,
                 )}
               </TableCell>
               <TableCell className="sticky right-0 z-20 bg-white shadow-inner">

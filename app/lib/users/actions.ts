@@ -21,7 +21,7 @@ import {
   users,
   userSocials,
 } from "@/db/schema";
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function updateProfile(userId: number, profile: UpdateUser) {
@@ -244,14 +244,25 @@ export async function fetchUsersAggregates(filters?: {
 }
 
 export async function fetchUserProfiles(filters: {
-  limit?: number;
-  offset?: number;
+  limit: number;
+  offset: number;
   includeAdmins?: boolean;
   status?: BaseProfile["status"][];
   category?: UserCategory[];
   query?: string;
+  sort: keyof BaseProfile;
+  direction: "asc" | "desc";
 }) {
-  const { limit, offset, includeAdmins, status, category, query } = filters;
+  const {
+    limit,
+    offset,
+    includeAdmins,
+    status,
+    category,
+    query,
+    sort,
+    direction,
+  } = filters;
 
   const whereClause = await buildWhereClauseForProfileFetching({
     includeAdmins,
@@ -259,6 +270,8 @@ export async function fetchUserProfiles(filters: {
     category,
     query,
   });
+
+  const orderByDirection = direction === "asc" ? asc : desc;
 
   try {
     return await db.query.users.findMany({
@@ -284,7 +297,7 @@ export async function fetchUserProfiles(filters: {
       limit: limit || 100,
       offset: offset || 0,
       where: whereClause.queryChunks.length > 0 ? and(whereClause) : undefined,
-      orderBy: desc(users.updatedAt),
+      orderBy: orderByDirection(sql`${users[sort]}`),
     });
   } catch (error) {
     console.error("Error fetching user profiles", error);

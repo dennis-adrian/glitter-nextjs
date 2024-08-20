@@ -99,7 +99,7 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
                 <h4 className="text-lg">Dashboard</h4>
               </MobileSidebarItem>
               <div className="ml-4">
-                <MobileSidebarItem href="/dashboard/users?limit=10&offset=0&includeAdmins=false&status=pending">
+                <MobileSidebarItem href="/dashboard/users?limit=10&offset=0&includeAdmins=false&status=pending&sort=updatedAt&direction=desc">
                   <UsersIcon className="mr-2 h-6 w-6" />
                   Usuarios
                 </MobileSidebarItem>

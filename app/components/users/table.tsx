@@ -13,16 +13,20 @@ type UsersTableProps = {
   category?: UserCategory[];
   query?: string;
   columnVisbility?: Record<string, boolean>;
-  limit: number;
-  offset: number;
+  limit?: number;
+  offset?: number;
+  sort: keyof BaseProfile;
+  direction: "asc" | "desc";
 };
 export default async function UsersTable({
-  limit,
-  offset,
+  limit = 10,
+  offset = 0,
   status,
   includeAdmins,
   category,
   query,
+  sort,
+  direction,
 }: UsersTableProps) {
   const users = await fetchUserProfiles({
     limit,
@@ -31,6 +35,8 @@ export default async function UsersTable({
     status,
     category,
     query,
+    sort,
+    direction,
   });
   const aggregates = await fetchUsersAggregates({
     includeAdmins,
