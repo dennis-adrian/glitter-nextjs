@@ -44,12 +44,18 @@ export default function UsersTablePagination(props: UsersTablePaginationProps) {
     router.push(`?${currentSearchParams.toString()}`);
   };
 
+  if (props.pageCount === 0) return null;
+
   return (
     <div className="flex gap-2 my-4 items-center justify-between">
-      <span className="text-muted-foreground text-sm">
-        Mostrando {props.rowCount} de {props.total}
+      <span className="flex gap-1 text-muted-foreground text-sm">
+        <span className="hidden sm:block">Mostrando </span>
+        {props.rowCount} de {props.total}
       </span>
       <div className="flex items-center gap-2">
+        <span className="hidden md:block text-muted-foreground text-sm">
+          Filas por página
+        </span>
         <div className="w-fit">
           <Select value={props.pageSize} onValueChange={handlePageSizeChange}>
             <SelectTrigger>
@@ -64,45 +70,48 @@ export default function UsersTablePagination(props: UsersTablePaginationProps) {
             </SelectContent>
           </Select>
         </div>
-        <span className="text-muted-foreground text-sm">
-          Página {props.pageIndex} de {props.pageCount}
-        </span>
-        <Button
-          disabled={!props.canPreviousPage}
-          variant="outline"
-          size="icon"
-          onClick={() => handlePageIndexChange(1)}
-        >
-          <span className="sr-only">Ir a la primera página</span>
-          <ChevronsLeftIcon className="w-4 h-4" />
-        </Button>
-        <Button
-          disabled={!props.canPreviousPage}
-          variant="outline"
-          size="icon"
-          onClick={() => handlePageIndexChange(props.pageIndex - 1)}
-        >
-          <span className="sr-only">Ir a la página anterior</span>
-          <ChevronLeftIcon className="w-4 h-4" />
-        </Button>
-        <Button
-          disabled={!props.canNextPage}
-          variant="outline"
-          size="icon"
-          onClick={() => handlePageIndexChange(props.pageIndex + 1)}
-        >
-          <span className="sr-only">Ir a la siguiente página</span>
-          <ChevronRightIcon className="w-4 h-4" />
-        </Button>
-        <Button
-          disabled={!props.canNextPage}
-          variant="outline"
-          size="icon"
-          onClick={() => handlePageIndexChange(props.pageCount)}
-        >
-          <span className="sr-only">Ir al final</span>
-          <ChevronsRightIcon className="w-4 h-4" />
-        </Button>
+        <div className="flex gap-1 items-center">
+          <span className="flex gap-1 text-muted-foreground text-sm">
+            <span className="hidden sm:block">Página</span>
+            {props.pageIndex} de {props.pageCount}
+          </span>
+          <Button
+            disabled={!props.canPreviousPage}
+            variant="outline"
+            size="icon"
+            onClick={() => handlePageIndexChange(1)}
+          >
+            <span className="sr-only">Ir a la primera página</span>
+            <ChevronsLeftIcon className="w-4 h-4" />
+          </Button>
+          <Button
+            disabled={!props.canPreviousPage}
+            variant="outline"
+            size="icon"
+            onClick={() => handlePageIndexChange(props.pageIndex - 1)}
+          >
+            <span className="sr-only">Ir a la página anterior</span>
+            <ChevronLeftIcon className="w-4 h-4" />
+          </Button>
+          <Button
+            disabled={!props.canNextPage}
+            variant="outline"
+            size="icon"
+            onClick={() => handlePageIndexChange(props.pageIndex + 1)}
+          >
+            <span className="sr-only">Ir a la siguiente página</span>
+            <ChevronRightIcon className="w-4 h-4" />
+          </Button>
+          <Button
+            disabled={!props.canNextPage}
+            variant="outline"
+            size="icon"
+            onClick={() => handlePageIndexChange(props.pageCount)}
+          >
+            <span className="sr-only">Ir al final</span>
+            <ChevronsRightIcon className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );

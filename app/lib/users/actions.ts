@@ -218,14 +218,17 @@ export async function fetchUsersAggregates(filters?: {
   status?: BaseProfile["status"][];
   category?: UserCategory[];
   query?: string;
+  profileCompletion?: "complete" | "incomplete" | "all";
 }): Promise<UsersAggregates> {
-  const { includeAdmins, status, category, query } = filters || {};
+  const { includeAdmins, status, category, query, profileCompletion } =
+    filters || {};
   const whereClause = await buildWhereClauseForProfileFetching(
     {
       includeAdmins,
       status,
       category,
       query,
+      profileCompletion,
     },
     false,
   );

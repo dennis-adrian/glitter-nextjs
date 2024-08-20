@@ -47,6 +47,7 @@ export default async function UsersTable({
     status,
     category,
     query,
+    profileCompletion,
   });
 
   const canNextPage = offset + limit < aggregates.total;

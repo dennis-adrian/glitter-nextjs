@@ -67,7 +67,7 @@ export function ComboboxPopover(props: ComboboxPopoverProps) {
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="p-0" side="right" align="start">
+        <PopoverContent className="p-0 w-[200px]" align="start">
           <Command>
             <CommandInput placeholder="Buscar..." />
             <CommandList>
@@ -82,7 +82,7 @@ export function ComboboxPopover(props: ComboboxPopoverProps) {
                     {option.icon && (
                       <option.icon
                         className={cn(
-                          "mr-2 h-4 w-4",
+                          "mr-2 h-4",
                           option.value === selected
                             ? "opacity-100"
                             : "opacity-40",

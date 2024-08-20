@@ -2,10 +2,6 @@ import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 import UsersTable from "@/app/components/users/table";
 import {
-  fetchUserProfiles,
-  fetchUsersAggregates,
-} from "@/app/lib/users/actions";
-import {
   SearchParamsSchema,
   SearchParamsSchemaType,
 } from "@/app/dashboard/users/schemas";

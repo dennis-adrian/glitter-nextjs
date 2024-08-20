@@ -45,8 +45,6 @@ export default function UsersTableFilters() {
     replace(`?${currentSearchParams.toString()}`);
   };
 
-  console.log("profile completion", profileCompletion);
-
   return (
     <div className="flex flex-wrap items-center gap-2 my-4">
       <Search placeholder="Buscar..." />

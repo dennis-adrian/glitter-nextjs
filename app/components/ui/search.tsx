@@ -22,7 +22,7 @@ export default function Search({ placeholder }: { placeholder: string }) {
   }, 300);
 
   return (
-    <div className="relative flex flex-1 flex-shrink-0 max-w-96">
+    <div className="relative flex w-full md:max-w-96">
       <label htmlFor="search" className="sr-only">
         Buscar
       </label>

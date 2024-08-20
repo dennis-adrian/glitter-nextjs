@@ -107,6 +107,7 @@ export async function buildWhereClauseForProfileFetching(
       );
     }
   } else {
+    console.log("profileCompletion", profileCompletion);
     if (profileCompletion === "complete") {
       buildWhereClause(
         conditions,
@@ -115,7 +116,7 @@ export async function buildWhereClauseForProfileFetching(
         where profile_subcategories.id is not null) > 0
         and (select count(*) from users as inner_users
         left join user_socials on user_socials.user_id = users.id
-        where (user_socials.username = '') is false) > 0)`,
+        where (user_socials.username = '') is false) > 0`,
       );
     }
 
@@ -127,7 +128,7 @@ export async function buildWhereClauseForProfileFetching(
         where profile_subcategories.id is not null) = 0
         and (select count(*) from users as inner_users
         left join user_socials on user_socials.user_id = users.id
-        where (user_socials.username = '') is true) > 0)`,
+        where (user_socials.username = '') is true) > 0`,
       );
     }
   }
