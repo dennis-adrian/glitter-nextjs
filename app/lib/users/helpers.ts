@@ -112,7 +112,10 @@ export async function buildWhereClauseForProfileFetching(
         conditions,
         sql`(select count(*) from users as inner_users
         left join profile_subcategories on profile_subcategories.profile_id = users.id
-        where profile_subcategories.id is not null) > 0`,
+        where profile_subcategories.id is not null) > 0
+        and (select count(*) from users as inner_users
+        left join user_socials on user_socials.user_id = users.id
+        where (user_socials.username = '') is false) > 0)`,
       );
     }
 
@@ -121,7 +124,10 @@ export async function buildWhereClauseForProfileFetching(
         conditions,
         sql`(select count(*) from users as inner_users
         left join profile_subcategories on profile_subcategories.profile_id = users.id
-        where profile_subcategories.id is not null) = 0`,
+        where profile_subcategories.id is not null) = 0
+        and (select count(*) from users as inner_users
+        left join user_socials on user_socials.user_id = users.id
+        where (user_socials.username = '') is true) > 0)`,
       );
     }
   }
