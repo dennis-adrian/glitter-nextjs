@@ -106,6 +106,24 @@ export async function buildWhereClauseForProfileFetching(
       or json_array_length("users_profileSubcategories"."data") = 0)`,
       );
     }
+  } else {
+    if (profileCompletion === "complete") {
+      buildWhereClause(
+        conditions,
+        sql`(select count(*) from users as inner_users
+        left join profile_subcategories on profile_subcategories.profile_id = users.id
+        where profile_subcategories.id is not null) > 0`,
+      );
+    }
+
+    if (profileCompletion === "incomplete") {
+      buildWhereClause(
+        conditions,
+        sql`(select count(*) from users as inner_users
+        left join profile_subcategories on profile_subcategories.profile_id = users.id
+        where profile_subcategories.id is not null) = 0`,
+      );
+    }
   }
 
   return conditions;
