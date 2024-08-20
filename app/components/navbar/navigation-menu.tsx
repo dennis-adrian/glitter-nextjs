@@ -70,7 +70,7 @@ const NavbarNavigationMenu = ({
               <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
                 <NavigationMenuListItem
                   title="Usuarios"
-                  href="/dashboard/users?limit=10&offset=0&includeAdmins=false&status=pending&sort=updatedAt&direction=desc"
+                  href="/dashboard/users?limit=10&offset=0&includeAdmins=false&status=pending&sort=updatedAt&direction=desc&profileCompletion=complete"
                 >
                   Todas las cuentas creadas en Glitter
                 </NavigationMenuListItem>

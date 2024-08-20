@@ -1,6 +1,7 @@
 "use client";
 
-import { MultipleSelectCombobox } from "@/app/components/ui/combobox";
+import { ComboboxPopover } from "@/app/components/ui/combobox";
+import { MultipleSelectCombobox } from "@/app/components/ui/multiselect-combobox";
 import Search from "@/app/components/ui/search";
 import { IncludeAdminsFilter } from "@/app/components/users/filters/include-admins-filter";
 import { SearchParamsSchema } from "@/app/dashboard/users/schemas";
@@ -16,6 +17,7 @@ export default function UsersTableFilters() {
     status: searchParams.get("status") || "",
     category: searchParams.get("category") || "",
     query: searchParams.get("query") || "",
+    profileCompletion: searchParams.get("profileCompletion") || "",
   };
 
   const validatedSearchParams = SearchParamsSchema.safeParse(
@@ -24,7 +26,8 @@ export default function UsersTableFilters() {
 
   if (!validatedSearchParams.success) return null;
 
-  const { includeAdmins, status, category, query } = validatedSearchParams.data;
+  const { includeAdmins, status, category, profileCompletion } =
+    validatedSearchParams.data;
 
   const handleShowAdminsChange = (value: boolean) => {
     const currentSearchParams = new URLSearchParams(searchParams.toString());
@@ -42,9 +45,23 @@ export default function UsersTableFilters() {
     replace(`?${currentSearchParams.toString()}`);
   };
 
+  console.log("profile completion", profileCompletion);
+
   return (
     <div className="flex flex-wrap items-center gap-2 my-4">
       <Search placeholder="Buscar..." />
+      <ComboboxPopover
+        defaultValue={profileCompletion}
+        label={"Perfiles a mostrar"}
+        name="profileCompletion"
+        placeholder="Elige una opción"
+        options={[
+          { value: "incomplete", label: "Incompletos" },
+          { value: "complete", label: "Completos" },
+          { value: "all", label: "Todos" },
+        ]}
+        onSelect={handleFilterSelect}
+      />
       <MultipleSelectCombobox
         defaultValue={status}
         label="Estado"

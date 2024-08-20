@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckIcon, CirclePlusIcon } from "lucide-react";
+import { LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,114 +18,85 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Separator } from "@/app/components/ui/separator";
 
-type ComboboxOption = {
+type Status = {
   value: string;
   label: string;
+  icon?: LucideIcon;
 };
 
-type ComboboxProps = {
-  defaultValue?: string[];
+type ComboboxPopoverProps = {
+  defaultValue?: string;
   label: string;
+  placeholder: string;
   name: string;
-  options: ComboboxOption[];
-  onSelect?: (name: string, options: string[]) => void;
+  options: Status[];
+  onSelect?: (name: string, values: string[]) => void;
 };
-
-export function MultipleSelectCombobox(props: ComboboxProps) {
+export function ComboboxPopover(props: ComboboxPopoverProps) {
   const [open, setOpen] = React.useState(false);
-  const [selected, setSelected] = React.useState<ComboboxOption[]>(
-    props.options.filter((option) =>
-      props.defaultValue?.includes(option.value),
-    ),
+  const [selected, setSelected] = React.useState<string>(
+    props.defaultValue || "",
   );
 
-  const handleSelect = (value: string) => {
-    const option = props.options.find((option) => option.value === value);
-    if (!option) return;
+  let selectedOption;
+  if (selected)
+    selectedOption = props.options.find((option) => option.value === selected);
 
-    let newSelected = [];
-    if (selected.map((option) => option.value).includes(value)) {
-      newSelected = selected.filter((option) => option.value !== value);
-    } else {
-      newSelected = [...selected, option];
-    }
-    setSelected(newSelected);
-    if (props.onSelect)
-      props.onSelect(
-        props.name,
-        newSelected.map((option) => option.value),
-      );
+  const handleSelect = (value: string) => {
+    setSelected(value);
+    setOpen(false);
+    if (props.onSelect) props.onSelect(props.name, [value]);
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          className="border-dashed h-fit"
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-        >
-          <CirclePlusIcon className="h-4 w-4 mr-1" />
-          {props.label}
-          {selected.length > 0 && (
-            <>
-              <Separator
-                decorative
-                orientation="vertical"
-                className="mx-2 h-4"
-              />
-              <div className="flex gap-1 flex-wrap">
-                {selected.length > 2 ? (
-                  <span className="text-muted-foreground">
-                    {selected.length} seleccionados
-                  </span>
-                ) : (
-                  selected.map((option) => (
-                    <span
-                      key={option.value}
-                      className="text-sm font-normal bg-primary-50 py-1 px-2 rounded-md"
-                    >
-                      {option.label}
-                    </span>
-                  ))
+    <div className="flex items-center gap-2">
+      <p className="text-sm text-muted-foreground">{props.label}</p>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="">
+            {selectedOption ? (
+              <>
+                {selectedOption.icon && (
+                  <selectedOption.icon className="mr-1 h-4 w-4 shrink-0" />
                 )}
-              </div>
-            </>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0">
-        <Command>
-          <CommandInput placeholder="Buscar..." className="h-9" />
-          <CommandList>
-            <CommandEmpty>Sin resultados</CommandEmpty>
-            <CommandGroup>
-              {props.options.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  value={option.value}
-                  onSelect={(currentValue) => handleSelect(currentValue)}
-                >
-                  {option.label}
-                  <CheckIcon
-                    className={cn(
-                      "ml-auto h-4 w-4",
-                      selected
-                        .map((option) => option.value)
-                        .includes(option.value)
-                        ? "opacity-100"
-                        : "opacity-0",
+                {selectedOption.label}
+              </>
+            ) : (
+              <span>{props.placeholder}</span>
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="p-0" side="right" align="start">
+          <Command>
+            <CommandInput placeholder="Buscar..." />
+            <CommandList>
+              <CommandEmpty>No se encontraron resultados.</CommandEmpty>
+              <CommandGroup>
+                {props.options.map((option) => (
+                  <CommandItem
+                    key={option.value}
+                    value={option.value}
+                    onSelect={handleSelect}
+                  >
+                    {option.icon && (
+                      <option.icon
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          option.value === selected
+                            ? "opacity-100"
+                            : "opacity-40",
+                        )}
+                      />
                     )}
-                  />
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+                    <span>{option.label}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }
