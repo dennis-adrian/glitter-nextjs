@@ -30,12 +30,13 @@ export default async function UsersTable({
     includeAdmins,
     status,
     category,
-    query: query,
+    query,
   });
   const aggregates = await fetchUsersAggregates({
     includeAdmins,
     status,
     category,
+    query,
   });
 
   const canNextPage = offset + limit < aggregates.total;

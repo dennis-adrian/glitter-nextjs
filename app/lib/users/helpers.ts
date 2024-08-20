@@ -1,8 +1,11 @@
 "use server";
 
 import { fetchUserProfile } from "@/app/api/users/actions";
-import { BaseProfile } from "@/app/api/users/definitions";
+import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
+import { users } from "@/db/schema";
+import { buildWhereClause } from "@/db/utils";
 import { currentUser } from "@clerk/nextjs/server";
+import { sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 export async function getCurrentUserProfile() {
@@ -33,4 +36,34 @@ export async function protectRoute(
     currentUser.status === "verified";
 
   if (!canAccessResource) redirect("/my_profile");
+}
+
+export async function buildWhereClauseForProfileFetching({
+  includeAdmins,
+  status,
+  category,
+  query,
+}: {
+  includeAdmins?: boolean;
+  status?: BaseProfile["status"][];
+  category?: UserCategory[];
+  query?: string;
+}) {
+  const conditions = sql.empty();
+  if (!includeAdmins) buildWhereClause(conditions, sql`${users.role} = 'user'`);
+  if (status) buildWhereClause(conditions, sql`${users.status} in ${status}`);
+  if (category) {
+    buildWhereClause(conditions, sql`${users.category} in ${category}`);
+  }
+  if (query) {
+    buildWhereClause(
+      conditions,
+      sql`(${users.displayName} ilike ${`%${query}%`} OR ${
+        users.firstName
+      } ilike ${`%${query}%`} OR ${users.lastName} ilike ${`%${query}%`} OR ${
+        users.email
+      } ilike ${`%${query}%`} OR ${users.phoneNumber} ilike ${`%${query}%`})`,
+    );
+  }
+  return conditions;
 }

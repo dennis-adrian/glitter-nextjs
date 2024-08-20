@@ -3,7 +3,6 @@
 import { fetchAdminUsers, fetchUserProfileById } from "@/app/api/users/actions";
 import {
   BaseProfile,
-  ProfileType,
   UpdateUser,
   UserCategory,
   UsersAggregates,
@@ -11,6 +10,7 @@ import {
 } from "@/app/api/users/definitions";
 import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
 import SubcategoryUpdateEmailTemplate from "@/app/emails/subcategory-update";
+import { buildWhereClauseForProfileFetching } from "@/app/lib/users/helpers";
 import { isProfileComplete } from "@/app/lib/utils";
 import { utapi } from "@/app/server/uploadthing";
 import { sendEmail } from "@/app/vendors/resend";
@@ -21,7 +21,7 @@ import {
   users,
   userSocials,
 } from "@/db/schema";
-import { and, count, desc, eq, ilike, inArray, or } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function updateProfile(userId: number, profile: UpdateUser) {
@@ -217,40 +217,21 @@ export async function fetchUsersAggregates(filters?: {
   includeAdmins?: boolean;
   status?: BaseProfile["status"][];
   category?: UserCategory[];
+  query?: string;
 }): Promise<UsersAggregates> {
-  let allowedRoles: BaseProfile["role"][] = ["admin", "festival_admin", "user"];
-  let allowedStatuses: BaseProfile["status"][] = [
-    "pending",
-    "verified",
-    "banned",
-    "rejected",
-  ];
-  let allowedCategories: UserCategory[] = [
-    "none",
-    "illustration",
-    "gastronomy",
-    "entrepreneurship",
-  ];
-
-  if (filters) {
-    const { includeAdmins, status, category } = filters;
-    allowedRoles = includeAdmins ? allowedRoles : ["user"];
-    allowedStatuses = status && status.length > 0 ? status : allowedStatuses;
-    allowedCategories =
-      category && category.length > 0 ? category : allowedCategories;
-  }
+  const { includeAdmins, status, category, query } = filters || {};
+  const whereClause = await buildWhereClauseForProfileFetching({
+    includeAdmins,
+    status,
+    category,
+    query,
+  });
 
   try {
     const rows = await db
       .select({ total: count() })
       .from(users)
-      .where(
-        and(
-          inArray(users.role, allowedRoles),
-          inArray(users.status, allowedStatuses),
-          inArray(users.category, allowedCategories),
-        ),
-      );
+      .where(whereClause.queryChunks.length > 0 ? and(whereClause) : undefined);
     return {
       total: rows[0].total,
     };
@@ -269,22 +250,15 @@ export async function fetchUserProfiles(filters: {
   status?: BaseProfile["status"][];
   category?: UserCategory[];
   query?: string;
-}): Promise<ProfileType[]> {
+}) {
   const { limit, offset, includeAdmins, status, category, query } = filters;
-  const allowedRoles = includeAdmins
-    ? ["admin", "festival_admin", "user"]
-    : ["user"];
-  const allowedStatuses = (
-    status && status.length > 0
-      ? status
-      : ["pending", "verified", "banned", "rejected"]
-  ) as BaseProfile["status"][];
-  const allowedCategories: UserCategory[] = category || [
-    "entrepreneurship",
-    "illustration",
-    "gastronomy",
-    "none",
-  ];
+
+  const whereClause = await buildWhereClauseForProfileFetching({
+    includeAdmins,
+    status,
+    category,
+    query,
+  });
 
   try {
     return await db.query.users.findMany({
@@ -309,18 +283,7 @@ export async function fetchUserProfiles(filters: {
       },
       limit: limit || 100,
       offset: offset || 0,
-      where: and(
-        inArray(users.role, allowedRoles as BaseProfile["role"][]),
-        inArray(users.status, allowedStatuses as BaseProfile["status"][]),
-        inArray(users.category, allowedCategories),
-        or(
-          ilike(users.displayName, "%" + query + "%"),
-          ilike(users.firstName, "%" + query + "%"),
-          ilike(users.lastName, "%" + query + "%"),
-          ilike(users.email, "%" + query + "%"),
-          ilike(users.phoneNumber, "%" + query + "%"),
-        ),
-      ),
+      where: whereClause.queryChunks.length > 0 ? and(whereClause) : undefined,
       orderBy: desc(users.updatedAt),
     });
   } catch (error) {
