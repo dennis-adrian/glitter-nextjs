@@ -5,10 +5,12 @@ import {
   BaseProfile,
   UpdateUser,
   UserCategory,
+  UsersAggregates,
   UserSocial,
 } from "@/app/api/users/definitions";
 import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
 import SubcategoryUpdateEmailTemplate from "@/app/emails/subcategory-update";
+import { buildWhereClauseForProfileFetching } from "@/app/lib/users/helpers";
 import { isProfileComplete } from "@/app/lib/utils";
 import { utapi } from "@/app/server/uploadthing";
 import { sendEmail } from "@/app/vendors/resend";
@@ -19,7 +21,7 @@ import {
   users,
   userSocials,
 } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNotNull, not, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function updateProfile(userId: number, profile: UpdateUser) {
@@ -209,4 +211,105 @@ export async function updateProfilePicture(
     success: true,
     message: "Imagen de perfil actualizada correctamente",
   };
+}
+
+export async function fetchUsersAggregates(filters?: {
+  includeAdmins?: boolean;
+  status?: BaseProfile["status"][];
+  category?: UserCategory[];
+  query?: string;
+}): Promise<UsersAggregates> {
+  const { includeAdmins, status, category, query } = filters || {};
+  const whereClause = await buildWhereClauseForProfileFetching(
+    {
+      includeAdmins,
+      status,
+      category,
+      query,
+    },
+    false,
+  );
+
+  try {
+    const rows = await db
+      .select({ total: count() })
+      .from(users)
+      .where(whereClause.queryChunks.length > 0 ? and(whereClause) : undefined);
+    return {
+      total: rows[0].total,
+    };
+  } catch (error) {
+    console.error("Error fetching users aggregates", error);
+    return {
+      total: 0,
+    };
+  }
+}
+
+export async function fetchUserProfiles(filters: {
+  limit: number;
+  offset: number;
+  includeAdmins?: boolean;
+  status?: BaseProfile["status"][];
+  category?: UserCategory[];
+  query?: string;
+  sort: keyof BaseProfile;
+  direction: "asc" | "desc";
+  profileCompletion: "complete" | "incomplete" | "all";
+}) {
+  const {
+    limit,
+    offset,
+    includeAdmins,
+    status,
+    category,
+    query,
+    sort,
+    direction,
+    profileCompletion,
+  } = filters;
+
+  const whereClause = await buildWhereClauseForProfileFetching(
+    {
+      includeAdmins,
+      status,
+      category,
+      query,
+      profileCompletion,
+    },
+    true,
+  );
+
+  const orderByDirection = direction === "asc" ? asc : desc;
+
+  try {
+    return await db.query.users.findMany({
+      with: {
+        userRequests: true,
+        userSocials: true,
+        participations: {
+          with: {
+            reservation: true,
+          },
+        },
+        profileTags: {
+          with: {
+            tag: true,
+          },
+        },
+        profileSubcategories: {
+          with: {
+            subcategory: true,
+          },
+        },
+      },
+      limit: limit || 100,
+      offset: offset || 0,
+      where: whereClause.queryChunks.length > 0 ? and(whereClause) : undefined,
+      orderBy: orderByDirection(sql`${users[sort]}`),
+    });
+  } catch (error) {
+    console.error("Error fetching user profiles", error);
+    return [];
+  }
 }

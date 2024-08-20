@@ -4,6 +4,7 @@ import {
   faInstagram,
   faTiktok,
   faTwitter,
+  faWhatsapp,
   faYoutube,
 } from "@fortawesome/free-brands-svg-icons";
 
@@ -33,6 +34,7 @@ export const socialsUrls = {
   facebook: "https://www.facebook.com/",
   twitter: "https://www.twitter.com/",
   youtube: "https://www.youtube.com/",
+  whatsapp: "https://wa.me/591",
 };
 
 export const socialsIcons = {
@@ -41,6 +43,7 @@ export const socialsIcons = {
   facebook: faFacebook,
   twitter: faTwitter,
   youtube: faYoutube,
+  whatsapp: faWhatsapp,
 };
 
 export const usernameRegex = new RegExp(/^[a-zA-Z0-9_.-]+$/);

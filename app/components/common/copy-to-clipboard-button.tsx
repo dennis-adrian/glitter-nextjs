@@ -2,28 +2,27 @@
 
 import { Button } from "@/app/components/ui/button";
 import { cn } from "@/app/lib/utils";
-import {
-  CheckIcon,
-  ClipboardCheckIcon,
-  ClipboardIcon,
-  CopyIcon,
-} from "lucide-react";
+import { CheckIcon, CopyCheckIcon, CopyIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 export default function CopyToClipboardButton({
   className,
   text,
   label,
+  iconOnly = false,
 }: {
   className?: string;
   text: string;
   label?: string;
+  iconOnly?: boolean;
 } & React.HTMLAttributes<HTMLButtonElement>) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (copied) {
       navigator.clipboard.writeText(text);
+      toast(`"${text}" copiado al portapapeles`);
       const timeout = setTimeout(() => {
         setCopied(false);
       }, 2000);
@@ -31,6 +30,18 @@ export default function CopyToClipboardButton({
       return () => clearTimeout(timeout);
     }
   }, [copied]);
+
+  if (iconOnly) {
+    return copied ? (
+      <>
+        <CopyCheckIcon className="w-4 h-4 ml-2" />
+      </>
+    ) : (
+      <span onClick={() => setCopied(true)}>
+        <CopyIcon className="w-4 h-4 ml-2" />
+      </span>
+    );
+  }
 
   return (
     <Button

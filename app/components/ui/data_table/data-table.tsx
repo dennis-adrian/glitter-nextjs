@@ -29,6 +29,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { DataTableHeader } from "@/app/components/ui/data_table/data-table-header";
+import { DataTableBody } from "@/app/components/ui/data_table/data-table-body";
 
 interface DataTableFiltersProps {
   label?: string;
@@ -118,66 +120,8 @@ export function DataTable<TData, TValue>({
       </div>
       <div className="mb-4 rounded-md border">
         <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead
-                      key={header.id}
-                      className={
-                        header.column.getIsPinned()
-                          ? "sticky right-0 z-20 bg-white shadow-inner"
-                          : ""
-                      }
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                    </TableHead>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={
-                        cell.column.getIsPinned()
-                          ? "sticky right-0 z-20 bg-white shadow-inner"
-                          : ""
-                      }
-                    >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  Sin resultados.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
+          <DataTableHeader table={table} />
+          <DataTableBody table={table} columns={columns} />
         </Table>
       </div>
       <DataTablePagination table={table} />

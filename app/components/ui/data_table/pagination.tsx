@@ -1,9 +1,3 @@
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  ChevronsLeftIcon,
-  ChevronsRightIcon,
-} from "lucide-react";
 import { Table } from "@tanstack/react-table";
 
 import { Button } from "@/components/ui/button";
@@ -14,6 +8,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronsLeftIcon,
+  ChevronsRightIcon,
+} from "lucide-react";
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
@@ -22,6 +23,15 @@ interface DataTablePaginationProps<TData> {
 export function DataTablePagination<TData>({
   table,
 }: DataTablePaginationProps<TData>) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const handleLimitChange = (value: string) => {
+    const currentSearchParams = new URLSearchParams(searchParams.toString());
+    currentSearchParams.set("limit", value);
+    router.push(`?${currentSearchParams.toString()}`);
+  };
+
   return (
     <div className="flex items-center justify-between px-2">
       <div className="flex-1 hidden sm:block text-sm text-muted-foreground">
@@ -33,15 +43,13 @@ export function DataTablePagination<TData>({
           <p className="text-sm font-medium">Filas por página</p>
           <Select
             value={`${table.getState().pagination.pageSize}`}
-            onValueChange={(value) => {
-              table.setPageSize(Number(value));
-            }}
+            onValueChange={handleLimitChange}
           >
             <SelectTrigger className="h-8 w-[70px]">
               <SelectValue placeholder={table.getState().pagination.pageSize} />
             </SelectTrigger>
             <SelectContent side="top">
-              {[10, 20, 30, 40, 50, 100, 200].map((pageSize) => (
+              {[10, 25, 50, 100, 200, 500].map((pageSize) => (
                 <SelectItem key={pageSize} value={`${pageSize}`}>
                   {pageSize}
                 </SelectItem>
