@@ -1,10 +1,10 @@
 "use client";
 
 import {
-  BanIcon,
   FilePenLineIcon,
   MoreHorizontalIcon,
   Trash2Icon,
+  XCircleIcon,
 } from "lucide-react";
 
 import { ReservationWithParticipantsAndUsersAndStandAndFestival } from "@/app/api/reservations/definitions";
@@ -57,7 +57,7 @@ export function ActionsCell({
             disabled={reservation.status !== "pending"}
             onClick={() => setOpenRejectModal(true)}
           >
-            <BanIcon className="h-4 w-4 mr-1" />
+            <XCircleIcon className="h-4 w-4 mr-1" />
             Rechazar
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setOpenDeleteModal(true)}>

@@ -229,7 +229,7 @@ export async function confirmReservation(
 
 export async function rejectReservation(
   reservation: ReservationWithParticipantsAndUsersAndStandAndFestival,
-  reason: string,
+  reason?: string,
 ) {
   try {
     await db.transaction(async (tx) => {
@@ -264,5 +264,5 @@ export async function rejectReservation(
   }
 
   revalidatePath("/dashboard/reservations");
-  return { success: true, message: "Reserva rechazado correctamente" };
+  return { success: true, message: "Reserva rechazada correctamente" };
 }

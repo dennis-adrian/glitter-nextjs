@@ -7,6 +7,13 @@ import { useForm } from "react-hook-form";
 import { Form } from "@/app/components/ui/form";
 import SubmitButton from "@/app/components/simple-submit-button";
 import TextareaInput from "@/app/components/form/fields/textarea";
+import { toast } from "sonner";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+const FormSchema = z.object({
+  reason: z.string().trim().optional(),
+});
 
 export function RejectReservationForm({
   reservation,
@@ -15,16 +22,21 @@ export function RejectReservationForm({
   reservation: ReservationWithParticipantsAndUsersAndStandAndFestival;
   onSuccess: () => void;
 }) {
-  const form = useForm();
+  const form = useForm<z.infer<typeof FormSchema>>({
+    resolver: zodResolver(FormSchema),
+    defaultValues: {
+      reason: "",
+    },
+  });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    const res = await rejectReservation(reservation, "");
-    // if (res.success) {
-    //   toast.success(res.message);
-    //   onSuccess();
-    // } else {
-    //   toast.error(res.message);
-    // }
+    const res = await rejectReservation(reservation, data.reason);
+    if (res.success) {
+      toast.success(res.message);
+      onSuccess();
+    } else {
+      toast.error(res.message);
+    }
   });
 
   return (
@@ -32,7 +44,7 @@ export function RejectReservationForm({
       <form className="flex flex-col gap-4 w-full" onSubmit={action}>
         <TextareaInput
           formControl={form.control}
-          label="Razón de rechazo"
+          label="Razón de rechazo (opcional)"
           name="reason"
           placeholder="Ingresa una razón para rechazar la reserva"
           maxLength={1000}

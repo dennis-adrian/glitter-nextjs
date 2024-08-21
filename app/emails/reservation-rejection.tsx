@@ -19,7 +19,7 @@ type ProfileRejectionEmailTemplateProps = {
   profile: BaseProfile;
   stand: StandBase;
   festival: FestivalBase;
-  reason: string;
+  reason?: string;
 };
 
 export default function ReservationRejectionEmailTemplate(
@@ -46,10 +46,14 @@ export default function ReservationRejectionEmailTemplate(
               en el festival <strong>{props.festival.name}</strong> ha sido
               eliminada.
             </Text>
-            <Text style={styles.text}>
-              La razón te la describimos acontinuación:
-            </Text>
-            <Text style={styles.standoutText}>{props.reason}</Text>
+            {props.reason ? (
+              <>
+                <Text style={styles.text}>
+                  La razón te la describimos acontinuación:
+                </Text>
+                <Text style={styles.standoutText}>{props.reason}</Text>
+              </>
+            ) : null}
           </Section>
         </Container>
         <EmailFooter />

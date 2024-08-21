@@ -50,7 +50,7 @@ export function RejectReservationModal({
           />
         </div>
         <DialogFooter>
-          <DialogClose>
+          <DialogClose asChild>
             <Button className="w-full" variant="outline">
               Cancelar
             </Button>

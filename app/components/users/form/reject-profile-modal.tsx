@@ -54,7 +54,7 @@ export function RejectProfileModal({
         </div>
         {isDesktop ? null : (
           <DialogFooter className="pt-2">
-            <DialogClose>
+            <DialogClose asChild>
               <Button variant="outline">Cancelar</Button>
             </DialogClose>
           </DialogFooter>
