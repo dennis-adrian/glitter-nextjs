@@ -38,7 +38,7 @@ export function RejectProfileModal({
             <AlertCircleIcon size={48} className="text-amber-500" />
             <div className="flex flex-col gap-2">
               <p>
-                ¿Estás seguro que deseas rechazar el perifl de{" "}
+                ¿Estás seguro que deseas rechazar el perfil de{" "}
                 <strong>{userLabel}</strong>?
               </p>
               <p>

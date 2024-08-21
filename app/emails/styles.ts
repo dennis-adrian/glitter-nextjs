@@ -75,7 +75,8 @@ export const footerText = {
 };
 
 export const standoutText = {
-  padding: "24px",
+  padding: "16px",
   backgroundColor: "#f2f3f3",
   borderRadius: "4px",
+  textAlign: "left" as const,
 };

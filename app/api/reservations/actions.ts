@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db, pool } from "@/db";
@@ -16,6 +16,8 @@ import {
   ReservationWithParticipantsAndUsersAndStandAndFestival,
 } from "@/app/api/reservations/definitions";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
+import ReservationRejectionEmailTemplate from "@/app/emails/reservation-rejection";
+import { getUserName } from "@/app/lib/users/utils";
 
 export async function fetchReservations(): Promise<
   ReservationWithParticipantsAndUsersAndStandAndFestival[]
@@ -223,4 +225,44 @@ export async function confirmReservation(
 
   revalidatePath("/dashboard/payments");
   return { success: true, message: "Reserva confirmada" };
+}
+
+export async function rejectReservation(
+  reservation: ReservationWithParticipantsAndUsersAndStandAndFestival,
+  reason: string,
+) {
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(standReservations)
+        .set({ status: "rejected", updatedAt: sql`now()` })
+        .where(eq(standReservations.id, reservation.id));
+
+      await tx
+        .update(stands)
+        .set({ status: "available" })
+        .where(eq(stands.id, reservation.standId));
+    });
+
+    reservation.participants.forEach((participant) => {
+      const userName = getUserName(participant.user);
+      sendEmail({
+        to: [participant.user.email],
+        from: "Equipo Glitter <equipo@productoraglitter.com>",
+        subject: `${userName}, tu reserva ha sido eliminada`,
+        react: ReservationRejectionEmailTemplate({
+          festival: reservation.festival,
+          profile: participant.user,
+          stand: reservation.stand,
+          reason,
+        }),
+      });
+    });
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al rechazar la reserva" };
+  }
+
+  revalidatePath("/dashboard/reservations");
+  return { success: true, message: "Reserva rechazado correctamente" };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  CreditCardIcon,
+  BanIcon,
   FilePenLineIcon,
   MoreHorizontalIcon,
   Trash2Icon,
@@ -15,12 +15,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 import { DeleteReservationModal } from "@/app/components/reservations/form/delete-modal";
 import { useState } from "react";
+import { RejectReservationModal } from "@/app/components/reservations/form/reject-modal";
 
 export function ActionsCell({
   reservation,
@@ -28,6 +28,7 @@ export function ActionsCell({
   reservation: ReservationWithParticipantsAndUsersAndStandAndFestival;
 }) {
   const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [openRejectModal, setOpenRejectModal] = useState(false);
 
   return (
     <>
@@ -40,7 +41,6 @@ export function ActionsCell({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-          <DropdownMenuSeparator />
           {/* <DropdownMenuItem asChild>
             <Link href={`/dashboard/reservations/${reservation.id}/payments`}>
               <CreditCardIcon className="h-4 w-4 mr-1" />
@@ -53,6 +53,13 @@ export function ActionsCell({
               Editar
             </Link>
           </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={reservation.status !== "pending"}
+            onClick={() => setOpenRejectModal(true)}
+          >
+            <BanIcon className="h-4 w-4 mr-1" />
+            Rechazar
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setOpenDeleteModal(true)}>
             <Trash2Icon className="h-4 w-4 mr-1" />
             Eliminar
@@ -63,6 +70,11 @@ export function ActionsCell({
         open={openDeleteModal}
         reservation={reservation}
         setOpen={setOpenDeleteModal}
+      />
+      <RejectReservationModal
+        open={openRejectModal}
+        reservation={reservation}
+        setOpen={setOpenRejectModal}
       />
     </>
   );
