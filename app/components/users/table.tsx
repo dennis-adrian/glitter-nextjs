@@ -1,11 +1,8 @@
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import UsersTableComponent from "@/app/components/users/users-table";
 import UsersTableFilters from "@/app/components/users/filters/users-table-filters";
-import UsersTablePagination from "@/app/components/users/users-table-pagination";
-import {
-  fetchUserProfiles,
-  fetchUsersAggregates,
-} from "@/app/lib/users/actions";
+import { Suspense } from "react";
+import TableSkeleton from "@/app/components/users/skeletons/table";
 
 type UsersTableProps = {
   includeAdmins?: boolean;
@@ -19,54 +16,13 @@ type UsersTableProps = {
   direction: "asc" | "desc";
   profileCompletion: "complete" | "incomplete" | "all";
 };
-export default async function UsersTable({
-  limit = 10,
-  offset = 0,
-  status,
-  includeAdmins,
-  category,
-  query,
-  sort,
-  direction,
-  profileCompletion,
-}: UsersTableProps) {
-  console.log("profile completion", profileCompletion);
-  const users = await fetchUserProfiles({
-    limit,
-    offset,
-    includeAdmins,
-    status,
-    category,
-    query,
-    sort,
-    direction,
-    profileCompletion,
-  });
-  const aggregates = await fetchUsersAggregates({
-    includeAdmins,
-    status,
-    category,
-    query,
-    profileCompletion,
-  });
-
-  const canNextPage = offset + limit < aggregates.total;
-  const canPreviousPage = offset > 0;
-  const pageCount = Math.ceil(aggregates.total / limit);
-
+export default async function UsersTable(props: UsersTableProps) {
   return (
     <>
       <UsersTableFilters />
-      <UsersTableComponent users={users} />
-      <UsersTablePagination
-        canNextPage={canNextPage}
-        canPreviousPage={canPreviousPage}
-        pageIndex={Math.floor(offset / limit) + 1}
-        pageCount={pageCount}
-        pageSize={limit.toString()}
-        rowCount={users.length || 0}
-        total={aggregates.total || 0}
-      />
+      <Suspense fallback={<TableSkeleton />}>
+        <UsersTableComponent {...props} />
+      </Suspense>
     </>
   );
 }

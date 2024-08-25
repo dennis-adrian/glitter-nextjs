@@ -6,8 +6,6 @@ import {
   SearchParamsSchemaType,
 } from "@/app/dashboard/users/schemas";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
-import UsersTableSkeleton from "@/app/components/users/table-skeleton";
 
 export default async function Page({
   searchParams,
@@ -30,11 +28,12 @@ export default async function Page({
   }
 
   return (
-    <div className="container mx-auto min-h-full p-4 md:p-6">
+    <div
+      className="container mx-auto min-h-full p-4 md:p-6"
+      key={Math.random()} // This is to force the component to re-render and show the skeleton
+    >
       <h1 className="mb-2 text-2xl font-bold md:text-3xl">Usuarios</h1>
-      <Suspense fallback={<UsersTableSkeleton />}>
-        <UsersTable {...validatedSearchParams.data} />
-      </Suspense>
+      <UsersTable {...validatedSearchParams.data} />
     </div>
   );
 }
