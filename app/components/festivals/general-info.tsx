@@ -53,13 +53,14 @@ export default function GeneralInfo(props: GeneralInfoProps) {
               </Link>
             </p>
           </span>
-          <Image
-            className="mx-auto my-4"
-            alt="mapa del evento"
-            height={545}
-            src={props.festival.generalMapUrl}
-            width={300}
-          />
+          <div className="relative h-40 md:h-[500px] w-full mx-auto my-4">
+            <Image
+              className="object-contain"
+              alt="mapa del evento"
+              src={props.festival.generalMapUrl}
+              fill
+            />
+          </div>
         </div>
       )}
     </div>
