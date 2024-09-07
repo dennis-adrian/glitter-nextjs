@@ -469,6 +469,7 @@ export const tickets = pgTable("tickets", {
   isEventDayCreation: boolean("is_event_day_creation").default(false).notNull(),
   festivalId: integer("festival_id").notNull(),
   numberOfVisitors: integer("number_of_visitors").default(1).notNull(),
+  ticketNumber: integer("ticket_number"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import {
@@ -43,10 +43,22 @@ export async function createTicket(data: {
         });
       }
 
+      const rowsToLock = await tx
+        .select()
+        .from(tickets)
+        .where(eq(tickets.festivalId, festivalId))
+        .for("update");
+
+      const maxTicketNumber =
+        rowsToLock.length > 0
+          ? Math.max(...rowsToLock.map((row) => row.ticketNumber ?? 0))
+          : 0;
+
       await tx.insert(tickets).values({
         date,
         visitorId,
         festivalId,
+        ticketNumber: maxTicketNumber + 1,
       });
     });
   } catch (error) {
