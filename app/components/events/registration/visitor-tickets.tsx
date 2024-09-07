@@ -4,12 +4,10 @@ import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import { PlusCircleIcon } from "lucide-react";
 import { useState } from "react";
-import TicketCreationForm from "./ticket-creation-form";
-import TicketModal from "./ticket-modal";
 import { BaseProfile } from "@/app/api/users/definitions";
-import { RedirectButton } from "../../redirect-button";
 import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
-import Tickets from "@/app/components/events/registration/tickets";
+import { Button } from "@/app/components/ui/button";
+import AddTicketModal from "@/app/components/events/registration/add-ticket-modal";
 
 export default function VisitorTickets({
   visitor,
@@ -20,7 +18,7 @@ export default function VisitorTickets({
   festival: FestivalWithDates;
   currentUser?: BaseProfile | null;
 }) {
-  const [showTicketModal, setShowTicketModal] = useState(false);
+  // const [showTicketModal, setShowTicketModal] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
   const festivalDates = festival.festivalDates;
@@ -28,10 +26,27 @@ export default function VisitorTickets({
 
   return (
     <>
-      <h1 className="text-xl mb-2 font-semibold sm:text-2xl">
-        Confirmación de Entradas
-      </h1>
-      {visitorFestivalTickets.length > 0 && (
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-xl font-semibold sm:text-2xl">Tus Entradas</h1>
+        {visitorFestivalTickets.length > 0 && (
+          <Button onClick={() => setShowForm(true)}>
+            <PlusCircleIcon className="mr-1 inline-block h-4 w-4" />
+            <span>Nueva entrada</span>
+          </Button>
+        )}
+      </div>
+      {visitorFestivalTickets.length === 0 ? (
+        <div className="flex border py-8 rounded-md text-muted-foreground justify-center items-center flex-col gap-2">
+          <span>No tienes entradas para este evento</span>
+          <Button onClick={() => setShowForm(true)}>
+            <PlusCircleIcon className="mr-1 inline-block h-4 w-4" />
+            <span>Nueva entrada</span>
+          </Button>
+        </div>
+      ) : (
+        <></>
+      )}
+      {/* {visitorFestivalTickets.length > 0 && (
         <Tickets
           visitor={visitor}
           tickets={visitorFestivalTickets}
@@ -73,7 +88,13 @@ export default function VisitorTickets({
             Ver entradas
           </RedirectButton>
         </div>
-      )}
+      )} */}
+      <AddTicketModal
+        festival={festival}
+        festivalDates={festivalDates}
+        open={showForm}
+        onOpenChange={setShowForm}
+      />
     </>
   );
 }

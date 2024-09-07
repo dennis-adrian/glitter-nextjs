@@ -25,8 +25,8 @@ import {
   SelectValue,
 } from "@/app/components/ui/select";
 import { VisitorBase, createVisitor } from "@/app/data/visitors/actions";
-import { eventDiscoveryOptions, genderOptions } from "@/app/lib/utils";
-import { eventDiscoveryEnum, genderEnum } from "@/db/schema";
+import { genderOptions } from "@/app/lib/utils";
+import { genderEnum } from "@/db/schema";
 import { formatDate } from "@/app/lib/formatters";
 
 const FormSchema = z.object({
@@ -49,7 +49,6 @@ const FormSchema = z.object({
     .email({
       message: "El correo electronico no es valido",
     }),
-  eventDiscovery: z.enum([...eventDiscoveryEnum.enumValues]),
   firstName: z
     .string()
     .min(2, { message: "El nombre tiene que tener al menos dos letras" }),
@@ -75,7 +74,6 @@ export default function VisitorRegistrationForm({
     defaultValues: {
       birthdate: visitor?.birthdate,
       email: email,
-      eventDiscovery: visitor?.eventDiscovery || "instagram",
       firstName: visitor?.firstName || "",
       gender: visitor?.gender || "other",
       lastName: visitor?.lastName || "",
@@ -194,29 +192,6 @@ export default function VisitorRegistrationForm({
                 </FormControl>
                 <SelectContent>
                   {genderOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="eventDiscovery"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>¿Cómo te enteraste del evento?</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Elige una opción" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {eventDiscoveryOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>

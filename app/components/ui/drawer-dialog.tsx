@@ -74,7 +74,7 @@ const DrawerDialogContent = ({
   isDesktop = false,
 }: DrawerDialogProps) => {
   const Component = isDesktop ? DialogContent : DrawerContent;
-  return <Component className="max-h-full overflow-auto">{children}</Component>;
+  return <Component>{children}</Component>;
 };
 
 const DrawerDialogHeader = ({
