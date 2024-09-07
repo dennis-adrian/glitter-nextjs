@@ -93,6 +93,7 @@ export default function VisitorTickets({
         festival={festival}
         festivalDates={festivalDates}
         open={showForm}
+        visitor={visitor}
         onOpenChange={setShowForm}
       />
     </>

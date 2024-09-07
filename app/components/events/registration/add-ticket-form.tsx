@@ -8,10 +8,13 @@ import {
 } from "@/app/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/app/components/ui/radio-group";
 import { FestivalBase, FestivalDate } from "@/app/data/festivals/definitions";
+import { createTicket } from "@/app/data/tickets/actions";
+import { VisitorBase } from "@/app/data/visitors/actions";
 import { formatDate } from "@/app/lib/formatters";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DateTime } from "luxon";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 
 const FormSchema = z.object({
@@ -21,11 +24,13 @@ const FormSchema = z.object({
 type AddTicketFormProps = {
   festival: FestivalBase;
   festivalDates: FestivalDate[];
+  visitor: VisitorBase;
 };
 
 export default function AddTicketForm({
   festival,
   festivalDates,
+  visitor,
 }: AddTicketFormProps) {
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
@@ -35,7 +40,23 @@ export default function AddTicketForm({
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    alert(JSON.stringify(data));
+    const date = DateTime.fromISO(data.selectedDate);
+    if (!date.isValid) {
+      toast.error("La fecha seleccionada no es válida");
+      return;
+    }
+
+    const res = await createTicket({
+      date: date.toJSDate(),
+      festivalId: festival.id,
+      visitorId: visitor.id,
+    });
+
+    if (res.success) {
+      toast.success(res.message);
+    } else {
+      toast.error(res.message);
+    }
   });
 
   return (

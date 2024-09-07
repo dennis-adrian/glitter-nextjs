@@ -14,10 +14,64 @@ import { tickets } from "@/db/schema";
 import { VisitorBase, VisitorWithTickets } from "../visitors/actions";
 import { sendEmail } from "@/app/vendors/resend";
 import TicketEmailTemplate from "@/app/emails/ticket";
-import { formatDate } from "@/app/lib/formatters";
 
 export type TicketBase = typeof tickets.$inferSelect;
 export type TicketWithVisitor = TicketBase & { visitor: VisitorBase };
+export async function createTicket(data: {
+  date: Date;
+  visitorId: number;
+  festivalId: number;
+}) {
+  const { date, visitorId, festivalId } = data;
+
+  try {
+    await db.transaction(async (tx) => {
+      const existingTickets = await tx
+        .select()
+        .from(tickets)
+        .where(
+          and(
+            eq(tickets.visitorId, visitorId),
+            eq(tickets.festivalId, festivalId),
+            eq(tickets.date, date),
+          ),
+        );
+
+      if (existingTickets.length > 0) {
+        throw new Error("Ya existe una entrada para este día", {
+          cause: "ticket_exists",
+        });
+      }
+
+      await tx.insert(tickets).values({
+        date,
+        visitorId,
+        festivalId,
+      });
+    });
+  } catch (error) {
+    console.error(error);
+    let message = "No se pudo crear la entrada";
+
+    if (error instanceof Error) {
+      if (error.cause === "ticket_exists") {
+        message = error.message;
+      }
+    }
+
+    return {
+      success: false,
+      message,
+    };
+  }
+
+  revalidatePath("/festivals");
+  return {
+    success: true,
+    message: "Entrada creada correctamente",
+  };
+}
+
 export async function createTickets(data: {
   attendance: "day_one" | "day_two" | "both";
   visitorId: number;
