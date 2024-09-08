@@ -8,6 +8,7 @@ import { BaseProfile } from "@/app/api/users/definitions";
 import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 import { Button } from "@/app/components/ui/button";
 import AddTicketModal from "@/app/components/events/registration/add-ticket-modal";
+import Ticket from "@/app/components/events/registration/ticket";
 
 export default function VisitorTickets({
   visitor,
@@ -44,7 +45,16 @@ export default function VisitorTickets({
           </Button>
         </div>
       ) : (
-        <></>
+        <div>
+          {visitorFestivalTickets.map((ticket, index) => (
+            <Ticket
+              ticket={ticket}
+              key={index}
+              visitor={visitor}
+              festival={festival}
+            />
+          ))}
+        </div>
       )}
       {/* {visitorFestivalTickets.length > 0 && (
         <Tickets
