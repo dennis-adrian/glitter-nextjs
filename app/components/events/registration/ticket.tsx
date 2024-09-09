@@ -8,6 +8,7 @@ import ReactBarcode from "@/app/(routes)/festivals/[id]/registration/barcode";
 import Image from "next/image";
 
 type TicketProps = {
+  ticketRef?: React.RefObject<HTMLDivElement>;
   ticket: TicketBase;
   visitor: VisitorWithTickets;
   festival: FestivalBase;
@@ -23,7 +24,10 @@ export default function Ticket(props: TicketProps) {
   const numberOfCompanions = props.ticket.numberOfVisitors - 1;
 
   return (
-    <div className="border p-4 text-center rounded-sm max-w-72 mx-auto shadow-md">
+    <div
+      className="bg-white border p-4 text-center rounded-sm max-w-72 shadow-md"
+      ref={props.ticketRef}
+    >
       <div className="">
         {props.festival.mascotUrl && (
           <Image
