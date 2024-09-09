@@ -31,11 +31,18 @@ export default function AddTicketModal(props: AddTicketModalProps) {
           </DrawerDialogTitle>
         </DrawerDialogHeader>
         <div className={`${isDesktop ? "" : "px-4"} pt-2`}>
-          <AddTicketForm
-            festival={props.festival}
-            festivalDates={props.festivalDates}
-            visitor={props.visitor}
-          />
+          {props.festivalDates.length === 0 ? (
+            <div className="py-8 text-center border rounded-md text-muted-foreground">
+              Ya tienes entradas para todas las fechas
+            </div>
+          ) : (
+            <AddTicketForm
+              festival={props.festival}
+              festivalDates={props.festivalDates}
+              visitor={props.visitor}
+              onSuccess={() => props.onOpenChange(false)}
+            />
+          )}
         </div>
         {isDesktop ? null : (
           <DrawerDialogFooter isDesktop={isDesktop} className="pt-2">

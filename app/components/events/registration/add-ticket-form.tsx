@@ -25,12 +25,14 @@ type AddTicketFormProps = {
   festival: FestivalBase;
   festivalDates: FestivalDate[];
   visitor: VisitorBase;
+  onSuccess: () => void;
 };
 
 export default function AddTicketForm({
   festival,
   festivalDates,
   visitor,
+  onSuccess,
 }: AddTicketFormProps) {
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
@@ -54,6 +56,7 @@ export default function AddTicketForm({
 
     if (res.success) {
       toast.success(res.message);
+      onSuccess();
     } else {
       toast.error(res.message);
     }

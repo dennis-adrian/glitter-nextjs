@@ -23,6 +23,12 @@ export default function VisitorTickets({
 
   const festivalDates = festival.festivalDates;
   const visitorFestivalTickets = getVisitorFestivalTickets(visitor, festival);
+  const takenISODates = visitorFestivalTickets.map((ticket) =>
+    ticket.date.toISOString(),
+  );
+  const availableDates = festivalDates.filter(
+    (date) => !takenISODates.includes(date.startDate.toISOString()),
+  );
 
   return (
     <>
@@ -58,7 +64,7 @@ export default function VisitorTickets({
 
       <AddTicketModal
         festival={festival}
-        festivalDates={festivalDates}
+        festivalDates={availableDates}
         open={showForm}
         visitor={visitor}
         onOpenChange={setShowForm}
