@@ -14,6 +14,7 @@ import { tickets } from "@/db/schema";
 import { VisitorBase, VisitorWithTickets } from "../visitors/actions";
 import { sendEmail } from "@/app/vendors/resend";
 import TicketEmailTemplate from "@/app/emails/ticket";
+import { getTicketCode } from "@/app/lib/tickets/utils";
 
 export type TicketBase = typeof tickets.$inferSelect;
 export type TicketWithVisitor = TicketBase & { visitor: VisitorBase };
@@ -24,8 +25,9 @@ export async function createTicket(data: {
 }) {
   const { date, visitor, festival } = data;
 
+  let createdTicket: TicketBase;
   try {
-    await db.transaction(async (tx) => {
+    const rows = await db.transaction(async (tx) => {
       const existingTickets = await tx
         .select()
         .from(tickets)
@@ -53,14 +55,28 @@ export async function createTicket(data: {
         rowsToLock.length > 0
           ? Math.max(...rowsToLock.map((row) => row.ticketNumber ?? 0))
           : 0;
+      const ticketNumber = maxTicketNumber + 1;
 
-      await tx.insert(tickets).values({
-        date,
-        visitorId: visitor.id,
-        festivalId: festival.id,
-        ticketNumber: maxTicketNumber + 1,
-      });
+      const formattedTicketNumber = ticketNumber.toString().padStart(6, "0");
+      const qrcode = await generateQRCode(
+        getTicketCode(festival.festivalCode || "", ticketNumber),
+      );
+      const qrcodeUrl = await uploadQrCode(qrcode.qrCodeUrl);
+
+      return await tx
+        .insert(tickets)
+        .values({
+          date,
+          visitorId: visitor.id,
+          festivalId: festival.id,
+          ticketNumber: ticketNumber,
+          qrcode: qrcode.qrCodeUrl,
+          qrcodeUrl: qrcodeUrl,
+        })
+        .returning();
     });
+
+    createdTicket = rows[0];
   } catch (error) {
     console.error(error);
     let message = "No se pudo crear la entrada";
@@ -84,6 +100,7 @@ export async function createTicket(data: {
     react: TicketEmailTemplate({
       visitor,
       festival,
+      ticket: createdTicket,
     }) as React.ReactElement,
   });
 
@@ -273,17 +290,17 @@ export async function sendTicketEmail(
 ) {
   const client = await pool.connect();
   try {
-    const { error, data } = await sendEmail({
-      from: "Equipo Glitter <entradas@productoraglitter.com>",
-      to: [visitor.email],
-      subject: `Ya tienes tu entrada para ingresar al festival ${festival.name}`,
-      react: TicketEmailTemplate({
-        visitor,
-        festival,
-      }) as React.ReactElement,
-    });
+    // const { error, data } = await sendEmail({
+    //   from: "Equipo Glitter <entradas@productoraglitter.com>",
+    //   to: [visitor.email],
+    //   subject: `Ya tienes tu entrada para ingresar al festival ${festival.name}`,
+    //   react: TicketEmailTemplate({
+    //     visitor,
+    //     festival,
+    //   }) as React.ReactElement,
+    // });
 
-    if (error) throw new Error(error.message);
+    // if (error) throw new Error(error.message);
 
     return {
       success: true,

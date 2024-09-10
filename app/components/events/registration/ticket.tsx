@@ -6,6 +6,7 @@ import { Separator } from "@/app/components/ui/separator";
 import { DateTime } from "luxon";
 import ReactBarcode from "@/app/(routes)/festivals/[id]/registration/barcode";
 import Image from "next/image";
+import { getTicketCode } from "@/app/lib/tickets/utils";
 
 type TicketProps = {
   ticketRef?: React.RefObject<HTMLDivElement>;
@@ -18,9 +19,6 @@ export default function Ticket(props: TicketProps) {
     props.visitor.lastName || ""
   }`;
   const date = formatDate(props.ticket.date);
-  const formattedTicketNumber = (props.ticket.ticketNumber || "")
-    .toString()
-    .padStart(6, "0");
   const numberOfCompanions = props.ticket.numberOfVisitors - 1;
 
   return (
@@ -62,7 +60,10 @@ export default function Ticket(props: TicketProps) {
       <div className="w-fit mx-auto">
         <ReactBarcode
           className="w-full"
-          value={`${props.festival.festivalCode}-${formattedTicketNumber}`}
+          value={getTicketCode(
+            props.festival.festivalCode || "",
+            props.ticket.ticketNumber || 0,
+          )}
         />
       </div>
     </div>
