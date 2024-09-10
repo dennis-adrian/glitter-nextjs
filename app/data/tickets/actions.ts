@@ -19,10 +19,10 @@ export type TicketBase = typeof tickets.$inferSelect;
 export type TicketWithVisitor = TicketBase & { visitor: VisitorBase };
 export async function createTicket(data: {
   date: Date;
-  visitorId: number;
-  festivalId: number;
+  visitor: VisitorBase;
+  festival: FestivalBase;
 }) {
-  const { date, visitorId, festivalId } = data;
+  const { date, visitor, festival } = data;
 
   try {
     await db.transaction(async (tx) => {
@@ -31,8 +31,8 @@ export async function createTicket(data: {
         .from(tickets)
         .where(
           and(
-            eq(tickets.visitorId, visitorId),
-            eq(tickets.festivalId, festivalId),
+            eq(tickets.visitorId, visitor.id),
+            eq(tickets.festivalId, festival.id),
             eq(tickets.date, date),
           ),
         );
@@ -46,7 +46,7 @@ export async function createTicket(data: {
       const rowsToLock = await tx
         .select()
         .from(tickets)
-        .where(eq(tickets.festivalId, festivalId))
+        .where(eq(tickets.festivalId, festival.id))
         .for("update");
 
       const maxTicketNumber =
@@ -56,8 +56,8 @@ export async function createTicket(data: {
 
       await tx.insert(tickets).values({
         date,
-        visitorId,
-        festivalId,
+        visitorId: visitor.id,
+        festivalId: festival.id,
         ticketNumber: maxTicketNumber + 1,
       });
     });
@@ -76,6 +76,16 @@ export async function createTicket(data: {
       message,
     };
   }
+
+  sendEmail({
+    from: "Equipo Glitter <entradas@productoraglitter.com>",
+    to: [visitor.email],
+    subject: `Ya tienes tu entrada para ingresar al festival ${festival.name}`,
+    react: TicketEmailTemplate({
+      visitor,
+      festival,
+    }) as React.ReactElement,
+  });
 
   revalidatePath("/festivals");
   return {
@@ -266,7 +276,7 @@ export async function sendTicketEmail(
     const { error, data } = await sendEmail({
       from: "Equipo Glitter <entradas@productoraglitter.com>",
       to: [visitor.email],
-      subject: `Confirmación de Registro para ${festival.name}`,
+      subject: `Ya tienes tu entrada para ingresar al festival ${festival.name}`,
       react: TicketEmailTemplate({
         visitor,
         festival,
