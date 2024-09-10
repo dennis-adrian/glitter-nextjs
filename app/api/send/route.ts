@@ -33,17 +33,17 @@ export async function POST(req: Request) {
       );
     }
 
-    const res = await resend.emails.send({
-      from: "Equipo Glitter <entradas@productoraglitter.com>",
-      to: [visitor.email],
-      subject: `Confirmación de Registro para ${festival.name}`,
-      react: TicketEmailTemplate({
-        visitor,
-        festival,
-      }) as React.ReactElement,
-    });
+    // const res = await resend.emails.send({
+    //   from: "Equipo Glitter <entradas@productoraglitter.com>",
+    //   to: [visitor.email],
+    //   subject: `Confirmación de Registro para ${festival.name}`,
+    //   react: TicketEmailTemplate({
+    //     visitor,
+    //     festival,
+    //   }) as React.ReactElement,
+    // });
 
-    return Response.json({ ...res });
+    return Response.json({});
   } catch (error) {
     console.error(error);
     return new Response(null, { status: 500 });

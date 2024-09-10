@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import {
@@ -14,10 +14,102 @@ import { tickets } from "@/db/schema";
 import { VisitorBase, VisitorWithTickets } from "../visitors/actions";
 import { sendEmail } from "@/app/vendors/resend";
 import TicketEmailTemplate from "@/app/emails/ticket";
-import { formatDate } from "@/app/lib/formatters";
+import { getTicketCode } from "@/app/lib/tickets/utils";
 
 export type TicketBase = typeof tickets.$inferSelect;
 export type TicketWithVisitor = TicketBase & { visitor: VisitorBase };
+export async function createTicket(data: {
+  date: Date;
+  visitor: VisitorBase;
+  festival: FestivalBase;
+}) {
+  const { date, visitor, festival } = data;
+
+  let createdTicket: TicketBase;
+  try {
+    const rows = await db.transaction(async (tx) => {
+      const existingTickets = await tx
+        .select()
+        .from(tickets)
+        .where(
+          and(
+            eq(tickets.visitorId, visitor.id),
+            eq(tickets.festivalId, festival.id),
+            eq(tickets.date, date),
+          ),
+        );
+
+      if (existingTickets.length > 0) {
+        throw new Error("Ya existe una entrada para este día", {
+          cause: "ticket_exists",
+        });
+      }
+
+      const rowsToLock = await tx
+        .select()
+        .from(tickets)
+        .where(eq(tickets.festivalId, festival.id))
+        .for("update");
+
+      const maxTicketNumber =
+        rowsToLock.length > 0
+          ? Math.max(...rowsToLock.map((row) => row.ticketNumber ?? 0))
+          : 0;
+      const ticketNumber = maxTicketNumber + 1;
+
+      const qrcode = await generateQRCode(
+        getTicketCode(festival.festivalCode || "", ticketNumber),
+      );
+      const qrcodeUrl = await uploadQrCode(qrcode.qrCodeUrl);
+
+      return await tx
+        .insert(tickets)
+        .values({
+          date,
+          visitorId: visitor.id,
+          festivalId: festival.id,
+          ticketNumber: ticketNumber,
+          qrcode: qrcode.qrCodeUrl,
+          qrcodeUrl: qrcodeUrl,
+        })
+        .returning();
+    });
+
+    createdTicket = rows[0];
+  } catch (error) {
+    console.error(error);
+    let message = "No se pudo crear la entrada";
+
+    if (error instanceof Error) {
+      if (error.cause === "ticket_exists") {
+        message = error.message;
+      }
+    }
+
+    return {
+      success: false,
+      message,
+    };
+  }
+
+  sendEmail({
+    from: "Equipo Glitter <entradas@productoraglitter.com>",
+    to: [visitor.email],
+    subject: `Ya tienes tu entrada para ingresar al festival ${festival.name}`,
+    react: TicketEmailTemplate({
+      visitor,
+      festival,
+      ticket: createdTicket,
+    }) as React.ReactElement,
+  });
+
+  revalidatePath("/festivals");
+  return {
+    success: true,
+    message: "Entrada creada correctamente",
+  };
+}
+
 export async function createTickets(data: {
   attendance: "day_one" | "day_two" | "both";
   visitorId: number;
@@ -197,17 +289,17 @@ export async function sendTicketEmail(
 ) {
   const client = await pool.connect();
   try {
-    const { error, data } = await sendEmail({
-      from: "Equipo Glitter <entradas@productoraglitter.com>",
-      to: [visitor.email],
-      subject: `Confirmación de Registro para ${festival.name}`,
-      react: TicketEmailTemplate({
-        visitor,
-        festival,
-      }) as React.ReactElement,
-    });
+    // const { error, data } = await sendEmail({
+    //   from: "Equipo Glitter <entradas@productoraglitter.com>",
+    //   to: [visitor.email],
+    //   subject: `Ya tienes tu entrada para ingresar al festival ${festival.name}`,
+    //   react: TicketEmailTemplate({
+    //     visitor,
+    //     festival,
+    //   }) as React.ReactElement,
+    // });
 
-    if (error) throw new Error(error.message);
+    // if (error) throw new Error(error.message);
 
     return {
       success: true,

@@ -5,5 +5,8 @@ export function getVisitorFestivalTickets(
   visitor: VisitorWithTickets,
   festival: FestivalBase,
 ) {
-  return visitor.tickets.filter((ticket) => ticket.festivalId === festival.id);
+  const festivalTickets = visitor.tickets.filter(
+    (ticket) => ticket.festivalId === festival.id,
+  );
+  return festivalTickets.sort((a, b) => b.date.getTime() - a.date.getTime());
 }

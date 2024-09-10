@@ -1,104 +1,71 @@
-import { MutableRefObject } from "react";
-
-import Image from "next/image";
-
-import { CalendarDaysIcon, ClockIcon } from "lucide-react";
-
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
-import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
-import { junegull } from "@/app/ui/fonts";
-import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
+import { formatDate } from "@/app/lib/formatters";
+import { TicketBase } from "@/app/data/tickets/actions";
+import { Separator } from "@/app/components/ui/separator";
+import { DateTime } from "luxon";
+import ReactBarcode from "@/app/(routes)/festivals/[id]/registration/barcode";
+import Image from "next/image";
+import { getTicketCode } from "@/app/lib/tickets/utils";
 
-export default function Ticket({
-  festival,
-  ticketRef,
-  visitor,
-  onQrLoad,
-}: {
-  festival: FestivalBase;
-  ticketRef?: MutableRefObject<null>;
+type TicketProps = {
+  ticketRef?: React.RefObject<HTMLDivElement>;
+  ticket: TicketBase;
   visitor: VisitorWithTickets;
-  onQrLoad?: () => void;
-}) {
-  const visitorFestivalTickets = getVisitorFestivalTickets(visitor, festival);
+  festival: FestivalBase;
+};
+export default function Ticket(props: TicketProps) {
+  const fullName = `${props.visitor.firstName || ""} ${
+    props.visitor.lastName || ""
+  }`;
+  const date = formatDate(props.ticket.date);
+  const numberOfCompanions = props.ticket.numberOfVisitors - 1;
 
   return (
     <div
-      ref={ticketRef}
-      className="flex flex-col items-center rounded-lg bg-gradient-to-b from-[#FF9458] via-[#FF6A96] to-[#9D70FF] p-6 pb-0 md:p-8 md:pb-0"
+      className="bg-white border p-4 text-center rounded-sm max-w-72 shadow-md"
+      ref={props.ticketRef}
     >
-      <Image
-        alt="Logo de Glitter con descripción"
-        src="https://utfs.io/f/e6820207-3eb1-43fd-b140-d00184fd8182-e81rey.png"
-        height={56}
-        width={170}
-      />
-      <div className="m-2 flex h-60 w-60 items-center justify-center rounded-lg bg-white/50 backdrop-blur-sm">
-        <Image
-          onLoad={onQrLoad}
-          className="rounded-lg"
-          alt="Logo de Glitter"
-          src={visitorFestivalTickets[0].qrcode || "/img/profile-avatar.png"}
-          height={204}
-          width={204}
+      <div className="">
+        {props.festival.mascotUrl && (
+          <Image
+            className="mx-auto"
+            alt="mascota max el caiman"
+            src={props.festival.mascotUrl}
+            height={150}
+            width={150}
+          />
+        )}
+      </div>
+      <h1 className="text-lg font-medium leading-5">{props.festival.name}</h1>
+      <Separator className="my-2" />
+      <div className="grid grid-cols-2 items-start py-4">
+        <div className="flex flex-col text-left">
+          <span className="font-semibold text-2xl leading-6">{fullName}</span>
+          {numberOfCompanions > 0 && (
+            <span className="text-muted-foreground text-sm">
+              +{numberOfCompanions} acompañante(s)
+            </span>
+          )}
+        </div>
+        <div className="text-muted-foreground text-sm flex flex-col text-right">
+          <span className="text-lg text-foreground">
+            {date.toLocaleString(DateTime.DATE_MED)}
+          </span>
+          <span>{props.festival.locationLabel}</span>
+          <span>{props.festival.address}</span>
+        </div>
+      </div>
+      <Separator className="my-2" />
+      <div className="w-fit mx-auto">
+        <ReactBarcode
+          className="w-full"
+          value={getTicketCode(
+            props.festival.festivalCode || "",
+            props.ticket.ticketNumber || 0,
+          )}
         />
       </div>
-      <h1
-        className={`${junegull.className} text-shadow text-5xl text-white shadow-blue-950 sm:text-6xl`}
-      >
-        Entrada
-      </h1>
-      <div className="my-3 rounded-2xl bg-[#44161E] px-3 py-1 font-semibold uppercase text-white">
-        {visitorFestivalTickets.length > 1 ? (
-          <h3>
-            {getWeekdayFromDate(visitorFestivalTickets[0].date)} y{" "}
-            {getWeekdayFromDate(visitorFestivalTickets[1].date)}
-          </h3>
-        ) : (
-          <h3>Día {getWeekdayFromDate(visitorFestivalTickets[0].date)}</h3>
-        )}
-      </div>
-      <div className="text-center text-lg leading-5 tracking-tight text-white">
-        <p>
-          Esta entrada es válida sólo para 1 persona y debe de ser mostrada al
-          momento de ingresar al evento
-        </p>
-        {visitorFestivalTickets.length > 1 && (
-          <p className="mt-2">
-            Presentar esta misma entrada ambos días que asistas
-          </p>
-        )}
-      </div>
-      <div className="text-primary-foreground my-3">
-        {visitorFestivalTickets.map((ticket) => (
-          <div
-            className="flex justify-center items-center flex-wrap"
-            key={ticket.id}
-          >
-            <span className="flex items-center">
-              <CalendarDaysIcon className="mr-1 h-4 w-4" />
-              <span>{formatFullDate(ticket.date)}</span>
-            </span>
-            <span className="flex items-center">
-              <ClockIcon className="ml-3 mr-1 h-4 w-4" />
-              <span>10:00-18:00</span>
-            </span>
-          </div>
-        ))}
-      </div>
-      <div className="mb-3 flex items-center justify-center rounded-lg bg-white/20 text-white px-4 py-2 text-sm backdrop-blur-lg">
-        {festival.locationLabel} - {festival.address}
-      </div>
-      <Image
-        alt="footer image"
-        src={
-          "https://utfs.io/f/4d8ce376-781d-4b60-8d49-0e85d28ddb06-67dtvs.png" ||
-          "/img/samy-head.png"
-        }
-        height={132}
-        width={320}
-      />
     </div>
   );
 }

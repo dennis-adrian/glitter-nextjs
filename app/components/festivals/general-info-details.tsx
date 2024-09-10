@@ -50,14 +50,14 @@ export default function GeneralInfoDetails(props: GeneralInfoDetailsProps) {
         props.className,
       )}
     >
-      {props.festival.mascotUrl && !props.noMascot && (
+      {props.festival.festivalBannerUrl && !props.noMascot && (
         <div className="relative w-[300px] h-[400px] mx-auto pb-4">
           <Image
             className="object-cover"
             alt="mascota del evento"
             fill
             sizes="(max-width: 768px) 400px, 300px"
-            src={props.festival.mascotUrl}
+            src={props.festival.festivalBannerUrl}
           />
         </div>
       )}
