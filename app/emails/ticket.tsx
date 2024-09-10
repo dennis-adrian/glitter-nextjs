@@ -1,6 +1,7 @@
 import * as styles from "@/app/emails/styles";
 import {
   Body,
+  Column,
   Container,
   Head,
   Hr,
@@ -8,6 +9,7 @@ import {
   Img,
   Link,
   Preview,
+  Row,
   Section,
   Text,
 } from "@react-email/components";
@@ -19,6 +21,8 @@ import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
 import { TicketBase } from "@/app/data/tickets/actions";
 import { getTicketCode } from "@/app/lib/tickets/utils";
+import { text } from "stream/consumers";
+import { DateTime } from "luxon";
 
 type TicketEmailTemplateProps = {
   festival: FestivalBase;
@@ -36,6 +40,8 @@ export default function TicketEmailTemplate({
     festival.festivalCode || "",
     ticket.ticketNumber || 0,
   );
+  const numberOfCompanions = ticket.numberOfVisitors - 1;
+  const ticketDate = formatDate(ticket.date).toLocaleString(DateTime.DATE_MED);
   return (
     <Html>
       <Head />
@@ -65,14 +71,49 @@ export default function TicketEmailTemplate({
               <Text style={festivalName}>{festival.name}</Text>
               <Hr />
               {/* TODO: Finish this section */}
-              <Section>
-                <Text style={{ fontWeight: 600 }}>
-                  {visitor.firstName} {visitor.lastName}
-                </Text>
-                <Text style={{ fontSize: "12px" }}>
-                  +{ticket.numberOfVisitors - 1} acompañante(s)
-                </Text>
-              </Section>
+              <Row width="100%">
+                <Column style={{ textAlign: "left", width: "50%" }}>
+                  <Text style={textLg}>
+                    {visitor.firstName} {visitor.lastName}
+                  </Text>
+                  {numberOfCompanions > 0 && (
+                    <Text
+                      style={{ ...styles.text, fontSize: "12px", margin: 0 }}
+                    >
+                      +{numberOfCompanions} acompañante(s)
+                    </Text>
+                  )}
+                </Column>
+                <Column style={{ textAlign: "right", width: "50%" }}>
+                  <Text
+                    style={{ fontSize: "18px", margin: 0, fontWeight: 600 }}
+                  >
+                    {ticketDate}
+                  </Text>
+                  <Text
+                    style={{
+                      ...styles.text,
+                      fontSize: "12px",
+                      margin: 0,
+                      textAlign: "right",
+                      lineHeight: "16px",
+                    }}
+                  >
+                    {festival.locationLabel}
+                  </Text>
+                  <Text
+                    style={{
+                      ...styles.text,
+                      fontSize: "12px",
+                      margin: 0,
+                      textAlign: "right",
+                      lineHeight: "16px",
+                    }}
+                  >
+                    {festival.address}
+                  </Text>
+                </Column>
+              </Row>
               <Hr />
               <Section>
                 {ticket.qrcodeUrl && (
@@ -80,8 +121,8 @@ export default function TicketEmailTemplate({
                     style={marginAuto}
                     alt="codigo qr"
                     src={ticket.qrcodeUrl}
-                    height={150}
-                    width={150}
+                    height={240}
+                    width={240}
                   />
                 )}
                 <Text style={{ margin: "0 auto", fontWeight: 600 }}>
@@ -110,7 +151,8 @@ export default function TicketEmailTemplate({
 
 TicketEmailTemplate.PreviewProps = {
   visitor: {
-    firstName: "John",
+    firstName: "John Maximillian",
+    lastName: "Doherty Smith",
   },
   festival: {
     id: 12,
@@ -124,7 +166,8 @@ TicketEmailTemplate.PreviewProps = {
       "https://utfs.io/f/513ff3e2-94a2-49a1-a6fa-d1ccb82b85b5-2y3k9.png",
   },
   ticket: {
-    numberOfVisitors: 1,
+    date: new Date(),
+    numberOfVisitors: 2,
     qrcodeUrl:
       "https://files.edgestore.dev/73e72hc0r4togc3l/publicFiles/_public/0ae823f1-bf0a-4abf-94d9-ff50b381d68e.png",
     ticketNumber: 2,
@@ -141,9 +184,16 @@ const roundedLg = {
 
 const ticketContainer = {
   border: "1px solid #dedede",
-  width: "278px",
+  width: "282px",
   padding: "16px",
   ...roundedLg,
+};
+
+const textLg = {
+  fontSize: "24px",
+  lineHeight: "22px",
+  fontWeight: 700,
+  margin: 0,
 };
 
 const festivalName = {
