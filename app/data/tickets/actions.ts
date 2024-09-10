@@ -57,7 +57,6 @@ export async function createTicket(data: {
           : 0;
       const ticketNumber = maxTicketNumber + 1;
 
-      const formattedTicketNumber = ticketNumber.toString().padStart(6, "0");
       const qrcode = await generateQRCode(
         getTicketCode(festival.festivalCode || "", ticketNumber),
       );

@@ -38,7 +38,10 @@ export async function generateQRCode(
   url: string,
 ): Promise<{ qrCodeUrl: string; error: boolean }> {
   try {
-    const qrCodeUrl = await QRCode.toDataURL(url);
+    const qrCodeUrl = await QRCode.toDataURL(url, {
+      margin: 0,
+      width: 200,
+    });
     return {
       qrCodeUrl,
       error: false,

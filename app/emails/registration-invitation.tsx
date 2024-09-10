@@ -14,7 +14,6 @@ import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { formatDate, formatFullDate } from "@/app/lib/formatters";
 import { Interval } from "luxon";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
-import { GLITTER_EMAIL_LOGO_URL } from "@/app/lib/constants";
 import { getFestivalLogo } from "@/app/lib/utils";
 
 interface RegistrationInvitationEmailTemplateProps {
@@ -40,9 +39,7 @@ export default function RegistrationInvitationEmailTemplate(
   return (
     <Html>
       <Head />
-      <Preview>
-        Quedan {daysInterval} días para el festival {festivalLabel}
-      </Preview>
+      <Preview>Te invitamos a visitar el festival {festivalLabel}</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <Section style={styles.banner}>
@@ -60,7 +57,7 @@ export default function RegistrationInvitationEmailTemplate(
                 <strong>{formatFullDate(dates[0].startDate)}</strong>
               )}{" "}
               te invitamos a ser parte del festival{" "}
-              <strong>{festivalLabel}</strong>.
+              <strong>{props.festival.name}</strong>.
             </Text>
             <Text style={styles.text}>
               El ingreso al público es desde las{" "}
@@ -70,13 +67,13 @@ export default function RegistrationInvitationEmailTemplate(
                   minute: "numeric",
                 })}
               </strong>{" "}
-              y tendremos sorpresas para las primeras 200 personas en entrar al
-              evento.
+              y tendremos sorpresas para las primeras 200 personas por día en
+              ingresar al evento.
             </Text>
             <Text style={styles.text}>
               ¡Evita colas y ahorra tiempo durante el registro en puerta! Haz
-              clic en el botón para adquirir tu boleto virtual. El ingreso es
-              libre al evento.
+              clic en el botón para adquirir tu boleto virtual. El ingreso al
+              evento no tiene costo.
             </Text>
             <Button
               href={`${baseUrl}/festivals/${props.festival.id}/registration`}
@@ -105,6 +102,7 @@ export default function RegistrationInvitationEmailTemplate(
 RegistrationInvitationEmailTemplate.PreviewProps = {
   festival: {
     id: 1,
+    name: "Glitter 5ta Edición - Max el Caimán",
     festivalDates: [
       {
         startDate: formatDate(new Date()).plus({ days: 6 }).toJSDate(),
@@ -113,5 +111,6 @@ RegistrationInvitationEmailTemplate.PreviewProps = {
         startDate: formatDate(new Date()).plus({ days: 7 }).toJSDate(),
       },
     ],
+    festivalType: "glitter",
   },
 } as RegistrationInvitationEmailTemplateProps;

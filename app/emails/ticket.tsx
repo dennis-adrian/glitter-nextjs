@@ -21,7 +21,6 @@ import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
 import { TicketBase } from "@/app/data/tickets/actions";
 import { getTicketCode } from "@/app/lib/tickets/utils";
-import { text } from "stream/consumers";
 import { DateTime } from "luxon";
 
 type TicketEmailTemplateProps = {
@@ -70,8 +69,7 @@ export default function TicketEmailTemplate({
               )}
               <Text style={festivalName}>{festival.name}</Text>
               <Hr />
-              {/* TODO: Finish this section */}
-              <Row width="100%">
+              <Row width="100%" style={{ margin: "16px 0" }}>
                 <Column style={{ textAlign: "left", width: "50%" }}>
                   <Text style={textLg}>
                     {visitor.firstName} {visitor.lastName}
@@ -115,14 +113,14 @@ export default function TicketEmailTemplate({
                 </Column>
               </Row>
               <Hr />
-              <Section>
+              <Section style={{ marginTop: "16px" }}>
                 {ticket.qrcodeUrl && (
                   <Img
                     style={marginAuto}
                     alt="codigo qr"
                     src={ticket.qrcodeUrl}
-                    height={240}
-                    width={240}
+                    height={200}
+                    width={200}
                   />
                 )}
                 <Text style={{ margin: "0 auto", fontWeight: 600 }}>
@@ -169,7 +167,7 @@ TicketEmailTemplate.PreviewProps = {
     date: new Date(),
     numberOfVisitors: 2,
     qrcodeUrl:
-      "https://files.edgestore.dev/73e72hc0r4togc3l/publicFiles/_public/0ae823f1-bf0a-4abf-94d9-ff50b381d68e.png",
+      "https://files.edgestore.dev/73e72hc0r4togc3l/publicFiles/_public/92f1c9fa-820b-4c18-8ce9-9f79f78b5962.png",
     ticketNumber: 2,
   },
 } as TicketEmailTemplateProps;
