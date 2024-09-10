@@ -141,6 +141,29 @@ export default function VisitorRegistrationForm({
             )}
           />
         </div>
+        <FormField
+          control={form.control}
+          name="gender"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Género</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Elige una opción" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent position="item-aligned">
+                  {genderOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormItem>
+          )}
+        />
         <div className="grid grid-cols-2 gap-2">
           <FormField
             control={form.control}
@@ -178,30 +201,11 @@ export default function VisitorRegistrationForm({
             )}
           />
         </div>
-        <FormField
-          control={form.control}
-          name="gender"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Género</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Elige una opción" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {genderOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormItem>
-          )}
-        />
-        <Button disabled={form.formState.isSubmitting} type="submit">
+        <Button
+          className="my-2"
+          disabled={form.formState.isSubmitting}
+          type="submit"
+        >
           Siguiente <ArrowRightCircleIcon className="ml-2 h-4 w-4" />
         </Button>
       </form>
