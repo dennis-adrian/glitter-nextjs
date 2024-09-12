@@ -9,6 +9,7 @@ import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 import { Button } from "@/app/components/ui/button";
 import AddTicketModal from "@/app/components/events/registration/add-ticket-modal";
 import DownloadableTicket from "@/app/components/events/registration/downloadable-ticket";
+import Tickets from "@/app/components/events/registration/tickets";
 
 export default function VisitorTickets({
   visitor,
@@ -50,16 +51,11 @@ export default function VisitorTickets({
           </Button>
         </div>
       ) : (
-        <div className="flex flex-wrap gap-4 justify-center">
-          {visitorFestivalTickets.map((ticket, index) => (
-            <DownloadableTicket
-              ticket={ticket}
-              key={index}
-              visitor={visitor}
-              festival={festival}
-            />
-          ))}
-        </div>
+        <Tickets
+          visitor={visitor}
+          tickets={visitorFestivalTickets}
+          festival={festival}
+        />
       )}
 
       <AddTicketModal
