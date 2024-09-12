@@ -3,8 +3,9 @@
 import { Button } from "@/app/components/ui/button";
 import { Form } from "@/app/components/ui/form";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
-import { createEventDayTicket } from "@/app/data/tickets/actions";
+import { createTicket } from "@/app/data/tickets/actions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
+import { formatDate } from "@/app/lib/formatters";
 import { Loader2Icon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -21,8 +22,19 @@ export default function EventDayTicketCreationForm(
   const form = useForm();
 
   const action: () => void = form.handleSubmit(async () => {
-    const res = await createEventDayTicket({
-      visitorId: props.visitor.id,
+    const ticketDate = props.festival.festivalDates.find((festivalDate) => {
+      return formatDate(festivalDate.startDate)
+        .startOf("day")
+        .equals(formatDate(new Date()).startOf("day"));
+    });
+
+    if (!ticketDate) {
+      toast.error("No tenemos entradas disponibles para hoy");
+      return;
+    }
+    const res = await createTicket({
+      date: ticketDate.startDate,
+      visitor: props.visitor,
       festival: props.festival,
       numberOfVisitors: props.numberOfVisitors || 1,
     });
