@@ -22,6 +22,7 @@ export async function createTicket(data: {
   date: Date;
   visitor: VisitorBase;
   festival: FestivalBase;
+  numberOfVisitors?: number;
 }) {
   const { date, visitor, festival } = data;
 
@@ -71,6 +72,7 @@ export async function createTicket(data: {
           ticketNumber: ticketNumber,
           qrcode: qrcode.qrCodeUrl,
           qrcodeUrl: qrcodeUrl,
+          numberOfVisitors: data.numberOfVisitors || 1,
         })
         .returning();
     });
@@ -108,141 +110,6 @@ export async function createTicket(data: {
     success: true,
     message: "Entrada creada correctamente",
   };
-}
-
-export async function createTickets(data: {
-  attendance: "day_one" | "day_two" | "both";
-  visitorId: number;
-  festivalId: number;
-  festivalStartDate: Date;
-  festivalEndDate: Date;
-}): Promise<{ success: boolean; error: string | null }> {
-  const client = await pool.connect();
-  try {
-    const {
-      attendance,
-      festivalId,
-      festivalStartDate,
-      festivalEndDate,
-      visitorId,
-    } = data;
-    await db.transaction(async (tx) => {
-      const firstDayTicket = await tx.query.tickets.findFirst({
-        where: and(
-          eq(tickets.visitorId, visitorId),
-          eq(tickets.festivalId, festivalId),
-          eq(tickets.date, festivalStartDate),
-        ),
-      });
-
-      const secondDayTicket = await tx.query.tickets.findFirst({
-        where: and(
-          eq(tickets.visitorId, visitorId),
-          eq(tickets.festivalId, festivalId),
-          eq(tickets.date, festivalEndDate),
-        ),
-      });
-
-      const qrcode = await generateQRCode(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/visitors/${visitorId}/tickets`,
-      );
-
-      let qrcodeUrl = "";
-      if (!(firstDayTicket || secondDayTicket || qrcode.error)) {
-        qrcodeUrl = await uploadQrCode(qrcode.qrCodeUrl);
-      } else {
-        const qrcodeUrls = [firstDayTicket, secondDayTicket]
-          .map((ticket) => ticket?.qrcodeUrl)
-          .filter(Boolean);
-        qrcodeUrl = qrcodeUrls[0] as string;
-      }
-
-      if (attendance === "day_one" && !firstDayTicket) {
-        await tx.insert(tickets).values({
-          date: new Date(festivalStartDate),
-          qrcode: qrcode.qrCodeUrl,
-          qrcodeUrl,
-          festivalId: festivalId,
-          visitorId,
-        });
-      } else if (attendance === "day_two" && !secondDayTicket) {
-        await tx.insert(tickets).values({
-          date: new Date(festivalEndDate),
-          qrcode: qrcode.qrCodeUrl,
-          qrcodeUrl,
-          festivalId: festivalId,
-          visitorId,
-        });
-      } else {
-        await tx
-          .insert(tickets)
-          .values({
-            id: firstDayTicket?.id,
-            date: new Date(festivalStartDate),
-            qrcode: qrcode.qrCodeUrl,
-            qrcodeUrl,
-            festivalId: festivalId,
-            visitorId,
-          })
-          .onConflictDoNothing();
-        await tx
-          .insert(tickets)
-          .values({
-            id: secondDayTicket?.id,
-            date: new Date(festivalEndDate),
-            qrcode: qrcode.qrCodeUrl,
-            qrcodeUrl,
-            festivalId: festivalId,
-            visitorId,
-          })
-          .onConflictDoNothing();
-      }
-    });
-  } catch (error) {
-    console.error("Error creating ticket", error);
-    return { success: false, error: "No se pudo crear la(s) entrada(s)" };
-  } finally {
-    client.release();
-  }
-
-  revalidatePath("/festivals");
-  return { success: true, error: null };
-}
-
-export async function createEventDayTicket(data: {
-  visitorId: number;
-  festival: FestivalWithDates;
-  numberOfVisitors: number;
-}): Promise<{ success: boolean; message: string }> {
-  const client = await pool.connect();
-
-  try {
-    const { visitorId, festival, numberOfVisitors } = data;
-
-    if (!festival.eventDayRegistration) {
-      return {
-        success: false,
-        message: "La creación de entradas para este evento no está habilitada",
-      };
-    }
-
-    await db.insert(tickets).values({
-      visitorId,
-      festivalId: festival.id,
-      date: sql`NOW()`,
-      isEventDayCreation: true,
-      status: "checked_in",
-      numberOfVisitors,
-    });
-  } catch (error) {
-    console.error("Error creating event day ticket", error);
-    return { success: false, message: "No se pudo crear la entrada" };
-  } finally {
-    client.release();
-  }
-
-  revalidatePath("/festivals");
-  return { success: true, message: "Entrada creada" };
 }
 
 export async function fetchTicket(

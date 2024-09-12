@@ -23,7 +23,7 @@ export default function Ticket(props: TicketProps) {
 
   return (
     <div
-      className="bg-white border p-4 text-center rounded-sm max-w-72 shadow-md"
+      className="bg-white border p-4 text-center rounded-sm min-w-72 max-w-80 shadow-md"
       ref={props.ticketRef}
     >
       <div className="">

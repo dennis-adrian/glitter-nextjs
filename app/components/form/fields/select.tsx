@@ -22,12 +22,14 @@ export default function SelectInput({
   options,
   placeholder,
   variant,
+  side,
 }: {
   formControl: UseFormReturn<any>["control"];
   label?: string;
   name: string;
   options: { value: string; label: string }[];
   placeholder?: string;
+  side?: "top" | "bottom" | "left" | "right";
 } & SelectVariants) {
   return (
     <FormField
@@ -43,7 +45,7 @@ export default function SelectInput({
                   <SelectValue placeholder={placeholder} />
                 </SelectTrigger>
               </FormControl>
-              <SelectContent>
+              <SelectContent side={side}>
                 {options.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
