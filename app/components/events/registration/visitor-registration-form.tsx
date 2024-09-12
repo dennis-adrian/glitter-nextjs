@@ -17,21 +17,20 @@ import {
   FormMessage,
 } from "@/app/components/ui/form";
 import { Input } from "@/app/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/app/components/ui/select";
 import { VisitorBase, createVisitor } from "@/app/data/visitors/actions";
 import { genderOptions } from "@/app/lib/utils";
 import { genderEnum } from "@/db/schema";
 import { formatDate } from "@/app/lib/formatters";
+import PhoneInput from "@/app/components/form/fields/phone";
+import TextInput from "@/app/components/form/fields/text";
+import SelectInput from "@/app/components/form/fields/select";
 
 const FormSchema = z.object({
   birthdate: z.coerce
-    .date()
+    .date({
+      required_error: "La fecha de nacimiento es requerida",
+      invalid_type_error: "La fecha de nacimiento no es valida",
+    })
     .refine((date) => date < new Date(), {
       message: "La fecha de nacimiento no puede ser en el futuro",
     })
@@ -58,7 +57,8 @@ const FormSchema = z.object({
     .min(2, { message: "El apellido tiene que tener al menos dos letras" }),
   phoneNumber: z
     .string()
-    .min(8, { message: "El número de teléfono no es valido" }),
+    .min(8, { message: "El número de teléfono no es valido" })
+    .max(8, { message: "El número de teléfono no es valido" }),
 });
 
 export default function VisitorRegistrationForm({
@@ -114,93 +114,40 @@ export default function VisitorRegistrationForm({
           )}
         />
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <FormField
-            control={form.control}
+          <TextInput
+            formControl={form.control}
             name="firstName"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Nombre</FormLabel>
-                <FormControl>
-                  <Input type="text" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+            label="Nombre"
+            type="text"
           />
-          <FormField
-            control={form.control}
+          <TextInput
+            formControl={form.control}
             name="lastName"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Apellido</FormLabel>
-                <FormControl>
-                  <Input type="text" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+            label="Apellido"
+            type="text"
           />
         </div>
-        <FormField
-          control={form.control}
-          name="gender"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Género</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Elige una opción" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent position="item-aligned">
-                  {genderOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormItem>
-          )}
-        />
-        <div className="grid grid-cols-2 gap-2">
-          <FormField
-            control={form.control}
+        <div className="grid grid-cols-2 gap-2 items-start">
+          <PhoneInput
+            formControl={form.control}
             name="phoneNumber"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Teléfono</FormLabel>
-                <FormControl>
-                  <div className="relative flex items-center">
-                    <span className="absolute left-2 rounded-sm bg-gray-200 p-1 text-sm">
-                      +591
-                    </span>
-                    <Input className="pl-14" type="tel" {...field} />
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+            label="Teléfono"
           />
-          <FormField
-            control={form.control}
+          <TextInput
+            formControl={form.control}
             name="birthdate"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Fecha de nacimiento</FormLabel>
-                <FormControl>
-                  <Input
-                    type="date"
-                    {...field}
-                    value={field.value?.toLocaleString()}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
+            label="Fecha de nacimiento"
+            type="date"
+            value={form.getValues("birthdate")?.toLocaleString()}
           />
         </div>
+        <SelectInput
+          formControl={form.control}
+          label="Género"
+          name="gender"
+          options={genderOptions}
+          side="top"
+        />
         <Button
           className="my-2"
           disabled={form.formState.isSubmitting}
