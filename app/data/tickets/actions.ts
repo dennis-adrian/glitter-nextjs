@@ -22,6 +22,7 @@ export async function createTicket(data: {
   date: Date;
   visitor: VisitorBase;
   festival: FestivalBase;
+  numberOfVisitors?: number;
 }) {
   const { date, visitor, festival } = data;
 
@@ -71,6 +72,7 @@ export async function createTicket(data: {
           ticketNumber: ticketNumber,
           qrcode: qrcode.qrCodeUrl,
           qrcodeUrl: qrcodeUrl,
+          numberOfVisitors: data.numberOfVisitors || 1,
         })
         .returning();
     });

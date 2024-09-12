@@ -10,8 +10,9 @@ import SubmitButton from "@/app/components/simple-submit-button";
 import { ArrowRightIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createEventDayTicket } from "@/app/data/tickets/actions";
+import { createTicket } from "@/app/data/tickets/actions";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
+import { formatDate } from "@/app/lib/formatters";
 
 const FormSchema = z.object({
   gender: z.enum([...genderEnum.enumValues]),
@@ -27,7 +28,7 @@ export default function GenderForm(props: GenderFormProps) {
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      gender: "undisclosed",
+      gender: "other",
     },
   });
 
@@ -47,10 +48,22 @@ export default function GenderForm(props: GenderFormProps) {
       currentParams.set("visitorId", res.visitor!.id.toString());
       currentParams.set("step", "5");
 
-      const ticketRes = await createEventDayTicket({
+      const ticketDate = props.festival.festivalDates.find((festivalDate) => {
+        return formatDate(festivalDate.startDate)
+          .startOf("day")
+          .equals(formatDate(new Date()).startOf("day"));
+      });
+
+      if (!ticketDate) {
+        toast.error("No tenemos entradas disponibles para hoy");
+        return;
+      }
+
+      const ticketRes = await createTicket({
+        date: ticketDate.startDate,
         festival: props.festival,
-        numberOfVisitors: props.numberOfVisitors || 1,
-        visitorId: res.visitor!.id,
+        numberOfVisitors: props.numberOfVisitors,
+        visitor: res.visitor!,
       });
 
       if (ticketRes.success) {
@@ -69,10 +82,12 @@ export default function GenderForm(props: GenderFormProps) {
     <Form {...form}>
       <form className="flex flex-col gap-4" onSubmit={action}>
         <SelectInput
+          variant="quiet"
           formControl={form.control}
           name="gender"
           options={genderOptions}
           placeholder="Elige una opción"
+          side="top"
         />
         <SubmitButton
           disabled={form.formState.isSubmitting}
