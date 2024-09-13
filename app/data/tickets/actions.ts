@@ -150,6 +150,58 @@ export async function updateTicket(id: number, status: TicketBase["status"]) {
   };
 }
 
+export async function verifyTicket(ticketNumber: number, festivalId: number) {
+  try {
+    const [ticket] = await db
+      .select()
+      .from(tickets)
+      .where(
+        and(
+          eq(tickets.festivalId, festivalId),
+          eq(tickets.ticketNumber, ticketNumber),
+        ),
+      );
+
+    if (!ticket) throw new Error("La entrada no existe");
+    if (ticket.status === "checked_in") {
+      throw new Error("Esta entrada ya ha sido verificada");
+    }
+
+    await db
+      .update(tickets)
+      .set({
+        status: "checked_in",
+        checkedInAt: sql`NOW()`,
+        updatedAt: sql`NOW()`,
+      })
+      .where(
+        and(
+          eq(tickets.festivalId, festivalId),
+          eq(tickets.ticketNumber, ticketNumber),
+        ),
+      );
+  } catch (error) {
+    console.error(error);
+    if (error instanceof Error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+
+    return {
+      success: false,
+      message: "No se pudo verificar la entrada",
+    };
+  }
+
+  revalidatePath("/dashboard/festivals");
+  return {
+    success: true,
+    message: "Entrada verificada correctamente",
+  };
+}
+
 export async function sendTicketEmail(
   visitor: VisitorWithTickets,
   festival: FestivalBase,
