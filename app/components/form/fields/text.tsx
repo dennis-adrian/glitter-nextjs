@@ -1,5 +1,6 @@
 import {
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -15,6 +16,7 @@ export default function TextInput({
   label,
   name,
   messagePosition = "bottom",
+  description,
   ...props
 }: {
   bottomBorderOnly?: boolean;
@@ -23,6 +25,7 @@ export default function TextInput({
   messagePosition?: "top" | "bottom";
   name: string;
   placeholder?: string;
+  description?: string;
 } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <FormField
@@ -35,6 +38,7 @@ export default function TextInput({
           <FormControl>
             <Input bottomBorderOnly={bottomBorderOnly} {...field} {...props} />
           </FormControl>
+          {description && <FormDescription>{description}</FormDescription>}
           {messagePosition === "bottom" && <FormMessage />}
         </FormItem>
       )}
