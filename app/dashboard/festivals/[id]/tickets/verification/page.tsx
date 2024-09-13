@@ -11,8 +11,8 @@ export default function Page({ params }: { params: { id: string } }) {
   if (!validatedParams.success) notFound();
 
   return (
-    <div className="container">
-      <h1 className="font-2xl font-semibold">Verificar Entradas</h1>
+    <div className="max-w-screen-md px-4 md:px-6 mx-auto">
+      <h1 className="text-xl md:text-2xl font-semibold">Verificar Entradas</h1>
       <VerifyTicketForm festivalId={validatedParams.data.id} />
     </div>
   );
