@@ -1,4 +1,7 @@
-import { fetchTicketsByFestival } from "@/app/data/tickets/actions";
+import {
+  fetchTicketsByFestival,
+  fetchVerifiedTicketsByFestivalTotal,
+} from "@/app/data/tickets/actions";
 import { formatDate } from "@/app/lib/formatters";
 import { getTicketCode } from "@/app/lib/tickets/utils";
 import {
@@ -19,6 +22,9 @@ export default async function VerifiedTickets({
 }) {
   const verifiedTickets = await fetchTicketsByFestival(festivalId);
   const festival = verifiedTickets[0]?.festival;
+  const totalVerifiedTickets = await fetchVerifiedTicketsByFestivalTotal(
+    festivalId,
+  );
 
   return (
     <div>
@@ -30,37 +36,45 @@ export default async function VerifiedTickets({
           No hay entradas verificadas para este evento
         </div>
       ) : (
-        <Table className="border rounded-md">
-          <TableCaption>
-            Lista de entradas verificadas para el festival.
-          </TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-fit">Nro. de Ticket</TableHead>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Fecha de verificación</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {verifiedTickets.map((ticket, index) => (
-              <TableRow key={index}>
-                <TableCell className="font-medium">
-                  {getTicketCode(festival.festivalCode!, ticket.ticketNumber!)}
-                </TableCell>
-                <TableCell>{`${ticket.visitor?.firstName || ""} ${
-                  ticket.visitor?.lastName
-                }`}</TableCell>
-                <TableCell>
-                  {ticket.checkedInAt
-                    ? formatDate(ticket.checkedInAt).toLocaleString(
-                        DateTime.DATETIME_MED,
-                      )
-                    : "--"}
-                </TableCell>
+        <>
+          <span className="mb-2">
+            Total: <strong>{totalVerifiedTickets}</strong>
+          </span>
+          <Table className="border rounded-md">
+            <TableCaption>
+              Lista de entradas verificadas para el festival.
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-fit">Nro. de Ticket</TableHead>
+                <TableHead>Nombre</TableHead>
+                <TableHead>Fecha de verificación</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {verifiedTickets.map((ticket, index) => (
+                <TableRow key={index}>
+                  <TableCell className="font-medium">
+                    {getTicketCode(
+                      festival.festivalCode!,
+                      ticket.ticketNumber!,
+                    )}
+                  </TableCell>
+                  <TableCell>{`${ticket.visitor?.firstName || ""} ${
+                    ticket.visitor?.lastName
+                  }`}</TableCell>
+                  <TableCell>
+                    {ticket.checkedInAt
+                      ? formatDate(ticket.checkedInAt).toLocaleString(
+                          DateTime.DATETIME_MED,
+                        )
+                      : "--"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </>
       )}
     </div>
   );

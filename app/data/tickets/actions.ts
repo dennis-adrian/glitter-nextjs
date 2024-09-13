@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq, max, sql } from "drizzle-orm";
+import { and, count, desc, eq, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import {
@@ -252,5 +252,25 @@ export async function fetchTicketsByFestival(festivalId: number) {
   } catch (error) {
     console.error(error);
     return [];
+  }
+}
+
+export async function fetchVerifiedTicketsByFestivalTotal(festivalId: number) {
+  try {
+    const result = await db
+      .select({
+        total: count(tickets.id),
+      })
+      .from(tickets)
+      .where(
+        and(
+          eq(tickets.festivalId, festivalId),
+          eq(tickets.status, "checked_in"),
+        ),
+      );
+    return result[0].total;
+  } catch (error) {
+    console.error(error);
+    return 0;
   }
 }
