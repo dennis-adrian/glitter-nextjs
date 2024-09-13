@@ -59,11 +59,11 @@ export default function VerifyTicketForm({
 
   return (
     <Form {...form}>
-      <form className="grid gap-2 my-4" onSubmit={action}>
+      <form className="grid gap-2" onSubmit={action}>
         <TextInput
           formControl={form.control}
           name="ticketCode"
-          description="También puedes ingresar el código manualmente. Los dígitos después del guión (-) o barra (/)"
+          description="Puedes ingresar el código manualmente. Los dígitos después del guión (-) o barra (/)"
           label="Código de entrada"
           placeholder="Ingresa el código de la entrada"
         />

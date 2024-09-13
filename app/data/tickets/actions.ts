@@ -247,7 +247,7 @@ export async function fetchTicketsByFestival(festivalId: number) {
         eq(tickets.status, "checked_in"),
       ),
       orderBy: desc(tickets.updatedAt),
-      limit: 100,
+      limit: 50,
     });
   } catch (error) {
     console.error(error);
