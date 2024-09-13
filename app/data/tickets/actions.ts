@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, max, sql } from "drizzle-orm";
+import { and, desc, eq, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import {
@@ -232,5 +232,25 @@ export async function sendTicketEmail(
     };
   } finally {
     client.release();
+  }
+}
+
+export async function fetchTicketsByFestival(festivalId: number) {
+  try {
+    return await db.query.tickets.findMany({
+      with: {
+        visitor: true,
+        festival: true,
+      },
+      where: and(
+        eq(tickets.festivalId, festivalId),
+        eq(tickets.status, "checked_in"),
+      ),
+      orderBy: desc(tickets.updatedAt),
+      limit: 100,
+    });
+  } catch (error) {
+    console.error(error);
+    return [];
   }
 }
