@@ -157,7 +157,7 @@ export async function verifyTicket(ticketNumber: number, festivalId: number) {
       .from(tickets)
       .where(
         and(
-          eq(tickets.festivalId, festivalId),
+          eq(tickets.festivalId, 475),
           eq(tickets.ticketNumber, ticketNumber),
         ),
       );
