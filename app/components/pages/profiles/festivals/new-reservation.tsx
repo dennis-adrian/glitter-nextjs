@@ -3,6 +3,7 @@ import ClientMap from "@/app/components/festivals/client-map";
 import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
 import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
+import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
 import {
   fetchAvailableArtistsInFestival,
   fetchBaseFestival,
@@ -11,14 +12,8 @@ import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/a
 import { formatDate } from "@/app/lib/formatters";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { DateTime } from "luxon";
-import dynamic from "next/dynamic";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-
-const EventCountdownComponent = dynamic(
-  () => import("@/app/components/pages/profiles/festivals/event-countdown"),
-  { ssr: false },
-);
 
 type NewReservationPageProps = {
   profileId: number;
@@ -38,7 +33,7 @@ export default async function NewReservationPage(
   ).toJSDate();
   const currentTime = DateTime.now().toJSDate();
   if (currentTime < reservationStartDate && currentProfile?.role !== "admin") {
-    return <EventCountdownComponent festival={festival} />;
+    return <ReservationNotAllowed festival={festival} />;
   }
 
   const forProfile = await fetchUserProfileById(props.profileId);
