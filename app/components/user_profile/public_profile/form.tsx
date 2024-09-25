@@ -135,37 +135,6 @@ export default function PublicProfileForm({
               </FormItem>
             )}
           />
-          {profile.status !== "verified" ||
-            (profile.role !== "admin" && (
-              <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      ¿En cuál categoría te gustaría participar?
-                    </FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Elige una opción" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {userCategoryOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-            ))}
           <div className="text-muted-foreground mt-3 font-bold">
             Debes agregar al menos una red social
           </div>
