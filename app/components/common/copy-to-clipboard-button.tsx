@@ -8,7 +8,7 @@ import { toast } from "sonner";
 
 export default function CopyToClipboardButton({
   className,
-  text,
+  text = "",
   label,
   toastLabel,
   iconOnly = false,

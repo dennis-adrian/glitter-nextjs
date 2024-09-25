@@ -1,3 +1,9 @@
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/app/components/ui/card";
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
@@ -15,35 +21,56 @@ type ReservationNotAllowedProps = {
 export default function ReservationNotAllowed(
   props: ReservationNotAllowedProps,
 ) {
-  console.log(props.festival.reservationsStartDate);
-  console.log(new Date());
+  const today = formatDate(DateTime.now().toISO());
+  const formattedStartDate = formatDate(
+    props.festival.reservationsStartDate.toISOString(),
+  );
+
   return (
     <div className="container flex flex-col items-center justify-center p-4 md:p-6">
-      <h1 className="text-center text-xl font-bold md:text-3xl my-4 md:my-8">
-        {props.festival.name}
-      </h1>
-      {props.festival.reservationsStartDate > new Date() ? (
-        <div className="flex flex-col items-center justify-center text-center gap-2 md:gap-3">
-          <span className="text-sm md:text-base">
-            Las reseservas se habilitarán el{" "}
-            {formatDate(props.festival.reservationsStartDate).toLocaleString(
-              DateTime.DATE_HUGE,
+      <Card className="max-w-[600px]">
+        <CardHeader>
+          <CardTitle className="text-center text-xl">
+            {props.festival.name}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center text-center gap-4">
+            <div className="flex flex-col">
+              <span className="text-muted-foreground text-sm">
+                Habilitación de reservas
+              </span>
+              <span className="font-semibold text-3xl">
+                {formatDate(
+                  props.festival.reservationsStartDate,
+                ).toLocaleString(DateTime.DATE_SHORT)}
+              </span>
+            </div>
+            {formattedStartDate.startOf("day").toMillis() !==
+            today.startOf("day").toMillis() ? (
+              <div className="flex flex-col items-center justify-center text-center gap-2 text-sm">
+                <span>
+                  Copia y guarda el enlace de esta página para volver el día en
+                  que se habilitan de las reservas.
+                </span>
+                <CopyLinkButtonComponent />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center text-center gap-2 text-sm">
+                <span className="mb-2">
+                  Las reservas se habilitarán en cualquier momento. Puedes
+                  copiar el enlace de esta página para regresar luego.
+                </span>
+                <CopyLinkButtonComponent />
+                <div className="text-xs text-muted-foreground italic mt-1">
+                  Si te quedaste en la página, te aconsejamos recargarla para
+                  ver si las reservas ya están habilitadas
+                </div>
+              </div>
             )}
-          </span>
-          <div className="flex flex-col items-center justify-center gap-1 md:gap-2">
-            <span className="text-sm">
-              Copia este enlace y guárdalo si quieres regresar más tarde
-            </span>
           </div>
-          <CopyLinkButtonComponent />
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center text-center gap-4">
-          <h2 className="text-xl font-semibold md:text-3xl">
-            Reservas habilitadas recarga la página para hacer tu reserva
-          </h2>
-        </div>
-      )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
