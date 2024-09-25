@@ -32,34 +32,23 @@ export default function FestivalActivationEmailTemplate({
   const fullDate = formatDate(festival.reservationsStartDate).toLocaleString(
     DateTime.DATE_FULL,
   );
-  const hour = formatDate(festival.reservationsStartDate).toLocaleString(
-    DateTime.TIME_24_SIMPLE,
-  );
 
   return (
     <Html>
       <Head />
-      <Preview>Reserva tu espacio en nuestro próximo festival</Preview>
+      <Preview>Alístate para participar en nuestro próximo festival</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <EmailHeader />
           <Section style={styles.sectionWithBanner}>
-            <Img
-              style={{ margin: "0 auto" }}
-              src="http://s.mmgo.io/t/CzgA"
-              alt="countdown"
-            />
-            <Text style={{ ...styles.text, marginTop: "10px" }}>
-              ¡Hola {userName}!
-            </Text>
+            <Text style={styles.text}>¡Hola, {userName}!</Text>
             <Text style={styles.text}>
               Las reservas para el festival <strong>{festival.name}</strong> se
-              habilitarán el día {fullDate} a las {hour} ¡Ya comenzó la cuenta
-              regresiva!
+              habilitarán el día {fullDate}.
             </Text>
             <Text style={styles.text}>
               Hasta mientras te pedimos que por favor leas con atención los
-              términos y condiciones dándole al botón lila a continuación
+              términos y condiciones haciendo clic en el botón debajo del texto.
             </Text>
             <Text style={styles.text}>
               Si tienes dudas o problemas con la reserva, comunícate con
