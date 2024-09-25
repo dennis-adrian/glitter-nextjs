@@ -10,26 +10,29 @@ export default function CopyToClipboardButton({
   className,
   text,
   label,
+  toastLabel,
   iconOnly = false,
 }: {
   className?: string;
   text: string;
   label?: string;
+  toastLabel?: string;
   iconOnly?: boolean;
 } & React.HTMLAttributes<HTMLButtonElement>) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (copied) {
+      const toastText = toastLabel || `"${text}" copiado al portapapeles`;
       navigator.clipboard.writeText(text);
-      toast(`"${text}" copiado al portapapeles`);
+      toast(toastText);
       const timeout = setTimeout(() => {
         setCopied(false);
       }, 2000);
 
       return () => clearTimeout(timeout);
     }
-  }, [copied]);
+  }, [copied, toastLabel, text]);
 
   if (iconOnly) {
     return copied ? (
