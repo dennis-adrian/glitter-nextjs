@@ -22,8 +22,6 @@ import { getUserName } from "@/app/lib/users/utils";
 export async function fetchReservations(): Promise<
   ReservationWithParticipantsAndUsersAndStandAndFestival[]
 > {
-  const client = await pool.connect();
-
   try {
     return db.query.standReservations.findMany({
       with: {
@@ -44,16 +42,12 @@ export async function fetchReservations(): Promise<
   } catch (error) {
     console.error(error);
     return [];
-  } finally {
-    client.release();
   }
 }
 
 export async function fetchConfirmedReservationsByFestival(
   festivalId: number,
 ): Promise<ReservationWithParticipantsAndUsers[]> {
-  const client = await pool.connect();
-
   try {
     return db.query.standReservations.findMany({
       where: and(
@@ -75,8 +69,6 @@ export async function fetchConfirmedReservationsByFestival(
   } catch (error) {
     console.error(error);
     return [];
-  } finally {
-    client.release();
   }
 }
 
@@ -85,7 +77,6 @@ export async function fetchReservation(
 ): Promise<
   ReservationWithParticipantsAndUsersAndStandAndFestival | undefined | null
 > {
-  const client = await pool.connect();
   try {
     return await db.query.standReservations.findFirst({
       where: eq(standReservations.id, id),
@@ -106,8 +97,6 @@ export async function fetchReservation(
   } catch (error) {
     console.error(error);
     return null;
-  } finally {
-    client.release();
   }
 }
 
@@ -115,8 +104,6 @@ export async function updateReservation(
   id: number,
   data: ReservationWithParticipantsAndUsersAndStand,
 ): Promise<{ success: boolean; message: string }> {
-  const client = await pool.connect();
-
   try {
     const { status, standId } = data;
     await db.transaction(async (tx) => {
@@ -134,8 +121,6 @@ export async function updateReservation(
   } catch (error) {
     console.error(error);
     return { success: false, message: "Error al actualizar la reserva" };
-  } finally {
-    client.release();
   }
 
   revalidatePath("/dashboard/reservations");
@@ -146,8 +131,6 @@ export async function deleteReservation(
   reservationId: number,
   standId: number,
 ) {
-  const client = await pool.connect();
-
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -166,8 +149,6 @@ export async function deleteReservation(
   } catch (error) {
     console.error(error);
     return { success: false, message: "Error al eliminar la reserva" };
-  } finally {
-    client.release();
   }
 
   revalidatePath("/dashboard/reservations");
@@ -181,8 +162,6 @@ export async function confirmReservation(
   standLabel: string,
   festival: FestivalWithDates,
 ) {
-  const client = await pool.connect();
-
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -219,8 +198,6 @@ export async function confirmReservation(
   } catch (error) {
     console.error(error);
     return { success: false, message: "Error al confirmar la reserva" };
-  } finally {
-    client.release();
   }
 
   revalidatePath("/dashboard/payments");

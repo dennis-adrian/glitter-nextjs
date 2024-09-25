@@ -34,8 +34,6 @@ export type UserProfileWithRequests = UserProfileType & {
 export async function fetchUserProfileById(
   id: number,
 ): Promise<ProfileType | null | undefined> {
-  const client = await pool.connect();
-
   try {
     return await db.query.users.findFirst({
       with: {
@@ -62,16 +60,12 @@ export async function fetchUserProfileById(
   } catch (error) {
     console.error("Error fetching user profile", error);
     return null;
-  } finally {
-    client.release();
   }
 }
 
 export async function fetchUserProfile(
   clerkId: string,
 ): Promise<ProfileType | undefined | null> {
-  const client = await pool.connect();
-
   try {
     return await db.query.users.findFirst({
       with: {
@@ -98,16 +92,12 @@ export async function fetchUserProfile(
   } catch (error) {
     console.error(error);
     return null;
-  } finally {
-    client.release();
   }
 }
 
 export async function fetchOrCreateProfile(
   user: User | null | undefined,
 ): Promise<ProfileType | undefined | null> {
-  const client = await pool.connect();
-
   try {
     if (!user) throw new Error("No logged in user provided");
     const userEmail = user.emailAddresses[0].emailAddress;
@@ -192,14 +182,10 @@ export async function fetchOrCreateProfile(
   } catch (error) {
     console.error(error);
     return null;
-  } finally {
-    client.release();
   }
 }
 
 export async function fetchProfiles(): Promise<ProfileType[]> {
-  const client = await pool.connect();
-
   try {
     return await db.query.users.findMany({
       with: {
@@ -226,16 +212,12 @@ export async function fetchProfiles(): Promise<ProfileType[]> {
   } catch (error) {
     console.error(error);
     return [];
-  } finally {
-    client.release();
   }
 }
 
 export async function fetchProfilesByIds(
   ids: number[],
 ): Promise<ProfileType[]> {
-  const client = await pool.connect();
-
   try {
     return await db.query.users.findMany({
       with: {
@@ -263,8 +245,6 @@ export async function fetchProfilesByIds(
   } catch (error) {
     console.error(error);
     return [];
-  } finally {
-    client.release();
   }
 }
 
@@ -313,8 +293,6 @@ export async function updateProfile(
   prevState: State,
   formData: FormData,
 ) {
-  const client = await pool.connect();
-  // console.log("updating profile", formData);
   const validateFields = UpdateName.safeParse({
     firstName: formData.get("firstName"),
     lastName: formData.get("lastName"),
@@ -344,8 +322,6 @@ export async function updateProfile(
     return {
       message: "Error de Base de Datos: No se pudo actualizar el perfil",
     };
-  } finally {
-    client.release();
   }
 
   revalidatePath("/my_profile");
@@ -355,7 +331,6 @@ export async function updateProfileWithValidatedData(
   id: number,
   data: ProfileType & { socials?: NewUserSocial[] },
 ) {
-  const client = await pool.connect();
   const {
     firstName,
     lastName,
@@ -424,8 +399,6 @@ export async function updateProfileWithValidatedData(
     return {
       message: "Error al guardar los cambios. Intenta de nuevo",
     };
-  } finally {
-    client.release();
   }
 
   revalidatePath("/my_profile");
@@ -437,8 +410,6 @@ type FormState = {
   message: string;
 };
 export async function deleteProfile(profileId: number, prevState: FormState) {
-  const client = await pool.connect();
-
   try {
     const deletedUsers = await db
       .delete(users)
@@ -451,8 +422,6 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
   } catch (error) {
     console.error(error);
     return { success: false, message: "Error al eliminar el perfil" };
-  } finally {
-    client.release();
   }
 
   revalidatePath("/dashboard/users");
@@ -460,8 +429,6 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
 }
 
 export async function verifyProfile(profileId: number, category: UserCategory) {
-  const client = await pool.connect();
-
   try {
     const [updatedUser] = await db
       .update(users)
@@ -505,8 +472,6 @@ export async function verifyProfile(profileId: number, category: UserCategory) {
       success: false,
       message: "Error al verificar el perfil",
     };
-  } finally {
-    client.release();
   }
 
   revalidatePath("/dashboard/users");
@@ -514,8 +479,6 @@ export async function verifyProfile(profileId: number, category: UserCategory) {
 }
 
 export async function fetchAdminUsers(): Promise<BaseProfile[]> {
-  const client = await pool.connect();
-
   try {
     return await db.query.users.findMany({
       where: eq(users.role, "admin"),
@@ -523,16 +486,12 @@ export async function fetchAdminUsers(): Promise<BaseProfile[]> {
   } catch (error) {
     console.error(error);
     return [];
-  } finally {
-    client.release();
   }
 }
 
 export async function fetchBaseProfileById(
   id: number,
 ): Promise<BaseProfile | null | undefined> {
-  const client = await pool.connect();
-
   try {
     return await db.query.users.findFirst({
       where: eq(users.id, id),
@@ -540,16 +499,12 @@ export async function fetchBaseProfileById(
   } catch (error) {
     console.error(error);
     return null;
-  } finally {
-    client.release();
   }
 }
 
 export async function fetchBaseProfileByClerkId(
   id: string,
 ): Promise<BaseProfile | null | undefined> {
-  const client = await pool.connect();
-
   try {
     return await db.query.users.findFirst({
       where: eq(users.clerkId, id),
@@ -557,14 +512,10 @@ export async function fetchBaseProfileByClerkId(
   } catch (error) {
     console.error(error);
     return null;
-  } finally {
-    client.release();
   }
 }
 
 export async function disableProfile(id: number) {
-  const client = await pool.connect();
-
   try {
     await db.update(users).set({ status: "banned" }).where(eq(users.id, id));
   } catch (error) {
@@ -573,8 +524,6 @@ export async function disableProfile(id: number) {
       success: false,
       message: "Error al deshabilitar el usuario",
     };
-  } finally {
-    client.release();
   }
 
   revalidatePath("/dashboard/users");
@@ -585,8 +534,6 @@ export async function rejectProfile(
   profile: BaseProfile,
   rejectReason: string,
 ) {
-  const client = await pool.connect();
-
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -610,8 +557,6 @@ export async function rejectProfile(
       success: false,
       message: "Error al rechazar el perfil",
     };
-  } finally {
-    client.release();
   }
 
   revalidatePath("/dashboard/users");

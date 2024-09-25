@@ -25,8 +25,6 @@ import { and, asc, count, desc, eq, isNotNull, not, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function updateProfile(userId: number, profile: UpdateUser) {
-  const client = await pool.connect();
-
   try {
     await db
       .update(users)
@@ -43,8 +41,6 @@ export async function updateProfile(userId: number, profile: UpdateUser) {
       success: false,
       message: "Error al actualizar el perfil",
     };
-  } finally {
-    client.release();
   }
 
   revalidatePath("/my_profile");
@@ -60,8 +56,6 @@ export async function updateProfileCategories(
   subcategoryIds: number[],
   options?: { sendUserEmail?: boolean },
 ) {
-  const client = await pool.connect();
-
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -98,8 +92,6 @@ export async function updateProfileCategories(
       success: false,
       message: "Error al actualizar el perfil",
     };
-  } finally {
-    client.release();
   }
 
   revalidatePath("/my_profile");
@@ -113,8 +105,6 @@ export async function updateProfileSocials(
   profileId: number,
   socials: UserSocial[],
 ) {
-  const client = await pool.connect();
-
   try {
     if (socials.length === 0) {
       return { success: false, message: "No se actualizó el perfil" };
@@ -139,8 +129,6 @@ export async function updateProfileSocials(
       success: false,
       message: "Error al actualizar el perfil",
     };
-  } finally {
-    client.release();
   }
 
   revalidatePath("/my_profile");
