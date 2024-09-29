@@ -39,12 +39,12 @@ export default function FestivalActivationEmailTemplate({
       <Preview>Alístate para participar en nuestro próximo festival</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
-          <EmailHeader />
+          <EmailHeader festivalType={festival.festivalType} />
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.text}>¡Hola, {userName}!</Text>
             <Text style={styles.text}>
               Las reservas para el festival <strong>{festival.name}</strong> se
-              habilitarán el día {fullDate}.
+              habilitarán la noche del día {fullDate}.
             </Text>
             <Text style={styles.text}>
               Hasta mientras te pedimos que por favor leas con atención los
@@ -97,5 +97,6 @@ FestivalActivationEmailTemplate.PreviewProps = {
     id: 11,
     name: "Glitter 10ma edición",
     reservationsStartDate: new Date("2024-08-12 12:00:00"),
+    festivalType: "twinkler",
   },
 } as FestivalActivationTemplateProps;

@@ -212,21 +212,36 @@ export default function Terms({
         </h3>
         <p>El armado de espacio será: </p>
         <ul className="leading-7 list-inside list-disc">
-          {festival.festivalDates.map((date, index) => (
-            <li key={index}>
+          {festival.festivalDates[0] && (
+            <li key={festival.festivalDates[0].id}>
               <span className="capitalize">
-                {formatDate(date.startDate).weekdayLong}
+                {formatDate(festival.festivalDates[0].startDate).weekdayLong}
               </span>{" "}
               de{" "}
-              {formatDate(date.startDate)
+              {formatDate(festival.festivalDates[0].startDate)
                 .minus({ hour: 1 })
                 .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
               a{" "}
-              {formatDate(date.startDate).toLocaleString(
+              {formatDate(festival.festivalDates[0].startDate).toLocaleString(
                 DateTime.TIME_24_SIMPLE,
               )}
             </li>
-          ))}
+          )}
+          {festival.festivalDates[1] && (
+            <li key={festival.festivalDates[1].id}>
+              <span className="capitalize">
+                {formatDate(festival.festivalDates[1].startDate).weekdayLong}
+              </span>{" "}
+              de{" "}
+              {formatDate(festival.festivalDates[1].startDate)
+                .minus({ minutes: 30 })
+                .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+              a{" "}
+              {formatDate(festival.festivalDates[1].startDate).toLocaleString(
+                DateTime.TIME_24_SIMPLE,
+              )}
+            </li>
+          )}
         </ul>
         <p>
           El ingreso{" "}
@@ -293,6 +308,12 @@ export default function Terms({
               cualquier artefacto que provoque fuego.
             </li>
           )}
+          <li>
+            <u>
+              Todo contenido +18 debe estar censurado y comercializado solamente
+              con solicitud previa.
+            </u>
+          </li>
           <li>Todos los espacios son con reserva previa de ubicación.</li>
           <li>
             Ningún espacio puede exceder las medidas establecidas por la

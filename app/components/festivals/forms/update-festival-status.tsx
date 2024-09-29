@@ -2,7 +2,11 @@
 
 import { Button } from "@/app/components/ui/button";
 import { Form } from "@/app/components/ui/form";
-import { updateFestivalStatus } from "@/app/data/festivals/actions";
+import {
+  getFestivalAvailableUsers,
+  sendUserEmailsTemp,
+  updateFestivalStatusTemp,
+} from "@/app/data/festivals/actions";
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import { Loader2Icon } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -19,9 +23,26 @@ export default function ActivateFestivalForm({
 
   const action: () => void = form.handleSubmit(async () => {
     const status = festival.status === "active" ? "draft" : "active";
-    const res = await updateFestivalStatus({ ...festival, status });
+    const res = await updateFestivalStatusTemp({ ...festival, status });
     if (res.success) {
       toast.success(res.message);
+      if (status === "active") {
+        const loadingToast = toast.loading("Enviando correos...");
+        const availableUsers = await getFestivalAvailableUsers(festival.id);
+        const gastronomyUsers = availableUsers.filter(
+          (user) => user.category === "gastronomy",
+        );
+        await sendUserEmailsTemp(gastronomyUsers, festival.id);
+        const entrepreneurshipUsers = availableUsers.filter(
+          (user) => user.category === "entrepreneurship",
+        );
+        await sendUserEmailsTemp(entrepreneurshipUsers, festival.id);
+        const illustrationUsers = availableUsers.filter(
+          (user) => user.category === "illustration",
+        );
+        await sendUserEmailsTemp(illustrationUsers, festival.id);
+        toast.dismiss(loadingToast);
+      }
       onSuccess();
     } else toast.error(res.message);
   });
