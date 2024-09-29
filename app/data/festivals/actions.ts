@@ -173,9 +173,69 @@ export async function fetchFestivals(): Promise<FestivalWithDates[]> {
   }
 }
 
-export async function updateFestivalStatus(festival: FestivalBase) {
-  const client = await pool.connect();
+// TODO: Improve this by running actions in the background
+// ------ BEGIN
+export async function updateFestivalStatusTemp(festival: FestivalBase) {
+  try {
+    await db
+      .update(festivals)
+      .set({ status: festival.status })
+      .where(eq(festivals.id, festival.id));
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al actualizar el festival" };
+  }
 
+  revalidatePath("/dashboard/festivals");
+  return { success: true, message: "Festival actualizado con éxito" };
+}
+
+export async function getFestivalAvailableUsers(festivalId: number) {
+  try {
+    const sectors = await db.query.festivalSectors.findMany({
+      with: {
+        stands: true,
+      },
+      where: eq(festivalSectors.festivalId, festivalId),
+    });
+
+    const categories = [
+      ...new Set(
+        sectors.flatMap((sector) =>
+          getFestivalSectorAllowedCategories(sector, true),
+        ),
+      ),
+    ];
+
+    const result = await db
+      .select()
+      .from(users)
+      .innerJoin(
+        profileSubcategories,
+        eq(users.id, profileSubcategories.profileId),
+      )
+      .where(
+        and(eq(users.status, "verified"), inArray(users.category, categories)),
+      );
+
+    return result.map((result) => result.users);
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+}
+export async function sendUserEmailsTemp(
+  users: BaseProfile[],
+  festivalId: number,
+) {
+  try {
+    const festivalWithDates = await fetchFestivalWithDates(festivalId);
+    await queueEmails<BaseProfile>(users, festivalWithDates!, sendEmailToUsers);
+  } catch (error) {}
+}
+// ------ END
+
+export async function updateFestivalStatus(festival: FestivalBase) {
   try {
     const { status } = festival;
     const [updatedFestival] = await db
@@ -227,8 +287,6 @@ export async function updateFestivalStatus(festival: FestivalBase) {
   } catch (error) {
     console.error("Error activating festival", error);
     return { success: false, message: "Error al actualizar el festival" };
-  } finally {
-    client.release();
   }
 
   revalidatePath("/dashboard/festivals");
@@ -329,7 +387,7 @@ export async function sendEmailToUsers(
 ) {
   const { error } = await sendEmail({
     to: [user.email],
-    from: "Equipo Glitter <no-reply@productoraglitter.com>",
+    from: "Productora Glitter <no-reply@productoraglitter.com>",
     subject: `¡Hola ${user.displayName || ""}! Te invitamos a participar en ${
       festival.name
     }`,

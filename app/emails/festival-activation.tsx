@@ -44,7 +44,7 @@ export default function FestivalActivationEmailTemplate({
             <Text style={styles.text}>¡Hola, {userName}!</Text>
             <Text style={styles.text}>
               Las reservas para el festival <strong>{festival.name}</strong> se
-              habilitarán el día {fullDate}.
+              habilitarán la noche del día {fullDate}.
             </Text>
             <Text style={styles.text}>
               Hasta mientras te pedimos que por favor leas con atención los
