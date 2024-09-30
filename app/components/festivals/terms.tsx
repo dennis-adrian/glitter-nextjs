@@ -292,6 +292,12 @@ export default function Terms({
         <br />
         <h3 className="font-semibold text-lg my-2">Importante</h3>
         <ul className="leading-7 list-inside list-disc">
+          <li>
+            <u>
+              Todo contenido +18 debe estar censurado y comercializado solamente
+              con solicitud previa.
+            </u>
+          </li>
           {mapCategory === "entrepreneurship" && (
             <li>
               Queda prohibida la venta de material con imagenes sacadas de
@@ -308,12 +314,6 @@ export default function Terms({
               cualquier artefacto que provoque fuego.
             </li>
           )}
-          <li>
-            <u>
-              Todo contenido +18 debe estar censurado y comercializado solamente
-              con solicitud previa.
-            </u>
-          </li>
           <li>Todos los espacios son con reserva previa de ubicación.</li>
           <li>
             Ningún espacio puede exceder las medidas establecidas por la
