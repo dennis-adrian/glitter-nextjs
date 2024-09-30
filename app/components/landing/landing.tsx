@@ -25,14 +25,14 @@ export default async function Landing() {
             <div className="flex flex-col items-center">
               <Image
                 alt="logo glitter"
-                src="/img/glitter/logo-max-w-bg-382x120.png"
+                src="/img/glitter/twinkler-malva-logo-382x228.png"
                 height={120}
                 width={382}
               />
               <Image
-                className="lg:hidden"
+                className="lg:hidden my-4"
                 alt="mascota max el caiman"
-                src="/img/glitter/max-300x300.png"
+                src={festival.mascotUrl || ""}
                 height={300}
                 width={300}
               />
@@ -68,7 +68,7 @@ export default async function Landing() {
             <Image
               className="hidden lg:block"
               alt="mascota max el caiman"
-              src="/img/glitter/max-500x500.png"
+              src={festival.mascotUrl || "/img/glitter/max-500x500.png"}
               height={500}
               width={500}
             />
