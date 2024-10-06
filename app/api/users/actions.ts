@@ -385,7 +385,7 @@ export async function updateProfileWithValidatedData(
         const admins = await fetchAdminUsers();
         const adminEmails = admins.map((admin) => admin.email);
         await sendEmail({
-          to: [...adminEmails, "perfiles@productoraglitter.com"],
+          to: [...adminEmails],
           from: "Perfiles Glitter <perfiles@productoraglitter.com>",
           subject: `${profile.displayName} ha completado su perfil`,
           react: ProfileCompletionEmailTemplate({
