@@ -23,15 +23,6 @@ interface DataTablePaginationProps<TData> {
 export function DataTablePagination<TData>({
   table,
 }: DataTablePaginationProps<TData>) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const handleLimitChange = (value: string) => {
-    const currentSearchParams = new URLSearchParams(searchParams.toString());
-    currentSearchParams.set("limit", value);
-    router.push(`?${currentSearchParams.toString()}`);
-  };
-
   return (
     <div className="flex items-center justify-between px-2">
       <div className="flex-1 hidden sm:block text-sm text-muted-foreground">
@@ -43,7 +34,9 @@ export function DataTablePagination<TData>({
           <p className="text-sm font-medium">Filas por página</p>
           <Select
             value={`${table.getState().pagination.pageSize}`}
-            onValueChange={handleLimitChange}
+            onValueChange={(value) => {
+              table.setPageSize(Number(value));
+            }}
           >
             <SelectTrigger className="h-8 w-[70px]">
               <SelectValue placeholder={table.getState().pagination.pageSize} />

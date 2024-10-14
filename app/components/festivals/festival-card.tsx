@@ -39,6 +39,12 @@ export default function FestivalCard({
             >
               Ver visitantes
             </RedirectButton>
+            <RedirectButton
+              variant="link"
+              href={`/dashboard/festivals/${festival.id}/participants`}
+            >
+              Ver participantes
+            </RedirectButton>
           </div>
           <FestivalSwitches festival={festival} />
           <div className="p-4 border rounded-lg space-y-3">
