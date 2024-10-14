@@ -16,6 +16,10 @@ type UserRequest = typeof userRequests.$inferSelect;
 type Participation = typeof reservationParticipants.$inferSelect & {
   reservation: typeof standReservations.$inferSelect;
 };
+export type ParticipationWithParticipantAndReservations = Participation & {
+  user: typeof users.$inferSelect;
+  reservation: typeof standReservations.$inferSelect;
+};
 
 export type NewUser = typeof users.$inferInsert;
 export type UpdateUser = Partial<NewUser>;

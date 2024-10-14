@@ -11,6 +11,7 @@ import {
   festivalSectors,
   standReservations,
   profileSubcategories,
+  tickets,
 } from "@/db/schema";
 import {
   Festival,
@@ -22,7 +23,10 @@ import { sendEmail } from "@/app/vendors/resend";
 import React from "react";
 import EmailTemplate from "@/app/emails/festival-activation";
 import { revalidatePath } from "next/cache";
-import { BaseProfile } from "@/app/api/users/definitions";
+import {
+  BaseProfile,
+  ParticipationWithParticipantAndReservations,
+} from "@/app/api/users/definitions";
 import { fetchVisitorsEmails } from "@/app/data/visitors/actions";
 import RegistrationInvitationEmailTemplate from "@/app/emails/registration-invitation";
 import { groupVisitorEmails } from "@/app/data/festivals/helpers";
@@ -472,5 +476,32 @@ export async function fetchAvailableArtistsInFestival(
     return [];
   } finally {
     client.release();
+  }
+}
+
+export async function fetchFestivalParticipants(
+  festivalId: number,
+): Promise<ParticipationWithParticipantAndReservations[]> {
+  try {
+    const queryResult = await db
+      .select()
+      .from(reservationParticipants)
+      .leftJoin(
+        standReservations,
+        eq(standReservations.id, reservationParticipants.reservationId),
+      )
+      .leftJoin(users, eq(users.id, reservationParticipants.userId))
+      .where(eq(standReservations.festivalId, festivalId));
+
+    const formattedResult = queryResult.map((res) => ({
+      ...res.participations,
+      user: res.users,
+      reservation: res.stand_reservations,
+    }));
+
+    return formattedResult as ParticipationWithParticipantAndReservations[];
+  } catch (error) {
+    console.error("Error fetching festival participants", error);
+    return [];
   }
 }
