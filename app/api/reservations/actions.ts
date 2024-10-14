@@ -3,7 +3,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { db, pool } from "@/db";
+import { db } from "@/db";
 import { scheduledTasks, standReservations, stands } from "@/db/schema";
 
 import { BaseProfile } from "@/app/api/users/definitions";
@@ -19,10 +19,18 @@ import {
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import ReservationRejectionEmailTemplate from "@/app/emails/reservation-rejection";
 import { getUserName } from "@/app/lib/users/utils";
+import { buildWhereClauseForReservationsFetching } from "@/app/api/reservations/helpers";
 
-export async function fetchReservations(): Promise<
+export async function fetchReservations(options: {
+  query?: string;
+  festivalId?: number;
+}): Promise<
   ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments[]
 > {
+  const whereClause = await buildWhereClauseForReservationsFetching({
+    ...options,
+  });
+
   try {
     return db.query.standReservations.findMany({
       with: {
@@ -44,6 +52,7 @@ export async function fetchReservations(): Promise<
         },
       },
       orderBy: desc(standReservations.updatedAt),
+      where: whereClause.queryChunks.length > 0 ? and(whereClause) : undefined,
     });
   } catch (error) {
     console.error(error);

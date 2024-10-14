@@ -1,4 +1,3 @@
-import { BaseProfile } from "@/app/api/users/definitions";
 import { userCategoryEnum, userStatusEnum } from "@/db/schema";
 import { z } from "zod";
 

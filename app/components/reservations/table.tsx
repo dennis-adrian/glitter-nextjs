@@ -15,9 +15,14 @@ import { HeaderCell } from "@/app/components/users/header-cell";
 import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 
-type ReservationsTableProps = {};
+type ReservationsTableProps = {
+  query?: string;
+  festivalId?: number;
+};
 export default async function ReservationsTable(props: ReservationsTableProps) {
-  const reservations = await fetchReservations();
+  const reservations = await fetchReservations({
+    ...props,
+  });
 
   return (
     <Table>

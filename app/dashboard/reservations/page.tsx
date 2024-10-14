@@ -4,6 +4,12 @@ import { Suspense } from "react";
 import TableSkeleton from "@/app/components/users/skeletons/table";
 import { fetchFestivals } from "@/app/data/festivals/actions";
 import { getFestivalsOptions } from "@/app/data/festivals/helpers";
+import ReservationsTableFilters from "@/app/components/reservations/filters/table-filter";
+import {
+  ReservationsSearchParamsSchema,
+  ReservationsSearchParamsSchemaType,
+} from "./schemas";
+import { notFound } from "next/navigation";
 
 const statusOptions = [
   { value: "pending", label: "Pendiente" },
@@ -11,7 +17,15 @@ const statusOptions = [
   { value: "rejected", label: "Rechazada" },
 ];
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: ReservationsSearchParamsSchemaType;
+}) {
+  const validatedSearchParams =
+    ReservationsSearchParamsSchema.safeParse(searchParams);
+  if (!validatedSearchParams.success) notFound();
+
   // TODO: Improve how this route protecting works
   const profile = await getCurrentUserProfile();
 
@@ -26,7 +40,6 @@ export default async function Page() {
   }
 
   const festivals = await fetchFestivals();
-  const festivalOptions = getFestivalsOptions(festivals);
 
   return (
     <div
@@ -34,8 +47,9 @@ export default async function Page() {
       // key={Math.random()} // This is to force the component to re-render and show the skeleton
     >
       <h1 className="mb-2 text-2xl font-bold md:text-3xl">Reservas</h1>
+      <ReservationsTableFilters festivals={festivals} />
       <Suspense fallback={<TableSkeleton />}>
-        <ReservationsTable />
+        <ReservationsTable {...validatedSearchParams.data} />
       </Suspense>
     </div>
   );
