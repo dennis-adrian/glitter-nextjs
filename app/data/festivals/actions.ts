@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq, inArray, not } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, not } from "drizzle-orm";
 
 import { db, pool } from "@/db";
 import {
@@ -12,6 +12,7 @@ import {
   standReservations,
   profileSubcategories,
   tickets,
+  userSocials,
 } from "@/db/schema";
 import {
   Festival,
@@ -502,6 +503,37 @@ export async function fetchFestivalParticipants(
     return formattedResult as ParticipationWithParticipantAndReservations[];
   } catch (error) {
     console.error("Error fetching festival participants", error);
+    return [];
+  }
+}
+
+export async function fetchEnrolledParticipants(
+  festivalId: number,
+): Promise<BaseProfile[]> {
+  try {
+    const queryResult = await db
+      .select()
+      .from(userRequests)
+      .leftJoin(users, eq(userRequests.userId, users.id))
+      .leftJoin(
+        reservationParticipants,
+        eq(reservationParticipants.userId, users.id),
+      )
+      .where(
+        and(
+          eq(userRequests.festivalId, festivalId),
+          eq(userRequests.type, "festival_participation"),
+          isNull(reservationParticipants.userId),
+          eq(userRequests.status, "accepted"),
+        ),
+      );
+
+    const formattedResult = queryResult.map((res) => ({
+      ...res.users,
+    }));
+    return formattedResult as BaseProfile[];
+  } catch (error) {
+    console.error(error);
     return [];
   }
 }
