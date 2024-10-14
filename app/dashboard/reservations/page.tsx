@@ -1,9 +1,15 @@
-import { fetchReservations } from "@/app/api/reservations/actions";
 import ReservationsTable from "@/app/components/reservations/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { Suspense } from "react";
+import TableSkeleton from "@/app/components/users/skeletons/table";
 import { fetchFestivals } from "@/app/data/festivals/actions";
 import { getFestivalsOptions } from "@/app/data/festivals/helpers";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import ReservationsTableFilters from "@/app/components/reservations/filters/table-filter";
+import {
+  ReservationsSearchParamsSchema,
+  ReservationsSearchParamsSchemaType,
+} from "./schemas";
+import { notFound } from "next/navigation";
 
 const statusOptions = [
   { value: "pending", label: "Pendiente" },
@@ -11,7 +17,15 @@ const statusOptions = [
   { value: "rejected", label: "Rechazada" },
 ];
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: ReservationsSearchParamsSchemaType;
+}) {
+  const validatedSearchParams =
+    ReservationsSearchParamsSchema.safeParse(searchParams);
+  if (!validatedSearchParams.success) notFound();
+
   // TODO: Improve how this route protecting works
   const profile = await getCurrentUserProfile();
 
@@ -25,57 +39,18 @@ export default async function Page() {
     );
   }
 
-  const reservations = await fetchReservations();
   const festivals = await fetchFestivals();
-  const festivalOptions = getFestivalsOptions(festivals);
-  if (reservations.length === 0) {
-    return (
-      <div className="container mx-auto min-h-full p-4 md:p-6">
-        <h1 className="mb-2 text-3xl font-bold">Reservas</h1>
-        <p>No hay reservas</p>
-      </div>
-    );
-  }
 
-  // TODO: Fix new reservation page and uncomment button
   return (
-    <div className="container mx-auto min-h-full p-4 md:p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="mb-2 text-3xl font-bold">Reservas</h1>
-        {/* <Button>
-          <Link href="/dashboard/reservations/new">Nueva Reserva</Link>
-        </Button> */}
-      </div>
-
-      <Tabs defaultValue="all" className="my-4">
-        <TabsList>
-          <TabsTrigger value="all">Todas</TabsTrigger>
-          <TabsTrigger value="pending">Pendientes</TabsTrigger>
-          <TabsTrigger value="accepted">Confirmadas</TabsTrigger>
-        </TabsList>
-        <TabsContent value="all">
-          <ReservationsTable
-            reservations={reservations}
-            festivalOptions={festivalOptions}
-          />
-        </TabsContent>
-        <TabsContent value="pending">
-          <ReservationsTable
-            festivalOptions={festivalOptions}
-            reservations={reservations}
-            status="pending"
-            columnVisbility={{ status: false }}
-          />
-        </TabsContent>
-        <TabsContent value="accepted">
-          <ReservationsTable
-            festivalOptions={festivalOptions}
-            reservations={reservations}
-            status="accepted"
-            columnVisbility={{ status: false }}
-          />
-        </TabsContent>
-      </Tabs>
+    <div
+      className="container mx-auto min-h-full p-4 md:p-6"
+      // key={Math.random()} // This is to force the component to re-render and show the skeleton
+    >
+      <h1 className="mb-2 text-2xl font-bold md:text-3xl">Reservas</h1>
+      <ReservationsTableFilters festivals={festivals} />
+      <Suspense fallback={<TableSkeleton />}>
+        <ReservationsTable {...validatedSearchParams.data} />
+      </Suspense>
     </div>
   );
 }
