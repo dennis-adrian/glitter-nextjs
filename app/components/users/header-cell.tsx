@@ -2,13 +2,7 @@
 
 import { Button } from "@/app/components/ui/button";
 import { TableHead } from "@/app/components/ui/table";
-import {
-  ArrowDownIcon,
-  ArrowDownWideNarrow,
-  ArrowUpDownIcon,
-  ArrowUpIcon,
-  ArrowUpNarrowWide,
-} from "lucide-react";
+import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 
