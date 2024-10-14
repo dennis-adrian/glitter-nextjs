@@ -1,6 +1,7 @@
 import { StandBase } from "@/app/api/stands/definitions";
 import { ProfileWithSocials } from "@/app/api/users/definitions";
 import { FestivalBase } from "@/app/data/festivals/definitions";
+import { InvoiceWithPayments } from "@/app/data/invoices/defiinitions";
 import { reservationParticipants, standReservations } from "@/db/schema";
 
 export type ReservationBase = typeof standReservations.$inferSelect;
@@ -25,4 +26,9 @@ export type ReservationWithParticipantsAndUsersAndStand =
 export type ReservationWithParticipantsAndUsersAndStandAndFestival =
   ReservationWithParticipantsAndUsersAndStand & {
     festival: FestivalBase;
+  };
+
+export type ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments =
+  ReservationWithParticipantsAndUsersAndStandAndFestival & {
+    invoices: InvoiceWithPayments[];
   };

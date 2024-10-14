@@ -8,7 +8,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-import { ReservationWithParticipantsAndUsersAndStandAndFestival } from "@/app/api/reservations/definitions";
+import { ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments } from "@/app/api/reservations/definitions";
 import { ActionsCell } from "@/app/components/reservations/cells/actions";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
 import { Checkbox } from "@/app/components/ui/checkbox";
@@ -16,6 +16,7 @@ import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-hea
 import { formatFullDate } from "@/app/lib/formatters";
 import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import PaymentStatus from "@/app/components/reservations/cells/payment-status";
 
 export const columnTitles = {
   artists: "Participantes",
@@ -23,10 +24,11 @@ export const columnTitles = {
   festivalId: "Festival",
   id: "ID",
   stand: "Espacio",
-  status: "Estado",
+  status: "Estado de la Reserva",
+  paymentStatus: "Estado del Pago",
 };
 
-export const columns: ColumnDef<ReservationWithParticipantsAndUsersAndStandAndFestival>[] =
+export const columns: ColumnDef<ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments>[] =
   [
     {
       id: "select",
@@ -116,6 +118,16 @@ export const columns: ColumnDef<ReservationWithParticipantsAndUsersAndStandAndFe
         const status = row.getValue(columnId);
         return filterStatus === status;
       },
+    },
+    {
+      accessorKey: "paymentStatus",
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title={columnTitles.paymentStatus}
+        />
+      ),
+      cell: ({ row }) => <PaymentStatus invoices={row.original.invoices} />,
     },
     {
       accessorKey: "createdAt",

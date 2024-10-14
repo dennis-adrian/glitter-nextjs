@@ -14,13 +14,14 @@ import {
   ReservationWithParticipantsAndUsers,
   ReservationWithParticipantsAndUsersAndStand,
   ReservationWithParticipantsAndUsersAndStandAndFestival,
+  ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments,
 } from "@/app/api/reservations/definitions";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import ReservationRejectionEmailTemplate from "@/app/emails/reservation-rejection";
 import { getUserName } from "@/app/lib/users/utils";
 
 export async function fetchReservations(): Promise<
-  ReservationWithParticipantsAndUsersAndStandAndFestival[]
+  ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments[]
 > {
   try {
     return db.query.standReservations.findMany({
@@ -36,6 +37,11 @@ export async function fetchReservations(): Promise<
         },
         stand: true,
         festival: true,
+        invoices: {
+          with: {
+            payments: true,
+          },
+        },
       },
       orderBy: desc(standReservations.updatedAt),
     });

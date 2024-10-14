@@ -2,12 +2,12 @@
 
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { columnTitles, columns } from "@/components/reservations/columns";
-import { ReservationWithParticipantsAndUsersAndStandAndFestival } from "@/app/api/reservations/definitions";
+import { ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments } from "@/app/api/reservations/definitions";
 import { ReservationBase } from "@/app/api/reservations/definitions";
 
 type ReservationsTableProps = {
   festivalOptions: { value: string; label: string }[];
-  reservations: ReservationWithParticipantsAndUsersAndStandAndFestival[];
+  reservations: ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments[];
   status?: ReservationBase["status"];
   columnVisbility?: Record<string, boolean>;
 };
