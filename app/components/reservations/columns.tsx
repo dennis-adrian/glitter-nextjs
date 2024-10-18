@@ -127,7 +127,7 @@ export const columns: ColumnDef<ReservationWithParticipantsAndUsersAndStandAndFe
           title={columnTitles.paymentStatus}
         />
       ),
-      cell: ({ row }) => <PaymentStatus invoices={row.original.invoices} />,
+      cell: ({ row }) => <PaymentStatus reservation={row.original} />,
     },
     {
       accessorKey: "createdAt",
