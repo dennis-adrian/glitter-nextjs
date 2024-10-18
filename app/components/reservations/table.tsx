@@ -1,4 +1,5 @@
 import { fetchReservations } from "@/app/api/reservations/actions";
+import ProfileCell from "@/app/components/common/table/profile-cell";
 import { ActionsCell } from "@/app/components/reservations/cells/actions";
 import PaymentStatus from "@/app/components/reservations/cells/payment-status";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
@@ -46,25 +47,10 @@ export default async function ReservationsTable(props: ReservationsTableProps) {
               <TableCell>
                 <div className="flex flex-col gap-2">
                   {reservation.participants.map((participant) => (
-                    <div
-                      className="flex gap-2 items-center"
+                    <ProfileCell
                       key={participant.id}
-                    >
-                      <Avatar className="w-8 h-8">
-                        <AvatarImage
-                          src={
-                            participant.user.imageUrl ||
-                            "/img/profile-avatar.png"
-                          }
-                          alt={
-                            participant.user.displayName
-                              ? `Imagen de perfil de ${participant.user.displayName}`
-                              : "Imagen de perfil"
-                          }
-                        />
-                      </Avatar>
-                      <span>{participant.user.displayName}</span>
-                    </div>
+                      profile={participant.user}
+                    />
                   ))}
                 </div>
               </TableCell>
@@ -77,7 +63,7 @@ export default async function ReservationsTable(props: ReservationsTableProps) {
               </TableCell>
               <TableCell>{reservation.festival.name}</TableCell>
               <TableCell>
-                <PaymentStatus invoices={reservation.invoices} />
+                <PaymentStatus reservation={reservation} />
               </TableCell>
               <TableCell>
                 {formatDate(reservation.createdAt).toLocaleString(
