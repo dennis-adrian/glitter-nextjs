@@ -26,7 +26,7 @@ export default function Ticket(props: TicketProps) {
       className="bg-white border p-4 text-center rounded-sm min-w-72 max-w-80 shadow-md"
       ref={props.ticketRef}
     >
-      <div className="">
+      <div className="mb-2">
         {props.festival.mascotUrl && (
           <Image
             className="mx-auto"
