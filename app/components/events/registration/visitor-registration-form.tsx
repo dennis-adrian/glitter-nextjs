@@ -138,7 +138,6 @@ export default function VisitorRegistrationForm({
             name="birthdate"
             label="Fecha de nacimiento"
             type="date"
-            value={form.getValues("birthdate")?.toLocaleString()}
           />
         </div>
         <SelectInput
