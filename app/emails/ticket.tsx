@@ -63,7 +63,7 @@ export default function TicketEmailTemplate({
                   style={marginAuto}
                   alt="logo"
                   src={festival.mascotUrl}
-                  height={150}
+                  height={209}
                   width={150}
                 />
               )}
@@ -198,5 +198,5 @@ const festivalName = {
   fontSize: "18px",
   fontWeight: "500",
   letterSpacing: "-0.025em",
-  margin: 0,
+  margin: "4px 0",
 };

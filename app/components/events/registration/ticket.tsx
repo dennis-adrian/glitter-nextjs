@@ -32,7 +32,7 @@ export default function Ticket(props: TicketProps) {
             className="mx-auto"
             alt="mascota max el caiman"
             src={props.festival.mascotUrl}
-            height={150}
+            height={209}
             width={150}
           />
         )}
