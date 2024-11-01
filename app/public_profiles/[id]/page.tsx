@@ -4,6 +4,9 @@ import { fetchUserProfileById } from "@/app/api/users/actions";
 import SocialMediaBadge from "@/app/components/social-media-badge";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import ProfileCategoryBadge from "@/app/components/user_profile/category-badge";
+import { Suspense } from "react";
+import FullProfile from "@/app/public_profiles/[id]/full_profile";
+import { Skeleton } from "@/app/components/ui/skeleton";
 
 export default async function Page({ params }: { params: { id: string } }) {
   const profile = await fetchUserProfileById(parseInt(params.id));
@@ -17,6 +20,9 @@ export default async function Page({ params }: { params: { id: string } }) {
   }
   return (
     <div className="container h-full p-4 md:p-6">
+      <Suspense fallback={<Skeleton className="h-11" />}>
+        <FullProfile profileId={profile.id} />
+      </Suspense>
       <Image
         className="h-[120px] lg:h-[200px] w-full rounded-lg bg-gray-100"
         src="/img/profile-default-banner.png"
