@@ -14,6 +14,7 @@ import Form from "./form";
 import { ShowField } from "@/app/components/user_profile/show-field";
 import { formatDate } from "@/app/lib/formatters";
 import { genderLabels } from "@/app/lib/utils";
+import SocialMediaBadge from "@/app/components/social-media-badge";
 
 export default function PrivateProfileOverview({
   profile,
@@ -64,9 +65,10 @@ export default function PrivateProfileOverview({
             ).toLocaleString()} (${age} años)`}
           />
           <ShowField label="Correo electrónico" value={profile.email} />
-          <ShowField
-            label="Número de teléfono"
-            value={profile?.phoneNumber && `+591 ${profile?.phoneNumber}`}
+          <h3 className="font-bold">Número de teléfono</h3>
+          <SocialMediaBadge
+            socialMediaType="whatsapp"
+            username={`${profile.phoneNumber}`}
           />
           <ShowField
             label="Género"
