@@ -5,10 +5,12 @@ import { DateTime } from "luxon";
 export const generateChartData = (tickets: TicketWithVisitor[]) => {
   const chartData = [] as { date: string; tickets: number }[];
   const orderedTickets = tickets.sort((a, b) => {
-    return a.createdAt.valueOf() - b.createdAt.valueOf();
+    if (!a.checkedInAt || !b.checkedInAt) return -1;
+    return a.checkedInAt.valueOf() - b.checkedInAt.valueOf();
   });
   const ticketsByHour = orderedTickets.reduce((acc, ticket) => {
-    const date = formatDate(ticket.createdAt)
+    if (!ticket.checkedInAt) return acc;
+    const date = formatDate(ticket.checkedInAt)
       .startOf("hour")
       .toFormat("dd/MM HH'h'");
 

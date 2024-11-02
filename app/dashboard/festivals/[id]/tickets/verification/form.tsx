@@ -34,7 +34,13 @@ export default function VerifyTicketForm({
 
   const action: () => void = form.handleSubmit(async (data) => {
     const { ticketCode } = data;
-    const ticketNumber = Number(ticketCode.split(/[-\/]/)[1]); // Splits by either '-' or '/'
+    let ticketNumber = 0;
+    if (ticketCode.includes("-") || ticketCode.includes("/")) {
+      ticketNumber = Number(ticketCode.split(/[-\/]/)[1]); // Splits by either '-' or '/'
+    } else {
+      ticketNumber = Number(ticketCode);
+    }
+
     if (Number.isNaN(ticketNumber)) {
       toast.error("Código de entrada inválido", {
         position: "top-right",
