@@ -6,6 +6,7 @@ import StepDescription from "@/app/components/festivals/registration/steps/step-
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
+import { formatDate } from "@/app/lib/formatters";
 
 type TicketCreationStepProps = {
   festival: FestivalWithDates;
@@ -16,6 +17,11 @@ type TicketCreationStepProps = {
 export default function TicketCreationStep(props: TicketCreationStepProps) {
   if (props.visitor) {
     const tickets = getVisitorFestivalTickets(props.visitor, props.festival);
+    const currentDayTicket = tickets.find((ticket) => {
+      return formatDate(ticket.date)
+        .startOf("day")
+        .equals(formatDate(new Date()).startOf("day"));
+    });
 
     return (
       <>
@@ -23,7 +29,7 @@ export default function TicketCreationStep(props: TicketCreationStepProps) {
           title={`¡Bienvenido, ${props.visitor.firstName}!`}
           description="Gracias por visitarnos nuevamente, esperamos tengas la mejor de las experiencias "
         />
-        {tickets.length > 0 ? (
+        {currentDayTicket ? (
           <Tickets
             visitor={props.visitor}
             tickets={tickets}
