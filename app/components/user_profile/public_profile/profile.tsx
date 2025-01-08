@@ -1,5 +1,3 @@
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-
 import { FilePenLineIcon, FrownIcon } from "lucide-react";
 
 import { ProfileType } from "@/app/api/users/definitions";
@@ -14,12 +12,12 @@ import {
 import ProfileCategoryBadge from "@/app/components/user_profile/category-badge";
 import ProfilePicField from "@/app/components/user_profile/profile_pic/field";
 import VerificationStatusBadge from "@/app/components/user_profile/verification-status-badge";
-import { socialsIcons, socialsUrls } from "@/app/lib/users/utils";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/user_profile/modal";
 import Form from "./form";
 import TagBadge from "@/app/components/tags/tag-badge";
 import { Badge } from "@/app/components/ui/badge";
+import SocialMediaBadge from "@/app/components/social-media-badge";
 
 export default function PublicProfile({
   profile,
@@ -110,22 +108,15 @@ export default function PublicProfile({
                     <FrownIcon className="ml-2 h-4 w-4" />
                   </div>
                 )}
-                <div className="flex items-center justify-center gap-2">
+                <div className="flex flex-wrap items-center justify-center gap-2">
                   {socials && socials.length > 0 ? (
-                    socials.map((social) => {
-                      const url = socialsUrls[social.type];
-                      const icon = socialsIcons[social.type];
-                      return (
-                        <a
-                          key={social.id}
-                          href={`${url}${social.username}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          <FontAwesomeIcon className="h-5 w-5" icon={icon} />
-                        </a>
-                      );
-                    })
+                    socials.map((social) => (
+                      <SocialMediaBadge
+                        key={social.id}
+                        socialMediaType={social.type}
+                        username={social.username}
+                      />
+                    ))
                   ) : (
                     <div className="text-muted-foreground text-sm">
                       Sin redes agregadas

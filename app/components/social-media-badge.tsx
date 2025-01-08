@@ -16,6 +16,7 @@ export default function SocialMediaBadge(props: SocialMediaBadgeProps) {
         className="flex items-center"
         href={`${socialsUrls[props.socialMediaType]}${props.username}`}
         target="_blank"
+        rel="noreferrer"
       >
         <FontAwesomeIcon
           className="w-4 h-4 mr-1"
