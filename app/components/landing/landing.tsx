@@ -25,8 +25,8 @@ export default async function Landing() {
             <div className="flex flex-col items-center">
               <Image
                 alt="logo glitter"
-                src="/img/glitter/twinkler-malva-logo-382x228.png"
-                height={120}
+                src="/img/glitter/glitter-theo-logo-382x110.png"
+                height={110}
                 width={382}
               />
               <Image
@@ -37,7 +37,7 @@ export default async function Landing() {
                 width={300}
               />
               <GeneralInfoDetails
-                className="p-0 mb-4 lg:mb-0"
+                className="p-0 lg:mb-0"
                 detailsClassName="flex-col items-start p-0"
                 festival={festival}
                 noMascot
