@@ -210,82 +210,94 @@ export default function Terms({
         <h3 className="font-semibold text-lg my-2">
           Horario de armado y desarmado
         </h3>
-        <p>El armado de espacio será: </p>
-        <ul className="leading-7 list-inside list-disc">
-          {festival.festivalDates[0] && (
-            <li key={festival.festivalDates[0].id}>
-              <span className="capitalize">
-                {formatDate(festival.festivalDates[0].startDate).weekdayLong}
-              </span>{" "}
-              de{" "}
-              {formatDate(festival.festivalDates[0].startDate)
-                .minus({ hour: 1 })
-                .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
-              a{" "}
-              {formatDate(festival.festivalDates[0].startDate).toLocaleString(
-                DateTime.TIME_24_SIMPLE,
+        <ul className="list-inside list-disc">
+          <li>
+            El armado de espacio se hará en los siguientes horarios:
+            <ul className="ps-5 list-inside list-disc">
+              {festival.festivalDates[0] && (
+                <li key={festival.festivalDates[0].id}>
+                  <span className="capitalize">
+                    {
+                      formatDate(festival.festivalDates[0].startDate)
+                        .weekdayLong
+                    }
+                  </span>{" "}
+                  de{" "}
+                  {formatDate(festival.festivalDates[0].startDate)
+                    .minus({ hour: 1 })
+                    .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+                  a{" "}
+                  {formatDate(
+                    festival.festivalDates[0].startDate,
+                  ).toLocaleString(DateTime.TIME_24_SIMPLE)}
+                </li>
               )}
-            </li>
-          )}
-          {festival.festivalDates[1] && (
-            <li key={festival.festivalDates[1].id}>
-              <span className="capitalize">
-                {formatDate(festival.festivalDates[1].startDate).weekdayLong}
-              </span>{" "}
-              de{" "}
-              {formatDate(festival.festivalDates[1].startDate)
-                .minus({ minutes: 30 })
-                .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
-              a{" "}
-              {formatDate(festival.festivalDates[1].startDate).toLocaleString(
-                DateTime.TIME_24_SIMPLE,
+              {festival.festivalDates[1] && (
+                <li key={festival.festivalDates[1].id}>
+                  <span className="capitalize">
+                    {
+                      formatDate(festival.festivalDates[1].startDate)
+                        .weekdayLong
+                    }
+                  </span>{" "}
+                  de{" "}
+                  {formatDate(festival.festivalDates[1].startDate)
+                    .minus({ minutes: 30 })
+                    .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+                  a{" "}
+                  {formatDate(
+                    festival.festivalDates[1].startDate,
+                  ).toLocaleString(DateTime.TIME_24_SIMPLE)}
+                </li>
               )}
-            </li>
-          )}
-        </ul>
-        <p>
-          El ingreso{" "}
-          {festival.festivalType === "glitter" ? "del teatro" : "a la galería"}{" "}
-          queda sobre la calle Sucre, para poder ingresar deben hacer una fila
-          ordenada.{" "}
-          <strong>
-            Nadie puede ingresar al recinto antes de los horarios especificados
-            anteriormente
-          </strong>
-          .
-        </p>
-        <p>
-          Todos los espacios deben estar listos para recibir al público en el
-          siguiente horario:
-        </p>
-        <ul className="leading-7 list-inside list-disc">
-          {festival.festivalDates.map((date, index) => (
-            <li key={index}>
-              <span className="capitalize">
-                {formatDate(date.startDate).weekdayLong}
-              </span>{" "}
-              a las{" "}
-              {formatDate(date.startDate).toLocaleString(
-                DateTime.TIME_24_SIMPLE,
-              )}
-            </li>
-          ))}
-        </ul>
-        <p>El desarme de espacios se debe hacer en los siguientes horarios:</p>
-        <ul className="leading-7 list-inside list-disc">
-          {festival.festivalDates.map((date, index) => (
-            <li key={index}>
-              <span className="capitalize">
-                {formatDate(date.endDate).weekdayLong}
-              </span>{" "}
-              de{" "}
-              {formatDate(date.endDate).toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
-              a{" "}
-              {formatDate(date.endDate)
-                .plus({ minutes: 45 })
-                .toLocaleString(DateTime.TIME_24_SIMPLE)}
-            </li>
-          ))}
+            </ul>
+          </li>
+          <li>
+            El ingreso queda sobre la calle Sucre, para poder ingresar deben
+            hacer una fila ordenada.{" "}
+            <strong>
+              Nadie puede ingresar al recinto antes de los horarios
+              especificados anteriormente
+            </strong>
+            .
+          </li>
+          <li>
+            Todos los espacios deben estar listos para recibir al público en el
+            siguiente horario:
+            <ul className="ps-5 list-inside list-disc">
+              {festival.festivalDates.map((date, index) => (
+                <li key={index}>
+                  <span className="capitalize">
+                    {formatDate(date.startDate).weekdayLong}
+                  </span>{" "}
+                  a las{" "}
+                  {formatDate(date.startDate).toLocaleString(
+                    DateTime.TIME_24_SIMPLE,
+                  )}
+                </li>
+              ))}
+            </ul>
+          </li>
+          <li>
+            El desarme de espacios se debe hacer en los siguientes horarios:
+            <ul className="ps-5 list-inside list-disc">
+              {festival.festivalDates.map((date, index) => (
+                <li key={index}>
+                  <span className="capitalize">
+                    {formatDate(date.endDate).weekdayLong}
+                  </span>{" "}
+                  de{" "}
+                  {formatDate(date.endDate).toLocaleString(
+                    DateTime.TIME_24_SIMPLE,
+                  )}{" "}
+                  a{" "}
+                  {formatDate(date.endDate)
+                    .plus({ minutes: 45 })
+                    .toLocaleString(DateTime.TIME_24_SIMPLE)}
+                </li>
+              ))}
+            </ul>
+          </li>
         </ul>
         <br />
         <Separator />
@@ -308,11 +320,23 @@ export default function Terms({
             </li>
           )}
           {mapCategory === "gastronomy" && (
-            <li>
-              Los productos que el expositor ofrezca a la venta deben estar
-              previamente preparados. No se permite el uso de garrafas o
-              cualquier artefacto que provoque fuego.
-            </li>
+            <>
+              <li>
+                No está permitido la venta de los siguientes productos:
+                <ol className="ps-5 mt-2 space-y-1 list-disc list-inside">
+                  <li>Bebidas alcohólicas o que contengan alcohol</li>
+                  <li>Productos que generen olores desagradables</li>
+                  <li>Gaseosas</li>
+                  <li>Panchitos</li>
+                  <li>Sopas de ramen</li>
+                </ol>
+              </li>
+              <li>
+                Los productos que el expositor ofrezca a la venta deben estar
+                previamente preparados. No se permite el uso de garrafas o
+                cualquier artefacto que provoque fuego.
+              </li>
+            </>
           )}
           <li>Todos los espacios son con reserva previa de ubicación.</li>
           <li>
@@ -350,11 +374,6 @@ export default function Terms({
             correcto funcionamiento.
           </li>
           <li>No está permitida la presencia de niños en los espacios.</li>
-          <li>
-            No esta permitido la venta de productos que contengas bebidas
-            alcohólicas, ni productos que generen olores desagradables,
-            específicamente la venta de Ramen de Queso
-          </li>
         </ul>
         <br />
         <Separator />
