@@ -1,3 +1,4 @@
+import SendMissingEmailsForm from "@/app/components/festivals/forms/send-missing-emails-form";
 import UpdateFestivalForm from "@/app/components/festivals/forms/update-festival-status";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -64,6 +65,7 @@ export default function UpdateFestivalStatusModal({
               )}
             </div>
           </div>
+          <SendMissingEmailsForm festivalId={festival.id} />
           <UpdateFestivalForm
             festival={festival}
             onSuccess={() => setOpen(false)}

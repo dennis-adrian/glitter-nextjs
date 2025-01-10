@@ -14,14 +14,14 @@ import { buildWhereClauseForProfileFetching } from "@/app/lib/users/helpers";
 import { isProfileComplete } from "@/app/lib/utils";
 import { utapi } from "@/app/server/uploadthing";
 import { sendEmail } from "@/app/vendors/resend";
-import { db, pool } from "@/db";
+import { db } from "@/db";
 import {
   profileSubcategories,
   scheduledTasks,
   users,
   userSocials,
 } from "@/db/schema";
-import { and, asc, count, desc, eq, isNotNull, not, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function updateProfile(userId: number, profile: UpdateUser) {
@@ -303,4 +303,10 @@ export async function fetchUserProfiles(filters: {
     console.error("Error fetching user profiles", error);
     return [];
   }
+}
+
+export async function fetchUserProfilesByEmails(emails: string[]) {
+  return await db.query.users.findMany({
+    where: inArray(users.email, emails),
+  });
 }
