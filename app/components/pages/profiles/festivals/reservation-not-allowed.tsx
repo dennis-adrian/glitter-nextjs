@@ -51,7 +51,7 @@ export default function ReservationNotAllowed(
               <div className="flex flex-col items-center justify-center text-center gap-2 text-sm">
                 <span>
                   Copia y guarda el enlace de esta página para volver el día en
-                  que se habilitan de las reservas.
+                  que se habiliten las reservas.
                 </span>
                 <CopyLinkButtonComponent />
               </div>

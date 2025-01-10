@@ -43,7 +43,7 @@ export default function GeneralInfo(props: GeneralInfoProps) {
           <h2 className="font-semibold text-xl mt-4">Distribución General</h2>
           <span className="flex flex-wrap text-muted-foreground text-sm">
             <p className="mr-1">
-              Para ven en detalle los participantes y los sectores del evento
+              Para ver en detalle los participantes y los sectores del evento
               visita{" "}
               <Link
                 className="text-primary-400 hover:underline"

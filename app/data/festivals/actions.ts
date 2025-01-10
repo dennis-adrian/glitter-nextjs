@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq, inArray, isNull, not } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, not, sql } from "drizzle-orm";
 
 import { db, pool } from "@/db";
 import {
@@ -511,27 +511,18 @@ export async function fetchEnrolledParticipants(
   festivalId: number,
 ): Promise<BaseProfile[]> {
   try {
-    const queryResult = await db
+    return await db
       .select()
-      .from(userRequests)
-      .leftJoin(users, eq(userRequests.userId, users.id))
-      .leftJoin(
-        reservationParticipants,
-        eq(reservationParticipants.userId, users.id),
-      )
+      .from(users)
       .where(
-        and(
-          eq(userRequests.festivalId, festivalId),
-          eq(userRequests.type, "festival_participation"),
-          isNull(reservationParticipants.userId),
-          eq(userRequests.status, "accepted"),
-        ),
+        sql`${users.id} IN (
+          SELECT user_requests.user_id FROM user_requests
+          LEFT JOIN participations ON user_requests.user_id = participations.user_id
+          LEFT JOIN stand_reservations ON stand_reservations.id = participations.reservation_id
+          WHERE user_requests.festival_id = ${festivalId} AND stand_reservations.festival_id != ${festivalId}
+          GROUP BY user_requests.user_id
+        )`,
       );
-
-    const formattedResult = queryResult.map((res) => ({
-      ...res.users,
-    }));
-    return formattedResult as BaseProfile[];
   } catch (error) {
     console.error(error);
     return [];
