@@ -1,7 +1,7 @@
 import { FestivalBase } from "@/app/data/festivals/definitions";
 import * as styles from "@/app/emails/styles";
 import { formatDate } from "@/app/lib/formatters";
-import { Button, Img, Link, Text } from "@react-email/components";
+import { Button, Link, Text } from "@react-email/components";
 import { DateTime } from "luxon";
 
 type ActiveFestivalBodyProps = {
@@ -11,22 +11,15 @@ type ActiveFestivalBodyProps = {
 };
 
 export default function ActiveFestivalBody(props: ActiveFestivalBodyProps) {
-  const reservationsStartDate = formatDate(
+  const fullDate = formatDate(
     props.festival.reservationsStartDate,
-  );
+  ).toLocaleString(DateTime.DATE_FULL);
+
   return (
     <>
-      <Img
-        style={{ margin: "1rem auto" }}
-        src="http://s.mmgo.io/t/CzgA"
-        alt="countdown"
-      />
       <Text style={styles.text}>
         Las reservas para el festival <strong>{props.festival.name}</strong> se
-        habilitarán el día{" "}
-        {reservationsStartDate.toLocaleString(DateTime.DATE_FULL)} a las{" "}
-        {reservationsStartDate.toLocaleString(DateTime.TIME_24_SIMPLE)} ¡Ya
-        comenzó la cuenta regresiva!
+        habilitarán la noche del día {fullDate}.
       </Text>
       <Text style={styles.text}>
         Hasta mientras te pedimos que por favor leas con atención los términos y
