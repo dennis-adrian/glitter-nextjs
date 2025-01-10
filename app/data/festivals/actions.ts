@@ -519,7 +519,8 @@ export async function fetchEnrolledParticipants(
           SELECT user_requests.user_id FROM user_requests
           LEFT JOIN participations ON user_requests.user_id = participations.user_id
           LEFT JOIN stand_reservations ON stand_reservations.id = participations.reservation_id
-          WHERE user_requests.festival_id = ${festivalId} AND stand_reservations.festival_id != ${festivalId}
+          WHERE user_requests.festival_id = ${festivalId}
+          AND (stand_reservations.festival_id != ${festivalId} or stand_reservations.id IS NULL)
           GROUP BY user_requests.user_id
         )`,
       );
