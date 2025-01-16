@@ -8,5 +8,11 @@ export async function sendEmail(options: {
   subject: string;
   react: React.ReactElement;
 }) {
+  if (process.env.VERCEL_ENV === "development")
+    return {
+      data: null,
+      error: null,
+    };
+
   return await resend.emails.send(options);
 }

@@ -15,18 +15,3 @@ export async function uploadQrCode(qrCodeUrl: string) {
   });
   return uploadedFile.url;
 }
-
-export async function sendEmail(
-  festival: FestivalBase,
-  visitor?: VisitorWithTickets | null,
-) {
-  if (!visitor) return;
-
-  await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/send`, {
-    body: JSON.stringify({
-      visitor,
-      festival,
-    }),
-    method: "POST",
-  });
-}
