@@ -202,11 +202,31 @@ export async function handleReservationReminderEmails(): Promise<
           profile: true,
         },
       })) as ScheduledTaskWithProfileAndReservation[];
+      console.log(
+        "all pending tasks",
+        pendingTasks.map((task) => {
+          return {
+            reservationId: task.reservation.id,
+            profileEmail: task.profile.email,
+            festivalName: task.reservation.festival.name,
+            profileName: task.profile.displayName,
+          };
+        }),
+      );
 
       if (pendingTasks.length === 0) return [];
 
       const tasksWithPendingReservations = pendingTasks.filter(
         (task) => task.reservation.status === "pending",
+      );
+      console.log(
+        "tasksWithPendingReservations",
+        tasksWithPendingReservations.map((task) => ({
+          reservationId: task.reservation.id,
+          profileEmail: task.profile.email,
+          festivalName: task.reservation.festival.name,
+          profileName: task.profile.displayName,
+        })),
       );
       let updatedTaskIds: number[] = [];
       await queueEmails<ScheduledTaskWithProfileAndReservation, number[]>(
