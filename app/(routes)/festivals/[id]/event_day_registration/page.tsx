@@ -23,13 +23,14 @@ const searchParamsSchema = z.object({
   visitorId: z.coerce.number().optional(),
 });
 
-export default async function Page({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams: { type?: string };
-}) {
+export default async function Page(
+  props: {
+    params: Promise<{ id: string }>;
+    searchParams: Promise<{ type?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const validatedParams = ParamsSchema.safeParse(params);
   if (!validatedParams.success) notFound();
 

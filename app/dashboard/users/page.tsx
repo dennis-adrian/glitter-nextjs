@@ -7,11 +7,12 @@ import {
 } from "@/app/dashboard/users/schemas";
 import { notFound } from "next/navigation";
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: SearchParamsSchemaType;
-}) {
+export default async function Page(
+  props: {
+    searchParams: Promise<SearchParamsSchemaType>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const validatedSearchParams = SearchParamsSchema.safeParse(searchParams);
   if (!validatedSearchParams.success) notFound();
 

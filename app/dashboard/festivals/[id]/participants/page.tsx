@@ -10,7 +10,8 @@ import { Suspense } from "react";
 type PageProps = {
   params: ParticipantsParamsSchemaType;
 };
-export default function Page({ params }: PageProps) {
+export default async function Page(props: PageProps) {
+  const params = await props.params;
   const validatedParams = ParticipantsParamsSchema.safeParse(params);
   if (!validatedParams.success) notFound();
 

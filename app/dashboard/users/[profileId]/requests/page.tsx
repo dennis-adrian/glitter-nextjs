@@ -10,11 +10,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export default async function Page({
-  params,
-}: {
-  params: { profileId: string };
-}) {
+export default async function Page(
+  props: {
+    params: Promise<{ profileId: string }>;
+  }
+) {
+  const params = await props.params;
   const userId = params.profileId;
   const requests = await fetchRequestsByUserId(parseInt(userId));
 

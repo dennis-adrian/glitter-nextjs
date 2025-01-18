@@ -9,7 +9,8 @@ import TicketsTable from "@/app/components/tickets/table";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import TicketsChart from "@/app/components/tickets/chart/chart";
 
-export default async function Page({ params }: { params: { id: string } }) {
+export default async function Page(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const profile = await getCurrentUserProfile();
   const festival = await fetchFestivalWithTicketsAndDates(parseInt(params.id));
   if (!festival) {

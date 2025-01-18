@@ -8,7 +8,8 @@ import { Suspense } from "react";
 import FullProfile from "@/app/public_profiles/[id]/full_profile";
 import { Skeleton } from "@/app/components/ui/skeleton";
 
-export default async function Page({ params }: { params: { id: string } }) {
+export default async function Page(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const profile = await fetchUserProfileById(parseInt(params.id));
 
   if (!profile) {
