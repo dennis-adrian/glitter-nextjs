@@ -98,8 +98,9 @@ export async function handleDeletionEmails(): Promise<
         )
         .returning();
 
+      const client = await clerkClient();
       deletedUsers.forEach(async (user) => {
-        await clerkClient.users.deleteUser(user.clerkId);
+        await client.users.deleteUser(user.clerkId);
       });
 
       await queueEmails<BaseProfile, undefined>(
