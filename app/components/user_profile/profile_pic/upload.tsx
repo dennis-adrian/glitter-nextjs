@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Loader2Icon } from "lucide-react";
 import { BaseProfile } from "@/app/api/users/definitions";
 import { getUserName } from "@/app/lib/users/utils";
+import { twMerge } from "tailwind-merge";
 
 export default function ProfilePicUpload({
   size,
@@ -42,6 +43,7 @@ export default function ProfilePicUpload({
         />
       </div>
       <UploadButton
+        config={{ cn: twMerge }}
         content={{
           button({ ready, isUploading, uploadProgress }) {
             if (isUploading && uploadProgress === 100) {
