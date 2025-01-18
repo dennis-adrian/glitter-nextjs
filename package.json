@@ -17,8 +17,8 @@
   "dependencies": {
     "@clerk/localizations": "^3.9.11",
     "@clerk/nextjs": "^6.9.14",
-    "@edgestore/react": "^0.1.6",
-    "@edgestore/server": "^0.1.6",
+    "@edgestore/react": "^0.2.2",
+    "@edgestore/server": "^0.2.2",
     "@fortawesome/fontawesome-svg-core": "^6.5.2",
     "@fortawesome/free-brands-svg-icons": "^6.5.2",
     "@fortawesome/free-regular-svg-icons": "^6.5.2",
