@@ -10,10 +10,12 @@ import {
   faInstagram,
   faTiktok,
 } from "@fortawesome/free-brands-svg-icons";
-import { headers, type UnsafeUnwrappedHeaders } from "next/headers";
+import { headers } from "next/headers";
 
-export default function Footer() {
-  const pathname = (headers() as unknown as UnsafeUnwrappedHeaders).get("x-current-path");
+export default async function Footer() {
+  const pathname = await headers().then((headers) =>
+    headers.get("x-current-path"),
+  );
 
   return (
     <footer
