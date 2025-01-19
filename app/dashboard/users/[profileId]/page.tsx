@@ -7,11 +7,12 @@ import { z } from "zod";
 const FormSchema = z.object({
   profileId: z.coerce.number(),
 });
-export default async function Page({
-  params,
-}: {
-  params: { profileId: string };
-}) {
+export default async function Page(
+  props: {
+    params: Promise<{ profileId: string }>;
+  }
+) {
+  const params = await props.params;
   const validatedParams = FormSchema.safeParse(params);
   if (!validatedParams.success) return notFound();
 

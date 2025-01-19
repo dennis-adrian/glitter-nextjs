@@ -17,11 +17,12 @@ const statusOptions = [
   { value: "rejected", label: "Rechazada" },
 ];
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: ReservationsSearchParamsSchemaType;
-}) {
+export default async function Page(
+  props: {
+    searchParams: Promise<ReservationsSearchParamsSchemaType>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const validatedSearchParams =
     ReservationsSearchParamsSchema.safeParse(searchParams);
   if (!validatedSearchParams.success) notFound();

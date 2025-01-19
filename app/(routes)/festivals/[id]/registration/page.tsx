@@ -14,17 +14,18 @@ export const metadata: Metadata = {
   description: "Adquiere tu entrada para nuestro próximo festival",
 };
 
-export default async function Page({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams: {
-    email?: string;
-    step?: string;
-    visitorId?: string;
-  };
-}) {
+export default async function Page(
+  props: {
+    params: Promise<{ id: string }>;
+    searchParams: Promise<{
+      email?: string;
+      step?: string;
+      visitorId?: string;
+    }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const step = searchParams.step || "1";
   const email = searchParams.email || "";
   const visitorId = searchParams.visitorId || "";

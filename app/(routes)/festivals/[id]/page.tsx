@@ -31,17 +31,18 @@ const searchParamsSchema = z.object({
   tab: z.enum(["general", "sectors"]).default("general"),
 });
 
-export default async function Page({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams: {
-    terms: string;
-    category: string;
-    tab: string;
-  };
-}) {
+export default async function Page(
+  props: {
+    params: Promise<{ id: string }>;
+    searchParams: Promise<{
+      terms: string;
+      category: string;
+      tab: string;
+    }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const festival = await fetchFestivalWithDates(parseInt(params.id));
   if (!festival) notFound();
 

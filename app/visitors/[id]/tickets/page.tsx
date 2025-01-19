@@ -19,7 +19,8 @@ import CheckInForm from "@/app/components/tickets/checkin-form";
 import { fetchActiveFestivalBase } from "@/app/data/festivals/actions";
 import SendEmailForm from "@/app/components/tickets/send-pending-email-form";
 
-export default async function Page({ params }: { params: { id: string } }) {
+export default async function Page(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const visitor = await fetchVisitor(parseInt(params.id));
   if (!visitor) {
     return (

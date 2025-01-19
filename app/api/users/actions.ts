@@ -257,7 +257,8 @@ export async function isProfileCreated(user?: User | null) {
 
 export async function deleteClerkUser(user: User | { id: string }) {
   try {
-    await clerkClient.users.deleteUser(user.id);
+    const client = await clerkClient();
+    await client.users.deleteUser(user.id);
   } catch (error) {
     console.error("Error deleting user", error);
     return {

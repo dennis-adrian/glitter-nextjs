@@ -9,11 +9,12 @@ const ParamsSchema = z.object({
   profileId: z.coerce.number(),
 });
 
-export default async function Page({
-  params,
-}: {
-  params: { festivalId: string; profileId: string };
-}) {
+export default async function Page(
+  props: {
+    params: Promise<{ festivalId: string; profileId: string }>;
+  }
+) {
+  const params = await props.params;
   const validatedParams = ParamsSchema.safeParse(params);
   if (!validatedParams.success) notFound();
 

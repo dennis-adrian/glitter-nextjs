@@ -7,7 +7,8 @@ const ParamsSchema = z.object({
   id: z.coerce.number(),
 });
 
-export default function Page({ params }: { params: { id: string } }) {
+export default async function Page(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const validatedParams = ParamsSchema.safeParse(params);
   if (!validatedParams.success) notFound();
 

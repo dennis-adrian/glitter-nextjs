@@ -8,9 +8,10 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 type PageProps = {
-  params: ParticipantsParamsSchemaType;
+  params: Promise<ParticipantsParamsSchemaType>;
 };
-export default function Page({ params }: PageProps) {
+export default async function Page(props: PageProps) {
+  const params = await props.params;
   const validatedParams = ParticipantsParamsSchema.safeParse(params);
   if (!validatedParams.success) notFound();
 
