@@ -8,7 +8,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 type PageProps = {
-  params: ParticipantsParamsSchemaType;
+  params: Promise<ParticipantsParamsSchemaType>;
 };
 export default async function Page(props: PageProps) {
   const params = await props.params;

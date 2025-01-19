@@ -18,14 +18,14 @@ type ProfileCreationFormProps = {
 export default function ProfileCreationForm(props: ProfileCreationFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const currentParams = new URLSearchParams(searchParams.toString());
   const step = searchParams.get("step");
 
   const setStep = useCallback((step: number) => {
+  const currentParams = new URLSearchParams(searchParams.toString());
     console.log("step", step);
     currentParams.set("step", step.toString());
     router.push(`?${currentParams.toString()}`);
-  }, []);
+  }, [router, searchParams]);
 
   const orderedSubcategories = [
     ...sortCategories(
