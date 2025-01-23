@@ -15,7 +15,7 @@ type TicketCreationStepProps = {
 };
 
 export default function TicketCreationStep(props: TicketCreationStepProps) {
-  if (props.visitor) {
+  if (props.visitor?.id) {
     const tickets = getVisitorFestivalTickets(props.visitor, props.festival);
     const currentDayTicket = tickets.find((ticket) => {
       return formatDate(ticket.date)

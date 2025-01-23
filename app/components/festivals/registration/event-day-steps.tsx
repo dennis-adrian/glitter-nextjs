@@ -1,10 +1,10 @@
 "use client";
 
-import BirthdayStep from "@/app/components/festivals/registration/steps/brithday-step";
+// import BirthdayStep from "@/app/components/festivals/registration/steps/brithday-step";
 import CreatedTicket from "@/app/components/festivals/registration/steps/created-ticket";
-import GenderStep from "@/app/components/festivals/registration/steps/gender-step";
-import NameStep from "@/app/components/festivals/registration/steps/name-step";
-import PhoneStep from "@/app/components/festivals/registration/steps/phone-step";
+// import GenderStep from "@/app/components/festivals/registration/steps/gender-step";
+// import NameStep from "@/app/components/festivals/registration/steps/name-step";
+// import PhoneStep from "@/app/components/festivals/registration/steps/phone-step";
 import TicketCreationStep from "@/app/components/festivals/registration/steps/ticket-creation-step";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
@@ -58,17 +58,17 @@ export default function EventDaySteps(props: EventDayStepsProps) {
       )} */}
       {!props.enableTicketCreation && props.email && (
         <>
-          {props.step === 1 && <NameStep updateVisitor={handleNameStep} />}
-          {props.step === 2 && (
+          {/* {props.step === 1 && <NameStep updateVisitor={handleNameStep} />} */}
+          {/* {props.step === 2 && (
             <BirthdayStep updateVisitor={handleBirthdayStep} />
-          )}
-          {props.step === 3 && <PhoneStep updateVisitor={handlePhoneStep} />}
-          {props.step === 4 && (
+          )} */}
+          {/* {props.step === 3 && <PhoneStep updateVisitor={handlePhoneStep} />} */}
+          {/* {props.step === 4 && (
             <GenderStep
               festival={props.festival}
               numberOfVisitors={props.numberOfVisitors}
             />
-          )}
+          )} */}
           {props.step === 5 && props.visitor && (
             <CreatedTicket festival={props.festival} visitor={props.visitor} />
           )}

@@ -1,18 +1,17 @@
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { genderEnum } from "@/db/schema";
-import { Form } from "@/app/components/ui/form";
 import SelectInput from "@/app/components/form/fields/select";
-import { genderOptions } from "@/app/lib/utils";
-import { createVisitor } from "@/app/data/visitors/actions";
 import SubmitButton from "@/app/components/simple-submit-button";
-import { ArrowRightIcon } from "lucide-react";
-import { toast } from "sonner";
-import { useRouter, useSearchParams } from "next/navigation";
-import { createTicket } from "@/app/data/tickets/actions";
+import { Form } from "@/app/components/ui/form";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
+import { createTicket } from "@/app/data/tickets/actions";
+import { createVisitor, NewVisitor } from "@/app/data/visitors/actions";
 import { formatDate } from "@/app/lib/formatters";
+import { genderOptions } from "@/app/lib/utils";
+import { genderEnum } from "@/db/schema";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowRightIcon } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 
 const FormSchema = z.object({
   gender: z.enum([...genderEnum.enumValues]),
@@ -21,10 +20,9 @@ const FormSchema = z.object({
 type GenderFormProps = {
   festival: FestivalWithDates;
   numberOfVisitors?: number;
+  visitor: NewVisitor;
 };
 export default function GenderForm(props: GenderFormProps) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -33,20 +31,17 @@ export default function GenderForm(props: GenderFormProps) {
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    const currentParams = new URLSearchParams(searchParams.toString());
     const res = await createVisitor({
-      firstName: searchParams.get("firstName") || "",
-      lastName: searchParams.get("lastName") || "",
-      email: searchParams.get("email") || "",
-      phoneNumber: searchParams.get("phoneNumber") || "",
-      gender: data.gender,
-      birthdate: new Date(searchParams.get("birthdate") || ""),
+      firstName: props.visitor.firstName,
+      lastName: props.visitor.lastName,
+      email: props.visitor.email,
+      phoneNumber: props.visitor.phoneNumber,
+      gender: props.visitor.gender,
+      birthdate: props.visitor.birthdate,
     });
 
     if (res.success) {
       toast.success("La información ha sido guardada");
-      currentParams.set("visitorId", res.visitor!.id.toString());
-      currentParams.set("step", "5");
 
       const ticketDate = props.festival.festivalDates.find((festivalDate) => {
         return formatDate(festivalDate.startDate)
@@ -74,8 +69,6 @@ export default function GenderForm(props: GenderFormProps) {
     } else {
       toast.error("Ups! No se pudo guardar la información");
     }
-
-    router.push(`?${currentParams.toString()}`);
   });
 
   return (

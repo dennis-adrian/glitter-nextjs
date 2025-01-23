@@ -15,7 +15,6 @@ import {
 } from "@/app/data/visitors/actions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRightIcon } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -30,13 +29,10 @@ const FormSchema = z.object({
 });
 
 type EmailFormProps = {
-  setVisitor?: (visitor: VisitorWithTickets) => void;
-  onSubmit: () => void;
+  onSubmit: (email: string, visitor?: VisitorWithTickets | null) => void;
 };
 
 export default function EmailForm(props: EmailFormProps) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -46,17 +42,7 @@ export default function EmailForm(props: EmailFormProps) {
 
   const action: () => void = form.handleSubmit(async (data) => {
     const visitor = await fetchVisitorByEmail(data.email);
-    const currentParams = new URLSearchParams(searchParams.toString());
-    currentParams.set("email", data.email);
-    currentParams.set("step", "1");
-
-    if (visitor) {
-      currentParams.set("visitorId", visitor.id.toString());
-      currentParams.set("enableTicketCreation", "true");
-    }
-
-    props.onSubmit();
-    router.push(`?${currentParams.toString()}`);
+    props.onSubmit(data.email, visitor);
   });
 
   return (
