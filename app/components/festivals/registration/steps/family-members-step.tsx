@@ -1,26 +1,18 @@
 "use client";
 
-import { Slider } from "@/components/ui/slider";
-import StepDescription from "@/app/components/festivals/registration/steps/step-description";
-import { useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useState } from "react";
+
 import { Button } from "@/app/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import { ArrowRightIcon } from "lucide-react";
 
 type FamilyMembersStepProps = {
-  numberOfVisitors?: number;
+  numberOfVisitors: number;
+  onContinue: (numberOfVisitors: number) => void;
 };
 
 export default function FamilyMembersStep(props: FamilyMembersStepProps) {
-  const searchParams = useSearchParams();
-  const router = useRouter();
   const [sliderValue, setSliderValue] = useState([props.numberOfVisitors || 2]);
-
-  function updateSearchParams() {
-    const currentParams = new URLSearchParams(searchParams.toString());
-    currentParams.set("numberOfVisitors", sliderValue[0].toString());
-    router.push(`?${currentParams.toString()}`);
-  }
 
   function handleSliderChange([value]: number[]) {
     if (value < 1) {
@@ -34,10 +26,6 @@ export default function FamilyMembersStep(props: FamilyMembersStepProps) {
 
   return (
     <div className="flex flex-col items-center justify-center">
-      <StepDescription
-        title="¿Cuántas personas ingresarán?"
-        description="Saber la cantidad de personas que nos visitan nos ayudará a mejorar la experiencia"
-      />
       <div className="w-full flex flex-col gap-3 text-center my-4">
         <div className="flex items-center justify-center gap-2">
           <Button
@@ -65,7 +53,10 @@ export default function FamilyMembersStep(props: FamilyMembersStepProps) {
           onValueChange={handleSliderChange}
         />
       </div>
-      <Button className="w-full md:max-w-80" onClick={updateSearchParams}>
+      <Button
+        className="w-full md:max-w-80"
+        onClick={() => props.onContinue(sliderValue[0])}
+      >
         Continuar
         <ArrowRightIcon className="ml-2 w-4 h-4" />
       </Button>
