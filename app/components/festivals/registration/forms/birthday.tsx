@@ -1,9 +1,13 @@
-import { getMaxDateNumber } from "@/app/components/festivals/registration/forms/helpers";
-import TextInput from "@/app/components/form/fields/text";
+import {
+  getDaysInMonth,
+  getMaxDateNumber,
+} from "@/app/components/festivals/registration/forms/helpers";
+import SelectInput from "@/app/components/form/fields/select";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRightIcon } from "lucide-react";
+import { DateTime } from "luxon";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -28,8 +32,8 @@ const FormSchema = z
         required_error: "El año es requerido",
       })
       .min(1900, { message: "El año no puede ser menor a 1900" })
-      .max(2015, {
-        message: "El año no puede ser mayor a 2015",
+      .max(2017, {
+        message: "El año no puede ser mayor a 2017",
       }),
   })
   .refine(
@@ -52,6 +56,37 @@ export default function BirthdayForm(props: BirthdayFormProps) {
     resolver: zodResolver(FormSchema),
   });
 
+  const yearOptions = Array.from({ length: 100 }, (_, i) => ({
+    value: (new Date().getFullYear() - 7 - i).toString(),
+    label: (new Date().getFullYear() - 7 - i).toString(),
+  }));
+
+  const monthOptions = Array.from({ length: 12 }, (_, i) => ({
+    value: (i + 1).toString(),
+    label:
+      DateTime.fromObject({ month: i + 1 })
+        .toLocaleString({
+          month: "long",
+        })
+        .charAt(0)
+        .toUpperCase() +
+      DateTime.fromObject({ month: i + 1 })
+        .toLocaleString({
+          month: "long",
+        })
+        .slice(1),
+  }));
+
+  const dayOptions = Array.from(
+    {
+      length: getDaysInMonth(form.getValues("month"), form.getValues("year")),
+    },
+    (_, i) => ({
+      value: (i + 1).toString(),
+      label: (i + 1).toString(),
+    }),
+  );
+
   const action: () => void = form.handleSubmit(async (data) => {
     const birthdate = new Date(data.year, data.month - 1, data.day);
     props.onSubmit(birthdate);
@@ -61,36 +96,37 @@ export default function BirthdayForm(props: BirthdayFormProps) {
     <Form {...form}>
       <form className="flex gap-6 flex-col" onSubmit={action}>
         <div className="flex items-end gap-4">
-          <TextInput
-            bottomBorderOnly
-            messagePosition="top"
-            formControl={form.control}
-            label="Día"
-            name="day"
-            placeholder="DD"
-            type="number"
-            max={31}
-          />
-          <span className="text-2xl text-muted-foreground">/</span>
-          <TextInput
-            bottomBorderOnly
-            messagePosition="top"
-            formControl={form.control}
-            label="Mes"
-            name="month"
-            placeholder="MM"
-            type="number"
-            max="12"
-          />
-          <span className="text-2xl text-muted-foreground">/</span>
-          <TextInput
-            bottomBorderOnly
-            messagePosition="top"
+          <SelectInput
+            className="w-full"
+            variant="quiet"
+            side="top"
             formControl={form.control}
             label="Año"
             name="year"
             placeholder="AAAA"
-            type="number"
+            options={yearOptions}
+          />
+          <span className="text-2xl text-muted-foreground">/</span>
+          <SelectInput
+            className="w-full"
+            variant="quiet"
+            side="top"
+            formControl={form.control}
+            label="Mes"
+            name="month"
+            placeholder="MM"
+            options={monthOptions}
+          />
+          <span className="text-2xl text-muted-foreground">/</span>
+          <SelectInput
+            className="w-full"
+            variant="quiet"
+            side="top"
+            formControl={form.control}
+            label="Día"
+            name="day"
+            placeholder="DD"
+            options={dayOptions}
           />
         </div>
         <SubmitButton

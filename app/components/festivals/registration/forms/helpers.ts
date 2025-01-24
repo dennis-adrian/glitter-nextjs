@@ -21,3 +21,8 @@ export function validatePhoneNumber(phoneNumber: string) {
 
   return phoneNumber.startsWith("6") || phoneNumber.startsWith("7");
 }
+
+export function getDaysInMonth(month: number, year: number) {
+  if (!month || !year) return 31;
+  return new Date(year, month, 0).getDate();
+}

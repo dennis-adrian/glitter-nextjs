@@ -2,13 +2,11 @@ import SelectInput from "@/app/components/form/fields/select";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
-import { createTicket } from "@/app/data/tickets/actions";
 import {
   createVisitor,
   NewVisitor,
   VisitorWithTickets,
 } from "@/app/data/visitors/actions";
-import { formatDate } from "@/app/lib/formatters";
 import { genderOptions } from "@/app/lib/utils";
 import { genderEnum } from "@/db/schema";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -51,29 +49,6 @@ export default function GenderForm(props: GenderFormProps) {
         ...res.visitor!,
         tickets: [],
       });
-      // const ticketDate = props.festival.festivalDates.find((festivalDate) => {
-      //   return formatDate(festivalDate.startDate)
-      //     .startOf("day")
-      //     .equals(formatDate(new Date()).startOf("day"));
-      // });
-
-      // if (!ticketDate) {
-      //   toast.error("No tenemos entradas disponibles para hoy");
-      //   return;
-      // }
-
-      // const ticketRes = await createTicket({
-      //   date: ticketDate.startDate,
-      //   festival: props.festival,
-      //   numberOfVisitors: props.numberOfVisitors,
-      //   visitor: res.visitor!,
-      // });
-
-      // if (ticketRes.success) {
-      //   toast.success(ticketRes.message);
-      // } else {
-      //   toast.error(ticketRes.message);
-      // }
     } else {
       toast.error("Ups! No se pudo guardar la información. Intenta nuevamente");
     }
@@ -94,7 +69,7 @@ export default function GenderForm(props: GenderFormProps) {
           disabled={form.formState.isSubmitting}
           loading={form.formState.isSubmitting}
         >
-          <span>Finalizar</span>
+          <span>Guardar información</span>
           <ArrowRightIcon className="ml-2 w-4 h-4" />
         </SubmitButton>
       </form>
