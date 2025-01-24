@@ -2,25 +2,28 @@
 
 import { useEffect, useState } from "react";
 
+import BirthdayForm from "@/app/components/festivals/registration/forms/birthday";
 import EmailForm from "@/app/components/festivals/registration/forms/email";
+import GenderForm from "@/app/components/festivals/registration/forms/gender";
+import NameForm from "@/app/components/festivals/registration/forms/name";
+import PhoneForm from "@/app/components/festivals/registration/forms/phone";
 import RegistrationTypeBanner from "@/app/components/festivals/registration/registration-type-banner";
 import RegistrationTypeCards from "@/app/components/festivals/registration/registration-type-cards";
 import FamilyMembersStep from "@/app/components/festivals/registration/steps/family-members-step";
 import StepDescription from "@/app/components/festivals/registration/steps/step-description";
+import TicketCreationStep from "@/app/components/festivals/registration/steps/ticket-creation-step";
 import { RegistrationType } from "@/app/components/festivals/registration/types";
 import { stepsDescription } from "@/app/components/festivals/registration/utils";
-import { NewVisitor, VisitorWithTickets } from "@/app/data/visitors/actions";
-import NameForm from "@/app/components/festivals/registration/forms/name";
-import TicketCreationStep from "@/app/components/festivals/registration/steps/ticket-creation-step";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
-import BirthdayForm from "@/app/components/festivals/registration/forms/birthday";
-import PhoneForm from "@/app/components/festivals/registration/forms/phone";
-import GenderForm from "@/app/components/festivals/registration/forms/gender";
+import { NewVisitor, VisitorWithTickets } from "@/app/data/visitors/actions";
+import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
+import { formatDate } from "@/app/lib/formatters";
 
 type RegistrationInfo = {
   step: number;
   type: RegistrationType;
   numberOfVisitors: number;
+  showBanner: boolean;
 };
 
 const initialNewVisitor: NewVisitor = {
@@ -36,6 +39,7 @@ const initialRegistrationInfo: RegistrationInfo = {
   step: 0,
   type: null,
   numberOfVisitors: 0,
+  showBanner: false,
 };
 
 export default function RegistrationSteps(props: {
@@ -74,7 +78,19 @@ export default function RegistrationSteps(props: {
   ) => {
     if (visitor) {
       setReturningVisitor(visitor);
-      setRegistrationInfo({ ...registrationInfo, step: 7 });
+
+      const tickets = getVisitorFestivalTickets(visitor, props.festival);
+      const currentDayTicket = tickets.find((ticket) => {
+        return formatDate(ticket.date)
+          .startOf("day")
+          .equals(formatDate(new Date()).startOf("day"));
+      });
+
+      setRegistrationInfo({
+        ...registrationInfo,
+        step: 7,
+        showBanner: !currentDayTicket,
+      });
     } else {
       setNewVisitor({ ...newVisitor, email });
       setRegistrationInfo({ ...registrationInfo, step: 3 });
@@ -86,6 +102,7 @@ export default function RegistrationSteps(props: {
       {!registrationInfo.type ? null : (
         <>
           <RegistrationTypeBanner
+            show={registrationInfo.showBanner}
             festivalId={props.festival.id}
             type={registrationInfo.type}
             numberOfVisitors={registrationInfo.numberOfVisitors}
@@ -100,7 +117,11 @@ export default function RegistrationSteps(props: {
       {registrationInfo.step === 0 && (
         <RegistrationTypeCards
           onSelect={(type: RegistrationType) => {
-            setRegistrationInfo({ ...registrationInfo, type });
+            setRegistrationInfo({
+              ...registrationInfo,
+              type,
+              showBanner: true,
+            });
           }}
         />
       )}
@@ -159,6 +180,10 @@ export default function RegistrationSteps(props: {
           festival={props.festival}
           visitor={returningVisitor}
           numberOfVisitors={registrationInfo.numberOfVisitors}
+          onSuccess={(visitor) => {
+            setReturningVisitor(visitor);
+            setRegistrationInfo({ ...registrationInfo, showBanner: false });
+          }}
         />
       ) : null}
     </>

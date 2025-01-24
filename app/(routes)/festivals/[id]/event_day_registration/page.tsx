@@ -17,7 +17,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
 
   return (
     <div className="p-4 md:p-6 max-w-screen-md mx-auto">
-      <h1 className="text-center mb-6 text-2xl font-bold md:text-3xl">
+      <h1 className="text-center mb-5 text-xl font-bold md:text-3xl">
         {festival.name} - Registro
       </h1>
       <RegistrationSteps festival={festival} />

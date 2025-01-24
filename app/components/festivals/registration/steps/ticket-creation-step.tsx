@@ -2,23 +2,19 @@
 
 import EventDayTicketCreationForm from "@/app/components/events/registration/event-day-ticket-creation-form";
 import Tickets from "@/app/components/events/registration/tickets";
-import StepDescription from "@/app/components/festivals/registration/steps/step-description";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 import { formatDate } from "@/app/lib/formatters";
-import { useState } from "react";
 
 type TicketCreationStepProps = {
   festival: FestivalWithDates;
   visitor?: VisitorWithTickets | null;
   numberOfVisitors?: number;
+  onSuccess: (visitor: VisitorWithTickets) => void;
 };
 
 export default function TicketCreationStep(props: TicketCreationStepProps) {
-  const [visitorWithTicket, setVisitorWithTicket] =
-    useState<VisitorWithTickets | null>(props.visitor || null);
-
   if (!props.visitor?.id) return null;
 
   const ticketDate = props.festival.festivalDates.find((festivalDate) => {
@@ -35,7 +31,7 @@ export default function TicketCreationStep(props: TicketCreationStepProps) {
     );
   }
 
-  const tickets = getVisitorFestivalTickets(visitorWithTicket!, props.festival);
+  const tickets = getVisitorFestivalTickets(props.visitor, props.festival);
   const currentDayTicket = tickets.find((ticket) => {
     return formatDate(ticket.date)
       .startOf("day")
@@ -43,13 +39,13 @@ export default function TicketCreationStep(props: TicketCreationStepProps) {
   });
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-2">
       <h1 className="text-lg md:text-2xl font-bold text-center">
         ¡Gracias por visitarnos, {props.visitor.firstName}!
       </h1>
       {currentDayTicket ? (
         <div>
-          <div className="text-sm md:text-base text-center mb-2">
+          <div className="text-sm md:text-base text-center mb-1">
             Muestra tu entrada en puerta para ingresar al evento
           </div>
           <Tickets
@@ -68,7 +64,7 @@ export default function TicketCreationStep(props: TicketCreationStepProps) {
             numberOfVisitors={props.numberOfVisitors}
             visitor={props.visitor}
             onSuccess={(visitor) => {
-              setVisitorWithTicket(visitor);
+              props.onSuccess(visitor);
             }}
           />
         </div>

@@ -6,12 +6,13 @@ import { Button } from "@/app/components/ui/button";
 import { Undo2Icon } from "lucide-react";
 
 export default function RegistrationTypeBanner(props: {
+  show: boolean;
   festivalId: number;
   type: RegistrationType;
   numberOfVisitors: number;
   onReset: () => void;
 }) {
-  if (!props.type) return null;
+  if (!props.show || !props.type) return null;
 
   const content = registrationTypeDescription[props.type];
   const Icon = content.icon;
