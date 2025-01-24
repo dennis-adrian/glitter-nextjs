@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import EmailForm from "@/app/components/festivals/registration/forms/email";
 import RegistrationTypeBanner from "@/app/components/festivals/registration/registration-type-banner";
@@ -17,30 +17,55 @@ import BirthdayForm from "@/app/components/festivals/registration/forms/birthday
 import PhoneForm from "@/app/components/festivals/registration/forms/phone";
 import GenderForm from "@/app/components/festivals/registration/forms/gender";
 
+type RegistrationInfo = {
+  step: number;
+  type: RegistrationType;
+  numberOfVisitors: number;
+};
+
+const initialNewVisitor: NewVisitor = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  phoneNumber: "",
+  birthdate: new Date(),
+  gender: "other",
+};
+
+const initialRegistrationInfo: RegistrationInfo = {
+  step: 0,
+  type: null,
+  numberOfVisitors: 0,
+};
+
 export default function RegistrationSteps(props: {
   festival: FestivalWithDates;
 }) {
-  const [step, setStep] = useState(0);
-  const [registrationType, setRegistrationType] =
-    useState<RegistrationType>(null);
-  const [numberOfVisitors, setNumberOfVisitors] = useState<number>(0);
-  const [firstName, setFirstName] = useState<string>("");
-  const [lastName, setLastName] = useState<string>("");
-  const [birthdate, setBirthdate] = useState<Date | null>(null);
-  const [phoneNumber, setPhoneNumber] = useState<string>("");
-  const [email, setEmail] = useState<string>("");
-  const [visitor, setVisitor] = useState<VisitorWithTickets | null>(null);
+  const [registrationInfo, setRegistrationInfo] = useState<RegistrationInfo>(
+    initialRegistrationInfo,
+  );
+  const [newVisitor, setNewVisitor] = useState<NewVisitor>(initialNewVisitor);
+  const [returningVisitor, setReturningVisitor] =
+    useState<VisitorWithTickets | null>(null);
+
+  useEffect(() => {
+    if (registrationInfo.type === "individual") {
+      setRegistrationInfo((prev) => ({
+        ...prev,
+        step: 2,
+      }));
+    } else if (registrationInfo.type === "family") {
+      setRegistrationInfo((prev) => ({
+        ...prev,
+        step: 1,
+      }));
+    }
+  }, [registrationInfo.type]);
 
   const handleReset = () => {
-    setRegistrationType(null);
-    setStep(0);
-    setNumberOfVisitors(0);
-    setEmail("");
-    setFirstName("");
-    setLastName("");
-    setBirthdate(null);
-    setPhoneNumber("");
-    setVisitor(null);
+    setRegistrationInfo(initialRegistrationInfo);
+    setReturningVisitor(null);
+    setNewVisitor(initialNewVisitor);
   };
 
   const handleVisitorSearch = (
@@ -48,95 +73,88 @@ export default function RegistrationSteps(props: {
     visitor?: VisitorWithTickets | null,
   ) => {
     if (visitor) {
-      setVisitor(visitor);
-      setStep(8);
+      setReturningVisitor(visitor);
+      setRegistrationInfo({ ...registrationInfo, step: 8 });
     } else {
-      setEmail(email);
-      setStep(3);
+      setNewVisitor({ ...newVisitor, email });
+      setRegistrationInfo({ ...registrationInfo, step: 3 });
     }
   };
 
   return (
     <>
-      {!registrationType ? null : (
+      {!registrationInfo.type ? null : (
         <>
           <RegistrationTypeBanner
             festivalId={props.festival.id}
-            type={registrationType}
-            numberOfVisitors={numberOfVisitors}
+            type={registrationInfo.type}
+            numberOfVisitors={registrationInfo.numberOfVisitors}
             onReset={handleReset}
           />
         </>
       )}
       <StepDescription
-        title={stepsDescription[step]?.title || ""}
-        description={stepsDescription[step]?.description || ""}
+        title={stepsDescription[registrationInfo.step]?.title || ""}
+        description={stepsDescription[registrationInfo.step]?.description || ""}
       />
-      {step === 0 && (
+      {registrationInfo.step === 0 && (
         <RegistrationTypeCards
           onSelect={(type: RegistrationType) => {
-            setRegistrationType(type);
-            if (type === "individual") {
-              setStep(2);
-            } else if (type === "family") {
-              setStep(1);
-            }
+            setRegistrationInfo({ ...registrationInfo, type });
           }}
         />
       )}
-      {step === 1 && (
+      {registrationInfo.step === 1 && (
         <FamilyMembersStep
-          numberOfVisitors={numberOfVisitors}
+          numberOfVisitors={registrationInfo.numberOfVisitors}
           onContinue={(numberOfVisitors) => {
-            setNumberOfVisitors(numberOfVisitors);
-            setStep(2);
+            setRegistrationInfo((prev) => ({
+              ...prev,
+              numberOfVisitors,
+              step: 2,
+            }));
           }}
         />
       )}
-      {step === 2 && <EmailForm onSubmit={handleVisitorSearch} />}
-      {step === 3 && (
+      {registrationInfo.step === 2 && (
+        <EmailForm onSubmit={handleVisitorSearch} />
+      )}
+      {registrationInfo.step === 3 && (
         <NameForm
           onSubmit={(firstName: string, lastName: string) => {
-            setFirstName(firstName);
-            setLastName(lastName);
-            setStep(4);
+            setNewVisitor({ ...newVisitor, firstName, lastName });
+            setRegistrationInfo({ ...registrationInfo, step: 4 });
           }}
         />
       )}
-      {step === 4 && (
+      {registrationInfo.step === 4 && (
         <BirthdayForm
           onSubmit={(date: Date) => {
-            setBirthdate(date);
-            setStep(5);
+            setNewVisitor({ ...newVisitor, birthdate: date });
+            setRegistrationInfo({ ...registrationInfo, step: 5 });
           }}
         />
       )}
-      {step === 5 && (
+      {registrationInfo.step === 5 && (
         <PhoneForm
           onSubmit={(phoneNumber: string) => {
-            setPhoneNumber(phoneNumber);
-            setStep(6);
+            setNewVisitor({ ...newVisitor, phoneNumber });
+            setRegistrationInfo({ ...registrationInfo, step: 6 });
           }}
         />
       )}
-      {step === 6 && (
+      {registrationInfo.step === 6 && (
         <GenderForm
           festival={props.festival}
-          numberOfVisitors={numberOfVisitors}
-          visitor={{
-            firstName,
-            lastName,
-            email,
-            phoneNumber,
-            birthdate: birthdate || new Date(),
-          }}
+          numberOfVisitors={registrationInfo.numberOfVisitors}
+          visitor={newVisitor}
         />
       )}
-      {step === 8 && visitor?.id ? (
+      {registrationInfo.step === 8 && returningVisitor?.id ? (
         <TicketCreationStep
           festival={props.festival}
-          visitor={visitor}
-          numberOfVisitors={numberOfVisitors}
+          visitor={returningVisitor}
+          numberOfVisitors={registrationInfo.numberOfVisitors}
         />
       ) : null}
     </>

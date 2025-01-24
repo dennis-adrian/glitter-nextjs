@@ -1,3 +1,5 @@
+"use client";
+
 import { registrationTypeDescription } from "@/app/components/festivals/registration/registration-type-cards";
 import { RegistrationType } from "@/app/components/festivals/registration/types";
 import { Button } from "@/app/components/ui/button";
@@ -15,7 +17,7 @@ export default function RegistrationTypeBanner(props: {
   const Icon = content.icon;
 
   return (
-    <div className="rounded-md flex border items-center justify-between shadow-md p-3 transition-[width] duration-300 w-full border-border">
+    <div className="rounded-md flex border items-center justify-between shadow-md p-3 w-full border-border animate-expand">
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
           <Icon className="w-5 h-5" />
