@@ -3,7 +3,11 @@ import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { createTicket } from "@/app/data/tickets/actions";
-import { createVisitor, NewVisitor } from "@/app/data/visitors/actions";
+import {
+  createVisitor,
+  NewVisitor,
+  VisitorWithTickets,
+} from "@/app/data/visitors/actions";
 import { formatDate } from "@/app/lib/formatters";
 import { genderOptions } from "@/app/lib/utils";
 import { genderEnum } from "@/db/schema";
@@ -21,12 +25,13 @@ type GenderFormProps = {
   festival: FestivalWithDates;
   numberOfVisitors?: number;
   visitor: NewVisitor;
+  onSuccess: (visitor: VisitorWithTickets) => void;
 };
 export default function GenderForm(props: GenderFormProps) {
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      gender: "other",
+      gender: props.visitor.gender,
     },
   });
 
@@ -36,38 +41,41 @@ export default function GenderForm(props: GenderFormProps) {
       lastName: props.visitor.lastName,
       email: props.visitor.email,
       phoneNumber: props.visitor.phoneNumber,
-      gender: props.visitor.gender,
+      gender: data.gender,
       birthdate: props.visitor.birthdate,
     });
 
     if (res.success) {
-      toast.success("La información ha sido guardada");
-
-      const ticketDate = props.festival.festivalDates.find((festivalDate) => {
-        return formatDate(festivalDate.startDate)
-          .startOf("day")
-          .equals(formatDate(new Date()).startOf("day"));
+      toast.success("Guardamos tu información correctamente");
+      props.onSuccess({
+        ...res.visitor!,
+        tickets: [],
       });
+      // const ticketDate = props.festival.festivalDates.find((festivalDate) => {
+      //   return formatDate(festivalDate.startDate)
+      //     .startOf("day")
+      //     .equals(formatDate(new Date()).startOf("day"));
+      // });
 
-      if (!ticketDate) {
-        toast.error("No tenemos entradas disponibles para hoy");
-        return;
-      }
+      // if (!ticketDate) {
+      //   toast.error("No tenemos entradas disponibles para hoy");
+      //   return;
+      // }
 
-      const ticketRes = await createTicket({
-        date: ticketDate.startDate,
-        festival: props.festival,
-        numberOfVisitors: props.numberOfVisitors,
-        visitor: res.visitor!,
-      });
+      // const ticketRes = await createTicket({
+      //   date: ticketDate.startDate,
+      //   festival: props.festival,
+      //   numberOfVisitors: props.numberOfVisitors,
+      //   visitor: res.visitor!,
+      // });
 
-      if (ticketRes.success) {
-        toast.success(ticketRes.message);
-      } else {
-        toast.error(ticketRes.message);
-      }
+      // if (ticketRes.success) {
+      //   toast.success(ticketRes.message);
+      // } else {
+      //   toast.error(ticketRes.message);
+      // }
     } else {
-      toast.error("Ups! No se pudo guardar la información");
+      toast.error("Ups! No se pudo guardar la información. Intenta nuevamente");
     }
   });
 

@@ -14,6 +14,7 @@ type EventDayTicketCreationFormProps = {
   festival: FestivalWithDates;
   visitor: VisitorWithTickets;
   numberOfVisitors?: number;
+  onSuccess: (visitor: VisitorWithTickets) => void;
 };
 
 export default function EventDayTicketCreationForm(
@@ -40,6 +41,10 @@ export default function EventDayTicketCreationForm(
     });
 
     if (res.success) {
+      props.onSuccess({
+        ...props.visitor,
+        tickets: [...props.visitor.tickets, res.ticket!],
+      });
       toast.success(res.message);
     } else {
       toast.error(res.message);

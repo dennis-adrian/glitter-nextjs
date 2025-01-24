@@ -74,7 +74,7 @@ export default function RegistrationSteps(props: {
   ) => {
     if (visitor) {
       setReturningVisitor(visitor);
-      setRegistrationInfo({ ...registrationInfo, step: 8 });
+      setRegistrationInfo({ ...registrationInfo, step: 7 });
     } else {
       setNewVisitor({ ...newVisitor, email });
       setRegistrationInfo({ ...registrationInfo, step: 3 });
@@ -148,9 +148,13 @@ export default function RegistrationSteps(props: {
           festival={props.festival}
           numberOfVisitors={registrationInfo.numberOfVisitors}
           visitor={newVisitor}
+          onSuccess={(visitor: VisitorWithTickets) => {
+            setReturningVisitor(visitor);
+            setRegistrationInfo({ ...registrationInfo, step: 7 });
+          }}
         />
       )}
-      {registrationInfo.step === 8 && returningVisitor?.id ? (
+      {registrationInfo.step === 7 && returningVisitor?.id ? (
         <TicketCreationStep
           festival={props.festival}
           visitor={returningVisitor}
