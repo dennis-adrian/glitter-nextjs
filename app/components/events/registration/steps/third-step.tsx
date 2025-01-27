@@ -34,6 +34,7 @@ export default function ThirdStep(props: ThirdStepProps) {
         <EventDayTicketCreationForm
           festival={props.festival}
           visitor={props.visitor}
+          onSuccess={(visitor) => {}}
         />
       </div>
     );

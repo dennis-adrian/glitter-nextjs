@@ -127,26 +127,26 @@ export default function VisitorRegistrationForm({
             type="text"
           />
         </div>
+        <TextInput
+          formControl={form.control}
+          name="birthdate"
+          label="Fecha de nacimiento"
+          type="date"
+        />
         <div className="grid grid-cols-2 gap-2 items-start">
           <PhoneInput
             formControl={form.control}
             name="phoneNumber"
             label="Teléfono"
           />
-          <TextInput
+          <SelectInput
             formControl={form.control}
-            name="birthdate"
-            label="Fecha de nacimiento"
-            type="date"
+            label="Género"
+            name="gender"
+            options={genderOptions}
+            side="top"
           />
         </div>
-        <SelectInput
-          formControl={form.control}
-          label="Género"
-          name="gender"
-          options={genderOptions}
-          side="top"
-        />
         <Button
           className="my-2"
           disabled={form.formState.isSubmitting}

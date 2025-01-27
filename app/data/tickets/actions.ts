@@ -106,6 +106,7 @@ export async function createTicket(data: {
     }) as React.ReactElement,
   });
 
+  revalidatePath(`/festivals/${festival.id}/registration`);
   return {
     success: true,
     message: "Entrada creada correctamente",
