@@ -25,8 +25,6 @@ export default function SelectInput({
   placeholder,
   variant,
   side,
-  defaultValue,
-  disabled,
 }: {
   className?: string;
   formControl: UseFormReturn<any>["control"];
@@ -35,8 +33,6 @@ export default function SelectInput({
   options: { value: string; label: string }[];
   placeholder?: string;
   side?: "top" | "bottom" | "left" | "right";
-  defaultValue?: string;
-  disabled?: boolean;
 } & SelectVariants) {
   return (
     <FormField
@@ -45,12 +41,9 @@ export default function SelectInput({
       render={({ field }) => (
         <FormItem className={cn("grid gap-2", className)}>
           {label && <FormLabel>{label}</FormLabel>}
+          {variant === "quiet" && <FormMessage />}
           <FormControl>
-            <Select
-              onValueChange={field.onChange}
-              disabled={disabled}
-              value={defaultValue}
-            >
+            <Select onValueChange={field.onChange}>
               <FormControl>
                 <SelectTrigger variant={variant}>
                   <SelectValue placeholder={placeholder} />
@@ -65,7 +58,7 @@ export default function SelectInput({
               </SelectContent>
             </Select>
           </FormControl>
-          <FormMessage />
+          {variant !== "quiet" && <FormMessage />}
         </FormItem>
       )}
     />
