@@ -9,7 +9,9 @@ import {
 } from "@fortawesome/free-brands-svg-icons";
 
 // This methods are meant to be used in both ui and sever
-export function getUserName(user: BaseProfile) {
+export function getUserName(user?: BaseProfile | null) {
+  if (!user) return "";
+
   return (
     user.displayName || `${user.firstName || ""} ${user.lastName || ""}`.trim()
   );

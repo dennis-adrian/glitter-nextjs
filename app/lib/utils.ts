@@ -250,7 +250,8 @@ export function getFestivalLogo(festivalType: FestivalBase["festivalType"]) {
   return TWINKLER_LOGO_URL_270X80;
 }
 
-export function isNewProfile(profile: ProfileType) {
+export function isNewProfile(profile?: ProfileType | null) {
+  if (!profile) return false;
   const confirmedParticipations = profile.participations.filter(
     (participation) => participation.reservation.status === "accepted",
   );
@@ -258,4 +259,21 @@ export function isNewProfile(profile: ProfileType) {
   // if the user has 1 participation, we consider it as a new profile
   // until they get a second confirmed participation
   return confirmedParticipations.length < 2;
+}
+
+export function truncateText(
+  text: string,
+  maxLength: number,
+  type: "email" | "text" = "text",
+) {
+  if (type === "email") {
+    const [mainText, domain] = text.split("@");
+    if (mainText.length <= maxLength - domain.length - 1) return text;
+    return (
+      mainText.slice(0, maxLength - domain.length - 1) + "..." + "@" + domain
+    );
+  }
+
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength) + "...";
 }
