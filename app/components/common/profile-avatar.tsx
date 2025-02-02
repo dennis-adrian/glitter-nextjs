@@ -7,9 +7,10 @@ import { isNewProfile } from "@/app/lib/utils";
 type ProfileAvatarProps = {
   className?: string;
   profile: ProfileType;
+  showBadge?: boolean;
 };
 export default function ProfileAvatar(props: ProfileAvatarProps) {
-  const { profile } = props;
+  const { profile, showBadge = true } = props;
   const userName = getUserName(profile);
 
   return (
@@ -22,7 +23,7 @@ export default function ProfileAvatar(props: ProfileAvatarProps) {
           }
         />
       </Avatar>
-      {isNewProfile(profile) && (
+      {showBadge && isNewProfile(profile) && (
         <div className="absolute -bottom-2">
           <Badge className="bg-white text-foreground" variant="outline">
             Nuevo
