@@ -5,6 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { SignedIn, SignedOut, useClerk } from "@clerk/nextjs";
 
+import { ProfileType } from "@/app/api/users/definitions";
+import GlitterLogo from "@/app/components/landing/glitter-logo";
+import { RedirectButton } from "@/app/components/redirect-button";
+import { Button } from "@/app/components/ui/button";
 import { Separator } from "@/app/components/ui/separator";
 import {
   Sheet,
@@ -14,7 +18,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/app/components/ui/sheet";
-import { Button } from "@/app/components/ui/button";
 import {
   AlbumIcon,
   BoxesIcon,
@@ -22,12 +25,12 @@ import {
   CalendarIcon,
   CreditCardIcon,
   HomeIcon,
+  LogInIcon,
   LogOutIcon,
   TagsIcon,
+  UserPlusIcon,
   UsersIcon,
 } from "lucide-react";
-import { ProfileType } from "@/app/api/users/definitions";
-import GlitterLogo from "@/app/components/landing/glitter-logo";
 
 type MobileSidebarItemProps = {
   href: string;
@@ -69,10 +72,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
       >
         {children}
       </SheetTrigger>
-      <SheetContent side="left">
+      <SheetContent side="right" className="p-3">
         <SheetHeader>
           <SheetTitle>
-            <SheetClose>
+            <SheetClose asChild>
               <Link href="/">
                 <GlitterLogo variant="dark" height={48} width={48} />
               </Link>
@@ -142,8 +145,24 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
             </SheetClose>
           </SignedIn>
           <SignedOut>
-            <MobileSidebarItem href="/sign_in">Ingresar</MobileSidebarItem>
-            <MobileSidebarItem href="/sign_up">Registrarse</MobileSidebarItem>
+            <div className="flex flex-col gap-1">
+              <SheetClose asChild>
+                <RedirectButton
+                  className="w-full"
+                  href="/sign_up"
+                  variant="outline"
+                >
+                  <UserPlusIcon className="mr-2 h-6 w-6" />
+                  Crear cuenta
+                </RedirectButton>
+              </SheetClose>
+              <SheetClose asChild>
+                <RedirectButton className="w-full" href="/sign_in">
+                  <LogInIcon className="mr-2 h-6 w-6" />
+                  Iniciar sesión
+                </RedirectButton>
+              </SheetClose>
+            </div>
           </SignedOut>
         </ul>
       </SheetContent>
