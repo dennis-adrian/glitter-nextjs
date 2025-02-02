@@ -12,26 +12,39 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { cn } from "@/app/lib/utils";
+import { cn, truncateText } from "@/app/lib/utils";
+import ProfileAvatar from "@/app/components/common/profile-avatar";
 
 type UserQuickViewInfoProps = {
+  avatarClassName?: string;
   className?: string;
   profile: BaseProfile;
+  showAdminControls?: boolean;
 };
 export default function ProfileQuickViewInfo(props: UserQuickViewInfoProps) {
   return (
     <div className={cn("flex gap-4", props.className)}>
-      <Avatar>
-        <AvatarImage
-          src={props.profile.imageUrl || "/img/profile-avatar.png"}
-          alt={props.profile.displayName || "avatar"}
+      <div>
+        <ProfileAvatar
+          profile={{
+            ...props.profile,
+            userSocials: [],
+            userRequests: [],
+            participations: [],
+            profileTags: [],
+            profileSubcategories: [],
+          }}
+          className={props.avatarClassName}
+          showBadge={false}
         />
-      </Avatar>
-      <div className="flex flex-col gap-1">
+      </div>
+      <div className="flex flex-col gap-1 w-full">
         <span className="flex gap-1 items-center">
-          <h3 className="font-medium text-sm">{props.profile.displayName}</h3>
+          <h3 className="font-medium leading-4">
+            {props.profile.displayName || ""}
+          </h3>
 
-          {props.profile.status === "verified" && (
+          {props.profile.status === "verified" && props.showAdminControls && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
@@ -45,16 +58,18 @@ export default function ProfileQuickViewInfo(props: UserQuickViewInfoProps) {
           )}
         </span>
         <CategoryBadge category={props.profile.category} />
-        <div className="text-sm max-w-[160px] sm:max-w-full truncate text-muted-foreground">
+        <div className="text-sm text-muted-foreground">
           <span className="flex gap-1 items-center">
-            {props.profile.email}
-            <CopyIcon
-              className="w-4 h-4 hover:transition cursor-pointer"
-              onClick={() => {
-                navigator.clipboard.writeText(props.profile.email);
-                toast.success("Copiado");
-              }}
-            />
+            {truncateText(props.profile.email, 20, "email")}
+            {props.showAdminControls && (
+              <CopyIcon
+                className="w-4 h-4 hover:transition cursor-pointer"
+                onClick={() => {
+                  navigator.clipboard.writeText(props.profile.email);
+                  toast.success("Copiado");
+                }}
+              />
+            )}
           </span>
         </div>
       </div>

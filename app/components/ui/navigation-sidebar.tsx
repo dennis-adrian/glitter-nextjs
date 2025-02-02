@@ -18,6 +18,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/app/components/ui/sheet";
+import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
+import { cn } from "@/app/lib/utils";
 import {
   AlbumIcon,
   BookImageIcon,
@@ -34,7 +36,6 @@ import {
   UserPlusIcon,
   UsersIcon,
 } from "lucide-react";
-import { cn } from "@/app/lib/utils";
 
 type MobileSidebarItemProps = {
   href: string;
@@ -76,7 +77,7 @@ const NavigationSidebar = ({ children, profile }: NavigationSidebarProps) => {
     <Sheet>
       <SheetTrigger
         className={cn(
-          "cursor-default hover:bg-primary-100/30 hover:text-primary-500 border-none",
+          "cursor-default hover:bg-primary-100/30 hover:text-primary-500 border-none flex items-center justify-center",
           {
             "rounded-full": profile,
           },
@@ -96,7 +97,26 @@ const NavigationSidebar = ({ children, profile }: NavigationSidebarProps) => {
             </SheetClose>
           </SheetTitle>
         </SheetHeader>
-        <Separator className="my-2 lg:hidden" />
+        <Separator className="my-2" />
+        {profile && (
+          <div className="flex flex-col gap-2">
+            <ProfileQuickViewInfo
+              profile={profile}
+              avatarClassName="h-10 w-10"
+            />
+            <SheetClose asChild>
+              <RedirectButton
+                href="/my_profile"
+                variant="outline"
+                className="w-full"
+              >
+                <UserIcon className="mr-2 h-6 w-6" />
+                <span>Ir a mi perfil</span>
+              </RedirectButton>
+            </SheetClose>
+            <Separator className="mb-2 lg:hidden" />
+          </div>
+        )}
         <ul className="flex flex-col">
           <MobileSidebarItem isMobileOnly href="/">
             <HomeIcon className="mr-2 h-6 w-6" />
@@ -160,13 +180,13 @@ const NavigationSidebar = ({ children, profile }: NavigationSidebarProps) => {
           <SignedIn>
             <SheetClose asChild>
               <div className="flex flex-col gap-1">
-                <MobileSidebarItem href="/my_profile">
-                  <UserIcon className="mr-2 h-6 w-6" />
-                  <span>Mi perfil</span>
-                </MobileSidebarItem>
-                <Button onClick={() => signOut()} variant="outline">
+                <Button
+                  className="p-2"
+                  onClick={() => signOut()}
+                  variant="ghost"
+                >
                   <LogOutIcon className="mr-2 h-6 w-6" />
-                  <span>Cerrar Sesión</span>
+                  <span className="text-left w-full">Cerrar Sesión</span>
                 </Button>
               </div>
             </SheetClose>

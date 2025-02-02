@@ -13,6 +13,7 @@ export async function getCurrentUserProfile() {
     const user = await getCurrentUser();
     if (!user) return null;
 
+    // TODO: if the profile is not found, it should log out the user
     return await fetchUserProfile(user.id);
   } catch (error) {}
 }
