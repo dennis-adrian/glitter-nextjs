@@ -265,3 +265,20 @@ export function isNewProfile(
   // until they get a second confirmed participation
   return confirmedParticipations.length < 2;
 }
+
+export function truncateText(
+  text: string,
+  maxLength: number,
+  type: "email" | "text" = "text",
+) {
+  if (type === "email") {
+    const [mainText, domain] = text.split("@");
+    if (mainText.length <= maxLength - domain.length - 1) return text;
+    return (
+      mainText.slice(0, maxLength - domain.length - 1) + "..." + "@" + domain
+    );
+  }
+
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength) + "...";
+}
