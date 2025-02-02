@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 
+import { cn } from "@/app/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { HTMLAttributes, useState } from "react";
-import { Loader2Icon } from "lucide-react";
 import { VariantProps } from "class-variance-authority";
+import { Loader2Icon } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { HTMLAttributes, useEffect, useState } from "react";
 
 export function RedirectButton({
   children,
@@ -18,6 +20,13 @@ export function RedirectButton({
 } & VariantProps<typeof buttonVariants> &
   HTMLAttributes<HTMLButtonElement>) {
   const [loading, setLoading] = useState(false);
+  const path = usePathname();
+
+  useEffect(() => {
+    if (path === href) {
+      setLoading(false);
+    }
+  }, [path, href]);
 
   return loading ? (
     <Button disabled variant={variant} {...props}>
@@ -25,7 +34,7 @@ export function RedirectButton({
       Cargando
     </Button>
   ) : (
-    <Link className="w-fit" href={href}>
+    <Link className={cn("w-fit", props.className)} href={href}>
       <Button variant={variant} onClick={() => setLoading(true)} {...props}>
         {children}
       </Button>
