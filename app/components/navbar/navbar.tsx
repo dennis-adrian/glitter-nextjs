@@ -1,7 +1,8 @@
+import ProfileAvatar from "@/app/components/common/profile-avatar";
 import GlitterLogo from "@/app/components/landing/glitter-logo";
 import NavbarNavigationMenu from "@/app/components/navbar/navigation-menu";
 import { RedirectButton } from "@/app/components/redirect-button";
-import MobileSidebar from "@/app/components/ui/mobile-sidebar";
+import NavigationSidebar from "@/app/components/ui/navigation-sidebar";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { SignedIn, SignedOut } from "@clerk/nextjs";
 import { LogInIcon, MenuIcon, UserPlusIcon } from "lucide-react";
@@ -33,17 +34,24 @@ export default async function Navbar() {
           <li className="hidden justify-self-center lg:block">
             <NavbarNavigationMenu profile={profile} />
           </li>
-          <li className="lg:hidden justify-self-end">
-            <MobileSidebar profile={profile}>
-              <MenuIcon className="h-5 w-5" />
-            </MobileSidebar>
-          </li>
-          <SignedIn>
-            <li>hello</li>
-          </SignedIn>
-          <SignedOut>
-            <li className="hidden lg:flex justify-self-end">
-              <div className="flex gap-1">
+          <li className="justify-self-end">
+            {/* if the user is signed in, show the profile avatar. No matter the screen size */}
+            <SignedIn>
+              <NavigationSidebar profile={profile}>
+                <ProfileAvatar
+                  profile={profile!}
+                  className="h-10 w-10"
+                  showBadge={false}
+                />
+              </NavigationSidebar>
+            </SignedIn>
+            <SignedOut>
+              <div className="block lg:hidden">
+                <NavigationSidebar profile={profile}>
+                  <MenuIcon className="h-5 w-5" />
+                </NavigationSidebar>
+              </div>
+              <div className="gap-1 hidden lg:flex">
                 <RedirectButton href="/sign_up" variant="ghost">
                   <UserPlusIcon className="mr-2 h-5 w-5 hidden xl:block" />
                   Crear cuenta
@@ -53,8 +61,8 @@ export default async function Navbar() {
                   Iniciar sesión
                 </RedirectButton>
               </div>
-            </li>
-          </SignedOut>
+            </SignedOut>
+          </li>
         </ul>
       </nav>
     </header>

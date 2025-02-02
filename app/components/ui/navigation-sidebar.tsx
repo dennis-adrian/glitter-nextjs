@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 import { SignedIn, SignedOut, useClerk } from "@clerk/nextjs";
 
@@ -30,18 +30,25 @@ import {
   LogOutIcon,
   StickerIcon,
   TagsIcon,
+  UserIcon,
   UserPlusIcon,
   UsersIcon,
 } from "lucide-react";
+import { cn } from "@/app/lib/utils";
 
 type MobileSidebarItemProps = {
   href: string;
   children: React.ReactNode;
+  isMobileOnly?: boolean;
 };
 
-const MobileSidebarItem = ({ href, children }: MobileSidebarItemProps) => {
+const MobileSidebarItem = ({
+  href,
+  children,
+  isMobileOnly = false,
+}: MobileSidebarItemProps) => {
   return (
-    <li>
+    <li className={cn({ "lg:hidden": isMobileOnly })}>
       <SheetClose
         asChild
         className="hover:bg-accent hover:text-accent-foreground flex w-full rounded-md p-2 text-left"
@@ -52,23 +59,28 @@ const MobileSidebarItem = ({ href, children }: MobileSidebarItemProps) => {
   );
 };
 
-type MobileSidebarProps = {
+type NavigationSidebarProps = {
   profile?: ProfileType | null;
   children: React.ReactNode;
 };
 
-const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
+const NavigationSidebar = ({ children, profile }: NavigationSidebarProps) => {
   const { signOut } = useClerk();
-  const router = useRouter();
   const pathname = usePathname();
 
-  if (pathname.includes("festivals") && pathname.includes("registration"))
+  if (pathname.includes("festivals") && pathname.includes("registration")) {
     return null;
+  }
 
   return (
     <Sheet>
       <SheetTrigger
-        className="cursor-default hover:bg-primary-100/30 hover:text-primary-500"
+        className={cn(
+          "cursor-default hover:bg-primary-100/30 hover:text-primary-500 border-none",
+          {
+            "rounded-full": profile,
+          },
+        )}
         variant="outline"
         size="icon"
       >
@@ -84,13 +96,13 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
             </SheetClose>
           </SheetTitle>
         </SheetHeader>
-        <Separator className="my-2" />
+        <Separator className="my-2 lg:hidden" />
         <ul className="flex flex-col">
-          <MobileSidebarItem href="/">
+          <MobileSidebarItem isMobileOnly href="/">
             <HomeIcon className="mr-2 h-6 w-6" />
             Inicio
           </MobileSidebarItem>
-          <MobileSidebarItem href="/next_event">
+          <MobileSidebarItem isMobileOnly href="/next_event">
             <CalendarCheck2Icon className="mr-2 h-6 w-6" />
             Próximo Evento
           </MobileSidebarItem>
@@ -104,37 +116,40 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
               Festicker
             </MobileSidebarItem>
           </div>
-          <MobileSidebarItem href="/festivals/categories">
+          <MobileSidebarItem isMobileOnly href="/festivals/categories">
             <BoxesIcon className="w-6 h-6 mr-2" />
             Categorías Glitter
           </MobileSidebarItem>
           {profile && profile.role === "admin" && (
             <>
-              <MobileSidebarItem href="/dashboard">
+              <MobileSidebarItem isMobileOnly href="/dashboard">
                 <h4 className="text-lg">Dashboard</h4>
               </MobileSidebarItem>
               <div className="ml-4">
-                <MobileSidebarItem href="/dashboard/users?limit=10&offset=0&includeAdmins=false&status=pending&sort=updatedAt&direction=desc&profileCompletion=complete">
+                <MobileSidebarItem
+                  isMobileOnly
+                  href="/dashboard/users?limit=10&offset=0&includeAdmins=false&status=pending&sort=updatedAt&direction=desc&profileCompletion=complete"
+                >
                   <UsersIcon className="mr-2 h-6 w-6" />
                   Usuarios
                 </MobileSidebarItem>
-                <MobileSidebarItem href="/dashboard/reservations">
+                <MobileSidebarItem isMobileOnly href="/dashboard/reservations">
                   <AlbumIcon className="mr-2 h-6 w-6" />
                   Reservas
                 </MobileSidebarItem>
-                <MobileSidebarItem href="/dashboard/payments">
+                <MobileSidebarItem isMobileOnly href="/dashboard/payments">
                   <CreditCardIcon className="mr-2 h-6 w-6" />
                   Pagos
                 </MobileSidebarItem>
-                <MobileSidebarItem href="/dashboard/festivals">
+                <MobileSidebarItem isMobileOnly href="/dashboard/festivals">
                   <CalendarIcon className="mr-2 h-6 w-6" />
                   Festivales
                 </MobileSidebarItem>
-                <MobileSidebarItem href="/dashboard/subcategories">
+                <MobileSidebarItem isMobileOnly href="/dashboard/subcategories">
                   <BoxesIcon className="mr-2 h-6 w-6" />
                   Subcategorías
                 </MobileSidebarItem>
-                <MobileSidebarItem href="/dashboard/tags">
+                <MobileSidebarItem isMobileOnly href="/dashboard/tags">
                   <TagsIcon className="mr-2 h-6 w-6" />
                   Etiquetas
                 </MobileSidebarItem>
@@ -144,16 +159,16 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
           <Separator className="my-2" />
           <SignedIn>
             <SheetClose asChild>
-              <Button
-                className="p-2"
-                onClick={() => signOut(() => router.push("/"))}
-                variant="ghost"
-              >
-                <LogOutIcon className="mr-2 h-6 w-6" />
-                <span className="w-full text-left text-base font-normal">
-                  Cerrar Sesión
-                </span>
-              </Button>
+              <div className="flex flex-col gap-1">
+                <MobileSidebarItem href="/my_profile">
+                  <UserIcon className="mr-2 h-6 w-6" />
+                  <span>Mi perfil</span>
+                </MobileSidebarItem>
+                <Button onClick={() => signOut()} variant="outline">
+                  <LogOutIcon className="mr-2 h-6 w-6" />
+                  <span>Cerrar Sesión</span>
+                </Button>
+              </div>
             </SheetClose>
           </SignedIn>
           <SignedOut>
@@ -182,4 +197,4 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
   );
 };
 
-export default MobileSidebar;
+export default NavigationSidebar;

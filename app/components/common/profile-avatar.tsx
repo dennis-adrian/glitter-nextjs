@@ -9,9 +9,10 @@ type ProfileAvatarProps = {
   className?: string;
   profile: BaseProfile & { participations: Participation[] };
   showGlitterStamp?: boolean;
+  showBadge?: boolean;
 };
 export default function ProfileAvatar(props: ProfileAvatarProps) {
-  const { profile } = props;
+  const { profile, showBadge = true } = props;
   const userName = getUserName(profile);
 
   return (
@@ -34,8 +35,8 @@ export default function ProfileAvatar(props: ProfileAvatarProps) {
           />
         </div>
       )}
-      {isNewProfile(profile) && (
-        <div className="absolute -bottom-2 z-20">
+      {showBadge && isNewProfile(profile) && (
+        <div className="absolute -bottom-2">
           <Badge className="bg-white text-foreground" variant="outline">
             Nuevo
           </Badge>
