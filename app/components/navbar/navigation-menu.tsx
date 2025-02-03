@@ -20,12 +20,20 @@ import {
   LayoutDashboardIcon,
 } from "lucide-react";
 import { ProfileType } from "../../api/users/definitions";
+import { usePathname } from "next/navigation";
+import { isNoNavigationPage } from "@/app/lib/utils";
 
 const NavbarNavigationMenu = ({
   profile,
 }: {
   profile?: ProfileType | null;
 }) => {
+  const pathname = usePathname();
+
+  if (isNoNavigationPage(pathname)) {
+    return null;
+  }
+
   return (
     <NavigationMenu>
       <NavigationMenuList>

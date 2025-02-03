@@ -282,3 +282,13 @@ export function truncateText(
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength) + "...";
 }
+
+export function isNoNavigationPage(pathname?: string | null) {
+  if (!pathname) return false;
+
+  return (
+    (pathname.includes("festivals") && pathname.includes("registration")) ||
+    pathname.includes("sign_in") ||
+    pathname.includes("sign_up")
+  );
+}
