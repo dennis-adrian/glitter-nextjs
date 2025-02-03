@@ -1,12 +1,7 @@
-import ProfileAvatar from "@/app/components/common/profile-avatar";
 import GlitterLogo from "@/app/components/landing/glitter-logo";
-import CreateAccountButton from "@/app/components/molecules/create-account-button";
 import NavbarNavigationMenu from "@/app/components/navbar/navigation-menu";
-import { RedirectButton } from "@/app/components/redirect-button";
-import NavigationSidebar from "@/app/components/ui/navigation-sidebar";
+import SessionButtons from "@/app/components/navbar/session-buttons";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import { SignedIn, SignedOut } from "@clerk/nextjs";
-import { LogInIcon, MenuIcon } from "lucide-react";
 import Link from "next/link";
 
 export default async function Navbar() {
@@ -36,30 +31,7 @@ export default async function Navbar() {
             <NavbarNavigationMenu profile={profile} />
           </li>
           <li className="justify-self-end">
-            {/* if the user is signed in, show the profile avatar. No matter the screen size */}
-            <SignedIn>
-              <NavigationSidebar profile={profile}>
-                <ProfileAvatar
-                  profile={profile!}
-                  className="h-10 w-10"
-                  showBadge={false}
-                />
-              </NavigationSidebar>
-            </SignedIn>
-            <SignedOut>
-              <div className="block lg:hidden">
-                <NavigationSidebar profile={profile}>
-                  <MenuIcon className="h-5 w-5" />
-                </NavigationSidebar>
-              </div>
-              <div className="gap-1 hidden lg:flex">
-                <CreateAccountButton />
-                <RedirectButton href="/sign_in" variant="outline">
-                  <LogInIcon className="mr-1 h-5 w-5 hidden xl:block" />
-                  Iniciar sesión
-                </RedirectButton>
-              </div>
-            </SignedOut>
+            <SessionButtons profile={profile} />
           </li>
         </ul>
       </nav>
