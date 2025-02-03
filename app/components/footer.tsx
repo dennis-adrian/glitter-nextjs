@@ -11,7 +11,7 @@ import {
 
 export default async function Footer() {
   return (
-    <footer className="bg-gradient-to-br from-violet-500 to-primary-600 text-primary-foreground text-sm md:text-base h-[180px] md:h-[140px]">
+    <footer className="bg-gradient-to-br from-violet-500 to-primary-600 text-primary-foreground text-sm md:text-base h-[180px] md:h-[148px]">
       <div className="container m-auto py-5 px-4 md:px-6">
         <div className="grid md:grid-cols-3">
           <div className="pb-2">
