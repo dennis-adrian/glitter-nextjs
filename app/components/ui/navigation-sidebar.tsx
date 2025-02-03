@@ -61,9 +61,14 @@ const MobileSidebarItem = ({
 type NavigationSidebarProps = {
   profile?: ProfileType | null;
   children: React.ReactNode;
+  onCreateAccountClick: () => void;
 };
 
-const NavigationSidebar = ({ children, profile }: NavigationSidebarProps) => {
+const NavigationSidebar = ({
+  children,
+  profile,
+  onCreateAccountClick,
+}: NavigationSidebarProps) => {
   const { signOut } = useClerk();
   const pathname = usePathname();
 
@@ -182,14 +187,10 @@ const NavigationSidebar = ({ children, profile }: NavigationSidebarProps) => {
           <SignedOut>
             <div className="flex flex-col gap-1">
               <SheetClose asChild>
-                <RedirectButton
-                  className="w-full"
-                  href="/sign_up"
-                  variant="outline"
-                >
-                  <UserPlusIcon className="mr-2 h-6 w-6" />
+                <Button variant="outline" onClick={onCreateAccountClick}>
+                  <UserPlusIcon className="mr-2 h-5 w-5" />
                   Crear cuenta
-                </RedirectButton>
+                </Button>
               </SheetClose>
               <SheetClose asChild>
                 <RedirectButton className="w-full" href="/sign_in">
