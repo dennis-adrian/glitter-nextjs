@@ -1,7 +1,5 @@
 import Link from "next/link";
 
-import { cn } from "@/app/lib/utils";
-
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 import GlitterLogo from "@/app/components/landing/glitter-logo";
@@ -14,10 +12,6 @@ import { headers } from "next/headers";
 import { MailIcon } from "lucide-react";
 
 export default async function Footer() {
-  const pathname = await headers().then((headers) =>
-    headers.get("x-current-path"),
-  );
-
   return (
     <footer
       className={cn("py-12 bg-background border-t", {
