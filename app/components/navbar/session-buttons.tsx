@@ -16,7 +16,8 @@ import {
 } from "@/app/components/ui/dialog";
 import { Button } from "@/app/components/ui/button";
 import { Dialog } from "@/app/components/ui/dialog";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { isNoNavigationPage } from "@/app/lib/utils";
 
 export default function SessionButtons({
   profile,
@@ -25,6 +26,11 @@ export default function SessionButtons({
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
+
+  if (isNoNavigationPage(pathname)) {
+    return null;
+  }
 
   return (
     <div>
