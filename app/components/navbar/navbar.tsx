@@ -1,11 +1,12 @@
 import ProfileAvatar from "@/app/components/common/profile-avatar";
 import GlitterLogo from "@/app/components/landing/glitter-logo";
+import CreateAccountButton from "@/app/components/molecules/create-account-button";
 import NavbarNavigationMenu from "@/app/components/navbar/navigation-menu";
 import { RedirectButton } from "@/app/components/redirect-button";
 import NavigationSidebar from "@/app/components/ui/navigation-sidebar";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { SignedIn, SignedOut } from "@clerk/nextjs";
-import { LogInIcon, MenuIcon, UserPlusIcon } from "lucide-react";
+import { LogInIcon, MenuIcon } from "lucide-react";
 import Link from "next/link";
 
 export default async function Navbar() {
@@ -52,10 +53,7 @@ export default async function Navbar() {
                 </NavigationSidebar>
               </div>
               <div className="gap-1 hidden lg:flex">
-                <RedirectButton href="/sign_up" variant="ghost">
-                  <UserPlusIcon className="mr-2 h-5 w-5 hidden xl:block" />
-                  Crear cuenta
-                </RedirectButton>
+                <CreateAccountButton />
                 <RedirectButton href="/sign_in" variant="outline">
                   <LogInIcon className="mr-1 h-5 w-5 hidden xl:block" />
                   Iniciar sesión
