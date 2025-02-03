@@ -144,3 +144,11 @@
         /* Firefox */
     }
 }
+
+.cl-formButtonPrimary {
+    background-color: hsl(var(--primary));
+}
+
+.cl-formButtonPrimary:hover {
+    background-color: hsl(var(--primary) / .9);
+}
