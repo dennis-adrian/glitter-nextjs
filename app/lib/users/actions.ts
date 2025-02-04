@@ -3,6 +3,8 @@
 import { fetchAdminUsers, fetchUserProfileById } from "@/app/api/users/actions";
 import {
   BaseProfile,
+  NewUser,
+  ProfileType,
   UpdateUser,
   UserCategory,
   UsersAggregates,
@@ -23,6 +25,63 @@ import {
 } from "@/db/schema";
 import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+
+export async function fetchUserProfileByClerkId(
+  clerkId: string,
+): Promise<ProfileType | null | undefined> {
+  try {
+    return await db.query.users.findFirst({
+      with: {
+        userRequests: true,
+        userSocials: true,
+        participations: {
+          with: {
+            reservation: true,
+          },
+        },
+        profileTags: {
+          with: {
+            tag: true,
+          },
+        },
+        profileSubcategories: {
+          with: {
+            subcategory: true,
+          },
+        },
+      },
+      where: eq(users.clerkId, clerkId),
+    });
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
+
+export async function createUserProfile(user: NewUser) {
+  let createdUser = null;
+  try {
+    const queryResult = await db
+      .insert(users)
+      .values({
+        ...user,
+      })
+      .returning();
+    createdUser = queryResult[0];
+  } catch (error) {
+    console.error("Error creating user profile", error);
+    return {
+      success: false,
+      message: "Error al crear el perfil",
+    };
+  }
+
+  return {
+    success: true,
+    message: "Perfil creado correctamente",
+    data: createdUser,
+  };
+}
 
 export async function updateProfile(userId: number, profile: UpdateUser) {
   try {
