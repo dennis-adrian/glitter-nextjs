@@ -25,38 +25,39 @@ import {
 } from "@/db/schema";
 import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { cache } from "react";
 
-export async function fetchUserProfileByClerkId(
-  clerkId: string,
-): Promise<ProfileType | null | undefined> {
-  try {
-    return await db.query.users.findFirst({
-      with: {
-        userRequests: true,
-        userSocials: true,
-        participations: {
-          with: {
-            reservation: true,
+export const fetchUserProfileByClerkId = cache(
+  async (clerkId: string): Promise<ProfileType | null | undefined> => {
+    try {
+      return await db.query.users.findFirst({
+        with: {
+          userRequests: true,
+          userSocials: true,
+          participations: {
+            with: {
+              reservation: true,
+            },
+          },
+          profileTags: {
+            with: {
+              tag: true,
+            },
+          },
+          profileSubcategories: {
+            with: {
+              subcategory: true,
+            },
           },
         },
-        profileTags: {
-          with: {
-            tag: true,
-          },
-        },
-        profileSubcategories: {
-          with: {
-            subcategory: true,
-          },
-        },
-      },
-      where: eq(users.clerkId, clerkId),
-    });
-  } catch (error) {
-    console.error(error);
-    return null;
-  }
-}
+        where: eq(users.clerkId, clerkId),
+      });
+    } catch (error) {
+      console.error(error);
+      return null;
+    }
+  },
+);
 
 export async function createUserProfile(user: NewUser) {
   let createdUser = null;
