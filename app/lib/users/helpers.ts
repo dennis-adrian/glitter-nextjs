@@ -2,6 +2,7 @@
 
 import { fetchUserProfile } from "@/app/api/users/actions";
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
+import { fetchUserProfileByClerkId } from "@/app/lib/users/actions";
 import { users } from "@/db/schema";
 import { buildWhereClause } from "@/db/utils";
 import { currentUser } from "@clerk/nextjs/server";
@@ -14,7 +15,7 @@ export async function getCurrentUserProfile() {
     if (!user) return null;
 
     // TODO: if the profile is not found, it should log out the user
-    return await fetchUserProfile(user.id);
+    return await fetchUserProfileByClerkId(user.id);
   } catch (error) {}
 }
 
