@@ -48,7 +48,7 @@ export default async function Page(props: {
       );
     }
 
-    redirect("/my_profile");
+    redirect("/my_profile?completeProfile=true");
   }
 
   const profile = fetchUserProfileByClerkId(user.id);
