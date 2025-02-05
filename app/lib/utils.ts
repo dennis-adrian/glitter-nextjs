@@ -92,6 +92,27 @@ const requiredProfileFields = [
   { key: "state", label: "Departamento de residencia" },
 ] as { key: keyof ProfileType; label: string; isPublic: boolean }[];
 
+export function getMissingProfileFieldsKeys(profile: ProfileType) {
+  const missingFields: string[] = [];
+  requiredProfileFields.forEach((field) => {
+    if (!profile[field.key]) missingFields.push(field.key);
+  });
+
+  if (profile.userSocials.length === 0) {
+    missingFields.push("userSocials");
+  }
+
+  if (profile.profileSubcategories.length === 0) {
+    missingFields.push("profileSubcategories");
+  }
+
+  if (profile.category === "none") {
+    missingFields.push("category");
+  }
+
+  return missingFields;
+}
+
 export function getMissingProfileFields(profile: ProfileType) {
   const missingFields = [];
   const socials = profile.userSocials.filter((social) => !!social.username);

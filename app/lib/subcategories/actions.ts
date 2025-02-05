@@ -8,8 +8,9 @@ import { db, pool } from "@/db";
 import { subcategories } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { cache } from "react";
 
-export async function fetchSubcategories(): Promise<Subcategory[]> {
+export const fetchSubcategories = cache(async (): Promise<Subcategory[]> => {
   const client = await pool.connect();
 
   try {
@@ -20,7 +21,7 @@ export async function fetchSubcategories(): Promise<Subcategory[]> {
   } finally {
     client.release();
   }
-}
+});
 
 export async function createSubcategory(subcategory: NewSubcategory) {
   const client = await pool.connect();
