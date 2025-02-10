@@ -1,11 +1,10 @@
 "use client";
 
 import { UserCategory } from "@/app/api/users/definitions";
+import Tag from "@/app/components/molecules/tag";
 import { Separator } from "@/app/components/ui/separator";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
-import { cn } from "@/app/lib/utils";
-import { XIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const categoriesWithLabel: {
   category: UserCategory;
@@ -36,13 +35,11 @@ export default function Categories({ subcategories }: CategoriesProps) {
     Subcategory[]
   >([]);
 
-  const handleSelectedCategory = (category: UserCategory) => {
+  const handleSelectCategory = (category: UserCategory) => {
+    if (category !== selectedCategory) {
+      setSelectedSubcategories([]);
+    }
     setSelectedCategory(category);
-    setSelectedSubcategories([]);
-  };
-
-  const handleSelectedSubcategory = (subcategory: Subcategory) => {
-    setSelectedSubcategories([...selectedSubcategories, subcategory]);
   };
 
   const filterSubcategories = (category: UserCategory) => {
@@ -65,20 +62,27 @@ export default function Categories({ subcategories }: CategoriesProps) {
         <p className="text-sm md:text-base leading-4 md:leading-5">
           Selecciona una opción para ver las categorías disponibles
         </p>
-        <div className="flex flex-wrap w-full gap-2 mt-2">
-          {categoriesWithLabel.map((category) => (
-            <MainCategoryCard
-              key={category.category}
-              label={category.label}
-              selected={selectedCategory === category.category}
-              onSelectCategory={() => handleSelectedCategory(category.category)}
-              subcategories={filterSubcategories(category.category)}
-              selectedSubcategories={selectedSubcategories}
-              filterSubcategories={filterSubcategories}
-              onSelectSubcategory={handleSelectedSubcategory}
-              category={category.category}
-            />
-          ))}
+        <div className="flex flex-wrap w-full gap-2 mt-3">
+          {categoriesWithLabel.map((category) => {
+            return selectedCategory === category.category ? (
+              <SelectedCategoryCard
+                key={category.category}
+                label={category.label}
+                selected={selectedCategory === category.category}
+                subcategories={filterSubcategories(category.category)}
+                selectedSubcategories={selectedSubcategories}
+                onSelectSubcategory={(subcategories: Subcategory[]) =>
+                  setSelectedSubcategories(subcategories)
+                }
+              />
+            ) : (
+              <MainCategoryCard
+                key={category.category}
+                label={category.label}
+                onSelectCategory={() => handleSelectCategory(category.category)}
+              />
+            );
+          })}
         </div>
       </div>
     </div>
@@ -88,34 +92,13 @@ export default function Categories({ subcategories }: CategoriesProps) {
 const MainCategoryCard = ({
   label,
   onSelectCategory,
-  selected,
-  subcategories,
-  selectedSubcategories,
-  filterSubcategories,
-  onSelectSubcategory,
-  category,
 }: {
   label: string;
   onSelectCategory: () => void;
-  selected: boolean;
-  subcategories: Subcategory[];
-  selectedSubcategories: Subcategory[];
-  filterSubcategories: (category: UserCategory) => Subcategory[];
-  onSelectSubcategory: (subcategory: Subcategory) => void;
-  category: UserCategory;
 }) => {
-  return selected ? (
-    <SelectedCategoryCard
-      label={label}
-      onSelectCategory={onSelectCategory}
-      selected={selected}
-      subcategories={filterSubcategories(category)}
-      selectedSubcategories={selectedSubcategories}
-      onSelectSubcategory={onSelectSubcategory}
-    />
-  ) : (
+  return (
     <div
-      className="text-sm border py-1 px-3 rounded-md cursor-pointer overflow-hidden transition-all hover:border-primary-500 hover:scale-105 focus:border-primary-500 focus:outline-none"
+      className="font-medium border py-1 px-3 rounded-md cursor-pointer overflow-hidden transition-all hover:border-primary-500 hover:scale-105 focus:border-primary-500 focus:outline-none"
       onClick={onSelectCategory}
     >
       <div>{label}</div>
@@ -125,34 +108,46 @@ const MainCategoryCard = ({
 
 const SelectedCategoryCard = ({
   label,
-  onSelectCategory,
   onSelectSubcategory,
   selected,
   subcategories,
   selectedSubcategories,
 }: {
   label: string;
-  onSelectCategory: () => void;
-  onSelectSubcategory: (subcategory: Subcategory) => void;
+  onSelectSubcategory: (subcategories: Subcategory[]) => void;
   selected: boolean;
   subcategories: Subcategory[];
   selectedSubcategories: Subcategory[];
 }) => {
+  const handleAddSubcategory = (subcategory: Subcategory) => {
+    onSelectSubcategory([...selectedSubcategories, subcategory]);
+  };
+
+  const handleRemoveSubcategory = (subcategory: Subcategory) => {
+    onSelectSubcategory(
+      selectedSubcategories.filter((sub) => sub.id !== subcategory.id),
+    );
+  };
+
   return (
     <div className="w-full border rounded-md p-2">
-      <div onClick={onSelectCategory}>
-        <h2 className="font-semibold mb-1">{label}</h2>
+      <div>
+        <h2 className="font-semibold">{label}</h2>
+        {selected && (
+          <div className="text-sm text-muted-foreground mb-1">
+            Categorías seleccionadas ({selectedSubcategories.length})
+          </div>
+        )}
         <div className="flex flex-wrap gap-1">
           {selected &&
             selectedSubcategories.length > 0 &&
             selectedSubcategories.map((subcategory) => (
-              <div
+              <Tag
                 key={subcategory.id}
-                className="bg-primary-500 text-sm text-white px-2 py-1 rounded-sm w-fit flex items-center gap-1"
-              >
-                <span>{subcategory.label}</span>
-                <XIcon className="w-4 h-4" />
-              </div>
+                content={subcategory.label}
+                removable
+                onRemove={() => handleRemoveSubcategory(subcategory)}
+              />
             ))}
         </div>
         <Separator className="my-2" />
@@ -161,13 +156,12 @@ const SelectedCategoryCard = ({
         {selected && (
           <div className="flex text-sm flex-wrap gap-2 cursor-default">
             {subcategories.map((subcategory) => (
-              <div
-                className="bg-primary-50 py-1 px-2 rounded-sm"
+              <Tag
                 key={subcategory.id}
-                onClick={() => onSelectSubcategory(subcategory)}
-              >
-                {subcategory.label}
-              </div>
+                content={subcategory.label}
+                className="bg-primary-50 py-1 px-2 rounded-sm text-foreground"
+                onClick={() => handleAddSubcategory(subcategory)}
+              />
             ))}
           </div>
         )}
