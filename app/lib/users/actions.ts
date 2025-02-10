@@ -23,14 +23,17 @@ import {
   users,
   userSocials,
 } from "@/db/schema";
+import { clerkClient, currentUser } from "@clerk/nextjs/server";
 import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cache } from "react";
 
+export const getCurrentClerkUser = cache(async () => await currentUser());
+
 export const fetchUserProfileByClerkId = cache(
-  async (clerkId: string): Promise<ProfileType | null | undefined> => {
+  async (clerkId: string): Promise<ProfileType | null> => {
     try {
-      return await db.query.users.findFirst({
+      const profile = await db.query.users.findFirst({
         with: {
           userRequests: true,
           userSocials: true,
@@ -52,6 +55,8 @@ export const fetchUserProfileByClerkId = cache(
         },
         where: eq(users.clerkId, clerkId),
       });
+
+      return profile || null;
     } catch (error) {
       console.error(error);
       return null;
@@ -60,28 +65,40 @@ export const fetchUserProfileByClerkId = cache(
 );
 
 export async function createUserProfile(user: NewUser) {
-  let createdUser = null;
   try {
-    const queryResult = await db
-      .insert(users)
-      .values({
-        ...user,
-      })
-      .returning();
-    createdUser = queryResult[0];
+    const queryResult = await db.transaction(async (tx) => {
+      const [newUser] = await tx
+        .insert(users)
+        .values({
+          ...user,
+        })
+        .returning();
+
+      await tx
+        .insert(scheduledTasks)
+        .values({
+          dueDate: sql`now() + interval '3 days'`,
+          reminderTime: sql`now() + interval '1 days'`,
+          profileId: newUser.id,
+          taskType: "profile_creation",
+        })
+        .returning();
+
+      return newUser;
+    });
+
+    return {
+      success: true,
+      message: "Perfil creado correctamente.",
+      data: queryResult,
+    };
   } catch (error) {
     console.error("Error creating user profile", error);
     return {
       success: false,
-      message: "Error al crear el perfil",
+      message: "Error al crear el perfil.",
     };
   }
-
-  return {
-    success: true,
-    message: "Perfil creado correctamente",
-    data: createdUser,
-  };
 }
 
 export async function updateProfile(userId: number, profile: UpdateUser) {
@@ -369,4 +386,21 @@ export async function fetchUserProfilesByEmails(emails: string[]) {
   return await db.query.users.findMany({
     where: inArray(users.email, emails),
   });
+}
+
+export async function deleteClerkUser(clerkId: string) {
+  try {
+    const clerk = await clerkClient();
+    await clerk.users.deleteUser(clerkId);
+    return {
+      success: true,
+      message: "Cuenta eliminada correctamente.",
+    };
+  } catch (error) {
+    console.error("Error deleting clerk user", error);
+    return {
+      success: false,
+      message: "Error al eliminar la cuenta.",
+    };
+  }
 }

@@ -1,23 +1,23 @@
 "use client";
 
+import { ProfileType } from "@/app/api/users/definitions";
 import ProfileAvatar from "@/app/components/common/profile-avatar";
 import { RedirectButton } from "@/app/components/redirect-button";
-import { ArrowRightIcon, LogInIcon, UserPlusIcon } from "lucide-react";
-import NavigationSidebar from "@/app/components/ui/navigation-sidebar";
-import { SignedIn, SignedOut } from "@clerk/nextjs";
-import { MenuIcon } from "lucide-react";
-import { ProfileType } from "@/app/api/users/definitions";
-import { useState } from "react";
+import { Button } from "@/app/components/ui/button";
 import {
+  Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/app/components/ui/dialog";
-import { Button } from "@/app/components/ui/button";
-import { Dialog } from "@/app/components/ui/dialog";
-import { usePathname, useRouter } from "next/navigation";
+import NavigationSidebar from "@/app/components/ui/navigation-sidebar";
 import { isNoNavigationPage } from "@/app/lib/utils";
+import { SignedIn, SignedOut } from "@clerk/nextjs";
+import { InfoIcon, LogInIcon, MenuIcon, UserPlusIcon } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 
 export default function SessionButtons({
   profile,
@@ -70,23 +70,22 @@ export default function SessionButtons({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="p-4 md:p-6">
           <DialogHeader>
-            <DialogTitle className="text-center sr-only">
-              ¿Estás seguro de que quieres crear una cuenta?
+            <DialogTitle className="text-center">
+              ¿Quieres crear una cuenta?
             </DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-2 my-2">
-            <h1 className="text-lg font-semibold text-center">
-              ¿Te gustaría crear una cuenta?
-            </h1>
-            <p>
-              La creación de cuentas está limitada a personas que quieran
-              participar de nuestros festivales como expositores.
+          <div className="flex flex-col gap-2 my-2 text-center">
+            <InfoIcon className="w-12 h-12 mx-auto text-amber-500" />
+            <p className="leading-5">
+              Al crear una cuenta y completar tu perfil serás considerado para
+              participar como expositor en nuestros eventos
             </p>
             <p>
-              Si simplemente te gustaría visitar nuestros festivales, no es
-              necesario que te crees una cuenta.
+              Si ya tienes una cuenta, haz clic{" "}
+              <Link className="underline text-blue-500" href="/sign_in">
+                aquí
+              </Link>
             </p>
-            <p>¿Quieres continuar y crear una cuenta?</p>
           </div>
           <DialogFooter className="flex flex-col-reverse md:flex-row w-full gap-2">
             <Button
@@ -104,7 +103,6 @@ export default function SessionButtons({
               }}
             >
               Continuar
-              <ArrowRightIcon className="ml-1 h-5 w-5" />
             </Button>
           </DialogFooter>
         </DialogContent>
