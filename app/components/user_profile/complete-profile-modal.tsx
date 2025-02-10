@@ -43,7 +43,7 @@ export default function CompleteProfileModal({
         <div>
           {(missingFields.includes("category") ||
             missingFields.includes("profileSubcategories")) && (
-            <Categories subcategories={subcategories} />
+            <Categories profile={profile} subcategories={subcategories} />
           )}
         </div>
       </DialogContent>

@@ -20,7 +20,7 @@ export default function Tag({
   return (
     <div
       className={cn(
-        "bg-primary-500 text-sm text-white px-2 py-1 rounded-sm w-fit flex items-center gap-1",
+        "bg-background text-sm text-primary-500 border border-primary-500 px-2 py-1 rounded-sm w-fit flex items-center gap-1",
         className,
       )}
       onClick={() => onClick && onClick()}

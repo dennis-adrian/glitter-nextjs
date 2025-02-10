@@ -1,8 +1,9 @@
 "use client";
 
-import { UserCategory } from "@/app/api/users/definitions";
+import { ProfileType, UserCategory } from "@/app/api/users/definitions";
 import Tag from "@/app/components/molecules/tag";
 import { Separator } from "@/app/components/ui/separator";
+import CategoriesForm from "@/app/components/user_profile/creation-process/categories-form";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
 import { useState } from "react";
 
@@ -25,10 +26,14 @@ const categoriesWithLabel: {
 ];
 
 type CategoriesProps = {
+  profile: ProfileType;
   subcategories: Subcategory[];
 };
 
-export default function Categories({ subcategories }: CategoriesProps) {
+export default function Categories({
+  subcategories,
+  profile,
+}: CategoriesProps) {
   const [selectedCategory, setSelectedCategory] =
     useState<UserCategory>("none");
   const [selectedSubcategories, setSelectedSubcategories] = useState<
@@ -83,6 +88,13 @@ export default function Categories({ subcategories }: CategoriesProps) {
               />
             );
           })}
+          <div className="w-full flex justify-end mt-2">
+            <CategoriesForm
+              profile={profile}
+              category={selectedCategory}
+              subcategories={selectedSubcategories}
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -159,7 +171,7 @@ const SelectedCategoryCard = ({
               <Tag
                 key={subcategory.id}
                 content={subcategory.label}
-                className="bg-primary-50 py-1 px-2 rounded-sm text-foreground"
+                className="bg-primary-50 py-1 px-2 rounded-sm text-foreground border-none"
                 onClick={() => handleAddSubcategory(subcategory)}
               />
             ))}
