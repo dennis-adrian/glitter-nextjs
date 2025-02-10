@@ -1,30 +1,23 @@
 "use server";
 
-import { fetchUserProfile } from "@/app/api/users/actions";
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
-import { fetchUserProfileByClerkId } from "@/app/lib/users/actions";
+import {
+  fetchUserProfileByClerkId,
+  getCurrentClerkUser,
+} from "@/app/lib/users/actions";
 import { users } from "@/db/schema";
 import { buildWhereClause } from "@/db/utils";
-import { currentUser } from "@clerk/nextjs/server";
-import { and, eq, isNotNull, isNull, not, sql } from "drizzle-orm";
+import { eq, isNotNull, isNull, not, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 export async function getCurrentUserProfile() {
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentClerkUser();
     if (!user) return null;
 
     // TODO: if the profile is not found, it should log out the user
     return await fetchUserProfileByClerkId(user.id);
   } catch (error) {}
-}
-
-export async function getCurrentUser() {
-  try {
-    return await currentUser();
-  } catch (error) {
-    return null;
-  }
 }
 
 export async function protectRoute(
