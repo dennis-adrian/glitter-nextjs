@@ -2,38 +2,31 @@
 
 import { ProfileType, UserCategory } from "@/app/api/users/definitions";
 import SubmitButton from "@/app/components/simple-submit-button";
-import { Button } from "@/app/components/ui/button";
 import { Form } from "@/app/components/ui/form";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
 import { updateProfileCategories } from "@/app/lib/users/actions";
-import { ArrowLeftIcon, ArrowRightIcon, RotateCwIcon } from "lucide-react";
+import { SaveIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 type CategoriesFormProps = {
+  category: UserCategory;
+  subcategories: Subcategory[];
   profile: ProfileType;
-  mainCategory: Subcategory | null;
-  additionalCategories: Subcategory[];
-  onBack: () => void;
-  onSubmit: () => void;
 };
 
 export default function CategoriesForm(props: CategoriesFormProps) {
   const form = useForm();
 
-  const action: () => void = form.handleSubmit(async () => {
-    if (!props.mainCategory) return;
-
-    const subcategories = [props.mainCategory, ...props.additionalCategories];
+  const action = form.handleSubmit(async () => {
     const res = await updateProfileCategories(
       props.profile.id,
-      props.mainCategory?.category as UserCategory,
-      subcategories.map((subcategory) => subcategory.id),
+      props.category,
+      props.subcategories.map((subcategory) => subcategory.id),
     );
 
     if (res.success) {
       toast.success(res.message);
-      props.onSubmit();
     } else {
       toast.error(res.message);
     }
@@ -41,28 +34,23 @@ export default function CategoriesForm(props: CategoriesFormProps) {
 
   return (
     <Form {...form}>
-      <form className="w-full flex flex-col gap-4 my-4" onSubmit={action}>
-        <div className="flex justify-end items-center gap-2">
-          <Button type="button" variant="outline" onClick={props.onBack}>
-            <ArrowLeftIcon className="w-4 h-4 md:mr-2" />
-            <span className="hidden md:block">Volver</span>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => window.location.reload()}
-          >
-            <RotateCwIcon className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:block">Reiniciar</span>
-          </Button>
-          <SubmitButton
-            disabled={!props.mainCategory || form.formState.isSubmitting}
-            loading={form.formState.isSubmitting}
-          >
-            <span>Continuar</span>
-            <ArrowRightIcon className="ml-2 w-4 h-4" />
-          </SubmitButton>
-        </div>
+      <form onSubmit={action}>
+        <SubmitButton
+          loading={
+            form.formState.isSubmitting || form.formState.isSubmitSuccessful
+          }
+          className="w-40"
+          disabled={
+            form.formState.isSubmitting ||
+            form.formState.isSubmitSuccessful ||
+            !props.category ||
+            props.subcategories.length === 0
+          }
+          loadingLabel="Guardando"
+        >
+          Guardar
+          <SaveIcon className="w-5 h-5 ml-2" />
+        </SubmitButton>
       </form>
     </Form>
   );
