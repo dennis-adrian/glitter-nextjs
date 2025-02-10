@@ -8,11 +8,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/app/components/ui/dialog";
-import CategoriesStep from "@/app/components/user_profile/creation-process/categories-step";
-import {
-  getMissingProfileFields,
-  getMissingProfileFieldsKeys,
-} from "@/app/lib/utils";
+import { getMissingProfileFieldsKeys } from "@/app/lib/utils";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
 import { use } from "react";
 import Categories from "@/app/components/user_profile/creation-process/categories";
@@ -30,6 +26,7 @@ export default function CompleteProfileModal({
   profile,
   subcategoriesPromise,
 }: CompleteProfileModalProps) {
+  // TODO: The modal should open if there are any missing fields.
   const missingFields = getMissingProfileFieldsKeys(profile);
   const subcategories = use(subcategoriesPromise);
 

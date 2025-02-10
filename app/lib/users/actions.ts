@@ -66,7 +66,17 @@ export const fetchUserProfileByClerkId = cache(
 
 export async function createUserProfile(user: NewUser) {
   try {
-    const queryResult = await db.transaction(async (tx) => {
+    // There's something weird happening where the user tries to be created twice when using email for
+    // creating the account.
+    const userExisits = await fetchUserProfileByClerkId(user.clerkId);
+    if (userExisits) {
+      return {
+        success: true,
+        message: "Perfil creado correctamente.",
+      };
+    }
+
+    await db.transaction(async (tx) => {
       const [newUser] = await tx
         .insert(users)
         .values({
@@ -90,7 +100,6 @@ export async function createUserProfile(user: NewUser) {
     return {
       success: true,
       message: "Perfil creado correctamente.",
-      data: queryResult,
     };
   } catch (error) {
     console.error("Error creating user profile", error);
