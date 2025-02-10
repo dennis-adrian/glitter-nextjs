@@ -42,7 +42,7 @@ export default function SessionButtons({
         >
           <ProfileAvatar
             profile={profile!}
-            className="h-10 w-10"
+            className="h-8 w-8"
             showBadge={false}
           />
         </NavigationSidebar>
