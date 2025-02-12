@@ -13,7 +13,7 @@ import {
 
 export type UserSocial = typeof userSocials.$inferSelect;
 type UserRequest = typeof userRequests.$inferSelect;
-type Participation = typeof reservationParticipants.$inferSelect & {
+export type Participation = typeof reservationParticipants.$inferSelect & {
   reservation: typeof standReservations.$inferSelect;
 };
 export type ParticipationWithParticipantAndReservations = Participation & {

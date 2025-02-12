@@ -1,14 +1,21 @@
 import { StandBase } from "@/app/api/stands/definitions";
-import { ProfileType } from "@/app/api/users/definitions";
+import { BaseProfile, Participation } from "@/app/api/users/definitions";
 import ProfileAvatar from "@/app/components/common/profile-avatar";
 import { RedirectButton } from "@/app/components/redirect-button";
+import Image from "next/image";
 
 type ParticipantInfoProps = {
-  profile: ProfileType;
-  stand: StandBase;
+  profile: BaseProfile & {
+    stands: StandBase[];
+    participations: Participation[];
+  };
 };
 
 export default function ParticipantInfo(props: ParticipantInfoProps) {
+  const standsLabel = props.profile.stands
+    .map((stand) => `${stand.label}${stand.standNumber}`)
+    .join(" - ");
+
   return (
     <div className="relative p-4 border rounded-lg mt-8 border-primary-100">
       <div className="absolute top-0 left-0 w-full flex justify-center -translate-y-1/2">
@@ -20,8 +27,7 @@ export default function ParticipantInfo(props: ParticipantInfoProps) {
             {props.profile.displayName}
           </h2>
           <h3 className="text-xs md:text-sm text-muted-foreground">
-            {props.stand.label}
-            {props.stand.standNumber}
+            {standsLabel}
           </h3>
         </div>
         <RedirectButton

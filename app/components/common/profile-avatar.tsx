@@ -1,4 +1,4 @@
-import { ProfileType } from "@/app/api/users/definitions";
+import { BaseProfile, Participation } from "@/app/api/users/definitions";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
 import { getUserName } from "@/app/lib/users/utils";
@@ -6,7 +6,7 @@ import { isNewProfile } from "@/app/lib/utils";
 
 type ProfileAvatarProps = {
   className?: string;
-  profile: ProfileType;
+  profile: BaseProfile & { participations: Participation[] };
 };
 export default function ProfileAvatar(props: ProfileAvatarProps) {
   const { profile } = props;
