@@ -80,7 +80,11 @@ const StandContent = ({
                 Espacio deshabilitado
               </div>
             ) : canBeReserved || status !== "available" ? (
-              <StandArtists participants={participantProfiles} />
+              <StandArtists
+                festivalId={stand.festivalId!}
+                participants={participantProfiles}
+                stand={stand}
+              />
             ) : (
               <div className="text-center text-sm text-muted-foreground">
                 No puedes reservar en este espacio

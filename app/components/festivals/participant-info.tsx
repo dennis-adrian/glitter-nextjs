@@ -12,9 +12,12 @@ type ParticipantInfoProps = {
 };
 
 export default function ParticipantInfo(props: ParticipantInfoProps) {
-  const currentParticipation = props.profile.participations.find(
+  const festivalParticipations = props.profile.participations.filter(
     (participation) =>
       participation.reservation.festivalId === props.festivalId,
+  );
+  const showStamp = festivalParticipations.some(
+    (participation) => participation.hasStamp,
   );
 
   const standsLabel = props.profile.stands
@@ -24,10 +27,7 @@ export default function ParticipantInfo(props: ParticipantInfoProps) {
   return (
     <div className="relative p-4 border rounded-lg mt-8 border-primary-100">
       <div className="absolute top-0 left-0 w-full flex justify-center -translate-y-1/2">
-        <ProfileAvatar
-          showGlitterStamp={currentParticipation?.hasStamp}
-          profile={props.profile}
-        />
+        <ProfileAvatar showGlitterStamp={showStamp} profile={props.profile} />
       </div>
       <div className="flex flex-col items-center text-center h-full justify-between gap-2">
         <div className="mt-4">

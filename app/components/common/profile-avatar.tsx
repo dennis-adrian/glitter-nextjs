@@ -25,7 +25,7 @@ export default function ProfileAvatar(props: ProfileAvatarProps) {
         />
       </Avatar>
       {props.showGlitterStamp && (
-        <div className="absolute -top-1 -right-2 bg-white rounded-full p-0.5">
+        <div className="absolute -top-1 -right-2 bg-white rounded-full p-0.5 z-20">
           <Image
             src="/img/glitter-stamp.png"
             alt="Glitter Stamp"
@@ -35,7 +35,7 @@ export default function ProfileAvatar(props: ProfileAvatarProps) {
         </div>
       )}
       {isNewProfile(profile) && (
-        <div className="absolute -bottom-2">
+        <div className="absolute -bottom-2 z-20">
           <Badge className="bg-white text-foreground" variant="outline">
             Nuevo
           </Badge>
