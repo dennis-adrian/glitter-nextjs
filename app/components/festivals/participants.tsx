@@ -11,6 +11,7 @@ type ParticipantsProps = {
     stands: StandBase[];
     participations: Participation[];
   })[];
+  festivalId: number;
 };
 
 export default async function ParticipantsGrid(props: ParticipantsProps) {
@@ -23,7 +24,11 @@ export default async function ParticipantsGrid(props: ParticipantsProps) {
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 justify-center gap-2 p-4">
         {props.participants.map((participant) => (
-          <ParticipantInfo key={participant.id} profile={participant} />
+          <ParticipantInfo
+            key={participant.id}
+            profile={participant}
+            festivalId={props.festivalId}
+          />
         ))}
       </div>
     </div>

@@ -41,6 +41,7 @@ export default function FestivalSector(props: FestivalSectorProps) {
             <ParticipantsGrid
               stands={props.sector.stands}
               participants={props.profiles}
+              festivalId={props.sector.festivalId}
             />
           </Suspense>
         </div>
