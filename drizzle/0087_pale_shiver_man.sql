@@ -1,0 +1,1 @@
+ALTER TABLE "participations" ADD COLUMN "has_stam" boolean DEFAULT false NOT NULL;
