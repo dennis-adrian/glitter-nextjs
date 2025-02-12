@@ -15,6 +15,13 @@ type ParticipantsProps = {
 };
 
 export default async function ParticipantsGrid(props: ParticipantsProps) {
+  const sortedParticipants = props.participants.sort((a, b) => {
+    const aFirstStand = a.stands[0];
+    const bFirstStand = b.stands[0];
+
+    return aFirstStand.standNumber - bFirstStand.standNumber;
+  });
+
   return (
     <div className="relative flex flex-col border rounded-md max-h-[600px] lg:max-h-[1000px] overflow-x-auto flex-grow">
       <div className="sticky top-0 left-0 bg-white/90 z-10 border-b px-4">
@@ -23,7 +30,7 @@ export default async function ParticipantsGrid(props: ParticipantsProps) {
         </h1>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 justify-center gap-2 p-4">
-        {props.participants.map((participant) => (
+        {sortedParticipants.map((participant) => (
           <ParticipantInfo
             key={participant.id}
             profile={participant}

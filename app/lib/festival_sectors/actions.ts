@@ -141,6 +141,7 @@ export async function fetchConfirmedProfilesByFestivalId(
 
         if (userStand) {
           accStands.push(userStand);
+          accStands.sort((a, b) => a.standNumber - b.standNumber);
         }
 
         if (userParticipation) {
