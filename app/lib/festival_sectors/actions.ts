@@ -1,4 +1,3 @@
-import { Stand } from "@/app/api/stands/actions";
 import { StandBase } from "@/app/api/stands/definitions";
 import {
   BaseProfile,
@@ -127,6 +126,39 @@ export async function fetchConfirmedProfilesByFestivalId(
         ),
       );
 
+    let allUsersParticipationsObject: Record<number, Participation[]> = {};
+
+    if (res.length > 0) {
+      const allUsersParticipations = await db
+        .select()
+        .from(reservationParticipants)
+        .leftJoin(
+          standReservations,
+          eq(standReservations.id, reservationParticipants.reservationId),
+        )
+        .where(
+          inArray(
+            reservationParticipants.userId,
+            res.map((r) => r.users.id),
+          ),
+        );
+
+      allUsersParticipationsObject = allUsersParticipations.reduce(
+        (acc, data) => {
+          const participation: Participation = {
+            ...data.participations,
+            reservation: data.stand_reservations!,
+          };
+          acc[data.participations.userId] = [
+            ...(acc[data.participations.userId] || []),
+            participation,
+          ];
+          return acc;
+        },
+        {} as Record<number, Participation[]>,
+      );
+    }
+
     const profilesObject = res.reduce(
       (acc, data) => {
         const userId = data.users.id;
@@ -134,18 +166,15 @@ export async function fetchConfirmedProfilesByFestivalId(
         const userStand = data.stands;
 
         const accParticipations = acc[userId]?.participations || [];
-        const userParticipation = {
-          ...data.participations!,
-          reservation: data.stand_reservations!,
-        };
+        const userParticipations = allUsersParticipationsObject[userId];
 
         if (userStand) {
           accStands.push(userStand);
           accStands.sort((a, b) => a.standNumber - b.standNumber);
         }
 
-        if (userParticipation) {
-          accParticipations.push(userParticipation);
+        if (accParticipations.length !== userParticipations.length) {
+          accParticipations.push(...userParticipations);
         }
 
         acc[userId] = {
