@@ -9,7 +9,7 @@ export function Avatar({
   return (
     <div
       className={cn(
-        "relative flex h-16 w-16 shrink-0 overflow-hidden rounded-full",
+        "relative flex h-16 w-16 shrink-0 overflow-hidden rounded-full border-2 border-white",
         className,
       )}
     >

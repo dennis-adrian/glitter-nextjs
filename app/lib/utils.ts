@@ -1,7 +1,11 @@
 import QRCode from "qrcode";
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { ProfileType } from "@/api/users/definitions";
+import {
+  BaseProfile,
+  Participation,
+  ProfileType,
+} from "@/api/users/definitions";
 import {
   eventDiscoveryEnum,
   genderEnum,
@@ -250,7 +254,9 @@ export function getFestivalLogo(festivalType: FestivalBase["festivalType"]) {
   return TWINKLER_LOGO_URL_270X80;
 }
 
-export function isNewProfile(profile: ProfileType) {
+export function isNewProfile(
+  profile: BaseProfile & { participations: Participation[] },
+) {
   const confirmedParticipations = profile.participations.filter(
     (participation) => participation.reservation.status === "accepted",
   );

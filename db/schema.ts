@@ -411,6 +411,7 @@ export const reservationParticipants = pgTable("participations", {
   reservationId: integer("reservation_id")
     .notNull()
     .references(() => standReservations.id, { onDelete: "cascade" }),
+  hasStamp: boolean("has_stamp").default(false).notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

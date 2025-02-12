@@ -1,3 +1,5 @@
+import { StandBase } from "@/app/api/stands/definitions";
+import { BaseProfile, Participation } from "@/app/api/users/definitions";
 import MapImage from "@/app/components/festivals/map-image";
 import ParticipantsGrid from "@/app/components/festivals/participants";
 import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
@@ -6,6 +8,10 @@ import { Suspense } from "react";
 
 type FestivalSectorProps = {
   sector: FestivalSectorWithStandsWithReservationsWithParticipants;
+  profiles: (BaseProfile & {
+    stands: StandBase[];
+    participations: Participation[];
+  })[];
 };
 
 export default function FestivalSector(props: FestivalSectorProps) {
@@ -32,7 +38,11 @@ export default function FestivalSector(props: FestivalSectorProps) {
               <div className="w-full justify-center mt-5">Cargando...</div>
             }
           >
-            <ParticipantsGrid stands={props.sector.stands} />
+            <ParticipantsGrid
+              stands={props.sector.stands}
+              participants={props.profiles}
+              festivalId={props.sector.festivalId}
+            />
           </Suspense>
         </div>
       ) : (

@@ -610,6 +610,20 @@
       "when": 1726200488974,
       "tag": "0086_overconfident_ricochet",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "5",
+      "when": 1739334366307,
+      "tag": "0087_pale_shiver_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "5",
+      "when": 1739334659596,
+      "tag": "0088_broken_the_captain",
+      "breakpoints": true
     }
   ]
 }

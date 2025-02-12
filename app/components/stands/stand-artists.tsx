@@ -2,12 +2,15 @@ import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { ProfileType } from "@/app/api/users/definitions";
 import ProfileAvatarGroup from "@/app/components/common/profile-avatar-group";
+import { StandBase } from "@/app/api/stands/definitions";
 
 type Props = {
+  festivalId: number;
   participants?: ProfileType[];
+  stand: StandBase;
 };
 
-const StandArtists = ({ participants }: Props) => {
+const StandArtists = ({ festivalId, participants, stand }: Props) => {
   let cardBody;
   let label;
   if (!participants?.length) {
@@ -20,7 +23,13 @@ const StandArtists = ({ participants }: Props) => {
   }
 
   if (participants?.length && participants.length > 0) {
-    cardBody = <ProfileAvatarGroup profiles={participants} />;
+    cardBody = (
+      <ProfileAvatarGroup
+        festivalId={festivalId}
+        profiles={participants}
+        stand={stand}
+      />
+    );
     const profileButtons = participants.map((participant) => (
       <RedirectButton
         key={participant.id}
