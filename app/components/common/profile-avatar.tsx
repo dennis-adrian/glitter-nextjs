@@ -27,8 +27,8 @@ export default function ProfileAvatar(props: ProfileAvatarProps) {
       {props.showGlitterStamp && (
         <div className="absolute -top-1 -right-2 bg-white rounded-full p-0.5 z-20">
           <Image
-            src="/img/glitter-stamp.png"
-            alt="Glitter Stamp"
+            src="/img/glitter-stamp.svg"
+            alt="glitter stamp"
             width={24}
             height={24}
           />
