@@ -1,3 +1,5 @@
+"use client";
+
 import { BaseProfile } from "@/app/api/users/definitions";
 import EventDayTicketCreationForm from "@/app/components/events/registration/event-day-ticket-creation-form";
 import Tickets from "@/app/components/events/registration/tickets";
