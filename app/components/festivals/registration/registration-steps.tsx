@@ -97,6 +97,13 @@ export default function RegistrationSteps(props: {
     }
   };
 
+  const handleGoBack = () => {
+    setRegistrationInfo((prev) => ({
+      ...prev,
+      step: prev.step - 1,
+    }));
+  };
+
   return (
     <>
       {!registrationInfo.type ? null : (
@@ -106,7 +113,9 @@ export default function RegistrationSteps(props: {
             festivalId={props.festival.id}
             type={registrationInfo.type}
             numberOfVisitors={registrationInfo.numberOfVisitors}
+            step={registrationInfo.step}
             onReset={handleReset}
+            onGoBack={handleGoBack}
           />
         </>
       )}
