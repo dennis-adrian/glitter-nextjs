@@ -1,18 +1,19 @@
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { genderEnum } from "@/db/schema";
-import { Form } from "@/app/components/ui/form";
 import SelectInput from "@/app/components/form/fields/select";
-import { genderOptions } from "@/app/lib/utils";
-import { createVisitor } from "@/app/data/visitors/actions";
 import SubmitButton from "@/app/components/simple-submit-button";
-import { ArrowRightIcon } from "lucide-react";
-import { toast } from "sonner";
-import { useRouter, useSearchParams } from "next/navigation";
-import { createTicket } from "@/app/data/tickets/actions";
+import { Form } from "@/app/components/ui/form";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
-import { formatDate } from "@/app/lib/formatters";
+import {
+  createVisitor,
+  NewVisitor,
+  VisitorWithTickets,
+} from "@/app/data/visitors/actions";
+import { genderOptions } from "@/app/lib/utils";
+import { genderEnum } from "@/db/schema";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowRightIcon } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
 
 const FormSchema = z.object({
   gender: z.enum([...genderEnum.enumValues]),
@@ -21,61 +22,36 @@ const FormSchema = z.object({
 type GenderFormProps = {
   festival: FestivalWithDates;
   numberOfVisitors?: number;
+  visitor: NewVisitor;
+  onSuccess: (visitor: VisitorWithTickets) => void;
 };
 export default function GenderForm(props: GenderFormProps) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      gender: "other",
+      gender: props.visitor.gender,
     },
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    const currentParams = new URLSearchParams(searchParams.toString());
     const res = await createVisitor({
-      firstName: searchParams.get("firstName") || "",
-      lastName: searchParams.get("lastName") || "",
-      email: searchParams.get("email") || "",
-      phoneNumber: searchParams.get("phoneNumber") || "",
+      firstName: props.visitor.firstName,
+      lastName: props.visitor.lastName,
+      email: props.visitor.email,
+      phoneNumber: props.visitor.phoneNumber,
       gender: data.gender,
-      birthdate: new Date(searchParams.get("birthdate") || ""),
+      birthdate: props.visitor.birthdate,
     });
 
     if (res.success) {
-      toast.success("La información ha sido guardada");
-      currentParams.set("visitorId", res.visitor!.id.toString());
-      currentParams.set("step", "5");
-
-      const ticketDate = props.festival.festivalDates.find((festivalDate) => {
-        return formatDate(festivalDate.startDate)
-          .startOf("day")
-          .equals(formatDate(new Date()).startOf("day"));
+      toast.success("Guardamos tu información correctamente");
+      props.onSuccess({
+        ...res.visitor!,
+        tickets: [],
       });
-
-      if (!ticketDate) {
-        toast.error("No tenemos entradas disponibles para hoy");
-        return;
-      }
-
-      const ticketRes = await createTicket({
-        date: ticketDate.startDate,
-        festival: props.festival,
-        numberOfVisitors: props.numberOfVisitors,
-        visitor: res.visitor!,
-      });
-
-      if (ticketRes.success) {
-        toast.success(ticketRes.message);
-      } else {
-        toast.error(ticketRes.message);
-      }
     } else {
-      toast.error("Ups! No se pudo guardar la información");
+      toast.error("Ups! No se pudo guardar la información. Intenta nuevamente");
     }
-
-    router.push(`?${currentParams.toString()}`);
   });
 
   return (
@@ -93,7 +69,7 @@ export default function GenderForm(props: GenderFormProps) {
           disabled={form.formState.isSubmitting}
           loading={form.formState.isSubmitting}
         >
-          <span>Finalizar</span>
+          <span>Guardar información</span>
           <ArrowRightIcon className="ml-2 w-4 h-4" />
         </SubmitButton>
       </form>

@@ -13,9 +13,11 @@ import {
   SelectValue,
   SelectVariants,
 } from "@/app/components/ui/select";
+import { cn } from "@/app/lib/utils";
 import { UseFormReturn } from "react-hook-form";
 
 export default function SelectInput({
+  className,
   formControl,
   label,
   name,
@@ -24,6 +26,7 @@ export default function SelectInput({
   variant,
   side,
 }: {
+  className?: string;
   formControl: UseFormReturn<any>["control"];
   label?: string;
   name: string;
@@ -36,10 +39,11 @@ export default function SelectInput({
       control={formControl}
       name={name}
       render={({ field }) => (
-        <FormItem className="grid gap-2">
+        <FormItem className={cn("grid gap-2", className)}>
           {label && <FormLabel>{label}</FormLabel>}
+          {variant === "quiet" && <FormMessage />}
           <FormControl>
-            <Select onValueChange={field.onChange} defaultValue={field.value}>
+            <Select onValueChange={field.onChange}>
               <FormControl>
                 <SelectTrigger variant={variant}>
                   <SelectValue placeholder={placeholder} />
@@ -54,7 +58,7 @@ export default function SelectInput({
               </SelectContent>
             </Select>
           </FormControl>
-          <FormMessage />
+          {variant !== "quiet" && <FormMessage />}
         </FormItem>
       )}
     />

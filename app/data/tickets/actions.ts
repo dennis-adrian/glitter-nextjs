@@ -91,6 +91,7 @@ export async function createTicket(data: {
     return {
       success: false,
       message,
+      ticket: null,
     };
   }
 
@@ -105,10 +106,11 @@ export async function createTicket(data: {
     }) as React.ReactElement,
   });
 
-  revalidatePath("/festivals");
+  revalidatePath(`/festivals/${festival.id}/registration`);
   return {
     success: true,
     message: "Entrada creada correctamente",
+    ticket: createdTicket,
   };
 }
 

@@ -56,9 +56,6 @@ export async function fetchVisitor(
 }
 
 export async function createVisitor(visitor: NewVisitor) {
-  const client = await pool.connect();
-  console.log(visitor);
-
   let createdVisitor = null;
   try {
     const [newVisitor] = await db.insert(visitors).values(visitor).returning();
@@ -69,8 +66,6 @@ export async function createVisitor(visitor: NewVisitor) {
       success: false,
       error: "Error creando visitante",
     };
-  } finally {
-    client.release();
   }
 
   revalidatePath("/festivals");

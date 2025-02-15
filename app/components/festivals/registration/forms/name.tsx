@@ -3,10 +3,8 @@
 import TextInput from "@/app/components/form/fields/text";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
-import { NewVisitor } from "@/app/data/visitors/actions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRightIcon } from "lucide-react";
-import { Dispatch, SetStateAction } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
