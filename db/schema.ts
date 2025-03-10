@@ -360,6 +360,7 @@ export const stands = pgTable(
     festivalSectorId: integer("festival_sector_id").references(
       () => festivalSectors.id,
     ),
+    qrCodeId: integer("qr_code_id").references(() => qrCodes.id),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -376,6 +377,10 @@ export const standRelations = relations(stands, ({ many, one }) => ({
   festivalSector: one(festivalSectors, {
     fields: [stands.festivalSectorId],
     references: [festivalSectors.id],
+  }),
+  qrCode: one(qrCodes, {
+    fields: [stands.qrCodeId],
+    references: [qrCodes.id],
   }),
 }));
 
@@ -571,4 +576,16 @@ export const paymentsRelations = relations(payments, ({ one }) => ({
     fields: [payments.invoiceId],
     references: [invoices.id],
   }),
+}));
+
+export const qrCodes = pgTable("qr_codes", {
+  id: serial("id").primaryKey(),
+  qrCodeUrl: text("qr_code_url").notNull(),
+  amount: real("amount").notNull(),
+  expirationDate: timestamp("expiration_date").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const qrCodesRelations = relations(qrCodes, ({ many }) => ({
+  stands: many(stands),
 }));
