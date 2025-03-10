@@ -160,6 +160,7 @@ export const festivalMapVersionEnum = pgEnum("festival_map_version", [
 export const festivalTypeEnum = pgEnum("festival_type", [
   "glitter",
   "twinkler",
+  "festicker",
 ]);
 export const festivals = pgTable(
   "festivals",
