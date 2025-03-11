@@ -11,11 +11,13 @@ const ParamsSchema = z.object({
   reservationId: z.coerce.number(),
 });
 
-export default async function Page(
-  props: {
-    params: Promise<{ festivalId: string; profileId: string; reservationId: string }>;
-  }
-) {
+export default async function Page(props: {
+  params: Promise<{
+    festivalId: string;
+    profileId: string;
+    reservationId: string;
+  }>;
+}) {
   const params = await props.params;
   const validatedParams = ParamsSchema.safeParse(params);
   if (!validatedParams.success) redirect("/");
@@ -46,11 +48,7 @@ export default async function Page(
     if (invoice && invoice.status === "pending") {
       return (
         <div key={invoice.id} className="container p-4 md:p-6">
-          <PendingPayment
-            festival={festival}
-            invoice={invoice}
-            profile={profile}
-          />
+          <PendingPayment festival={festival} invoice={invoice} />
         </div>
       );
     }

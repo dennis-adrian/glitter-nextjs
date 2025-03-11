@@ -6,7 +6,6 @@ import { FestivalBase } from "@/app/data/festivals/definitions";
 type PendingPaymentProps = {
   festival: FestivalBase;
   invoice: InvoiceWithPaymentsAndStand;
-  profile: ProfileType;
 };
 export default function PendingPayment(props: PendingPaymentProps) {
   return (
@@ -19,7 +18,7 @@ export default function PendingPayment(props: PendingPaymentProps) {
         {props.invoice.reservation.stand.standNumber}
       </h3>
       <p>Descarga el código QR para realizar tu pago</p>
-      <QrCodeDownload {...props} />
+      <QrCodeDownload invoice={props.invoice} />
     </div>
   );
 }

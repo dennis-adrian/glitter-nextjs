@@ -2,31 +2,21 @@
 
 import * as htmlToImage from "html-to-image";
 import { useRef, useState } from "react";
-import { ProfileType, UserCategory } from "@/app/api/users/definitions";
 import Image from "next/image";
 import { Button } from "@/app/components/ui/button";
-import { FestivalBase } from "@/app/data/festivals/definitions";
-import { getPaymentQrCodeUrlByCategory } from "@/app/lib/payments/helpers";
 import { DownloadIcon, UploadIcon } from "lucide-react";
 import UploadPaymentVoucherModal from "@/app/components/payments/upload-payment-voucher-modal";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/defiinitions";
 
 export default function QrCodeDownload({
   invoice,
-  festival,
-  profile,
 }: {
   invoice: InvoiceWithPaymentsAndStand;
-  festival: FestivalBase;
-  profile: ProfileType;
 }) {
   const [downloading, setDownloading] = useState(false);
   const [uploadPaymentVoucher, setUploadPaymentVoucher] = useState(false);
   const qrCodeRef = useRef(null);
-  const qrCodeSrc = getPaymentQrCodeUrlByCategory(
-    festival,
-    profile.category as Exclude<UserCategory, "none">,
-  );
+  const qrCodeSrc = invoice.reservation.stand.qrCode?.qrCodeUrl ?? "";
 
   if (!qrCodeSrc)
     return (

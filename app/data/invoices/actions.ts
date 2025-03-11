@@ -2,7 +2,6 @@
 
 import { fetchAdminUsers } from "@/app/api/users/actions";
 import {
-  InvoiceBase,
   InvoiceWithPaymentsAndStand,
   InvoiceWithPaymentsAndStandAndProfile,
   NewPayment,
@@ -12,7 +11,7 @@ import PaymentConfirmationForUserEmailTemplate from "@/app/emails/payment-confir
 import { sendEmail } from "@/app/vendors/resend";
 import { pool, db } from "@/db";
 import { invoices, payments } from "@/db/schema";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { UTApi } from "uploadthing/server";
 
 export async function fetchLatestInvoiceByProfileId(
@@ -157,7 +156,11 @@ export async function fetchInvoicesByReservation(reservationId: number) {
         payments: true,
         reservation: {
           with: {
-            stand: true,
+            stand: {
+              with: {
+                qrCode: true,
+              },
+            },
             festival: {
               with: {
                 festivalDates: true,

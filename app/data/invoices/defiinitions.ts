@@ -1,6 +1,6 @@
 import { StandReservationWithFestival } from "@/app/api/stands/actions";
 import { StandBase } from "@/app/api/stands/definitions";
-import { invoices, payments, standReservations, users } from "@/db/schema";
+import { invoices, payments, qrCodes, users } from "@/db/schema";
 
 export type InvoiceBase = typeof invoices.$inferSelect;
 export type InvoiceWithPayments = InvoiceBase & {
@@ -8,7 +8,9 @@ export type InvoiceWithPayments = InvoiceBase & {
 };
 export type InvoiceWithPaymentsAndStand = InvoiceWithPayments & {
   reservation: StandReservationWithFestival & {
-    stand: StandBase;
+    stand: StandBase & {
+      qrCode?: typeof qrCodes.$inferSelect;
+    };
   };
 };
 
