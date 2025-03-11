@@ -1,9 +1,18 @@
-import PendingPayment from "@/app/components/payments/pending-payment";
+import { PaymentSummary } from "@/app/components/payments/payment-summary";
+import { CardContent } from "@/app/components/ui/card";
+import { ProductDetails } from "@/app/components/payments/product-details";
+import { Card } from "@/app/components/ui/card";
 import { fetchBaseFestival } from "@/app/data/festivals/actions";
 import { fetchInvoicesByReservation } from "@/app/data/invoices/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
+import { Separator } from "@/app/components/ui/separator";
+import Image from "next/image";
+import { Button } from "@/app/components/ui/button";
+import Link from "next/link";
+import { PaymentQRCode } from "@/app/components/payments/payment-qr-code";
+import QRCodeDetails from "@/app/components/payments/qrcode-details";
 
 const ParamsSchema = z.object({
   festivalId: z.coerce.number(),
@@ -48,7 +57,15 @@ export default async function Page(props: {
     if (invoice && invoice.status === "pending") {
       return (
         <div key={invoice.id} className="container p-4 md:p-6">
-          <PendingPayment festival={festival} invoice={invoice} />
+          <h1 className="text-3xl font-bold mb-8">Completa tu Pago</h1>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="flex flex-col gap-6">
+              <ProductDetails festival={festival} invoice={invoice} />
+              <PaymentSummary invoice={invoice} />
+            </div>
+
+            <QRCodeDetails invoice={invoice} />
+          </div>
         </div>
       );
     }
