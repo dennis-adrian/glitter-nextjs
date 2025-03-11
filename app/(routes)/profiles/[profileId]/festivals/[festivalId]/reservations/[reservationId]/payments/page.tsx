@@ -1,17 +1,10 @@
 import { PaymentSummary } from "@/app/components/payments/payment-summary";
-import { CardContent } from "@/app/components/ui/card";
 import { ProductDetails } from "@/app/components/payments/product-details";
-import { Card } from "@/app/components/ui/card";
 import { fetchBaseFestival } from "@/app/data/festivals/actions";
 import { fetchInvoicesByReservation } from "@/app/data/invoices/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
-import { Separator } from "@/app/components/ui/separator";
-import Image from "next/image";
-import { Button } from "@/app/components/ui/button";
-import Link from "next/link";
-import { PaymentQRCode } from "@/app/components/payments/payment-qr-code";
 import QRCodeDetails from "@/app/components/payments/qrcode-details";
 
 const ParamsSchema = z.object({
