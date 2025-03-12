@@ -9,7 +9,7 @@ export type InvoiceWithPayments = InvoiceBase & {
 export type InvoiceWithPaymentsAndStand = InvoiceWithPayments & {
   reservation: StandReservationWithFestival & {
     stand: StandBase & {
-      qrCode?: typeof qrCodes.$inferSelect;
+      qrCode?: typeof qrCodes.$inferSelect | null;
     };
   };
 };

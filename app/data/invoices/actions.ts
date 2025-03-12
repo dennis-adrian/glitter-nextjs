@@ -147,7 +147,9 @@ export async function fetchInvoices(): Promise<
   }
 }
 
-export async function fetchInvoicesByReservation(reservationId: number) {
+export async function fetchInvoicesByReservation(
+  reservationId: number,
+): Promise<InvoiceWithPaymentsAndStand[]> {
   const client = await pool.connect();
 
   try {
@@ -171,7 +173,9 @@ export async function fetchInvoicesByReservation(reservationId: number) {
       },
       where: eq(invoices.reservationId, reservationId),
     });
-  } catch {
+  } catch (error) {
+    console.error("Error fetching invoices by reservation", error);
+    return [];
   } finally {
     client.release();
   }
