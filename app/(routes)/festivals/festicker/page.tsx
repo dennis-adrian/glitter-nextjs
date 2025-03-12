@@ -1,16 +1,6 @@
 import Image from "next/image";
-import Link from "next/link";
-import {
-  Mail,
-  MapPin,
-  Music,
-  PartyPopperIcon,
-  RocketIcon,
-  Users,
-  UsersIcon,
-} from "lucide-react";
+import { MapPin, PartyPopperIcon, RocketIcon } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import {
   Accordion,
   AccordionContent,
@@ -32,7 +22,7 @@ export default function Page() {
           className="w-full h-[70vh] object-cover rounded-lg"
           priority
         />
-        <div className="container absolute inset-0 z-20 flex flex-col items-center justify-center text-center text-white">
+        <div className="container absolute inset-0 z-10 flex flex-col items-center justify-center text-center text-white">
           <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
             Festicker
           </h1>
@@ -63,9 +53,9 @@ export default function Page() {
             </h2>
             <div className="w-20 h-1 bg-festicker my-6"></div>
             <p className="max-w-3xl text-muted-foreground text-lg">
-              El Festicker es un festival de dos días creado para ilustradores.
-              El festival busca impulsar el coleccionismo de stickers y el apoyo
-              al arte local.
+              Festicker es un festival de dos días creado para ilustradores. El
+              festival busca impulsar el coleccionismo de stickers y el apoyo al
+              arte local.
             </p>
           </div>
 

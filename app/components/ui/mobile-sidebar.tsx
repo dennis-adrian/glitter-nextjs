@@ -17,12 +17,14 @@ import {
 import { Button } from "@/app/components/ui/button";
 import {
   AlbumIcon,
+  BookImageIcon,
   BoxesIcon,
   CalendarCheck2Icon,
   CalendarIcon,
   CreditCardIcon,
   HomeIcon,
   LogOutIcon,
+  StickerIcon,
   TagsIcon,
   UsersIcon,
 } from "lucide-react";
@@ -89,6 +91,16 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
             <CalendarCheck2Icon className="mr-2 h-6 w-6" />
             Próximo Evento
           </MobileSidebarItem>
+          <MobileSidebarItem href="/festivals">
+            <BookImageIcon className="mr-2 h-6 w-6" />
+            Festivales
+          </MobileSidebarItem>
+          <div className="ml-4">
+            <MobileSidebarItem href="/festivals/festicker">
+              <StickerIcon className="mr-2 h-6 w-6" />
+              Festicker
+            </MobileSidebarItem>
+          </div>
           <MobileSidebarItem href="/festivals/categories">
             <BoxesIcon className="w-6 h-6 mr-2" />
             Categorías Glitter

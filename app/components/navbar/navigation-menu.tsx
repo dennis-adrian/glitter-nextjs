@@ -13,6 +13,7 @@ import {
   navigationMenuTriggerStyle,
 } from "@/app/components/ui/navigation-menu";
 import {
+  BookImageIcon,
   BoxesIcon,
   CalendarCheck2Icon,
   HomeIcon,
@@ -47,6 +48,24 @@ const NavbarNavigationMenu = ({
               </div>
             </Link>
           </NavigationMenuLink>
+        </NavigationMenuItem>
+        <NavigationMenuItem>
+          <NavigationMenuTrigger>
+            <div className="flex items-center">
+              <BookImageIcon className="w-4 h-4 mr-1" />
+              Festivales
+            </div>
+          </NavigationMenuTrigger>
+          <NavigationMenuContent>
+            <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
+              <NavigationMenuListItem
+                title="Festicker"
+                href="/festivals/festicker"
+              >
+                Pegate a la onda de los stickers
+              </NavigationMenuListItem>
+            </ul>
+          </NavigationMenuContent>
         </NavigationMenuItem>
         <NavigationMenuItem>
           <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>

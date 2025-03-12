@@ -28,7 +28,7 @@ export default async function Footer() {
       <div className="container">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
           <div>
-            <GlitterLogo height={80} width={80} variant="dark" />
+            <GlitterLogo height={60} width={60} variant="dark" />
           </div>
           <div>
             <h3 className="text-lg font-bold mb-4">Enlaces Útiles</h3>
