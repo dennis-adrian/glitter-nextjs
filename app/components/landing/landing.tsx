@@ -25,13 +25,13 @@ export default async function Landing() {
             <div className="flex flex-col items-center">
               <Image
                 alt="logo glitter"
-                src="/img/glitter/glitter-theo-logo-382x110.png"
-                height={110}
+                src="/img/glitter/festicker-logo-382x160.png"
+                height={160}
                 width={382}
               />
               <Image
                 className="lg:hidden my-4"
-                alt="mascota max el caiman"
+                alt="mascota del evento"
                 src={festival.mascotUrl || ""}
                 height={300}
                 width={300}
