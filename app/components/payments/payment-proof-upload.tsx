@@ -65,7 +65,7 @@ export default function PaymentProofUpload({
             if (isUploading) {
               return "bg-transparent text-xs text-muted-foreground border after:bg-primary-400/60";
             }
-            return "bg-transparent text-xs text-foreground border hover:text-primary-500 hover:border-primary-500";
+            return "bg-transparent text-xs text-purple-700 border border-primary-500 hover:text-primary-500 hover:bg-primary-200/20 hover:border-primary-500";
           },
         }}
       />

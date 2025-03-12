@@ -2,31 +2,19 @@
 
 import * as htmlToImage from "html-to-image";
 import { useRef, useState } from "react";
-import { ProfileType, UserCategory } from "@/app/api/users/definitions";
 import Image from "next/image";
 import { Button } from "@/app/components/ui/button";
-import { FestivalBase } from "@/app/data/festivals/definitions";
-import { getPaymentQrCodeUrlByCategory } from "@/app/lib/payments/helpers";
-import { DownloadIcon, UploadIcon } from "lucide-react";
-import UploadPaymentVoucherModal from "@/app/components/payments/upload-payment-voucher-modal";
+import { DownloadIcon } from "lucide-react";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/defiinitions";
 
 export default function QrCodeDownload({
   invoice,
-  festival,
-  profile,
 }: {
   invoice: InvoiceWithPaymentsAndStand;
-  festival: FestivalBase;
-  profile: ProfileType;
 }) {
   const [downloading, setDownloading] = useState(false);
-  const [uploadPaymentVoucher, setUploadPaymentVoucher] = useState(false);
   const qrCodeRef = useRef(null);
-  const qrCodeSrc = getPaymentQrCodeUrlByCategory(
-    festival,
-    profile.category as Exclude<UserCategory, "none">,
-  );
+  const qrCodeSrc = invoice.reservation.stand.qrCode?.qrCodeUrl ?? "";
 
   if (!qrCodeSrc)
     return (
@@ -46,45 +34,30 @@ export default function QrCodeDownload({
     setDownloading(false);
   };
   return (
-    <div className="my-4">
-      <h2 className="font-semibold text-lg text-center">Código QR</h2>
+    <div className="my-4 flex flex-col items-center gap-2">
       <Image
         ref={qrCodeRef}
         className="mx-auto"
         alt="Código QR"
         src={qrCodeSrc}
-        width={322}
-        height={488}
+        width={240}
+        height={240}
       />
-      <div className="flex flex-wrap gap-2">
-        <Button
-          className="order-first md:order-last w-full md:max-w-fit"
-          onClick={() => setUploadPaymentVoucher(true)}
-        >
-          Subir comprobante
-          <UploadIcon className="ml-2 w-4 h-4" />
-        </Button>
-        <Button
-          disabled={downloading}
-          className="w-full md:max-w-fit"
-          variant="outline"
-          onClick={downloadQRCode}
-        >
-          {downloading ? (
-            <>Descargando...</>
-          ) : (
-            <>
-              Descargar código QR
-              <DownloadIcon className="ml-2 w-4 h-4" />
-            </>
-          )}
-        </Button>
-      </div>
-      <UploadPaymentVoucherModal
-        invoice={invoice}
-        open={uploadPaymentVoucher}
-        onOpenChange={setUploadPaymentVoucher}
-      />
+      <Button
+        disabled={downloading}
+        className="w-full md:max-w-fit"
+        variant="outline"
+        onClick={downloadQRCode}
+      >
+        {downloading ? (
+          <>Descargando...</>
+        ) : (
+          <>
+            Descargar código QR
+            <DownloadIcon className="ml-2 w-4 h-4" />
+          </>
+        )}
+      </Button>
     </div>
   );
 }
