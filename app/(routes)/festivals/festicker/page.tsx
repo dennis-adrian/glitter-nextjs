@@ -7,8 +7,9 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Metadata } from "next";
 
-export async function generateMetadata() {
+export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "Festicker | Productora Glitter",
     description: "Un festival diseñado para impulsar la cultura del sticker",
@@ -16,7 +17,14 @@ export async function generateMetadata() {
     openGraph: {
       title: "Festicker | Productora Glitter",
       description: "Un festival diseñado para impulsar la cultura del sticker",
-      images: ["/img/festicker-banner-opengraph.png"],
+      images: [
+        {
+          url: "/img/festicker-og-image.png",
+          width: 1200,
+          height: 630,
+          alt: "Festicker",
+        },
+      ],
     },
   };
 }
