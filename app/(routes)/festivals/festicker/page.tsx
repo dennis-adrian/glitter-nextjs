@@ -8,6 +8,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Metadata } from "next";
+import Link from "next/link";
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
@@ -154,12 +155,11 @@ export default function Page() {
                 </p>
               </div>
               <div>
-                <h3 className="text-2xl font-bold mb-2">
-                  Gastronomía creativa
-                </h3>
+                <h3 className="text-2xl font-bold mb-2">Gastronomía</h3>
                 <p className="text-muted-foreground">
                   El festival cuenta con un sector gastronómico donde podrás
-                  disfrutar con amigos
+                  disfrutar con amigos y tomar un descanso antes de continuar
+                  explorando el festival.
                 </p>
               </div>
             </div>
@@ -237,6 +237,8 @@ export default function Page() {
                   Ilustradores, artistas o diseñadores gráficos que cuenten con
                   ilustraciones propias o fan-arts. Que ya cuenten con un perfil
                   aprobado en el sitio web oficial de la Productora Glitter.
+                  Además de perfiles de gastronomía aprobados para el sector
+                  gastronómico.
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem className="border-festicker/20" value="item-2">
@@ -244,9 +246,58 @@ export default function Page() {
                   className="text-left"
                   iconClassName="text-festicker"
                 >
+                  Nunca he participado en un festival de la Productora Glitter.
                   ¿Cómo puedo participar?
                 </AccordionTrigger>
-                <AccordionContent>(describir pasos)</AccordionContent>
+                <AccordionContent>
+                  <ol>
+                    <li>
+                      <p>
+                        <strong>Paso 1:</strong> Crea un perfil en nuestro sitio
+                        web{" "}
+                        <Link
+                          href="https://productoraglitter.com/sign_up"
+                          className="text-festicker"
+                        >
+                          aquí
+                        </Link>
+                        . Llena los datos solicitados, incluyendo tu foto de
+                        perfil y tus redes sociales. Asegurate de que tus redes
+                        sociales muestren los productos que te gustaría llevar
+                        al festival.
+                      </p>
+                    </li>
+                    <li>
+                      <p>
+                        <strong>Paso 2:</strong> Espera el correo de aprobación
+                        del equipo Glitter. Según cuántas solicitudes tengamos
+                        esto puede tomar varios días, ten paciencia.
+                      </p>
+                    </li>
+                    <li>
+                      <p>
+                        <strong>Paso 3:</strong> Una vez aprobado tu perfil,
+                        recibirás correos electrónicos con la información
+                        necesaria para que puedas participar cada vez que
+                        abramos la convocatoria para un festival.
+                      </p>
+                    </li>
+                  </ol>
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem className="border-festicker/20" value="item-4">
+                <AccordionTrigger
+                  className="text-left"
+                  iconClassName="text-festicker"
+                >
+                  Ya tengo un perfil Glitter aprobado, ¿cómo puedo participar?
+                </AccordionTrigger>
+                <AccordionContent>
+                  Si ya tienes un perfil Glitter aprobado, te enviaremos un
+                  correo electrónico con la información necesaria para que
+                  puedas participar en el festival cuando abramos la
+                  convocatoria.
+                </AccordionContent>
               </AccordionItem>
               <AccordionItem className="border-festicker/20" value="item-3">
                 <AccordionTrigger
@@ -286,11 +337,11 @@ export default function Page() {
                   ¿Está prohibida la venta de otros productos que no sean
                   stickers?
                 </AccordionTrigger>
-                <AccordionContent>
+                <AccordionContent className="space-y-4">
                   No, aquí hay una lista de productos que sí se pueden vender
                   aparte de los stickers siempre y cuando no representen mas de
                   20% del espacio del stand:
-                  <ol>
+                  <ol className="list-disc list-inside my-2">
                     <li>Llaveros plastificados o de acrílicos</li>
                     <li>Pines metálicos o tipo botón</li>
                     <li>Poleras o totebags</li>
@@ -301,9 +352,7 @@ export default function Page() {
                   </ol>
                   <p>
                     Estos productos pueden venderse siempre y cuando las
-                    ilustraciones sean propias y no ocupen mas del 20% del
-                    espacio del stand, ya que el 80% del stand deben de ser
-                    stickers.
+                    ilustraciones sean propias y el 80% del stand sea stickers.
                   </p>
                   <p>
                     Como sugerencia para que los pines y llaveros no ocupen
@@ -311,7 +360,16 @@ export default function Page() {
                     rejillas. De esta manera el público los verá y los pedirá.
                     Mas no estarán sobre la mesa ocupando espacio.
                   </p>
-                  <p>Ejemplo: -imagen-</p>
+                  <p>
+                    <strong>Ejemplo de muestrario:</strong>
+                  </p>
+                  <Image
+                    className="mx-auto"
+                    src="/img/pins-organizer-232x215.png"
+                    alt="Pin example"
+                    width={232}
+                    height={215}
+                  />
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem className="border-festicker/20" value="item-6">
@@ -332,6 +390,11 @@ export default function Page() {
               </AccordionItem>
             </Accordion>
           </div>
+          <p className="max-w-3xl text-sm mx-auto text-muted-foreground text-left mt-4">
+            Si tienes alguna pregunta que no está respondida en esta sección,
+            puedes contactarnos a través de nuestro correo electrónico:{" "}
+            <span className="text-festicker">info@productoraglitter.com</span>
+          </p>
         </div>
       </section>
     </div>
