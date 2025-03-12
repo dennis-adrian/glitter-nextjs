@@ -7,6 +7,12 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Festicker",
+  description: "Pegate a la onda de los stickers",
+};
 
 export default function Page() {
   return (

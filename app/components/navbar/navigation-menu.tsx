@@ -62,7 +62,7 @@ const NavbarNavigationMenu = ({
                 title="Festicker"
                 href="/festivals/festicker"
               >
-                Pegate a la onda de los stickers
+                Un festival diseñado para impulsar la cultura del sticker
               </NavigationMenuListItem>
             </ul>
           </NavigationMenuContent>
