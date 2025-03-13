@@ -1,6 +1,3 @@
-"use client";
-
-import { useState } from "react";
 import {
   Accordion,
   AccordionContent,
@@ -13,11 +10,11 @@ import Image from "next/image";
 import { ProfileType, UserCategory } from "@/app/api/users/definitions";
 import GeneralInfoDetails from "@/app/components/festivals/general-info-details";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
-import StandSpecificationsTable from "@/app/components/festivals/stand-specifications-table";
 import { FestivalSectorBase } from "@/app/lib/festival_sectors/definitions";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import TermsForm from "@/app/components/festivals/terms-form";
+import StandSpecificationsCards from "@/app/components/festivals/stand-specifications-cards";
 
 type TermsAndConditionsProps = {
   festival: FestivalWithDates;
@@ -29,7 +26,6 @@ type TermsAndConditionsProps = {
 export default function TermsAndConditions(props: TermsAndConditionsProps) {
   const mapCategory =
     props.category === "new_artist" ? "illustration" : props.category;
-  const [agreed, setAgreed] = useState(false);
 
   return (
     <div className="container mx-auto py-8 px-4 md:px-6">
@@ -48,20 +44,20 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
         </div>
 
         <div>
-          <h2 className="text-2xl font-semibold text-left md:text-center">
+          <h2 className="text-xl md:text-2xl font-semibold text-left md:text-center">
             Información para {getCategoryOccupationLabel(mapCategory)}
           </h2>
 
           <GeneralInfoDetails festival={props.festival} />
         </div>
 
-        <div className="mb-8 space-y-6">
-          <h2 className="text-2xl font-semibold text-left md:text-center">
+        <div className="mb-6 md:mb-8 space-y-4 md:space-y-6">
+          <h2 className="text-xl md:text-2xl font-semibold text-left md:text-center">
             Mapa del Evento y Precios de Espacios
           </h2>
 
           {props.festival.generalMapUrl && (
-            <div className="flex justify-center mb-6">
+            <div className="flex justify-center">
               <div className="relative overflow-hidden">
                 <Image
                   src={props.festival.generalMapUrl}
@@ -74,9 +70,8 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
             </div>
           )}
 
-          <div className="overflow-x-auto">
-            <StandSpecificationsTable festivalSectors={props.festivalSectors} />
-          </div>
+          <StandSpecificationsCards />
+
           <p className="text-sm text-muted-foreground text-left md:text-center">
             * En el caso de ilustradores que comparten espacio, si en el
             transcurso de tiempo entre confirmada la reserva y el día del evento
@@ -86,9 +81,9 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
           </p>
         </div>
 
-        <div className="space-y-8 border rounded-lg p-6 mb-4">
+        <div className="space-y-4 md:space-y-6 border rounded-lg p-6 mb-4">
           <section>
-            <h2 className="text-xl font-semibold mb-4">
+            <h2 className="text-lg md:text-xl font-semibold mb-4">
               1. Aceptación de Términos
             </h2>
             <p className="text-muted-foreground">
@@ -103,7 +98,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
           <Separator />
 
           <section>
-            <h2 className="text-xl font-semibold mb-4">
+            <h2 className="text-lg md:text-xl font-semibold mb-4">
               2. Participación en el Festival
             </h2>
             <p className="text-muted-foreground mb-4">
@@ -158,7 +153,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 
           <Accordion type="single" collapsible className="w-full">
             <AccordionItem value="item-1">
-              <AccordionTrigger className="text-xl font-semibold">
+              <AccordionTrigger className="text-lg md:text-xl font-semibold">
                 3. Reservas, Pagos y Cancelaciones
               </AccordionTrigger>
               <AccordionContent className="text-muted-foreground">
@@ -209,7 +204,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
             </AccordionItem>
 
             <AccordionItem value="item-2">
-              <AccordionTrigger className="text-xl font-semibold">
+              <AccordionTrigger className="text-lg md:text-xl font-semibold">
                 4. Horarios, Montaje y Desmontaje de Stands
               </AccordionTrigger>
               <AccordionContent className="text-muted-foreground">
@@ -247,7 +242,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="item-3">
-              <AccordionTrigger className="text-xl font-semibold">
+              <AccordionTrigger className="text-lg md:text-xl font-semibold">
                 5. Código de Conducta
               </AccordionTrigger>
               <AccordionContent className="text-muted-foreground">
@@ -291,7 +286,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
             </AccordionItem>
 
             <AccordionItem value="item-4">
-              <AccordionTrigger className="text-xl font-semibold">
+              <AccordionTrigger className="text-lg md:text-xl font-semibold">
                 6. Fotografía y Grabación
               </AccordionTrigger>
               <AccordionContent className="text-muted-foreground">
@@ -325,7 +320,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
             </AccordionItem>
 
             <AccordionItem value="item-5">
-              <AccordionTrigger className="text-xl font-semibold">
+              <AccordionTrigger className="text-lg md:text-xl font-semibold">
                 7. Artículos y Actividades Prohibidas
               </AccordionTrigger>
               <AccordionContent className="text-muted-foreground">
@@ -408,7 +403,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="item-6">
-              <AccordionTrigger className="text-xl font-semibold">
+              <AccordionTrigger className="text-lg md:text-xl font-semibold">
                 8. Información de Contacto
               </AccordionTrigger>
               <AccordionContent className="text-muted-foreground">
