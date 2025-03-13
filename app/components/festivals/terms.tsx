@@ -15,6 +15,7 @@ import { RedirectButton } from "@/app/components/redirect-button";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import TermsForm from "@/app/components/festivals/terms-form";
 import StandSpecificationsCards from "@/app/components/festivals/stand-specifications-cards";
+import DetailedMap from "@/app/components/festivals/detailed-map";
 
 type TermsAndConditionsProps = {
   festival: FestivalWithDates;
@@ -51,22 +52,22 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
           <GeneralInfoDetails festival={props.festival} />
         </div>
 
-        <div className="mb-6 md:mb-8 space-y-4 md:space-y-6">
+        <div className="flex flex-col gap-4 md:gap-6">
           <h2 className="text-xl md:text-2xl font-semibold text-left md:text-center">
             Mapa del Evento y Precios de Espacios
           </h2>
 
           {props.festival.generalMapUrl && (
-            <div className="flex justify-center">
-              <div className="relative overflow-hidden">
-                <Image
-                  src={props.festival.generalMapUrl}
-                  alt="Mapa del Recinto con Ubicaciones de Stands"
-                  width={800}
-                  height={504}
-                  className="object-cover"
-                />
-              </div>
+            <div className="lg:col-span-2 border rounded-lg p-2 md:p-4">
+              <Image
+                src="/img/festicker-map-with-details-1024x646.png"
+                alt="Mapa del recinto"
+                width={800}
+                height={504}
+                className="mx-auto"
+              />
+              <div />
+              <DetailedMap festivalSectors={props.festivalSectors} />
             </div>
           )}
 
@@ -81,7 +82,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
           </p>
         </div>
 
-        <div className="space-y-4 md:space-y-6 border rounded-lg p-6 mb-4">
+        <div className="space-y-4 md:space-y-6 border rounded-lg p-6 my-4 md:my-6">
           <section>
             <h2 className="text-lg md:text-xl font-semibold mb-4">
               1. Aceptación de Términos

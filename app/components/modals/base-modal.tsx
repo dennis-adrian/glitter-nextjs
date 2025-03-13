@@ -10,23 +10,29 @@ import {
   DialogTitle,
 } from "@/app/components/ui/dialog";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
+import { cn } from "@/app/lib/utils";
 import { FC } from "react";
 
 export const BaseModal: FC<{
   children: React.ReactNode;
   title?: string;
   show: boolean;
+  contentClassName?: string;
   onOpenChange: (open: boolean) => void;
-}> = ({ children, title, show, onOpenChange }) => {
+}> = ({ children, title, show, contentClassName, onOpenChange }) => {
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
   return (
     <Dialog open={show} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle className="text-left md:text-center text-xl md:text-2xl">
+            {title}
+          </DialogTitle>
         </DialogHeader>
-        <div className={`${isDesktop ? "" : "px-4"}`}>{children}</div>
+        <div className={cn(isDesktop ? "" : "px-4", contentClassName)}>
+          {children}
+        </div>
         {isDesktop ? null : (
           <DialogFooter className="pt-2">
             <DialogClose asChild>
