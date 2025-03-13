@@ -21,6 +21,7 @@ import {
 import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const FormSchema = z.object({
   consent: z.boolean().refine((val) => val === true, {
@@ -89,10 +90,10 @@ export default function TermsForm({
             </FormItem>
           )}
         />
-        <div className="flex justify-end">
+        <div className="flex flex-col sm:flex-row gap-4">
           <Button
             disabled={form.formState.isSubmitting}
-            className="w-full md:max-w-60"
+            className="flex-1"
             type="submit"
           >
             {form.formState.isSubmitting ? (
@@ -101,8 +102,11 @@ export default function TermsForm({
                 Cargando
               </>
             ) : (
-              <span>¡Quiero reservar!</span>
+              <span>¡Quiero participar del festival!</span>
             )}
+          </Button>
+          <Button variant="outline" className="flex-1" asChild>
+            <Link href="/">No quiero participar del festival</Link>
           </Button>
         </div>
       </form>
