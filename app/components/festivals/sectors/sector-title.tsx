@@ -25,21 +25,21 @@ export default function FestivalSectorTitle(props: SectorTitleProps) {
         )}
       </div>
       <div className="my-3 text-sm text-muted-foreground">
-        <ul>
-          <li className="flex items-center gap-2">
-            <div className="w-[12px] h-[12px] bg-white border"></div>
+        <ul className="flex flex-wrap gap-2 max-w-[220px] md:max-w-full">
+          <li className="flex items-center gap-1">
+            <div className="w-4 h-4 bg-white border rounded-sm"></div>
             Disponible
           </li>
-          <li className="flex items-center gap-2">
-            <div className="w-[12px] h-[12px] bg-emerald-200"></div>
+          <li className="flex items-center gap-1">
+            <div className="w-4 h-4 bg-emerald-200 rounded-sm"></div>
             Reservado
           </li>
-          <li className="flex items-center gap-2">
-            <div className="w-[12px] h-[12px] bg-rose-600"></div>
+          <li className="flex items-center gap-1">
+            <div className="w-4 h-4 bg-rose-400 rounded-sm"></div>
             Confirmado
           </li>
-          <li className="flex items-center gap-2">
-            <div className="bg-zinc-800 w-[12px] h-[12px]"></div>
+          <li className="flex items-center gap-1">
+            <div className="bg-zinc-600 w-4 h-4 rounded-sm"></div>
             Deshabilitado
           </li>
         </ul>
