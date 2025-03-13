@@ -46,11 +46,11 @@ export function StandShape({
     width: `${orientation === "landscape" ? size.wide : size.narrow}px`,
   };
 
-  let bgColor = "hover:bg-opacity-60 ";
+  let bgColor = "hover:bg-opacity-40 rounded-sm ";
   if (status === "reserved") {
-    bgColor += "bg-emerald-200 hover:bg-emerald-400";
+    bgColor += "bg-emerald-300 hover:bg-emerald-500";
   } else if (status === "confirmed") {
-    bgColor += "bg-rose-600 hover:bg-rose-700";
+    bgColor += "bg-rose-500 hover:bg-rose-700";
   } else if (status === "disabled" || !canBeReserved) {
     bgColor += "bg-zinc-800";
   } else {
@@ -64,7 +64,7 @@ export function StandShape({
 
   return (
     <div
-      className={`${bgColor} bg-opacity-50`}
+      className={`${bgColor} bg-opacity-35`}
       key={standNumber}
       style={style}
       onClick={handleClick}

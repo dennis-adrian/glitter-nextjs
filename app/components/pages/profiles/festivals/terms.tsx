@@ -1,7 +1,8 @@
 import { fetchUserProfileById } from "@/app/api/users/actions";
 import { UserCategory } from "@/app/api/users/definitions";
-import Terms from "@/app/components/festivals/terms";
+import TermsAndConditions from "@/app/components/festivals/terms";
 import { fetchFestivalWithDates } from "@/app/data/festivals/actions";
+import { fetchFestivalSectors } from "@/app/lib/festival_sectors/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { HeartCrackIcon } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -14,6 +15,7 @@ export default async function TermsPage(props: TermsPageProps) {
   const currentProfile = await getCurrentUserProfile();
   await protectRoute(currentProfile || undefined, props.profileId);
   const festival = await fetchFestivalWithDates(props.festivalId);
+  const festivalSectors = await fetchFestivalSectors(props.festivalId);
   if (!festival) notFound();
 
   if (currentProfile?.role !== "admin" && festival.status !== "active") {
@@ -34,9 +36,10 @@ export default async function TermsPage(props: TermsPageProps) {
   if (!hasSubcategories) notFound();
 
   return (
-    <Terms
+    <TermsAndConditions
       profile={forProfile}
       festival={festival}
+      festivalSectors={festivalSectors}
       category={forProfile.category as Exclude<UserCategory, "none">}
     />
   );

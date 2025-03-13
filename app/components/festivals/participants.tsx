@@ -15,6 +15,10 @@ type ParticipantsProps = {
 };
 
 export default async function ParticipantsGrid(props: ParticipantsProps) {
+  if (props.participants.length === 0) {
+    return null;
+  }
+
   const sortedParticipants = props.participants.sort((a, b) => {
     const aFirstStand = a.stands[0];
     const bFirstStand = b.stands[0];

@@ -1,447 +1,447 @@
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Separator } from "@/components/ui/separator";
+import { FestivalWithDates } from "@/app/data/festivals/definitions";
+import Image from "next/image";
 import { ProfileType, UserCategory } from "@/app/api/users/definitions";
 import GeneralInfoDetails from "@/app/components/festivals/general-info-details";
-import TermsForm from "@/app/components/festivals/terms-form";
-import { isProfileInFestival } from "@/app/components/next_event/helpers";
-import { RedirectButton } from "@/app/components/redirect-button";
-import { Separator } from "@/app/components/ui/separator";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
-import { formatDate } from "@/app/lib/formatters";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
-import { getStandUrlByCategory } from "@/app/lib/payments/helpers";
-import { DateTime } from "luxon";
-import Image from "next/image";
-import Link from "next/link";
+import { FestivalSectorBase } from "@/app/lib/festival_sectors/definitions";
+import { RedirectButton } from "@/app/components/redirect-button";
+import { isProfileInFestival } from "@/app/components/next_event/helpers";
+import TermsForm from "@/app/components/festivals/terms-form";
+import StandSpecificationsCards from "@/app/components/festivals/stand-specifications-cards";
+import DetailedMap from "@/app/components/festivals/detailed-map";
 
-export default function Terms({
-  profile,
-  festival,
-  category,
-}: {
+type TermsAndConditionsProps = {
   festival: FestivalWithDates;
   profile: ProfileType;
   category: Exclude<UserCategory, "none">;
-}) {
-  const mapCategory = category === "new_artist" ? "illustration" : category;
-  const standImageSrc = getStandUrlByCategory(festival, mapCategory);
-  const userCategory = category === "new_artist" ? "illustration" : category;
-  // const mascotImageSrc = imagesSrc[festival.mapsVersion][category]["mascot"];
+  festivalSectors: FestivalSectorBase[];
+};
+
+export default function TermsAndConditions(props: TermsAndConditionsProps) {
+  const mapCategory =
+    props.category === "new_artist" ? "illustration" : props.category;
 
   return (
-    <div className="container p-4 md:p-6 max-w-screen-lg">
-      <h1 className="font-bold text-3xl my-4">
-        Información para {getCategoryOccupationLabel(mapCategory)}
-      </h1>
-      {/* {mascotImageSrc && (
-        <Image
-          className="mx-auto"
-          alt="Mascota de la categoría"
-          src={mascotImageSrc}
-          width={320}
-          height={200}
-        />
-      )} */}
-      <h2 className="font-bold text-2xl my-4">Términos y condiciones</h2>
-      <section>
-        <p>
-          A continuación te presentamos las bases para el{" "}
-          <strong>
-            Festival{" "}
-            {festival.festivalType === "glitter" ? "Glitter" : "Twinkler"}
-          </strong>
-          . Para evitar malentendidos a futuro, debes de leer con atención{" "}
-          <strong>antes</strong> de continuar.
-        </p>
-        <p>
-          Al darle al botón &quot;<strong>¡Quiero reservar!</strong>&quot; estás
-          aceptando los términos y condiciones aquí expresadas
-        </p>
-        <br />
-        <h3 className="font-semibold text-lg my-2">Información General</h3>
-        <div>
-          <GeneralInfoDetails festival={festival} />
-        </div>
-        <br />
-        <h3 className="font-semibold text-lg my-2">Espacios</h3>
-        <ul className="leading-7 list-disc list-inside">
-          {userCategory === "gastronomy" ? (
-            <li>El espacio del expositor mide 1 metro x 60cm.</li>
-          ) : (
-            <li>El espacio del expositor mide 120cm x 60cm (media mesa)</li>
-          )}
-          <li>Cada espacio incluye 2 (dos) sillas.</li>
-          <li>
-            El espacio no incluye mantel, el expositor es responsable de llevar
-            un mantel.
-          </li>
-        </ul>
-        {standImageSrc && (
-          <figure className="text-center text-muted-foreground text-sm mx-auto max-w-[320px]">
-            <Image
-              alt="Imagen del espacio en el evento"
-              src={standImageSrc}
-              width={320}
-              height={320}
-            />
-            <figcaption>
-              El costo del espacio corresponde a la duración total del evento
-            </figcaption>
-          </figure>
-        )}
-        <br />
-        {userCategory === "illustration" && (
-          <p>
-            Se permite compartir espacio con otro ilustrador siempre y cuando se
-            cumplan con los siguientes puntos:
+    <div className="container mx-auto py-8 px-4 md:px-6">
+      <div className="max-w-screen-lg mx-auto">
+        <div className="space-y-4 text-left md:text-center mb-4">
+          <h1 className="text-3xl font-bold tracking-tight">
+            Términos y Condiciones para Expositores
+          </h1>
+          <p className="text-muted-foreground">
+            Por favor, lee estos términos y condiciones cuidadosamente antes de
+            participar en el festival.
           </p>
+          <p className="text-sm text-muted-foreground">
+            Última actualización: 13 de marzo de 2025
+          </p>
+        </div>
+
+        <div>
+          <h2 className="text-xl md:text-2xl font-semibold text-left md:text-center">
+            Información para {getCategoryOccupationLabel(mapCategory)}
+          </h2>
+
+          <GeneralInfoDetails festival={props.festival} />
+        </div>
+
+        <div className="flex flex-col gap-4 md:gap-6">
+          <h2 className="text-xl md:text-2xl font-semibold text-left md:text-center">
+            Mapa del Evento y Precios de Espacios
+          </h2>
+
+          {props.festival.generalMapUrl && (
+            <div className="lg:col-span-2 border rounded-lg p-2 md:p-4">
+              <Image
+                src="/img/festicker-map-with-details-1024x646.png"
+                alt="Mapa del recinto"
+                width={800}
+                height={504}
+                className="mx-auto"
+              />
+              <div />
+              <DetailedMap festivalSectors={props.festivalSectors} />
+            </div>
+          )}
+
+          <StandSpecificationsCards />
+
+          <p className="text-sm text-muted-foreground text-left md:text-center">
+            * En el caso de ilustradores que comparten espacio, si en el
+            transcurso de tiempo entre confirmada la reserva y el día del evento
+            una de las partes no puede participar, el otro ilustrador deberá
+            hacerse cargo de ocupar el espacio, sin posibilidades de reemplazar
+            al ilustrador que se dio de baja por otro.
+          </p>
+        </div>
+
+        <div className="space-y-4 md:space-y-6 border rounded-lg p-6 my-4 md:my-6">
+          <section>
+            <h2 className="text-lg md:text-xl font-semibold mb-4">
+              1. Aceptación de Términos
+            </h2>
+            <p className="text-muted-foreground">
+              Al registrarte y participar en el festival como expositor, aceptas
+              estar sujeto a estos Términos y Condiciones. Cualquier
+              incumplimiento y según la gravedad podría resultar en la expulsión
+              del evento sin reembolso y/o la prohibición temporal o permanente
+              de participar en futuros festivales.
+            </p>
+          </section>
+
+          <Separator />
+
+          <section>
+            <h2 className="text-lg md:text-xl font-semibold mb-4">
+              2. Participación en el Festival
+            </h2>
+            <p className="text-muted-foreground mb-4">
+              La participación en el festival está sujeta a las siguientes
+              condiciones:
+            </p>
+            <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
+              <li>
+                Los expositores deben tener al menos 16 años de edad o estar
+                presentes con un adulto responsable durante la totalidad del
+                evento.
+              </li>
+              <li>
+                Todos los expositores deben tener un perfil aprobado en nuestro
+                sitio web y una reserva confirmada y pagada para su espacio.
+              </li>
+              <li>
+                Los organizadores del festival se reservan el derecho de
+                rechazar la participación de cualquier expositor sin
+                proporcionar una razón.
+              </li>
+              <li>
+                Todos los participantes deben cuidar la estética de su stand
+                para que sea atractiva para el público.
+              </li>
+              {props.festival.festivalType === "festicker" && (
+                <li>
+                  Los participantes en la categoría de ilustración deben tener
+                  al menos el 80% de su stand ocupado con stickers. Otros
+                  productos pueden ser comercializados pero deben estar
+                  organizados en muestrarios o exhibidores de manera que no
+                  signifiquen más del 20% del espacio. El incumplimiento de este
+                  requisito puede resultar en penalizaciones para
+                  participaciones futuras.
+                </li>
+              )}
+              <li>
+                Solo se permite tener a dos personas trabajando en el stand.
+                Cada persona con su credencial correspondiente. Tener a más de
+                dos personas y/o personas sin credencial en el estand sin
+                autorización puede resultar en penalizaciones para
+                participaciones futuras.
+              </li>
+              <li>
+                Los expositores deben cumplir con todas las reglas del festival,
+                regulaciones e instrucciones del personal del festival.
+              </li>
+            </ul>
+          </section>
+
+          <Separator />
+
+          <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="item-1">
+              <AccordionTrigger className="text-lg md:text-xl font-semibold">
+                3. Reservas, Pagos y Cancelaciones
+              </AccordionTrigger>
+              <AccordionContent className="text-muted-foreground">
+                <ul className="list-disc pl-6 space-y-2">
+                  <li>
+                    Los ilustradores que quieran compartir espacio deben agregar
+                    a su compañero al momento de hacer la reserva. No se
+                    aceptarán cambios una vez hecha la reserva.
+                  </li>
+                  <li>
+                    La reserva se confirma al realizar el pago correspondiente.
+                    El estado de la reserva puede tomar hasta 48hrs en
+                    actualizarse en el sitio web.
+                  </li>
+                  <li>
+                    Toda reserva debe ser pagada en su totalidad hasta 5 días o
+                    120 horas después de creada la reserva. En caso de no
+                    hacerlo, la reserva será cancelada automáticamente, el
+                    espacio será liberado y el participante no podrá participar
+                    en el festival.
+                  </li>
+                  {/* <li>
+                    Las reservas confirmadas que sean canceladas a más de 30
+                    días antes del evento recibirán un reembolso del 75%.
+                  </li> */}
+                  <li>
+                    Las reservas confirmadas que sean canceladas entre 20 y 30
+                    días antes del evento recibirán un reembolso del 50%.
+                  </li>
+                  <li>
+                    No se proporcionarán reembolsos para cancelaciones
+                    realizadas con menos de 15 días de anticipación al evento.
+                  </li>
+                  <li>
+                    En caso de cancelación de todo el festival debido a
+                    circunstancias fuera del control de los organizadores
+                    (incluyendo pero no limitado a desastres naturales,
+                    emergencias públicas, estallidos sociales u órdenes
+                    gubernamentales), los reembolsos pueden proporcionarse a
+                    discreción de los organizadores.
+                  </li>
+                  <li>
+                    Las reservas de stands no son transferibles a menos que sea
+                    explícitamente permitido por los organizadores del festival.
+                  </li>
+                </ul>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-2">
+              <AccordionTrigger className="text-lg md:text-xl font-semibold">
+                4. Horarios, Montaje y Desmontaje de Stands
+              </AccordionTrigger>
+              <AccordionContent className="text-muted-foreground">
+                <ul className="list-disc pl-6 space-y-2">
+                  <li>
+                    El montaje debe completarse antes de las 13:30 ambos días
+                    del evento.
+                  </li>
+                  <li>
+                    Los expositores tendrán acceso al recinto para el montaje
+                    desde las 12:00 el primer día y las 13:00 el segundo día.
+                  </li>
+                  <li>
+                    El ingreso del público será a partir de las 14:00. No se
+                    permitirá el ingreso a expositores después de que el público
+                    haya ingresado al recinto.
+                  </li>
+                  <li>
+                    No se permite el desmontaje anticipado sin previa
+                    autorización y puede resultar en penalizaciones para
+                    participaciones futuras.
+                  </li>
+                  <li>
+                    El desmontaje debe completarse antes de las 21:30 el primer
+                    día y hasta las 21:45 el segundo día. Los expositores pueden
+                    dejar sus stands montado el primer día para ahorrar tiempo
+                    de montaje en el segundo día.
+                  </li>
+                </ul>
+                <p className="mt-4">
+                  No llegar a tiempo o tener montado el stand hasta la hora
+                  indicada puede resultar en penalizaciones para participaciones
+                  futuras.
+                </p>
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="item-3">
+              <AccordionTrigger className="text-lg md:text-xl font-semibold">
+                5. Código de Conducta
+              </AccordionTrigger>
+              <AccordionContent className="text-muted-foreground">
+                <p className="mb-4">Se espera que todos los expositores:</p>
+                <ul className="list-disc pl-6 space-y-2">
+                  <li>
+                    Traten a otros expositores, asistentes, y personal con
+                    respeto y cortesía.
+                  </li>
+                  <li>
+                    Respeten el espacio asignado y no lo extiendan más allá de
+                    los límites del stand.
+                  </li>
+                  <li>
+                    Tengan todo contenido +18 censurado y comercializado con
+                    solicitud previa.
+                  </li>
+                  <li>
+                    Se abstengan de cualquier comportamiento que pueda causar
+                    incomodidad, miedo o daño a otros.
+                  </li>
+                  <li>
+                    No participen en ninguna forma de acoso, discriminación o
+                    comportamiento amenazante.
+                  </li>
+                  <li>
+                    No posean ni usen sustancias ilegales. Ni se encuentren en
+                    el evento bajo la influencia del alcohol o de sustancias
+                    ilegales.
+                  </li>
+                  <li>
+                    Mantengan un área de stand limpia y segura durante todo el
+                    festival.
+                  </li>
+                </ul>
+                <p className="mt-4">
+                  La violación de este código de conducta puede resultar en la
+                  expulsión inmediata del festival sin reembolso.
+                </p>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-4">
+              <AccordionTrigger className="text-lg md:text-xl font-semibold">
+                6. Fotografía y Grabación
+              </AccordionTrigger>
+              <AccordionContent className="text-muted-foreground">
+                <p className="mb-4">
+                  Al participar en el festival, das tu consentimiento para:
+                </p>
+                <ul className="list-disc pl-6 space-y-2">
+                  <li>
+                    Que tu stand o espacio sea fotografiado, filmado o grabado
+                    por los organizadores del festival o sus representantes
+                    designados (los expositores y/o acompañantes pueden optar no
+                    ser parte de la fotografía o video).
+                  </li>
+                  <li>
+                    El uso de tu stand, productos, logotipo, imágenes del
+                    personal y semejanza en fotografías, videos y grabaciones
+                    con fines promocionales, comerciales y de archivo sin
+                    compensación.
+                  </li>
+                  <li>
+                    Que los organizadores del festival posean todos los derechos
+                    de cualquier fotografía, video y grabación oficial tomada
+                    durante el festival.
+                  </li>
+                </ul>
+                <p className="mt-4">
+                  Los expositores pueden tomar fotografías y grabaciones de su
+                  propio stand con fines promocionales.
+                </p>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-5">
+              <AccordionTrigger className="text-lg md:text-xl font-semibold">
+                7. Artículos y Actividades Prohibidas
+              </AccordionTrigger>
+              <AccordionContent className="text-muted-foreground">
+                <p className="mb-4">
+                  Los siguientes artículos y actividades están prohibidos:
+                </p>
+                <ul className="list-disc pl-6 space-y-2">
+                  <li>
+                    Armas de cualquier tipo, incluyendo pero no limitado a armas
+                    de fuego, cuchillos y gas pimienta
+                  </li>
+                  <li>Sustancias ilegales</li>
+                  <li>
+                    Materiales inflamables sin las medidas de seguridad
+                    adecuadas y aprobaciones
+                  </li>
+                  <li>
+                    Sistemas de audio fuertes que interfieran con los espacios
+                    vecinos
+                  </li>
+                  <li>
+                    Distribución de materiales de marketing fuera del área de
+                    stand asignada
+                  </li>
+                  <li>
+                    Distribución o comercialización de productos
+                    discriminatorios y/o que inciten al odio
+                  </li>
+                  <li>
+                    Compartir stand en sectores o categorías no especificadas.
+                    Solo pueden compartir stand quienes sean parte de la
+                    categoría de ilustración
+                  </li>
+                  <li>
+                    Comercializar productos elaborados con inteligencia
+                    artificial o que utilicen tecnologías de IA
+                  </li>
+                  <li>
+                    Vender productos que no sean de autoría propia o tengan como
+                    base contenido de terceros sin el consentimiento del
+                    creador. (Consideramos los fan-arts aceptables más no el
+                    calco de imágenes)
+                  </li>
+                  <li>
+                    Cualquier actividad que viole las leyes o regulaciones
+                    locales
+                  </li>
+                </ul>
+                <h3 className="text-lg font-semibold mt-4">
+                  Sector de gastronomía
+                </h3>
+                <ul className="list-disc pl-6 space-y-2">
+                  <li>
+                    No está permitido la venta de los siguientes productos:
+                    <ol className="ps-5 mt-2 space-y-1 list-disc list-inside">
+                      <li>Bebidas alcohólicas o que contengan alcohol</li>
+                      <li>
+                        Productos que generen olores fuertes o desagradables
+                      </li>
+                      <li>Gaseosas</li>
+                      <li>Panchitos</li>
+                      <li>Sopas de ramen</li>
+                      <li>Pipocas</li>
+                    </ol>
+                  </li>
+                  <li>
+                    Los productos que el expositor ofrezca a la venta deben
+                    estar previamente preparados. Recalcar que no se permite el
+                    uso de garrafas o cualquier artefacto que provoque fuego.
+                  </li>
+                  <li>
+                    Cada expositor se compromete a mantener la estética de su
+                    stand.
+                  </li>
+                </ul>
+                <p className="mt-4">
+                  La violación de estas prohibiciones puede resultar en la
+                  expulsión inmediata del festival sin reembolso.
+                </p>
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="item-6">
+              <AccordionTrigger className="text-lg md:text-xl font-semibold">
+                8. Información de Contacto
+              </AccordionTrigger>
+              <AccordionContent className="text-muted-foreground">
+                <p>
+                  Para preguntas o inquietudes sobre estos Términos y
+                  Condiciones, por favor contacte a los organizadores del
+                  festival en:
+                </p>
+                <address className="mt-2 not-italic">
+                  Email: expositores@productoraglitter.com
+                  <br />
+                  Teléfono: (591) 770-94313
+                  <br />
+                </address>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </div>
+
+        {isProfileInFestival(props.festival.id, props.profile) ? (
+          <>
+            <div className="rounded-md border p-4">
+              Gracias por aceptar los términos y condiciones. Para hacer tu
+              reserva haz clic en el botón de abajo.
+            </div>
+            <div className="flex justify-end mt-4">
+              <RedirectButton
+                href={`/profiles/${props.profile.id}/festivals/${props.festival.id}/reservations/new`}
+              >
+                Completar mi reserva
+              </RedirectButton>
+            </div>
+          </>
+        ) : (
+          <TermsForm festival={props.festival} profile={props.profile} />
         )}
-        <ul className="leading-7 list-inside list-disc">
-          {userCategory === "illustration" ? (
-            <>
-              <li>
-                El Ilustrador con el que se compartirá mesa debe de tener su
-                cuenta en el sitio web y su perfil debe de haber sido
-                verificado. Si ha participado del festival anterior, este paso
-                lo tiene completado.
-              </li>
-              <li>
-                La reserva del espacio la hace únicamente una persona, la cual
-                debe buscar a su compañero de espacio con su nombre de usuario y
-                agregarlo al momento de hacer la reserva.
-              </li>
-              <li>
-                Ambos expositores deben estar categorizados como
-                &quot;ilustrador&quot;.
-              </li>
-              <li>
-                Compartir espacio con otro ilustrador implica la responsabilidad
-                de ambas partes de estar presentes el día del evento.
-              </li>
-              <li>
-                Si en el transcurso que se abona el espacio hasta el evento, una
-                de las partes no puede participar, el otro ilustrador deberá
-                hacerse cargo de ocupar el espacio, sin posibilidades de
-                reemplazar al ilustrador que se dio de baja por otro.
-              </li>
-              <li>
-                No pueden incluirse personas adicionales para trabajar en el
-                espacio. Máximo dos personas por espacio (incluyendo el
-                artista/los artistas).
-              </li>
-            </>
-          ) : (
-            <>
-              <li>
-                El expositor puede llevar máximo un acompañante. El stand
-                incluye 2 credenciales. Uno con el nombre del emprendimiento y
-                otro que dice &quot;Acompañante&quot;. No está permitido que
-                hayan personas sin credencial en los stands.
-              </li>
-            </>
-          )}
-          <li>No estaremos brindando sillas adicionales a espacio.</li>
-          {/* TODO: Think of a better way to handle this point for future festivals */}
-          <li>
-            No está permitido colocar nada <strong>fuera</strong> de la mesa que
-            obstruya el paso de la gente (por ejemplo: sillas, cubos,
-            percheros). Si tu caso es particular, comunícate con{" "}
-            <Link
-              href="mailto:soporte@productoraglitter.com"
-              style={{
-                color: "#15c",
-                textDecoration: "underline",
-              }}
-            >
-              soporte@productoraglitter.com
-            </Link>
-          </li>
-        </ul>
-        <br />
-        <Separator />
-        <br />
-        <h3 className="font-semibold text-lg my-2">Abono de los espacios</h3>
-        <ul className="leading-7 list-inside list-disc">
-          <li>
-            Los espacios se abonan a partir del{" "}
-            <strong>
-              {formatDate(festival.reservationsStartDate).toLocaleString({
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })}
-            </strong>
-            .
-          </li>
-          <li>
-            El pago se realiza mediante QR el cual lo pueden descargar al
-            momento de hacer la reserva.
-          </li>
-          <li>
-            Todos los espacios se abonan en su totalidad por adelantado, sin
-            excepción.
-          </li>
-          <li>
-            A partir del momento en el que se realice la reserva, el expositor
-            tendrá 5 días hábiles para realizar el pago total del costo del
-            espacio. Sin embargo, para cualquier reserva hecha después del{" "}
-            <strong>
-              {formatDate(festival.festivalDates[0].startDate)
-                .minus({ days: 10 })
-                .toLocaleString({
-                  month: "long",
-                  day: "numeric",
-                  year: "numeric",
-                })}
-            </strong>
-            , el pago deberá ser realizado en el momento de la reserva.
-          </li>
-          <li>
-            Después de la fecha límite si el expositor no sube el comprobante de
-            pago, la reserva se borra del mapa.
-          </li>
-          <li>
-            Tener en cuenta que, si el expositor no asiste o no puede asistir el
-            día del evento, el importe del espacio no se devuelve ni total ni
-            parcialmente, así como tampoco queda a cuenta de futuros eventos.
-          </li>
-        </ul>
-        <br />
-        <Separator />
-        <br />
-        <h3 className="font-semibold text-lg my-2">
-          Horario de armado y desarmado
-        </h3>
-        <ul className="list-inside list-disc">
-          <li>
-            El armado de espacio se hará en los siguientes horarios:
-            <ul className="ps-5 list-inside list-disc">
-              {festival.festivalDates[0] && (
-                <li key={festival.festivalDates[0].id}>
-                  <span className="capitalize">
-                    {
-                      formatDate(festival.festivalDates[0].startDate)
-                        .weekdayLong
-                    }
-                  </span>{" "}
-                  de{" "}
-                  {formatDate(festival.festivalDates[0].startDate)
-                    .minus({ hour: 1 })
-                    .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
-                  a{" "}
-                  {formatDate(
-                    festival.festivalDates[0].startDate,
-                  ).toLocaleString(DateTime.TIME_24_SIMPLE)}
-                </li>
-              )}
-              {festival.festivalDates[1] && (
-                <li key={festival.festivalDates[1].id}>
-                  <span className="capitalize">
-                    {
-                      formatDate(festival.festivalDates[1].startDate)
-                        .weekdayLong
-                    }
-                  </span>{" "}
-                  de{" "}
-                  {formatDate(festival.festivalDates[1].startDate)
-                    .minus({ minutes: 30 })
-                    .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
-                  a{" "}
-                  {formatDate(
-                    festival.festivalDates[1].startDate,
-                  ).toLocaleString(DateTime.TIME_24_SIMPLE)}
-                </li>
-              )}
-            </ul>
-          </li>
-          <li>
-            El ingreso queda sobre la calle Sucre, para poder ingresar deben
-            hacer una fila ordenada.{" "}
-            <strong>
-              Nadie puede ingresar al recinto antes de los horarios
-              especificados anteriormente
-            </strong>
-            .
-          </li>
-          <li>
-            Todos los espacios deben estar listos para recibir al público en el
-            siguiente horario:
-            <ul className="ps-5 list-inside list-disc">
-              {festival.festivalDates.map((date, index) => (
-                <li key={index}>
-                  <span className="capitalize">
-                    {formatDate(date.startDate).weekdayLong}
-                  </span>{" "}
-                  a las{" "}
-                  {formatDate(date.startDate).toLocaleString(
-                    DateTime.TIME_24_SIMPLE,
-                  )}
-                </li>
-              ))}
-            </ul>
-          </li>
-          <li>
-            El desarme de espacios se debe hacer en los siguientes horarios:
-            <ul className="ps-5 list-inside list-disc">
-              {festival.festivalDates.map((date, index) => (
-                <li key={index}>
-                  <span className="capitalize">
-                    {formatDate(date.endDate).weekdayLong}
-                  </span>{" "}
-                  de{" "}
-                  {formatDate(date.endDate).toLocaleString(
-                    DateTime.TIME_24_SIMPLE,
-                  )}{" "}
-                  a{" "}
-                  {formatDate(date.endDate)
-                    .plus({ minutes: 45 })
-                    .toLocaleString(DateTime.TIME_24_SIMPLE)}
-                </li>
-              ))}
-            </ul>
-          </li>
-        </ul>
-        <br />
-        <Separator />
-        <br />
-        <h3 className="font-semibold text-lg my-2">Importante</h3>
-        <ul className="leading-7 list-inside list-disc">
-          <li>
-            <u>
-              Todo contenido +18 debe estar censurado y comercializado solamente
-              con solicitud previa.
-            </u>
-          </li>
-          {mapCategory === "entrepreneurship" && (
-            <li>
-              Queda prohibida la venta de material con imagenes sacadas de
-              internet: Stickers, llaveros, posters entre otros. Es un festival
-              que impulsa a los ilustradores y el trabajo original de los
-              artistas. Tampoco se puede vender productos fuera de la categoria
-              o subcategorias puestas en el perfil del sitio web.
-            </li>
-          )}
-          {mapCategory === "gastronomy" && (
-            <>
-              <li>
-                No está permitido la venta de los siguientes productos:
-                <ol className="ps-5 mt-2 space-y-1 list-disc list-inside">
-                  <li>Bebidas alcohólicas o que contengan alcohol</li>
-                  <li>Productos que generen olores desagradables</li>
-                  <li>Gaseosas</li>
-                  <li>Panchitos</li>
-                  <li>Sopas de ramen</li>
-                </ol>
-              </li>
-              <li>
-                Los productos que el expositor ofrezca a la venta deben estar
-                previamente preparados. No se permite el uso de garrafas o
-                cualquier artefacto que provoque fuego.
-              </li>
-            </>
-          )}
-          <li>Todos los espacios son con reserva previa de ubicación.</li>
-          <li>
-            Ningún espacio puede exceder las medidas establecidas por la
-            organización. De no cumplir con esta indicación se deberá abonar una
-            penalidad equivalente al 100% costo del espacio o retirarse del
-            evento.
-          </li>
-          <li>
-            Los expositores que lleguen una vez comenzado el evento no podrán
-            ingresar a participar del evento. Los expositores deben llegar a las{" "}
-            {formatDate(festival.festivalDates[0].startDate)
-              .minus({ hours: 1 })
-              .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
-            puntual.
-          </li>
-          <li>
-            No pueden haber más de 2 personas en el stand. Tampoco pueden haber
-            personas sin credencial en los stands
-          </li>
-          <li>
-            Todos los participantes del evento incluyendo los que comparten
-            espacio, deben de tener una cuenta y perfil creados y aprobados en
-            el sitio web oficial.
-          </li>
-          <li>
-            Todos los espacios están numerados y preasignados a los expositores
-            al momento de la reserva.
-          </li>
-          <li>Todos los espacios deben ser abonados antes del evento.</li>
-          <li>
-            La organización del evento no cuenta con su propia red de Wi-Fi. El
-            lugar donde hacemos el evento cuenta con una red propia cuyo
-            funcionamiento no podemos garantizar ni hacernos cargo de su
-            correcto funcionamiento.
-          </li>
-          <li>No está permitida la presencia de niños en los espacios.</li>
-        </ul>
-        <br />
-        <Separator />
-        <br />
-        <h3 className="font-semibold text-lg my-2">Reglas de convivencia</h3>
-        <ul className="leading-7 list-inside list-disc">
-          <li>
-            Queremos que el evento sea un espacio seguro por tanto pedimos
-            guardar respeto entre todos.
-          </li>
-          <li>
-            Cada participante es responsable de su espacio y de sus
-            pertenencias, así como el mobiliario (mesa y silla/sillas) que le
-            fueron entregados. El CBA y la productora no se hacen responsables
-            de pérdidas de objetos.
-          </li>
-          <li>Deben mantener la limpieza, no tiren basura al suelo.</li>
-          <li>No está permitido pegar nada en las paredes.</li>
-          <li>
-            No se puede hacer cambios de lugar ya que cada espacio ha sido
-            previamente elegido por el artista mediante la página web y estarán
-            asignados al momento de ingresar a la feria.
-          </li>
-          <li>
-            No está permitido fumar ni en la galería ni en el patio. Esto
-            incluye también el uso de vapes. Si desean fumar deben salir del
-            establecimiento y hacerlo en la calle.
-          </li>
-          <li>
-            Queda terminantemente prohibido el consumo de bebidas alcohólicas
-            y/o estupefacientes en el evento así como no está permitido llegar
-            al evento en estado de ebriedad o que demuestre haber hecho uso de
-            sustancias. Cualquier participante que viole esta regla será
-            retirado del evento y no podrá participar de festival o evento
-            realizado por la organización.
-          </li>
-          {userCategory === "illustration" && (
-            <li>
-              Es un evento de ilustradores que impulsa a que muestren productos
-              de autoría propia.{" "}
-              <strong>
-                Está prohibido vender material plagiado o imprimir stickers
-                sacados de internet.
-              </strong>
-            </li>
-          )}
-        </ul>
-        <br />
-        <Separator />
-        <br />
-      </section>
-      {isProfileInFestival(festival.id, profile) ? (
-        <>
-          <div className="rounded-md border p-4">
-            Gracias por aceptar los términos y condiciones. Para hacer tu
-            reserva haz clic en el botón de abajo.
-          </div>
-          <div className="flex justify-end mt-4">
-            <RedirectButton
-              href={`/profiles/${profile.id}/festivals/${festival.id}/reservations/new`}
-            >
-              ¡Ir a reservar!
-            </RedirectButton>
-          </div>
-        </>
-      ) : (
-        <TermsForm festival={festival} profile={profile} />
-      )}
+      </div>
     </div>
   );
 }
