@@ -25,14 +25,16 @@ export default function UploadPaymentVoucherModal(
       show={props.open}
       onOpenChange={props.onOpenChange}
     >
-      <PaymentProofUpload
-        voucherImageUrl={voucherUrl}
-        onUploadComplete={setVoucherUrl}
-      />
-      <UploadPaymentVoucherForm
-        invoice={props.invoice}
-        newVoucherUrl={voucherUrl}
-      />
+      <div className="mt-4">
+        <PaymentProofUpload
+          voucherImageUrl={voucherUrl}
+          onUploadComplete={setVoucherUrl}
+        />
+        <UploadPaymentVoucherForm
+          invoice={props.invoice}
+          newVoucherUrl={voucherUrl}
+        />
+      </div>
     </BaseModal>
   );
 }

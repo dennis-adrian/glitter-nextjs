@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { UploadButton } from "@/app/vendors/uploadthing";
 import Image from "next/image";
 import { Loader2Icon } from "lucide-react";
+import "./styles.css";
 
 export default function PaymentProofUpload({
   voucherImageUrl,
@@ -65,7 +66,8 @@ export default function PaymentProofUpload({
             if (isUploading) {
               return "bg-transparent text-xs text-muted-foreground border after:bg-primary-400/60";
             }
-            return "bg-transparent text-xs text-purple-700 border border-primary-500 hover:text-primary-500 hover:bg-primary-200/20 hover:border-primary-500";
+            return "ut-button bg-transparent text-xs text-purple-700 border border-primary-500 hover:text-primary-500 hover:bg-primary-200/20 hover:border-primary-500";
+            // return "ut-button";
           },
         }}
       />

@@ -26,7 +26,7 @@ export const BaseModal: FC<{
     <Dialog open={show} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-left md:text-center text-xl md:text-2xl">
+          <DialogTitle className="text-left md:text-center text-xl">
             {title}
           </DialogTitle>
         </DialogHeader>
