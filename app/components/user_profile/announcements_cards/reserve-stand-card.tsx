@@ -23,11 +23,20 @@ export function ReserveStandCard(props: ReserveStandCardProps) {
       <BaseCard
         content={
           <p className="text-center">
-            Podrás hacer tu reserva el{" "}
-            {reservationsStartDate.toLocaleString(DateTime.DATE_FULL)} a partir
-            de las{" "}
-            {reservationsStartDate.toLocaleString(DateTime.TIME_24_SIMPLE)}
+            Podrás hacer tu reserva la noche del{" "}
+            {reservationsStartDate.toLocaleString(DateTime.DATE_SHORT)}. De
+            momento podés leer los términos y condiciones nuevamente.
           </p>
+        }
+        footer={
+          <RedirectButton
+            size="sm"
+            className="w-full"
+            href={`/profiles/${props.profile.id}/festivals/${props.festival.id}/terms`}
+          >
+            Términos y condiciones
+            <NewspaperIcon className="ml-2 w-4 h-4" />
+          </RedirectButton>
         }
       />
     );
