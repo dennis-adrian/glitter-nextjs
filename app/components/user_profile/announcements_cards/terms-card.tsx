@@ -2,6 +2,7 @@
 
 import { ProfileType } from "@/app/api/users/definitions";
 import { Festival } from "@/app/data/festivals/definitions";
+import { getFestivalCategories } from "@/app/lib/festivals/utils";
 import { RedirectButton } from "@/components/redirect-button";
 
 import BaseCard from "@/components/user_profile/announcements_cards/base-card";
@@ -13,6 +14,14 @@ type TermsCardProps = {
 };
 
 export function TermsCard(props: TermsCardProps) {
+  const festivalCategories = getFestivalCategories(props.festival);
+  if (
+    props.profile.category &&
+    !festivalCategories.includes(props.profile.category)
+  ) {
+    return null;
+  }
+
   return (
     <BaseCard
       content={

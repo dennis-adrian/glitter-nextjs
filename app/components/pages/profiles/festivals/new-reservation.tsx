@@ -53,6 +53,10 @@ export default async function NewReservationPage(
     forProfile.category,
   );
 
+  const orderedSectors = sectors.sort(
+    (a, b) => a.orderInFestival - b.orderInFestival,
+  );
+
   const acceptedArtists = await fetchAvailableArtistsInFestival(festival.id);
 
   return (
@@ -63,7 +67,7 @@ export default async function NewReservationPage(
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {sectors.map((sector) => {
+          {orderedSectors.map((sector) => {
             return (
               <Suspense key={sector.id} fallback={<FestivalSkeleton />}>
                 <div className="flex flex-col items-center gap-2">
