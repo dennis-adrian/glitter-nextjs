@@ -48,11 +48,32 @@ export default function Categories({
   };
 
   const filterSubcategories = (category: UserCategory) => {
-    return subcategories.filter(
-      (subcategory) =>
-        subcategory.category === category &&
-        !selectedSubcategories.map((sub) => sub.id).includes(subcategory.id),
+    // if skincare is selected, the user shouldn't be able to select other subcategories
+    const selectedSubcagetegoriesLabels = selectedSubcategories.map((sub) =>
+      sub.label.toLowerCase(),
     );
+    if (selectedSubcagetegoriesLabels.join(" ").includes("skin")) return [];
+
+    const filteredSubcategories = subcategories.filter((subcategory) => {
+      // we don't want users to select the "sublimación" subcategory at all
+      if (subcategory.label.toLowerCase().includes("sublimación")) return false;
+      // if there are any subcategories selected, we don't want to show the "skincare" subcategory
+      if (
+        subcategory.label.toLowerCase().includes("skin") &&
+        selectedSubcategories.length > 0
+      ) {
+        return false;
+      }
+
+      return (
+        subcategory.category === category &&
+        !selectedSubcategories.map((sub) => sub.id).includes(subcategory.id)
+      );
+    });
+
+    return filteredSubcategories.sort((a, b) => {
+      return a.label.localeCompare(b.label);
+    });
   };
 
   return (
@@ -72,7 +93,8 @@ export default function Categories({
             return selectedCategory === category.category ? (
               <SelectedCategoryCard
                 key={category.category}
-                label={category.label}
+                categoryLabel={category.label}
+                category={category.category}
                 selected={selectedCategory === category.category}
                 subcategories={filterSubcategories(category.category)}
                 selectedSubcategories={selectedSubcategories}
@@ -119,13 +141,15 @@ const MainCategoryCard = ({
 };
 
 const SelectedCategoryCard = ({
-  label,
+  category,
+  categoryLabel,
   onSelectSubcategory,
   selected,
   subcategories,
   selectedSubcategories,
 }: {
-  label: string;
+  category: UserCategory;
+  categoryLabel: string;
   onSelectSubcategory: (subcategories: Subcategory[]) => void;
   selected: boolean;
   subcategories: Subcategory[];
@@ -144,7 +168,7 @@ const SelectedCategoryCard = ({
   return (
     <div className="w-full border rounded-md p-2">
       <div>
-        <h2 className="font-semibold">{label}</h2>
+        <h2 className="font-semibold">{categoryLabel}</h2>
         {selected && (
           <div className="text-sm text-muted-foreground mb-1">
             Categorías seleccionadas ({selectedSubcategories.length})
@@ -176,6 +200,12 @@ const SelectedCategoryCard = ({
               />
             ))}
           </div>
+        )}
+        {category === "entrepreneurship" && (
+          <p className="text-xs md:text-sm text-muted-foreground mt-3">
+            * La categoría Skincare no se puede seleccionar junto con otras
+            categorías.
+          </p>
         )}
       </div>
     </div>
