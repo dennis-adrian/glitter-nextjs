@@ -511,19 +511,48 @@ export async function fetchEnrolledParticipants(
   festivalId: number,
 ): Promise<BaseProfile[]> {
   try {
-    return await db
-      .select()
-      .from(users)
+    const participantsWithReservationsSubquery = db
+      .select({ userId: reservationParticipants.userId })
+      .from(reservationParticipants)
+      .leftJoin(
+        standReservations,
+        eq(standReservations.id, reservationParticipants.reservationId),
+      )
       .where(
-        sql`${users.id} IN (
-          SELECT user_requests.user_id FROM user_requests
-          LEFT JOIN participations ON user_requests.user_id = participations.user_id
-          LEFT JOIN stand_reservations ON stand_reservations.id = participations.reservation_id
-          WHERE user_requests.festival_id = ${festivalId}
-          AND (stand_reservations.festival_id != ${festivalId} or stand_reservations.id IS NULL)
-          GROUP BY user_requests.user_id
-        )`,
+        and(
+          eq(standReservations.festivalId, festivalId),
+          not(eq(standReservations.status, "rejected")),
+        ),
       );
+
+    const queryResult = await db
+      .selectDistinctOn([userRequests.userId], {
+        users: users,
+      })
+      .from(userRequests)
+      .leftJoin(users, eq(users.id, userRequests.userId))
+      .where(
+        and(
+          eq(userRequests.type, "festival_participation"),
+          eq(userRequests.festivalId, festivalId),
+          not(
+            inArray(
+              userRequests.userId,
+              // --- SQL Query equivalent to the subquery
+              // sql`(
+              //   select participations.user_id from participations
+              //   left join stand_reservations on participations.reservation_id = stand_reservations.id
+              //   where stand_reservations.festival_id = ${festivalId} and stand_reservations.status != 'rejected'
+              // )`,
+              participantsWithReservationsSubquery,
+            ),
+          ),
+        ),
+      );
+
+    return queryResult
+      .map((userRequest) => userRequest.users)
+      .filter((user): user is NonNullable<typeof user> => user !== null);
   } catch (error) {
     console.error(error);
     return [];
