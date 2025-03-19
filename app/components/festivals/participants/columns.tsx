@@ -2,11 +2,13 @@
 
 import { ParticipationWithParticipantAndReservations } from "@/app/api/users/definitions";
 import ProfileCell from "@/app/components/common/table/profile-cell";
+import { ReservationStatus } from "@/app/components/reservations/cells/status";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { ColumnDef } from "@tanstack/react-table";
 
 export const columnTitles = {
   participant: "Participantes",
+  reservationStatus: "Estado de la reserva",
 };
 
 export const columns: ColumnDef<ParticipationWithParticipantAndReservations>[] =
@@ -23,5 +25,18 @@ export const columns: ColumnDef<ParticipationWithParticipantAndReservations>[] =
         />
       ),
       cell: ({ row }) => <ProfileCell profile={row.original.user} />,
+    },
+    {
+      id: "reservationStatus",
+      accessorFn: (participant) => participant.reservation.status,
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title={columnTitles.reservationStatus}
+        />
+      ),
+      cell: ({ row }) => {
+        return <ReservationStatus reservation={row.original.reservation} />;
+      },
     },
   ];
