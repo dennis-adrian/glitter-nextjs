@@ -1,13 +1,10 @@
-import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
-import { ReservationWithStand } from "@/app/api/reservations/definitions";
+import { ReservationBase } from "@/app/api/reservations/definitions";
 import { Badge } from "@/app/components/ui/badge";
 
 export function ReservationStatus({
   reservation,
 }: {
-  reservation:
-    | ReservationWithParticipantsAndUsersAndStand
-    | ReservationWithStand;
+  reservation: ReservationBase;
 }) {
   const { status } = reservation;
 
