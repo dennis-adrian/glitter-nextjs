@@ -12,9 +12,8 @@ import {
 import { ScheduledTaskWithProfileAndReservation } from "@/app/lib/profile_tasks/definitions";
 import EmailHeader from "@/app/emails/email-header";
 import { getUserName } from "@/app/lib/users/utils";
-import { formatDate, formatFullDate } from "@/app/lib/formatters";
+import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
-import { create } from "domain";
 
 type ReservationReminderTemplateProps = {
   task: ScheduledTaskWithProfileAndReservation;
@@ -51,24 +50,30 @@ export default function ReservationReminderTemplate(
                 {formatDate(task.reservation.createdAt)
                   .plus({ days: 5 })
                   .toLocaleString(DateTime.DATE_MED)}
+              </strong>{" "}
+              a las{" "}
+              <strong>
+                {formatDate(task.reservation.createdAt)
+                  .plus({ days: 5 })
+                  .toLocaleString(DateTime.TIME_SIMPLE)}
               </strong>
               .
             </Text>
             <Text style={styles.text}>
               Como se especifica en los términos y condiciones, toda reserva que
-              no sea pagada a tiempo será eliminada automáticamente. Tu reserva
-              se eliminará automáticamente el día{" "}
-              <strong>
-                {formatDate(task.reservation.createdAt)
-                  .plus({ days: 6 })
-                  .toLocaleString(DateTime.DATE_FULL)}
-              </strong>
-              .
+              no sea confirmada dentro de las 120 horas desde su creación será
+              eliminada automáticamente.
             </Text>
             <Text style={styles.text}>
-              Si ya hiciste tu pago, lo subiste a la página y estás esperando
-              confirmación puedes ignorar este correo. Confirmaremos tu reserva
-              en el transcurso del día.
+              Si ya hiciste tu pago, subiste el comprobante a la página web y
+              estás esperando confirmación, podés ignorar este correo. Las
+              reservas pueden tomar hasta 48 horas en confirmarse pero el
+              registro del pago evitará que sea eliminada.
+            </Text>
+            <Text style={styles.text}>
+              Si tenés alguna duda, no dudes en contactarnos a nuesto correo
+              electrónico{" "}
+              <span style={styles.email}>soporte@productoraglitter.com</span>
             </Text>
           </Section>
         </Container>

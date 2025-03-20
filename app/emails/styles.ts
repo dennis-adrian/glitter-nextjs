@@ -80,3 +80,7 @@ export const standoutText = {
   borderRadius: "4px",
   textAlign: "left" as const,
 };
+
+export const email = {
+  color: "#6320E2",
+};
