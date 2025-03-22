@@ -5,7 +5,7 @@ import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
 import { updateProfileCategories } from "@/app/lib/users/actions";
-import { SaveIcon } from "lucide-react";
+import { ArrowDownToLineIcon, SaveIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -49,7 +49,7 @@ export default function CategoriesForm(props: CategoriesFormProps) {
           loadingLabel="Guardando"
         >
           Guardar
-          <SaveIcon className="w-5 h-5 ml-2" />
+          <ArrowDownToLineIcon className="w-4 h-4 ml-2" />
         </SubmitButton>
       </form>
     </Form>

@@ -131,12 +131,12 @@ const NavigationSidebar = ({
             <CalendarCheck2Icon className="mr-2 h-6 w-6" />
             Próximo Evento
           </MobileSidebarItem>
-          <MobileSidebarItem href="/festivals">
+          <MobileSidebarItem isMobileOnly href="/festivals">
             <BookImageIcon className="mr-2 h-6 w-6" />
             Festivales
           </MobileSidebarItem>
           <div className="ml-4">
-            <MobileSidebarItem href="/festivals/festicker">
+            <MobileSidebarItem isMobileOnly href="/festivals/festicker">
               <StickerIcon className="mr-2 h-6 w-6" />
               Festicker
             </MobileSidebarItem>

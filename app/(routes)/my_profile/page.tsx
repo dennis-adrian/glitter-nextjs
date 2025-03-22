@@ -13,22 +13,9 @@ import {
 } from "@/app/lib/users/actions";
 import { CircleCheckIcon, CircleXIcon } from "lucide-react";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { z } from "zod";
 
-const searchParamsSchema = z.object({
-  completeProfile: z
-    .string()
-    .toLowerCase()
-    .transform((val) => val === "true"),
-});
-
-type SearchParams = z.infer<typeof searchParamsSchema>;
-
-export default async function Page(props: {
-  searchParams: Promise<SearchParams>;
-}) {
+export default async function Page() {
   const user = await getCurrentClerkUser();
   if (!user) return null;
 
@@ -84,8 +71,6 @@ export default async function Page(props: {
     }
   }
 
-  const searchParams = await props.searchParams;
-  const validatedSearchParams = searchParamsSchema.safeParse(searchParams);
   const subcategories = fetchSubcategories();
 
   return (
@@ -98,7 +83,6 @@ export default async function Page(props: {
       <CompleteProfileModal
         subcategoriesPromise={subcategories}
         profile={profile}
-        open={validatedSearchParams.data?.completeProfile}
       />
     </div>
   );
