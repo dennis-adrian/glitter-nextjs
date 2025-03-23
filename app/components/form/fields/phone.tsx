@@ -5,8 +5,10 @@ import {
   FormLabel,
   FormMessage,
 } from "@/app/components/ui/form";
-import { Input } from "@/app/components/ui/input";
+import { PhoneInput as ReactInternationalPhoneInput } from "react-international-phone";
 import { UseFormReturn } from "react-hook-form";
+import "react-international-phone/style.css";
+import "./styles.css";
 
 export default function PhoneInput({
   bottomBorderOnly,
@@ -27,18 +29,18 @@ export default function PhoneInput({
         <FormItem className="grid gap-2">
           {label && <FormLabel>{label}</FormLabel>}
           <FormControl>
-            <div className="relative flex items-center">
-              <span className="absolute left-2 text-muted-foreground">
-                +591
-              </span>
-              <Input
-                bottomBorderOnly={bottomBorderOnly}
-                className="pl-14"
-                type="tel"
-                placeholder="7XXXXXXX"
-                {...field}
-              />
-            </div>
+            <ReactInternationalPhoneInput
+              preferredCountries={["ar", "bo", "br", "co", "pe", "us"]}
+              inputStyle={{
+                border: "none",
+                borderBottom: "1px solid hsl(var(--primary-500))",
+                borderRadius: "0",
+                width: "100%",
+                fontSize: "hsl(var(--font-size-base))",
+              }}
+              defaultCountry="bo"
+              {...field}
+            />
           </FormControl>
           <FormMessage />
         </FormItem>
