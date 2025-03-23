@@ -13,6 +13,7 @@ import { Subcategory } from "@/app/lib/subcategories/definitions";
 import { use, useEffect, useState } from "react";
 import Categories from "@/app/components/user_profile/creation-process/categories";
 import DisplayNameStep from "./creation-process/display-name-step";
+import ContactInfoStep from "./creation-process/contact-info-step";
 
 type CompleteProfileModalProps = {
   children?: React.ReactNode;
@@ -33,6 +34,8 @@ export default function CompleteProfileModal({
   useEffect(() => {
     if (missingFields.length > 0) {
       setOpen(true);
+    } else {
+      setOpen(false);
     }
   }, [missingFields]);
 
@@ -44,14 +47,18 @@ export default function CompleteProfileModal({
     if (missingFields.some((field) => ["bio", "displayName"].includes(field))) {
       return <DisplayNameStep profile={profile} />;
     }
+
+    if (missingFields.some((field) => ["firstName", "lastName", "phoneNumber"].includes(field))) {
+      return <ContactInfoStep profile={profile} />;
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="p-3 md:p-6" hideCloseButton={missingFields.length > 0}>
+      <DialogContent className="p-5 md:p-6" hideCloseButton={missingFields.length > 0}>
         <DialogHeader>
-          <DialogTitle>Completa tu perfil</DialogTitle>
+          <DialogTitle className="text-center text-lg md:text-xl">Completa tu perfil</DialogTitle>
         </DialogHeader>
         <div>
           {renderContent()}
