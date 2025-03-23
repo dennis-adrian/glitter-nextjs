@@ -12,5 +12,7 @@
 }
 
 .react-international-phone-country-selector-dropdown {
-  border-radius: hsl(var(--border-radius-md)) !important;
+  position: absolute !important;
+  top: -204px;
+  width: 240px;
 }

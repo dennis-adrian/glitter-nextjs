@@ -9,12 +9,10 @@ export default function ContactInfoStep(props: ContactInfoStepProps) {
   return (
     <>
       <StepDescription
-        title="Datos personales"
-        description="Esta información será utilizada para identificar tu cuenta y no será compartida con otros participantes o visitantes."
+        title="Información de contacto"
+        description="Esta información será utilizada para contactarte y enviarte información sobre nuestros festivales."
       />
-      <ContactInfoForm
-        profile={props.profile}
-      />
+      <ContactInfoForm profile={props.profile} />
     </>
   );
 }

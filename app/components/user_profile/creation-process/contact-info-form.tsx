@@ -88,6 +88,14 @@ export default function ContactInfoForm(props: ContactInfoFormProps) {
           label="Teléfono"
           name="phoneNumber"
         />
+        <TextInput
+          disabled
+          bottomBorderOnly
+          formControl={form.control}
+          label="Email"
+          name="email"
+          value={props.profile.email || ""}
+        />
         <div className="flex gap-2 my-2 col-span-1 sm:col-span-2">
           <SubmitButton
             disabled={
