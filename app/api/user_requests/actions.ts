@@ -388,7 +388,7 @@ export async function addUserToFestival(
     if (admins.length > 0) {
       await sendEmail({
         to: [...adminEmails],
-        from: "Reservas Glitter <reservas@productoraglitter.com>",
+        from: "Inscripciones Glitter <inscripciones@productoraglitter.com>",
         subject: `${profile.displayName} se ha inscrito a ${festival.name}`,
         react: TermsAcceptanceEmailTemplate({
           profile: profile,
