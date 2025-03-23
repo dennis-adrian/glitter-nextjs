@@ -1,6 +1,6 @@
 import { ProfileType } from "@/app/api/users/definitions";
+import DateInput from "@/app/components/form/fields/date";
 import SelectInput from "@/app/components/form/fields/select";
-import TextInput from "@/app/components/form/fields/text";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { formatDate } from "@/app/lib/formatters";
@@ -8,10 +8,11 @@ import { updateProfile } from "@/app/lib/users/actions";
 import { genderOptions, stateOptions } from "@/app/lib/utils";
 import { genderEnum } from "@/db/schema";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { SendIcon } from "lucide-react";
+import { ArrowDownToLineIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { dateToString, stringToUTCDate } from "@/app/utils/dateUtils";
 
 const FormSchema = z.object({
   birthdate: z.coerce
@@ -48,15 +49,19 @@ export default function PersonalInfoForm(props: PersonalInfoFormProps) {
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      birthdate: props.profile.birthdate || new Date(),
+      birthdate: props.profile.birthdate || stringToUTCDate("2005-01-01"),
       gender: props.profile.gender,
       state: props.profile.state || "",
     },
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
+    const stringBirthdate = dateToString(data.birthdate);
+    const birthdate = stringToUTCDate(stringBirthdate);
+
     const res = await updateProfile(props.profile.id, {
       ...data,
+      birthdate,
     });
     if (res.success) {
       toast.success(res.message);
@@ -71,13 +76,11 @@ export default function PersonalInfoForm(props: PersonalInfoFormProps) {
         onSubmit={action}
         className="w-full my-4 grid gap-4 items-start grid-cols-1 sm:grid-cols-2"
       >
-        <TextInput
+        <DateInput
           bottomBorderOnly
           formControl={form.control}
           label="Fecha de nacimiento"
           name="birthdate"
-          placeholder="Ingresa tu fecha de nacimiento"
-          type="date"
         />
         <SelectInput
           formControl={form.control}
@@ -100,8 +103,8 @@ export default function PersonalInfoForm(props: PersonalInfoFormProps) {
             disabled={form.formState.isSubmitting}
             loading={form.formState.isSubmitting}
           >
-            Finalizar
-            <SendIcon className="ml-2 w-4 h-4" />
+            Guardar
+            <ArrowDownToLineIcon className="ml-2 w-4 h-4" />
           </SubmitButton>
         </div>
       </form>

@@ -41,7 +41,10 @@ export default function CompleteProfileModal({
   }, [missingFields]);
 
   const renderContent = () => {
-    if (missingFields.includes("category") || missingFields.includes("profileSubcategories")) {
+    if (
+      missingFields.includes("category") ||
+      missingFields.includes("profileSubcategories")
+    ) {
       return <Categories profile={profile} subcategories={subcategories} />;
     }
 
@@ -49,11 +52,19 @@ export default function CompleteProfileModal({
       return <DisplayNameStep profile={profile} />;
     }
 
-    if (missingFields.some((field) => ["firstName", "lastName", "phoneNumber"].includes(field))) {
+    if (
+      missingFields.some((field) =>
+        ["firstName", "lastName", "phoneNumber"].includes(field),
+      )
+    ) {
       return <ContactInfoStep profile={profile} />;
     }
 
-    if (missingFields.some((field) => ["birthDate", "gender", "state"].includes(field))) {
+    if (
+      missingFields.some((field) =>
+        ["birthdate", "gender", "state"].includes(field),
+      )
+    ) {
       return <PersonalInfoStep profile={profile} />;
     }
   };
@@ -61,13 +72,16 @@ export default function CompleteProfileModal({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="p-5 md:p-6" hideCloseButton={missingFields.length > 0}>
+      <DialogContent
+        className="p-5 md:p-6"
+        hideCloseButton={missingFields.length > 0}
+      >
         <DialogHeader>
-          <DialogTitle className="text-center text-lg md:text-xl">Completa tu perfil</DialogTitle>
+          <DialogTitle className="text-center text-lg md:text-xl">
+            Completa tu perfil
+          </DialogTitle>
         </DialogHeader>
-        <div>
-          {renderContent()}
-        </div>
+        <div>{renderContent()}</div>
       </DialogContent>
     </Dialog>
   );

@@ -43,7 +43,7 @@ export default function SelectInput({
           {label && <FormLabel>{label}</FormLabel>}
           {variant === "quiet" && <FormMessage />}
           <FormControl>
-            <Select onValueChange={field.onChange}>
+            <Select onValueChange={field.onChange} {...field}>
               <FormControl>
                 <SelectTrigger variant={variant}>
                   <SelectValue placeholder={placeholder} />
