@@ -14,6 +14,7 @@ import { use, useEffect, useState } from "react";
 import Categories from "@/app/components/user_profile/creation-process/categories";
 import DisplayNameStep from "./creation-process/display-name-step";
 import ContactInfoStep from "./creation-process/contact-info-step";
+import PersonalInfoStep from "./creation-process/personal-info-step";
 
 type CompleteProfileModalProps = {
   children?: React.ReactNode;
@@ -50,6 +51,10 @@ export default function CompleteProfileModal({
 
     if (missingFields.some((field) => ["firstName", "lastName", "phoneNumber"].includes(field))) {
       return <ContactInfoStep profile={profile} />;
+    }
+
+    if (missingFields.some((field) => ["birthDate", "gender", "state"].includes(field))) {
+      return <PersonalInfoStep profile={profile} />;
     }
   };
 
