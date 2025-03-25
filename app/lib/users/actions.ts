@@ -187,6 +187,7 @@ export async function updateProfileCategories(
   };
 }
 
+// TODO: This function should only add user social profiles. Refactor if necessary so we don't have to handle updating existing ones
 export async function upsertUserSocialProfiles(
   profileId: number,
   socials: { type: UserSocial["type"]; username: string }[],
@@ -201,15 +202,21 @@ export async function upsertUserSocialProfiles(
           inArray(userSocials.type, socialsTypesToInsert),
         ),
       });
+      const socialsToInsert = socials.filter(
+        (social) => !existingSocials.some((s) => s.type === social.type),
+      );
 
       existingSocials.forEach(async (social) => {
-        await tx
-          .update(userSocials)
-          .set({ username: social.username, updatedAt: new Date() })
-          .where(eq(userSocials.id, social.id));
+        const socialToUpdate = socials.find((s) => s.type === social.type);
+        if (socialToUpdate) {
+          await tx
+            .update(userSocials)
+            .set({ username: socialToUpdate.username, updatedAt: new Date() })
+            .where(eq(userSocials.id, social.id));
+        }
       });
 
-      socials.forEach(async (social) => {
+      socialsToInsert.forEach(async (social) => {
         await tx.insert(userSocials).values({
           userId: profileId,
           type: social.type,
@@ -222,43 +229,6 @@ export async function upsertUserSocialProfiles(
     return {
       success: false,
       message: "Error al agregar los perfiles de redes sociales",
-    };
-  }
-
-  revalidatePath("/my_profile");
-  return {
-    success: true,
-    message: "Perfil actualizado correctamente",
-  };
-}
-
-export async function updateProfileSocials(
-  profileId: number,
-  socials: UserSocial[],
-) {
-  try {
-    if (socials.length === 0) {
-      return { success: false, message: "No se actualizó el perfil" };
-    }
-
-    await db.transaction(async (tx) => {
-      await tx
-        .update(users)
-        .set({ updatedAt: new Date() })
-        .where(eq(users.id, profileId));
-
-      socials.forEach(async (social) => {
-        await tx
-          .update(userSocials)
-          .set({ username: social.username, updatedAt: new Date() })
-          .where(eq(userSocials.id, social.id));
-      });
-    });
-  } catch (error) {
-    console.error("Error updating profile", error);
-    return {
-      success: false,
-      message: "Error al actualizar el perfil",
     };
   }
 

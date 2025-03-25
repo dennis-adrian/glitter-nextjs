@@ -8,14 +8,6 @@ import { ProfileType } from "@/app/api/users/definitions";
 
 import { Input } from "@/app/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/app/components/ui/select";
-import { userCategoryOptions } from "@/app/lib/utils";
-import {
   Form,
   FormControl,
   FormField,
@@ -25,9 +17,9 @@ import {
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { userCategoryEnum } from "@/db/schema";
-import { findUserSocial, formatUserSocialsForInsertion } from "./utils";
+import { findUserSocial } from "./utils";
 import SubmitButton from "@/app/components/simple-submit-button";
-import { updateProfile, updateProfileSocials } from "@/app/lib/users/actions";
+import { updateProfile } from "@/app/lib/users/actions";
 import { toast } from "sonner";
 
 const usernameRegex = new RegExp(/^[a-zA-Z0-9_.-]+$/);
@@ -37,25 +29,6 @@ const FormSchema = z.object({
   displayName: z.string().min(2, {
     message: "El nombre de artista tiene que tener al menos dos letras",
   }),
-  facebookProfile: z
-    .string()
-    .transform((v) => v.trim())
-    .refine((value) => value === "" || usernameRegex.test(value), {
-      message: "El nombre de usuario no puede tener caracteres especiales",
-    }),
-  instagramProfile: z
-    .string()
-    .min(2, { message: "Agrega al menos tu perfil de Instagram" })
-    .transform((v) => v.trim())
-    .refine((value) => value === "" || usernameRegex.test(value), {
-      message: "El nombre de usuario no puede tener caracteres especiales",
-    }),
-  tiktokProfile: z
-    .string()
-    .transform((v) => v.trim())
-    .refine((value) => value === "" || usernameRegex.test(value), {
-      message: "El nombre de usuario no puede tener caracteres especiales",
-    }),
 });
 
 export default function PublicProfileForm({
@@ -65,9 +38,9 @@ export default function PublicProfileForm({
   profile: ProfileType;
   onSuccess: () => void;
 }) {
-  const instagramProfile = findUserSocial(profile, "instagram");
-  const facebookProfile = findUserSocial(profile, "facebook");
-  const tiktokProfile = findUserSocial(profile, "tiktok");
+  const instagram = findUserSocial(profile, "instagram");
+  const facebook = findUserSocial(profile, "facebook");
+  const tiktok = findUserSocial(profile, "tiktok");
 
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
@@ -75,20 +48,15 @@ export default function PublicProfileForm({
       bio: profile.bio || "",
       displayName: profile.displayName || "",
       category: profile.category,
-      instagramProfile: instagramProfile?.username || "",
-      facebookProfile: facebookProfile?.username || "",
-      tiktokProfile: tiktokProfile?.username || "",
     },
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    const socials = formatUserSocialsForInsertion(data, profile);
-    const resultSocials = await updateProfileSocials(profile.id, socials);
     const result = await updateProfile(profile.id, {
       ...data,
     });
 
-    if (result.success && resultSocials.success) {
+    if (result.success) {
       toast.success(result.message);
       onSuccess();
     } else {
@@ -130,69 +98,6 @@ export default function PublicProfileForm({
                     placeholder="Escribe un poco sobre ti"
                     {...field}
                   />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <div className="text-muted-foreground mt-3 font-bold">
-            Debes agregar al menos una red social
-          </div>
-          <FormField
-            control={form.control}
-            name="instagramProfile"
-            render={({ field }) => (
-              <FormItem className="grid gap-2">
-                <FormLabel>Perfil de Instagram</FormLabel>
-                <FormControl>
-                  <div className="flex items-center">
-                    <span className="mx-2">@</span>
-                    <Input
-                      type="text"
-                      placeholder="Tu usuario de Instagram"
-                      {...field}
-                    />
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="tiktokProfile"
-            render={({ field }) => (
-              <FormItem className="grid gap-2">
-                <FormLabel>Perfil de Tik Tok</FormLabel>
-                <FormControl>
-                  <div className="flex items-center">
-                    <span className="mx-2">@</span>
-                    <Input
-                      type="text"
-                      placeholder="Tu usuario de TikTok"
-                      {...field}
-                    />
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="facebookProfile"
-            render={({ field }) => (
-              <FormItem className="grid gap-2">
-                <FormLabel>Perfil de Facebook</FormLabel>
-                <FormControl>
-                  <div className="flex items-center">
-                    <span className="mx-2">@</span>
-                    <Input
-                      type="text"
-                      placeholder="Tu usuario de Facebook"
-                      {...field}
-                    />
-                  </div>
                 </FormControl>
                 <FormMessage />
               </FormItem>
