@@ -3,6 +3,8 @@ import { RedirectButton } from "@/app/components/redirect-button";
 import { fetchLatestInvoiceByProfileId } from "@/app/data/invoices/actions";
 import { ArrowUpRightIcon } from "lucide-react";
 import AnnouncementCard from "@/components/user_profile/announcements_cards/card";
+import { DateTime } from "luxon";
+import { formatDate } from "@/app/lib/formatters";
 
 type UserProfileBannerProps = {
   profile: ProfileType;
@@ -27,17 +29,26 @@ export default async function UserProfileBanner({
   const {
     reservation: { festivalId },
     reservationId,
+    date,
   } = latestInvoice;
+  const paymentDueDate = formatDate(
+    DateTime.fromJSDate(date).plus({ hours: 120 }).toJSDate(),
+  );
 
   return (
-    <div className="sticky top-0 z-10 bg-white pt-3 w-full">
-      <div className="border p-3 rounded-lg drop-shadow-lg bg-card">
-        <div className="flex flex-wrap md:flex-row gap-4 justify-center items-center text-center md:text-left">
+    <div className="sticky top-2 z-10 w-full bg-background">
+      <div className="bg-emerald-100 text-emerald-900 border-emerald-300 border p-3 rounded-md text-sm">
+        <div className="flex flex-col items-center gap-1">
           <span>
-            Tienes un pago pendiente. Puedes realizarlo dando clic en al botón
+            Tenés un pago pendiente. Hacé el pago antes del{" "}
+            {paymentDueDate.toLocaleString(DateTime.DATE_SHORT)} a las{" "}
+            {paymentDueDate.toLocaleString(DateTime.TIME_SIMPLE)} para no perder
+            tu reserva.
           </span>
           <RedirectButton
+            variant="link"
             size="sm"
+            className="text-emerald-900 underline"
             href={`/profiles/${profile.id}/festivals/${festivalId}/reservations/${reservationId}/payments`}
           >
             Realizar pago

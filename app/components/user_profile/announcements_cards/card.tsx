@@ -1,19 +1,24 @@
-import { fetchActiveFestival } from "@/app/data/festivals/actions";
+import { fetchStandById } from "@/app/api/stands/actions";
 import { ProfileType } from "@/app/api/users/definitions";
-import PendingArtistCard from "./pending-artist-card";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { ReserveStandCard } from "@/app/components/user_profile/announcements_cards/reserve-stand-card";
-import { fetchStandById } from "@/app/api/stands/actions";
 import { ReservedStandCard } from "@/app/components/user_profile/announcements_cards/reserved-stand-card";
-import { isProfileComplete } from "@/app/lib/utils";
 import { TermsCard } from "@/app/components/user_profile/announcements_cards/terms-card";
+import { fetchActiveFestival } from "@/app/data/festivals/actions";
+import { isProfileComplete } from "@/app/lib/utils";
+import PendingVerificationCard from "./pending-verification-card";
+import RejectedProfileCard from "./rejected-profile.card";
 
 export default async function Card({ profile }: { profile: ProfileType }) {
   if (!profile || profile?.role === "admin") return null;
 
+  if (profile.status === "rejected") {
+    return <RejectedProfileCard />;
+  }
+
   if (profile.status !== "verified") {
     if (isProfileComplete(profile)) {
-      return <PendingArtistCard />;
+      return <PendingVerificationCard />;
     }
   }
 
@@ -34,7 +39,7 @@ export default async function Card({ profile }: { profile: ProfileType }) {
       const standId = currentFestivalResevation.reservation.standId;
       const stand = await fetchStandById(standId);
       if (stand) {
-        return <ReservedStandCard stand={stand} />;
+        return <ReservedStandCard festival={festival} stand={stand} />;
       }
     }
 
