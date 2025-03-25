@@ -78,8 +78,10 @@ export default async function Page() {
       <Suspense fallback={<Skeleton className="h-20 w-full" />}>
         <UserProfileBanner profile={profile} />
       </Suspense>
-      <PublicProfile profile={profile} />
-      <PrivateProfileOverview profile={profile} />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <PublicProfile profile={profile} />
+        <PrivateProfileOverview profile={profile} />
+      </div>
       <CompleteProfileModal
         subcategoriesPromise={subcategories}
         profile={profile}

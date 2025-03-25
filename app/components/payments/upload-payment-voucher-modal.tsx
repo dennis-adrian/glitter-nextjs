@@ -15,13 +15,15 @@ export default function UploadPaymentVoucherModal(
   props: UploadPaymentVoucherModalProps,
 ) {
   const payments = props.invoice.payments;
+  const [isUploadStarted, setIsUploadStarted] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [voucherUrl, setVoucherUrl] = useState<string | undefined>(
     payments[payments?.length - 1]?.voucherUrl,
   );
 
   return (
     <BaseModal
-      title="Subir comprobante"
+      title="Comprobante de pago"
       show={props.open}
       onOpenChange={props.onOpenChange}
     >
@@ -29,10 +31,16 @@ export default function UploadPaymentVoucherModal(
         <PaymentProofUpload
           voucherImageUrl={voucherUrl}
           onUploadComplete={setVoucherUrl}
+          onUploading={(isUploading) => {
+            setIsUploadStarted(true);
+            setIsUploading(isUploading);
+          }}
         />
         <UploadPaymentVoucherForm
           invoice={props.invoice}
           newVoucherUrl={voucherUrl}
+          loading={isUploading}
+          disabled={!isUploadStarted}
         />
       </div>
     </BaseModal>
