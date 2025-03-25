@@ -110,6 +110,13 @@ export function getMissingProfileFieldsKeys(profile: ProfileType) {
     missingFields.push("category");
   }
 
+  if (
+    profile.imageUrl?.includes("clerk") ||
+    profile.imageUrl?.includes("edgestore")
+  ) {
+    missingFields.push("imageUrl");
+  }
+
   return missingFields;
 }
 

@@ -14,11 +14,13 @@ export default function ProfilePicUpload({
   imageUrl,
   setImageUrl,
   profile,
+  onUploading,
 }: {
   imageUrl: string | null;
   setImageUrl: (imageUrl: string) => void;
   size?: "sm" | "md" | "lg";
   profile: BaseProfile;
+  onUploading?: (isUploading: boolean) => void;
 }) {
   let containerSize = "w-32 h-32";
   if (size === "md") {
@@ -75,6 +77,7 @@ export default function ProfilePicUpload({
         endpoint="profilePicture"
         onBeforeUploadBegin={(files) => {
           // Preprocess files before uploading (e.g. rename them)
+          if (onUploading) onUploading(true);
           return files.map((f) => {
             const fileExtension = f.name.split(".").pop();
             return new File([f], `${fileName}.${fileExtension}`, {
@@ -83,6 +86,9 @@ export default function ProfilePicUpload({
           });
         }}
         onClientUploadComplete={async (res) => {
+          // TODO: Improve the UX. Waiting to show the image by showing a toast message is not good.
+          // Also, the original image should be removed.
+          if (onUploading) onUploading(false);
           const serverData = res[0].serverData;
           const { results } = serverData;
           if (results.imageUrl) {
