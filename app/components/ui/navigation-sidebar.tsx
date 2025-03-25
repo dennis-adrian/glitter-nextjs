@@ -106,6 +106,7 @@ const NavigationSidebar = ({
         {profile && (
           <div className="flex flex-col gap-2">
             <ProfileQuickViewInfo
+              className="my-3"
               profile={profile}
               avatarClassName="h-10 w-10"
             />

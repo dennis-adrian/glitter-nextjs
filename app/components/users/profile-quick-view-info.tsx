@@ -3,22 +3,26 @@
 import { BadgeCheckIcon, CopyIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { BaseProfile } from "@/app/api/users/definitions";
-import CategoryBadge from "@/app/components/category-badge";
-import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import {
+  BaseProfile,
+  ProfileSubcategoryWithSubcategory,
+} from "@/app/api/users/definitions";
+import SubcategoryBadge from "@/app/components/atoms/subcategory-badge";
+import ProfileAvatar from "@/app/components/common/profile-avatar";
+import { cn, truncateText } from "@/app/lib/utils";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { cn, truncateText } from "@/app/lib/utils";
-import ProfileAvatar from "@/app/components/common/profile-avatar";
 
 type UserQuickViewInfoProps = {
   avatarClassName?: string;
   className?: string;
-  profile: BaseProfile;
+  profile: BaseProfile & {
+    profileSubcategories: ProfileSubcategoryWithSubcategory[];
+  };
   showAdminControls?: boolean;
 };
 export default function ProfileQuickViewInfo(props: UserQuickViewInfoProps) {
@@ -34,7 +38,7 @@ export default function ProfileQuickViewInfo(props: UserQuickViewInfoProps) {
           showBadge={false}
         />
       </div>
-      <div className="flex flex-col gap-1 w-full">
+      <div className="flex flex-col w-full">
         <span className="flex gap-1 items-center">
           <h3 className="font-medium leading-4">
             {props.profile.displayName || ""}
@@ -53,7 +57,6 @@ export default function ProfileQuickViewInfo(props: UserQuickViewInfoProps) {
             </TooltipProvider>
           )}
         </span>
-        <CategoryBadge category={props.profile.category} />
         <div className="text-sm text-muted-foreground">
           <span className="flex gap-1 items-center">
             {truncateText(props.profile.email, 20, "email")}
@@ -67,6 +70,14 @@ export default function ProfileQuickViewInfo(props: UserQuickViewInfoProps) {
               />
             )}
           </span>
+        </div>
+        <div className="flex flex-wrap gap-1 mt-2">
+          {props.profile.profileSubcategories.map((subcategory) => (
+            <SubcategoryBadge
+              key={subcategory.id}
+              subcategory={subcategory.subcategory}
+            />
+          ))}
         </div>
       </div>
     </div>
