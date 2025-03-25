@@ -187,6 +187,51 @@ export async function updateProfileCategories(
   };
 }
 
+export async function upsertUserSocialProfiles(
+  profileId: number,
+  socials: { type: UserSocial["type"]; username: string }[],
+) {
+  try {
+    const socialsTypesToInsert = socials.map((social) => social.type);
+
+    await db.transaction(async (tx) => {
+      const existingSocials = await tx.query.userSocials.findMany({
+        where: and(
+          eq(userSocials.userId, profileId),
+          inArray(userSocials.type, socialsTypesToInsert),
+        ),
+      });
+
+      existingSocials.forEach(async (social) => {
+        await tx
+          .update(userSocials)
+          .set({ username: social.username, updatedAt: new Date() })
+          .where(eq(userSocials.id, social.id));
+      });
+
+      socials.forEach(async (social) => {
+        await tx.insert(userSocials).values({
+          userId: profileId,
+          type: social.type,
+          username: social.username,
+        });
+      });
+    });
+  } catch (error) {
+    console.error("Error adding user social profiles", error);
+    return {
+      success: false,
+      message: "Error al agregar los perfiles de redes sociales",
+    };
+  }
+
+  revalidatePath("/my_profile");
+  return {
+    success: true,
+    message: "Perfil actualizado correctamente",
+  };
+}
+
 export async function updateProfileSocials(
   profileId: number,
   socials: UserSocial[],

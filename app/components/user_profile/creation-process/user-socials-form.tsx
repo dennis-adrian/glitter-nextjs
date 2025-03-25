@@ -1,10 +1,9 @@
 import { ProfileType } from "@/app/api/users/definitions";
 import SocialMediaInput from "@/app/components/form/fields/social-media";
 import SubmitButton from "@/app/components/simple-submit-button";
-import { Button } from "@/app/components/ui/button";
 import { Form } from "@/app/components/ui/form";
 import { formatUserSocialsForInsertion } from "@/app/components/user_profile/public_profile/utils";
-import { updateProfileSocials } from "@/app/lib/users/actions";
+import { upsertUserSocialProfiles } from "@/app/lib/users/actions";
 import { usernameRegex } from "@/app/lib/users/utils";
 import {
   faFacebookF,
@@ -12,32 +11,32 @@ import {
   faTiktok,
 } from "@fortawesome/free-brands-svg-icons";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
+import { ArrowDownToLineIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
 const FormSchema = z.object({
-  instagramProfile: z
+  instagram: z
     .string({
-      required_error: "El de Instagram es requerido",
+      required_error: "El perfil de Instagram es requerido",
     })
     .trim()
     .min(2, {
-      message: "El nombre de tu perfil de Instagram no puede estar vacío",
+      message: "El nombre de tu usuario de Instagram no puede estar vacío",
     })
     .regex(
       usernameRegex,
       "El nombre de usuario no puede tener caracteres especiales",
     ),
-  tiktokProfile: z
+  tiktok: z
     .string()
     .trim()
     .refine((value) => value === "" || usernameRegex.test(value), {
       message: "El nombre de usuario no puede tener caracteres especiales",
     })
     .optional(),
-  facebookProfile: z
+  facebook: z
     .string()
     .trim()
     .refine((value) => value === "" || usernameRegex.test(value), {
@@ -48,33 +47,18 @@ const FormSchema = z.object({
 
 type UserSocialsFormProps = {
   profile: ProfileType;
-  onBack: () => void;
-  onSubmit: () => void;
 };
 
 export default function UserSocialsForm(props: UserSocialsFormProps) {
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
-    defaultValues: {
-      instagramProfile:
-        props.profile.userSocials.find((social) => social.type === "instagram")
-          ?.username || "",
-      tiktokProfile:
-        props.profile.userSocials.find((social) => social.type === "tiktok")
-          ?.username || "",
-      facebookProfile:
-        props.profile.userSocials.find((social) => social.type === "facebook")
-          ?.username || "",
-    },
   });
 
   const action: () => void = form.handleSubmit(async (data) => {
-    const socials = formatUserSocialsForInsertion(data, props.profile);
-    const res = await updateProfileSocials(props.profile.id, socials);
-
+    const socials = formatUserSocialsForInsertion(data);
+    const res = await upsertUserSocialProfiles(props.profile.id, socials);
     if (res.success) {
       toast.success(res.message);
-      props.onSubmit();
     } else {
       toast.error(res.message);
     }
@@ -82,42 +66,43 @@ export default function UserSocialsForm(props: UserSocialsFormProps) {
 
   return (
     <Form {...form}>
-      <form
-        onSubmit={action}
-        className="w-full my-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-start"
-      >
-        <SocialMediaInput
-          bottomBorderOnly
-          formControl={form.control}
-          label="Perfil de Instagram"
-          name="instagramProfile"
-          icon={faInstagram}
-        />
-        <SocialMediaInput
-          bottomBorderOnly
-          formControl={form.control}
-          label="Perfil de TikTok"
-          name="tiktokProfile"
-          icon={faTiktok}
-        />
-        <SocialMediaInput
-          bottomBorderOnly
-          formControl={form.control}
-          label="Perfil de Facebook"
-          name="facebookProfile"
-          icon={faFacebookF}
-        />
+      <form onSubmit={action} className="w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-4 items-start my-4">
+          <SocialMediaInput
+            bottomBorderOnly
+            formControl={form.control}
+            label="Perfil de Instagram*"
+            name="instagram"
+            icon={faInstagram}
+          />
+          <SocialMediaInput
+            bottomBorderOnly
+            formControl={form.control}
+            label="Perfil de TikTok"
+            name="tiktok"
+            icon={faTiktok}
+          />
+          <SocialMediaInput
+            bottomBorderOnly
+            formControl={form.control}
+            label="Perfil de Facebook"
+            name="facebook"
+            icon={faFacebookF}
+          />
+        </div>
+        <div>
+          <p className="text-xs md:text-sm italic text-muted-foreground">
+            * El perfil de Instagram es requerido. Los perfiles de TikTok y
+            Facebook son opcionales.
+          </p>
+        </div>
         <div className="flex gap-2 my-4 col-span-1 sm:col-span-2 md:col-span-3">
-          <Button type="button" variant="outline" onClick={props.onBack}>
-            <ArrowLeftIcon className="w-4 h-4 mr-2" />
-            Volver
-          </Button>
           <SubmitButton
             disabled={form.formState.isSubmitting}
             loading={form.formState.isSubmitting}
           >
-            Continuar
-            <ArrowRightIcon className="ml-2 w-4 h-4" />
+            Guardar
+            <ArrowDownToLineIcon className="ml-2 w-4 h-4" />
           </SubmitButton>
         </div>
       </form>

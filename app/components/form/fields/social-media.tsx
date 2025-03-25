@@ -51,10 +51,12 @@ export default function SocialMediaInput({
                 <div className="relative flex items-center w-full">
                   <span className="absolute text-muted-foreground">@</span>
                   <Input
+                    bottomBorderOnly
                     className="pl-5"
-                    bottomBorderOnly={bottomBorderOnly}
-                    {...props}
                     {...field}
+                    {...props}
+                    // this is necessary so the input doesn't go from null to "" which triggers a validation error
+                    value={field.value || ""}
                   />
                 </div>
               </div>

@@ -15,6 +15,7 @@ import Categories from "@/app/components/user_profile/creation-process/categorie
 import DisplayNameStep from "./creation-process/display-name-step";
 import ContactInfoStep from "./creation-process/contact-info-step";
 import PersonalInfoStep from "./creation-process/personal-info-step";
+import UserSocialsStep from "@/app/components/user_profile/creation-process/user-socials-step";
 
 type CompleteProfileModalProps = {
   children?: React.ReactNode;
@@ -50,6 +51,10 @@ export default function CompleteProfileModal({
 
     if (missingFields.some((field) => ["bio", "displayName"].includes(field))) {
       return <DisplayNameStep profile={profile} />;
+    }
+
+    if (missingFields.includes("userSocials")) {
+      return <UserSocialsStep profile={profile} />;
     }
 
     if (

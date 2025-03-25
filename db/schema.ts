@@ -11,7 +11,6 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
-import { number } from "zod";
 
 export const userRoleEnum = pgEnum("user_role", [
   "admin",
