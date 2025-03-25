@@ -28,11 +28,7 @@ export default function ProfileQuickViewInfo(props: UserQuickViewInfoProps) {
         <ProfileAvatar
           profile={{
             ...props.profile,
-            userSocials: [],
-            userRequests: [],
             participations: [],
-            profileTags: [],
-            profileSubcategories: [],
           }}
           className={props.avatarClassName}
           showBadge={false}

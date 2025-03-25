@@ -25,11 +25,7 @@ export default async function DashboardUserPage(props: DashboardUserPageProps) {
     <div className="mx-auto max-w-screen-lg p-3 md:p-6">
       <div className="flex flex-col gap-4">
         {hasPendingPayment ? (
-          <UserProfileBanner
-            profileId={props.profileId}
-            festivalId={latestInvoice.reservation.festivalId}
-            reservationId={latestInvoice.reservationId}
-          />
+          <UserProfileBanner profile={forProfile} />
         ) : (
           forProfile.status !== "banned" && (
             <AnnouncementCard profile={forProfile} />
