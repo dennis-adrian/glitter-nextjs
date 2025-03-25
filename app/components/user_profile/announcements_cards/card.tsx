@@ -1,6 +1,5 @@
 import { fetchActiveFestival } from "@/app/data/festivals/actions";
 import { ProfileType } from "@/app/api/users/definitions";
-import MissingFieldsCard from "./missing-fields-card";
 import PendingArtistCard from "./pending-artist-card";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { ReserveStandCard } from "@/app/components/user_profile/announcements_cards/reserve-stand-card";
@@ -16,10 +15,6 @@ export default async function Card({ profile }: { profile: ProfileType }) {
     if (isProfileComplete(profile)) {
       return <PendingArtistCard />;
     }
-  }
-
-  if (!isProfileComplete(profile)) {
-    return <MissingFieldsCard profile={profile} />;
   }
 
   const festival = await fetchActiveFestival({});
