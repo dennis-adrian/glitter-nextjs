@@ -7,7 +7,7 @@ import {
 } from "@/app/lib/users/actions";
 import { users } from "@/db/schema";
 import { buildWhereClause } from "@/db/utils";
-import { eq, isNotNull, isNull, not, sql } from "drizzle-orm";
+import { eq, isNotNull, isNull, like, not, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 export async function getCurrentUserProfile() {
@@ -72,7 +72,7 @@ export async function buildWhereClauseForProfileFetching(
         conditions,
         sql`(${isNotNull(users.bio)} and ${isNotNull(
           users.imageUrl,
-        )} and ${isNotNull(users.firstName)} and ${isNotNull(
+        )} and ${not(like(users.imageUrl, "%clerk%"))} and ${not(like(users.imageUrl, "%edgestore%"))} and ${isNotNull(users.firstName)} and ${isNotNull(
           users.lastName,
         )} and ${isNotNull(users.phoneNumber)} and ${isNotNull(
           users.displayName,
@@ -88,9 +88,10 @@ export async function buildWhereClauseForProfileFetching(
     if (profileCompletion === "incomplete") {
       buildWhereClause(
         conditions,
-        sql`(${isNull(users.bio)} or ${isNull(users.imageUrl)} or ${isNull(
-          users.firstName,
-        )} or ${isNull(users.lastName)} or ${isNull(
+        sql`(${isNull(users.bio)} or ${isNull(users.imageUrl)} or ${like(
+          users.imageUrl,
+          "%clerk%",
+        )} or ${like(users.imageUrl, "%edgestore%")} or ${isNull(users.firstName)} or ${isNull(users.lastName)} or ${isNull(
           users.phoneNumber,
         )} or ${isNull(users.displayName)} or ${isNull(
           users.state,
@@ -102,7 +103,6 @@ export async function buildWhereClauseForProfileFetching(
       );
     }
   } else {
-    console.log("profileCompletion", profileCompletion);
     if (profileCompletion === "complete") {
       buildWhereClause(
         conditions,
