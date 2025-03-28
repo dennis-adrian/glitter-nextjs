@@ -40,7 +40,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
             participar en el festival.
           </p>
           <p className="text-sm text-muted-foreground">
-            Última actualización: 13 de marzo de 2025
+            Última actualización: 28 de marzo de 2025
           </p>
         </div>
 
@@ -113,8 +113,9 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
                 evento.
               </li>
               <li>
-                Todos los expositores deben tener un perfil aprobado en nuestro
-                sitio web y una reserva confirmada y pagada para su espacio.
+                Todos los participantes deben tener un perfil aprobado en
+                nuestro sitio web y una reserva confirmada y pagada para su
+                espacio.
               </li>
               <li>
                 Los organizadores del festival se reservan el derecho de
@@ -152,7 +153,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 
           <Separator />
 
-          <Accordion type="single" collapsible className="w-full">
+          <Accordion type="multiple" className="w-full">
             <AccordionItem value="item-1">
               <AccordionTrigger className="text-lg md:text-xl font-semibold">
                 3. Reservas, Pagos y Cancelaciones
@@ -161,8 +162,11 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
                 <ul className="list-disc pl-6 space-y-2">
                   <li>
                     Los ilustradores que quieran compartir espacio deben agregar
-                    a su compañero al momento de hacer la reserva. No se
-                    aceptarán cambios una vez hecha la reserva.
+                    a su compañero al momento de hacer la reserva. Todo
+                    ilustrador debe tener un perfil aprobado y debe haber
+                    aceptado los términos y condiciones para poder ser agregado
+                    como compañero. No se aceptarán cambios una vez hecha la
+                    reserva.
                   </li>
                   <li>
                     La reserva se confirma al realizar el pago correspondiente.
@@ -201,6 +205,10 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
                     explícitamente permitido por los organizadores del festival.
                   </li>
                 </ul>
+                <p className="mt-4">
+                  Cancelar una reserva puede resultar en penalizaciones para
+                  participaciones en futuros festivales de la productora.
+                </p>
               </AccordionContent>
             </AccordionItem>
 
@@ -384,7 +392,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
                         Productos que generen olores fuertes o desagradables
                       </li>
                       <li>Gaseosas</li>
-                      <li>Panchitos o "hot dogs" en general</li>
+                      <li>Panchitos o &quot;hot dogs&quot; en general</li>
                       <li>Sopas de ramen</li>
                       <li>Pipocas</li>
                     </ol>
