@@ -375,14 +375,16 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
                 </h3>
                 <ul className="list-disc pl-6 space-y-2">
                   <li>
-                    No está permitido la venta de los siguientes productos:
+                    Por motivos de patrocinio, exclusividad y alineación con la
+                    temática del evento, no se permite la venta de los
+                    siguientes productos.
                     <ol className="ps-5 mt-2 space-y-1 list-disc list-inside">
                       <li>Bebidas alcohólicas o que contengan alcohol</li>
                       <li>
                         Productos que generen olores fuertes o desagradables
                       </li>
                       <li>Gaseosas</li>
-                      <li>Panchitos</li>
+                      <li>Panchitos o "hot dogs" en general</li>
                       <li>Sopas de ramen</li>
                       <li>Pipocas</li>
                     </ol>
