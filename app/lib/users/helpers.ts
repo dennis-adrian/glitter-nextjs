@@ -76,9 +76,7 @@ export async function buildWhereClauseForProfileFetching(
           users.lastName,
         )} and ${isNotNull(users.phoneNumber)} and ${isNotNull(
           users.displayName,
-        )} and ${isNotNull(users.state)} and ${isNotNull(
-          users.gender,
-        )} and ${not(
+        )} and ${isNotNull(users.gender)} and ${not(
           eq(users.category, "none"),
         )} and json_array_length("users_userSocials"."data") > 0
       and json_array_length("users_profileSubcategories"."data") > 0)`,
@@ -93,9 +91,7 @@ export async function buildWhereClauseForProfileFetching(
           "%clerk%",
         )} or ${like(users.imageUrl, "%edgestore%")} or ${isNull(users.firstName)} or ${isNull(users.lastName)} or ${isNull(
           users.phoneNumber,
-        )} or ${isNull(users.displayName)} or ${isNull(
-          users.state,
-        )} or ${isNull(users.gender)} or ${eq(
+        )} or ${isNull(users.displayName)} or ${isNull(users.gender)} or ${eq(
           users.category,
           "none",
         )} or json_array_length("users_userSocials"."data") = 0

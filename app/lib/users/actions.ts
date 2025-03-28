@@ -84,15 +84,12 @@ export async function createUserProfile(user: NewUser) {
         })
         .returning();
 
-      await tx
-        .insert(scheduledTasks)
-        .values({
-          dueDate: sql`now() + interval '3 days'`,
-          reminderTime: sql`now() + interval '1 days'`,
-          profileId: newUser.id,
-          taskType: "profile_creation",
-        })
-        .returning();
+      await tx.insert(scheduledTasks).values({
+        dueDate: sql`now() + interval '3 days'`,
+        reminderTime: sql`now() + interval '1 days'`,
+        profileId: newUser.id,
+        taskType: "profile_creation",
+      });
 
       return newUser;
     });

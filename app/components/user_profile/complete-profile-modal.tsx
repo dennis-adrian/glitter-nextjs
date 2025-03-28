@@ -71,7 +71,7 @@ export default function CompleteProfileModal({
 
     if (
       missingFields.some((field) =>
-        ["birthdate", "gender", "state"].includes(field),
+        ["birthdate", "gender", "country"].includes(field),
       )
     ) {
       return <PersonalInfoStep profile={profile} />;

@@ -89,7 +89,7 @@ const requiredProfileFields = [
   { key: "displayName", label: "Nombre de artista", isPublic: true },
   { key: "email", label: "Correo electrónico" },
   { key: "gender", label: "Género" },
-  { key: "state", label: "Departamento de residencia" },
+  { key: "country", label: "País de residencia" },
 ] as { key: keyof ProfileType; label: string; isPublic: boolean }[];
 
 export function getMissingProfileFieldsKeys(profile: ProfileType) {
