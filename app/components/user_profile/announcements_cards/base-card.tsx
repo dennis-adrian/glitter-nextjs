@@ -22,7 +22,7 @@ export default function BaseCard({
         className,
       )}
     >
-      <CardContent className="text-sm py-3 ">
+      <CardContent className="p-3 md:p-4 text-sm">
         <div className="flex flex-col justify-between items-center md:flex-row gap-2">
           <div>{content}</div>
           {footer}

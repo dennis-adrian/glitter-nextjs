@@ -6,6 +6,7 @@ import PrivateProfile from "@/app/components/user_profile/private_profile/overvi
 import { fetchLatestInvoiceByProfileId } from "@/app/data/invoices/actions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import PendingPaymentBanner from "@/app/components/users/pending-payment-banner";
+import FestivalActivityBanner from "@/app/components/pages/my_profile/festival-activity-banner";
 
 export default async function MyProfilePage() {
   const profile = await getCurrentUserProfile();
@@ -27,9 +28,12 @@ export default async function MyProfilePage() {
               reservationId={latestInvoice.reservationId}
             />
           ) : (
-            profile.status !== "banned" && (
-              <AnnouncementCard profile={profile} />
-            )
+            <>
+              <FestivalActivityBanner profile={profile} />
+              {profile.status !== "banned" && (
+                <AnnouncementCard profile={profile} />
+              )}
+            </>
           )}
           <PublicProfile profile={profile} />
           <PrivateProfile profile={profile} />
