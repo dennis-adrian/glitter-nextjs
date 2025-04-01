@@ -168,14 +168,24 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
               </AccordionTrigger>
               <AccordionContent className="text-muted-foreground">
                 <ul className="list-disc pl-6 space-y-2">
-                  <li>
-                    Los ilustradores que quieran compartir espacio deben agregar
-                    a su compañero al momento de hacer la reserva. Todo
-                    ilustrador debe tener un perfil aprobado y debe haber
-                    aceptado los términos y condiciones para poder ser agregado
-                    como compañero. No se aceptarán cambios una vez hecha la
-                    reserva.
-                  </li>
+                  {mapCategory === "illustration" && (
+                    <li>
+                      Los ilustradores que quieran compartir espacio deben
+                      agregar a su compañero al momento de hacer la reserva.
+                      Todo ilustrador debe tener un perfil aprobado y debe haber
+                      aceptado los términos y condiciones para poder ser
+                      agregado como compañero. No se aceptarán cambios una vez
+                      hecha la reserva.
+                    </li>
+                  )}
+                  {mapCategory === "entrepreneurship" &&
+                    props.festival.festivalType === "festicker" && (
+                      <li>
+                        Para participar del Festicker los expositores deberán
+                        implementar stickers con su logo y/o información de
+                        contacto en lugar de tarjetas de presentación comunes.
+                      </li>
+                    )}
                   <li>
                     La reserva se confirma al realizar el pago correspondiente.
                     El estado de la reserva puede tomar hasta 48hrs en
@@ -283,7 +293,8 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
                   </li>
                   <li>
                     No participen en ninguna forma de acoso, discriminación o
-                    comportamiento amenazante.
+                    comportamiento amenazante tanto dentro como fuera de los
+                    festivales.
                   </li>
                   <li>
                     No posean ni usen sustancias ilegales. Ni se encuentren en
@@ -297,7 +308,9 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
                 </ul>
                 <p className="mt-4">
                   La violación de este código de conducta puede resultar en la
-                  expulsión inmediata del festival sin reembolso.
+                  expulsión inmediata del festival sin reembolso y/o la
+                  prohibición de participar en futuros festivales de la
+                  productora.
                 </p>
               </AccordionContent>
             </AccordionItem>
@@ -386,39 +399,44 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
                     locales
                   </li>
                 </ul>
-                <h3 className="text-lg font-semibold mt-4">
-                  Sector de gastronomía
-                </h3>
-                <ul className="list-disc pl-6 space-y-2">
-                  <li>
-                    Por motivos de patrocinio, exclusividad y alineación con la
-                    temática del evento, no se permite la venta de los
-                    siguientes productos.
-                    <ol className="ps-5 mt-2 space-y-1 list-disc list-inside">
-                      <li>Bebidas alcohólicas o que contengan alcohol</li>
+                {mapCategory === "gastronomy" && (
+                  <>
+                    <h3 className="text-lg font-semibold mt-4">
+                      Sector de gastronomía
+                    </h3>
+                    <ul className="list-disc pl-6 space-y-2">
                       <li>
-                        Productos que generen olores fuertes o desagradables
+                        Por motivos de patrocinio, exclusividad y alineación con
+                        la temática del evento, no se permite la venta de los
+                        siguientes productos.
+                        <ol className="ps-5 mt-2 space-y-1 list-disc list-inside">
+                          <li>Bebidas alcohólicas o que contengan alcohol</li>
+                          <li>
+                            Productos que generen olores fuertes o desagradables
+                          </li>
+                          <li>Gaseosas</li>
+                          <li>Panchitos o &quot;hot dogs&quot; en general</li>
+                          <li>Sopas de ramen</li>
+                          <li>Pipocas</li>
+                        </ol>
                       </li>
-                      <li>Gaseosas</li>
-                      <li>Panchitos o &quot;hot dogs&quot; en general</li>
-                      <li>Sopas de ramen</li>
-                      <li>Pipocas</li>
-                    </ol>
-                  </li>
-                  <li>
-                    Los productos que el expositor ofrezca a la venta deben
-                    estar previamente preparados. Recalcar que no se permite el
-                    uso de garrafas o cualquier artefacto que provoque fuego.
-                  </li>
-                  <li>
-                    Cada expositor se compromete a mantener la estética de su
-                    stand.
-                  </li>
-                </ul>
-                <p className="mt-4">
-                  La violación de estas prohibiciones puede resultar en la
-                  expulsión inmediata del festival sin reembolso.
-                </p>
+                      <li>
+                        Los productos que el expositor ofrezca a la venta deben
+                        estar previamente preparados. Recalcar que no se permite
+                        el uso de garrafas o cualquier artefacto que provoque
+                        fuego.
+                      </li>
+                      <li>
+                        Cada expositor se compromete a mantener la estética de
+                        su stand.
+                      </li>
+                    </ul>
+                    <p className="mt-4">
+                      La violación de estas prohibiciones puede resultar en la
+                      expulsión inmediata del festival sin reembolso.
+                    </p>
+                  </>
+                )}
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="item-6">
@@ -433,8 +451,6 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
                 </p>
                 <address className="mt-2 not-italic">
                   Email: expositores@productoraglitter.com
-                  <br />
-                  Teléfono: (591) 770-94313
                   <br />
                 </address>
               </AccordionContent>

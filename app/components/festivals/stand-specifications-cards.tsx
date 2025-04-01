@@ -85,7 +85,7 @@ export default function StandSpecificationsCards({
           <CardContent className="p-0">
             <div className="bg-[#C199FF] p-3">
               <h3 className="font-semibold text-primary-foreground">
-                Big Apple (Ilustradores)
+                Big Apple
               </h3>
             </div>
             <div className="p-4 space-y-3">
