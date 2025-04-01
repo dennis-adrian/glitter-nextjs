@@ -18,7 +18,7 @@ export function getCategoryLabel(
 ) {
   if (category === "illustration") return "Ilustración";
   if (category === "gastronomy") return "Gastronomía";
-  if (category === "entrepreneurship") return "Emprendimiento creativo";
+  if (category === "entrepreneurship") return "Emprendimiento Creativo";
   return "Sin nombre";
 }
 
