@@ -40,7 +40,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
             participar en el festival.
           </p>
           <p className="text-sm text-muted-foreground">
-            Última actualización: 28 de marzo de 2025
+            Última actualización: 1 de abril de 2025
           </p>
         </div>
 
@@ -71,15 +71,23 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
             </div>
           )}
 
-          <StandSpecificationsCards />
+          <div>
+            <h3 className="text-lg md:text-xl font-medium mb-3 md:mb-4 text-left md:text-center leading-tight">
+              Sectores habilitados para{" "}
+              {getCategoryOccupationLabel(mapCategory).toLowerCase()}
+            </h3>
+            <StandSpecificationsCards category={mapCategory} />
+          </div>
 
-          <p className="text-sm text-muted-foreground text-left md:text-center">
-            * En el caso de ilustradores que comparten espacio, si en el
-            transcurso de tiempo entre confirmada la reserva y el día del evento
-            una de las partes no puede participar, el otro ilustrador deberá
-            hacerse cargo de ocupar el espacio, sin posibilidades de reemplazar
-            al ilustrador que se dio de baja por otro.
-          </p>
+          {mapCategory === "illustration" && (
+            <p className="text-sm text-muted-foreground text-left md:text-center">
+              * En el caso de ilustradores que comparten espacio, si en el
+              transcurso de tiempo entre confirmada la reserva y el día del
+              evento una de las partes no puede participar, el otro ilustrador
+              deberá hacerse cargo de ocupar el espacio, sin posibilidades de
+              reemplazar al ilustrador que se dio de baja por otro.
+            </p>
+          )}
         </div>
 
         <div className="space-y-4 md:space-y-6 border rounded-lg p-6 my-4 md:my-6">
