@@ -39,7 +39,7 @@ export default async function Card({ profile }: { profile: ProfileType }) {
       const standId = currentFestivalResevation.reservation.standId;
       const stand = await fetchStandById(standId);
       if (stand) {
-        return <ReservedStandCard stand={stand} />;
+        return <ReservedStandCard stand={stand} profile={profile} />;
       }
     }
 
