@@ -40,7 +40,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
             participar en el festival.
           </p>
           <p className="text-sm text-muted-foreground">
-            Última actualización: 1 de abril de 2025
+            Última actualización: 2 de abril de 2025
           </p>
         </div>
 
@@ -182,7 +182,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
                     props.festival.festivalType === "festicker" && (
                       <li>
                         Para participar del Festicker los expositores deberán
-                        implementar stickers con su logo y/o información de
+                        repartir stickers con su logo y/o información de
                         contacto en lugar de tarjetas de presentación comunes.
                       </li>
                     )}
