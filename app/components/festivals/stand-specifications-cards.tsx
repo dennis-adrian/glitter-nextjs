@@ -116,7 +116,7 @@ export default function StandSpecificationsCards({
         </Card>
       )}
 
-      {category === "illustration" && (
+      {/* {category === "illustration" && (
         <Card className="overflow-hidden">
           <CardContent className="p-0">
             <div className="bg-[#FF46A6] p-3">
@@ -150,7 +150,7 @@ export default function StandSpecificationsCards({
             </div>
           </CardContent>
         </Card>
-      )}
+      )} */}
 
       {category === "entrepreneurship" && (
         <Card className="overflow-hidden">
