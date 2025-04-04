@@ -8,6 +8,7 @@ import { Button } from "@/app/components/ui/button";
 import { CogIcon } from "lucide-react";
 import { fetchLatestInvoiceByProfileId } from "@/app/data/invoices/actions";
 import PendingPaymentBanner from "@/app/components/users/pending-payment-banner";
+import FestivalActivityBanner from "@/app/components/pages/my_profile/festival-activity-banner";
 
 type DashboardUserPageProps = {
   profileId: number;
@@ -31,9 +32,12 @@ export default async function DashboardUserPage(props: DashboardUserPageProps) {
             reservationId={latestInvoice.reservationId}
           />
         ) : (
-          forProfile.status !== "banned" && (
-            <AnnouncementCard profile={forProfile} />
-          )
+          <>
+            <FestivalActivityBanner profile={forProfile} />
+            {forProfile.status !== "banned" && (
+              <AnnouncementCard profile={forProfile} />
+            )}
+          </>
         )}
         <div className="self-end">
           <ProfileQuickActions hideViewProfile profile={forProfile}>

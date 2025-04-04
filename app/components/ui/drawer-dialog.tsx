@@ -64,9 +64,10 @@ const DrawerDialogTitle = ({
 const DrawerDialogDescription = ({
   children,
   isDesktop = false,
+  ...props
 }: DrawerDialogProps) => {
   const Component = isDesktop ? DialogDescription : DrawerDescription;
-  return <Component>{children}</Component>;
+  return <Component {...props}>{children}</Component>;
 };
 
 const DrawerDialogContent = ({

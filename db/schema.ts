@@ -211,6 +211,7 @@ export const festivalsRelations = relations(festivals, ({ many }) => ({
   tickets: many(tickets),
   festivalSectors: many(festivalSectors),
   festivalDates: many(festivalDates),
+  festivalActivities: many(festivalActivities),
 }));
 
 export const festivalSectors = pgTable(
@@ -589,3 +590,76 @@ export const qrCodes = pgTable("qr_codes", {
 export const qrCodesRelations = relations(qrCodes, ({ many }) => ({
   stands: many(stands),
 }));
+
+export const festivalActivities = pgTable("festival_activities", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  registrationStartDate: timestamp("registration_start_date").notNull(),
+  registrationEndDate: timestamp("registration_end_date").notNull(),
+  festivalId: integer("festival_id")
+    .references(() => festivals.id, { onDelete: "cascade" })
+    .notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const festivalActivitiesRelations = relations(
+  festivalActivities,
+  ({ one, many }) => ({
+    festival: one(festivals, {
+      fields: [festivalActivities.festivalId],
+      references: [festivals.id],
+    }),
+    details: many(festivalActivityDetails),
+  }),
+);
+
+export const festivalActivityDetails = pgTable("festival_activity_details", {
+  id: serial("id").primaryKey(),
+  description: text("description"),
+  imageUrl: text("image_url"),
+  participationLimit: integer("participation_limit"),
+  activityId: integer("activity_id")
+    .notNull()
+    .references(() => festivalActivities.id, { onDelete: "cascade" }),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const festivalActivityDetailsRelations = relations(
+  festivalActivityDetails,
+  ({ one, many }) => ({
+    festivalActivity: one(festivalActivities, {
+      fields: [festivalActivityDetails.activityId],
+      references: [festivalActivities.id],
+    }),
+    participants: many(festivalActivityParticipants),
+  }),
+);
+
+export const festivalActivityParticipants = pgTable(
+  "festival_activity_participants",
+  {
+    id: serial("id").primaryKey(),
+    detailsId: integer("details_id")
+      .notNull()
+      .references(() => festivalActivityDetails.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+);
+export const festivalActivityParticipantsRelations = relations(
+  festivalActivityParticipants,
+  ({ one }) => ({
+    activityDetail: one(festivalActivityDetails, {
+      fields: [festivalActivityParticipants.detailsId],
+      references: [festivalActivityDetails.id],
+    }),
+    user: one(users, {
+      fields: [festivalActivityParticipants.userId],
+      references: [users.id],
+    }),
+  }),
+);

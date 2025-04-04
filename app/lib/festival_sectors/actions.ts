@@ -1,12 +1,16 @@
+"use server";
+
 import { StandBase } from "@/app/api/stands/definitions";
 import {
   BaseProfile,
   Participation,
   UserCategory,
 } from "@/app/api/users/definitions";
+import { FullFestival } from "@/app/data/festivals/definitions";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import { db } from "@/db";
 import {
+  festivalActivityParticipants,
   festivals,
   festivalSectors,
   reservationParticipants,
@@ -15,6 +19,7 @@ import {
   users,
 } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 
 export async function fetchFestivalSectors(
   festivalId: number,
@@ -197,5 +202,73 @@ export async function fetchConfirmedProfilesByFestivalId(
   } catch (error) {
     console.error("Error fetching confirmed profiles", error);
     return [];
+  }
+}
+
+export async function enrollInActivity(
+  userId: number,
+  activityDetailsId: number,
+  festivalId: number,
+) {
+  try {
+    await db.insert(festivalActivityParticipants).values({
+      userId,
+      detailsId: activityDetailsId,
+    });
+  } catch (error) {
+    console.error("Error enrolling in activity", error);
+    return { success: false, message: "Error al inscribirse en la actividad" };
+  }
+
+  revalidatePath(`/festivals/${festivalId}/participants_activity`);
+  return { success: true, message: "Inscripción realizada correctamente" };
+}
+
+export async function fetchFullFestivalById(
+  festivalId: number,
+): Promise<FullFestival | undefined | null> {
+  try {
+    return await db.query.festivals.findFirst({
+      where: eq(festivals.id, festivalId),
+      with: {
+        festivalDates: true,
+        userRequests: {
+          with: {
+            user: {
+              with: {
+                participations: {
+                  with: {
+                    reservation: true,
+                  },
+                },
+                userRequests: true,
+              },
+            },
+          },
+        },
+        standReservations: true,
+        festivalSectors: {
+          with: {
+            stands: true,
+          },
+        },
+        festivalActivities: {
+          with: {
+            details: {
+              with: {
+                participants: {
+                  with: {
+                    user: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching full festival", error);
+    return null;
   }
 }
