@@ -1,4 +1,4 @@
-import JoinActivityModal from "@/app/(routes)/festivals/[id]/participants_activity/join-activity-modal";
+import { RedirectButton } from "@/app/components/redirect-button";
 import { getActiveFestival } from "@/app/lib/festivals/helpers";
 import Image from "next/image";
 
@@ -186,7 +186,14 @@ export default async function ParticipantsActivityPage() {
           A continuación, podrás seleccionar el diseño de Sticker-Print en el
           que deseas participar.
         </p>
-        <JoinActivityModal activity={activity} />
+        <div className="flex justify-end w-full">
+          <RedirectButton
+            className="w-full md:max-w-[400px] self-end"
+            href={`/festivals/${festival!.id}/participants_activity/enroll`}
+          >
+            Inscribirme
+          </RedirectButton>
+        </div>
       </div>
     </div>
   );

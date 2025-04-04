@@ -6,6 +6,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { HTMLAttributes, useState } from "react";
 import { Loader2Icon } from "lucide-react";
 import { VariantProps } from "class-variance-authority";
+import { cn } from "@/app/lib/utils";
 
 export function RedirectButton({
   children,
@@ -25,7 +26,7 @@ export function RedirectButton({
       Cargando
     </Button>
   ) : (
-    <Link className="w-fit" href={href}>
+    <Link className={cn("w-fit", props.className)} href={href}>
       <Button variant={variant} onClick={() => setLoading(true)} {...props}>
         {children}
       </Button>
