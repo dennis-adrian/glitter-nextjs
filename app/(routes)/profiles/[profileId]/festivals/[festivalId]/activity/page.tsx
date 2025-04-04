@@ -1,11 +1,8 @@
 import { fetchUserProfileById } from "@/app/api/users/actions";
 import { BaseProfile } from "@/app/api/users/definitions";
 import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
-import { RedirectButton } from "@/app/components/redirect-button";
 import { getFestivalById } from "@/app/lib/festivals/helpers";
-import { formatDate } from "@/app/lib/formatters";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
-import { DateTime } from "luxon";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { z } from "zod";
@@ -70,7 +67,7 @@ export default async function ParticipantsActivityPage({
           es enorme y como Productora Glitter, queremos que nuestro público
           también lo vea.
         </p>
-        <h3 className="font-semibold">Arte promocional</h3>
+        {/* <h3 className="font-semibold">Arte promocional</h3>
         {activity.promotionalArtUrl && (
           <Image
             className="mx-auto"
@@ -79,7 +76,7 @@ export default async function ParticipantsActivityPage({
             width={320}
             height={400}
           />
-        )}
+        )} */}
       </div>
       <div className="flex flex-col gap-3 mt-6">
         <h2 className="text-lg font-bold">¿Cómo funciona?</h2>
