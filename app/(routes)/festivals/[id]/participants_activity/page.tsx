@@ -1,8 +1,39 @@
 import JoinActivityModal from "@/app/(routes)/festivals/[id]/participants_activity/join-activity-modal";
-import { Button } from "@/app/components/ui/button";
+import { getActiveFestival } from "@/app/lib/festivals/helpers";
 import Image from "next/image";
 
-export default function ParticipantsActivityPage() {
+export default async function ParticipantsActivityPage() {
+  const festival = await getActiveFestival();
+  const activity = festival?.festivalActivities.find(
+    (activity) => activity.name === "Sticker-Print",
+  );
+
+  if (!activity) {
+    return (
+      <div className="flex min-h-[70dvh] md:min-h-[50dvh] flex-col items-center justify-center bg-background px-4 text-center">
+        <div className="mx-auto flex max-w-[500px] flex-col items-center justify-center space-y-6">
+          <div className="relative h-40 w-40">
+            <div className="absolute inset-0 flex items-center justify-center rounded-full bg-muted text-[120px] font-bold opacity-10">
+              404
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center text-5xl font-bold">
+              404
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl">
+              No se encontró la actividad
+            </h1>
+            <p className="text-muted-foreground">
+              No se encontró la actividad Sticker-Print en el festival actual.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container p-4 md:p-6">
       <h1 className="text-2xl font-bold my-3">Sticker-Print</h1>
@@ -57,54 +88,21 @@ export default function ParticipantsActivityPage() {
         <h2 className="font-semibold">Diseños de Sticker-Print</h2>
         <p>Estos son los 4 diseños disponibles para participar:</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mx-auto">
-          <div className="">
-            <Image
-              className="mx-auto"
-              src="/img/sticker-print-1-320x480.png"
-              alt="Sticker Print Example"
-              width={320}
-              height={480}
-            />
-            <p className="text-center text-muted-foreground text-sm">
-              Medidas: 432 mm x 330 mm
-            </p>
-          </div>
-          <div>
-            <Image
-              className="mx-auto"
-              src="/img/sticker-print-2-320x480.png"
-              alt="Sticker Print Example"
-              width={320}
-              height={480}
-            />
-            <p className="text-center text-muted-foreground text-sm">
-              Medidas: 432 mm x 330 mm
-            </p>
-          </div>
-          <div>
-            <Image
-              className="mx-auto"
-              src="/img/sticker-print-3-320x480.png"
-              alt="Sticker Print Example"
-              width={320}
-              height={480}
-            />
-            <p className="text-center text-muted-foreground text-sm">
-              Medidas: 432 mm x 330 mm
-            </p>
-          </div>
-          <div>
-            <Image
-              className="mx-auto"
-              src="/img/sticker-print-4-320x480.png"
-              alt="Sticker Print Example"
-              width={320}
-              height={480}
-            />
-            <p className="text-center text-muted-foreground text-sm">
-              Medidas: 432 mm x 330 mm
-            </p>
-          </div>
+          {activity.details.map((detail) => (
+            <div key={detail.id} className="">
+              <Image
+                className="mx-auto"
+                // TODO: Add a blur image when loading and a skeleton
+                src={detail.imageUrl ?? ""}
+                alt="Sticker Print Example"
+                width={320}
+                height={480}
+              />
+              <p className="text-center text-muted-foreground text-sm">
+                Medidas: 432 mm x 330 mm
+              </p>
+            </div>
+          ))}
         </div>
       </div>
       <div className="flex flex-col gap-3 mt-6">
@@ -188,10 +186,7 @@ export default function ParticipantsActivityPage() {
           A continuación, podrás seleccionar el diseño de Sticker-Print en el
           que deseas participar.
         </p>
-        {/* <Button className="w-full md:max-w-[400px] self-end">
-          Inscribirme
-        </Button> */}
-        <JoinActivityModal />
+        <JoinActivityModal activity={activity} />
       </div>
     </div>
   );

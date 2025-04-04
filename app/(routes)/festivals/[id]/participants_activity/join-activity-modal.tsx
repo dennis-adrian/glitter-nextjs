@@ -1,5 +1,6 @@
 "use client";
 
+import StickerPrintDesignSelectable from "@/app/(routes)/festivals/[id]/participants_activity/sticker-print-design-selectable";
 import { Button } from "@/app/components/ui/button";
 import {
   DrawerDialog,
@@ -9,10 +10,25 @@ import {
   DrawerDialogTitle,
   DrawerDialogTrigger,
 } from "@/app/components/ui/drawer-dialog";
+import {
+  ActivityDetailsWithParticipants,
+  FestivalActivityWithDetailsAndParticipants,
+} from "@/app/data/festivals/definitions";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
+import { ArrowDownToLineIcon } from "lucide-react";
 import Image from "next/image";
+import { useState } from "react";
 
-export default function JoinActivityModal() {
+type JoinActivityModalProps = {
+  activity: FestivalActivityWithDetailsAndParticipants;
+};
+
+export default function JoinActivityModal({
+  activity,
+}: JoinActivityModalProps) {
+  const [selectedDesign, setSelectedDesign] =
+    useState<ActivityDetailsWithParticipants | null>(null);
+
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
   return (
@@ -34,46 +50,19 @@ export default function JoinActivityModal() {
         </DrawerDialogHeader>
         <div className={`${isDesktop ? "" : "px-4"} pb-2`}>
           <div className="grid grid-cols-2 gap-2 md:gap-4">
-            <div className="flex flex-col gap-1">
-              <Image
-                src="/img/sticker-print-1-320x480.png"
-                alt="Sticker Print 1"
-                width={320}
-                height={480}
+            {activity.details.map((detail) => (
+              <StickerPrintDesignSelectable
+                key={detail.id}
+                detail={detail}
+                selected={selectedDesign?.id === detail.id}
+                setSelected={setSelectedDesign}
               />
-              <p className="text-xs text-muted-foreground">Participantes</p>
-            </div>
-            <div className="flex flex-col gap-1">
-              <Image
-                src="/img/sticker-print-2-320x480.png"
-                alt="Sticker Print 2"
-                width={320}
-                height={480}
-              />
-              <p className="text-xs text-muted-foreground">Participantes</p>
-            </div>
-            <div className="flex flex-col gap-1">
-              <Image
-                src="/img/sticker-print-3-320x480.png"
-                alt="Sticker Print 3"
-                width={320}
-                height={480}
-              />
-              <p className="text-xs text-muted-foreground">Participantes</p>
-            </div>
-            <div className="flex flex-col gap-1">
-              <Image
-                src="/img/sticker-print-4-320x480.png"
-                alt="Sticker Print 4"
-                width={320}
-                height={480}
-              />
-              <p className="text-xs text-muted-foreground">Participantes</p>
-            </div>
+            ))}
           </div>
           <div className="flex justify-center mt-2">
             <Button className="w-full md:max-w-[400px] self-end">
-              Inscribirme
+              <span>Guardar selección</span>
+              <ArrowDownToLineIcon className="ml-2 w-4 h-4" />
             </Button>
           </div>
         </div>

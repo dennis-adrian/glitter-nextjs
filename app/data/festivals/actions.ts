@@ -15,6 +15,7 @@ import {
   userSocials,
 } from "@/db/schema";
 import {
+  ActiveFestival,
   Festival,
   FestivalBase,
   FestivalWithDates,
@@ -54,7 +55,7 @@ export async function fetchActiveFestival({
 }: {
   acceptedUsersOnly?: boolean;
   id?: number;
-}): Promise<Festival | null | undefined> {
+}): Promise<ActiveFestival | null | undefined> {
   const client = await pool.connect();
 
   const whereCondition = acceptedUsersOnly
@@ -89,6 +90,19 @@ export async function fetchActiveFestival({
         festivalSectors: {
           with: {
             stands: true,
+          },
+        },
+        festivalActivities: {
+          with: {
+            details: {
+              with: {
+                participants: {
+                  with: {
+                    user: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
