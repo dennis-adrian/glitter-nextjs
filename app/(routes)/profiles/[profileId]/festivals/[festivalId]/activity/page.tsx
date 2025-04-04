@@ -1,8 +1,11 @@
 import { fetchUserProfileById } from "@/app/api/users/actions";
 import { BaseProfile } from "@/app/api/users/definitions";
+import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { getFestivalById } from "@/app/lib/festivals/helpers";
+import { formatDate } from "@/app/lib/formatters";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
+import { DateTime } from "luxon";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { z } from "zod";
@@ -205,14 +208,11 @@ export default async function ParticipantsActivityPage({
           A continuación, podrás seleccionar el diseño de Sticker-Print en el
           que deseas participar.
         </p>
-        <div className="flex justify-end w-full">
-          <RedirectButton
-            className="w-full md:max-w-[400px] self-end"
-            href={`/profiles/${forProfile.id}/festivals/${festival.id}/activity/enroll`}
-          >
-            Inscribirme
-          </RedirectButton>
-        </div>
+        <EnrollRedirectButton
+          forProfileId={forProfile.id}
+          festivalId={festival.id}
+          activity={activity}
+        />
       </div>
     </div>
   );

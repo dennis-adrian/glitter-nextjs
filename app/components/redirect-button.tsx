@@ -12,13 +12,23 @@ export function RedirectButton({
   children,
   href,
   variant,
+  disabled = false,
   ...props
 }: {
   children: React.ReactNode;
   href: string;
+  disabled?: boolean;
 } & VariantProps<typeof buttonVariants> &
   HTMLAttributes<HTMLButtonElement>) {
   const [loading, setLoading] = useState(false);
+
+  if (disabled) {
+    return (
+      <Button disabled variant={variant} {...props}>
+        {children}
+      </Button>
+    );
+  }
 
   return loading ? (
     <Button disabled variant={variant} {...props}>
