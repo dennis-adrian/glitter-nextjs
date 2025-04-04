@@ -618,7 +618,7 @@ export const festivalActivityDetails = pgTable("festival_activity_details", {
   id: serial("id").primaryKey(),
   description: text("description"),
   imageUrl: text("image_url"),
-  participantionLimit: integer("participantion_limit"),
+  participationLimit: integer("participation_limit"),
   activityId: integer("activity_id")
     .notNull()
     .references(() => festivalActivities.id, { onDelete: "cascade" }),

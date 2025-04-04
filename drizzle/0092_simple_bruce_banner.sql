@@ -1,0 +1,1 @@
+ALTER TABLE "festival_activity_details" RENAME COLUMN "participantion_limit" TO "participation_limit";
