@@ -27,7 +27,7 @@ export default async function FestivalActivityBanner({
       <RedirectButton
         className="text-amber-800 underline"
         variant="link"
-        href={`/festivals/${festival.id}/participants_activity`}
+        href={`/profiles/${profile.id}/festivals/${festival.id}/activity`}
       >
         Ver detalles
       </RedirectButton>

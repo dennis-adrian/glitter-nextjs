@@ -6,6 +6,7 @@ import {
   Participation,
   UserCategory,
 } from "@/app/api/users/definitions";
+import { FullFestival } from "@/app/data/festivals/definitions";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import { db } from "@/db";
 import {
@@ -221,4 +222,53 @@ export async function enrollInActivity(
 
   revalidatePath(`/festivals/${festivalId}/participants_activity`);
   return { success: true, message: "Inscripción realizada correctamente" };
+}
+
+export async function fetchFullFestivalById(
+  festivalId: number,
+): Promise<FullFestival | undefined | null> {
+  try {
+    return await db.query.festivals.findFirst({
+      where: eq(festivals.id, festivalId),
+      with: {
+        festivalDates: true,
+        userRequests: {
+          with: {
+            user: {
+              with: {
+                participations: {
+                  with: {
+                    reservation: true,
+                  },
+                },
+                userRequests: true,
+              },
+            },
+          },
+        },
+        standReservations: true,
+        festivalSectors: {
+          with: {
+            stands: true,
+          },
+        },
+        festivalActivities: {
+          with: {
+            details: {
+              with: {
+                participants: {
+                  with: {
+                    user: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching full festival", error);
+    return null;
+  }
 }

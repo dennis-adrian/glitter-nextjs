@@ -1,6 +1,6 @@
 "use client";
 
-import StickerPrintDesignSelectable from "@/app/(routes)/festivals/[id]/participants_activity/sticker-print-design-selectable";
+import StickerPrintDesignSelectable from "@/app/components/festivals/festival_activities/sticker-print-design-selectable";
 import { BaseProfile } from "@/app/api/users/definitions";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";

@@ -1,4 +1,4 @@
-import ActivityDetails from "@/app/(routes)/festivals/[id]/participants_activity/enroll/activity-details";
+import ActivityDetails from "@/app/components/festivals/festival_activities/activity-details";
 import { getActiveFestival } from "@/app/lib/festivals/helpers";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 

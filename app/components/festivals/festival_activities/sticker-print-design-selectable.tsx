@@ -1,6 +1,5 @@
 "use client";
 
-import { BaseProfile } from "@/app/api/users/definitions";
 import { ActivityDetailsWithParticipants } from "@/app/data/festivals/definitions";
 import Image from "next/image";
 

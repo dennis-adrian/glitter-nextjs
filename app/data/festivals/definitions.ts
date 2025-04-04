@@ -28,7 +28,7 @@ export type Festival = FestivalBase & {
   festivalSectors: FestivalSectorWithStands[];
 };
 
-export type ActiveFestival = Festival & {
+export type FullFestival = Festival & {
   festivalActivities: (FestivalActivity & {
     details: ActivityDetailsWithParticipants[];
   })[];

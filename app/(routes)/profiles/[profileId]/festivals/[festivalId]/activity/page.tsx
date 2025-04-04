@@ -1,37 +1,56 @@
+import { fetchUserProfileById } from "@/app/api/users/actions";
+import { BaseProfile } from "@/app/api/users/definitions";
 import { RedirectButton } from "@/app/components/redirect-button";
-import { getActiveFestival } from "@/app/lib/festivals/helpers";
+import { getFestivalById } from "@/app/lib/festivals/helpers";
+import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import Image from "next/image";
+import { notFound } from "next/navigation";
+import { z } from "zod";
 
-export default async function ParticipantsActivityPage() {
-  const festival = await getActiveFestival();
-  const activity = festival?.festivalActivities.find(
+const ParamsSchems = z.object({
+  profileId: z.coerce.number(),
+  festivalId: z.coerce.number(),
+});
+
+type ParticipantsActivityPageProps = {
+  params: Promise<z.infer<typeof ParamsSchems>>;
+};
+
+export default async function ParticipantsActivityPage({
+  params,
+}: ParticipantsActivityPageProps) {
+  const { profileId, festivalId } = await params;
+  const validatedParams = ParamsSchems.safeParse({
+    profileId,
+    festivalId,
+  });
+
+  if (!validatedParams.success) {
+    return notFound();
+  }
+
+  const festival = await getFestivalById(festivalId);
+  const currentProfile = await getCurrentUserProfile();
+  await protectRoute(currentProfile || undefined, Number(profileId));
+
+  let forProfile: BaseProfile | null | undefined;
+
+  if (profileId === currentProfile?.id) {
+    forProfile = currentProfile;
+  } else {
+    forProfile = await fetchUserProfileById(profileId);
+  }
+
+  if (!forProfile || !festival) {
+    return notFound();
+  }
+
+  const activity = festival.festivalActivities.find(
     (activity) => activity.name === "Sticker-Print",
   );
 
   if (!activity) {
-    return (
-      <div className="flex min-h-[70dvh] md:min-h-[50dvh] flex-col items-center justify-center bg-background px-4 text-center">
-        <div className="mx-auto flex max-w-[500px] flex-col items-center justify-center space-y-6">
-          <div className="relative h-40 w-40">
-            <div className="absolute inset-0 flex items-center justify-center rounded-full bg-muted text-[120px] font-bold opacity-10">
-              404
-            </div>
-            <div className="absolute inset-0 flex items-center justify-center text-5xl font-bold">
-              404
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl">
-              No se encontró la actividad
-            </h1>
-            <p className="text-muted-foreground">
-              No se encontró la actividad Sticker-Print en el festival actual.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+    return notFound();
   }
 
   return (
@@ -189,7 +208,7 @@ export default async function ParticipantsActivityPage() {
         <div className="flex justify-end w-full">
           <RedirectButton
             className="w-full md:max-w-[400px] self-end"
-            href={`/festivals/${festival!.id}/participants_activity/enroll`}
+            href={`/profiles/${forProfile.id}/festivals/${festival.id}/activity/enroll`}
           >
             Inscribirme
           </RedirectButton>
