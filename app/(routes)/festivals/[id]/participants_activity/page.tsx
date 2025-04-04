@@ -1,3 +1,4 @@
+import JoinActivityModal from "@/app/(routes)/festivals/[id]/participants_activity/join-activity-modal";
 import { Button } from "@/app/components/ui/button";
 import Image from "next/image";
 
@@ -121,6 +122,10 @@ export default function ParticipantsActivityPage() {
             El ilustrador solo puede ser parte de un diseño de Sticker-Print
           </li>
           <li>
+            Luego de haber seleccionado el diseño y haberse inscrito en la
+            actividad, no se podrá cambiar de diseño.
+          </li>
+          <li>
             El ilustrador debe diseñar un sticker exclusivo para la actividad el
             cual deberá medir 4cm x 4cm sin excepción.
           </li>
@@ -183,9 +188,10 @@ export default function ParticipantsActivityPage() {
           A continuación, podrás seleccionar el diseño de Sticker-Print en el
           que deseas participar.
         </p>
-        <Button className="w-full md:max-w-[400px] self-end">
+        {/* <Button className="w-full md:max-w-[400px] self-end">
           Inscribirme
-        </Button>
+        </Button> */}
+        <JoinActivityModal />
       </div>
     </div>
   );
