@@ -1,3 +1,5 @@
+"use server";
+
 import { StandBase } from "@/app/api/stands/definitions";
 import {
   BaseProfile,
@@ -7,6 +9,7 @@ import {
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import { db } from "@/db";
 import {
+  festivalActivityParticipants,
   festivals,
   festivalSectors,
   reservationParticipants,
@@ -15,6 +18,7 @@ import {
   users,
 } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 
 export async function fetchFestivalSectors(
   festivalId: number,
@@ -198,4 +202,23 @@ export async function fetchConfirmedProfilesByFestivalId(
     console.error("Error fetching confirmed profiles", error);
     return [];
   }
+}
+
+export async function enrollInActivity(
+  userId: number,
+  activityDetailsId: number,
+  festivalId: number,
+) {
+  try {
+    await db.insert(festivalActivityParticipants).values({
+      userId,
+      detailsId: activityDetailsId,
+    });
+  } catch (error) {
+    console.error("Error enrolling in activity", error);
+    return { success: false, message: "Error al inscribirse en la actividad" };
+  }
+
+  revalidatePath(`/festivals/${festivalId}/participants_activity`);
+  return { success: true, message: "Inscripción realizada correctamente" };
 }

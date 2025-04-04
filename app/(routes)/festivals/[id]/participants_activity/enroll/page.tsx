@@ -1,12 +1,17 @@
 import ActivityDetails from "@/app/(routes)/festivals/[id]/participants_activity/enroll/activity-details";
-import StickerPrintDesignSelectable from "@/app/(routes)/festivals/[id]/participants_activity/sticker-print-design-selectable";
 import { getActiveFestival } from "@/app/lib/festivals/helpers";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export default async function Page() {
   const festival = await getActiveFestival();
   const activity = festival?.festivalActivities.find(
     (activity) => activity.name === "Sticker-Print",
   );
+  const user = await getCurrentUserProfile();
+
+  if (!user) {
+    return <div>No estás autenticado</div>;
+  }
 
   if (!activity) {
     return (
@@ -41,7 +46,7 @@ export default async function Page() {
         Selecciona una imagen para elegir el diseño para participar en la
         actividad del Sticker-Print.
       </p>
-      <ActivityDetails activity={activity} />
+      <ActivityDetails activity={activity} user={user} />
     </div>
   );
 }
