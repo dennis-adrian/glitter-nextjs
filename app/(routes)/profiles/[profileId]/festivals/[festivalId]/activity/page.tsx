@@ -131,7 +131,7 @@ export default async function ParticipantsActivityPage({
         <h2 className="text-lg font-bold">¿Cómo se puede participar?</h2>
         <p>
           Luego de leer las condiciones de participación, debes darle clic al
-          botón de &quot;Inscribirme&quot; que te llevará a una pantalla donde
+          botón de &quot;Registrarme&quot; que te llevará a una pantalla donde
           podrás seleccionar el diseño del print en el que deseas participar.
         </p>
       </div>
@@ -156,6 +156,12 @@ export default async function ParticipantsActivityPage({
           <li>
             El diseño del sticker debe ser apto para todo público, es decir, no
             puede contener contenido sexual, violento, o que pueda ser ofensivo.
+          </li>
+          <li>
+            El ilustrador deberá subir el diseño de su sticker al sitio web en
+            formato PNG con un tamaño máximo de 2MB hasta el miércoles 9 de
+            abril a las 18:00hs. (Esta opción no se encuentra disponible en este
+            momento pero se comunicará los ilustradores cuando esté disponible).
           </li>
           <li>
             El ilustrador se hará cargo de la impresión y la venta o
@@ -203,17 +209,11 @@ export default async function ParticipantsActivityPage({
           podría perder el derecho a participar en futuros eventos.
         </p>
       </div>
-      <div className="flex flex-col gap-3 mt-6">
-        <p>
-          A continuación, podrás seleccionar el diseño de Sticker-Print en el
-          que deseas participar.
-        </p>
-        <EnrollRedirectButton
-          forProfileId={forProfile.id}
-          festivalId={festival.id}
-          activity={activity}
-        />
-      </div>
+      <EnrollRedirectButton
+        forProfileId={forProfile.id}
+        festivalId={festival.id}
+        activity={activity}
+      />
     </div>
   );
 }

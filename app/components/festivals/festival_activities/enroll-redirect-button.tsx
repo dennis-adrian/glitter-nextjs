@@ -38,13 +38,25 @@ export default function EnrollRedirectButton({
 
       if (now < startDate) {
         setIsEnabled(false);
-        setStatusMessage(`El registro comenzará el ${registrationStartDate}`);
+        setStatusMessage(
+          `El registro comenzará el ${registrationStartDate.toLocaleString(
+            DateTime.DATETIME_MED,
+          )}`,
+        );
       } else if (now > endDate) {
         setIsEnabled(false);
-        setStatusMessage(`El registro finalizó el ${registrationEndDate}`);
+        setStatusMessage(
+          `El registro finalizó el ${registrationEndDate.toLocaleString(
+            DateTime.DATETIME_MED,
+          )}`,
+        );
       } else {
         setIsEnabled(true);
-        setStatusMessage(`Registro abierto hasta el ${registrationEndDate}`);
+        setStatusMessage(
+          `Registro abierto hasta el ${registrationEndDate.toLocaleString(
+            DateTime.DATETIME_MED,
+          )}`,
+        );
       }
     };
 
@@ -52,7 +64,7 @@ export default function EnrollRedirectButton({
     checkRegistrationPeriod();
 
     // Set up interval to check every minute
-    const intervalId = setInterval(checkRegistrationPeriod, 60000);
+    const intervalId = setInterval(checkRegistrationPeriod, 5000);
 
     // Clean up interval on component unmount
     return () => clearInterval(intervalId);
@@ -64,25 +76,30 @@ export default function EnrollRedirectButton({
   ]);
 
   return (
-    <div className="flex justify-end w-full">
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="w-full md:max-w-[400px]">
-              <RedirectButton
-                className="w-full self-end"
-                href={`/profiles/${forProfileId}/festivals/${festivalId}/activity/enroll`}
-                disabled={!isEnabled}
-              >
-                {isEnabled ? "Inscribirme" : "Registro no disponible"}
-              </RedirectButton>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>{statusMessage}</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+    <div className="flex flex-col gap-3 mt-6">
+      <div className="flex justify-end w-full">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="w-full md:max-w-[400px] flex flex-col gap-1 justify-center items-center">
+                <RedirectButton
+                  className="w-full self-end"
+                  href={`/profiles/${forProfileId}/festivals/${festivalId}/activity/enroll`}
+                  disabled={!isEnabled}
+                >
+                  {isEnabled ? "Registrarme" : "Registro no disponible"}
+                </RedirectButton>
+                <span className="text-xs text-center text-muted-foreground lg:hidden">
+                  {statusMessage}
+                </span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{statusMessage}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
     </div>
   );
 }
