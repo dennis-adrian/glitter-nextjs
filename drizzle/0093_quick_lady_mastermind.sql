@@ -1,0 +1,1 @@
+ALTER TABLE "festival_activities" ADD COLUMN "promotional_art_url" text;
