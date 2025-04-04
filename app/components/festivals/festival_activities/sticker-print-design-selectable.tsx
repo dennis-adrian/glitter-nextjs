@@ -31,11 +31,20 @@ export default function StickerPrintDesignSelectable({
         )}
       </div>
       {detail.participants.length > 0 ? (
-        <p className="text-xs text-muted-foreground">
-          {detail.participants.length} participantes
+        <p className="text-[10px] md:text-xs text-muted-foreground">
+          {detail.participants
+            .map((participant, index) => {
+              const participantName = participant.user.displayName;
+              const participantNumber = index + 1;
+
+              return `${participantNumber}. ${participantName}`;
+            })
+            .join(", ")}
         </p>
       ) : (
-        <p className="text-xs text-muted-foreground">Sin participantes</p>
+        <p className="text-[10px] md:text-xs text-muted-foreground">
+          Sin participantes
+        </p>
       )}
     </div>
   );

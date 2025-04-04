@@ -37,8 +37,10 @@ export default async function Page() {
   }
   return (
     <div className="container p-4 md:p-6">
-      <h1 className="text-3xl font-bold mb-2">Inscripción al Sticker-Print</h1>
-      <p className="text-muted-foreground">
+      <h1 className="text-xl md:text-2xl font-bold mb-1">
+        Inscripción al Sticker-Print
+      </h1>
+      <p className="text-muted-foreground text-sm md:text-base mb-2 md:mb-4">
         Selecciona una imagen para elegir el diseño para participar en la
         actividad del Sticker-Print.
       </p>
