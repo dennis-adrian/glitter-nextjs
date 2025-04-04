@@ -13,6 +13,7 @@ export default async function FestivalActivityBanner({
   const festival = await getActiveFestival();
 
   if (!festival) return null;
+  if (profile.category !== "illustration") return null;
 
   const hasReservation = profileHasReservation(profile, festival.id);
 
