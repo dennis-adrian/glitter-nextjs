@@ -63,7 +63,7 @@ export default function EnrollRedirectButton({
     // Check immediately
     checkRegistrationPeriod();
 
-    // Set up interval to check every minute
+    // Set up interval to check every 5 seconds
     const intervalId = setInterval(checkRegistrationPeriod, 5000);
 
     // Clean up interval on component unmount

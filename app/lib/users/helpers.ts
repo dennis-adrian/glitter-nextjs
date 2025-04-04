@@ -31,12 +31,9 @@ export async function protectRoute(
 ) {
   if (!(currentUser && profileId)) redirect("/");
 
-  console.log("testing access", currentUser.id === profileId);
   const canAccessResource =
     (currentUser.id === profileId || currentUser.role === "admin") &&
     currentUser.status === "verified";
-
-  console.log("canAccessResource", canAccessResource);
 
   if (!canAccessResource) redirect("/my_profile");
 }
