@@ -70,6 +70,16 @@ export default async function ParticipantsActivityPage({
           es enorme y como Productora Glitter, queremos que nuestro público
           también lo vea.
         </p>
+        <h3 className="font-semibold">Arte promocional</h3>
+        {activity.promotionalArtUrl && (
+          <Image
+            className="mx-auto"
+            src={activity.promotionalArtUrl}
+            alt="Promotional Art"
+            width={320}
+            height={400}
+          />
+        )}
       </div>
       <div className="flex flex-col gap-3 mt-6">
         <h2 className="text-lg font-bold">¿Cómo funciona?</h2>
@@ -138,6 +148,10 @@ export default async function ParticipantsActivityPage({
       <div className="flex flex-col gap-3 mt-6">
         <h2 className="text-lg font-bold">Condiciones:</h2>
         <ul className="ml-4 list-disc list-inside">
+          <li>
+            Tener una reserva confirmada para el{" "}
+            <strong>{festival.name}</strong>
+          </li>
           <li>
             El ilustrador solo puede ser parte de un diseño de Sticker-Print
           </li>

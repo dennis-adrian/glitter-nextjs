@@ -597,6 +597,7 @@ export const festivalActivities = pgTable("festival_activities", {
   description: text("description"),
   registrationStartDate: timestamp("registration_start_date").notNull(),
   registrationEndDate: timestamp("registration_end_date").notNull(),
+  promotionalArtUrl: text("promotional_art_url"),
   festivalId: integer("festival_id")
     .references(() => festivals.id, { onDelete: "cascade" })
     .notNull(),
