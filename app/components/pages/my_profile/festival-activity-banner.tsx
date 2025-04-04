@@ -1,6 +1,6 @@
 import { ProfileType } from "@/app/api/users/definitions";
-import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { RedirectButton } from "@/app/components/redirect-button";
+import { profileHasReservation } from "@/app/helpers/next_event";
 import { getActiveFestival } from "@/app/lib/festivals/helpers";
 
 type FestivalActivityBannerProps = {
@@ -14,9 +14,9 @@ export default async function FestivalActivityBanner({
 
   if (!festival) return null;
 
-  const inFestival = isProfileInFestival(festival.id, profile);
+  const hasReservation = profileHasReservation(profile, festival.id);
 
-  if (!inFestival) return null;
+  if (!hasReservation) return null;
 
   return (
     <div className="flex flex-col md:flex-row justify-center items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 md:p-4 text-amber-800">
