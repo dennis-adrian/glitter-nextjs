@@ -11,14 +11,17 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { DateTime } from "luxon";
+import { BaseProfile } from "@/app/api/users/definitions";
 
 type EnrollRedirectButtonProps = {
+  currentProfile: BaseProfile;
   forProfileId: number;
   festivalId: number;
   activity: FestivalActivityWithDetailsAndParticipants;
 };
 
 export default function EnrollRedirectButton({
+  currentProfile,
   forProfileId,
   festivalId,
   activity,
@@ -85,9 +88,11 @@ export default function EnrollRedirectButton({
                 <RedirectButton
                   className="w-full self-end"
                   href={`/profiles/${forProfileId}/festivals/${festivalId}/activity/enroll`}
-                  disabled={!isEnabled}
+                  disabled={!isEnabled && currentProfile.role !== "admin"}
                 >
-                  {isEnabled ? "Registrarme" : "Registro no disponible"}
+                  {isEnabled || currentProfile.role === "admin"
+                    ? "Registrarme"
+                    : "Registro no disponible"}
                 </RedirectButton>
                 <span className="text-xs text-center text-muted-foreground lg:hidden">
                   {statusMessage}

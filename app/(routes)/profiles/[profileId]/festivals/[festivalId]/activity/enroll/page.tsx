@@ -1,19 +1,50 @@
+import { fetchUserProfileById } from "@/app/api/users/actions";
+import { BaseProfile } from "@/app/api/users/definitions";
 import ActivityDetails from "@/app/components/festivals/festival_activities/activity-details";
+import { fetchFullFestivalById } from "@/app/lib/festival_sectors/actions";
 import { getActiveFestival } from "@/app/lib/festivals/helpers";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { DateTime } from "luxon";
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import { z } from "zod";
 
-export default async function Page() {
-  const festival = await getActiveFestival();
+const ParamsSchema = z.object({
+  profileId: z.coerce.number(),
+  festivalId: z.coerce.number(),
+});
+
+type EnrollPageProps = {
+  params: Promise<z.infer<typeof ParamsSchema>>;
+};
+
+export default async function Page({ params }: EnrollPageProps) {
+  const validatedParams = ParamsSchema.safeParse(await params);
+  if (!validatedParams.success) {
+    return notFound();
+  }
+
+  const { profileId, festivalId } = validatedParams.data;
+
+  const currentProfile = await getCurrentUserProfile();
+  const festival = await fetchFullFestivalById(festivalId);
+  await protectRoute(currentProfile || undefined, Number(profileId));
+
+  let forProfile: BaseProfile | null | undefined;
+
+  if (profileId === currentProfile?.id) {
+    forProfile = currentProfile;
+  } else {
+    forProfile = await fetchUserProfileById(profileId);
+  }
+
+  if (!forProfile || !festival) {
+    return notFound();
+  }
+
   const activity = festival?.festivalActivities.find(
     (activity) => activity.name === "Sticker-Print",
   );
-  const user = await getCurrentUserProfile();
-  if (!user) {
-    return notFound();
-  }
 
   if (!activity) {
     return notFound();
@@ -23,7 +54,7 @@ export default async function Page() {
   const startDate = DateTime.fromJSDate(activity.registrationStartDate);
   const endDate = DateTime.fromJSDate(activity.registrationEndDate);
 
-  if (now < startDate || now > endDate) {
+  if ((now < startDate || now > endDate) && currentProfile?.role !== "admin") {
     return (
       <div className="container p-4 md:p-6">
         <h1 className="text-3xl font-bold mb-2">
@@ -38,24 +69,26 @@ export default async function Page() {
   }
 
   const enrolledDesign = activity.details.find((detail) =>
-    detail.participants.some((participant) => participant.userId === user.id),
+    detail.participants.some(
+      (participant) => participant.userId === forProfile?.id,
+    ),
   );
 
   if (enrolledDesign) {
     return (
       <div className="container p-4 md:p-6">
         <h1 className="text-2xl md:text-3xl font-bold mb-1">Sticker-Print</h1>
-        <p className="">
+        <p className="text-sm md:text-base mb-2 md:mb-4">
           Muchas gracias por inscribirte a la actividad del Sticker-Print. Toma
           nota de los siguientes detalles:
         </p>
-        <ul className="list-disc list-inside">
+        <ul className="list-disc list-inside text-sm md:text-base">
           <li>
             La posición en la que irá tu sticker en el sticker-print es la
             número{" "}
             <strong>
               {enrolledDesign.participants.findIndex(
-                (participant) => participant.userId === user.id,
+                (participant) => participant.userId === forProfile?.id,
               ) + 1}
               .
             </strong>
@@ -104,7 +137,7 @@ export default async function Page() {
         Selecciona una imagen para elegir el diseño para participar en la
         actividad del Sticker-Print.
       </p>
-      <ActivityDetails activity={activity} user={user} />
+      <ActivityDetails activity={activity} user={forProfile} />
     </div>
   );
 }
