@@ -1,9 +1,11 @@
 import { fetchUserProfileById } from "@/app/api/users/actions";
 import { BaseProfile } from "@/app/api/users/definitions";
 import ActivityDetails from "@/app/components/festivals/festival_activities/activity-details";
+import { Button } from "@/app/components/ui/button";
 import { fetchFullFestivalById } from "@/app/lib/festival_sectors/actions";
 import { getActiveFestival } from "@/app/lib/festivals/helpers";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
+import { CloudUploadIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import Image from "next/image";
 import { notFound } from "next/navigation";
@@ -98,32 +100,47 @@ export default async function Page({ params }: EnrollPageProps) {
             La cantidad minima de stickers para cumplir con la actividad es de
             40.
           </li>
-          <li>El diseño que elegiste es el siguiente:</li>
-        </ul>
-        {enrolledDesign.imageUrl && (
-          <div className="flex flex-col gap-1 justify-center items-center">
-            <Image
-              className="mx-auto mt-2 md:mt-4"
-              src={enrolledDesign.imageUrl}
-              alt={`Sticker Print ${enrolledDesign.id}`}
-              width={300}
-              height={480}
-            />
-            <p className="text-muted-foreground text-sm">
-              {enrolledDesign.participants
-                .map((participant) => {
-                  const name = participant.user.displayName;
-                  const position =
-                    enrolledDesign.participants.findIndex(
-                      (p) => p.userId === participant.userId,
-                    ) + 1;
+          <li>
+            El diseño que elegiste es el siguiente:
+            {enrolledDesign.imageUrl && (
+              <div className="flex flex-col gap-1 justify-center items-center">
+                <Image
+                  className="mx-auto mt-2 md:mt-4"
+                  src={enrolledDesign.imageUrl}
+                  alt={`Sticker Print ${enrolledDesign.id}`}
+                  width={300}
+                  height={480}
+                />
+                <p className="text-muted-foreground text-sm">
+                  {enrolledDesign.participants
+                    .map((participant) => {
+                      const name = participant.user.displayName;
+                      const position =
+                        enrolledDesign.participants.findIndex(
+                          (p) => p.userId === participant.userId,
+                        ) + 1;
 
-                  return `${position}. ${name}`;
-                })
-                .join(", ")}
+                      return `${position}. ${name}`;
+                    })
+                    .join(", ")}
+                </p>
+              </div>
+            )}
+          </li>
+          <li>
+            Debes subir el diseño de tu sticker miércoles 9 de abril a las
+            18:00hs haciendo click en el siguiente botón:
+          </li>
+          <div className="flex flex-col items-center justify-center my-3 gap-1">
+            <Button disabled className="w-fit">
+              Subir diseño de sticker
+              <CloudUploadIcon className="w-4 h-4 ml-2" />
+            </Button>
+            <p className="text-muted-foreground text-sm">
+              Este botón se habilitará pronto. Espera el comunicado.
             </p>
           </div>
-        )}
+        </ul>
       </div>
     );
   }
