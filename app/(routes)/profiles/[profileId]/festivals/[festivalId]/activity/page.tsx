@@ -83,7 +83,7 @@ export default async function ParticipantsActivityPage({
         <p>
           Tendremos 4 diseños distintos de prints tamaño doble oficio que los
           asistentes del evento podrán adquirir en el stand de Glitter al
-          ingresar al festival por un valor de 15Bs. En total se imprimirán 120
+          ingresar al festival por un valor de 15Bs. En total se imprimirán 160
           Sticker-Prints, lo que equivale a 40 unidades de cada diseño.
         </p>
         <p>
