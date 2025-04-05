@@ -128,15 +128,15 @@ export default async function Page({ params }: EnrollPageProps) {
             )}
           </li>
           <li>
-            Debes subir el diseño de tu sticker miércoles 9 de abril a las
-            18:00hs haciendo click en el siguiente botón:
+            Debes subir el diseño de tu sticker hasta el miércoles 9 de abril a
+            las 18:00hs haciendo click en el siguiente botón:
           </li>
           <div className="flex flex-col items-center justify-center my-3 gap-1">
             <Button disabled className="w-fit">
               Subir diseño de sticker
               <CloudUploadIcon className="w-4 h-4 ml-2" />
             </Button>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-muted-foreground text-sm text-center">
               Este botón se habilitará pronto. Espera el comunicado.
             </p>
           </div>
