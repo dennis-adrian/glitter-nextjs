@@ -6,7 +6,11 @@ import {
   Participation,
   UserCategory,
 } from "@/app/api/users/definitions";
-import { FullFestival } from "@/app/data/festivals/definitions";
+import {
+  ActivityDetailsWithParticipants,
+  FestivalActivityWithDetailsAndParticipants,
+  FullFestival,
+} from "@/app/data/festivals/definitions";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import { db } from "@/db";
 import {
@@ -18,7 +22,7 @@ import {
   stands,
   users,
 } from "@/db/schema";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function fetchFestivalSectors(
@@ -207,21 +211,53 @@ export async function fetchConfirmedProfilesByFestivalId(
 
 export async function enrollInActivity(
   userId: number,
-  activityDetailsId: number,
   festivalId: number,
+  activityDetails: ActivityDetailsWithParticipants,
 ) {
   try {
-    await db.insert(festivalActivityParticipants).values({
-      userId,
-      detailsId: activityDetailsId,
-    });
+    const { id: detailsId, participationLimit } = activityDetails;
+
+    if (participationLimit && participationLimit > 0) {
+      // Use a transaction to ensure atomicity
+      const result = await db.transaction(async (tx) => {
+        // Check if there's space available
+        const currentParticipantsCount = await tx
+          .select({ count: count() })
+          .from(festivalActivityParticipants)
+          .where(eq(festivalActivityParticipants.detailsId, detailsId));
+
+        if (currentParticipantsCount[0].count >= participationLimit) {
+          return { success: false, message: "Ya no hay cupo disponible" };
+        }
+
+        // If there's space, insert the new participant
+        await tx.insert(festivalActivityParticipants).values({
+          userId,
+          detailsId,
+        });
+
+        return {
+          success: true,
+          message: "Inscripción realizada correctamente",
+        };
+      });
+
+      revalidatePath(`/profiles/${userId}/festivals/${festivalId}/activity`);
+      return result;
+    } else {
+      // If there's no participation limit, just insert
+      await db.insert(festivalActivityParticipants).values({
+        userId,
+        detailsId,
+      });
+
+      revalidatePath(`/profiles/${userId}/festivals/${festivalId}/activity`);
+      return { success: true, message: "Inscripción realizada correctamente" };
+    }
   } catch (error) {
     console.error("Error enrolling in activity", error);
     return { success: false, message: "Error al inscribirse en la actividad" };
   }
-
-  revalidatePath(`/festivals/${festivalId}/participants_activity`);
-  return { success: true, message: "Inscripción realizada correctamente" };
 }
 
 export async function fetchFullFestivalById(

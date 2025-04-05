@@ -221,6 +221,7 @@ export default async function ParticipantsActivityPage({
         </p>
       </div>
       <EnrollRedirectButton
+        currentProfile={currentProfile!}
         forProfileId={forProfile.id}
         festivalId={festival.id}
         activity={activity}

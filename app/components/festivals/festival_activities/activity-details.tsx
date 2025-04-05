@@ -33,8 +33,8 @@ export default function ActivityDetails({
 
     const result = await enrollInActivity(
       user.id,
-      selectedDesign.id,
       activity.festivalId,
+      selectedDesign,
     );
 
     if (result.success) {
