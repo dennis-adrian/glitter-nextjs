@@ -20,7 +20,7 @@ export default async function FestivalActivityBanner({
   if (!hasReservation) return null;
 
   return (
-    <div className="flex flex-col md:flex-row justify-center items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 md:p-4 text-amber-800">
+    <div className="flex flex-col md:flex-row justify-center items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-800">
       <p className="text-sm">
         Tendremos una actividad especial en <strong>{festival.name}</strong> que
         te puede interesar. Los cupos son limitados. No te quedes fuera.

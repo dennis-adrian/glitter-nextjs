@@ -5,6 +5,7 @@ import { ArrowUpRightIcon } from "lucide-react";
 import AnnouncementCard from "@/components/user_profile/announcements_cards/card";
 import { DateTime } from "luxon";
 import { formatDate } from "@/app/lib/formatters";
+import FestivalActivityBanner from "@/app/components/pages/my_profile/festival-activity-banner";
 
 type UserProfileBannerProps = {
   profile: ProfileType;
@@ -20,7 +21,12 @@ export default async function UserProfileBanner({
 
   if (!hasPendingPayment) {
     if (profile.status !== "banned") {
-      return <AnnouncementCard profile={profile} />;
+      return (
+        <>
+          <FestivalActivityBanner profile={profile} />
+          <AnnouncementCard profile={profile} />
+        </>
+      );
     } else {
       return null;
     }

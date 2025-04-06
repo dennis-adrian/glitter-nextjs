@@ -19,7 +19,7 @@ export default function BaseCard({
     <Card
       className={cn("bg-amber-50 text-amber-900 border-amber-200", className)}
     >
-      <CardContent className="text-sm py-3 px-3">
+      <CardContent className="text-sm p-3">
         <div className="flex flex-col justify-between items-center md:flex-row gap-1 md:gap-2">
           <div>{content}</div>
           {footer}
