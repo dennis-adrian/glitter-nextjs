@@ -5,18 +5,20 @@ import Link from "next/link";
 import { cn } from "@/app/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { VariantProps } from "class-variance-authority";
+import { HTMLAttributes, useEffect, useState } from "react";
 import { Loader2Icon } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { HTMLAttributes, useEffect, useState } from "react";
 
 export function RedirectButton({
   children,
   href,
   variant,
+  disabled = false,
   ...props
 }: {
   children: React.ReactNode;
   href: string;
+  disabled?: boolean;
 } & VariantProps<typeof buttonVariants> &
   HTMLAttributes<HTMLButtonElement>) {
   const [loading, setLoading] = useState(false);
@@ -27,6 +29,14 @@ export function RedirectButton({
       setLoading(false);
     }
   }, [path, href]);
+
+  if (disabled) {
+    return (
+      <Button disabled variant={variant} {...props}>
+        {children}
+      </Button>
+    );
+  }
 
   return loading ? (
     <Button disabled variant={variant} {...props}>

@@ -49,7 +49,7 @@ const DrawerContent = React.forwardRef<
       {...props}
     >
       <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
-      {children}
+      <div className="max-h-[calc(100vh-4rem)] overflow-y-auto">{children}</div>
     </DrawerPrimitive.Content>
   </DrawerPortal>
 ));

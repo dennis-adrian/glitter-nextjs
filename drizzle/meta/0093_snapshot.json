@@ -1,6 +1,6 @@
 {
-  "id": "49bdf50a-a89d-4ab1-ae7d-9c59727bf706",
-  "prevId": "3278a392-e12a-4108-a352-54a6c9ca1ac4",
+  "id": "b556bf64-6b59-4779-a4d1-ebc8fda6067f",
+  "prevId": "0eb959c0-840c-41e3-882a-1b0ad20447f0",
   "version": "5",
   "dialect": "pg",
   "tables": {
@@ -38,6 +38,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "promotional_art_url": {
+          "name": "promotional_art_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "festival_id": {
           "name": "festival_id",
           "type": "integer",
@@ -65,8 +71,12 @@
           "name": "festival_activities_festival_id_festivals_id_fk",
           "tableFrom": "festival_activities",
           "tableTo": "festivals",
-          "columnsFrom": ["festival_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "festival_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -96,8 +106,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "participantion_limit": {
-          "name": "participantion_limit",
+        "participation_limit": {
+          "name": "participation_limit",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
@@ -129,8 +139,12 @@
           "name": "festival_activity_details_activity_id_festival_activities_id_fk",
           "tableFrom": "festival_activity_details",
           "tableTo": "festival_activities",
-          "columnsFrom": ["activity_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "activity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -181,8 +195,12 @@
           "name": "festival_activity_participants_details_id_festival_activity_details_id_fk",
           "tableFrom": "festival_activity_participants",
           "tableTo": "festival_activity_details",
-          "columnsFrom": ["details_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "details_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -190,8 +208,12 @@
           "name": "festival_activity_participants_user_id_users_id_fk",
           "tableFrom": "festival_activity_participants",
           "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -245,7 +267,9 @@
       "indexes": {
         "festival_dates_festival_id_idx": {
           "name": "festival_dates_festival_id_idx",
-          "columns": ["festival_id"],
+          "columns": [
+            "festival_id"
+          ],
           "isUnique": false
         }
       },
@@ -254,8 +278,12 @@
           "name": "festival_dates_festival_id_festivals_id_fk",
           "tableFrom": "festival_dates",
           "tableTo": "festivals",
-          "columnsFrom": ["festival_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "festival_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -328,7 +356,9 @@
       "indexes": {
         "festival_sector_name_idx": {
           "name": "festival_sector_name_idx",
-          "columns": ["name"],
+          "columns": [
+            "name"
+          ],
           "isUnique": false
         }
       },
@@ -337,8 +367,12 @@
           "name": "festival_sectors_festival_id_festivals_id_fk",
           "tableFrom": "festival_sectors",
           "tableTo": "festivals",
-          "columnsFrom": ["festival_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "festival_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -518,7 +552,9 @@
       "indexes": {
         "name_idx": {
           "name": "name_idx",
-          "columns": ["name"],
+          "columns": [
+            "name"
+          ],
           "isUnique": false
         }
       },
@@ -528,7 +564,9 @@
         "festivals_name_unique": {
           "name": "festivals_name_unique",
           "nullsNotDistinct": false,
-          "columns": ["name"]
+          "columns": [
+            "name"
+          ]
         }
       }
     },
@@ -594,8 +632,12 @@
           "name": "invoices_user_id_users_id_fk",
           "tableFrom": "invoices",
           "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -603,8 +645,12 @@
           "name": "invoices_reservation_id_stand_reservations_id_fk",
           "tableFrom": "invoices",
           "tableTo": "stand_reservations",
-          "columnsFrom": ["reservation_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "reservation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -667,8 +713,12 @@
           "name": "payments_invoice_id_invoices_id_fk",
           "tableFrom": "payments",
           "tableTo": "invoices",
-          "columnsFrom": ["invoice_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "invoice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -719,8 +769,12 @@
           "name": "profile_subcategories_profile_id_users_id_fk",
           "tableFrom": "profile_subcategories",
           "tableTo": "users",
-          "columnsFrom": ["profile_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -728,8 +782,12 @@
           "name": "profile_subcategories_subcategory_id_subcategories_id_fk",
           "tableFrom": "profile_subcategories",
           "tableTo": "subcategories",
-          "columnsFrom": ["subcategory_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "subcategory_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -780,8 +838,12 @@
           "name": "profile_tags_profile_id_users_id_fk",
           "tableFrom": "profile_tags",
           "tableTo": "users",
-          "columnsFrom": ["profile_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -789,8 +851,12 @@
           "name": "profile_tags_tag_id_tags_id_fk",
           "tableFrom": "profile_tags",
           "tableTo": "tags",
-          "columnsFrom": ["tag_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "tag_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -896,8 +962,12 @@
           "name": "participations_user_id_users_id_fk",
           "tableFrom": "participations",
           "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -905,8 +975,12 @@
           "name": "participations_reservation_id_stand_reservations_id_fk",
           "tableFrom": "participations",
           "tableTo": "stand_reservations",
-          "columnsFrom": ["reservation_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "reservation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -995,8 +1069,12 @@
           "name": "scheduled_tasks_profile_id_users_id_fk",
           "tableFrom": "scheduled_tasks",
           "tableTo": "users",
-          "columnsFrom": ["profile_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1004,8 +1082,12 @@
           "name": "scheduled_tasks_reservation_id_stand_reservations_id_fk",
           "tableFrom": "scheduled_tasks",
           "tableTo": "stand_reservations",
-          "columnsFrom": ["reservation_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "reservation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1179,7 +1261,9 @@
       "indexes": {
         "stand_label_idx": {
           "name": "stand_label_idx",
-          "columns": ["label"],
+          "columns": [
+            "label"
+          ],
           "isUnique": false
         }
       },
@@ -1188,8 +1272,12 @@
           "name": "stands_festival_sector_id_festival_sectors_id_fk",
           "tableFrom": "stands",
           "tableTo": "festival_sectors",
-          "columnsFrom": ["festival_sector_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "festival_sector_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1197,8 +1285,12 @@
           "name": "stands_qr_code_id_qr_codes_id_fk",
           "tableFrom": "stands",
           "tableTo": "qr_codes",
-          "columnsFrom": ["qr_code_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "qr_code_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1448,8 +1540,12 @@
           "name": "user_requests_user_id_users_id_fk",
           "tableFrom": "user_requests",
           "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1457,8 +1553,12 @@
           "name": "user_requests_festival_id_festivals_id_fk",
           "tableFrom": "user_requests",
           "tableTo": "festivals",
-          "columnsFrom": ["festival_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "festival_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1515,8 +1615,12 @@
           "name": "user_socials_user_id_users_id_fk",
           "tableFrom": "user_socials",
           "tableTo": "users",
-          "columnsFrom": ["user_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1646,7 +1750,9 @@
       "indexes": {
         "display_name_idx": {
           "name": "display_name_idx",
-          "columns": ["display_name"],
+          "columns": [
+            "display_name"
+          ],
           "isUnique": false
         }
       },
@@ -1656,12 +1762,16 @@
         "users_clerk_id_unique": {
           "name": "users_clerk_id_unique",
           "nullsNotDistinct": false,
-          "columns": ["clerk_id"]
+          "columns": [
+            "clerk_id"
+          ]
         },
         "users_email_unique": {
           "name": "users_email_unique",
           "nullsNotDistinct": false,
-          "columns": ["email"]
+          "columns": [
+            "email"
+          ]
         }
       }
     },
@@ -1741,7 +1851,9 @@
         "visitors_email_unique": {
           "name": "visitors_email_unique",
           "nullsNotDistinct": false,
-          "columns": ["email"]
+          "columns": [
+            "email"
+          ]
         }
       }
     }

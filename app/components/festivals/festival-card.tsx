@@ -32,18 +32,27 @@ export default function FestivalCard({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-1">
             <RedirectButton
-              variant="link"
+              variant="outline"
+              size="sm"
               href={`/dashboard/festivals/${festival.id}/tickets`}
             >
               Ver visitantes
             </RedirectButton>
             <RedirectButton
-              variant="link"
+              variant="outline"
+              size="sm"
               href={`/dashboard/festivals/${festival.id}/participants`}
             >
               Ver participantes
+            </RedirectButton>
+            <RedirectButton
+              variant="outline"
+              size="sm"
+              href={`/dashboard/festivals/${festival.id}/festival_activities`}
+            >
+              Ver actividades
             </RedirectButton>
           </div>
           <FestivalSwitches festival={festival} />

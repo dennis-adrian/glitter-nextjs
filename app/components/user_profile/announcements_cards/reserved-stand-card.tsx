@@ -3,16 +3,19 @@ import { ReservationStatus } from "@/app/api/user_requests/actions";
 import { RedirectButton } from "@/app/components/redirect-button";
 import BaseCard from "@/app/components/user_profile/announcements_cards/base-card";
 import { FestivalBase } from "@/app/data/festivals/definitions";
-import { ArrowRightIcon } from "lucide-react";
+import { BaseProfile } from "@/app/api/users/definitions";
+import { FileSpreadsheetIcon, MapIcon } from "lucide-react";
 
 export function ReservedStandCard({
   stand,
   festival,
   reservationStatus,
+  profile,
 }: {
   stand: StandBase;
   festival: FestivalBase;
   reservationStatus: ReservationStatus;
+  profile: BaseProfile;
 }) {
   return (
     <BaseCard
@@ -39,15 +42,24 @@ export function ReservedStandCard({
         )
       }
       footer={
-        <RedirectButton
-          variant="link"
-          className="text-amber-900 underline"
-          size="sm"
-          href={`/festivals/${festival.id}?tab=sectors`}
-        >
-          Ir al mapa
-          <ArrowRightIcon className="ml-2 w-4 h-4" />
-        </RedirectButton>
+        <div className="flex gap-0 items-center flex-col-reverse md:flex-col">
+          <RedirectButton
+            variant="link"
+            size="sm"
+            href={`/profiles/${profile.id}/festivals/${stand.festivalId}/terms`}
+          >
+            Leer términos y condiciones
+            <FileSpreadsheetIcon className="ml-2 w-4 h-4" />
+          </RedirectButton>
+          <RedirectButton
+            variant="link"
+            size="sm"
+            href={`/festivals/${stand.festivalId}?tab=sectors`}
+          >
+            Ir al mapa
+            <MapIcon className="ml-2 w-4 h-4" />
+          </RedirectButton>
+        </div>
       }
     />
   );
