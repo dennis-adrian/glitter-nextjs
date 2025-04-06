@@ -111,7 +111,10 @@ export default function EditReservationForm({
           </h2>
           <ProfileQuickViewInfo
             showAdminControls
-            profile={reservation.participants[0].user}
+            profile={{
+              ...reservation.participants[0].user,
+              profileSubcategories: [],
+            }}
           />
         </div>
         {partner && (
@@ -123,7 +126,13 @@ export default function EditReservationForm({
                 onClick={() => removePartner()}
               />
             </div>
-            <ProfileQuickViewInfo showAdminControls profile={partner} />
+            <ProfileQuickViewInfo
+              showAdminControls
+              profile={{
+                ...partner,
+                profileSubcategories: [],
+              }}
+            />
           </div>
         )}
         {showInput && !partner && (
