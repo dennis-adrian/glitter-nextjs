@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+import { createPortal } from "react-dom";
 
 interface DropzoneProps {
   className?: string;
@@ -33,6 +34,27 @@ export function Dropzone({
   const [files, setFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showFullPreview, setShowFullPreview] = useState(false);
+  const [previewDimensions, setPreviewDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+
+  const loadImageDimensions = useCallback((file: File) => {
+    const img = new window.Image();
+    img.onload = () => {
+      setPreviewDimensions({ width: img.width, height: img.height });
+    };
+    img.src = URL.createObjectURL(file);
+  }, []);
+
+  const handlePreviewClick = useCallback(
+    (file: File) => {
+      loadImageDimensions(file);
+      setShowFullPreview(true);
+    },
+    [loadImageDimensions],
+  );
 
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -160,7 +182,10 @@ export function Dropzone({
         className="flex items-center gap-2 p-2 rounded-md bg-muted/50"
       >
         {file.type.startsWith("image/") ? (
-          <div className="relative w-6 h-6">
+          <div
+            className="relative w-6 h-6"
+            onClick={() => handlePreviewClick(file)}
+          >
             <Image
               src={URL.createObjectURL(file)}
               alt={file.name}
@@ -190,8 +215,35 @@ export function Dropzone({
     );
   };
 
+  const generatePreviewPortal = useCallback(() => {
+    if (!previewDimensions) return null;
+    return createPortal(
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 overflow-auto">
+        <div className="relative min-w-0 min-h-0 max-w-none max-h-none">
+          <Image
+            src={URL.createObjectURL(files[0])}
+            alt={files[0].name}
+            width={previewDimensions.width}
+            height={previewDimensions.height}
+            className="max-w-none"
+            unoptimized
+          />
+        </div>
+        <button
+          onClick={() => setShowFullPreview(false)}
+          className="absolute top-4 right-4 p-2 rounded-full bg-black/50 hover:bg-black/70"
+          aria-label="Close preview"
+        >
+          <XIcon className="w-6 h-6 text-white" />
+        </button>
+      </div>,
+      document.body,
+    );
+  }, [files, previewDimensions, setShowFullPreview]);
+
   return (
     <div className={cn("flex flex-col gap-4", className)}>
+      {showFullPreview && previewDimensions && generatePreviewPortal()}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
