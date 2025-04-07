@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
-import { createPortal } from "react-dom";
+import FullPreviewDialog from "@/app/components/organisms/dropzone/fullPreviewDialog";
 
 interface DropzoneProps {
   className?: string;
@@ -215,35 +215,17 @@ export function Dropzone({
     );
   };
 
-  const generatePreviewPortal = useCallback(() => {
-    if (!previewDimensions) return null;
-    return createPortal(
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 overflow-auto">
-        <div className="relative min-w-0 min-h-0 max-w-none max-h-none">
-          <Image
-            src={URL.createObjectURL(files[0])}
-            alt={files[0].name}
-            width={previewDimensions.width}
-            height={previewDimensions.height}
-            className="max-w-none"
-            unoptimized
-          />
-        </div>
-        <button
-          onClick={() => setShowFullPreview(false)}
-          className="absolute top-4 right-4 p-2 rounded-full bg-black/50 hover:bg-black/70"
-          aria-label="Close preview"
-        >
-          <XIcon className="w-6 h-6 text-white" />
-        </button>
-      </div>,
-      document.body,
-    );
-  }, [files, previewDimensions, setShowFullPreview]);
-
   return (
     <div className={cn("flex flex-col gap-4", className)}>
-      {showFullPreview && previewDimensions && generatePreviewPortal()}
+      {previewDimensions && (
+        <FullPreviewDialog
+          open={showFullPreview}
+          onOpenChange={setShowFullPreview}
+          previewDimensions={previewDimensions}
+          files={files}
+        />
+      )}
+
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
