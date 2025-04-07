@@ -39,6 +39,9 @@ export function Dropzone({
     width: number;
     height: number;
   } | null>(null);
+  const [selectedPreviewFile, setSelectedPreviewFile] = useState<File | null>(
+    null,
+  );
 
   const loadImageDimensions = useCallback((file: File) => {
     const img = new window.Image();
@@ -52,6 +55,7 @@ export function Dropzone({
     (file: File) => {
       loadImageDimensions(file);
       setShowFullPreview(true);
+      setSelectedPreviewFile(file);
     },
     [loadImageDimensions],
   );
@@ -183,7 +187,7 @@ export function Dropzone({
       >
         {file.type.startsWith("image/") ? (
           <div
-            className="relative w-6 h-6"
+            className="relative w-6 h-6 object-cover"
             onClick={() => handlePreviewClick(file)}
           >
             <Image
@@ -191,7 +195,6 @@ export function Dropzone({
               alt={file.name}
               className="rounded-md"
               fill
-              objectFit="cover"
             />
           </div>
         ) : (
@@ -222,7 +225,7 @@ export function Dropzone({
           open={showFullPreview}
           onOpenChange={setShowFullPreview}
           previewDimensions={previewDimensions}
-          files={files}
+          file={selectedPreviewFile}
         />
       )}
 
