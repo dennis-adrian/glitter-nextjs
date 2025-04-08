@@ -1,5 +1,6 @@
 "use client";
 
+import TryAgainForm from "@/app/components/festivals/festival_activities/try-again-form";
 import { Dropzone } from "@/app/components/organisms/dropzone";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -13,12 +14,117 @@ import {
 } from "@/app/components/ui/drawer-dialog";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { addFestivalActivityParticipantProof } from "@/app/lib/festival_sectors/actions";
-import { UploadCloudIcon } from "lucide-react";
+import {
+  CheckCircleIcon,
+  Loader2Icon,
+  UploadCloudIcon,
+  XIcon,
+} from "lucide-react";
+import Image from "next/image";
+import { useState } from "react";
 import { toast } from "sonner";
 
 export default function UploadStickerDesignModal() {
   const isDesktop = useMediaQuery("(min-width: 768px)");
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<
+    {
+      imageUrl: string;
+      fileName: string;
+      fileSize: number;
+    }[]
+  >([]);
+  const [insertSuccess, setInsertSuccess] = useState(false);
+  const [insertError, setInsertError] = useState(false);
 
+  const generateContent = () => {
+    if (insertError) {
+      return (
+        <div className="flex flex-col gap-2">
+          {uploadedFiles.map((file) => (
+            <div
+              key={file.fileName}
+              className="flex items-center gap-2 p-2 rounded-md bg-muted/50"
+            >
+              <div className="relative w-6 h-6 object-cover">
+                <Image
+                  src={file.imageUrl}
+                  alt={file.fileName}
+                  className="rounded-md"
+                  fill
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{file.fileName}</p>
+                <p className="text-xs text-muted-foreground">
+                  {(file.fileSize / 1024).toFixed(1)} KB
+                </p>
+              </div>
+            </div>
+          ))}
+          <TryAgainForm
+            imageUrls={uploadedFiles.map((file) => file.imageUrl)}
+            participationId={9}
+            onSuccess={() => {
+              setInsertSuccess(true);
+              setInsertError(false);
+            }}
+          />
+        </div>
+      );
+    }
+
+    if (insertSuccess) {
+      return (
+        <div className="flex flex-col gap-2 items-center justify-center h-36">
+          <CheckCircleIcon className="w-10 h-10 text-green-500" />
+          <p className="text-sm text-green-500">
+            {uploadedFiles.length === 1
+              ? "Diseño subido correctamente"
+              : `Diseños subidos correctamente`}
+          </p>
+        </div>
+      );
+    }
+
+    if (uploadSuccess) {
+      return (
+        <div className="flex flex-col gap-2 items-center justify-center h-36">
+          <Loader2Icon className="w-10 h-10 animate-spin text-primary" />
+          <p className="text-sm text-primary">Guardando</p>
+        </div>
+      );
+    }
+
+    return (
+      <Dropzone
+        maxFiles={5}
+        maxSize={2 * 1024 * 1024}
+        accept={["image/*"]}
+        onUploadComplete={async (
+          files: {
+            imageUrl: string;
+            fileName: string;
+            fileSize: number;
+          }[],
+        ) => {
+          setUploadSuccess(true);
+          setUploadedFiles(files);
+          const res = await addFestivalActivityParticipantProof(
+            1,
+            files.map((file) => file.imageUrl),
+          );
+          if (res.success) {
+            toast.success(res.message);
+            setInsertSuccess(true);
+          } else {
+            toast.error(res.message);
+            setInsertError(true);
+          }
+        }}
+      />
+    );
+  };
   return (
     <DrawerDialog isDesktop={isDesktop}>
       <DrawerDialogTrigger>
@@ -34,22 +140,7 @@ export default function UploadStickerDesignModal() {
           </DrawerDialogTitle>
         </DrawerDialogHeader>
         <div className={`${isDesktop ? "" : "px-4"} pt-2`}>
-          <Dropzone
-            maxFiles={5}
-            maxSize={2 * 1024 * 1024}
-            accept={["image/*"]}
-            onUploadComplete={async (imageUrls) => {
-              const res = await addFestivalActivityParticipantProof(
-                9,
-                imageUrls,
-              );
-              if (res.success) {
-                toast.success(res.message);
-              } else {
-                toast.error(res.message);
-              }
-            }}
-          />
+          {generateContent()}
         </div>
         {isDesktop ? null : (
           <DrawerDialogFooter isDesktop={isDesktop} className="pt-2">

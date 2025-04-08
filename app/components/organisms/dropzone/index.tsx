@@ -11,21 +11,29 @@ import {
   MusicIcon,
   ArchiveIcon,
   FileIcon,
+  CloudUploadIcon,
+  Loader2Icon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import FullPreviewDialog from "@/app/components/organisms/dropzone/fullPreviewDialog";
 import { useUploadThing } from "@/app/vendors/uploadthing";
-import UploadForm from "@/app/components/organisms/dropzone/upload-form";
 import { Button } from "@/app/components/ui/button";
 import { toast } from "sonner";
+import { Progress } from "@/app/components/ui/progress";
 
 type DropzoneProps = {
   className?: string;
   maxFiles?: number;
   maxSize?: number; // in bytes
   accept?: string[]; // e.g. ['image/*', 'application/pdf']
-  onUploadComplete?: (imageUrls: string[]) => void;
+  onUploadComplete?: (
+    files: {
+      imageUrl: string;
+      fileName: string;
+      fileSize: number;
+    }[],
+  ) => void;
 };
 
 export function Dropzone({
@@ -39,6 +47,7 @@ export function Dropzone({
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showFullPreview, setShowFullPreview] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [previewDimensions, setPreviewDimensions] = useState<{
     width: number;
     height: number;
@@ -52,7 +61,13 @@ export function Dropzone({
     {
       onClientUploadComplete(res) {
         if (onUploadComplete) {
-          onUploadComplete(res.map((r) => r.url));
+          onUploadComplete(
+            res.map((r) => ({
+              imageUrl: r.url,
+              fileName: r.name,
+              fileSize: r.size,
+            })),
+          );
         } else {
           toast.success("Archivos subidos correctamente");
         }
@@ -70,16 +85,11 @@ export function Dropzone({
 
         toast.error(message);
       },
-      onUploadProgress(p) {
-        console.log("Uploading...", p);
-      },
-      onUploadBegin(fileName) {
-        console.log("Uploading...", fileName);
+      onUploadProgress(progress) {
+        setUploadProgress(progress);
       },
     },
   );
-  console.log("isUploading", isUploading);
-  console.log("routeConfig", routeConfig);
 
   const loadImageDimensions = useCallback((file: File) => {
     const img = new window.Image();
@@ -229,20 +239,37 @@ export function Dropzone({
         ) : (
           getFileIcon(file)
         )}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{file.name}</p>
-          <p className="text-xs text-muted-foreground">
-            {(file.size / 1024).toFixed(1)} KB
-          </p>
+        <div className="flex flex-col gap-1 w-full">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{file.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {(file.size / 1024).toFixed(1)} KB
+              </p>
+            </div>
+            {isUploading ? (
+              <div className="w-4 h-4">
+                <Loader2Icon className="w-4 h-4 animate-spin text-primary-400" />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => removeFile(index)}
+                className="p-1 rounded-full hover:bg-muted"
+                aria-label="Remove file"
+              >
+                <XIcon className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          {isUploading && (
+            <Progress
+              indicatorClassName="bg-primary-400"
+              className="h-1 bg-primary-50"
+              value={uploadProgress}
+            />
+          )}
         </div>
-        <button
-          type="button"
-          onClick={() => removeFile(index)}
-          className="p-1 rounded-full hover:bg-muted"
-          aria-label="Remove file"
-        >
-          <XIcon className="w-4 h-4" />
-        </button>
       </div>
     );
   };
@@ -311,14 +338,13 @@ export function Dropzone({
         </div>
       )}
       <Button
-        onClick={async () => {
-          const res = await startUpload(files);
-          console.log("upload response", res);
-        }}
+        onClick={() => startUpload(files)}
+        disabled={isUploading || files.length === 0}
+        className="w-full"
       >
-        Upload
+        {isUploading ? "Subiendo..." : "Subir archivos"}
+        <CloudUploadIcon className="ml-2 w-4 h-4" />
       </Button>
-      {/* <UploadForm onSubmit={() => {}} /> */}
     </div>
   );
 }
