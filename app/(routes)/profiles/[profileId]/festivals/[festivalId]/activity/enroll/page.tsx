@@ -1,11 +1,8 @@
 import { fetchUserProfileById } from "@/app/api/users/actions";
 import { BaseProfile } from "@/app/api/users/definitions";
 import ActivityDetails from "@/app/components/festivals/festival_activities/activity-details";
-import { Button } from "@/app/components/ui/button";
 import { fetchFullFestivalById } from "@/app/lib/festival_sectors/actions";
-import { getActiveFestival } from "@/app/lib/festivals/helpers";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
-import { CloudUploadIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import Image from "next/image";
 import { notFound } from "next/navigation";
@@ -77,6 +74,13 @@ export default async function Page({ params }: EnrollPageProps) {
   );
 
   if (enrolledDesign) {
+    console.log("enrolled design", enrolledDesign);
+    const proofs = enrolledDesign.participants.find(
+      (participant) => participant.userId === forProfile?.id,
+    )?.proofs;
+
+    const hasUploadedProof = proofs && proofs.length > 0;
+
     return (
       <div className="container p-4 md:p-6">
         <h1 className="text-2xl md:text-3xl font-bold mb-1">Sticker-Print</h1>
@@ -94,11 +98,6 @@ export default async function Page({ params }: EnrollPageProps) {
               ) + 1}
               .
             </strong>
-          </li>
-          <li>La medida de tu sticker tiene que ser de 4cm x 4cm.</li>
-          <li>
-            La cantidad minima de stickers para cumplir con la actividad es de
-            40.
           </li>
           <li>
             El diseño que elegiste es el siguiente:
@@ -127,20 +126,81 @@ export default async function Page({ params }: EnrollPageProps) {
               </div>
             )}
           </li>
-          <li>
-            Debes subir el diseño de tu sticker hasta el miércoles 9 de abril a
-            las 18:00hs haciendo click en el siguiente botón:
-          </li>
-          <div className="flex flex-col items-center justify-center my-3 gap-1">
-            <Button disabled className="w-fit">
-              Subir diseño de sticker
-              <CloudUploadIcon className="w-4 h-4 ml-2" />
-            </Button>
-            <p className="text-muted-foreground text-sm text-center">
-              Este botón se habilitará pronto. Espera el comunicado.
-            </p>
-          </div>
         </ul>
+
+        {hasUploadedProof && (
+          <div className="flex flex-col gap-3 mt-6 w-full">
+            <h2 className="text-lg font-bold">
+              {proofs.length > 1 ? "Diseños subidos" : "Diseño subido"}
+            </h2>
+            <div className="flex flex-wrap gap-4 justify-center items-center">
+              {proofs.map((proof) => (
+                <div key={proof.id} className="relative w-44 h-44">
+                  <Image
+                    className="object-cover rounded-md"
+                    src={proof.imageUrl}
+                    alt={`Proof ${proof.id}`}
+                    fill
+                    sizes="100vw"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3 mt-6">
+          <h2 className="text-lg font-bold">Condiciones</h2>
+          <ul className="ml-4 list-disc list-inside">
+            <li>
+              Luego de haber seleccionado el diseño y haberse inscrito en la
+              actividad, no se podrá cambiar de diseño.
+            </li>
+            <li>
+              El ilustrador debe diseñar un sticker exclusivo para la actividad
+              el cual deberá medir 4cm x 4cm sin excepción.
+            </li>
+            <li>
+              El sticker deberá tener una paleta de color acorde al diseño del
+              print seleccionado.
+            </li>
+            <li>
+              El diseño del sticker debe ser apto para todo público, es decir,
+              no puede contener contenido sexual, violento, o que pueda ser
+              ofensivo.
+            </li>
+            <li>
+              El ilustrador deberá subir el diseño de su sticker al sitio web en
+              formato PNG con un tamaño máximo de 2MB hasta el miércoles 9 de
+              abril a las 18:00hs. (Esta opción no se encuentra disponible en
+              este momento pero se comunicará los ilustradores cuando esté
+              disponible).
+            </li>
+            <li>
+              El ilustrador se hará cargo de la impresión y la venta o
+              distribución de sus propios stickers.
+            </li>
+            <li>
+              El ilustrador es libre de elegir la dinámica con la cual otorgará
+              los stickers coleccionables. En caso de venderlos, el precio
+              máximo por sticker será de 5Bs.
+            </li>
+            <li>
+              La cantidad mínima de stickers coleccionables que el ilustrador
+              deberá tener disponibles designados exclusivamente para la
+              actividad será de 40 unidades.
+            </li>
+            <li>
+              El ilustrador se compromete a tener sus stickers coleccionables
+              listos para el primer día del evento: sábado 12 de abril.
+            </li>
+            <li>
+              El ilustrador comprende que la venta de cada diseño de
+              Sticker-Print depende de la demanda del público asistente y que no
+              es responsabilidad de la organización del festival.
+            </li>
+          </ul>
+        </div>
       </div>
     );
   }
