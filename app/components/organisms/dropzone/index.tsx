@@ -298,6 +298,7 @@ export function Dropzone({
       >
         <input
           id="dropzone-file"
+          disabled={isUploading}
           type="file"
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           onChange={handleFileInputChange}

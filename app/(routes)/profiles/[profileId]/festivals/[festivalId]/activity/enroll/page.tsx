@@ -74,7 +74,6 @@ export default async function Page({ params }: EnrollPageProps) {
   );
 
   if (enrolledDesign) {
-    console.log("enrolled design", enrolledDesign);
     const proofs = enrolledDesign.participants.find(
       (participant) => participant.userId === forProfile?.id,
     )?.proofs;
