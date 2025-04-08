@@ -15,21 +15,25 @@ import {
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import FullPreviewDialog from "@/app/components/organisms/dropzone/fullPreviewDialog";
+import { useUploadThing } from "@/app/vendors/uploadthing";
+import UploadForm from "@/app/components/organisms/dropzone/upload-form";
+import { Button } from "@/app/components/ui/button";
+import { toast } from "sonner";
 
-interface DropzoneProps {
+type DropzoneProps = {
   className?: string;
   maxFiles?: number;
   maxSize?: number; // in bytes
   accept?: string[]; // e.g. ['image/*', 'application/pdf']
-  onFilesAdded?: (files: File[]) => void;
-}
+  onUploadComplete?: (imageUrls: string[]) => void;
+};
 
 export function Dropzone({
   className,
   maxFiles = 5,
   maxSize = 1024 * 1024 * 10, // 10MB
   accept = ["image/*", "application/pdf"],
-  onFilesAdded,
+  onUploadComplete,
 }: DropzoneProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -42,6 +46,40 @@ export function Dropzone({
   const [selectedPreviewFile, setSelectedPreviewFile] = useState<File | null>(
     null,
   );
+
+  const { isUploading, routeConfig, startUpload } = useUploadThing(
+    "festivalActivityParticipantProof",
+    {
+      onClientUploadComplete(res) {
+        if (onUploadComplete) {
+          onUploadComplete(res.map((r) => r.url));
+        } else {
+          toast.success("Archivos subidos correctamente");
+        }
+      },
+      onUploadError(error: Error) {
+        let message = "Hubo un error al subir el archivo.";
+        if (error.message.includes("FileCountMismatch")) {
+          message = "La cantidad de archivos no es correcta.";
+          if (routeConfig?.image?.maxFileCount) {
+            message += ` Máximo ${routeConfig.image.maxFileCount} archivo${
+              routeConfig.image.maxFileCount > 1 ? "s" : ""
+            }.`;
+          }
+        }
+
+        toast.error(message);
+      },
+      onUploadProgress(p) {
+        console.log("Uploading...", p);
+      },
+      onUploadBegin(fileName) {
+        console.log("Uploading...", fileName);
+      },
+    },
+  );
+  console.log("isUploading", isUploading);
+  console.log("routeConfig", routeConfig);
 
   const loadImageDimensions = useCallback((file: File) => {
     const img = new window.Image();
@@ -131,13 +169,10 @@ export function Dropzone({
         if (validFiles.length > 0) {
           const newFiles = [...files, ...validFiles];
           setFiles(newFiles);
-          if (onFilesAdded) {
-            onFilesAdded(newFiles);
-          }
         }
       }
     },
-    [files, onFilesAdded, validateFiles],
+    [files, validateFiles],
   );
 
   const handleFileInputChange = useCallback(
@@ -147,13 +182,10 @@ export function Dropzone({
         if (validFiles.length > 0) {
           const newFiles = [...files, ...validFiles];
           setFiles(newFiles);
-          if (onFilesAdded) {
-            onFilesAdded(newFiles);
-          }
         }
       }
     },
-    [files, onFilesAdded, validateFiles],
+    [files, validateFiles],
   );
 
   const removeFile = useCallback(
@@ -161,11 +193,8 @@ export function Dropzone({
       const newFiles = [...files];
       newFiles.splice(index, 1);
       setFiles(newFiles);
-      if (onFilesAdded) {
-        onFilesAdded(newFiles);
-      }
     },
-    [files, onFilesAdded],
+    [files],
   );
 
   const getFileIcon = (file: File) => {
@@ -281,6 +310,15 @@ export function Dropzone({
           </div>
         </div>
       )}
+      <Button
+        onClick={async () => {
+          const res = await startUpload(files);
+          console.log("upload response", res);
+        }}
+      >
+        Upload
+      </Button>
+      {/* <UploadForm onSubmit={() => {}} /> */}
     </div>
   );
 }

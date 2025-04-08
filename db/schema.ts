@@ -653,7 +653,7 @@ export const festivalActivityParticipants = pgTable(
 );
 export const festivalActivityParticipantsRelations = relations(
   festivalActivityParticipants,
-  ({ one }) => ({
+  ({ one, many }) => ({
     activityDetail: one(festivalActivityDetails, {
       fields: [festivalActivityParticipants.detailsId],
       references: [festivalActivityDetails.id],
@@ -661,6 +661,31 @@ export const festivalActivityParticipantsRelations = relations(
     user: one(users, {
       fields: [festivalActivityParticipants.userId],
       references: [users.id],
+    }),
+    proofs: many(festivalActivityParticipantProofs),
+  }),
+);
+
+export const festivalActivityParticipantProofs = pgTable(
+  "festival_activity_participant_proofs",
+  {
+    id: serial("id").primaryKey(),
+    imageUrl: text("image_url").notNull(),
+    participationId: integer("participation_id")
+      .notNull()
+      .references(() => festivalActivityParticipants.id, {
+        onDelete: "cascade",
+      }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+);
+export const festivalActivityParticipantProofsRelations = relations(
+  festivalActivityParticipantProofs,
+  ({ one }) => ({
+    participation: one(festivalActivityParticipants, {
+      fields: [festivalActivityParticipantProofs.participationId],
+      references: [festivalActivityParticipants.id],
     }),
   }),
 );

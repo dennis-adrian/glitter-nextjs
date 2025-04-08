@@ -14,6 +14,7 @@ import {
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import { db } from "@/db";
 import {
+  festivalActivityParticipantProofs,
   festivalActivityParticipants,
   festivals,
   festivalSectors,
@@ -307,4 +308,23 @@ export async function fetchFullFestivalById(
     console.error("Error fetching full festival", error);
     return null;
   }
+}
+
+export async function addFestivalActivityParticipantProof(
+  participationId: number,
+  imageUrls: string[],
+) {
+  try {
+    await db.insert(festivalActivityParticipantProofs).values(
+      imageUrls.map((url) => ({
+        participationId,
+        imageUrl: url,
+      })),
+    );
+  } catch (error) {
+    console.error("Error adding festival activity participant proof", error);
+    return { success: false, message: "Error al subir el diseño" };
+  }
+
+  return { success: true, message: "Diseño subido correctamente" };
 }

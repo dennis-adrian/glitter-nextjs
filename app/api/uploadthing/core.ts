@@ -101,7 +101,29 @@ export const ourFileRouter = {
 
       // !!! Whatever is returned here is sent to the clientside `onClientUploadComplete` callback
       return { uploadedBy: metadata.userId };
-      return {};
+    }),
+  festivalActivityParticipantProof: f({
+    image: { maxFileSize: "2MB", maxFileCount: 2, minFileCount: 1 },
+  })
+    // Set permissions and file types for this FileRoute
+    .middleware(async ({ req }) => {
+      const user = await currentUser();
+
+      // Throw if user isn't signed in
+      if (!user)
+        throw new UploadThingError(
+          "Debes iniciar sesión para subir el archivo",
+        );
+
+      // Whatever is returned here is accessible in onUploadComplete as `metadata`
+      return { userId: user.id };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      // !!! Whatever is returned here is sent to the clientside `onClientUploadComplete` callback
+      return {
+        uploadedBy: metadata.userId,
+        imageUrl: (file as { url: string }).url,
+      };
     }),
 } satisfies FileRouter;
 

@@ -12,7 +12,9 @@ import {
   DrawerDialogTrigger,
 } from "@/app/components/ui/drawer-dialog";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
+import { addFestivalActivityParticipantProof } from "@/app/lib/festival_sectors/actions";
 import { UploadCloudIcon } from "lucide-react";
+import { toast } from "sonner";
 
 export default function UploadStickerDesignModal() {
   const isDesktop = useMediaQuery("(min-width: 768px)");
@@ -33,11 +35,19 @@ export default function UploadStickerDesignModal() {
         </DrawerDialogHeader>
         <div className={`${isDesktop ? "" : "px-4"} pt-2`}>
           <Dropzone
-            maxFiles={1}
+            maxFiles={5}
             maxSize={2 * 1024 * 1024}
             accept={["image/*"]}
-            onFilesAdded={(files) => {
-              console.log(files);
+            onUploadComplete={async (imageUrls) => {
+              const res = await addFestivalActivityParticipantProof(
+                9,
+                imageUrls,
+              );
+              if (res.success) {
+                toast.success(res.message);
+              } else {
+                toast.error(res.message);
+              }
             }}
           />
         </div>
