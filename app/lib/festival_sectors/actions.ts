@@ -296,6 +296,7 @@ export async function fetchFullFestivalById(
                 participants: {
                   with: {
                     user: true,
+                    proofs: true,
                   },
                 },
               },
