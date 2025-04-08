@@ -14,17 +14,18 @@ import {
 } from "@/app/components/ui/drawer-dialog";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { addFestivalActivityParticipantProof } from "@/app/lib/festival_sectors/actions";
-import {
-  CheckCircleIcon,
-  Loader2Icon,
-  UploadCloudIcon,
-  XIcon,
-} from "lucide-react";
+import { CheckCircleIcon, Loader2Icon, UploadCloudIcon } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 import { toast } from "sonner";
 
-export default function UploadStickerDesignModal() {
+type UploadStickerDesignModalProps = {
+  participationId: number;
+};
+
+export default function UploadStickerDesignModal({
+  participationId,
+}: UploadStickerDesignModalProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<
@@ -64,7 +65,7 @@ export default function UploadStickerDesignModal() {
           ))}
           <TryAgainForm
             imageUrls={uploadedFiles.map((file) => file.imageUrl)}
-            participationId={9}
+            participationId={participationId}
             onSuccess={() => {
               setInsertSuccess(true);
               setInsertError(false);
@@ -111,7 +112,7 @@ export default function UploadStickerDesignModal() {
           setUploadSuccess(true);
           setUploadedFiles(files);
           const res = await addFestivalActivityParticipantProof(
-            1,
+            participationId,
             files.map((file) => file.imageUrl),
           );
           if (res.success) {

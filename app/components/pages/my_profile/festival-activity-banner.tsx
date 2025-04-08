@@ -31,6 +31,13 @@ export default async function FestivalActivityBanner({
     (participant) => participant.user.id === profile.id,
   );
 
+  const participation = allParticipants.find(
+    (participant) => participant.user.id === profile.id,
+  );
+
+  const hasUploadedProof =
+    participation?.proofs.length && participation.proofs.length > 0;
+
   if (isProfileInFestivalActivity) {
     return (
       <div className="flex flex-col mdflex-row justify-center items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 md:p-4 text-amber-800">
@@ -44,12 +51,14 @@ export default async function FestivalActivityBanner({
           <RedirectButton
             className="text-amber-800 underline"
             variant="outline"
-            href={`/profiles/${profile.id}/festivals/${festival.id}/activity`}
+            href={`/profiles/${profile.id}/festivals/${festival.id}/activity/enroll`}
           >
             <span>Ver detalles</span>
             <FileSpreadsheetIcon className="w-4 h-4 ml-2" />
           </RedirectButton>
-          <UploadStickerDesignModal />
+          {participation && !hasUploadedProof && (
+            <UploadStickerDesignModal participationId={participation.id} />
+          )}
         </div>
       </div>
     );

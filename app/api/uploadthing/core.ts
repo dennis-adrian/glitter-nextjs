@@ -103,7 +103,7 @@ export const ourFileRouter = {
       return { uploadedBy: metadata.userId };
     }),
   festivalActivityParticipantProof: f({
-    image: { maxFileSize: "2MB", maxFileCount: 2, minFileCount: 1 },
+    image: { maxFileSize: "2MB", maxFileCount: 5, minFileCount: 1 },
   })
     // Set permissions and file types for this FileRoute
     .middleware(async ({ req }) => {

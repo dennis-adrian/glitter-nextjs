@@ -326,5 +326,6 @@ export async function addFestivalActivityParticipantProof(
     return { success: false, message: "Error al subir el diseño" };
   }
 
+  revalidatePath("/my_profile");
   return { success: true, message: "Diseño subido correctamente" };
 }

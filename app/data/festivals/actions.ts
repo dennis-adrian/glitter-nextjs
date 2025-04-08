@@ -99,6 +99,7 @@ export async function fetchActiveFestival({
                 participants: {
                   with: {
                     user: true,
+                    proofs: true,
                   },
                 },
               },
