@@ -247,11 +247,11 @@ export const profileStatusOptions = [
 ];
 
 export function getFestivalLogo(festivalType: FestivalBase["festivalType"]) {
-  if (festivalType === "glitter") {
-    return GLITTER_EMAIL_LOGO_URL;
+  if (festivalType === "twinkler") {
+    return TWINKLER_LOGO_URL_270X80;
   }
 
-  return TWINKLER_LOGO_URL_270X80;
+  return GLITTER_EMAIL_LOGO_URL;
 }
 
 export function isNewProfile(
