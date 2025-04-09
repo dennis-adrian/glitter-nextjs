@@ -24,6 +24,7 @@ import { formatDate } from "@/app/lib/formatters";
 import PhoneInput from "@/app/components/form/fields/phone";
 import TextInput from "@/app/components/form/fields/text";
 import SelectInput from "@/app/components/form/fields/select";
+import { DateTime } from "luxon";
 
 const FormSchema = z.object({
   birthdate: z.coerce
@@ -84,7 +85,9 @@ export default function VisitorRegistrationForm({
   async function onSubmit(data: z.infer<typeof FormSchema>) {
     const res = await createVisitor({
       ...data,
-      birthdate: new Date(data.birthdate),
+      birthdate: DateTime.fromJSDate(data.birthdate)
+        .plus({ hours: 12 })
+        .toJSDate(),
     });
 
     if (res.success) {

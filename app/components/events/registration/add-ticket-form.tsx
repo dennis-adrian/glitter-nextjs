@@ -73,6 +73,7 @@ export default function AddTicketForm({
             <FormItem className="space-y-3">
               <FormControl>
                 <RadioGroup
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-4"
                   onValueChange={field.onChange}
                   defaultValue={field.value}
                 >
@@ -81,7 +82,7 @@ export default function AddTicketForm({
                     return (
                       <FormItem
                         key={index}
-                        className="w-full sm:w-fit mx-auto p-4 flex items-center gap-4 rounded-md border hover:text-primary-500 hover:bg-primary-50 hover:border-primary-500 active:text-primary-500 active:bg-primary-50 active:border-primary-500 focus:text-primary-500 focus:bg-primary-50 focus:border-primary-500"
+                        className="w-full border rounded-md p-3 hover:bg-primary-50 hover:text-primary-500 hover:border-primary-500 active:text-primary-500 active:bg-primary-50 active:border-primary-500 focus:text-primary-500 focus:bg-primary-50 focus:border-primary-500"
                       >
                         <FormControl>
                           <RadioGroupItem
