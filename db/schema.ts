@@ -407,6 +407,7 @@ export const standReservationsRelations = relations(
     participants: many(reservationParticipants),
     invoices: many(invoices),
     scheduledTasks: many(scheduledTasks),
+    collaborators: many(reservationCollaborators),
   }),
 );
 
@@ -686,6 +687,43 @@ export const festivalActivityParticipantProofsRelations = relations(
     participation: one(festivalActivityParticipants, {
       fields: [festivalActivityParticipantProofs.participationId],
       references: [festivalActivityParticipants.id],
+    }),
+  }),
+);
+
+export const collaborators = pgTable("collaborators", {
+  id: serial("id").primaryKey(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  identificationNumber: text("identification_number").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const collaboratorsRelations = relations(collaborators, ({ many }) => ({
+  reservationCollaborators: many(reservationCollaborators),
+}));
+
+export const reservationCollaborators = pgTable("reservation_collaborators", {
+  id: serial("id").primaryKey(),
+  reservationId: integer("reservation_id")
+    .notNull()
+    .references(() => standReservations.id, { onDelete: "cascade" }),
+  collaboratorId: integer("collaborator_id")
+    .notNull()
+    .references(() => collaborators.id, { onDelete: "cascade" }),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const reservationCollaboratorsRelations = relations(
+  reservationCollaborators,
+  ({ one }) => ({
+    reservation: one(standReservations, {
+      fields: [reservationCollaborators.reservationId],
+      references: [standReservations.id],
+    }),
+    collaborator: one(collaborators, {
+      fields: [reservationCollaborators.collaboratorId],
+      references: [collaborators.id],
     }),
   }),
 );

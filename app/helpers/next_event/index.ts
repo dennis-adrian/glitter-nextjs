@@ -35,6 +35,19 @@ export function profileHasReservation(
     return participation?.reservation?.festivalId === festivalId;
   });
 }
+
+export function profileHasConfirmedReservation(
+  profile: ProfileType | ProfileWithParticipationsAndRequests,
+  festivalId: number,
+) {
+  return profile?.participations?.some((participation) => {
+    return (
+      participation?.reservation?.festivalId === festivalId &&
+      participation?.reservation?.status === "accepted"
+    );
+  });
+}
+
 export function getSearchArtistOptions(
   festival: FestivalWithUserRequests,
   profile: ProfileType,
