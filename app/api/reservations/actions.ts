@@ -13,6 +13,7 @@ import React from "react";
 import {
   ReservationWithParticipantsAndUsers,
   ReservationWithParticipantsAndUsersAndStand,
+  ReservationWithParticipantsAndUsersAndStandAndCollaborators,
   ReservationWithParticipantsAndUsersAndStandAndFestival,
   ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments,
 } from "@/app/api/reservations/definitions";
@@ -62,7 +63,7 @@ export async function fetchReservations(options: {
 
 export async function fetchConfirmedReservationsByFestival(
   festivalId: number,
-): Promise<ReservationWithParticipantsAndUsersAndStand[]> {
+): Promise<ReservationWithParticipantsAndUsersAndStandAndCollaborators[]> {
   try {
     return db.query.standReservations.findMany({
       where: and(
@@ -80,6 +81,11 @@ export async function fetchConfirmedReservationsByFestival(
           },
         },
         stand: true,
+        collaborators: {
+          with: {
+            collaborator: true,
+          },
+        },
       },
     });
   } catch (error) {

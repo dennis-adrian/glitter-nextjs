@@ -17,24 +17,20 @@ import { Festival } from "@/app/data/festivals/definitions";
 import { formatFullDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import { ProfileType } from "@/app/api/users/definitions";
-import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
+import { ReservationWithParticipantsAndUsersAndStandAndCollaborators } from "@/app/api/reservations/definitions";
 import InfoTabContent from "@/app/components/organisms/upcoming-festival/info-tab-content";
 import TeamTabContent from "@/app/components/organisms/upcoming-festival/team-tab-content";
 
 type UpcomingFestivalCardProps = {
   festival: Festival;
   profile: ProfileType;
-  reservation?: ReservationWithParticipantsAndUsersAndStand;
+  reservation?: ReservationWithParticipantsAndUsersAndStandAndCollaborators;
 };
 export function UpcomingFestivalCard({
   festival,
   profile,
   reservation,
 }: UpcomingFestivalCardProps) {
-  const participation = profile.participations.find(
-    (participation) => participation.reservation.festivalId === festival.id,
-  );
-
   const festivalStartDate = formatFullDate(
     festival?.festivalDates[0]?.startDate,
     DateTime.DATE_MED,
@@ -224,7 +220,7 @@ export function UpcomingFestivalCard({
 
         <TabsContent value="team" className="p-4">
           {reservation ? (
-            <TeamTabContent reservationId={reservation.id} />
+            <TeamTabContent reservation={reservation} />
           ) : (
             <div className="flex flex-col items-center justify-center h-full">
               <p className="text-sm text-gray-500">

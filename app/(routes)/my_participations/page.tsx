@@ -1,5 +1,5 @@
 import { fetchConfirmedReservationsByFestival } from "@/app/api/reservations/actions";
-import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
+import { ReservationWithParticipantsAndUsersAndStandAndCollaborators } from "@/app/api/reservations/definitions";
 import { UpcomingFestivalCard } from "@/app/components/organisms/upcoming-festival";
 import { Card, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { profileHasConfirmedReservation } from "@/app/helpers/next_event";
@@ -10,7 +10,8 @@ import { notFound } from "next/navigation";
 export default async function Page() {
   const activeFestival = await getActiveFestival();
   const currentProfile = await getCurrentUserProfile();
-  let confirmedReservations: ReservationWithParticipantsAndUsersAndStand[] = [];
+  let confirmedReservations: ReservationWithParticipantsAndUsersAndStandAndCollaborators[] =
+    [];
 
   if (!currentProfile) {
     notFound();
