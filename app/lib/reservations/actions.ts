@@ -65,14 +65,18 @@ export const deleteReservationCollaborator = async (
   collaboratorId: number,
 ) => {
   try {
-    await db
-      .delete(reservationCollaborators)
-      .where(
-        and(
-          eq(reservationCollaborators.reservationId, reservationId),
-          eq(reservationCollaborators.collaboratorId, collaboratorId),
-        ),
-      );
+    await db.delete(collaborators).where(eq(collaborators.id, collaboratorId));
+    // TODO: this code is here to delete the reservationCollaborator record without actually
+    // deleting the collaborator record. This might be useful in the future
+    // if we want to keep the collaborator record for future reference.
+    // await db
+    //   .delete(reservationCollaborators)
+    //   .where(
+    //     and(
+    //       eq(reservationCollaborators.reservationId, reservationId),
+    //       eq(reservationCollaborators.collaboratorId, collaboratorId),
+    //     ),
+    //   );
   } catch (error) {
     console.error(error);
     return {
