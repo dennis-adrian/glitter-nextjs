@@ -705,8 +705,12 @@ export const collaboratorsRelations = relations(collaborators, ({ many }) => ({
 
 export const reservationCollaborators = pgTable("reservation_collaborators", {
   id: serial("id").primaryKey(),
-  reservationId: integer("reservation_id").notNull(),
-  collaboratorId: integer("collaborator_id").notNull(),
+  reservationId: integer("reservation_id")
+    .notNull()
+    .references(() => standReservations.id, { onDelete: "cascade" }),
+  collaboratorId: integer("collaborator_id")
+    .notNull()
+    .references(() => collaborators.id, { onDelete: "cascade" }),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
