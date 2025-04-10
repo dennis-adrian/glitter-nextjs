@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { collaborators, reservationCollaborators } from "@/db/schema";
 import { Collaborator, NewCollaborator } from "./definitions";
 import { revalidatePath } from "next/cache";
+import { and, eq } from "drizzle-orm";
 
 export const addCollaborator = async (
   reservationId: number,
@@ -57,4 +58,32 @@ export const addCollaborator = async (
 
   revalidatePath("/my_participations");
   return response;
+};
+
+export const deleteReservationCollaborator = async (
+  reservationId: number,
+  collaboratorId: number,
+) => {
+  try {
+    await db
+      .delete(reservationCollaborators)
+      .where(
+        and(
+          eq(reservationCollaborators.reservationId, reservationId),
+          eq(reservationCollaborators.collaboratorId, collaboratorId),
+        ),
+      );
+  } catch (error) {
+    console.error(error);
+    return {
+      success: false,
+      message: "Error al eliminar colaborador.",
+    };
+  }
+
+  revalidatePath("/my_participations");
+  return {
+    success: true,
+    message: "Colaborador eliminado correctamente.",
+  };
 };

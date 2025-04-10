@@ -1,16 +1,12 @@
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/app/components/ui/avatar-radix";
-import { Button } from "@/app/components/ui/button";
+import RemoveCollaboratorForm from "@/app/components/organisms/upcoming-festival/remove-collaborator-form";
+import { Avatar, AvatarFallback } from "@/app/components/ui/avatar-radix";
 import { Collaborator } from "@/app/lib/reservations/definitions";
-import { Trash2Icon } from "lucide-react";
 
 type TeamMemberProps = {
+  reservationId: number;
   member: Collaborator;
 };
-export default function TeamMember({ member }: TeamMemberProps) {
+export default function TeamMember({ reservationId, member }: TeamMemberProps) {
   const memberName = [member.firstName, member.lastName]
     .filter(Boolean)
     .join(" ");
@@ -30,14 +26,10 @@ export default function TeamMember({ member }: TeamMemberProps) {
           <p className="text-sm text-gray-500">{member.identificationNumber}</p>
         </div>
       </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="text-gray-500 hover:text-rose-500"
-        // onClick={() => handleRemoveMember(member.id)}
-      >
-        <Trash2Icon className="h-4 w-4" />
-      </Button>
+      <RemoveCollaboratorForm
+        reservationId={reservationId}
+        collaboratorId={member.id}
+      />
     </div>
   );
 }

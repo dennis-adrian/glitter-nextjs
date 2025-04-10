@@ -10,9 +10,17 @@ type SubmitButtonProps = {
   label?: string;
   loading: boolean;
   loadingLabel?: string;
+  loadingComponent?: React.ReactNode;
 } & VariantProps<typeof buttonVariants>;
 
 export default function SubmitButton(props: SubmitButtonProps) {
+  const loadingComponent = props.loadingComponent || (
+    <span className="flex gap-2 items-center">
+      <Loader2Icon className="w-4 h-4 animate-spin" />
+      {props.loadingLabel || "Cargando"}
+    </span>
+  );
+
   return (
     <Button
       variant={props.variant}
@@ -20,16 +28,7 @@ export default function SubmitButton(props: SubmitButtonProps) {
       type="submit"
       className={cn("w-full", props.className)}
     >
-      {props.loading ? (
-        <span className="flex gap-2 items-center">
-          <Loader2Icon className="w-4 h-4 animate-spin" />
-          {props.loadingLabel || "Cargando"}
-        </span>
-      ) : props.children ? (
-        props.children
-      ) : (
-        <span>{props.label}</span>
-      )}
+      {props.loading ? loadingComponent : props.children}
     </Button>
   );
 }

@@ -1,12 +1,3 @@
-import { useState } from "react";
-import { toast } from "sonner";
-import { Button } from "@/app/components/ui/button";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/app/components/ui/avatar-radix";
-import { Trash2Icon } from "lucide-react";
 import { Separator } from "@/app/components/ui/separator";
 import CollaboratorForm from "@/app/components/organisms/upcoming-festival/collaborator-form";
 import TeamMember from "@/app/components/organisms/upcoming-festival/team-member";
@@ -20,13 +11,6 @@ export default function TeamTabContent(props: TeamTabContentProps) {
   const teamMembers = props.reservation.collaborators.map(
     (collaborator) => collaborator.collaborator,
   );
-
-  // const handleRemoveMember = (id: number) => {
-  //   setTeamMembers(teamMembers.filter((member) => member.id !== id));
-  //   toast.success("Team member removed", {
-  //     description: "The team member has been removed from your stand team.",
-  //   });
-  // };
 
   return (
     <div className="space-y-4">
@@ -46,7 +30,11 @@ export default function TeamTabContent(props: TeamTabContentProps) {
         {teamMembers.length > 0 ? (
           <div className="space-y-3">
             {teamMembers.map((member) => (
-              <TeamMember key={member.id} member={member} />
+              <TeamMember
+                key={member.id}
+                reservationId={props.reservation.id}
+                member={member}
+              />
             ))}
           </div>
         ) : (
