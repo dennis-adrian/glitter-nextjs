@@ -7,8 +7,13 @@ export function formatDate(date: Date | string): DateTime {
   }).setLocale("es");
 }
 
-export function formatFullDate(date: Date): string {
-  return formatDate(date).toLocaleString(DateTime.DATE_FULL);
+export function formatFullDate(
+  date: Date | null | undefined,
+  format = DateTime.DATE_FULL,
+): string {
+  if (!date) return "";
+
+  return formatDate(date).toLocaleString(format);
 }
 
 export function formatDateWithTime(date: Date): string {

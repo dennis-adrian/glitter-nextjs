@@ -62,7 +62,7 @@ export async function fetchReservations(options: {
 
 export async function fetchConfirmedReservationsByFestival(
   festivalId: number,
-): Promise<ReservationWithParticipantsAndUsers[]> {
+): Promise<ReservationWithParticipantsAndUsersAndStand[]> {
   try {
     return db.query.standReservations.findMany({
       where: and(
@@ -79,6 +79,7 @@ export async function fetchConfirmedReservationsByFestival(
             },
           },
         },
+        stand: true,
       },
     });
   } catch (error) {
