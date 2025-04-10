@@ -21,12 +21,22 @@ export default function TeamTabContent(props: TeamTabContentProps) {
         trabajando en el stand al mismo tiempo.{" "}
       </p>
 
-      <CollaboratorForm reservationId={props.reservation.id} />
+      {teamMembers.length < 4 ? (
+        <CollaboratorForm reservationId={props.reservation.id} />
+      ) : (
+        <div className="md:text-center p-6 bg-gray-100 rounded-lg">
+          <p className="text-gray-500 text-sm md:text-base">
+            Llegaste al límite de 4 colaboradores.
+          </p>
+        </div>
+      )}
 
       <Separator />
 
       <div>
-        <h3 className="font-semibold mb-4">Tu Equipo ({teamMembers.length})</h3>
+        <h3 className="font-semibold mb-4">
+          Tu Equipo ({teamMembers.length}/4)
+        </h3>
         {teamMembers.length > 0 ? (
           <div className="space-y-3">
             {teamMembers.map((member) => (
