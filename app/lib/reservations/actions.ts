@@ -1,0 +1,60 @@
+"use server";
+
+import { db } from "@/db";
+import { collaborators, reservationCollaborators } from "@/db/schema";
+import { Collaborator, NewCollaborator } from "./definitions";
+import { revalidatePath } from "next/cache";
+
+export const addCollaborator = async (
+  reservationId: number,
+  collaborator: NewCollaborator | Collaborator,
+) => {
+  let response: {
+    success: boolean;
+    message: string;
+  };
+
+  try {
+    response = await db.transaction(async (tx) => {
+      if (collaborator.id) {
+        await tx.insert(reservationCollaborators).values({
+          reservationId,
+          collaboratorId: collaborator.id,
+        });
+
+        return {
+          success: true,
+          message: "Colaborador agregado correctamente.",
+        };
+      } else {
+        const [{ id: collaboratorId }] = await tx
+          .insert(collaborators)
+          .values({
+            firstName: collaborator.firstName,
+            lastName: collaborator.lastName,
+            identificationNumber: collaborator.identificationNumber,
+          })
+          .returning({ id: collaborators.id });
+
+        await tx.insert(reservationCollaborators).values({
+          reservationId,
+          collaboratorId,
+        });
+
+        return {
+          success: true,
+          message: "Colaborador agregado correctamente.",
+        };
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    return {
+      success: false,
+      message: "Error al agregar colaborador.",
+    };
+  }
+
+  revalidatePath("/my_participations");
+  return response;
+};

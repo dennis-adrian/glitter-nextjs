@@ -5,6 +5,8 @@ import { PlusIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { addCollaborator } from "@/app/lib/reservations/actions";
+import { toast } from "sonner";
 
 const FormSchema = z.object({
   name: z
@@ -26,7 +28,13 @@ const FormSchema = z.object({
     }),
 });
 
-export default function CollaboratorForm() {
+type CollaboratorFormProps = {
+  reservationId: number;
+};
+
+export default function CollaboratorForm({
+  reservationId,
+}: CollaboratorFormProps) {
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -36,7 +44,20 @@ export default function CollaboratorForm() {
     },
   });
 
-  const action: () => void = form.handleSubmit((data) => {});
+  const action: () => void = form.handleSubmit(async (data) => {
+    const res = await addCollaborator(reservationId, {
+      firstName: data.name,
+      lastName: data.last_name,
+      identificationNumber: data.identification_number,
+    });
+
+    if (res.success) {
+      toast.success(res.message);
+      form.reset();
+    } else {
+      toast.error(res.message);
+    }
+  });
 
   return (
     <Form {...form}>

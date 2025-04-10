@@ -223,7 +223,15 @@ export function UpcomingFestivalCard({
         </TabsContent>
 
         <TabsContent value="team" className="p-4">
-          <TeamTabContent />
+          {reservation ? (
+            <TeamTabContent reservationId={reservation.id} />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full">
+              <p className="text-sm text-gray-500">
+                No hay colaboradores para esta reserva.
+              </p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
