@@ -98,7 +98,7 @@ export function UpcomingFestivalCard({
         </TabsContent>
 
         <TabsContent value="activities" className="p-4">
-          <ScrollArea className="h-[300px] pr-4">
+          {/* <ScrollArea className="h-[300px] pr-4">
             <div className="space-y-4">
               <h3 className="font-semibold">Exclusive Activities</h3>
               <p className="text-sm text-gray-500 mb-4">
@@ -215,7 +215,8 @@ export function UpcomingFestivalCard({
                 </Card>
               </div>
             </div>
-          </ScrollArea>
+          </ScrollArea> */}
+          <div>Contenido en construcción</div>
         </TabsContent>
 
         <TabsContent value="team" className="p-4">
