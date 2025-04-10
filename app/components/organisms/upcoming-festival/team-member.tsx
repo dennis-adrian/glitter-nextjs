@@ -10,16 +10,13 @@ export default function TeamMember({ reservationId, member }: TeamMemberProps) {
   const memberName = [member.firstName, member.lastName]
     .filter(Boolean)
     .join(" ");
+  const memberInitials = member.firstName.charAt(0) + member.lastName.charAt(0);
+
   return (
     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
       <div className="flex items-center gap-3">
         <Avatar>
-          <AvatarFallback>
-            {memberName
-              .split(" ")
-              .map((n) => n[0])
-              .join("")}
-          </AvatarFallback>
+          <AvatarFallback>{memberInitials}</AvatarFallback>
         </Avatar>
         <div>
           <p className="font-medium">{memberName}</p>
