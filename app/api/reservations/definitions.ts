@@ -40,3 +40,13 @@ export type ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWit
   ReservationWithParticipantsAndUsersAndStandAndFestival & {
     invoices: InvoiceWithPayments[];
   };
+
+export type FullReservation = ReservationBase & {
+  participants: Participant[];
+  stand: StandBase;
+  festival: FestivalBase;
+  invoices: InvoiceWithPayments[];
+  collaborators: {
+    collaborator: Collaborator;
+  }[];
+};
