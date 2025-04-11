@@ -44,11 +44,11 @@ export default async function Page() {
             )}
           />
         ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>Festival de Música</CardTitle>
-            </CardHeader>
-          </Card>
+          <div className="md:text-center p-6 bg-gray-100 rounded-lg">
+            <p className="text-gray-500 text-sm md:text-base">
+              No tienes ninguna participación confirmada en el festival actual.
+            </p>
+          </div>
         )}
       </div>
     </div>
