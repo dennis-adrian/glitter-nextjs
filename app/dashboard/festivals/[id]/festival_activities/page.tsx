@@ -59,7 +59,18 @@ export default async function Page({ params }: FestivalActivitiesPageProps) {
                 <h3 className="text-lg font-semibold">Participantes</h3>
                 <ol className="list-decimal list-inside">
                   {detail.participants.map((participant) => (
-                    <li key={participant.id}>{participant.user.displayName}</li>
+                    <li key={participant.id}>
+                      <span>{participant.user.displayName}</span>
+                      {participant.proofs.map((proof) => (
+                        <Image
+                          key={proof.id}
+                          src={proof.imageUrl}
+                          alt={`Proof ${proof.id}`}
+                          width={100}
+                          height={100}
+                        />
+                      ))}
+                    </li>
                   ))}
                 </ol>
               </div>
