@@ -9,10 +9,11 @@ import {
 } from "@/app/components/ui/dropdown-menu";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import {
+  BookUserIcon,
   ExternalLinkIcon,
   MoreHorizontalIcon,
-  PencilIcon,
   StickerIcon,
+  UsersIcon,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -44,6 +45,18 @@ export default function TableActions({ festival }: TableActionsProps) {
           >
             <StickerIcon className="h-4 w-4 mr-2" />
             Actividades
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={`/dashboard/festivals/${festival.id}/tickets`}>
+            <BookUserIcon className="h-4 w-4 mr-2" />
+            Visitantes
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={`/dashboard/festivals/${festival.id}/participants`}>
+            <UsersIcon className="h-4 w-4 mr-2" />
+            Participantes
           </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
