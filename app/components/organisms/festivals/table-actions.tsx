@@ -9,8 +9,8 @@ import {
 } from "@/app/components/ui/dropdown-menu";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import {
+  BookMarkedIcon,
   BookUserIcon,
-  ExternalLinkIcon,
   MoreHorizontalIcon,
   StickerIcon,
   UsersIcon,
@@ -35,7 +35,7 @@ export default function TableActions({ festival }: TableActionsProps) {
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href={`/dashboard/festivals/${festival.id}/reservations`}>
-            <ExternalLinkIcon className="h-4 w-4 mr-2" />
+            <BookMarkedIcon className="h-4 w-4 mr-2" />
             Reservas
           </Link>
         </DropdownMenuItem>
