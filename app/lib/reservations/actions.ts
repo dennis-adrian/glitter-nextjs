@@ -1,10 +1,15 @@
 "use server";
 
 import { db } from "@/db";
-import { collaborators, reservationCollaborators } from "@/db/schema";
+import {
+  collaborators,
+  reservationCollaborators,
+  standReservations,
+} from "@/db/schema";
 import { Collaborator, NewCollaborator } from "./definitions";
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
+import { FullReservation } from "@/app/api/reservations/definitions";
 
 export const addCollaborator = async (
   reservationId: number,
@@ -91,3 +96,39 @@ export const deleteReservationCollaborator = async (
     message: "Colaborador eliminado correctamente.",
   };
 };
+
+export async function fetchReservationsByFestivalId(
+  festivalId: number,
+): Promise<FullReservation[]> {
+  try {
+    return await db.query.standReservations.findMany({
+      where: eq(standReservations.festivalId, festivalId),
+      with: {
+        stand: true,
+        festival: true,
+        participants: {
+          with: {
+            user: {
+              with: {
+                userSocials: true,
+              },
+            },
+          },
+        },
+        collaborators: {
+          with: {
+            collaborator: true,
+          },
+        },
+        invoices: {
+          with: {
+            payments: true,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+}
