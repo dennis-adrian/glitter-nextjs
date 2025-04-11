@@ -12,7 +12,11 @@ export function DataTableBody<TData, TValue>({
     <TableBody>
       {table.getRowModel().rows?.length ? (
         table.getRowModel().rows.map((row) => (
-          <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+          <TableRow
+            key={row.id}
+            data-state={row.getIsSelected() && "selected"}
+            className="hover:bg-primary-100/30 data-[state=selected]:bg-primary-200/20"
+          >
             {row.getVisibleCells().map((cell) => (
               <TableCell
                 key={cell.id}
