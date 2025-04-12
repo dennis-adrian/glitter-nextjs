@@ -11,6 +11,7 @@ import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import {
   BookMarkedIcon,
   BookUserIcon,
+  HandshakeIcon,
   MoreHorizontalIcon,
   StickerIcon,
   UsersIcon,
@@ -57,6 +58,12 @@ export default function TableActions({ festival }: TableActionsProps) {
           <Link href={`/dashboard/festivals/${festival.id}/participants`}>
             <UsersIcon className="h-4 w-4 mr-2" />
             Participantes
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={`/dashboard/festivals/${festival.id}/collaborators`}>
+            <HandshakeIcon className="h-4 w-4 mr-2" />
+            Colaboradores
           </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
