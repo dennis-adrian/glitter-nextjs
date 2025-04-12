@@ -711,6 +711,7 @@ export const reservationCollaborators = pgTable("reservation_collaborators", {
   collaboratorId: integer("collaborator_id")
     .notNull()
     .references(() => collaborators.id, { onDelete: "cascade" }),
+  arrivedAt: timestamp("arrived_at"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

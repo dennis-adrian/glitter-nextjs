@@ -1,0 +1,1 @@
+ALTER TABLE "reservation_collaborators" ADD COLUMN "arrived_at" timestamp;
