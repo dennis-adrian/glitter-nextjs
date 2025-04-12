@@ -2,10 +2,11 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { ReservationCollaborationWithRelations } from "@/app/lib/collaborators/definitions";
-import { formatDate, formatFullDate } from "@/app/lib/formatters";
+import { formatFullDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import TableActions from "@/app/components/organisms/collaborators/table-actions";
-
+import { Checkbox } from "@/app/components/ui/checkbox";
+import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 export const columnTitles = {
   arrivedAt: "Llegada",
   fullName: "Nombre",
@@ -15,14 +16,46 @@ export const columnTitles = {
 
 export const columns: ColumnDef<ReservationCollaborationWithRelations>[] = [
   {
-    header: columnTitles.stand,
-    accessorKey: "stand",
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && "indeterminate")
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Select row"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    id: "stand",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.stand} />
+    ),
+    accessorFn: (row) => {
+      return `${row.reservation.stand.label}${row.reservation.stand.standNumber}`;
+    },
     cell: ({ row }) =>
       `${row.original.reservation.stand.label}${row.original.reservation.stand.standNumber}`,
   },
   {
-    header: columnTitles.fullName,
-    accessorKey: "fullName",
+    id: "fullName",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.fullName} />
+    ),
+    accessorFn: (row) => {
+      return [row.collaborator.firstName, row.collaborator.lastName].join(" ");
+    },
     cell: ({ row }) => {
       const fullName = [
         row.original.collaborator.firstName,
@@ -30,9 +63,13 @@ export const columns: ColumnDef<ReservationCollaborationWithRelations>[] = [
       ].join(" ");
       return fullName;
     },
+    enableSorting: true,
   },
   {
-    header: columnTitles.arrivedAt,
+    id: "arrivedAt",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.arrivedAt} />
+    ),
     accessorKey: "arrivedAt",
     cell: ({ row }) => {
       const arrivedAt = row.original.arrivedAt;
