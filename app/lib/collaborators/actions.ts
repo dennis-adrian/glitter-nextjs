@@ -46,6 +46,7 @@ export async function registerArrival(reservationCollaborationId: number) {
       .update(reservationCollaborators)
       .set({
         arrivedAt: DateTime.now().toJSDate(),
+        updatedAt: DateTime.now().toJSDate(),
       })
       .where(eq(reservationCollaborators.id, reservationCollaborationId));
   } catch (error) {
@@ -60,5 +61,29 @@ export async function registerArrival(reservationCollaborationId: number) {
   return {
     success: true,
     message: "Llegada registrada correctamente",
+  };
+}
+
+export async function removeArrival(reservationCollaborationId: number) {
+  try {
+    await db
+      .update(reservationCollaborators)
+      .set({
+        arrivedAt: null,
+        updatedAt: DateTime.now().toJSDate(),
+      })
+      .where(eq(reservationCollaborators.id, reservationCollaborationId));
+  } catch (error) {
+    console.error(error);
+    return {
+      success: false,
+      message: "Error al eliminar la llegada",
+    };
+  }
+
+  revalidatePath("/dashboard/festivals/");
+  return {
+    success: true,
+    message: "Llegada eliminada correctamente",
   };
 }

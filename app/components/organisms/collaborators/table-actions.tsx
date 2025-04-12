@@ -1,3 +1,6 @@
+import ArrivalRegistrationForm from "@/app/components/organisms/collaborators/arrival-registration-form";
+import ArrivalRemovalForm from "@/app/components/organisms/collaborators/arrival-removal-form";
+import { Button } from "@/app/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -6,10 +9,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu";
-import { Button } from "@/app/components/ui/button";
 import { ReservationCollaborationWithRelations } from "@/app/lib/collaborators/definitions";
 import { MoreHorizontalIcon } from "lucide-react";
-import ArrivalRegistrationForm from "@/app/components/organisms/collaborators/arrival-registration-form";
 
 export default function TableActions({
   reservationCollaboration,
@@ -29,6 +30,11 @@ export default function TableActions({
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <ArrivalRegistrationForm
+            reservationCollaboration={reservationCollaboration}
+          />
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <ArrivalRemovalForm
             reservationCollaboration={reservationCollaboration}
           />
         </DropdownMenuItem>

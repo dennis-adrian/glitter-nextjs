@@ -1,8 +1,8 @@
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
-import { registerArrival } from "@/app/lib/collaborators/actions";
+import { removeArrival } from "@/app/lib/collaborators/actions";
 import { ReservationCollaborationWithRelations } from "@/app/lib/collaborators/definitions";
-import { FileClockIcon } from "lucide-react";
+import { FileClockIcon, FileXIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -14,7 +14,7 @@ export default function ArrivalRegistrationForm({
   const form = useForm();
 
   const action: () => void = form.handleSubmit(async () => {
-    const { success, message } = await registerArrival(
+    const { success, message } = await removeArrival(
       reservationCollaboration.id,
     );
     if (success) {
@@ -32,13 +32,13 @@ export default function ArrivalRegistrationForm({
           variant="ghost"
           size="sm"
           disabled={
-            form.formState.isSubmitting || !!reservationCollaboration.arrivedAt
+            form.formState.isSubmitting || !reservationCollaboration.arrivedAt
           }
           loading={form.formState.isSubmitting}
-          loadingLabel="Registrando llegada"
+          loadingLabel="Removiendo llegada"
         >
-          <FileClockIcon className="h-4 w-4 mr-1" />
-          Registrar llegada
+          <FileXIcon className="h-4 w-4 mr-1" />
+          Remover llegada
         </SubmitButton>
       </form>
     </Form>
