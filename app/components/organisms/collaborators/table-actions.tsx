@@ -8,7 +8,8 @@ import {
 } from "@/app/components/ui/dropdown-menu";
 import { Button } from "@/app/components/ui/button";
 import { ReservationCollaborationWithRelations } from "@/app/lib/collaborators/definitions";
-import { FileClockIcon, MoreHorizontalIcon } from "lucide-react";
+import { MoreHorizontalIcon } from "lucide-react";
+import ArrivalRegistrationForm from "@/app/components/organisms/collaborators/arrival-registration-form";
 
 export default function TableActions({
   reservationCollaboration,
@@ -26,9 +27,10 @@ export default function TableActions({
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Acciones</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <FileClockIcon className="h-4 w-4 mr-2" />
-          Registrar llegada
+        <DropdownMenuItem asChild>
+          <ArrivalRegistrationForm
+            reservationCollaboration={reservationCollaboration}
+          />
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

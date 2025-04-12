@@ -2,8 +2,10 @@
 
 import { ReservationCollaborationWithRelations } from "@/app/lib/collaborators/definitions";
 import { db } from "@/db";
-import { standReservations } from "@/db/schema";
+import { reservationCollaborators, standReservations } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { DateTime } from "luxon";
+import { revalidatePath } from "next/cache";
 
 export async function fetchReservationCollaborationsByFestivalId(
   festivalId: number,
@@ -36,4 +38,27 @@ export async function fetchReservationCollaborationsByFestivalId(
     console.error(error);
     return [];
   }
+}
+
+export async function registerArrival(reservationCollaborationId: number) {
+  try {
+    await db
+      .update(reservationCollaborators)
+      .set({
+        arrivedAt: DateTime.now().toJSDate(),
+      })
+      .where(eq(reservationCollaborators.id, reservationCollaborationId));
+  } catch (error) {
+    console.error(error);
+    return {
+      success: false,
+      message: "Error al registrar la llegada",
+    };
+  }
+
+  revalidatePath("/dashboard/festivals/");
+  return {
+    success: true,
+    message: "Llegada registrada correctamente",
+  };
 }
