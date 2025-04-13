@@ -13,6 +13,7 @@ import {
   profileSubcategories,
   tickets,
   userSocials,
+  festivalDates
 } from "@/db/schema";
 import {
   FullFestival,
@@ -192,6 +193,110 @@ export async function fetchFestivals(): Promise<FestivalWithDates[]> {
   }
 }
 
+export async function getFestivalById(id: number): Promise<FestivalWithDates | null> {
+  const client = await pool.connect();
+
+  try {
+    const result = await db.query.festivals.findFirst({
+      where: eq(festivals.id, id),
+      with: {
+        festivalDates: true,
+      },
+    });
+
+    if (!result) return null;
+
+    return {
+      ...result,
+      festivalDates: result.festivalDates,
+    };
+  } catch (error) {
+    console.error(`Error fetching festival with ID ${id}:`, error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+export async function createFestival(data: {
+  name: string;
+  description?: string;
+  status: "draft" | "published" | "active" | "archived";
+  startDate: Date;
+  endDate: Date;
+  locationLabel?: string;
+  address?: string;
+  festivalType?: "glitter" | "twinkler" | "festicker";
+}): Promise<{ success: boolean; message: string; festival?: FestivalWithDates }> {
+  try {
+    const result = await db.transaction(async (tx) => {
+      
+      const [festival] = await tx.insert(festivals).values({
+        name: data.name,
+        description: data.description,
+        status: data.status,
+        locationLabel: data.locationLabel,
+        address: data.address,
+        festivalType: data.festivalType || "glitter",
+        startDate: data.startDate,
+        endDate: data.endDate,
+      }).returning();
+
+      const [date] = await tx.insert(festivalDates).values({
+        festivalId: festival.id,
+        startDate: data.startDate,
+        endDate: data.endDate,
+      }).returning();
+
+      return {
+        ...festival,
+        festivalDates: [date],
+      } as FestivalWithDates;
+    });
+
+    return {
+      success: true,
+      message: 'Festival creado exitosamente',
+      festival: result,
+    };
+  } catch (error) {
+    console.error('Error creating festival:', error);
+    return {
+      success: false,
+      message: 'Error al crear el festival',
+    };
+  }
+}
+
+export async function deleteFestival(id: number): Promise<{ 
+  success: boolean; 
+  error?: string 
+}> {
+  const client = await pool.connect();
+  
+  try {
+    await db.transaction(async (tx) => {
+    
+      await tx.delete(festivalDates)
+        .where(eq(festivalDates.festivalId, id));
+    
+      await tx.delete(festivals)
+        .where(eq(festivals.id, id));
+    });
+
+    revalidatePath("/dashboard/festivals");
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting festival:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    };
+  } finally {
+    client.release();
+  }
+}
+
 // TODO: Improve this by running actions in the background
 // ------ BEGIN
 export async function updateFestivalStatusTemp(festival: FestivalBase) {
@@ -250,7 +355,7 @@ export async function sendUserEmailsTemp(
   try {
     const festivalWithDates = await fetchFestivalWithDates(festivalId);
     await queueEmails<BaseProfile>(users, festivalWithDates!, sendEmailToUsers);
-  } catch (error) {}
+  } catch (error) { }
 }
 // ------ END
 
@@ -407,9 +512,8 @@ export async function sendEmailToUsers(
   const { error } = await sendEmail({
     to: [user.email],
     from: "Productora Glitter <no-reply@productoraglitter.com>",
-    subject: `¡Hola ${user.displayName || ""}! Te invitamos a participar en ${
-      festival.name
-    }`,
+    subject: `¡Hola ${user.displayName || ""}! Te invitamos a participar en ${festival.name
+      }`,
     react: EmailTemplate({
       profile: user,
       festival: festival,
