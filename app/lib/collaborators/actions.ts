@@ -2,7 +2,11 @@
 
 import { ReservationCollaborationWithRelations } from "@/app/lib/collaborators/definitions";
 import { db } from "@/db";
-import { reservationCollaborators, standReservations } from "@/db/schema";
+import {
+  collaboratorsAttendanceLogs,
+  reservationCollaborators,
+  standReservations,
+} from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { revalidatePath } from "next/cache";
@@ -29,9 +33,15 @@ export async function fetchReservationCollaborationsByFestivalId(
         reservation: {
           with: {
             stand: true,
+            festival: {
+              with: {
+                festivalDates: true,
+              },
+            },
           },
         },
         collaborator: true,
+        collaboratorsAttendanceLogs: true,
       },
     });
   } catch (error) {
@@ -40,15 +50,15 @@ export async function fetchReservationCollaborationsByFestivalId(
   }
 }
 
-export async function registerArrival(reservationCollaborationId: number) {
+export async function registerArrival(
+  reservationCollaborationId: number,
+  festivalDateId: number,
+) {
   try {
-    await db
-      .update(reservationCollaborators)
-      .set({
-        arrivedAt: DateTime.now().toJSDate(),
-        updatedAt: DateTime.now().toJSDate(),
-      })
-      .where(eq(reservationCollaborators.id, reservationCollaborationId));
+    await db.insert(collaboratorsAttendanceLogs).values({
+      reservationCollaboratorId: reservationCollaborationId,
+      festivalDateId: festivalDateId,
+    });
   } catch (error) {
     console.error(error);
     return {
