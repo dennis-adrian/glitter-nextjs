@@ -10,13 +10,15 @@ import {
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu";
 import { ReservationCollaborationWithRelations } from "@/app/lib/collaborators/definitions";
-import { MoreHorizontalIcon } from "lucide-react";
+import { FileClockIcon, MoreHorizontalIcon } from "lucide-react";
 
 export default function TableActions({
   reservationCollaboration,
 }: {
   reservationCollaboration: ReservationCollaborationWithRelations;
 }) {
+  const festival = reservationCollaboration.reservation.festival;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -31,12 +33,20 @@ export default function TableActions({
         <DropdownMenuItem asChild>
           <ArrivalRegistrationForm
             reservationCollaboration={reservationCollaboration}
-          />
+            festivalDate={festival.festivalDates[0]}
+          >
+            <FileClockIcon className="h-4 w-4 mr-1" />
+            Registrar llegada día 1
+          </ArrivalRegistrationForm>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <ArrivalRemovalForm
+          <ArrivalRegistrationForm
             reservationCollaboration={reservationCollaboration}
-          />
+            festivalDate={festival.festivalDates[1]}
+          >
+            <FileClockIcon className="h-4 w-4 mr-1" />
+            Registrar llegada día 2
+          </ArrivalRegistrationForm>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -1,21 +1,34 @@
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
+import { FestivalDate } from "@/app/data/festivals/definitions";
 import { registerArrival } from "@/app/lib/collaborators/actions";
 import { ReservationCollaborationWithRelations } from "@/app/lib/collaborators/definitions";
-import { FileClockIcon } from "lucide-react";
+import { DateTime } from "luxon";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 export default function ArrivalRegistrationForm({
   reservationCollaboration,
+  festivalDate,
+  children,
 }: {
   reservationCollaboration: ReservationCollaborationWithRelations;
+  festivalDate: FestivalDate;
+  children: React.ReactNode;
 }) {
   const form = useForm();
+  const isToday = DateTime.now()
+    .startOf("day")
+    .equals(DateTime.fromJSDate(festivalDate.startDate).startOf("day"));
+  const isArrivalRegistered =
+    reservationCollaboration.collaboratorsAttendanceLogs.some(
+      (log) => log.festivalDateId === festivalDate.id,
+    );
 
   const action: () => void = form.handleSubmit(async () => {
     const { success, message } = await registerArrival(
       reservationCollaboration.id,
+      festivalDate.id,
     );
     if (success) {
       toast.success(message);
@@ -32,13 +45,12 @@ export default function ArrivalRegistrationForm({
           variant="ghost"
           size="sm"
           disabled={
-            form.formState.isSubmitting || !!reservationCollaboration.arrivedAt
+            form.formState.isSubmitting || !isToday || isArrivalRegistered
           }
           loading={form.formState.isSubmitting}
           loadingLabel="Registrando llegada"
         >
-          <FileClockIcon className="h-4 w-4 mr-1" />
-          Registrar llegada
+          {children}
         </SubmitButton>
       </form>
     </Form>

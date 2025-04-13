@@ -7,8 +7,10 @@ import { DateTime } from "luxon";
 import TableActions from "@/app/components/organisms/collaborators/table-actions";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
+import { getArrivalTimeByFestivalDate } from "@/app/components/organisms/collaborators/helpers";
 export const columnTitles = {
-  arrivedAt: "Llegada",
+  arrivedDayOne: "Llegada Día 1",
+  arrivedDayTwo: "Llegada Día 2",
   fullName: "Nombre",
   stand: "Stand",
   actions: "",
@@ -66,15 +68,43 @@ export const columns: ColumnDef<ReservationCollaborationWithRelations>[] = [
     enableSorting: true,
   },
   {
-    id: "arrivedAt",
+    id: "arrivedDayOne",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={columnTitles.arrivedAt} />
+      <DataTableColumnHeader
+        column={column}
+        title={columnTitles.arrivedDayOne}
+      />
     ),
-    accessorKey: "arrivedAt",
+    accessorKey: "arrivedDayOne",
     cell: ({ row }) => {
-      const arrivedAt = row.original.arrivedAt;
+      const festivalDateDateDayOne =
+        row.original.reservation.festival.festivalDates[0];
+      const arrivedAt = getArrivalTimeByFestivalDate(
+        row.original.collaboratorsAttendanceLogs,
+        festivalDateDateDayOne.id,
+      );
       if (!arrivedAt) return <span className="text-muted-foreground">--</span>;
       return formatFullDate(arrivedAt, DateTime.DATETIME_FULL);
+    },
+  },
+  {
+    id: "arrivedDayTwo",
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title={columnTitles.arrivedDayTwo}
+      />
+    ),
+    accessorKey: "arrivedDayTwo",
+    cell: ({ row }) => {
+      const festivalDateDateDayTwo =
+        row.original.reservation.festival.festivalDates[1];
+      const arrivedAt = getArrivalTimeByFestivalDate(
+        row.original.collaboratorsAttendanceLogs,
+        festivalDateDateDayTwo.id,
+      );
+      if (!arrivedAt) return <span className="text-muted-foreground">--</span>;
+      return formatFullDate(arrivedAt, DateTime.TIME_24_WITH_SHORT_OFFSET);
     },
   },
   {
