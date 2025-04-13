@@ -1,0 +1,1 @@
+ALTER TABLE "collaborators_attendance_logs" ALTER COLUMN "arrived_at" SET DEFAULT now();

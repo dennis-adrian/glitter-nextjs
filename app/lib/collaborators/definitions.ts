@@ -15,5 +15,8 @@ export type ReservationCollaborationWithRelations = ReservationCollaboration & {
     festival: FestivalWithDates;
   };
   collaborator: typeof collaborators.$inferSelect;
-  collaboratorsAttendanceLogs: (typeof collaboratorsAttendanceLogs.$inferSelect)[];
+  collaboratorsAttendanceLogs: CollaboratorAttendanceLog[];
 };
+
+export type CollaboratorAttendanceLog =
+  typeof collaboratorsAttendanceLogs.$inferSelect;

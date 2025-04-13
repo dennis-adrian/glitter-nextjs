@@ -746,7 +746,7 @@ export const collaboratorsAttendanceLogs = pgTable(
     festivalDateId: integer("festival_date_id")
       .notNull()
       .references(() => festivalDates.id, { onDelete: "cascade" }),
-    arrivedAt: timestamp("arrived_at"),
+    arrivedAt: timestamp("arrived_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
