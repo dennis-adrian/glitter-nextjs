@@ -8,7 +8,6 @@ import {
   ColumnDef,
   ColumnFiltersState,
   SortingState,
-  flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -17,20 +16,13 @@ import {
 } from "@tanstack/react-table";
 
 import { DataTableViewOptions } from "@/app/components/ui/data_table/column-toggle";
+import { DataTableBody } from "@/app/components/ui/data_table/data-table-body";
+import { DataTableHeader } from "@/app/components/ui/data_table/data-table-header";
 import { DataTableFilter } from "@/app/components/ui/data_table/filter";
 import { DataTableFilters } from "@/app/components/ui/data_table/filters";
 import { DataTablePagination } from "@/app/components/ui/data_table/pagination";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { DataTableHeader } from "@/app/components/ui/data_table/data-table-header";
-import { DataTableBody } from "@/app/components/ui/data_table/data-table-body";
+import { Table } from "@/components/ui/table";
 
 interface DataTableFiltersProps {
   label?: string;

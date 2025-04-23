@@ -1,4 +1,4 @@
-import { FilterIcon } from "lucide-react";
+import { FunnelIcon } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -19,7 +19,7 @@ export const DataTableFilters: React.FC<DataTableFilterProps> = ({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button size="sm" variant="ghost">
-          <FilterIcon className="sm:mr-2 h-4 w-4" />
+          <FunnelIcon className="sm:mr-2 h-4 w-4" />
           <span className="hidden sm:block">Filtros</span>
         </Button>
       </DropdownMenuTrigger>

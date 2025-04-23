@@ -111,6 +111,11 @@ export async function fetchReservationsByFestivalId(
             user: {
               with: {
                 userSocials: true,
+                profileSubcategories: {
+                  with: {
+                    subcategory: true,
+                  }
+                }
               },
             },
           },
