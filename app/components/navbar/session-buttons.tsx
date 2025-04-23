@@ -1,7 +1,6 @@
 "use client";
 
 import { ProfileType } from "@/app/api/users/definitions";
-import ProfileAvatar from "@/app/components/common/profile-avatar";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -11,10 +10,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/app/components/ui/dialog";
-import NavigationSidebar from "@/app/components/ui/navigation-sidebar";
+import UserDropdown from "@/app/components/ui/user-dropdown";
 import { isNoNavigationPage } from "@/app/lib/utils";
 import { SignedIn, SignedOut } from "@clerk/nextjs";
-import { InfoIcon, LogInIcon, MenuIcon, UserPlusIcon } from "lucide-react";
+import { InfoIcon, LogInIcon, UserPlusIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -34,34 +33,21 @@ export default function SessionButtons({
 
   return (
     <div>
-      {/* if the user is signed in, show the profile avatar. No matter the screen size */}
       <SignedIn>
-        <NavigationSidebar
-          profile={profile}
-          onCreateAccountClick={() => setOpen(true)}
-        >
-          <ProfileAvatar
-            profile={profile!}
-            className="h-8 w-8"
-            showBadge={false}
-          />
-        </NavigationSidebar>
+        <UserDropdown profile={profile} />
       </SignedIn>
       <SignedOut>
-        <div className="block lg:hidden">
-          <NavigationSidebar
-            profile={profile}
-            onCreateAccountClick={() => setOpen(true)}
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="px-1 md:px-2"
+            onClick={() => setOpen(true)}
           >
-            <MenuIcon className="h-5 w-5" />
-          </NavigationSidebar>
-        </div>
-        <div className="gap-1 hidden lg:flex">
-          <Button variant="ghost" onClick={() => setOpen(true)}>
             <UserPlusIcon className="mr-2 h-5 w-5 hidden xl:block" />
             Crear cuenta
           </Button>
-          <RedirectButton href="/sign_in" variant="outline">
+          <RedirectButton href="/sign_in" size="sm" variant="outline">
             <LogInIcon className="mr-1 h-5 w-5 hidden xl:block" />
             Iniciar sesión
           </RedirectButton>

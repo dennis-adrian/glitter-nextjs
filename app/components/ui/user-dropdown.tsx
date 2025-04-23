@@ -19,7 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { RedirectButton } from "@/app/components/redirect-button";
+import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
 
 export default function UserDropdown({
   profile,
@@ -56,11 +56,12 @@ export default function UserDropdown({
         </DropdownMenuTrigger>
         <DropdownMenuContent className="mr-4">
           <DropdownMenuLabel>
-            {profile.displayName}
-            <br />
-            <span className="text-muted-foreground font-normal">
-              {profile.email}
-            </span>
+            <ProfileQuickViewInfo
+              profile={profile}
+              avatarClassName="h-10 w-10"
+              hideAvatar
+              truncateEmail={false}
+            />
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
@@ -75,17 +76,10 @@ export default function UserDropdown({
               <span>Mis participaciones</span>
             </Link>
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <SignOutButton />
         </DropdownMenuContent>
       </DropdownMenu>
-    );
-  }
-
-  if (!(pathname === "/sign_in" || pathname === "/sign_up")) {
-    return (
-      <RedirectButton href="/sign_in" variant="outline">
-        Ingresar
-      </RedirectButton>
     );
   }
 

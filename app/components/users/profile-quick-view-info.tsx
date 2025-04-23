@@ -24,20 +24,24 @@ type UserQuickViewInfoProps = {
     profileSubcategories: ProfileSubcategoryWithSubcategory[];
   };
   showAdminControls?: boolean;
+  hideAvatar?: boolean;
+  truncateEmail?: boolean;
 };
 export default function ProfileQuickViewInfo(props: UserQuickViewInfoProps) {
   return (
     <div className={cn("flex gap-4", props.className)}>
-      <div>
-        <ProfileAvatar
-          profile={{
-            ...props.profile,
-            participations: [],
-          }}
-          className={props.avatarClassName}
-          showBadge={false}
-        />
-      </div>
+      {!props.hideAvatar && (
+        <div>
+          <ProfileAvatar
+            profile={{
+              ...props.profile,
+              participations: [],
+            }}
+            className={props.avatarClassName}
+            showBadge={false}
+          />
+        </div>
+      )}
       <div className="flex flex-col w-full">
         <span className="flex gap-1 items-center">
           <h3 className="font-medium leading-4">
@@ -58,8 +62,10 @@ export default function ProfileQuickViewInfo(props: UserQuickViewInfoProps) {
           )}
         </span>
         <div className="text-sm text-muted-foreground">
-          <span className="flex gap-1 items-center">
-            {truncateText(props.profile.email, 20, "email")}
+          <span className="flex gap-1 items-center font-normal">
+            {props.truncateEmail
+              ? truncateText(props.profile.email, 20, "email")
+              : props.profile.email}
             {props.showAdminControls && (
               <CopyIcon
                 className="w-4 h-4 hover:transition cursor-pointer"
