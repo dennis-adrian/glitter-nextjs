@@ -33,7 +33,8 @@ export default function RegistrationInvitationEmailTemplate(
 
   const dates = props.festival.festivalDates;
   const festivalLabel =
-    props.festival.festivalType === "glitter" ? "Glitter" : "Twinkler";
+    props.festival.festivalType.charAt(0).toUpperCase() +
+    props.festival.festivalType.slice(1);
   const festivalLogo = getFestivalLogo(props.festival.festivalType);
 
   return (

@@ -45,23 +45,52 @@ export default async function Page({ params }: FestivalActivitiesPageProps) {
           return (
             <div
               key={detail.id}
-              className="grid grid-cols-1 md:grid-cols-2 gap-4"
+              className="flex flex-col md:flex-row gap-3 justify-center items-center md:items-start md:justify-start p-3 border border-border rounded-md"
             >
               {detail.imageUrl && (
-                <Image
-                  src={detail.imageUrl}
-                  alt={`Sticker-Print ${detail.id}`}
-                  width={320}
-                  height={480}
-                />
+                <div className="relative w-48 h-64">
+                  <Image
+                    className="rounded-md object-cover"
+                    src={detail.imageUrl}
+                    alt={`Sticker-Print ${detail.id}`}
+                    fill
+                  />
+                </div>
               )}
               <div>
-                <h3 className="text-lg font-semibold">Participantes</h3>
-                <ol className="list-decimal list-inside">
-                  {detail.participants.map((participant) => (
-                    <li key={participant.id}>{participant.user.displayName}</li>
+                <h3 className="text-lg font-semibold my-3">Participantes</h3>
+                <div className="flex flex-wrap gap-3 justify-center items-center">
+                  {detail.participants.map((participant, index) => (
+                    <div
+                      key={participant.id}
+                      className="flex flex-col justify-between items-center gap-2 text-muted-foreground text-sm"
+                    >
+                      <div className="relative w-20 h-20 md:w-32 md:h-32">
+                        {participant.proofs.map((proof) => (
+                          <Image
+                            className="rounded-md object-cover"
+                            key={proof.id}
+                            src={proof.imageUrl}
+                            alt={`Proof ${proof.id}`}
+                            fill
+                            sizes="(max-width: 768px) 5rem, 8rem"
+                          />
+                        ))}
+                      </div>
+                      <span
+                        className="text-xs md:text-sm truncate max-w-full text-center"
+                        style={{
+                          fontSize:
+                            (participant.user.displayName?.length || 0) > 15
+                              ? "0.7rem"
+                              : "0.875rem",
+                        }}
+                      >
+                        #{index + 1} {participant.user.displayName || "Unknown"}
+                      </span>
+                    </div>
                   ))}
-                </ol>
+                </div>
               </div>
             </div>
           );

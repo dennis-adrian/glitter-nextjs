@@ -1,5 +1,5 @@
 {
-  "id": "8927c4a8-465f-487e-b7b6-a1f4146c6cf1",
+  "id": "226e70d6-a8a5-41d7-8d92-6673f65890d1",
   "prevId": "b556bf64-6b59-4779-a4d1-ebc8fda6067f",
   "version": "5",
   "dialect": "pg",
@@ -141,6 +141,62 @@
           "tableTo": "festival_activities",
           "columnsFrom": [
             "activity_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "festival_activity_participant_proofs": {
+      "name": "festival_activity_participant_proofs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "image_url": {
+          "name": "image_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "participation_id": {
+          "name": "participation_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "festival_activity_participant_proofs_participation_id_festival_activity_participants_id_fk": {
+          "name": "festival_activity_participant_proofs_participation_id_festival_activity_participants_id_fk",
+          "tableFrom": "festival_activity_participant_proofs",
+          "tableTo": "festival_activity_participants",
+          "columnsFrom": [
+            "participation_id"
           ],
           "columnsTo": [
             "id"
@@ -1725,13 +1781,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "country": {
-          "name": "country",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'BO'"
         },
         "verified_at": {
           "name": "verified_at",

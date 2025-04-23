@@ -264,12 +264,16 @@ export const festivalDates = pgTable(
     ),
   }),
 );
-export const festivalDatesRelations = relations(festivalDates, ({ one }) => ({
-  festival: one(festivals, {
-    fields: [festivalDates.festivalId],
-    references: [festivals.id],
+export const festivalDatesRelations = relations(
+  festivalDates,
+  ({ one, many }) => ({
+    festival: one(festivals, {
+      fields: [festivalDates.festivalId],
+      references: [festivals.id],
+    }),
+    collaboratorsAttendanceLogs: many(collaboratorsAttendanceLogs),
   }),
-}));
+);
 
 export const requestStatusEnum = pgEnum("participation_request_status", [
   "pending",
@@ -407,6 +411,7 @@ export const standReservationsRelations = relations(
     participants: many(reservationParticipants),
     invoices: many(invoices),
     scheduledTasks: many(scheduledTasks),
+    collaborators: many(reservationCollaborators),
   }),
 );
 
@@ -653,7 +658,7 @@ export const festivalActivityParticipants = pgTable(
 );
 export const festivalActivityParticipantsRelations = relations(
   festivalActivityParticipants,
-  ({ one }) => ({
+  ({ one, many }) => ({
     activityDetail: one(festivalActivityDetails, {
       fields: [festivalActivityParticipants.detailsId],
       references: [festivalActivityDetails.id],
@@ -661,6 +666,101 @@ export const festivalActivityParticipantsRelations = relations(
     user: one(users, {
       fields: [festivalActivityParticipants.userId],
       references: [users.id],
+    }),
+    proofs: many(festivalActivityParticipantProofs),
+  }),
+);
+
+export const festivalActivityParticipantProofs = pgTable(
+  "festival_activity_participant_proofs",
+  {
+    id: serial("id").primaryKey(),
+    imageUrl: text("image_url").notNull(),
+    participationId: integer("participation_id")
+      .notNull()
+      .references(() => festivalActivityParticipants.id, {
+        onDelete: "cascade",
+      }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+);
+export const festivalActivityParticipantProofsRelations = relations(
+  festivalActivityParticipantProofs,
+  ({ one }) => ({
+    participation: one(festivalActivityParticipants, {
+      fields: [festivalActivityParticipantProofs.participationId],
+      references: [festivalActivityParticipants.id],
+    }),
+  }),
+);
+
+export const collaborators = pgTable("collaborators", {
+  id: serial("id").primaryKey(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  identificationNumber: text("identification_number").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const collaboratorsRelations = relations(collaborators, ({ many }) => ({
+  reservationCollaborators: many(reservationCollaborators),
+}));
+
+export const reservationCollaborators = pgTable("reservation_collaborators", {
+  id: serial("id").primaryKey(),
+  reservationId: integer("reservation_id")
+    .notNull()
+    .references(() => standReservations.id, { onDelete: "cascade" }),
+  collaboratorId: integer("collaborator_id")
+    .notNull()
+    .references(() => collaborators.id, { onDelete: "cascade" }),
+  arrivedAt: timestamp("arrived_at"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const reservationCollaboratorsRelations = relations(
+  reservationCollaborators,
+  ({ one, many }) => ({
+    reservation: one(standReservations, {
+      fields: [reservationCollaborators.reservationId],
+      references: [standReservations.id],
+    }),
+    collaborator: one(collaborators, {
+      fields: [reservationCollaborators.collaboratorId],
+      references: [collaborators.id],
+    }),
+    collaboratorsAttendanceLogs: many(collaboratorsAttendanceLogs),
+  }),
+);
+
+export const collaboratorsAttendanceLogs = pgTable(
+  "collaborators_attendance_logs",
+  {
+    id: serial("id").primaryKey(),
+    reservationCollaboratorId: integer("reservation_collaborator_id")
+      .notNull()
+      .references(() => reservationCollaborators.id, {
+        onDelete: "cascade",
+      }),
+    festivalDateId: integer("festival_date_id")
+      .notNull()
+      .references(() => festivalDates.id, { onDelete: "cascade" }),
+    arrivedAt: timestamp("arrived_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+);
+export const collaboratorsAttendanceLogsRelations = relations(
+  collaboratorsAttendanceLogs,
+  ({ one }) => ({
+    reservationCollaborator: one(reservationCollaborators, {
+      fields: [collaboratorsAttendanceLogs.reservationCollaboratorId],
+      references: [reservationCollaborators.id],
+    }),
+    festivalDate: one(festivalDates, {
+      fields: [collaboratorsAttendanceLogs.festivalDateId],
+      references: [festivalDates.id],
     }),
   }),
 );

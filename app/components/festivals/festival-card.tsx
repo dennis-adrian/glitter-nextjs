@@ -1,6 +1,6 @@
 import { BuildingIcon, CalendarDaysIcon, MapPinIcon } from "lucide-react";
 
-import FestivalStatusBadge from "@/components/festivals/festival-status-badge";
+import FestivalStatusBadge from "@/app/components/atoms/festival-status-badge";
 import {
   Card,
   CardContent,

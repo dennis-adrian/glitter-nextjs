@@ -35,11 +35,12 @@ const DrawerDialog = ({
   isDesktop = false,
   open,
   onOpenChange,
+  ...props
 }: DrawerDialogProps & DialogProps) => {
   const Component = isDesktop ? Dialog : Drawer;
 
   return (
-    <Component open={open} onOpenChange={onOpenChange}>
+    <Component open={open} onOpenChange={onOpenChange} modal={props.modal}>
       {children}
     </Component>
   );
@@ -73,9 +74,18 @@ const DrawerDialogDescription = ({
 const DrawerDialogContent = ({
   children,
   isDesktop = false,
+  ...props
 }: DrawerDialogProps) => {
   const Component = isDesktop ? DialogContent : DrawerContent;
-  return <Component>{children}</Component>;
+  return (
+    <Component
+      onPointerDownOutside={(e) => e.preventDefault()}
+      onInteractOutside={(e) => e.preventDefault()}
+      {...props}
+    >
+      {children}
+    </Component>
+  );
 };
 
 const DrawerDialogHeader = ({

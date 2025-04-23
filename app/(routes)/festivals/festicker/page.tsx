@@ -9,6 +9,9 @@ import {
 } from "@/components/ui/accordion";
 import { Metadata } from "next";
 import Link from "next/link";
+import { getActiveFestival } from "@/app/lib/festivals/helpers";
+import { RedirectButton } from "@/app/components/redirect-button";
+import { DateTime } from "luxon";
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
@@ -30,7 +33,24 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function Page() {
+export default async function Page() {
+  const festival = await getActiveFestival();
+  const isFesticker = festival?.festivalType === "festicker";
+  const festivalStartDate = festival?.festivalDates[0].startDate;
+  const festivalEndDate = festival?.festivalDates[0].endDate;
+  let isEventDay = false;
+
+  if (festivalStartDate && festivalEndDate) {
+    const formattedStartDate = DateTime.fromJSDate(festivalStartDate);
+    const formattedEndDate = DateTime.fromJSDate(festivalEndDate);
+    isEventDay =
+      DateTime.now() > formattedStartDate && DateTime.now() < formattedEndDate;
+  }
+
+  const registrationUrl = isEventDay
+    ? `/festivals/${festival?.id}/event_day_registration`
+    : `/festivals/${festival?.id}/registration`;
+
   return (
     <div className="flex min-h-screen flex-col container p-4 md:p-6">
       {/* Hero Section */}
@@ -51,18 +71,24 @@ export default function Page() {
           <p className="mt-4 max-w-3xl text-xl text-white/90">
             Pegate a la onda de los stickers
           </p>
-          {/* <div className="mt-8 flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4">
-            <Button size="lg" className="bg-festicker hover:bg-festicker/90">
-              Join Our Newsletter
-            </Button>
-            <Button
+          <div className="mt-8 flex flex-col space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4">
+            {festival?.publicRegistration && isFesticker && (
+              <RedirectButton
+                href={registrationUrl}
+                size="lg"
+                className="bg-festicker hover:bg-festicker/90 rounded-md"
+              >
+                Reservar Entrada
+              </RedirectButton>
+            )}
+            {/* <Button
               size="lg"
               variant="outline"
               className="text-white border-white hover:bg-white/10"
             >
               Learn More
-            </Button>
-          </div> */}
+            </Button> */}
+          </div>
         </div>
       </section>
 

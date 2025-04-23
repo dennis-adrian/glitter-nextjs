@@ -99,6 +99,7 @@ export async function fetchActiveFestival({
                 participants: {
                   with: {
                     user: true,
+                    proofs: true,
                   },
                 },
               },
@@ -175,8 +176,6 @@ export async function fetchFestivalWithDates(
 }
 
 export async function fetchFestivals(): Promise<FestivalWithDates[]> {
-  const client = await pool.connect();
-
   try {
     return await db.query.festivals.findMany({
       with: {
@@ -187,8 +186,6 @@ export async function fetchFestivals(): Promise<FestivalWithDates[]> {
   } catch (error) {
     console.error("Error fetching festivals", error);
     return [];
-  } finally {
-    client.release();
   }
 }
 

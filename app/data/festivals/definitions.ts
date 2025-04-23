@@ -10,6 +10,7 @@ import { FestivalSectorWithStands } from "@/app/lib/festival_sectors/definitions
 import {
   festivalActivities,
   festivalActivityDetails,
+  festivalActivityParticipantProofs,
   festivalActivityParticipants,
   festivalDates,
   festivals,
@@ -41,6 +42,7 @@ export type FestivalActivityWithDetailsAndParticipants = FestivalActivity & {
 export type ActivityDetailsWithParticipants = FestivalActivityDetail & {
   participants: (FestivalActivityParticipant & {
     user: BaseProfile;
+    proofs: (typeof festivalActivityParticipantProofs.$inferSelect)[];
   })[];
 };
 
