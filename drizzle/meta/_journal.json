@@ -708,6 +708,13 @@
       "when": 1744559505066,
       "tag": "0100_sleepy_black_cat",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "5",
+      "when": 1745371410957,
+      "tag": "0101_messy_yellow_claw",
+      "breakpoints": true
     }
   ]
 }
