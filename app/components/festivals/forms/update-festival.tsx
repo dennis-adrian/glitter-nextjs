@@ -3,162 +3,236 @@
 import { Button } from "@/app/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/app/components/ui/form";
 import { Input } from "@/app/components/ui/input";
-import { Textarea } from "@/app/components/ui/textarea";
+import { festivalTypeOptions } from "@/app/lib/utils";
+import { festivalTypeEnum } from "@/db/schema";
 import { updateFestival } from "@/app/lib/festivals/actions";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { FestivalWithDates } from "@/app/data/festivals/definitions";
+import TextInput from "../../form/fields/text";
+import TextareaInput from "../../form/fields/textarea";
+import { PlusIcon, TrashIcon } from "lucide-react";
+import SelectInput from "../../form/fields/select";
 
-const formSchema = z.object({
-  name: z.string().min(1, "El nombre es requerido"),
-  description: z.string().optional(),
-  address: z.string().optional(),
-  locationLabel: z.string().optional(),
-  locationUrl: z.string().url("Debe ser una URL válida").or(z.literal("")),
-  startDate: z.string().min(1, "La fecha de inicio es requerida"),
-  endDate: z.string().min(1, "La fecha de fin es requerida"),
+const FormSchema = z.object({
+	name: z.string().min(1, "Required"),
+	status: z.enum(['draft', 'published', 'active', 'archived']).default('draft'),
+	mapsVersion: z.enum(['v1', 'v2', 'v3']).default('v1'),
+	publicRegistration: z.boolean().default(false),
+	eventDayRegistration: z.boolean().default(false),
+	festivalType: z.enum([...festivalTypeEnum.enumValues]),
+
+	dates: z.array(
+		z.object({
+			id: z.number().optional(), // Add this for existing dates
+			date: z.coerce.date(),
+			startTime: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format (HH:MM)"),
+			endTime: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format (HH:MM)"),
+		})
+	).min(1, "At least one date is required"),
+
+	description: z.string().optional(),
+	address: z.string().optional(),
+	locationLabel: z.string().optional(),
+	locationUrl: z.string().url().optional().or(z.literal('')),
 });
 
 export default function UpdateFestivalForm({ festival }: { festival: FestivalWithDates }) {
-  const router = useRouter();
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: festival.name,
-      description: festival.description || "",
-      address: festival.address || "",
-      locationLabel: festival.locationLabel || "",
-      locationUrl: festival.locationUrl || "",
-      startDate: festival.festivalDates[0]?.startDate.toISOString().split('T')[0] || "",
-      endDate: festival.festivalDates[0]?.endDate.toISOString().split('T')[0] || "",
-    },
-  });
+	const router = useRouter();
+	const form = useForm<z.infer<typeof FormSchema>>({
+		resolver: zodResolver(FormSchema),
+		defaultValues: {
+			name: festival.name,
+			status: festival.status,
+			mapsVersion: festival.mapsVersion,
+			publicRegistration: festival.publicRegistration,
+			eventDayRegistration: festival.eventDayRegistration,
+			festivalType: festival.festivalType,
+			description: festival.description || '',
+			address: festival.address || '',
+			locationLabel: festival.locationLabel || '',
+			locationUrl: festival.locationUrl || '',
+			dates: festival.festivalDates.map(date => ({
+				id: date.id,
+				date: new Date(date.startDate),
+				startTime: date.startDate.toTimeString().slice(0, 5),
+				endTime: date.endDate.toTimeString().slice(0, 5),
+			})),
+		}
+	});
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    const result = await updateFestival({
-      festival: {
-        ...festival,
-        name: values.name,
-        description: values.description || null,
-        address: values.address || null,
-        locationLabel: values.locationLabel || null,
-        locationUrl: values.locationUrl || null,
-      },
-      dates: {
-        ...festival.festivalDates[0],
-        startDate: new Date(values.startDate),
-        endDate: new Date(values.endDate),
-      },
-    });
+	const { fields, append, remove } = useFieldArray({
+		control: form.control,
+		name: "dates",
+	});
 
-    if (result.success) {
-      toast.success("Festival actualizado correctamente");
-      router.refresh();
-    } else {
-      toast.error(result.message || "Error al actualizar el festival");
-    }
-  }
-  return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Nombre</FormLabel>
-              <FormControl>
-                <Input placeholder="Nombre del festival" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="description"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Descripción</FormLabel>
-              <FormControl>
-                <Textarea placeholder="Descripción del festival" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="address"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Dirección</FormLabel>
-              <FormControl>
-                <Input placeholder="Dirección del festival" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="locationLabel"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Etiqueta de ubicación</FormLabel>
-              <FormControl>
-                <Input placeholder="Ej: Parque de los Niños" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="locationUrl"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>URL de ubicación</FormLabel>
-              <FormControl>
-                <Input placeholder="https://maps.google.com/..." {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="startDate"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Fecha de inicio</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="endDate"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Fecha de fin</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        <Button type="submit">Actualizar festival</Button>
-      </form>
-    </Form>
-  );
+	const onSubmit = form.handleSubmit(async (data) => {
+		const festivalData = {
+			...data,
+			id: festival.id,
+			updatedAt: new Date(),
+		};
+
+		const result = await updateFestival(festivalData);
+
+		if (result.success) {
+			toast.success(result.message);
+			router.push("/dashboard/festivals");
+		} else {
+			toast.error(result.message);
+		}
+	});
+
+	const addNewDate = () => {
+		append({
+			date: new Date(),
+			startTime: "10:00",
+			endTime: "20:00"
+		});
+	};
+
+	return (
+		<Form {...form}>
+			<form onSubmit={onSubmit} className="space-y-6 max-w-3xl">
+				{/* Basic Information Section */}
+				<div className="space-y-4 p-4 border rounded-lg">
+					<h3 className="font-medium">Informacion Básica</h3>
+
+					<TextInput
+						formControl={form.control}
+						name="name"
+						label="Nombre del festival"
+						type="text"
+					/>
+
+					<TextareaInput formControl={form.control} label="Descripción" name="description" placeholder="Descripción" />
+
+					<SelectInput
+						formControl={form.control}
+						label="Tipo de Festival"
+						name="festivalType"
+						options={festivalTypeOptions}
+						side="bottom"
+					/>
+				</div>
+
+				{/* Location Information Section */}
+				<div className="space-y-4 p-4 border rounded-lg">
+					<h3 className="font-medium">Informacion de la Ubicación</h3>
+
+					<TextInput
+						formControl={form.control}
+						name="address"
+						label="Dirección"
+						type="text"
+					/>
+
+					<TextInput
+						formControl={form.control}
+						name="locationLabel"
+						label="Etiqueta de Dirección"
+						type="text"
+					/>
+
+					<TextInput
+						formControl={form.control}
+						name="locationUrl"
+						label="URL de Dirección"
+						type="text"
+						placeholder="https://example.com"
+					/>
+				</div>
+
+				{/* Dates Section */}
+				<div className="space-y-4 p-4 border rounded-lg">
+					<h3 className="font-medium">Fechas</h3>
+
+					{fields.map((field, index) => (
+						<div key={field.id} className="space-y-4 border-b pb-4 last:border-b-0 last:pb-0">
+							<div className="flex justify-between items-center">
+								<h4 className="text-sm font-medium">Evento {index + 1}</h4>
+								{index > 0 && (
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										onClick={() => remove(index)}
+										className="text-red-500 hover:text-red-700"
+									>
+										<TrashIcon className="h-4 w-4" />
+									</Button>
+								)}
+							</div>
+
+							<FormField
+								control={form.control}
+								name={`dates.${index}.date`}
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>Fecha</FormLabel>
+										<FormControl>
+											<Input
+												type="date"
+												{...field}
+												value={field.value ? field.value.toISOString().split('T')[0] : ''}
+												onChange={e => field.onChange(new Date(e.target.value))}
+											/>
+										</FormControl>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
+
+							<div className="grid grid-cols-2 gap-4">
+								<FormField
+									control={form.control}
+									name={`dates.${index}.startTime`}
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel>Hora de inicio</FormLabel>
+											<FormControl>
+												<Input type="time" {...field} />
+											</FormControl>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+
+								<FormField
+									control={form.control}
+									name={`dates.${index}.endTime`}
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel>Hora de finalización</FormLabel>
+											<FormControl>
+												<Input type="time" {...field} />
+											</FormControl>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+							</div>
+						</div>
+					))}
+
+					<Button
+						type="button"
+						variant="outline"
+						className="w-full mt-4"
+						onClick={addNewDate}
+					>
+						<PlusIcon className="mr-2 h-4 w-4" />
+						Agregar otra fecha
+					</Button>
+				</div>
+
+				<Button type="submit" size="lg" className="w-full md:w-auto">
+					Actualizar Festival
+				</Button>
+			</form>
+		</Form>
+	);
 }
