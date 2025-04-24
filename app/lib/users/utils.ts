@@ -31,12 +31,12 @@ export function getProfileStatusLabel(status: BaseProfile["status"]) {
 }
 
 export const socialsUrls = {
-  instagram: "https://www.instagram.com/",
-  tiktok: "https://www.tiktok.com/@",
-  facebook: "https://www.facebook.com/",
-  twitter: "https://www.twitter.com/",
-  youtube: "https://www.youtube.com/",
-  whatsapp: "https://wa.me/591",
+	instagram: "https://www.instagram.com/",
+	tiktok: "https://www.tiktok.com/@",
+	facebook: "https://www.facebook.com/",
+	twitter: "https://www.twitter.com/",
+	youtube: "https://www.youtube.com/",
+	whatsapp: "https://wa.me/",
 };
 
 export const socialsIcons = {

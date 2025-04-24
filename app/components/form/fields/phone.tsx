@@ -22,29 +22,30 @@ export default function PhoneInput({
   name: string;
 }) {
   return (
-    <FormField
-      control={formControl}
-      name={name}
-      render={({ field }) => (
-        <FormItem className="grid gap-2">
-          {label && <FormLabel>{label}</FormLabel>}
-          <FormControl>
-            <ReactInternationalPhoneInput
-              preferredCountries={["ar", "bo", "br", "co", "pe", "us"]}
-              inputStyle={{
-                border: "none",
-                borderBottom: "1px solid hsl(var(--primary-500))",
-                borderRadius: "0",
-                width: "100%",
-                fontSize: "hsl(var(--font-size-base))",
-              }}
-              defaultCountry="bo"
-              {...field}
-            />
-          </FormControl>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-  );
+		<FormField
+			control={formControl}
+			name={name}
+			render={({ field }) => (
+				<FormItem className="grid gap-2">
+					{label && <FormLabel>{label}</FormLabel>}
+					<FormControl>
+						<ReactInternationalPhoneInput
+							forceDialCode
+							preferredCountries={["ar", "bo", "br", "co", "pe", "us"]}
+							inputStyle={{
+								border: "none",
+								borderBottom: "1px solid hsl(var(--primary-500))",
+								borderRadius: "0",
+								width: "100%",
+								fontSize: "hsl(var(--font-size-base))",
+							}}
+							defaultCountry="bo"
+							{...field}
+						/>
+					</FormControl>
+					<FormMessage />
+				</FormItem>
+			)}
+		/>
+	);
 }

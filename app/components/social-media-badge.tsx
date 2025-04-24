@@ -10,20 +10,15 @@ type SocialMediaBadgeProps = {
 };
 
 export default function SocialMediaBadge(props: SocialMediaBadgeProps) {
+  const formattedValue = props.username.startsWith("+") ? props.username.slice(1) : props.username;
+	const url = `${socialsUrls[props.socialMediaType]}${formattedValue}`;
+
   return (
-    <Badge className="max-w-fit font-normal" variant="outline">
-      <Link
-        className="flex items-center"
-        href={`${socialsUrls[props.socialMediaType]}${props.username}`}
-        target="_blank"
-        rel="noreferrer"
-      >
-        <FontAwesomeIcon
-          className="w-4 h-4 mr-1"
-          icon={socialsIcons[props.socialMediaType]}
-        />
-        {props.username}
-      </Link>
-    </Badge>
-  );
+		<Badge className="max-w-fit font-normal" variant="outline">
+			<Link className="flex items-center" href={url} target="_blank" rel="noreferrer">
+				<FontAwesomeIcon className="w-4 h-4 mr-1" icon={socialsIcons[props.socialMediaType]} />
+				{formattedValue}
+			</Link>
+		</Badge>
+	);
 }
