@@ -1,39 +1,20 @@
 import { ProfileType } from "@/app/api/users/definitions";
 import PhoneInput from "@/app/components/form/fields/phone";
 import TextInput from "@/app/components/form/fields/text";
+import { phoneValidator } from "@/app/components/form/input-validators";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { updateProfile } from "@/app/lib/users/actions";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { PhoneNumberUtil } from "google-libphonenumber";
 import { ArrowDownToLineIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-const phoneUtil = PhoneNumberUtil.getInstance();
-
-const isPhoneValid = (phone: string) => {
-  try {
-    return phoneUtil.isValidNumber(phoneUtil.parseAndKeepRawInput(phone));
-  } catch (error) {
-    return false;
-  }
-};
-
 const FormSchema = z.object({
-  firstName: z
-    .string()
-    .trim()
-    .min(2, { message: "El nombre tiene que tener al menos dos letras" }),
-  lastName: z
-    .string()
-    .trim()
-    .min(2, { message: "El apellido tiene que tener al menos dos letras" }),
-  phoneNumber: z
-    .string()
-    .trim()
-    .refine(isPhoneValid, "Número de teléfono inválido"),
+	firstName: z.string().trim().min(2, { message: "El nombre tiene que tener al menos dos letras" }),
+	lastName: z.string().trim().min(2, { message: "El apellido tiene que tener al menos dos letras" }),
+	phoneNumber: phoneValidator(),
 });
 
 type ContactInfoFormProps = {

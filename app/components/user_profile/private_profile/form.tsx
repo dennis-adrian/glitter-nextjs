@@ -17,39 +17,20 @@ import { toast } from "sonner";
 import { updateProfile } from "@/app/lib/users/actions";
 import DateInput from "@/app/components/form/fields/date";
 import PhoneInput from "@/app/components/form/fields/phone";
-import { PhoneNumberUtil } from "google-libphonenumber";
 import { countryOptions } from "@/app/lib/countryOptions";
 import { dateToString } from "@/app/utils/dateUtils";
 import { stringToUTCDate } from "@/app/utils/dateUtils";
-
-const phoneUtil = PhoneNumberUtil.getInstance();
-const isPhoneValid = (phone: string) => {
-	try {
-		return phoneUtil.isValidNumber(phoneUtil.parseAndKeepRawInput(phone));
-	} catch (error) {
-		return false;
-	}
-};
+import { birthdateValidator, phoneValidator } from "@/app/components/form/input-validators";
 
 const FormSchema = z
 	.object({
-		birthdate: z.coerce
-			.date()
-			.refine((date) => date < new Date(), {
-				message: "La fecha de nacimiento no puede ser en el futuro",
-			})
-			.refine(
-				(date) => {
-					const ageLimit = formatDate(new Date()).minus({ years: 16 });
-					return formatDate(date).startOf("day") < ageLimit.startOf("day");
-				},
-				{
-					message: "Debes tener al menos 16 años para participar de nuestros eventos",
-				},
-			),
+		birthdate: birthdateValidator({
+			minAge: 16,
+			minAgeMessage: "Debes tener al menos 16 años para participar de nuestros eventos",
+		}),
 		firstName: z.string().trim().min(2, { message: "El nombre tiene que tener al menos dos letras" }),
 		lastName: z.string().trim().min(2, { message: "El apellido tiene que tener al menos dos letras" }),
-		phoneNumber: z.string().trim().refine(isPhoneValid, "Número de teléfono inválido"),
+		phoneNumber: phoneValidator(),
 		gender: z.enum([...genderEnum.enumValues], {
 			required_error: "El género es requerido",
 		}),
