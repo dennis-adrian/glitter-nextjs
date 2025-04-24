@@ -105,96 +105,97 @@ export default function RegistrationSteps(props: {
   };
 
   return (
-    <>
-      {!registrationInfo.type ? null : (
-        <>
-          <RegistrationTypeBanner
-            show={registrationInfo.showBanner}
-            festivalId={props.festival.id}
-            type={registrationInfo.type}
-            numberOfVisitors={registrationInfo.numberOfVisitors}
-            step={registrationInfo.step}
-            onReset={handleReset}
-            onGoBack={handleGoBack}
-          />
-        </>
-      )}
-      <StepDescription
-        title={stepsDescription[registrationInfo.step]?.title || ""}
-        description={stepsDescription[registrationInfo.step]?.description || ""}
-      />
-      {registrationInfo.step === 0 && (
-        <RegistrationTypeCards
-          onSelect={(type: RegistrationType) => {
-            setRegistrationInfo({
-              ...registrationInfo,
-              type,
-              showBanner: true,
-            });
-          }}
-        />
-      )}
-      {registrationInfo.step === 1 && (
-        <FamilyMembersStep
-          numberOfVisitors={registrationInfo.numberOfVisitors}
-          onContinue={(numberOfVisitors) => {
-            setRegistrationInfo((prev) => ({
-              ...prev,
-              numberOfVisitors,
-              step: 2,
-            }));
-          }}
-        />
-      )}
-      {registrationInfo.step === 2 && (
-        <EmailForm onSubmit={handleVisitorSearch} />
-      )}
-      {registrationInfo.step === 3 && (
-        <NameForm
-          onSubmit={(firstName: string, lastName: string) => {
-            setNewVisitor({ ...newVisitor, firstName, lastName });
-            setRegistrationInfo({ ...registrationInfo, step: 4 });
-          }}
-        />
-      )}
-      {registrationInfo.step === 4 && (
-        <BirthdayForm
-          onSubmit={(date: Date) => {
-            setNewVisitor({ ...newVisitor, birthdate: date });
-            setRegistrationInfo({ ...registrationInfo, step: 5 });
-          }}
-        />
-      )}
-      {registrationInfo.step === 5 && (
-        <PhoneForm
-          onSubmit={(phoneNumber: string) => {
-            setNewVisitor({ ...newVisitor, phoneNumber });
-            setRegistrationInfo({ ...registrationInfo, step: 6 });
-          }}
-        />
-      )}
-      {registrationInfo.step === 6 && (
-        <GenderForm
-          festival={props.festival}
-          numberOfVisitors={registrationInfo.numberOfVisitors}
-          visitor={newVisitor}
-          onSuccess={(visitor: VisitorWithTickets) => {
-            setReturningVisitor(visitor);
-            setRegistrationInfo({ ...registrationInfo, step: 7 });
-          }}
-        />
-      )}
-      {registrationInfo.step === 7 && returningVisitor?.id ? (
-        <TicketCreationStep
-          festival={props.festival}
-          visitor={returningVisitor}
-          numberOfVisitors={registrationInfo.numberOfVisitors}
-          onSuccess={(visitor) => {
-            setReturningVisitor(visitor);
-            setRegistrationInfo({ ...registrationInfo, showBanner: false });
-          }}
-        />
-      ) : null}
-    </>
-  );
+		<>
+			{!registrationInfo.type ? null : (
+				<div className="mb-4">
+					<RegistrationTypeBanner
+						show={registrationInfo.showBanner}
+						festivalId={props.festival.id}
+						type={registrationInfo.type}
+						numberOfVisitors={registrationInfo.numberOfVisitors}
+						step={registrationInfo.step}
+						onReset={handleReset}
+						onGoBack={handleGoBack}
+					/>
+				</div>
+			)}
+			<StepDescription
+				className="mt-6 mb-4 text-center"
+				title={stepsDescription[registrationInfo.step]?.title || ""}
+				description={stepsDescription[registrationInfo.step]?.description || ""}
+			/>
+			{registrationInfo.step === 0 && (
+				<RegistrationTypeCards
+					onSelect={(type: RegistrationType) => {
+						setRegistrationInfo({
+							...registrationInfo,
+							type,
+							showBanner: true,
+						});
+					}}
+				/>
+			)}
+			{registrationInfo.step === 1 && (
+				<FamilyMembersStep
+					numberOfVisitors={registrationInfo.numberOfVisitors}
+					onContinue={(numberOfVisitors) => {
+						setRegistrationInfo((prev) => ({
+							...prev,
+							numberOfVisitors,
+							step: 2,
+						}));
+					}}
+				/>
+			)}
+			{registrationInfo.step === 2 && (
+				<EmailForm onSubmit={handleVisitorSearch} />
+			)}
+			{registrationInfo.step === 3 && (
+				<NameForm
+					onSubmit={(firstName: string, lastName: string) => {
+						setNewVisitor({ ...newVisitor, firstName, lastName });
+						setRegistrationInfo({ ...registrationInfo, step: 4 });
+					}}
+				/>
+			)}
+			{registrationInfo.step === 4 && (
+				<BirthdayForm
+					onSubmit={(date: Date) => {
+						setNewVisitor({ ...newVisitor, birthdate: date });
+						setRegistrationInfo({ ...registrationInfo, step: 5 });
+					}}
+				/>
+			)}
+			{registrationInfo.step === 5 && (
+				<PhoneForm
+					onSubmit={(phoneNumber: string) => {
+						setNewVisitor({ ...newVisitor, phoneNumber });
+						setRegistrationInfo({ ...registrationInfo, step: 6 });
+					}}
+				/>
+			)}
+			{registrationInfo.step === 6 && (
+				<GenderForm
+					festival={props.festival}
+					numberOfVisitors={registrationInfo.numberOfVisitors}
+					visitor={newVisitor}
+					onSuccess={(visitor: VisitorWithTickets) => {
+						setReturningVisitor(visitor);
+						setRegistrationInfo({ ...registrationInfo, step: 7 });
+					}}
+				/>
+			)}
+			{registrationInfo.step === 7 && returningVisitor?.id ? (
+				<TicketCreationStep
+					festival={props.festival}
+					visitor={returningVisitor}
+					numberOfVisitors={registrationInfo.numberOfVisitors}
+					onSuccess={(visitor) => {
+						setReturningVisitor(visitor);
+						setRegistrationInfo({ ...registrationInfo, showBanner: false });
+					}}
+				/>
+			) : null}
+		</>
+	);
 }
