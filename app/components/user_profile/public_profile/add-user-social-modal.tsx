@@ -8,7 +8,6 @@ import {
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
-	DialogTrigger,
 } from "@/app/components/ui/dialog";
 import { Form } from "@/app/components/ui/form";
 import { useForm } from "react-hook-form";
@@ -26,6 +25,7 @@ import SocialMediaInput from "@/app/components/form/fields/social-media";
 import { upsertUserSocialProfiles } from "@/app/lib/users/actions";
 import { toast } from "sonner";
 import { userSocialTypeEnum } from "@/db/schema";
+import { useState } from "react";
 
 const FormSchema = z.object({
 	type: z.enum(userSocialTypeEnum.enumValues, {
@@ -50,6 +50,7 @@ type AddUserSocialModalProps = {
 export default function AddUserSocialModal({
 	profile,
 }: AddUserSocialModalProps) {
+	const [showModal, setShowModal] = useState(false);
 	const form = useForm<z.infer<typeof FormSchema>>({
 		resolver: zodResolver(FormSchema),
 	});
@@ -64,10 +65,17 @@ export default function AddUserSocialModal({
 
 		if (res.success) {
 			toast.success(res.message);
+			form.reset();
+			setShowModal(false);
 		} else {
 			toast.error(res.message);
 		}
 	});
+
+	const handleOpenChange = (open: boolean) => {
+		form.reset();
+		setShowModal(open);
+	};
 
 	const getIcon = (type: UserSocial["type"]) => {
 		const Icon = socialMediaIcons[type];
@@ -75,59 +83,61 @@ export default function AddUserSocialModal({
 	};
 
 	return (
-		<Dialog>
-			<DialogTrigger asChild>
-				<Button
-					variant="outline"
-					className="rounded-full h-fit w-fit py-1 px-2"
-				>
-					<CirclePlusIcon className="mr-1 h-4 w-4" />
-					Agregar
-				</Button>
-			</DialogTrigger>
-			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>Agregar red social</DialogTitle>
-					<DialogDescription>
-						Agrega una nueva red social a tu perfil.
-					</DialogDescription>
-				</DialogHeader>
-				<Form {...form}>
-					<form className="space-y-6 mt-4" onSubmit={action}>
-						<SelectInput
-							formControl={form.control}
-							variant="quiet"
-							label="Plataforma"
-							name="type"
-							options={socialMediaOptions.map((option) => ({
-								label: (
-									<div className="flex items-center gap-2">
-										{getIcon(option.value)} {option.label}
-									</div>
-								),
-								value: option.value,
-							}))}
-							placeholder="Selecciona una plataforma"
-						/>
-						<SocialMediaInput
-							formControl={form.control}
-							label="Nombre de usuario"
-							name="username"
-							placeholder="Nombre de usuario"
-							icon={socialMediaIcons[form.watch("type")]}
-						/>
-						<SubmitButton
-							disabled={
-								form.formState.isSubmitting || form.formState.isSubmitSuccessful
-							}
-							loading={form.formState.isSubmitting}
-							loadingLabel="Agregando..."
-						>
-							Agregar
-						</SubmitButton>
-					</form>
-				</Form>
-			</DialogContent>
-		</Dialog>
+		<>
+			<Button
+				variant="outline"
+				className="rounded-full h-fit w-fit py-1 px-2"
+				onClick={() => setShowModal(true)}
+			>
+				<CirclePlusIcon className="mr-1 h-4 w-4" />
+				Agregar
+			</Button>
+			<Dialog open={showModal} onOpenChange={handleOpenChange}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Agregar red social</DialogTitle>
+						<DialogDescription>
+							Agrega una nueva red social a tu perfil.
+						</DialogDescription>
+					</DialogHeader>
+					<Form {...form}>
+						<form className="space-y-6 mt-4" onSubmit={action}>
+							<SelectInput
+								formControl={form.control}
+								variant="quiet"
+								label="Plataforma"
+								name="type"
+								options={socialMediaOptions.map((option) => ({
+									label: (
+										<div className="flex items-center gap-2">
+											{getIcon(option.value)} {option.label}
+										</div>
+									),
+									value: option.value,
+								}))}
+								placeholder="Selecciona una plataforma"
+							/>
+							<SocialMediaInput
+								formControl={form.control}
+								label="Nombre de usuario"
+								name="username"
+								placeholder="Nombre de usuario"
+								icon={socialMediaIcons[form.watch("type")]}
+							/>
+							<SubmitButton
+								disabled={
+									form.formState.isSubmitting ||
+									form.formState.isSubmitSuccessful
+								}
+								loading={form.formState.isSubmitting}
+								loadingLabel="Agregando..."
+							>
+								Agregar
+							</SubmitButton>
+						</form>
+					</Form>
+				</DialogContent>
+			</Dialog>
+		</>
 	);
 }
