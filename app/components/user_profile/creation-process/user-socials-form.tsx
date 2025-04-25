@@ -3,13 +3,11 @@ import SocialMediaInput from "@/app/components/form/fields/social-media";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { formatUserSocialsForInsertion } from "@/app/components/user_profile/public_profile/utils";
+import FacebookIcon from "@/app/icons/FacebookIcon";
+import InstagramIcon from "@/app/icons/InstagramIcon";
+import TikTokIcon from "@/app/icons/TikTokIcon";
 import { upsertUserSocialProfiles } from "@/app/lib/users/actions";
 import { usernameRegex } from "@/app/lib/users/utils";
-import {
-  faFacebookF,
-  faInstagram,
-  faTiktok,
-} from "@fortawesome/free-brands-svg-icons";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowDownToLineIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -65,47 +63,47 @@ export default function UserSocialsForm(props: UserSocialsFormProps) {
   });
 
   return (
-    <Form {...form}>
-      <form onSubmit={action} className="w-full">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-4 items-start my-4">
-          <SocialMediaInput
-            bottomBorderOnly
-            formControl={form.control}
-            label="Perfil de Instagram*"
-            name="instagram"
-            icon={faInstagram}
-          />
-          <SocialMediaInput
-            bottomBorderOnly
-            formControl={form.control}
-            label="Perfil de TikTok"
-            name="tiktok"
-            icon={faTiktok}
-          />
-          <SocialMediaInput
-            bottomBorderOnly
-            formControl={form.control}
-            label="Perfil de Facebook"
-            name="facebook"
-            icon={faFacebookF}
-          />
-        </div>
-        <div>
-          <p className="text-xs md:text-sm italic text-muted-foreground">
-            * El perfil de Instagram es requerido. Los perfiles de TikTok y
-            Facebook son opcionales.
-          </p>
-        </div>
-        <div className="flex gap-2 my-4 col-span-1 sm:col-span-2 md:col-span-3">
-          <SubmitButton
-            disabled={form.formState.isSubmitting}
-            loading={form.formState.isSubmitting}
-          >
-            Guardar
-            <ArrowDownToLineIcon className="ml-2 w-4 h-4" />
-          </SubmitButton>
-        </div>
-      </form>
-    </Form>
-  );
+		<Form {...form}>
+			<form onSubmit={action} className="w-full">
+				<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-4 items-start my-4">
+					<SocialMediaInput
+						bottomBorderOnly
+						formControl={form.control}
+						label="Perfil de Instagram*"
+						name="instagram"
+						icon={InstagramIcon}
+					/>
+					<SocialMediaInput
+						bottomBorderOnly
+						formControl={form.control}
+						label="Perfil de TikTok"
+						name="tiktok"
+						icon={TikTokIcon}
+					/>
+					<SocialMediaInput
+						bottomBorderOnly
+						formControl={form.control}
+						label="Perfil de Facebook"
+						name="facebook"
+						icon={FacebookIcon}
+					/>
+				</div>
+				<div>
+					<p className="text-xs md:text-sm italic text-muted-foreground">
+						* El perfil de Instagram es requerido. Los perfiles de TikTok y
+						Facebook son opcionales.
+					</p>
+				</div>
+				<div className="flex gap-2 my-4 col-span-1 sm:col-span-2 md:col-span-3">
+					<SubmitButton
+						disabled={form.formState.isSubmitting}
+						loading={form.formState.isSubmitting}
+					>
+						Guardar
+						<ArrowDownToLineIcon className="ml-2 w-4 h-4" />
+					</SubmitButton>
+				</div>
+			</form>
+		</Form>
+	);
 }

@@ -3,11 +3,11 @@ import { FilePenLineIcon, FrownIcon } from "lucide-react";
 import { ProfileType } from "@/app/api/users/definitions";
 
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
 } from "@/app/components/ui/card";
 import ProfileCategoryBadge from "@/app/components/user_profile/category-badge";
 import ProfilePicField from "@/app/components/user_profile/profile_pic/field";
@@ -18,21 +18,22 @@ import Form from "./form";
 import TagBadge from "@/app/components/tags/tag-badge";
 import { Badge } from "@/app/components/ui/badge";
 import SocialMediaBadge from "@/app/components/social-media-badge";
+import AddUserSocialModal from "@/app/components/user_profile/public_profile/add-user-social-modal";
 
 export default function PublicProfile({
-  profile,
-  title = "Perfil Público",
+	profile,
+	title = "Perfil Público",
 }: {
-  profile: ProfileType;
-  title?: string;
+	profile: ProfileType;
+	title?: string;
 }) {
-  const socials = profile.userSocials.filter((social) => social.username);
-  // The first subcategory is the main category that's why we slice it
-  const subcategories = profile.profileSubcategories
-    .map((ps) => ps.subcategory)
-    .slice(1);
+	const socials = profile.userSocials.filter((social) => social.username);
+	// The first subcategory is the main category that's why we slice it
+	const subcategories = profile.profileSubcategories
+		.map((ps) => ps.subcategory)
+		.slice(1);
 
-  return (
+	return (
 		<>
 			<Card>
 				<CardHeader>
@@ -110,15 +111,18 @@ export default function PublicProfile({
 								)}
 								<div className="flex flex-wrap items-center justify-center gap-2">
 									{socials && socials.length > 0 ? (
-										socials.map((social) => (
-											<SocialMediaBadge
-												key={social.id}
-												socialMediaType={social.type}
-												username={social.username}
-												socialId={social.id}
-												canBeDeleted
-											/>
-										))
+										<>
+											{socials.map((social) => (
+												<SocialMediaBadge
+													key={social.id}
+													socialMediaType={social.type}
+													username={social.username}
+													socialId={social.id}
+													canBeDeleted
+												/>
+											))}
+											<AddUserSocialModal profile={profile} />
+										</>
 									) : (
 										<div className="text-muted-foreground text-sm">
 											Sin redes agregadas
