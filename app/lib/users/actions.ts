@@ -425,3 +425,24 @@ export async function deleteClerkUser(clerkId: string) {
     };
   }
 }
+
+export async function deleteUserSocial(
+	socialId: number,
+	pathToRevalidate?: string,
+) {
+	try {
+		await db.delete(userSocials).where(eq(userSocials.id, socialId));
+	} catch (error) {
+		console.error("Error deleting user social", error);
+		return {
+			success: false,
+			message: "Error al eliminar la red social.",
+		};
+	}
+
+	revalidatePath(pathToRevalidate || "/my_profile");
+	return {
+		success: true,
+		message: "Red social eliminada correctamente.",
+	};
+}
