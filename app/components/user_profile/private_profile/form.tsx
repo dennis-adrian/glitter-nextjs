@@ -7,12 +7,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { genderOptions, stateOptions } from "@/app/lib/utils";
 
 import { Form } from "@/app/components/ui/form";
-import { ProfileType } from "@/app/api/users/definitions";
+import { ProfileType, UpdateUser } from "@/app/api/users/definitions";
 import { genderEnum } from "@/db/schema";
 import SelectInput from "@/app/components/form/fields/select";
 import SubmitButton from "@/app/components/simple-submit-button";
 import TextInput from "@/app/components/form/fields/text";
-import { formatDate } from "@/app/lib/formatters";
 import { toast } from "sonner";
 import { updateProfile } from "@/app/lib/users/actions";
 import DateInput from "@/app/components/form/fields/date";
@@ -20,16 +19,26 @@ import PhoneInput from "@/app/components/form/fields/phone";
 import { countryOptions } from "@/app/lib/countryOptions";
 import { dateToString } from "@/app/utils/dateUtils";
 import { stringToUTCDate } from "@/app/utils/dateUtils";
-import { birthdateValidator, phoneValidator } from "@/app/components/form/input-validators";
+import {
+	birthdateValidator,
+	phoneValidator,
+} from "@/app/components/form/input-validators";
 
 const FormSchema = z
 	.object({
 		birthdate: birthdateValidator({
 			minAge: 16,
-			minAgeMessage: "Debes tener al menos 16 años para participar de nuestros eventos",
+			minAgeMessage:
+				"Debes tener al menos 16 años para participar de nuestros eventos",
 		}),
-		firstName: z.string().trim().min(2, { message: "El nombre tiene que tener al menos dos letras" }),
-		lastName: z.string().trim().min(2, { message: "El apellido tiene que tener al menos dos letras" }),
+		firstName: z
+			.string()
+			.trim()
+			.min(2, { message: "El nombre tiene que tener al menos dos letras" }),
+		lastName: z
+			.string()
+			.trim()
+			.min(2, { message: "El apellido tiene que tener al menos dos letras" }),
 		phoneNumber: phoneValidator(),
 		gender: z.enum([...genderEnum.enumValues], {
 			required_error: "El género es requerido",
@@ -54,7 +63,13 @@ const FormSchema = z
 		return true;
 	});
 
-export default function PrivateProfileForm({ profile, onSuccess }: { profile: ProfileType; onSuccess: () => void }) {
+export default function PrivateProfileForm({
+	profile,
+	onSuccess,
+}: {
+	profile: ProfileType;
+	onSuccess: () => void;
+}) {
 	const form = useForm<z.infer<typeof FormSchema>>({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
@@ -72,26 +87,64 @@ export default function PrivateProfileForm({ profile, onSuccess }: { profile: Pr
 		const stringBirthdate = dateToString(data.birthdate);
 		const birthdate = stringToUTCDate(stringBirthdate);
 
-		const result = await updateProfile(profile.id, {
-			...data,
-			birthdate,
-		});
+		const { dirtyFields } = form.formState;
+		const dirtyFieldsKeys = Object.keys(dirtyFields) as (keyof typeof data)[];
 
-		if (result.success) {
-			toast.success(result.message);
-			onSuccess();
-		} else {
-			toast.error(result.message);
+		const fieldsToUpdate: UpdateUser = {};
+		for (const key of dirtyFieldsKeys) {
+			let value = undefined;
+			if (key === "birthdate") {
+				value = birthdate;
+			} else {
+				value = data[key as keyof typeof data];
+			}
+
+			if (value !== undefined) {
+				fieldsToUpdate[key as keyof UpdateUser] = value as any;
+			}
+		}
+
+		if (Object.keys(fieldsToUpdate).length > 0) {
+			const result = await updateProfile(profile.id, {
+				...fieldsToUpdate,
+			});
+
+			if (result.success) {
+				toast.success(result.message);
+				onSuccess();
+			} else {
+				toast.error(result.message);
+			}
 		}
 	});
 
 	return (
 		<Form {...form}>
 			<form onSubmit={action} className="grid items-start gap-4 mt-4">
-				<TextInput bottomBorderOnly formControl={form.control} name="firstName" label="Ingres tu nombre" />
-				<TextInput bottomBorderOnly formControl={form.control} name="lastName" label="Ingres tu apellido" />
-				<DateInput bottomBorderOnly formControl={form.control} name="birthdate" label="Fecha de nacimiento" />
-				<PhoneInput bottomBorderOnly formControl={form.control} name="phoneNumber" label="Número de teléfono" />
+				<TextInput
+					bottomBorderOnly
+					formControl={form.control}
+					name="firstName"
+					label="Ingres tu nombre"
+				/>
+				<TextInput
+					bottomBorderOnly
+					formControl={form.control}
+					name="lastName"
+					label="Ingres tu apellido"
+				/>
+				<DateInput
+					bottomBorderOnly
+					formControl={form.control}
+					name="birthdate"
+					label="Fecha de nacimiento"
+				/>
+				<PhoneInput
+					bottomBorderOnly
+					formControl={form.control}
+					name="phoneNumber"
+					label="Número de teléfono"
+				/>
 				<SelectInput
 					formControl={form.control}
 					label="Género"
@@ -118,7 +171,10 @@ export default function PrivateProfileForm({ profile, onSuccess }: { profile: Pr
 						variant="quiet"
 					/>
 				)}
-				<SubmitButton disabled={form.formState.isSubmitting} loading={form.formState.isSubmitting}>
+				<SubmitButton
+					disabled={form.formState.isSubmitting || !form.formState.isDirty}
+					loading={form.formState.isSubmitting}
+				>
 					Guardar cambios
 				</SubmitButton>
 			</form>
