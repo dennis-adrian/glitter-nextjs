@@ -6,7 +6,7 @@ import { Button } from "@/app/components/ui/button";
 import { Form } from "@/app/components/ui/form";
 import { updateProfile } from "@/app/lib/users/actions";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
+import { ArrowDownToLineIcon, ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -19,12 +19,13 @@ const FormSchema = z.object({
   bio: z
     .string()
     .trim()
-    .min(10, { message: "La bio tiene que tener al menos 10 letras" })
-    .max(80, { message: "La bio no puede tener mas de 80 letras" }),
+    .min(10, { message: "La bio/descripción tiene que tener al menos 10 letras" })
+    .max(80, { message: "La bio/descripción no puede tener mas de 80 letras" }),
 });
 
 type DisplayNameFormProps = {
   profile: ProfileType;
+  displayNamePlaceholder?: string;
   onSubmit: () => void;
 };
 
@@ -59,21 +60,21 @@ export default function DisplayNameForm(props: DisplayNameFormProps) {
           formControl={form.control}
           label="Nombre de tu perfil"
           name="displayName"
-          placeholder="Nombre con el que te reconocen"
+          placeholder={props.displayNamePlaceholder || "Nombre de tu negocio o emprendimiento"}
         />
         <TextareaInput
           formControl={form.control}
-          label="Bio"
+          label="Bio/Descripción"
           name="bio"
-          placeholder="Escribe un poco sobre ti"
+          placeholder="Danos más detalles"
         />
         <div className="flex justify-end items-center gap-2">
           <SubmitButton
             disabled={form.formState.isSubmitting}
             loading={form.formState.isSubmitting}
           >
-            <span>Continuar</span>
-            <ArrowRightIcon className="ml-2 w-4 h-4" />
+            <span>Guardar</span>
+            <ArrowDownToLineIcon className="ml-2 w-4 h-4" />
           </SubmitButton>
         </div>
       </form>

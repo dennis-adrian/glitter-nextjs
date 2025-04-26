@@ -11,7 +11,6 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
-import { number } from "zod";
 
 export const userRoleEnum = pgEnum("user_role", [
   "admin",
@@ -58,6 +57,7 @@ export const users = pgTable(
     status: userStatusEnum("status").default("pending").notNull(),
     gender: genderEnum("gender").default("undisclosed").notNull(),
     state: text("state"),
+    country: text("country").default("BO").notNull(),
     verifiedAt: timestamp("verified_at"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),

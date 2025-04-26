@@ -138,8 +138,8 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
               </div>
             </>
           )}
-          <Separator className="my-2" />
           <SignedIn>
+            <Separator className="my-2" />
             <SheetClose asChild>
               <Button
                 className="p-2"
@@ -153,10 +153,6 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
               </Button>
             </SheetClose>
           </SignedIn>
-          <SignedOut>
-            <MobileSidebarItem href="/sign_in">Ingresar</MobileSidebarItem>
-            <MobileSidebarItem href="/sign_up">Registrarse</MobileSidebarItem>
-          </SignedOut>
         </ul>
       </SheetContent>
     </Sheet>

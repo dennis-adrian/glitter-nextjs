@@ -69,33 +69,27 @@ export default async function Page(
   const profile = await getCurrentUserProfile();
 
   return (
-    <div>
-      {step === "1" && (
-        <div className="container p-4 md:p-6">
-          <EmailCard festival={festival} />
-        </div>
-      )}
-      {step !== "1" && (
-        <div className="container px-3">
-          <div className="mb-4">
-            {step === "2" && email && (
-              <>
-                <h1 className="mb-2 text-xl font-semibold sm:text-2xl">
-                  Datos Personales
-                </h1>
-                <VisitorRegistrationForm email={email} visitor={visitor} />
-              </>
-            )}
-            {step === "3" && visitor && (
-              <ThirdStep
-                festival={festival}
-                visitor={visitor}
-                profile={profile}
-              />
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+		<div>
+			{step === "1" && (
+				<div className="container p-4 md:p-6">
+					<EmailCard festival={festival} />
+				</div>
+			)}
+			{step !== "1" && (
+				<div className="container p-4 md:p-6">
+					<div className="mb-4">
+						{step === "2" && email && (
+							<>
+								<h1 className="mb-2 text-xl font-semibold sm:text-2xl">Datos Personales</h1>
+								<VisitorRegistrationForm email={email} visitor={visitor} />
+							</>
+						)}
+						{step === "3" && visitor && (
+							<ThirdStep festival={festival} visitor={visitor} profile={profile} />
+						)}
+					</div>
+				</div>
+			)}
+		</div>
+	);
 }

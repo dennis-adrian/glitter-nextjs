@@ -1,17 +1,9 @@
 import Link from "next/link";
 
-import { cn } from "@/app/lib/utils";
-
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-
 import GlitterLogo from "@/app/components/landing/glitter-logo";
-import {
-  faFacebook,
-  faInstagram,
-  faTiktok,
-} from "@fortawesome/free-brands-svg-icons";
 import { headers } from "next/headers";
 import { MailIcon } from "lucide-react";
+import { cn } from "@/app/lib/utils";
 
 export default async function Footer() {
   const pathname = await headers().then((headers) =>

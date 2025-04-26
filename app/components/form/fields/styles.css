@@ -1,0 +1,18 @@
+.react-international-phone-country-selector-button {
+  border: none;
+  border-radius: 0 !important;
+  border-bottom: 1px solid hsl(var(--primary-500));
+  margin-right: 0.25rem !important;
+  /* because of the flag height, the top-bottom padding is not actually doing anything */
+  padding: 0 0.5rem !important;
+}
+
+.react-international-phone-country-selector-button:hover {
+  background-color: transparent;
+}
+
+.react-international-phone-country-selector-dropdown {
+  position: absolute !important;
+  top: -204px;
+  width: 240px;
+}

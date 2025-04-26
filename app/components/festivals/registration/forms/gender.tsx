@@ -55,24 +55,26 @@ export default function GenderForm(props: GenderFormProps) {
   });
 
   return (
-    <Form {...form}>
-      <form className="flex flex-col gap-4" onSubmit={action}>
-        <SelectInput
-          variant="quiet"
-          formControl={form.control}
-          name="gender"
-          options={genderOptions}
-          placeholder="Elige una opción"
-          side="top"
-        />
-        <SubmitButton
-          disabled={form.formState.isSubmitting}
-          loading={form.formState.isSubmitting}
-        >
-          <span>Guardar información</span>
-          <ArrowRightIcon className="ml-2 w-4 h-4" />
-        </SubmitButton>
-      </form>
-    </Form>
-  );
+		<Form {...form}>
+			<form className="flex flex-col gap-4" onSubmit={action}>
+				<SelectInput
+					variant="quiet"
+					formControl={form.control}
+					name="gender"
+					options={genderOptions}
+					placeholder="Elige una opción"
+					side="top"
+				/>
+				<SubmitButton
+					disabled={
+						form.formState.isSubmitting || form.formState.isSubmitSuccessful
+					}
+					loading={form.formState.isSubmitting}
+				>
+					<span>Guardar información</span>
+					<ArrowRightIcon className="ml-2 w-4 h-4" />
+				</SubmitButton>
+			</form>
+		</Form>
+	);
 }

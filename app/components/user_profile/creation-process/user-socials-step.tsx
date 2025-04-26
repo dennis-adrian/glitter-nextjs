@@ -4,21 +4,15 @@ import UserSocialsForm from "@/app/components/user_profile/creation-process/user
 
 type UserSocialsStepProps = {
   profile: ProfileType;
-  step: number;
-  setStep: (step: number) => void;
 };
 export default function UserSocialsStep(props: UserSocialsStepProps) {
   return (
     <>
       <StepDescription
-        title="¿Cuáles son tus redes sociales?"
-        description="Usaremos tus redes sociales para validar que tu perfil coincide con la categoria que elegiste y para compartirlas con nuestro público"
+        title="Agrega al menos una red social"
+        description="Agrega al menos tu usuario de Instagram para validar que tu perfil coincide con la categoria que elegiste y para compartirlo con nuestro público."
       />
-      <UserSocialsForm
-        profile={props.profile}
-        onBack={() => props.setStep(props.step - 1)}
-        onSubmit={() => props.setStep(props.step + 1)}
-      />
+      <UserSocialsForm profile={props.profile} />
     </>
   );
 }

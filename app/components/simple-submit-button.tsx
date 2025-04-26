@@ -22,13 +22,13 @@ export default function SubmitButton(props: SubmitButtonProps) {
   );
 
   return (
-    <Button
-      variant={props.variant}
-      disabled={props.disabled}
-      type="submit"
-      className={cn("w-full", props.className)}
-    >
-      {props.loading ? loadingComponent : props.children}
-    </Button>
-  );
+		<Button
+			variant={props.variant}
+			disabled={props.disabled}
+			type="submit"
+			className={cn("w-full", props.className)}
+		>
+			{props.loading ? loadingComponent : props.children || props.label}
+		</Button>
+	);
 }

@@ -471,6 +471,7 @@ export async function fetchAvailableArtistsInFestival(
           role: users.role,
           status: users.status,
           state: users.state,
+          country: users.country,
           verifiedAt: users.verifiedAt,
           updatedAt: users.updatedAt,
           createdAt: users.createdAt,

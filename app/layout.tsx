@@ -14,7 +14,6 @@ import Footer from "@/app/components/footer";
 
 import "./globals.css";
 import { getEnvLabel } from "./lib/config";
-// import "@uploadthing/react/styles.css";
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
@@ -43,7 +42,7 @@ export default function RootLayout({
         <body className={`${inter.variable} font-sans`}>
           <EdgeStoreProvider>
             <Navbar />
-            <main className="min-h-[calc(100vh-64px-180px)] md:min-h-[calc(100vh-80px-140px)]">
+            <main className="min-h-[calc(100vh-64px-180px)] md:min-h-[calc(100vh-80px-290px)]">
               {children}
             </main>
             <Footer />

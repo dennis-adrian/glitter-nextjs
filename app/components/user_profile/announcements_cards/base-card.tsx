@@ -17,13 +17,10 @@ export default function BaseCard({
 }) {
   return (
     <Card
-      className={cn(
-        "bg-gradient-to-r from-background-50/20 to-background-50",
-        className,
-      )}
+      className={cn("bg-amber-50 text-amber-900 border-amber-200", className)}
     >
-      <CardContent className="p-3 md:p-4 text-sm">
-        <div className="flex flex-col justify-between items-center md:flex-row gap-2">
+      <CardContent className="text-sm p-3">
+        <div className="flex flex-col justify-between items-center md:flex-row gap-1 md:gap-2">
           <div>{content}</div>
           {footer}
         </div>

@@ -8,17 +8,21 @@ import { Loader2Icon } from "lucide-react";
 import { BaseProfile } from "@/app/api/users/definitions";
 import { getUserName } from "@/app/lib/users/utils";
 import { twMerge } from "tailwind-merge";
+import { UploadThingError } from "uploadthing/server";
+import { Json } from "@uploadthing/shared";
 
 export default function ProfilePicUpload({
   size,
   imageUrl,
   setImageUrl,
   profile,
+  onUploading,
 }: {
   imageUrl: string | null;
   setImageUrl: (imageUrl: string) => void;
   size?: "sm" | "md" | "lg";
   profile: BaseProfile;
+  onUploading?: (isUploading: boolean) => void;
 }) {
   let containerSize = "w-32 h-32";
   if (size === "md") {
@@ -58,7 +62,7 @@ export default function ProfilePicUpload({
           allowedContent({ ready, isUploading }) {
             if (!ready) return null;
             if (isUploading) return "Subiendo imagen...";
-            return "Imagen hasta 2MB";
+            return "Imagen hasta 4MB";
           },
         }}
         appearance={{
@@ -75,6 +79,7 @@ export default function ProfilePicUpload({
         endpoint="profilePicture"
         onBeforeUploadBegin={(files) => {
           // Preprocess files before uploading (e.g. rename them)
+          if (onUploading) onUploading(true);
           return files.map((f) => {
             const fileExtension = f.name.split(".").pop();
             return new File([f], `${fileName}.${fileExtension}`, {
@@ -83,6 +88,8 @@ export default function ProfilePicUpload({
           });
         }}
         onClientUploadComplete={async (res) => {
+          // TODO: Improve the UX. Waiting to show the image by showing a toast message is not good.
+          if (onUploading) onUploading(false);
           const serverData = res[0].serverData;
           const { results } = serverData;
           if (results.imageUrl) {
@@ -90,8 +97,17 @@ export default function ProfilePicUpload({
             setImageUrl(results.imageUrl);
           }
         }}
-        onUploadError={(error: Error) => {
-          toast.error("Error al subir la imagen");
+        onUploadError={(error: UploadThingError<Json>) => {
+          if (onUploading) onUploading(false);
+          const errorMessage = error.message;
+          if (
+            error.code === "TOO_LARGE" ||
+            errorMessage.includes("FileSizeMismatch")
+          ) {
+            toast.error("La imagen es demasiado grande. Máximo 4MB.");
+          } else {
+            toast.error("Error al subir la imagen");
+          }
         }}
       />
     </div>

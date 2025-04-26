@@ -37,30 +37,32 @@ export default function NameForm(props: NameFormProps) {
   });
 
   return (
-    <Form {...form}>
-      <form onSubmit={action} className="grid items-start gap-6">
-        <div className="grid items-start gap-4">
-          <TextInput
-            bottomBorderOnly
-            formControl={form.control}
-            name="firstName"
-            placeholder="Ingresa tu nombre"
-          />
-          <TextInput
-            bottomBorderOnly
-            formControl={form.control}
-            name="lastName"
-            placeholder="Ingresa tu apellido"
-          />
-        </div>
-        <SubmitButton
-          disabled={form.formState.isSubmitting}
-          loading={form.formState.isSubmitting}
-        >
-          <span>Continuar</span>
-          <ArrowRightIcon className="ml-2 w-4 h-4" />
-        </SubmitButton>
-      </form>
-    </Form>
-  );
+		<Form {...form}>
+			<form onSubmit={action} className="grid items-start gap-6">
+				<div className="grid items-start gap-4">
+					<TextInput
+						bottomBorderOnly
+						formControl={form.control}
+						name="firstName"
+						placeholder="Ingresa tu nombre"
+					/>
+					<TextInput
+						bottomBorderOnly
+						formControl={form.control}
+						name="lastName"
+						placeholder="Ingresa tu apellido"
+					/>
+				</div>
+				<SubmitButton
+					disabled={form.formState.isSubmitting}
+					loading={
+						form.formState.isSubmitting || form.formState.isSubmitSuccessful
+					}
+				>
+					<span>Continuar</span>
+					<ArrowRightIcon className="ml-2 w-4 h-4" />
+				</SubmitButton>
+			</form>
+		</Form>
+	);
 }

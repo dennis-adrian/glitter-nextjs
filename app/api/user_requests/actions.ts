@@ -404,5 +404,5 @@ export async function addUserToFestival(
   }
 
   // revalidatePath("/");
-  return { success: true, message: "Ya puedes reservar tu espacio" };
+  return { success: true, message: "Ya estás habilitado para participar." };
 }

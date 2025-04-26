@@ -42,7 +42,7 @@ export default function FullPreviewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="p-0 w-dvw h-dvh min-w-full bg-black/60 flex justify-center items-center"
-        showCloseButton={false}
+        hideCloseButton
       >
         <DialogTitle className="sr-only">Vista previa</DialogTitle>
         {isLoading ? (

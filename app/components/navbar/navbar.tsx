@@ -1,6 +1,7 @@
 import GlitterLogo from "@/app/components/landing/glitter-logo";
 import NavbarNavigationMenu from "@/app/components/navbar/navigation-menu";
-import MobileSidebar from "@/app/components/ui/mobile-sidebar";
+import SessionButtons from "@/app/components/navbar/session-buttons";
+import MobileSidebar from "@/app/components/organisms/mobile-sidebar";
 import UserDropdown from "@/app/components/ui/user-dropdown";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { MenuIcon } from "lucide-react";
@@ -12,13 +13,13 @@ export default async function Navbar() {
   return (
     <header>
       <nav className="w-full h-16 md:h-20 container m-auto py-3 md:py-4 px-4 md:px-6 flex items-center">
-        <ul className="grid grid-cols-3 items-center w-full">
-          <li className="md:hidden">
-            <MobileSidebar profile={profile}>
-              <MenuIcon className="h-5 w-5" />
-            </MobileSidebar>
-          </li>
-          <li className="justify-self-center md:justify-self-start">
+        <ul className="grid grid-cols-2 md:grid-cols-3 items-center w-full">
+          <li className="flex items-center gap-2">
+            <div className="md:hidden">
+              <MobileSidebar profile={profile}>
+                <MenuIcon className="h-5 w-5" />
+              </MobileSidebar>
+            </div>
             <Link href="/">
               <GlitterLogo
                 className="md:hidden"
@@ -38,7 +39,7 @@ export default async function Navbar() {
             <NavbarNavigationMenu profile={profile} />
           </li>
           <li className="flex justify-self-end">
-            <UserDropdown profile={profile} />
+            <SessionButtons profile={profile} />
           </li>
         </ul>
       </nav>
