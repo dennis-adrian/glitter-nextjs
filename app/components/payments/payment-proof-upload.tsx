@@ -9,9 +9,11 @@ import "./styles.css";
 export default function PaymentProofUpload({
   voucherImageUrl,
   onUploadComplete,
+  onUploading,
 }: {
   voucherImageUrl?: string;
   onUploadComplete: (imageUrl: string) => void;
+  onUploading: (isUploading: boolean) => void;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -32,7 +34,11 @@ export default function PaymentProofUpload({
       )}
       <UploadButton
         endpoint="reservationPayment"
+        onUploadBegin={() => {
+          onUploading(true);
+        }}
         onClientUploadComplete={async (res) => {
+          onUploading(false);
           const { results } = res[0].serverData;
           if (!results.imageUrl) {
             toast.error("Error al subir el comprobante");
@@ -67,7 +73,6 @@ export default function PaymentProofUpload({
               return "bg-transparent text-xs text-muted-foreground border after:bg-primary-400/60";
             }
             return "ut-button bg-transparent text-xs text-purple-700 border border-primary-500 hover:text-primary-500 hover:bg-primary-200/20 hover:border-primary-500";
-            // return "ut-button";
           },
         }}
       />

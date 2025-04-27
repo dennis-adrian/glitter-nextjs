@@ -85,7 +85,11 @@ export const columns: ColumnDef<FullReservation>[] = [
               </Avatar>
             </TooltipTrigger>
             <TooltipContent>
-              <ProfileQuickViewInfo className="p-4" profile={profile} />
+              <ProfileQuickViewInfo
+                className="p-4"
+                profile={profile}
+                truncateEmail
+              />
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

@@ -1,28 +1,23 @@
 "use server";
 
-import { fetchUserProfile } from "@/app/api/users/actions";
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
+import {
+  fetchUserProfileByClerkId,
+  getCurrentClerkUser,
+} from "@/app/lib/users/actions";
 import { users } from "@/db/schema";
 import { buildWhereClause } from "@/db/utils";
-import { currentUser } from "@clerk/nextjs/server";
-import { and, eq, isNotNull, isNull, not, sql } from "drizzle-orm";
+import { eq, isNotNull, isNull, like, not, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 export async function getCurrentUserProfile() {
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentClerkUser();
     if (!user) return null;
 
-    return await fetchUserProfile(user.id);
+    // TODO: if the profile is not found, it should log out the user
+    return await fetchUserProfileByClerkId(user.id);
   } catch (error) {}
-}
-
-export async function getCurrentUser() {
-  try {
-    return await currentUser();
-  } catch (error) {
-    return null;
-  }
 }
 
 export async function protectRoute(
@@ -77,13 +72,11 @@ export async function buildWhereClauseForProfileFetching(
         conditions,
         sql`(${isNotNull(users.bio)} and ${isNotNull(
           users.imageUrl,
-        )} and ${isNotNull(users.firstName)} and ${isNotNull(
+        )} and ${not(like(users.imageUrl, "%clerk%"))} and ${not(like(users.imageUrl, "%edgestore%"))} and ${isNotNull(users.firstName)} and ${isNotNull(
           users.lastName,
         )} and ${isNotNull(users.phoneNumber)} and ${isNotNull(
           users.displayName,
-        )} and ${isNotNull(users.state)} and ${isNotNull(
-          users.gender,
-        )} and ${not(
+        )} and ${isNotNull(users.gender)} and ${not(
           eq(users.category, "none"),
         )} and json_array_length("users_userSocials"."data") > 0
       and json_array_length("users_profileSubcategories"."data") > 0)`,
@@ -93,13 +86,12 @@ export async function buildWhereClauseForProfileFetching(
     if (profileCompletion === "incomplete") {
       buildWhereClause(
         conditions,
-        sql`(${isNull(users.bio)} or ${isNull(users.imageUrl)} or ${isNull(
-          users.firstName,
-        )} or ${isNull(users.lastName)} or ${isNull(
+        sql`(${isNull(users.bio)} or ${isNull(users.imageUrl)} or ${like(
+          users.imageUrl,
+          "%clerk%",
+        )} or ${like(users.imageUrl, "%edgestore%")} or ${isNull(users.firstName)} or ${isNull(users.lastName)} or ${isNull(
           users.phoneNumber,
-        )} or ${isNull(users.displayName)} or ${isNull(
-          users.state,
-        )} or ${isNull(users.gender)} or ${eq(
+        )} or ${isNull(users.displayName)} or ${isNull(users.gender)} or ${eq(
           users.category,
           "none",
         )} or json_array_length("users_userSocials"."data") = 0
@@ -107,7 +99,6 @@ export async function buildWhereClauseForProfileFetching(
       );
     }
   } else {
-    console.log("profileCompletion", profileCompletion);
     if (profileCompletion === "complete") {
       buildWhereClause(
         conditions,

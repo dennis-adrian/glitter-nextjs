@@ -18,51 +18,54 @@ import { InputHTMLAttributes } from "react";
 import { UseFormReturn } from "react-hook-form";
 
 export default function SocialMediaInput({
-  bottomBorderOnly,
-  icon,
-  formControl,
-  label,
-  name,
-  ...props
+	bottomBorderOnly,
+	icon,
+	formControl,
+	label,
+	name,
+	...props
 }: {
-  bottomBorderOnly?: boolean;
-  icon?: IconDefinition;
-  formControl: UseFormReturn<any>["control"];
-  label: string;
-  name: string;
-  placeholder?: string;
+	bottomBorderOnly?: boolean;
+	icon?: React.ComponentType<{ className?: string }>;
+	formControl: UseFormReturn<any>["control"];
+	label: string;
+	name: string;
+	placeholder?: string;
 } & InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <FormField
-      control={formControl}
-      name={name}
-      render={({ field }) => {
-        return (
-          <FormItem className="grid gap-2 w-full">
-            <FormLabel>{label}</FormLabel>
-            <FormControl>
-              <div className="flex items-end gap-2">
-                {icon && (
-                  <FontAwesomeIcon
-                    className="w-5 h-5 mb-2 text-muted-foreground"
-                    icon={icon}
-                  />
-                )}
-                <div className="relative flex items-center w-full">
-                  <span className="absolute text-muted-foreground">@</span>
-                  <Input
-                    className="pl-5"
-                    bottomBorderOnly={bottomBorderOnly}
-                    {...props}
-                    {...field}
-                  />
-                </div>
-              </div>
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        );
-      }}
-    />
-  );
+	const Icon = icon;
+
+	return (
+		<FormField
+			control={formControl}
+			name={name}
+			render={({ field }) => {
+				return (
+					<FormItem className="grid gap-2 w-full">
+						<FormLabel>{label}</FormLabel>
+						<FormControl>
+							<div className="flex items-end gap-2">
+								{Icon && (
+									<div className="flex items-center justify-center h-full pt-1">
+										<Icon className="w-4 h-4" />
+									</div>
+								)}
+								<div className="relative flex items-center w-full">
+									<span className="absolute text-muted-foreground">@</span>
+									<Input
+										bottomBorderOnly
+										className="pl-5"
+										{...field}
+										{...props}
+										// this is necessary so the input doesn't go from null to "" which triggers a validation error
+										value={field.value || ""}
+									/>
+								</div>
+							</div>
+						</FormControl>
+						<FormMessage />
+					</FormItem>
+				);
+			}}
+		/>
+	);
 }

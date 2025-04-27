@@ -12,6 +12,8 @@ import { toast } from "sonner";
 type UploadPaymentVoucherFormProps = {
   invoice: InvoiceWithPaymentsAndStand;
   newVoucherUrl?: string;
+  loading: boolean;
+  disabled: boolean;
 };
 export default function UploadPaymentVoucherForm(
   props: UploadPaymentVoucherFormProps,
@@ -49,8 +51,13 @@ export default function UploadPaymentVoucherForm(
       <form className="w-full max-w-80 mt-4 mx-auto" onSubmit={action}>
         <div className="flex flex-col gap-4">
           <SubmitButton
-            disabled={form.formState.isSubmitting}
-            loading={form.formState.isSubmitting}
+            disabled={
+              form.formState.isSubmitting ||
+              form.formState.isSubmitSuccessful ||
+              props.disabled ||
+              props.loading
+            }
+            loading={form.formState.isSubmitting || props.loading}
           >
             Confirmar pago
             <SendHorizonal className="h-4 w-4 ml-2" />

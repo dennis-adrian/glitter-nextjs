@@ -11,7 +11,6 @@ import {
 	text,
 	timestamp,
 } from "drizzle-orm/pg-core";
-import { number } from "zod";
 
 export const userRoleEnum = pgEnum("user_role", [
 	"admin",
@@ -41,30 +40,31 @@ export const genderEnum = pgEnum("gender", [
 ]);
 
 export const users = pgTable(
-	"users",
-	{
-		id: serial("id").primaryKey(),
-		bio: text("bio"),
-		birthdate: timestamp("birthdate"),
-		clerkId: text("clerk_id").unique().notNull(),
-		displayName: text("display_name"),
-		firstName: text("first_name"),
-		email: text("email").unique().notNull(),
-		imageUrl: text("image_url"),
-		lastName: text("last_name"),
-		phoneNumber: text("phone_number"),
-		role: userRoleEnum("role").default("user").notNull(),
-		category: userCategoryEnum("category").default("none").notNull(),
-		status: userStatusEnum("status").default("pending").notNull(),
-		gender: genderEnum("gender").default("undisclosed").notNull(),
-		state: text("state"),
-		verifiedAt: timestamp("verified_at"),
-		updatedAt: timestamp("updated_at").defaultNow().notNull(),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-	},
-	(users) => ({
-		displayNameIdx: index("display_name_idx").on(users.displayName),
-	}),
+  "users",
+  {
+    id: serial("id").primaryKey(),
+    bio: text("bio"),
+    birthdate: timestamp("birthdate"),
+    clerkId: text("clerk_id").unique().notNull(),
+    displayName: text("display_name"),
+    firstName: text("first_name"),
+    email: text("email").unique().notNull(),
+    imageUrl: text("image_url"),
+    lastName: text("last_name"),
+    phoneNumber: text("phone_number"),
+    role: userRoleEnum("role").default("user").notNull(),
+    category: userCategoryEnum("category").default("none").notNull(),
+    status: userStatusEnum("status").default("pending").notNull(),
+    gender: genderEnum("gender").default("undisclosed").notNull(),
+    state: text("state"),
+    country: text("country").default("BO").notNull(),
+    verifiedAt: timestamp("verified_at"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (users) => ({
+    displayNameIdx: index("display_name_idx").on(users.displayName),
+  }),
 );
 export const usersRelations = relations(users, ({ many }) => ({
 	userRequests: many(userRequests),

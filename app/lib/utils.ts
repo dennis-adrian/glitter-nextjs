@@ -89,8 +89,36 @@ const requiredProfileFields = [
   { key: "displayName", label: "Nombre de artista", isPublic: true },
   { key: "email", label: "Correo electrónico" },
   { key: "gender", label: "Género" },
-  { key: "state", label: "Departamento de residencia" },
+  { key: "country", label: "País de residencia" },
 ] as { key: keyof ProfileType; label: string; isPublic: boolean }[];
+
+export function getMissingProfileFieldsKeys(profile: ProfileType) {
+  const missingFields: string[] = [];
+  requiredProfileFields.forEach((field) => {
+    if (!profile[field.key]) missingFields.push(field.key);
+  });
+
+  if (profile.userSocials.length === 0) {
+    missingFields.push("userSocials");
+  }
+
+  if (profile.profileSubcategories.length === 0) {
+    missingFields.push("profileSubcategories");
+  }
+
+  if (profile.category === "none") {
+    missingFields.push("category");
+  }
+
+  if (
+    profile.imageUrl?.includes("clerk") ||
+    profile.imageUrl?.includes("edgestore")
+  ) {
+    missingFields.push("imageUrl");
+  }
+
+  return missingFields;
+}
 
 export function getMissingProfileFields(profile: ProfileType) {
   const missingFields = [];
@@ -270,4 +298,31 @@ export function isNewProfile(
   // if the user has 1 participation, we consider it as a new profile
   // until they get a second confirmed participation
   return confirmedParticipations.length < 2;
+}
+
+export function truncateText(
+  text: string,
+  maxLength: number,
+  type: "email" | "text" = "text",
+) {
+  if (type === "email") {
+    const [mainText, domain] = text.split("@");
+    if (mainText.length <= maxLength - domain.length - 1) return text;
+    return (
+      mainText.slice(0, maxLength - domain.length - 1) + "..." + "@" + domain
+    );
+  }
+
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength) + "...";
+}
+
+export function isNoNavigationPage(pathname?: string | null) {
+  if (!pathname) return false;
+
+  return (
+    (pathname.includes("festivals") && pathname.includes("registration")) ||
+    pathname.includes("sign_in") ||
+    pathname.includes("sign_up")
+  );
 }

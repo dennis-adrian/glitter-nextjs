@@ -109,7 +109,13 @@ export default function EditReservationForm({
           <h2 className="font-semibold text-lg mb-2">
             Participante que hizo la reserva
           </h2>
-          <ProfileQuickViewInfo profile={reservation.participants[0].user} />
+          <ProfileQuickViewInfo
+            showAdminControls
+            profile={{
+              ...reservation.participants[0].user,
+              profileSubcategories: [],
+            }}
+          />
         </div>
         {partner && (
           <div className="p-4 border rounded-lg">
@@ -120,7 +126,13 @@ export default function EditReservationForm({
                 onClick={() => removePartner()}
               />
             </div>
-            <ProfileQuickViewInfo profile={partner} />
+            <ProfileQuickViewInfo
+              showAdminControls
+              profile={{
+                ...partner,
+                profileSubcategories: [],
+              }}
+            />
           </div>
         )}
         {showInput && !partner && (

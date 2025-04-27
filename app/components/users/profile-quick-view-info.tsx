@@ -3,35 +3,52 @@
 import { BadgeCheckIcon, CopyIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { BaseProfile } from "@/app/api/users/definitions";
-import CategoryBadge from "@/app/components/category-badge";
-import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import {
+  BaseProfile,
+  ProfileSubcategoryWithSubcategory,
+} from "@/app/api/users/definitions";
+import SubcategoryBadge from "@/app/components/atoms/subcategory-badge";
+import ProfileAvatar from "@/app/components/common/profile-avatar";
+import { cn, truncateText } from "@/app/lib/utils";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { cn } from "@/app/lib/utils";
 
 type UserQuickViewInfoProps = {
+  avatarClassName?: string;
   className?: string;
-  profile: BaseProfile;
+  profile: BaseProfile & {
+    profileSubcategories: ProfileSubcategoryWithSubcategory[];
+  };
+  showAdminControls?: boolean;
+  hideAvatar?: boolean;
+  truncateEmail?: boolean;
 };
 export default function ProfileQuickViewInfo(props: UserQuickViewInfoProps) {
   return (
     <div className={cn("flex gap-4", props.className)}>
-      <Avatar>
-        <AvatarImage
-          src={props.profile.imageUrl || "/img/profile-avatar.png"}
-          alt={props.profile.displayName || "avatar"}
-        />
-      </Avatar>
-      <div className="flex flex-col gap-1">
+      {!props.hideAvatar && (
+        <div>
+          <ProfileAvatar
+            profile={{
+              ...props.profile,
+              participations: [],
+            }}
+            className={props.avatarClassName}
+            showBadge={false}
+          />
+        </div>
+      )}
+      <div className="flex flex-col w-full">
         <span className="flex gap-1 items-center">
-          <h3 className="font-medium text-sm">{props.profile.displayName}</h3>
+          <h3 className="font-medium leading-4">
+            {props.profile.displayName || ""}
+          </h3>
 
-          {props.profile.status === "verified" && (
+          {props.profile.status === "verified" && props.showAdminControls && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
@@ -44,18 +61,29 @@ export default function ProfileQuickViewInfo(props: UserQuickViewInfoProps) {
             </TooltipProvider>
           )}
         </span>
-        <CategoryBadge category={props.profile.category} />
-        <div className="text-sm max-w-[160px] sm:max-w-full truncate text-muted-foreground">
-          <span className="flex gap-1 items-center">
-            {props.profile.email}
-            <CopyIcon
-              className="w-4 h-4 hover:transition cursor-pointer"
-              onClick={() => {
-                navigator.clipboard.writeText(props.profile.email);
-                toast.success("Copiado");
-              }}
-            />
+        <div className="text-sm text-muted-foreground">
+          <span className="flex gap-1 items-center font-normal">
+            {props.truncateEmail
+              ? truncateText(props.profile.email, 20, "email")
+              : props.profile.email}
+            {props.showAdminControls && (
+              <CopyIcon
+                className="w-4 h-4 hover:transition cursor-pointer"
+                onClick={() => {
+                  navigator.clipboard.writeText(props.profile.email);
+                  toast.success("Copiado");
+                }}
+              />
+            )}
           </span>
+        </div>
+        <div className="flex flex-wrap gap-1 mt-2">
+          {props.profile.profileSubcategories.map((subcategory) => (
+            <SubcategoryBadge
+              key={subcategory.id}
+              subcategory={subcategory.subcategory}
+            />
+          ))}
         </div>
       </div>
     </div>

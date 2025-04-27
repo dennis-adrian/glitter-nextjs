@@ -708,6 +708,27 @@
       "when": 1744559505066,
       "tag": "0100_sleepy_black_cat",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "5",
+      "when": 1745371410957,
+      "tag": "0101_messy_yellow_claw",
+      "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "5",
+      "when": 1745632018606,
+      "tag": "0102_wise_marvel_apes",
+      "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "5",
+      "when": 1745634683719,
+      "tag": "0103_soft_black_crow",
+      "breakpoints": true
     }
   ]
 }

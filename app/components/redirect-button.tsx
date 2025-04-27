@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 
-import { Button, buttonVariants } from "@/components/ui/button";
-import { HTMLAttributes, useState } from "react";
-import { Loader2Icon } from "lucide-react";
-import { VariantProps } from "class-variance-authority";
 import { cn } from "@/app/lib/utils";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { VariantProps } from "class-variance-authority";
+import { HTMLAttributes, useEffect, useState } from "react";
+import { Loader2Icon } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 export function RedirectButton({
   children,
@@ -21,6 +22,13 @@ export function RedirectButton({
 } & VariantProps<typeof buttonVariants> &
   HTMLAttributes<HTMLButtonElement>) {
   const [loading, setLoading] = useState(false);
+  const path = usePathname();
+
+  useEffect(() => {
+    if (path === href) {
+      setLoading(false);
+    }
+  }, [path, href]);
 
   if (disabled) {
     return (

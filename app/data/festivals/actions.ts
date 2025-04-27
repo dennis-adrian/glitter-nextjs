@@ -448,41 +448,42 @@ export async function fetchAvailableArtistsInFestival(
 				);
 			}
 
-			return await tx
-				.selectDistinctOn([users.id], {
-					id: users.id,
-					bio: users.bio,
-					birthdate: users.birthdate,
-					clerkId: users.clerkId,
-					displayName: users.displayName,
-					firstName: users.firstName,
-					gender: users.gender,
-					email: users.email,
-					imageUrl: users.imageUrl,
-					lastName: users.lastName,
-					phoneNumber: users.phoneNumber,
-					category: users.category,
-					role: users.role,
-					status: users.status,
-					state: users.state,
-					verifiedAt: users.verifiedAt,
-					updatedAt: users.updatedAt,
-					createdAt: users.createdAt,
-				})
-				.from(users)
-				.leftJoin(userRequests, eq(userRequests.userId, users.id))
-				.leftJoin(
-					reservationParticipants,
-					eq(reservationParticipants.userId, users.id),
-				)
-				.where(and(...participantsWhereCondition));
-		});
-	} catch (error) {
-		console.error("Error fetching profiles in festival", error);
-		return [];
-	} finally {
-		client.release();
-	}
+      return await tx
+        .selectDistinctOn([users.id], {
+          id: users.id,
+          bio: users.bio,
+          birthdate: users.birthdate,
+          clerkId: users.clerkId,
+          displayName: users.displayName,
+          firstName: users.firstName,
+          gender: users.gender,
+          email: users.email,
+          imageUrl: users.imageUrl,
+          lastName: users.lastName,
+          phoneNumber: users.phoneNumber,
+          category: users.category,
+          role: users.role,
+          status: users.status,
+          state: users.state,
+          country: users.country,
+          verifiedAt: users.verifiedAt,
+          updatedAt: users.updatedAt,
+          createdAt: users.createdAt,
+        })
+        .from(users)
+        .leftJoin(userRequests, eq(userRequests.userId, users.id))
+        .leftJoin(
+          reservationParticipants,
+          eq(reservationParticipants.userId, users.id),
+        )
+        .where(and(...participantsWhereCondition));
+    });
+  } catch (error) {
+    console.error("Error fetching profiles in festival", error);
+    return [];
+  } finally {
+    client.release();
+  }
 }
 
 export async function fetchFestivalParticipants(

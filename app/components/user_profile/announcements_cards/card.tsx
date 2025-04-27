@@ -1,25 +1,25 @@
-import { fetchActiveFestival } from "@/app/data/festivals/actions";
+import { fetchStandById } from "@/app/api/stands/actions";
 import { ProfileType } from "@/app/api/users/definitions";
-import MissingFieldsCard from "./missing-fields-card";
-import PendingArtistCard from "./pending-artist-card";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { ReserveStandCard } from "@/app/components/user_profile/announcements_cards/reserve-stand-card";
-import { fetchStandById } from "@/app/api/stands/actions";
 import { ReservedStandCard } from "@/app/components/user_profile/announcements_cards/reserved-stand-card";
-import { isProfileComplete } from "@/app/lib/utils";
 import { TermsCard } from "@/app/components/user_profile/announcements_cards/terms-card";
+import { fetchActiveFestival } from "@/app/data/festivals/actions";
+import { isProfileComplete } from "@/app/lib/utils";
+import PendingVerificationCard from "./pending-verification-card";
+import RejectedProfileCard from "./rejected-profile.card";
 
 export default async function Card({ profile }: { profile: ProfileType }) {
   if (!profile || profile?.role === "admin") return null;
 
-  if (profile.status !== "verified") {
-    if (isProfileComplete(profile)) {
-      return <PendingArtistCard />;
-    }
+  if (profile.status === "rejected") {
+    return <RejectedProfileCard />;
   }
 
-  if (!isProfileComplete(profile)) {
-    return <MissingFieldsCard profile={profile} />;
+  if (profile.status !== "verified") {
+    if (isProfileComplete(profile)) {
+      return <PendingVerificationCard />;
+    }
   }
 
   const festival = await fetchActiveFestival({});
@@ -39,7 +39,14 @@ export default async function Card({ profile }: { profile: ProfileType }) {
       const standId = currentFestivalResevation.reservation.standId;
       const stand = await fetchStandById(standId);
       if (stand) {
-        return <ReservedStandCard stand={stand} profile={profile} />;
+        return (
+          <ReservedStandCard
+            profile={profile}
+            festival={festival}
+            stand={stand}
+            reservationStatus={reservationStatus}
+          />
+        );
       }
     }
 

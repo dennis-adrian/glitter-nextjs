@@ -7,7 +7,7 @@ import ProfileQuickActions from "@/app/components/user_profile/public_profile/qu
 import { Button } from "@/app/components/ui/button";
 import { CogIcon } from "lucide-react";
 import { fetchLatestInvoiceByProfileId } from "@/app/data/invoices/actions";
-import PendingPaymentBanner from "@/app/components/users/pending-payment-banner";
+import UserProfileBanner from "@/app/components/users/user-profile-banner";
 import FestivalActivityBanner from "@/app/components/pages/my_profile/festival-activity-banner";
 
 type DashboardUserPageProps = {
@@ -26,11 +26,7 @@ export default async function DashboardUserPage(props: DashboardUserPageProps) {
     <div className="mx-auto max-w-screen-lg p-3 md:p-6">
       <div className="flex flex-col gap-4">
         {hasPendingPayment ? (
-          <PendingPaymentBanner
-            profileId={props.profileId}
-            festivalId={latestInvoice.reservation.festivalId}
-            reservationId={latestInvoice.reservationId}
-          />
+          <UserProfileBanner profile={forProfile} />
         ) : (
           <>
             <FestivalActivityBanner profile={forProfile} />

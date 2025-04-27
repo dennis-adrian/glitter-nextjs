@@ -31,7 +31,8 @@ export function ReserveStandCard(props: ReserveStandCardProps) {
         footer={
           <RedirectButton
             size="sm"
-            className="w-full"
+            variant="link"
+            className="text-amber-900 underline"
             href={`/profiles/${props.profile.id}/festivals/${props.festival.id}/terms`}
           >
             Términos y condiciones
@@ -46,30 +47,20 @@ export function ReserveStandCard(props: ReserveStandCardProps) {
     <BaseCard
       content={
         <p>
-          Ya puedes hacer tu reserva para nuestro próximo festival. También
-          puedes volver a leer los términos y condiciones.
+          No te quedés sin participar en {props.festival.name}. Hacé tu reserva
+          ahora.
         </p>
       }
       footer={
-        <div className="w-full">
-          <RedirectButton
-            size="sm"
-            variant="outline"
-            className="w-full"
-            href={`/profiles/${props.profile.id}/festivals/${props.festival.id}/terms`}
-          >
-            Términos y condiciones
-            <NewspaperIcon className="ml-2 w-4 h-4" />
-          </RedirectButton>
-          <RedirectButton
-            size="sm"
-            className="w-full mt-2"
-            href={`/profiles/${props.profile.id}/festivals/${props.festival.id}/reservations/new`}
-          >
-            Reservar espacio
-            <ArrowRightIcon className="ml-2 w-4 h-4" />
-          </RedirectButton>
-        </div>
+        <RedirectButton
+          size="sm"
+          variant="link"
+          className="text-amber-900 underline"
+          href={`/profiles/${props.profile.id}/festivals/${props.festival.id}/reservations/new`}
+        >
+          Reservar espacio
+          <ArrowRightIcon className="ml-2 w-4 h-4" />
+        </RedirectButton>
       }
     />
   );
