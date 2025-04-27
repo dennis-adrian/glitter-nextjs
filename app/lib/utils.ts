@@ -204,6 +204,12 @@ export const stateOptions = [
   { value: "Tarija", label: "Tarija" },
 ];
 
+export const festivalTypeOptions = [
+  { value: "glitter", label: "Glitter" },
+  { value: "twinkler", label: "Twinkler" },
+  { value: "festicker", label: "Festicker" },
+];
+
 export const userCategoryOptions = [
   {
     value: userCategoryEnum.enumValues[1],
