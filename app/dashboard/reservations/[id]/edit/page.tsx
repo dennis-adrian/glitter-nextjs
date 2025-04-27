@@ -1,6 +1,5 @@
 import { fetchActiveFestival } from "@/app/data/festivals/actions";
 import { fetchReservation } from "@/app/api/reservations/actions";
-import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import EditReservationForm from "@/app/components/reservations/edit-form";
 import Breadcrumbs from "@/app/components/ui/breadcrumbs";
 import {
