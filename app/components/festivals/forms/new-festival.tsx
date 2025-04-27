@@ -1,5 +1,4 @@
 "use client";
-
 import { Button } from "@/app/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/app/components/ui/form";
 import { Input } from "@/app/components/ui/input";
@@ -18,25 +17,22 @@ import { PlusIcon, TrashIcon } from "lucide-react";
 import { useFieldArray } from "react-hook-form";
 
 const FormSchema = z.object({
-	name: z.string().min(1, "Required"),
+	name: z.string().trim().min(2, "El nombre tiene que tener al menos dos letras"),
 	status: z.enum(['draft', 'published', 'active', 'archived']).default('draft'),
-	mapsVersion: z.enum(['v1', 'v2', 'v3']).default('v1'),
 	publicRegistration: z.boolean().default(false),
 	eventDayRegistration: z.boolean().default(false),
 	festivalType: z.enum([...festivalTypeEnum.enumValues]),
-
 	dates: z.array(
 		z.object({
 			date: z.coerce.date(),
-			startTime: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format (HH:MM)"),
-			endTime: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format (HH:MM)"),
+			startTime: z.string().regex(/^\d{2}:\d{2}$/, "Formato Invalido (HH:MM)"),
+			endTime: z.string().regex(/^\d{2}:\d{2}$/, "Formato Invalido (HH:MM)"),
 		})
-	).min(1, "At least one date is required"),
-
-	description: z.string().optional(),
-	address: z.string().optional(),
-	locationLabel: z.string().optional(),
-	locationUrl: z.string().url().optional().or(z.literal('')),
+	).min(1, "AL menos uno es requerido"),
+	description: z.string().trim().optional(),
+	address: z.string().trim().optional(),
+	locationLabel: z.string().trim().optional(),
+	locationUrl: z.string().trim().url().optional().or(z.literal('')),
 	generalMapUrl: z.string().optional(),
 	mascotUrl: z.string().optional(),
 	illustrationPaymentQrCodeUrl: z.string().optional(),
@@ -57,7 +53,6 @@ export default function NewFestivalForm() {
 		defaultValues: {
 			name: "",
 			status: "draft",
-			mapsVersion: "v1",
 			publicRegistration: false,
 			eventDayRegistration: false,
 			festivalType: "glitter",
@@ -176,23 +171,11 @@ export default function NewFestivalForm() {
 								)}
 							</div>
 
-							<FormField
-								control={form.control}
+							<TextInput
+								formControl={form.control}
 								name={`dates.${index}.date`}
-								render={({ field }) => (
-									<FormItem>
-										<FormLabel>Fecha</FormLabel>
-										<FormControl>
-											<Input
-												type="date"
-												{...field}
-												value={field.value ? field.value.toISOString().split('T')[0] : ''}
-												onChange={e => field.onChange(new Date(e.target.value))}
-											/>
-										</FormControl>
-										<FormMessage />
-									</FormItem>
-								)}
+								label="Fecha"
+								type="date"
 							/>
 
 							<div className="grid grid-cols-2 gap-4">
