@@ -736,6 +736,13 @@
       "when": 1745747992927,
       "tag": "0104_elite_doctor_octopus",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "5",
+      "when": 1745804863995,
+      "tag": "0105_clear_karma",
+      "breakpoints": true
     }
   ]
 }
