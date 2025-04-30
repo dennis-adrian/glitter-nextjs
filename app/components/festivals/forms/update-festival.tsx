@@ -16,6 +16,7 @@ import TextInput from "../../form/fields/text";
 import TextareaInput from "../../form/fields/textarea";
 import { PlusIcon, TrashIcon } from "lucide-react";
 import SelectInput from "../../form/fields/select";
+import { DateTime } from 'luxon';
 
 const FormSchema = z.object({
 	name: z.string().min(1, "Required"),
@@ -24,16 +25,20 @@ const FormSchema = z.object({
 	publicRegistration: z.boolean().default(false),
 	eventDayRegistration: z.boolean().default(false),
 	festivalType: z.enum([...festivalTypeEnum.enumValues]),
-
 	dates: z.array(
 		z.object({
-			id: z.number().optional(), // Add this for existing dates
+			id: z.number().optional(),
 			date: z.coerce.date(),
 			startTime: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format (HH:MM)"),
 			endTime: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format (HH:MM)"),
 		})
 	).min(1, "At least one date is required"),
-
+	dateDetails: z.array(
+		z.object({
+			startDate: z.coerce.date(),
+			endDate: z.coerce.date(),
+		})
+	).optional(),
 	description: z.string().optional(),
 	address: z.string().optional(),
 	locationLabel: z.string().optional(),
@@ -69,10 +74,59 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 		name: "dates",
 	});
 
+	const addNewDate = () => {
+		append({
+			date: new Date(),
+			startTime: "10:00",
+			endTime: "20:00"
+		});
+	};
+
 	const onSubmit = form.handleSubmit(async (data) => {
+		// Get user's local timezone (browser will detect)
+		const localZone = DateTime.local().zoneName;
+		const processedDates = data.dates.map(dateItem => {
+			// Parse date and times in local timezone
+			const dateStr = DateTime.fromJSDate(dateItem.date).toFormat('yyyy-MM-dd');
+			const startDateTime = DateTime.fromFormat(
+				`${dateStr} ${dateItem.startTime}`,
+				'yyyy-MM-dd HH:mm',
+				{ zone: localZone }
+			);
+			const endDateTime = DateTime.fromFormat(
+				`${dateStr} ${dateItem.endTime}`,
+				'yyyy-MM-dd HH:mm',
+				{ zone: localZone }
+			);
+
+			// Adjust end date if it's before start time (spanning midnight)
+			const adjustedEndDateTime = endDateTime < startDateTime
+				? endDateTime.plus({ days: 1 })
+				: endDateTime;
+
+			return {
+				id: dateItem.id,
+				date: dateItem.date,
+				startTime: dateItem.startTime,
+				endTime: dateItem.endTime,
+				startDateUTC: startDateTime.toUTC().toJSDate(),
+				endDateUTC: adjustedEndDateTime.toUTC().toJSDate()
+			};
+		});
+
 		const festivalData = {
 			...data,
 			id: festival.id,
+			dates: processedDates.map(d => ({
+				id: d.id,
+				date: d.date,
+				startTime: d.startTime,
+				endTime: d.endTime
+			})),
+			dateDetails: processedDates.map(d => ({
+				startDate: d.startDateUTC,
+				endDate: d.endDateUTC
+			})),
 			updatedAt: new Date(),
 		};
 
@@ -85,14 +139,6 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 			toast.error(result.message);
 		}
 	});
-
-	const addNewDate = () => {
-		append({
-			date: new Date(),
-			startTime: "10:00",
-			endTime: "20:00"
-		});
-	};
 
 	return (
 		<Form {...form}>
