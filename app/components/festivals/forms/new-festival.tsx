@@ -25,7 +25,7 @@ const FormSchema = z.object({
 	festivalType: z.enum([...festivalTypeEnum.enumValues]),
 	dates: z.array(
 		z.object({
-			date: z.coerce.date(),
+			date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 			startTime: z.string().regex(/^\d{2}:\d{2}$/, "Formato Invalido (HH:MM)"),
 			endTime: z.string().regex(/^\d{2}:\d{2}$/, "Formato Invalido (HH:MM)"),
 		})
@@ -66,7 +66,7 @@ export default function NewFestivalForm() {
 			locationLabel: "",
 			locationUrl: "",
 			dates: [{
-				date: new Date(),
+				date: DateTime.local().toFormat('yyyy-MM-dd'),
 				startTime: "10:00",
 				endTime: "20:00"
 			}]
@@ -80,40 +80,35 @@ export default function NewFestivalForm() {
 
 	const addNewDate = () => {
 		append({
-			date: new Date(),
+			date: DateTime.local().toFormat('yyyy-MM-dd'),
 			startTime: "10:00",
 			endTime: "20:00"
 		});
 	};
 
 	const onSubmit = form.handleSubmit(async (data) => {
-		const localZone = DateTime.local().zoneName;
-
 		const processedDates = data.dates.map(dateItem => {
-			const dateStr = DateTime.fromJSDate(dateItem.date).toFormat('yyyy-MM-dd');
 			const startDateTime = DateTime.fromFormat(
-				`${dateStr} ${dateItem.startTime}`,
+				`${dateItem.date} ${dateItem.startTime}`,
 				'yyyy-MM-dd HH:mm',
-				{ zone: localZone }
+				{ zone: 'local' }
 			);
+	
 			const endDateTime = DateTime.fromFormat(
-				`${dateStr} ${dateItem.endTime}`,
+				`${dateItem.date} ${dateItem.endTime}`,
 				'yyyy-MM-dd HH:mm',
-				{ zone: localZone }
+				{ zone: 'local' }
 			);
 
-			const adjustedEndDateTime = endDateTime < startDateTime
-				? endDateTime.plus({ days: 1 })
-				: endDateTime;
 			return {
-				date: dateItem.date,
+				date: new Date(dateItem.date),
 				startTime: dateItem.startTime,
 				endTime: dateItem.endTime,
 				startDateUTC: startDateTime.toUTC().toJSDate(),
-				endDateUTC: adjustedEndDateTime.toUTC().toJSDate()
+				endDateUTC: endDateTime.toUTC().toJSDate(),
 			};
 		});
-
+	
 		const festivalData = {
 			...data,
 			dates: processedDates.map(d => ({
@@ -125,7 +120,7 @@ export default function NewFestivalForm() {
 			updatedAt: new Date(),
 			reservationsStartDate: new Date(),
 		};
-
+	
 		const result = await createFestival({
 			...festivalData,
 			dateDetails: processedDates.map(d => ({
@@ -133,7 +128,7 @@ export default function NewFestivalForm() {
 				endDate: d.endDateUTC
 			}))
 		});
-
+	
 		if (result.success) {
 			toast.success(result.message);
 			router.push("/dashboard/festivals");

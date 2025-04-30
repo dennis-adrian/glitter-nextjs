@@ -28,7 +28,7 @@ const FormSchema = z.object({
 	dates: z.array(
 		z.object({
 			id: z.number().optional(),
-			date: z.coerce.date(),
+			date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 			startTime: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format (HH:MM)"),
 			endTime: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format (HH:MM)"),
 		})
@@ -62,7 +62,7 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 			locationUrl: festival.locationUrl || '',
 			dates: festival.festivalDates.map(date => ({
 				id: date.id,
-				date: new Date(date.startDate),
+				date: DateTime.fromJSDate(date.startDate).toFormat('yyyy-MM-dd'),
 				startTime: date.startDate.toTimeString().slice(0, 5),
 				endTime: date.endDate.toTimeString().slice(0, 5),
 			})),
@@ -76,41 +76,33 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 
 	const addNewDate = () => {
 		append({
-			date: new Date(),
+			date: DateTime.local().toFormat('yyyy-MM-dd'),
 			startTime: "10:00",
 			endTime: "20:00"
 		});
 	};
 
 	const onSubmit = form.handleSubmit(async (data) => {
-		// Get user's local timezone (browser will detect)
-		const localZone = DateTime.local().zoneName;
 		const processedDates = data.dates.map(dateItem => {
-			// Parse date and times in local timezone
-			const dateStr = DateTime.fromJSDate(dateItem.date).toFormat('yyyy-MM-dd');
 			const startDateTime = DateTime.fromFormat(
-				`${dateStr} ${dateItem.startTime}`,
+				`${dateItem.date} ${dateItem.startTime}`,
 				'yyyy-MM-dd HH:mm',
-				{ zone: localZone }
-			);
-			const endDateTime = DateTime.fromFormat(
-				`${dateStr} ${dateItem.endTime}`,
-				'yyyy-MM-dd HH:mm',
-				{ zone: localZone }
+				{ zone: 'local' }
 			);
 
-			// Adjust end date if it's before start time (spanning midnight)
-			const adjustedEndDateTime = endDateTime < startDateTime
-				? endDateTime.plus({ days: 1 })
-				: endDateTime;
+			const endDateTime = DateTime.fromFormat(
+				`${dateItem.date} ${dateItem.endTime}`,
+				'yyyy-MM-dd HH:mm',
+				{ zone: 'local' }
+			);
 
 			return {
 				id: dateItem.id,
-				date: dateItem.date,
+				date: new Date(dateItem.date),
 				startTime: dateItem.startTime,
 				endTime: dateItem.endTime,
 				startDateUTC: startDateTime.toUTC().toJSDate(),
-				endDateUTC: adjustedEndDateTime.toUTC().toJSDate()
+				endDateUTC: endDateTime.toUTC().toJSDate()
 			};
 		});
 
@@ -213,23 +205,11 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 								)}
 							</div>
 
-							<FormField
-								control={form.control}
+							<TextInput
+								formControl={form.control}
 								name={`dates.${index}.date`}
-								render={({ field }) => (
-									<FormItem>
-										<FormLabel>Fecha</FormLabel>
-										<FormControl>
-											<Input
-												type="date"
-												{...field}
-												value={field.value ? field.value.toISOString().split('T')[0] : ''}
-												onChange={e => field.onChange(new Date(e.target.value))}
-											/>
-										</FormControl>
-										<FormMessage />
-									</FormItem>
-								)}
+								label="Fecha"
+								type="date"
 							/>
 
 							<div className="grid grid-cols-2 gap-4">
