@@ -1,0 +1,58 @@
+"use client";
+
+import TextInput from "@/app/components/form/fields/text";
+import SubmitButton from "@/app/components/simple-submit-button";
+import { Form } from "@/app/components/ui/form";
+import { createBadge } from "@/app/lib/badges/actions";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
+
+const FormSchema = z.object({
+	name: z.string({ required_error: "El nombre es requerido" }).trim().min(1),
+	description: z.string().trim().optional(),
+});
+
+export default function BadgesForm() {
+	const router = useRouter();
+	const form = useForm<z.infer<typeof FormSchema>>({
+		resolver: zodResolver(FormSchema),
+		defaultValues: {
+			name: "",
+			description: "",
+		},
+	});
+
+	const action = form.handleSubmit(async (data) => {
+		const res = await createBadge(data);
+
+		if (res.success) {
+			toast.success(res.message);
+			form.reset();
+			router.push("/dashboard/badges");
+		} else {
+			toast.error(res.message);
+		}
+	});
+
+	return (
+		<Form {...form}>
+			<form className="grid gap-4" onSubmit={action}>
+				<TextInput formControl={form.control} label="Nombre" name="name" />
+				<TextInput
+					formControl={form.control}
+					label="Descripción"
+					name="description"
+				/>
+				<SubmitButton
+					disabled={form.formState.isSubmitting || !form.formState.isDirty}
+					loading={form.formState.isSubmitting}
+				>
+					Guardar
+				</SubmitButton>
+			</form>
+		</Form>
+	);
+}
