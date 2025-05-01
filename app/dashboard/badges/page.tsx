@@ -1,4 +1,6 @@
+import BadgesTable from "@/app/components/organisms/badges/table/badges-table";
 import { RedirectButton } from "@/app/components/redirect-button";
+import { Suspense } from "react";
 
 export default function BadgesPage() {
 	return (
@@ -8,6 +10,9 @@ export default function BadgesPage() {
 				<RedirectButton href="/dashboard/badges/add">
 					Agregar medalla
 				</RedirectButton>
+				<Suspense fallback={<div>Cargando...</div>}>
+					<BadgesTable />
+				</Suspense>
 			</div>
 		</div>
 	);
