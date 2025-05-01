@@ -1,4 +1,4 @@
-import RedirectButton from "@/app/components/landing/redirect-button";
+import { RedirectButton } from "@/app/components/redirect-button";
 
 export default function BadgesPage() {
 	return (

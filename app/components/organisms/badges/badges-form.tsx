@@ -1,5 +1,6 @@
 "use client";
 
+import FileInput from "@/app/components/form/fields/file";
 import TextInput from "@/app/components/form/fields/text";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
@@ -13,6 +14,7 @@ import { z } from "zod";
 const FormSchema = z.object({
 	name: z.string({ required_error: "El nombre es requerido" }).trim().min(1),
 	description: z.string().trim().optional(),
+	imageUrl: z.string().trim().url(),
 });
 
 export default function BadgesForm() {
@@ -46,6 +48,7 @@ export default function BadgesForm() {
 					label="Descripción"
 					name="description"
 				/>
+				<FileInput formControl={form.control} label="Imagen" name="imageUrl" />
 				<SubmitButton
 					disabled={form.formState.isSubmitting || !form.formState.isDirty}
 					loading={form.formState.isSubmitting}
