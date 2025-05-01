@@ -1,6 +1,7 @@
 "use client";
 
 import FileInput from "@/app/components/form/fields/file";
+import SelectInput from "@/app/components/form/fields/select";
 import TextInput from "@/app/components/form/fields/text";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
@@ -15,9 +16,14 @@ const FormSchema = z.object({
 	name: z.string({ required_error: "El nombre es requerido" }).trim().min(1),
 	description: z.string().trim().optional(),
 	imageUrl: z.string().trim().url(),
+	festivalId: z.coerce.number().int().positive(),
 });
 
-export default function BadgesForm() {
+type BadgesFormProps = {
+	festivalsOptions: { label: string; value: string }[];
+};
+
+export default function BadgesForm({ festivalsOptions }: BadgesFormProps) {
 	const router = useRouter();
 	const form = useForm<z.infer<typeof FormSchema>>({
 		resolver: zodResolver(FormSchema),
@@ -47,6 +53,12 @@ export default function BadgesForm() {
 					formControl={form.control}
 					label="Descripción"
 					name="description"
+				/>
+				<SelectInput
+					formControl={form.control}
+					label="Festival"
+					name="festivalId"
+					options={festivalsOptions}
 				/>
 				<FileInput formControl={form.control} label="Imagen" name="imageUrl" />
 				<SubmitButton
