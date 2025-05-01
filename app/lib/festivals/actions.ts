@@ -30,6 +30,7 @@ import { fetchVisitorsEmails } from "@/app/data/visitors/actions";
 import RegistrationInvitationEmailTemplate from "@/app/emails/registration-invitation";
 import { groupVisitorEmails } from "@/app/data/festivals/helpers";
 import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
+import { DateTime } from 'luxon';
 
 export async function createFestival(
 	festivalData: Omit<typeof festivals.$inferInsert, 'id'> & {
@@ -37,6 +38,10 @@ export async function createFestival(
 			date: Date;
 			startTime: string;
 			endTime: string;
+		}>;
+		dateDetails?: Array<{
+			startDate: Date;
+			endDate: Date;
 		}>;
 	}
 ) {
@@ -70,31 +75,17 @@ export async function createFestival(
 				})
 				.returning();
 
-			// Process and insert festival dates if they exist
-			if (festivalData.dates && festivalData.dates.length > 0) {
-				for (const dateItem of festivalData.dates) {
-					// Parse the time strings (HH:MM)
-					const [startHours, startMinutes] = dateItem.startTime.split(':').map(Number);
-					const [endHours, endMinutes] = dateItem.endTime.split(':').map(Number);
-
-					// Create new Date objects with the same date but different times
-					const startDate = new Date(dateItem.date);
-					startDate.setHours(startHours, startMinutes, 0, 0);
-
-					const endDate = new Date(dateItem.date);
-					endDate.setHours(endHours, endMinutes, 0, 0);
-
-					// Insert the festival date
+			if (festivalData.dateDetails && festivalData.dateDetails.length > 0) {
+				for (const dateItem of festivalData.dateDetails) {
 					await tx.insert(festivalDates).values({
 						festivalId: newFestival.id,
-						startDate,
-						endDate,
+						startDate: dateItem.startDate,
+						endDate: dateItem.endDate,
 						updatedAt: new Date(),
 						createdAt: new Date(),
 					});
 				}
 			}
-
 			return newFestival;
 		});
 
@@ -146,112 +137,106 @@ export async function fetchActiveFestivalBase() {
 }
 
 export async function updateFestival(
-  data: Omit<typeof festivals.$inferInsert, 'id'> & {
-    id: number;
-    dates?: Array<{
-      id?: number;
-      date: Date;
-      startTime: string;
-      endTime: string;
-    }>;
-  }
+	data: Omit<typeof festivals.$inferInsert, 'id'> & {
+		id: number;
+		dates?: Array<{
+			id?: number;
+			date: Date;
+			startTime: string;
+			endTime: string;
+		}>;
+		dateDetails?: Array<{
+			startDate: Date;
+			endDate: Date;
+		}>;
+	}
 ) {
-  try {
-    const result = await db.transaction(async (tx) => {
-      // Update the festival
-      const [updatedFestival] = await tx.update(festivals)
-        .set({
-          name: data.name,
-          description: data.description || null,
-          address: data.address || null,
-          locationLabel: data.locationLabel || null,
-          locationUrl: data.locationUrl || null,
-          status: data.status || 'draft',
-          mapsVersion: data.mapsVersion || 'v1',
-          publicRegistration: data.publicRegistration || false,
-          eventDayRegistration: data.eventDayRegistration || false,
-          festivalType: data.festivalType || 'glitter',
-          generalMapUrl: data.generalMapUrl || null,
-          mascotUrl: data.mascotUrl || null,
-          illustrationPaymentQrCodeUrl: data.illustrationPaymentQrCodeUrl || null,
-          gastronomyPaymentQrCodeUrl: data.gastronomyPaymentQrCodeUrl || null,
-          entrepreneurshipPaymentQrCodeUrl: data.entrepreneurshipPaymentQrCodeUrl || null,
-          illustrationStandUrl: data.illustrationStandUrl || null,
-          gastronomyStandUrl: data.gastronomyStandUrl || null,
-          entrepreneurshipStandUrl: data.entrepreneurshipStandUrl || null,
-          festivalCode: data.festivalCode || null,
-          festivalBannerUrl: data.festivalBannerUrl || null,
-          updatedAt: new Date(),
-        })
-        .where(eq(festivals.id, data.id))
-        .returning();
+	try {
+		const result = await db.transaction(async (tx) => {
+			const [updatedFestival] = await tx.update(festivals)
+				.set({
+					name: data.name,
+					description: data.description || null,
+					address: data.address || null,
+					locationLabel: data.locationLabel || null,
+					locationUrl: data.locationUrl || null,
+					status: data.status || 'draft',
+					mapsVersion: data.mapsVersion || 'v1',
+					publicRegistration: data.publicRegistration || false,
+					eventDayRegistration: data.eventDayRegistration || false,
+					festivalType: data.festivalType || 'glitter',
+					generalMapUrl: data.generalMapUrl || null,
+					mascotUrl: data.mascotUrl || null,
+					illustrationPaymentQrCodeUrl: data.illustrationPaymentQrCodeUrl || null,
+					gastronomyPaymentQrCodeUrl: data.gastronomyPaymentQrCodeUrl || null,
+					entrepreneurshipPaymentQrCodeUrl: data.entrepreneurshipPaymentQrCodeUrl || null,
+					illustrationStandUrl: data.illustrationStandUrl || null,
+					gastronomyStandUrl: data.gastronomyStandUrl || null,
+					entrepreneurshipStandUrl: data.entrepreneurshipStandUrl || null,
+					festivalCode: data.festivalCode || null,
+					festivalBannerUrl: data.festivalBannerUrl || null,
+					updatedAt: new Date(),
+				})
+				.where(eq(festivals.id, data.id))
+				.returning();
 
-      // Get existing dates to compare
-      const existingDates = await tx.select()
-        .from(festivalDates)
-        .where(eq(festivalDates.festivalId, data.id));
+			// Get existing dates to compare
+			const existingDates = await tx.select()
+				.from(festivalDates)
+				.where(eq(festivalDates.festivalId, data.id));
 
-      // Process dates if they exist
-      if (data.dates && data.dates.length > 0) {
-        for (const dateItem of data.dates) {
-          // Parse the time strings (HH:MM)
-          const [startHours, startMinutes] = dateItem.startTime.split(':').map(Number);
-          const [endHours, endMinutes] = dateItem.endTime.split(':').map(Number);
+			// Process dates if they exist
+			if (data.dateDetails && data.dateDetails.length > 0) {
+				for (let i = 0; i < data.dateDetails.length; i++) {
+					const dateItem = data.dateDetails[i];
+					const originalDateItem = data.dates?.[i];
 
-          // Create new Date objects with the same date but different times
-          const startDate = new Date(dateItem.date);
-          startDate.setHours(startHours, startMinutes, 0, 0);
+					if (originalDateItem?.id) {
+						// Update existing date
+						await tx.update(festivalDates)
+							.set({
+								startDate: dateItem.startDate,
+								endDate: dateItem.endDate,
+								updatedAt: new Date(),
+							})
+							.where(eq(festivalDates.id, originalDateItem.id));
+					} else {
+						// Insert new date
+						await tx.insert(festivalDates).values({
+							festivalId: data.id,
+							startDate: dateItem.startDate,
+							endDate: dateItem.endDate,
+							updatedAt: new Date(),
+							createdAt: new Date(),
+						});
+					}
+				}
+				// Delete dates that were removed
+				const datesToKeep = data.dates?.map(d => d.id).filter(Boolean) as number[] || [];
+				const datesToDelete = existingDates
+					.filter(d => !datesToKeep.includes(d.id))
+					.map(d => d.id);
 
-          const endDate = new Date(dateItem.date);
-          endDate.setHours(endHours, endMinutes, 0, 0);
+				if (datesToDelete.length > 0) {
+					await tx.delete(festivalDates)
+						.where(inArray(festivalDates.id, datesToDelete));
+				}
+			}
 
-          if (dateItem.id) {
-            // Update existing date
-            await tx.update(festivalDates)
-              .set({
-                startDate,
-                endDate,
-                updatedAt: new Date(),
-              })
-              .where(eq(festivalDates.id, dateItem.id));
-          } else {
-            // Insert new date
-            await tx.insert(festivalDates).values({
-              festivalId: data.id,
-              startDate,
-              endDate,
-              updatedAt: new Date(),
-              createdAt: new Date(),
-            });
-          }
-        }
+			return updatedFestival;
+		});
 
-        // Delete dates that were removed
-        const datesToKeep = data.dates.map(d => d.id).filter(Boolean) as number[];
-        const datesToDelete = existingDates
-          .filter(d => !datesToKeep.includes(d.id))
-          .map(d => d.id);
-
-        if (datesToDelete.length > 0) {
-          await tx.delete(festivalDates)
-            .where(inArray(festivalDates.id, datesToDelete));
-        }
-      }
-
-      return updatedFestival;
-    });
-
-    revalidatePath("/dashboard/festivals");
-    return {
-      success: true,
-      message: "Festival updated successfully",
-      data: result,
-    };
-  } catch (error) {
-    console.error("Error updating festival:", error);
-    return {
-      success: false,
-      message: "Failed to update festival. Please try again.",
-    };
-  }
+		revalidatePath("/dashboard/festivals");
+		return {
+			success: true,
+			message: "Festival updated successfully",
+			data: result,
+		};
+	} catch (error) {
+		console.error("Error updating festival:", error);
+		return {
+			success: false,
+			message: "Failed to update festival. Please try again.",
+		};
+	}
 }

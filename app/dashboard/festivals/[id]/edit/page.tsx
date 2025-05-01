@@ -2,9 +2,15 @@ import { notFound } from "next/navigation";
 import UpdateFestivalForm from "@/app/components/festivals/forms/update-festival";
 import { fetchFestivalWithDates } from "@/app/data/festivals/actions";
 
-export default async function Page(props: any) {
-  const params = props.params as { id: string };
+export default async function Page(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  // Await the params promise
+  const params = await props.params;
   const festival = await fetchFestivalWithDates(Number(params.id));
+  
   if (!festival) return notFound();
 
   return (
