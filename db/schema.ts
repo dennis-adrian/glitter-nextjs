@@ -843,8 +843,12 @@ export const orders = pgTable("orders", {
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
-export const ordersRelations = relations(orders, ({ many }) => ({
+export const ordersRelations = relations(orders, ({ many, one }) => ({
 	orderItems: many(orderItems),
+	customer: one(users, {
+		fields: [orders.userId],
+		references: [users.id],
+	}),
 }));
 
 export const orderItems = pgTable("order_items", {

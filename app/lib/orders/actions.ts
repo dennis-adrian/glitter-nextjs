@@ -1,8 +1,9 @@
 "use server";
 
 import { orderItems, orders } from "@/db/schema";
-import { NewOrderItem } from "@/app/lib/orders/definitions";
+import { NewOrderItem, OrderWithRelations } from "@/app/lib/orders/definitions";
 import { db } from "@/db";
+import { eq } from "drizzle-orm";
 
 export async function createOrder(
 	orderItemsToInsert: NewOrderItem[],
@@ -24,8 +25,8 @@ export async function createOrder(
 				})
 				.returning();
 
-			orderItemsToInsert.forEach((item) => {
-				tx.insert(orderItems).values({
+			orderItemsToInsert.forEach(async (item) => {
+				await tx.insert(orderItems).values({
 					...item,
 					orderId: order.id,
 				});
@@ -51,4 +52,31 @@ export async function createOrder(
 			orderId: createdOrderId,
 		},
 	};
+}
+
+export async function fetchOrder(
+	orderId: number,
+): Promise<OrderWithRelations | null> {
+	try {
+		const order = await db.query.orders.findFirst({
+			with: {
+				customer: true,
+				orderItems: {
+					with: {
+						product: true,
+					},
+				},
+			},
+			where: eq(orders.id, orderId),
+		});
+
+		if (!order) {
+			return null;
+		}
+
+		return order;
+	} catch (error) {
+		console.error(error);
+		return null;
+	}
 }
