@@ -12,25 +12,24 @@ export default async function AllowedParticipantsPage(props: {
 }) {
 	const params = await props.params;
 	const validatedParams = ParamsSchema.safeParse(params);
-	console.log(validatedParams);
 	if (!validatedParams.success) {
 		return notFound();
 	}
-	const availableUsers = await getFestivalAvailableUsers(
-		validatedParams.data.id,
+	const availableUsers = (
+		await getFestivalAvailableUsers(validatedParams.data.id)
+	).sort((a, b) => a.id - b.id);
+
+	const gastronomyUsers = availableUsers.filter(
+		(user) => user.category === "gastronomy",
 	);
 
-	const gastronomyUsers = availableUsers
-		.filter((user) => user.category === "gastronomy")
-		.toSorted((a, b) => a.id - b.id);
+	const entrepreneurshipUsers = availableUsers.filter(
+		(user) => user.category === "entrepreneurship",
+	);
 
-	const entrepreneurshipUsers = availableUsers
-		.filter((user) => user.category === "entrepreneurship")
-		.toSorted((a, b) => a.id - b.id);
-
-	const illustrationUsers = availableUsers
-		.filter((user) => user.category === "illustration")
-		.toSorted((a, b) => a.id - b.id);
+	const illustrationUsers = availableUsers.filter(
+		(user) => user.category === "illustration",
+	);
 
 	return (
 		<div className="container p-3 md:p-6">
@@ -58,7 +57,7 @@ export default async function AllowedParticipantsPage(props: {
 			{entrepreneurshipUsers.length > 0 && (
 				<div className="p-4 border rounded-md mt-4">
 					<div className="flex justify-between items-center">
-						<h2 className="text-lg font-bold">Ilustración</h2>
+						<h2 className="text-lg font-bold">Emprendimientos</h2>
 						<SendEmailsForm
 							users={entrepreneurshipUsers}
 							festivalId={validatedParams.data.id}
