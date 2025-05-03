@@ -1,4 +1,4 @@
-import { BuildingIcon, CalendarDaysIcon, MapPinIcon, PencilIcon, MoreVerticalIcon, TrashIcon } from "lucide-react";
+import { BuildingIcon, CalendarDaysIcon, MapPinIcon } from "lucide-react";
 import {
 	Card,
 	CardContent,
@@ -11,15 +11,6 @@ import FestivalStatusBadge from "@/app/components/atoms/festival-status-badge";
 import FestivalSwitches from "./festival-switches";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { formatDate } from "@/app/lib/formatters";
-import { Button } from "@/app/components/ui/button";
-import Link from "next/link";
-import DeleteFestival from "@/app/components/festivals/delete-festival";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/app/components/ui/dropdown-menu";
 import FestivalCardDropdown from "./festival-card-dropdown";
 
 export default function FestivalCard({

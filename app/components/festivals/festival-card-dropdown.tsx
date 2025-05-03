@@ -1,7 +1,12 @@
 "use client";
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreVerticalIcon, PencilIcon, TrashIcon } from "lucide-react";
+import {
+	MoreVerticalIcon,
+	PencilIcon,
+	TrashIcon,
+	UsersIcon,
+} from "lucide-react";
 import DeleteFestival from "./delete-festival";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -21,6 +26,15 @@ export default function FestivalCardDropdown({
 			<DropdownMenuContent align="end">
 				<DropdownMenuItem asChild>
 					<Link
+						href={`/dashboard/festivals/${festivalId}/allowed_participants`}
+						className="flex items-center gap-2 w-full"
+					>
+						<UsersIcon className="w-4 h-4" />
+						Participantes habilitados
+					</Link>
+				</DropdownMenuItem>
+				<DropdownMenuItem asChild>
+					<Link
 						href={`/dashboard/festivals/${festivalId}/edit`}
 						className="flex items-center gap-2 w-full"
 					>
@@ -38,5 +52,5 @@ export default function FestivalCardDropdown({
 				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
-	)
+	);
 }

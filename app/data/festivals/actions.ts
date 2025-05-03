@@ -223,18 +223,12 @@ export async function getFestivalAvailableUsers(festivalId: number) {
 			),
 		];
 
-		const result = await db
+		return await db
 			.select()
 			.from(users)
-			.innerJoin(
-				profileSubcategories,
-				eq(users.id, profileSubcategories.profileId),
-			)
 			.where(
 				and(eq(users.status, "verified"), inArray(users.category, categories)),
 			);
-
-		return result.map((result) => result.users);
 	} catch (error) {
 		console.error(error);
 		return [];
