@@ -2,6 +2,7 @@ import InvoicePaymentSuccess from "@/app/components/organisms/payments/invoice-p
 import InvoiceSummaryCard from "@/app/components/organisms/payments/invoice-payment-success/invoice-summary-card";
 import { fetchInvoice } from "@/app/data/invoices/actions";
 import { fetchProducts } from "@/app/lib/products/actions";
+import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { CheckCircleIcon } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -20,6 +21,9 @@ export default async function UserInvoicesPage(props: {
 	if (!validatedParams.success) {
 		return notFound();
 	}
+
+	const currentUser = await getCurrentUserProfile();
+	await protectRoute(currentUser || undefined, validatedParams.data.profileId);
 
 	const invoicePromise = fetchInvoice(params.invoiceId);
 	const productsPromise = fetchProducts();

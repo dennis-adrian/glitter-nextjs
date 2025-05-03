@@ -1,11 +1,11 @@
 import { CardContent } from "@/app/components/ui/card";
 import { Card } from "@/app/components/ui/card";
-import { Progress } from "@/app/components/ui/progress";
 import { fetchOrder } from "@/app/lib/orders/actions";
 import { OrderItemWithRelations } from "@/app/lib/orders/definitions";
+import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { BoxIcon, CreditCardIcon, TruckIcon } from "lucide-react";
 import Image from "next/image";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 
 const ParamsSchema = z.object({
@@ -22,6 +22,9 @@ export default async function UserOrderPage(props: {
 	if (!validatedParams.success) {
 		return notFound();
 	}
+
+	const currentUser = await getCurrentUserProfile();
+	await protectRoute(currentUser || undefined, validatedParams.data.profileId);
 
 	const order = await fetchOrder(validatedParams.data.orderId);
 
