@@ -1,5 +1,4 @@
 import InvoicePaymentSuccess from "@/app/components/organisms/payments/invoice-payment-success";
-import InvoiceSummaryCard from "@/app/components/organisms/payments/invoice-payment-success/invoice-summary-card";
 import { fetchInvoice } from "@/app/data/invoices/actions";
 import { fetchProducts } from "@/app/lib/products/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
