@@ -16,6 +16,7 @@ import TextInput from "../../form/fields/text";
 import TextareaInput from "../../form/fields/textarea";
 import { PlusIcon, TrashIcon } from "lucide-react";
 import SelectInput from "../../form/fields/select";
+import { DateTime } from 'luxon';
 
 const FormSchema = z.object({
 	name: z.string().min(1, "Required"),
@@ -24,16 +25,20 @@ const FormSchema = z.object({
 	publicRegistration: z.boolean().default(false),
 	eventDayRegistration: z.boolean().default(false),
 	festivalType: z.enum([...festivalTypeEnum.enumValues]),
-
 	dates: z.array(
 		z.object({
-			id: z.number().optional(), // Add this for existing dates
-			date: z.coerce.date(),
+			id: z.number().optional(),
+			date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 			startTime: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format (HH:MM)"),
 			endTime: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format (HH:MM)"),
 		})
 	).min(1, "At least one date is required"),
-
+	dateDetails: z.array(
+		z.object({
+			startDate: z.coerce.date(),
+			endDate: z.coerce.date(),
+		})
+	).optional(),
 	description: z.string().optional(),
 	address: z.string().optional(),
 	locationLabel: z.string().optional(),
@@ -57,7 +62,7 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 			locationUrl: festival.locationUrl || '',
 			dates: festival.festivalDates.map(date => ({
 				id: date.id,
-				date: new Date(date.startDate),
+				date: DateTime.fromJSDate(date.startDate).toFormat('yyyy-MM-dd'),
 				startTime: date.startDate.toTimeString().slice(0, 5),
 				endTime: date.endDate.toTimeString().slice(0, 5),
 			})),
@@ -69,10 +74,51 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 		name: "dates",
 	});
 
+	const addNewDate = () => {
+		append({
+			date: DateTime.local().toFormat('yyyy-MM-dd'),
+			startTime: "10:00",
+			endTime: "20:00"
+		});
+	};
+
 	const onSubmit = form.handleSubmit(async (data) => {
+		const processedDates = data.dates.map(dateItem => {
+			const startDateTime = DateTime.fromFormat(
+				`${dateItem.date} ${dateItem.startTime}`,
+				'yyyy-MM-dd HH:mm',
+				{ zone: 'local' }
+			);
+
+			const endDateTime = DateTime.fromFormat(
+				`${dateItem.date} ${dateItem.endTime}`,
+				'yyyy-MM-dd HH:mm',
+				{ zone: 'local' }
+			);
+
+			return {
+				id: dateItem.id,
+				date: new Date(dateItem.date),
+				startTime: dateItem.startTime,
+				endTime: dateItem.endTime,
+				startDateUTC: startDateTime.toUTC().toJSDate(),
+				endDateUTC: endDateTime.toUTC().toJSDate()
+			};
+		});
+
 		const festivalData = {
 			...data,
 			id: festival.id,
+			dates: processedDates.map(d => ({
+				id: d.id,
+				date: d.date,
+				startTime: d.startTime,
+				endTime: d.endTime
+			})),
+			dateDetails: processedDates.map(d => ({
+				startDate: d.startDateUTC,
+				endDate: d.endDateUTC
+			})),
 			updatedAt: new Date(),
 		};
 
@@ -85,14 +131,6 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 			toast.error(result.message);
 		}
 	});
-
-	const addNewDate = () => {
-		append({
-			date: new Date(),
-			startTime: "10:00",
-			endTime: "20:00"
-		});
-	};
 
 	return (
 		<Form {...form}>
@@ -167,23 +205,11 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 								)}
 							</div>
 
-							<FormField
-								control={form.control}
+							<TextInput
+								formControl={form.control}
 								name={`dates.${index}.date`}
-								render={({ field }) => (
-									<FormItem>
-										<FormLabel>Fecha</FormLabel>
-										<FormControl>
-											<Input
-												type="date"
-												{...field}
-												value={field.value ? field.value.toISOString().split('T')[0] : ''}
-												onChange={e => field.onChange(new Date(e.target.value))}
-											/>
-										</FormControl>
-										<FormMessage />
-									</FormItem>
-								)}
+								label="Fecha"
+								type="date"
 							/>
 
 							<div className="grid grid-cols-2 gap-4">

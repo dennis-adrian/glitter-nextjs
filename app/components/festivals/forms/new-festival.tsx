@@ -15,6 +15,7 @@ import { festivalTypeOptions } from "@/app/lib/utils";
 import { festivalTypeEnum } from "@/db/schema";
 import { PlusIcon, TrashIcon } from "lucide-react";
 import { useFieldArray } from "react-hook-form";
+import { DateTime } from 'luxon';
 
 const FormSchema = z.object({
 	name: z.string().trim().min(2, "El nombre tiene que tener al menos dos letras"),
@@ -24,11 +25,17 @@ const FormSchema = z.object({
 	festivalType: z.enum([...festivalTypeEnum.enumValues]),
 	dates: z.array(
 		z.object({
-			date: z.coerce.date(),
+			date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 			startTime: z.string().regex(/^\d{2}:\d{2}$/, "Formato Invalido (HH:MM)"),
 			endTime: z.string().regex(/^\d{2}:\d{2}$/, "Formato Invalido (HH:MM)"),
 		})
 	).min(1, "AL menos uno es requerido"),
+	dateDetails: z.array(
+		z.object({
+			startDate: z.coerce.date(),
+			endDate: z.coerce.date(),
+		})
+	).optional(),
 	description: z.string().trim().optional(),
 	address: z.string().trim().optional(),
 	locationLabel: z.string().trim().optional(),
@@ -45,7 +52,6 @@ const FormSchema = z.object({
 	festivalBannerUrl: z.string().optional(),
 });
 
-
 export default function NewFestivalForm() {
 	const router = useRouter();
 	const form = useForm<z.infer<typeof FormSchema>>({
@@ -60,7 +66,7 @@ export default function NewFestivalForm() {
 			locationLabel: "",
 			locationUrl: "",
 			dates: [{
-				date: new Date(),
+				date: DateTime.local().toFormat('yyyy-MM-dd'),
 				startTime: "10:00",
 				endTime: "20:00"
 			}]
@@ -72,16 +78,57 @@ export default function NewFestivalForm() {
 		name: "dates",
 	});
 
+	const addNewDate = () => {
+		append({
+			date: DateTime.local().toFormat('yyyy-MM-dd'),
+			startTime: "10:00",
+			endTime: "20:00"
+		});
+	};
+
 	const onSubmit = form.handleSubmit(async (data) => {
+		const processedDates = data.dates.map(dateItem => {
+			const startDateTime = DateTime.fromFormat(
+				`${dateItem.date} ${dateItem.startTime}`,
+				'yyyy-MM-dd HH:mm',
+				{ zone: 'local' }
+			);
+	
+			const endDateTime = DateTime.fromFormat(
+				`${dateItem.date} ${dateItem.endTime}`,
+				'yyyy-MM-dd HH:mm',
+				{ zone: 'local' }
+			);
+
+			return {
+				date: new Date(dateItem.date),
+				startTime: dateItem.startTime,
+				endTime: dateItem.endTime,
+				startDateUTC: startDateTime.toUTC().toJSDate(),
+				endDateUTC: endDateTime.toUTC().toJSDate(),
+			};
+		});
+	
 		const festivalData = {
 			...data,
+			dates: processedDates.map(d => ({
+				date: d.date,
+				startTime: d.startTime,
+				endTime: d.endTime
+			})),
 			createdAt: new Date(),
 			updatedAt: new Date(),
 			reservationsStartDate: new Date(),
 		};
-
-		const result = await createFestival(festivalData);
-
+	
+		const result = await createFestival({
+			...festivalData,
+			dateDetails: processedDates.map(d => ({
+				startDate: d.startDateUTC,
+				endDate: d.endDateUTC
+			}))
+		});
+	
 		if (result.success) {
 			toast.success(result.message);
 			router.push("/dashboard/festivals");
@@ -89,15 +136,6 @@ export default function NewFestivalForm() {
 			toast.error(result.message);
 		}
 	});
-
-	const addNewDate = () => {
-		append({
-			date: new Date(),
-			startTime: "10:00",
-			endTime: "20:00"
-		});
-	};
-
 	return (
 		<Form {...form}>
 			<form onSubmit={onSubmit} className="space-y-6 max-w-3xl">

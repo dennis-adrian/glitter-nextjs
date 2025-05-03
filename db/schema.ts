@@ -74,6 +74,7 @@ export const usersRelations = relations(users, ({ many }) => ({
 	invoices: many(invoices),
 	profileTags: many(profileTags),
 	profileSubcategories: many(profileSubcategories),
+	userBadges: many(userBadges),
 }));
 
 export const tags = pgTable("tags", {
@@ -204,7 +205,7 @@ export const festivals = pgTable(
 		nameIdx: index("name_idx").on(festivals.name),
 	}),
 );
-export const festivalsRelations = relations(festivals, ({ many }) => ({
+export const festivalsRelations = relations(festivals, ({ many, one }) => ({
 	userRequests: many(userRequests),
 	standReservations: many(standReservations),
 	stands: many(stands),
@@ -212,6 +213,7 @@ export const festivalsRelations = relations(festivals, ({ many }) => ({
 	festivalSectors: many(festivalSectors),
 	festivalDates: many(festivalDates),
 	festivalActivities: many(festivalActivities),
+	badge: one(badges),
 }));
 
 export const festivalSectors = pgTable(
@@ -764,3 +766,49 @@ export const collaboratorsAttendanceLogsRelations = relations(
 		}),
 	}),
 );
+
+export const badges = pgTable("badges", {
+	id: serial("id").primaryKey(),
+	name: text("name").notNull(),
+	description: text("description"),
+	imageUrl: text("image_url"),
+	festivalId: integer("festival_id").references(() => festivals.id, {
+		onDelete: "cascade",
+	}),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const badgesRelations = relations(badges, ({ one, many }) => ({
+	festival: one(festivals, {
+		fields: [badges.festivalId],
+		references: [festivals.id],
+	}),
+	userBadges: many(userBadges),
+}));
+
+export const userBadges = pgTable("user_badges", {
+	id: serial("id").primaryKey(),
+	userId: integer("user_id")
+		.notNull()
+		.references(() => users.id, {
+			onDelete: "cascade",
+		}),
+	badgeId: integer("badge_id")
+		.notNull()
+		.references(() => badges.id, {
+			onDelete: "cascade",
+		}),
+	awardedAt: timestamp("awarded_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const userBadgesRelations = relations(userBadges, ({ one }) => ({
+	user: one(users, {
+		fields: [userBadges.userId],
+		references: [users.id],
+	}),
+	badge: one(badges, {
+		fields: [userBadges.badgeId],
+		references: [badges.id],
+	}),
+}));
