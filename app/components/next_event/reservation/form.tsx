@@ -100,53 +100,54 @@ export default function ReservationForm({
   });
 
   return (
-    <div className={`${isDesktop ? "" : "px-4"}`}>
-      <h1 className="mb-4">Reservando para:</h1>
-      <div className="flex flex-col items-center mb-4">
-        <AvatarGroup avatarsInfo={avatarsInfo} />
-        <span className="text-sm text-muted-foreground mt-2">
-          {selectedArtist
-            ? `${profile.displayName} & ${selectedArtist.displayName}`
-            : profile.displayName}
-        </span>
-      </div>
+		<div>
+			<h1 className="mb-4">Reservando para:</h1>
+			<div className="flex flex-col items-center mb-4">
+				<AvatarGroup avatarsInfo={avatarsInfo} />
+				<span className="text-sm text-muted-foreground mt-2">
+					{selectedArtist
+						? `${profile.displayName} & ${selectedArtist.displayName}`
+						: profile.displayName}
+				</span>
+			</div>
 
-      {(stand.standCategory === "illustration" ||
-        stand.standCategory === "new_artist") && (
-        <div className="grid items-start gap-2">
-          {addPartner ? (
-            <>
-              <Label htmlFor="search-input">Elige a tu compañero</Label>
-              <SearchInput
-                id="search-input"
-                options={searchOptions}
-                placeholder="Ingresa el nombre..."
-                onSelect={handleSelectArtist}
-              />
-            </>
-          ) : (
-            <>
-              <Separator />
-              <div className="flex items-center mb-2 mt-6 sm:mb-0 sm:mt-4">
-                <span>¿Compartes espacio?</span>
-                <Button variant="link" onClick={() => setAddPartner(true)}>
-                  ¡Haz click aquí!
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-      <Form {...form}>
-        <form onSubmit={action}>
-          <SubmitButton
-            className="mt-4"
-            disabled={form.formState.isSubmitting}
-            label="Reservar espacio"
-            loading={form.formState.isSubmitting}
-          />
-        </form>
-      </Form>
-    </div>
-  );
+			{(stand.standCategory === "illustration" ||
+				stand.standCategory === "new_artist") && (
+				<div className="grid items-start gap-2">
+					{addPartner ? (
+						<>
+							<Label htmlFor="search-input">Elige a tu compañero</Label>
+							<SearchInput
+								id="search-input"
+								options={searchOptions}
+								placeholder="Ingresa el nombre..."
+								onSelect={handleSelectArtist}
+							/>
+						</>
+					) : (
+						<>
+							<div className="bg-amber-50 rounded-md p-4 md:p-6 border border-amber-200">
+								<div className="flex flex-col md:flex-row items-center">
+									<span>¿Compartes espacio?</span>
+									<Button variant="link" onClick={() => setAddPartner(true)}>
+										¡Haz click aquí!
+									</Button>
+								</div>
+							</div>
+						</>
+					)}
+				</div>
+			)}
+			<Form {...form}>
+				<form onSubmit={action}>
+					<SubmitButton
+						className="mt-4"
+						disabled={form.formState.isSubmitting}
+						label="Reservar espacio"
+						loading={form.formState.isSubmitting}
+					/>
+				</form>
+			</Form>
+		</div>
+	);
 }

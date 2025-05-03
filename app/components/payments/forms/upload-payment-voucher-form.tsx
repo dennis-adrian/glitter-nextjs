@@ -38,8 +38,10 @@ export default function UploadPaymentVoucherForm(
       );
 
       if (res.success) {
-        toast.success("Pago enviado con éxito");
-        router.push("/my_profile");
+        toast.success("Pago enviado con éxito.");
+				router.push(
+					`/profiles/${props.invoice.userId}/invoices/${props.invoice.id}/success`,
+				);
       } else {
         toast.error("Error al enviar el pago");
       }

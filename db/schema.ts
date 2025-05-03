@@ -812,3 +812,65 @@ export const userBadgesRelations = relations(userBadges, ({ one }) => ({
 		references: [badges.id],
 	}),
 }));
+
+export const products = pgTable("products", {
+	id: serial("id").primaryKey(),
+	name: text("name").notNull(),
+	description: text("description"),
+	price: real("price").notNull(),
+	stock: integer("stock").default(0),
+	imageUrl: text("image_url"),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const productsRelations = relations(products, ({ many }) => ({
+	orderItems: many(orderItems),
+}));
+
+export const orderStatusEnum = pgEnum("order_status", [
+	"pending",
+	"paid",
+	"cancelled",
+]);
+export const orders = pgTable("orders", {
+	id: serial("id").primaryKey(),
+	userId: integer("user_id")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	orderDate: timestamp("order_date").defaultNow(),
+	status: orderStatusEnum("status").default("pending").notNull(),
+	totalAmount: real("total_amount").notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const ordersRelations = relations(orders, ({ many, one }) => ({
+	orderItems: many(orderItems),
+	customer: one(users, {
+		fields: [orders.userId],
+		references: [users.id],
+	}),
+}));
+
+export const orderItems = pgTable("order_items", {
+	id: serial("id").primaryKey(),
+	orderId: integer("order_id")
+		.notNull()
+		.references(() => orders.id, { onDelete: "cascade" }),
+	productId: integer("product_id")
+		.notNull()
+		.references(() => products.id, { onDelete: "cascade" }),
+	quantity: integer("quantity").notNull(),
+	priceAtPurchase: real("price_at_purchase").notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const orderItemsRelations = relations(orderItems, ({ one }) => ({
+	order: one(orders, {
+		fields: [orderItems.orderId],
+		references: [orders.id],
+	}),
+	product: one(products, {
+		fields: [orderItems.productId],
+		references: [products.id],
+	}),
+}));
