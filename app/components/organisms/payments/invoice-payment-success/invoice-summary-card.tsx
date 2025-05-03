@@ -4,20 +4,15 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/app/components/ui/card";
-import { fetchInvoice } from "@/app/data/invoices/actions";
+import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/defiinitions";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import Image from "next/image";
 
 type InvoiceSummaryCardProps = {
-	invoiceId: number;
+	invoice: InvoiceWithPaymentsAndStand;
 };
-export default async function InvoiceSummaryCard(
-	props: InvoiceSummaryCardProps,
-) {
-	const invoice = await fetchInvoice(props.invoiceId);
-	if (!invoice) {
-		return null;
-	}
+export default function InvoiceSummaryCard(props: InvoiceSummaryCardProps) {
+	const invoice = props.invoice;
 	const stand = invoice.reservation.stand;
 	const categoryLabel = getCategoryLabel(stand.standCategory);
 

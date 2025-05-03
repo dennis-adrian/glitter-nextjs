@@ -1,6 +1,10 @@
-import InvoiceSummaryCard from "@/app/components/organisms/payments/invoice-summary-card";
+import InvoicePaymentSuccess from "@/app/components/organisms/payments/invoice-payment-success";
+import InvoiceSummaryCard from "@/app/components/organisms/payments/invoice-payment-success/invoice-summary-card";
+import { fetchInvoice } from "@/app/data/invoices/actions";
+import { fetchProducts } from "@/app/lib/products/actions";
 import { CheckCircleIcon } from "lucide-react";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { z } from "zod";
 
 const ParamsSchema = z.object({
@@ -17,6 +21,9 @@ export default async function UserInvoicesPage(props: {
 		return notFound();
 	}
 
+	const invoicePromise = fetchInvoice(params.invoiceId);
+	const productsPromise = fetchProducts();
+
 	return (
 		<div className="container p-3 md:p-6">
 			<div className="w-full max-w-md space-y-8 mx-auto">
@@ -30,7 +37,13 @@ export default async function UserInvoicesPage(props: {
 						horas.
 					</p>
 				</div>
-				<InvoiceSummaryCard invoiceId={params.invoiceId} />
+				<Suspense fallback={<div>Loading...</div>}>
+					<InvoicePaymentSuccess
+						profileId={validatedParams.data.profileId}
+						invoicePromise={invoicePromise}
+						productsPromise={productsPromise}
+					/>
+				</Suspense>
 			</div>
 		</div>
 	);
