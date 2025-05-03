@@ -1,4 +1,5 @@
-import SendEmailsForm from "@/app/dashboard/festivals/[id]/allowed_participants/send-emails-form";
+import { BaseProfile } from "@/app/api/users/definitions";
+import UsersBuckets from "@/app/dashboard/festivals/[id]/allowed_participants/users-buckets";
 import { getFestivalAvailableUsers } from "@/app/data/festivals/actions";
 import { notFound } from "next/navigation";
 import { z } from "zod";
@@ -19,77 +20,26 @@ export default async function AllowedParticipantsPage(props: {
 		await getFestivalAvailableUsers(validatedParams.data.id)
 	).sort((a, b) => a.id - b.id);
 
-	const gastronomyUsers = availableUsers.filter(
-		(user) => user.category === "gastronomy",
+	// group users by category
+	const availableUsersByCategory = availableUsers.reduce(
+		(acc, user) => {
+			acc[user.category] = [...(acc[user.category] || []), user];
+			return acc;
+		},
+		{} as { [key: string]: BaseProfile[] },
 	);
 
-	const entrepreneurshipUsers = availableUsers.filter(
-		(user) => user.category === "entrepreneurship",
-	);
-
-	const illustrationUsers = availableUsers.filter(
-		(user) => user.category === "illustration",
-	);
+	// join all users already grouped and ordered by category
+	const allUsersOrderedByCategory = Object.entries(
+		availableUsersByCategory,
+	).flatMap(([category, users]) => users.map((user) => user));
 
 	return (
 		<div className="container p-3 md:p-6">
 			<h1 className="text-xl md:text-2xl font-bold">
 				Participantes Habilitados
 			</h1>
-			{illustrationUsers.length > 0 && (
-				<div className="p-4 border rounded-md mt-4">
-					<div className="flex justify-between items-center">
-						<h2 className="text-lg font-bold">Ilustración</h2>
-						<SendEmailsForm
-							users={illustrationUsers}
-							festivalId={validatedParams.data.id}
-						/>
-					</div>
-					<ol className="list-decimal list-inside">
-						{illustrationUsers.map((user) => (
-							<li key={user.id}>
-								Id: {user.id} - {user.displayName} - {user.email}
-							</li>
-						))}
-					</ol>
-				</div>
-			)}
-			{entrepreneurshipUsers.length > 0 && (
-				<div className="p-4 border rounded-md mt-4">
-					<div className="flex justify-between items-center">
-						<h2 className="text-lg font-bold">Emprendimientos</h2>
-						<SendEmailsForm
-							users={entrepreneurshipUsers}
-							festivalId={validatedParams.data.id}
-						/>
-					</div>
-					<ol className="list-decimal list-inside">
-						{entrepreneurshipUsers.map((user) => (
-							<li key={user.id}>
-								Id: {user.id} - {user.displayName} - {user.email}
-							</li>
-						))}
-					</ol>
-				</div>
-			)}
-			{gastronomyUsers.length > 0 && (
-				<div className="p-4 border rounded-md mt-4">
-					<div className="flex justify-between items-center">
-						<h2 className="text-lg font-bold">Gastronomía</h2>
-						<SendEmailsForm
-							users={gastronomyUsers}
-							festivalId={validatedParams.data.id}
-						/>
-					</div>
-					<ol className="list-decimal list-inside">
-						{gastronomyUsers.map((user) => (
-							<li key={user.id}>
-								Id: {user.id} - {user.displayName} - {user.email}
-							</li>
-						))}
-					</ol>
-				</div>
-			)}
+			<UsersBuckets users={allUsersOrderedByCategory} festivalId={params.id} />
 		</div>
 	);
 }
