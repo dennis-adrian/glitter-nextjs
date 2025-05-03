@@ -8,43 +8,43 @@ import { Button } from "@/app/components/ui/button";
 import { CogIcon } from "lucide-react";
 import { fetchLatestInvoiceByProfileId } from "@/app/data/invoices/actions";
 import UserProfileBanner from "@/app/components/users/user-profile-banner";
-import FestivalActivityBanner from "@/app/components/pages/my_profile/festival-activity-banner";
 
 type DashboardUserPageProps = {
-  profileId: number;
+	profileId: number;
 };
 export default async function DashboardUserPage(props: DashboardUserPageProps) {
-  const forProfile = await fetchUserProfileById(props.profileId);
-  if (!forProfile) return notFound();
+	const forProfile = await fetchUserProfileById(props.profileId);
+	if (!forProfile) return notFound();
 
-  const latestInvoice = await fetchLatestInvoiceByProfileId(props.profileId);
-  const hasPendingPayment =
-    latestInvoice?.status === "pending" &&
-    latestInvoice.reservation.status === "pending";
+	const latestInvoice = await fetchLatestInvoiceByProfileId(props.profileId);
+	const hasPendingPayment =
+		latestInvoice?.status === "pending" &&
+		latestInvoice.reservation.status === "pending";
 
-  return (
-    <div className="mx-auto max-w-screen-lg p-3 md:p-6">
-      <div className="flex flex-col gap-4">
-        {hasPendingPayment ? (
-          <UserProfileBanner profile={forProfile} />
-        ) : (
-          <>
-            <FestivalActivityBanner profile={forProfile} />
-            {forProfile.status !== "banned" && (
-              <AnnouncementCard profile={forProfile} />
-            )}
-          </>
-        )}
-        <div className="self-end">
-          <ProfileQuickActions hideViewProfile profile={forProfile}>
-            <Button variant="outline" size="icon">
-              <CogIcon className="h-6 w-6" />
-            </Button>
-          </ProfileQuickActions>
-        </div>
-        <PublicProfile profile={forProfile} title="Perfil de Usuario" />
-        <PrivateProfile profile={forProfile} />
-      </div>
-    </div>
-  );
+	return (
+		<div className="mx-auto max-w-screen-lg p-3 md:p-6">
+			<div className="flex flex-col gap-4">
+				{hasPendingPayment ? (
+					<UserProfileBanner profile={forProfile} />
+				) : (
+					<>
+						{/* FIXME: Find a way to make this dynamic. It was added specifically for the Festicker */}
+						{/* <FestivalActivityBanner profile={forProfile} /> */}
+						{forProfile.status !== "banned" && (
+							<AnnouncementCard profile={forProfile} />
+						)}
+					</>
+				)}
+				<div className="self-end">
+					<ProfileQuickActions hideViewProfile profile={forProfile}>
+						<Button variant="outline" size="icon">
+							<CogIcon className="h-6 w-6" />
+						</Button>
+					</ProfileQuickActions>
+				</div>
+				<PublicProfile profile={forProfile} title="Perfil de Usuario" />
+				<PrivateProfile profile={forProfile} />
+			</div>
+		</div>
+	);
 }
