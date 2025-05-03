@@ -148,13 +148,18 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 							<li>
 								Solo se permite tener a dos personas trabajando en el stand.
 								Cada persona con su credencial correspondiente. Tener a más de
-								dos personas y/o personas sin credencial en el estand sin
+								dos personas y/o personas sin credencial en el stand sin
 								autorización puede resultar en penalizaciones para
 								participaciones futuras.
 							</li>
 							<li>
 								Los expositores deben cumplir con todas las reglas del festival,
 								regulaciones e instrucciones del personal del festival.
+							</li>
+							<li>
+								El staff del festival hará un recorrido por el recinto para
+								verificar que los expositores cumplen con las reglas del
+								festival.
 							</li>
 						</ul>
 					</section>
@@ -198,17 +203,17 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 										espacio será liberado y el participante no podrá participar
 										en el festival.
 									</li>
-									{/* <li>
-                    Las reservas confirmadas que sean canceladas a más de 30
-                    días antes del evento recibirán un reembolso del 75%.
-                  </li> */}
+									<li>
+										Las reservas confirmadas que sean canceladas a más de 30
+										días antes del evento recibirán un reembolso del 75%.
+									</li>
 									<li>
 										Las reservas confirmadas que sean canceladas entre 20 y 30
 										días antes del evento recibirán un reembolso del 50%.
 									</li>
 									<li>
 										No se proporcionarán reembolsos para cancelaciones
-										realizadas con menos de 15 días de anticipación al evento.
+										realizadas con menos de 20 días de anticipación al evento.
 									</li>
 									<li>
 										En caso de cancelación de todo el festival debido a
@@ -257,12 +262,12 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 									<li>
 										El desmontaje debe completarse antes de las 21:30 el primer
 										día y hasta las 21:45 el segundo día. Los expositores pueden
-										dejar sus stands montado el primer día para ahorrar tiempo
+										dejar sus stands montados el primer día para ahorrar tiempo
 										de montaje en el segundo día.
 									</li>
 								</ul>
 								<p className="mt-4">
-									No llegar a tiempo o tener montado el stand hasta la hora
+									No llegar a tiempo o notener montado el stand hasta la hora
 									indicada puede resultar en penalizaciones para participaciones
 									futuras.
 								</p>
@@ -395,6 +400,11 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 										calco de imágenes)
 									</li>
 									<li>
+										Ofrecer servicios, vender o regalar productos de terceros
+										que no estén inscritos en el festival o que no sean parte de
+										la reserva del stand.
+									</li>
+									<li>
 										Cualquier actividad que viole las leyes o regulaciones
 										locales
 									</li>
@@ -425,6 +435,13 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 												estar previamente preparados. Recalcar que no se permite
 												el uso de garrafas o cualquier artefacto que provoque
 												fuego.
+											</li>
+											<li>
+												No está permitido ofrecer productos afuera del espacio
+												asignado a su stand
+											</li>
+											<li>
+												Tener algún tipo de luces parpadeantes en el stand.
 											</li>
 											<li>
 												Cada expositor se compromete a mantener la estética de
