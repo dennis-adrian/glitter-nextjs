@@ -45,76 +45,70 @@ export async function fetchLatestInvoiceByProfileId(
   }
 }
 
-export async function createPayment(
-  payment: NewPayment,
-  oldVoucherUrl?: string,
-) {
-  const client = await pool.connect();
+export async function createPayment(payment: NewPayment, oldVoucherUrl?: string) {
+	try {
+		await db.transaction(async (tx) => {
+			if (payment.id) {
+				await tx
+					.update(payments)
+					.set({
+						amount: payment.amount,
+						date: payment.date,
+						voucherUrl: payment.voucherUrl,
+						updatedAt: new Date(),
+					})
+					.where(eq(payments.id, payment.id));
+			} else {
+				await tx.insert(payments).values(payment);
+			}
 
-  try {
-    await db.transaction(async (tx) => {
-      if (payment.id) {
-        await tx
-          .update(payments)
-          .set({
-            amount: payment.amount,
-            date: payment.date,
-            voucherUrl: payment.voucherUrl,
-            updatedAt: new Date(),
-          })
-          .where(eq(payments.id, payment.id));
-      } else {
-        await tx.insert(payments).values(payment);
-      }
+			await tx
+				.update(invoices)
+				.set({ status: "paid" })
+				.where(eq(invoices.id, payment.invoiceId));
+		});
 
-      await tx
-        .update(invoices)
-        .set({ status: "paid" })
-        .where(eq(invoices.id, payment.invoiceId));
-    });
+		if (oldVoucherUrl) {
+			const [_, key] = oldVoucherUrl.split("/f/");
+			await new UTApi().deleteFiles(key);
+		}
 
-    if (oldVoucherUrl) {
-      const [_, key] = oldVoucherUrl.split("/f/");
-      await new UTApi().deleteFiles(key);
-    }
+		const invoice = await fetchInvoice(payment.invoiceId);
+		if (invoice) {
+			await sendEmail({
+				to: [invoice.user.email],
+				from: "Reservas Glitter <reservas@productoraglitter.com>",
+				subject: "Tu pago ha sido registrado",
+				react: PaymentConfirmationForUserEmailTemplate({
+					invoice,
+				}),
+			});
 
-    const invoice = await fetchInvoice(payment.invoiceId);
-    if (invoice) {
-      await sendEmail({
-        to: [invoice.user.email],
-        from: "Reservas Glitter <reservas@productoraglitter.com>",
-        subject: "Tu pago ha sido registrado",
-        react: PaymentConfirmationForUserEmailTemplate({
-          invoice,
-        }),
-      });
+			const admins = await fetchAdminUsers();
+			const adminEmails = admins.map((admin) => admin.email);
+			if (adminEmails.length > 0) {
+				await sendEmail({
+					to: [...adminEmails],
+					from: "Reservas Glitter <reservas@productoraglitter.com>",
+					subject: `${invoice.user.displayName} hizo el pago de su reserva`,
+					react: PaymentConfirmationForAdminsEmailTemplate({
+						invoice,
+					}),
+				});
+			}
+		}
+	} catch (error) {
+		console.error("Error creating payment", error);
+		return {
+			message: "No se pudo guardar el pago. Intenta nuevamente",
+			success: false,
+		};
+	}
 
-      const admins = await fetchAdminUsers();
-      const adminEmails = admins.map((admin) => admin.email);
-      if (adminEmails.length > 0) {
-        await sendEmail({
-          to: [...adminEmails],
-          from: "Reservas Glitter <reservas@productoraglitter.com>",
-          subject: `${invoice.user.displayName} hizo el pago de su reserva`,
-          react: PaymentConfirmationForAdminsEmailTemplate({
-            invoice,
-          }),
-        });
-      }
-    }
-  } catch (error) {
-    console.error("Error creating payment", error);
-    return {
-      message: "No se pudo guardar el pago. Intenta nuevamente",
-      success: false,
-    };
-  } finally {
-    client.release();
-  }
-  const successMessage = payments.id
-    ? "Pago actualizado con éxito"
-    : "Pago creado con éxito";
-  return { success: true, message: successMessage };
+	const successMessage = payments.id
+		? "Pago actualizado con éxito"
+		: "Pago creado con éxito";
+	return { success: true, message: successMessage };
 }
 
 export async function fetchInvoices(): Promise<
