@@ -6,6 +6,7 @@ import {
 	FormControl,
 	FormItem,
 	FormField,
+	FormMessage,
 } from "@/app/components/ui/form";
 import { Input } from "@/app/components/ui/input";
 import { createOrder } from "@/app/lib/orders/actions";
@@ -20,7 +21,14 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 const FormSchema = z.object({
-	quantity: z.number().min(1),
+	quantity: z
+		.number({
+			required_error: "La cantidad es requerida",
+			invalid_type_error: "La cantidad debe ser un número",
+		})
+		.min(1, {
+			message: "La cantidad debe ser mayor que 0",
+		}),
 });
 
 type CreateOrderFormProps = {
@@ -77,29 +85,32 @@ export default function CreateOrderForm(props: CreateOrderFormProps) {
 							render={({ field }) => (
 								<FormItem>
 									<FormControl>
-										<div className="flex items-center gap-2">
+										<div className="flex items-center justify-end gap-2 w-80">
 											<span className="text-xs text-muted-foreground">
 												Cantidad
 											</span>
 											<Input
 												className="w-16"
 												type="number"
-												placeholder="Cantidad"
+												placeholder="0"
 												{...field}
 												onChange={(e) => {
 													const value = parseInt(e.target.value);
-													setSubtotal(value * product.price);
+													setSubtotal((value || 0) * product.price);
 													field.onChange(value);
 												}}
 											/>
 										</div>
 									</FormControl>
+									<FormMessage />
 								</FormItem>
 							)}
 						/>
-						<span className="text-sm text-right">
-							Subtotal: Bs{subtotal}.00
-						</span>
+						{subtotal > 0 && (
+							<span className="text-sm text-right">
+								Subtotal: Bs{subtotal}.00
+							</span>
+						)}
 					</div>
 				</div>
 				<SubmitButton
