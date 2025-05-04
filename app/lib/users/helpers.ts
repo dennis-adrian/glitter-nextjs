@@ -2,8 +2,8 @@
 
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import {
-  fetchUserProfileByClerkId,
-  getCurrentClerkUser,
+	cachedFetchUserProfileByClerkId,
+	getCurrentClerkUser,
 } from "@/app/lib/users/actions";
 import { users } from "@/db/schema";
 import { buildWhereClause } from "@/db/utils";
@@ -16,7 +16,7 @@ export async function getCurrentUserProfile() {
     if (!user) return null;
 
     // TODO: if the profile is not found, it should log out the user
-    return await fetchUserProfileByClerkId(user.id);
+    return await cachedFetchUserProfileByClerkId(user.id);
   } catch (error) {}
 }
 
