@@ -5,7 +5,7 @@ import {
   FestivalWithDates,
   FestivalWithUserRequests,
 } from "@/app/data/festivals/definitions";
-import { db, pool } from "@/db";
+import { db } from "@/db";
 import {
   reservationParticipants,
   standReservations,

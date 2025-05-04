@@ -2,50 +2,49 @@
 
 import { fetchAdminUsers } from "@/app/api/users/actions";
 import {
-  InvoiceWithPaymentsAndStand,
-  InvoiceWithPaymentsAndStandAndProfile,
-  NewPayment,
+	InvoiceWithPaymentsAndStand,
+	InvoiceWithPaymentsAndStandAndProfile,
+	NewPayment,
 } from "@/app/data/invoices/defiinitions";
 import PaymentConfirmationForAdminsEmailTemplate from "@/app/emails/payment-confirmation-for-admins";
 import PaymentConfirmationForUserEmailTemplate from "@/app/emails/payment-confirmation-for-user";
 import { sendEmail } from "@/app/vendors/resend";
-import { pool, db } from "@/db";
+import { db } from "@/db";
 import { invoices, payments } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { UTApi } from "uploadthing/server";
 
 export async function fetchLatestInvoiceByProfileId(
-  profileId: number,
+	profileId: number,
 ): Promise<InvoiceWithPaymentsAndStand | undefined | null> {
-  const client = await pool.connect();
-
-  try {
-    return await db.query.invoices.findFirst({
-      with: {
-        payments: true,
-        reservation: {
-          with: {
-            stand: true,
-            festival: {
-              with: {
-                festivalDates: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: desc(invoices.createdAt),
-      where: eq(invoices.userId, profileId),
-    });
-  } catch (error) {
-    console.error("Error fetching latest invoice", error);
-    return null;
-  } finally {
-    client.release();
-  }
+	try {
+		return await db.query.invoices.findFirst({
+			with: {
+				payments: true,
+				reservation: {
+					with: {
+						stand: true,
+						festival: {
+							with: {
+								festivalDates: true,
+							},
+						},
+					},
+				},
+			},
+			orderBy: desc(invoices.createdAt),
+			where: eq(invoices.userId, profileId),
+		});
+	} catch (error) {
+		console.error("Error fetching latest invoice", error);
+		return null;
+	}
 }
 
-export async function createPayment(payment: NewPayment, oldVoucherUrl?: string) {
+export async function createPayment(
+	payment: NewPayment,
+	oldVoucherUrl?: string,
+) {
 	try {
 		await db.transaction(async (tx) => {
 			if (payment.id) {
@@ -112,96 +111,84 @@ export async function createPayment(payment: NewPayment, oldVoucherUrl?: string)
 }
 
 export async function fetchInvoices(): Promise<
-  InvoiceWithPaymentsAndStandAndProfile[]
+	InvoiceWithPaymentsAndStandAndProfile[]
 > {
-  const client = await pool.connect();
-
-  try {
-    return await db.query.invoices.findMany({
-      with: {
-        payments: true,
-        reservation: {
-          with: {
-            stand: true,
-            festival: {
-              with: {
-                festivalDates: true,
-              },
-            },
-          },
-        },
-        user: true,
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching invoices", error);
-    return [] as InvoiceWithPaymentsAndStandAndProfile[];
-  } finally {
-    client.release();
-  }
+	try {
+		return await db.query.invoices.findMany({
+			with: {
+				payments: true,
+				reservation: {
+					with: {
+						stand: true,
+						festival: {
+							with: {
+								festivalDates: true,
+							},
+						},
+					},
+				},
+				user: true,
+			},
+		});
+	} catch (error) {
+		console.error("Error fetching invoices", error);
+		return [] as InvoiceWithPaymentsAndStandAndProfile[];
+	}
 }
 
 export async function fetchInvoicesByReservation(
-  reservationId: number,
+	reservationId: number,
 ): Promise<InvoiceWithPaymentsAndStand[]> {
-  const client = await pool.connect();
-
-  try {
-    return await db.query.invoices.findMany({
-      with: {
-        payments: true,
-        reservation: {
-          with: {
-            stand: {
-              with: {
-                qrCode: true,
-              },
-            },
-            festival: {
-              with: {
-                festivalDates: true,
-              },
-            },
-          },
-        },
-      },
-      where: eq(invoices.reservationId, reservationId),
-    });
-  } catch (error) {
-    console.error("Error fetching invoices by reservation", error);
-    return [];
-  } finally {
-    client.release();
-  }
+	try {
+		return await db.query.invoices.findMany({
+			with: {
+				payments: true,
+				reservation: {
+					with: {
+						stand: {
+							with: {
+								qrCode: true,
+							},
+						},
+						festival: {
+							with: {
+								festivalDates: true,
+							},
+						},
+					},
+				},
+			},
+			where: eq(invoices.reservationId, reservationId),
+		});
+	} catch (error) {
+		console.error("Error fetching invoices by reservation", error);
+		return [];
+	}
 }
 
 export async function fetchInvoice(
-  id: number,
+	id: number,
 ): Promise<InvoiceWithPaymentsAndStandAndProfile | undefined | null> {
-  const client = await pool.connect();
-
-  try {
-    return await db.query.invoices.findFirst({
-      where: eq(invoices.id, id),
-      with: {
-        payments: true,
-        reservation: {
-          with: {
-            stand: true,
-            festival: {
-              with: {
-                festivalDates: true,
-              },
-            },
-          },
-        },
-        user: true,
-      },
-    });
-  } catch (error) {
-    console.error(error);
-    return null;
-  } finally {
-    client.release();
-  }
+	try {
+		return await db.query.invoices.findFirst({
+			where: eq(invoices.id, id),
+			with: {
+				payments: true,
+				reservation: {
+					with: {
+						stand: true,
+						festival: {
+							with: {
+								festivalDates: true,
+							},
+						},
+					},
+				},
+				user: true,
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return null;
+	}
 }

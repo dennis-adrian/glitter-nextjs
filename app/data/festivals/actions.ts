@@ -2,7 +2,7 @@
 
 import { and, desc, eq, inArray, isNull, not, sql } from "drizzle-orm";
 
-import { db, pool } from "@/db";
+import { db } from "@/db";
 import {
 	userRequests,
 	festivals,
@@ -35,8 +35,6 @@ import { groupVisitorEmails } from "@/app/data/festivals/helpers";
 import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
 
 export async function fetchActiveFestivalBase() {
-	const client = await pool.connect();
-
 	try {
 		return await db.query.festivals.findFirst({
 			where: eq(festivals.status, "active"),
@@ -44,8 +42,6 @@ export async function fetchActiveFestivalBase() {
 	} catch (error) {
 		console.error("Error fetching active festival", error);
 		return null;
-	} finally {
-		client.release();
 	}
 }
 
@@ -56,8 +52,6 @@ export async function fetchActiveFestival({
 	acceptedUsersOnly?: boolean;
 	id?: number;
 }): Promise<FullFestival | null | undefined> {
-	const client = await pool.connect();
-
 	const whereCondition = acceptedUsersOnly
 		? { where: eq(userRequests.status, "accepted") }
 		: {};
@@ -111,15 +105,12 @@ export async function fetchActiveFestival({
 	} catch (error) {
 		console.error("Error fetching active festival", error);
 		return null;
-	} finally {
-		client.release();
 	}
 }
 
 export async function fetchFestivalWithTicketsAndDates(
 	id: number,
 ): Promise<FestivalWithTicketsAndDates | null | undefined> {
-	const client = await pool.connect();
 	try {
 		return await db.query.festivals.findFirst({
 			where: eq(festivals.id, id),
@@ -135,15 +126,12 @@ export async function fetchFestivalWithTicketsAndDates(
 	} catch (error) {
 		console.error("Error fetching active festival", error);
 		return null;
-	} finally {
-		client.release();
 	}
 }
 
 export async function fetchBaseFestival(
 	id: number,
 ): Promise<FestivalBase | null | undefined> {
-	const client = await pool.connect();
 	try {
 		return await db.query.festivals.findFirst({
 			where: eq(festivals.id, id),
@@ -151,15 +139,12 @@ export async function fetchBaseFestival(
 	} catch (error) {
 		console.error("Error fetching active festival", error);
 		return null;
-	} finally {
-		client.release();
 	}
 }
 
 export async function fetchFestivalWithDates(
 	id: number,
 ): Promise<FestivalWithDates | null | undefined> {
-	const client = await pool.connect();
 	try {
 		return await db.query.festivals.findFirst({
 			with: {
@@ -170,8 +155,6 @@ export async function fetchFestivalWithDates(
 	} catch (error) {
 		console.error("Error fetching active festival", error);
 		return null;
-	} finally {
-		client.release();
 	}
 }
 
@@ -241,7 +224,7 @@ export async function sendUserEmailsTemp(
 	try {
 		const festivalWithDates = await fetchFestivalWithDates(festivalId);
 		await queueEmails<BaseProfile>(users, festivalWithDates!, sendEmailToUsers);
-	} catch (error) { }
+	} catch (error) {}
 }
 // ------ END
 
@@ -304,8 +287,6 @@ export async function updateFestivalStatus(festival: FestivalBase) {
 }
 
 export async function updateFestivalRegistration(festival: FestivalBase) {
-	const client = await pool.connect();
-
 	try {
 		const { publicRegistration } = festival;
 		const [updatedFestival] = await db
@@ -331,8 +312,6 @@ export async function updateFestivalRegistration(festival: FestivalBase) {
 	} catch (error) {
 		console.error("Error updating festival registration", error);
 		return { success: false, message: "Error al actualizar el festival" };
-	} finally {
-		client.release();
 	}
 
 	revalidatePath("/dashboard/festivals");
@@ -393,8 +372,9 @@ export async function sendEmailToUsers(
 	const { error } = await sendEmail({
 		to: [user.email],
 		from: "Productora Glitter <no-reply@productoraglitter.com>",
-		subject: `¡Hola ${user.displayName || ""}! Te invitamos a participar en ${festival.name
-			}`,
+		subject: `¡Hola ${user.displayName || ""}! Te invitamos a participar en ${
+			festival.name
+		}`,
 		react: EmailTemplate({
 			profile: user,
 			festival: festival,
@@ -408,8 +388,6 @@ export async function sendEmailToUsers(
 export async function fetchAvailableArtistsInFestival(
 	festivalId: number,
 ): Promise<BaseProfile[]> {
-	const client = await pool.connect();
-
 	try {
 		return await db.transaction(async (tx) => {
 			const festivalParticipantIds = await tx
@@ -442,42 +420,40 @@ export async function fetchAvailableArtistsInFestival(
 				);
 			}
 
-      return await tx
-        .selectDistinctOn([users.id], {
-          id: users.id,
-          bio: users.bio,
-          birthdate: users.birthdate,
-          clerkId: users.clerkId,
-          displayName: users.displayName,
-          firstName: users.firstName,
-          gender: users.gender,
-          email: users.email,
-          imageUrl: users.imageUrl,
-          lastName: users.lastName,
-          phoneNumber: users.phoneNumber,
-          category: users.category,
-          role: users.role,
-          status: users.status,
-          state: users.state,
-          country: users.country,
-          verifiedAt: users.verifiedAt,
-          updatedAt: users.updatedAt,
-          createdAt: users.createdAt,
-        })
-        .from(users)
-        .leftJoin(userRequests, eq(userRequests.userId, users.id))
-        .leftJoin(
-          reservationParticipants,
-          eq(reservationParticipants.userId, users.id),
-        )
-        .where(and(...participantsWhereCondition));
-    });
-  } catch (error) {
-    console.error("Error fetching profiles in festival", error);
-    return [];
-  } finally {
-    client.release();
-  }
+			return await tx
+				.selectDistinctOn([users.id], {
+					id: users.id,
+					bio: users.bio,
+					birthdate: users.birthdate,
+					clerkId: users.clerkId,
+					displayName: users.displayName,
+					firstName: users.firstName,
+					gender: users.gender,
+					email: users.email,
+					imageUrl: users.imageUrl,
+					lastName: users.lastName,
+					phoneNumber: users.phoneNumber,
+					category: users.category,
+					role: users.role,
+					status: users.status,
+					state: users.state,
+					country: users.country,
+					verifiedAt: users.verifiedAt,
+					updatedAt: users.updatedAt,
+					createdAt: users.createdAt,
+				})
+				.from(users)
+				.leftJoin(userRequests, eq(userRequests.userId, users.id))
+				.leftJoin(
+					reservationParticipants,
+					eq(reservationParticipants.userId, users.id),
+				)
+				.where(and(...participantsWhereCondition));
+		});
+	} catch (error) {
+		console.error("Error fetching profiles in festival", error);
+		return [];
+	}
 }
 
 export async function fetchFestivalParticipants(

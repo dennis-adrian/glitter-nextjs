@@ -4,7 +4,7 @@ import { clerkClient, User } from "@clerk/nextjs/server";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
-import { pool, db } from "@/db";
+import { db } from "@/db";
 import { scheduledTasks, userRequests, userSocials, users } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import {
