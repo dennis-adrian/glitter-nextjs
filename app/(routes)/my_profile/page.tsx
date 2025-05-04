@@ -50,24 +50,26 @@ export default async function Page() {
       );
     } else {
       return (
-        <div className="container p-3 md:p-6 flex flex-col gap-2">
-          <div className="flex flex-col gap-2 text-center items-center mt-40">
-            <h1 className="text-2xl font-bold">Error al crear perfil</h1>
-            <CircleXIcon className="w-10 h-10 text-red-500" />
-            <p className="text-sm text-muted-foreground">
-              Por favor, intenta nuevamente o contáctate con nuestro equipo de
-              soporte{" "}
-              <Link
-                className="underline text-blue-500"
-                href="mailto:soporte@productoraglitter.com"
-              >
-                soporte@productoraglitter.com
-              </Link>
-            </p>
-            <TryAgainForm clerkId={user.id} />
-          </div>
-        </div>
-      );
+				<div className="container p-3 md:p-6 flex flex-col gap-2">
+					<div className="flex flex-col gap-2 text-center items-center mt-40">
+						<CircleXIcon className="w-16 h-16 text-red-500" />
+						<h1 className="text-2xl font-bold">
+							Error al crear o validar perfil
+						</h1>
+						<p className="text-sm text-muted-foreground">
+							Por favor, intenta nuevamente con los mismos datos o contáctate
+							con nuestro equipo de soporte{" "}
+							<Link
+								className="underline text-blue-500"
+								href="mailto:soporte@productoraglitter.com"
+							>
+								soporte@productoraglitter.com
+							</Link>
+						</p>
+						<TryAgainForm />
+					</div>
+				</div>
+			);
     }
   }
 
