@@ -30,81 +30,83 @@ import { cache } from "react";
 
 export const getCurrentClerkUser = cache(async () => await currentUser());
 
-export const fetchUserProfileByClerkId = cache(
-  async (clerkId: string): Promise<ProfileType | null> => {
-    try {
-      const profile = await db.query.users.findFirst({
-        with: {
-          userRequests: true,
-          userSocials: true,
-          participations: {
-            with: {
-              reservation: true,
-            },
-          },
-          profileTags: {
-            with: {
-              tag: true,
-            },
-          },
-          profileSubcategories: {
-            with: {
-              subcategory: true,
-            },
-          },
-        },
-        where: eq(users.clerkId, clerkId),
-      });
+export const fetchUserProfileByClerkId = async (
+	clerkId: string,
+): Promise<ProfileType | null> => {
+	try {
+		const profile = await db.query.users.findFirst({
+			with: {
+				userRequests: true,
+				userSocials: true,
+				participations: {
+					with: {
+						reservation: true,
+					},
+				},
+				profileTags: {
+					with: {
+						tag: true,
+					},
+				},
+				profileSubcategories: {
+					with: {
+						subcategory: true,
+					},
+				},
+			},
+			where: eq(users.clerkId, clerkId),
+		});
 
-      return profile || null;
-    } catch (error) {
-      console.error(error);
-      return null;
-    }
-  },
-);
+		return profile || null;
+	} catch (error) {
+		console.error(error);
+		return null;
+	}
+};
+
+export const cachedFetchUserProfileByClerkId = cache(fetchUserProfileByClerkId);
 
 export async function createUserProfile(user: NewUser) {
-  try {
-    // There's something weird happening where the user tries to be created twice when using email for
-    // creating the account.
-    const userExisits = await fetchUserProfileByClerkId(user.clerkId);
-    if (userExisits) {
-      return {
-        success: true,
-        message: "Perfil creado correctamente.",
-      };
-    }
+	try {
+		// There's something weird happening where the user tries to be created twice when using email for
+		// creating the account.
+		const userExisits = await fetchUserProfileByClerkId(user.clerkId);
+		if (userExisits) {
+			return {
+				success: true,
+				message: "Solicitud realizada correctamente.",
+			};
+		}
 
-    await db.transaction(async (tx) => {
-      const [newUser] = await tx
-        .insert(users)
-        .values({
-          ...user,
-        })
-        .returning();
+		await db.transaction(async (tx) => {
+			const [newUser] = await tx
+				.insert(users)
+				.values({
+					...user,
+				})
+				.returning();
 
-      await tx.insert(scheduledTasks).values({
-        dueDate: sql`now() + interval '3 days'`,
-        reminderTime: sql`now() + interval '1 days'`,
-        profileId: newUser.id,
-        taskType: "profile_creation",
-      });
+			await tx.insert(scheduledTasks).values({
+				dueDate: sql`now() + interval '3 days'`,
+				reminderTime: sql`now() + interval '1 days'`,
+				profileId: newUser.id,
+				taskType: "profile_creation",
+			});
 
-      return newUser;
-    });
+			return newUser;
+		});
 
-    return {
-      success: true,
-      message: "Perfil creado correctamente.",
-    };
-  } catch (error) {
-    console.error("Error creating user profile", error);
-    return {
-      success: false,
-      message: "Error al crear el perfil.",
-    };
-  }
+		return {
+			success: true,
+			message: "Perfil creado correctamente.",
+		};
+	} catch (error) {
+		console.error("Error creating user profile", error);
+		return {
+			success: false,
+			message: "Error al crear el perfil.",
+		};
+	}
 }
 
 export async function updateProfile(userId: number, profile: UpdateUser) {
