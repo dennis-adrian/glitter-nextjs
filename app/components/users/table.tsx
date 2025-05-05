@@ -1,16 +1,6 @@
 "use client";
 
-import {
-	BaseProfile,
-	ProfileType,
-	UserCategory,
-} from "@/app/api/users/definitions";
-import UsersTableComponent from "@/app/components/users/users-table";
-import UsersTableFilters from "@/app/components/users/filters/users-table-filters";
-import { Suspense, use } from "react";
-import TableSkeleton from "@/app/components/users/skeletons/table";
-import { useSearchParams } from "next/navigation";
-import { HeaderCell } from "@/app/components/users/header-cell";
+import { ProfileType, UsersAggregates } from "@/app/api/users/definitions";
 import {
 	Table,
 	TableBody,
@@ -19,31 +9,33 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/app/components/ui/table";
-import { DateTime } from "luxon";
-import UserInfoCell from "@/app/components/users/cells/user-info";
 import ProfileCategoryBadge from "@/app/components/user_profile/category-badge";
-import ProfileStatusCell from "@/app/components/users/cells/profile-status";
-import { formatDate } from "@/app/lib/formatters";
-import UsersTablePagination from "@/app/components/users/users-table-pagination";
 import { ActionsCell } from "@/app/components/users/cells/actions";
+import ProfileStatusCell from "@/app/components/users/cells/profile-status";
+import UserInfoCell from "@/app/components/users/cells/user-info";
+import { HeaderCell } from "@/app/components/users/header-cell";
+import UsersTablePagination from "@/app/components/users/users-table-pagination";
+import { formatDate } from "@/app/lib/formatters";
+import { DateTime } from "luxon";
+import { useSearchParams } from "next/navigation";
+import { use } from "react";
 
-// type UsersTableProps = {
-//   includeAdmins?: boolean;
-//   status?: BaseProfile["status"][];
-//   category?: UserCategory[];
-//   query?: string;
-//   columnVisbility?: Record<string, boolean>;
-//   limit?: number;
-//   offset?: number;
-//   sort: keyof BaseProfile;
-//   direction: "asc" | "desc";
-//   profileCompletion: "complete" | "incomplete" | "all";
-// };
 type Props = {
 	fetchUsersPromise: Promise<ProfileType[]>;
+	fetchUsersAggregatesPromise: Promise<UsersAggregates>;
 };
-export default function UsersTable({ fetchUsersPromise }: Props) {
+export default function UsersTable({
+	fetchUsersPromise,
+	fetchUsersAggregatesPromise,
+}: Props) {
+	const searchParams = useSearchParams();
+	const limit = Number(searchParams.get("limit")) || 10;
+	const offset = Number(searchParams.get("offset")) || 0;
 	const users = use(fetchUsersPromise);
+	const aggregates = use(fetchUsersAggregatesPromise);
+	const canNextPage = offset + limit < aggregates.total;
+	const canPreviousPage = offset > 0;
+	const pageCount = Math.ceil(aggregates.total / limit);
 
 	return (
 		<div className="group-has-[[data-pending]]:animate-pulse">
@@ -111,15 +103,15 @@ export default function UsersTable({ fetchUsersPromise }: Props) {
 					)}
 				</TableBody>
 			</Table>
-			{/* <UsersTablePagination
-        canNextPage={canNextPage}
-        canPreviousPage={canPreviousPage}
-        pageIndex={Math.floor(offset / limit) + 1}
-        pageCount={pageCount}
-        pageSize={limit.toString()}
-        rowCount={users.length || 0}
-        total={aggregates.total || 0}
-      /> */}
+			<UsersTablePagination
+				canNextPage={canNextPage}
+				canPreviousPage={canPreviousPage}
+				pageIndex={Math.floor(offset / limit) + 1}
+				pageCount={pageCount}
+				pageSize={limit.toString()}
+				rowCount={users.length || 0}
+				total={aggregates.total || 0}
+			/>
 		</div>
 	);
 }

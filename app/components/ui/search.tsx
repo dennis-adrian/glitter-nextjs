@@ -25,7 +25,7 @@ export default function Search({ placeholder }: { placeholder: string }) {
 				scroll: false,
 			});
 		});
-	}, 500);
+	}, 400);
 
 	return (
 		<div className="relative flex w-full md:max-w-96">
