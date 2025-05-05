@@ -9,46 +9,46 @@ import { profileStatusOptions, userCategoryOptions } from "@/app/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
 
 export default function UsersTableFilters() {
-  const searchParams = useSearchParams();
-  const { replace } = useRouter();
+	const searchParams = useSearchParams();
+	const { replace } = useRouter();
 
-  const defaultValues = {
-    includeAdmins: searchParams.get("includeAdmins") || "",
-    status: searchParams.get("status") || "",
-    category: searchParams.get("category") || "",
-    query: searchParams.get("query") || "",
-    profileCompletion: searchParams.get("profileCompletion") || "",
-  };
+	// const defaultValues = {
+	//   includeAdmins: searchParams.get("includeAdmins") || "",
+	//   status: searchParams.get("status") || "",
+	//   category: searchParams.get("category") || "",
+	//   query: searchParams.get("query") || "",
+	//   profileCompletion: searchParams.get("profileCompletion") || "",
+	// };
 
-  const validatedSearchParams = SearchParamsSchema.safeParse(
-    Object.fromEntries(Object.entries(defaultValues).filter(([_, v]) => v)),
-  );
+	// const validatedSearchParams = SearchParamsSchema.safeParse(
+	//   Object.fromEntries(Object.entries(defaultValues).filter(([_, v]) => v)),
+	// );
 
-  if (!validatedSearchParams.success) return null;
+	// if (!validatedSearchParams.success) return null;
 
-  const { includeAdmins, status, category, profileCompletion } =
-    validatedSearchParams.data;
+	// const { includeAdmins, status, category, profileCompletion } =
+	//   validatedSearchParams.data;
 
-  const handleShowAdminsChange = (value: boolean) => {
-    const currentSearchParams = new URLSearchParams(searchParams.toString());
-    currentSearchParams.set("includeAdmins", value.toString());
-    replace(`?${currentSearchParams.toString()}`);
-  };
+	// const handleShowAdminsChange = (value: boolean) => {
+	//   const currentSearchParams = new URLSearchParams(searchParams.toString());
+	//   currentSearchParams.set("includeAdmins", value.toString());
+	//   replace(`?${currentSearchParams.toString()}`);
+	// };
 
-  const handleFilterSelect = (filter: string, values: string[]) => {
-    const currentSearchParams = new URLSearchParams(searchParams.toString());
-    currentSearchParams.delete(filter);
-    values.forEach((value) => {
-      currentSearchParams.append(filter, value);
-    });
-    currentSearchParams.set("offset", "0");
-    replace(`?${currentSearchParams.toString()}`);
-  };
+	// const handleFilterSelect = (filter: string, values: string[]) => {
+	//   const currentSearchParams = new URLSearchParams(searchParams.toString());
+	//   currentSearchParams.delete(filter);
+	//   values.forEach((value) => {
+	//     currentSearchParams.append(filter, value);
+	//   });
+	//   currentSearchParams.set("offset", "0");
+	//   replace(`?${currentSearchParams.toString()}`);
+	// };
 
-  return (
-    <div className="flex flex-wrap items-center gap-2 my-4">
-      <Search placeholder="Buscar..." />
-      <ComboboxPopover
+	return (
+		<div className="flex flex-wrap items-center gap-2 my-4">
+			<Search placeholder="Buscar..." />
+			{/* <ComboboxPopover
         defaultValue={profileCompletion}
         label={"Perfiles a mostrar"}
         name="profileCompletion"
@@ -80,7 +80,7 @@ export default function UsersTableFilters() {
       <IncludeAdminsFilter
         checked={!!includeAdmins}
         onCheckedChange={handleShowAdminsChange}
-      />
-    </div>
-  );
+      /> */}
+		</div>
+	);
 }
