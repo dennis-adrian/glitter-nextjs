@@ -46,7 +46,7 @@ export default function UsersTable({ fetchUsersPromise }: Props) {
 	const users = use(fetchUsersPromise);
 
 	return (
-		<>
+		<div className="group-has-[[data-pending]]:animate-pulse">
 			<Table className="border">
 				<TableHeader>
 					<TableRow>
@@ -120,6 +120,6 @@ export default function UsersTable({ fetchUsersPromise }: Props) {
         rowCount={users.length || 0}
         total={aggregates.total || 0}
       /> */}
-		</>
+		</div>
 	);
 }

@@ -43,10 +43,12 @@ export default async function Page(props: { searchParams: Promise<SearchParamsSc
 	return (
 		<div className="container mx-auto min-h-full p-3 md:p-6">
 			<h1 className="mb-2 text-2xl font-bold md:text-3xl">Usuarios</h1>
-			<UsersTableFilters />
-			<Suspense fallback={<TableSkeleton />}>
-				<UsersTable fetchUsersPromise={fetchUsersPromise} />
-			</Suspense>
+			<div className="flex flex-col gap-4 group">
+				<UsersTableFilters />
+				<Suspense fallback={<TableSkeleton />}>
+					<UsersTable fetchUsersPromise={fetchUsersPromise} />
+				</Suspense>
+			</div>
 		</div>
 	);
 }
