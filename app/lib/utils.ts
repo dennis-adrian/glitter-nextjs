@@ -29,6 +29,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function slow(ms = 1000) {
+	return new Promise((resolve) => {
+		setTimeout(() => {
+			resolve(true);
+		}, ms);
+	});
+}
+
 export function formatDateOnlyToISO(date?: string | Date | null): string {
   if (!date) return "";
   return new Date(date).toISOString().split("T")[0];
