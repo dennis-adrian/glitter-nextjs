@@ -1,6 +1,6 @@
 import BadgesForm from "@/app/components/organisms/badges/badges-form";
-import { fetchFestivals } from "@/app/data/festivals/actions";
-import { getFestivalsOptions } from "@/app/data/festivals/helpers";
+import { fetchFestivals } from "@/app/lib/festivals/actions";
+import { getFestivalsOptions } from "@/app/lib/festivals/utils";
 
 export default async function AddBadgePage() {
 	const festivals = await fetchFestivals();

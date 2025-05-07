@@ -1,11 +1,11 @@
 import { PaymentSummary } from "@/app/components/payments/payment-summary";
 import { ProductDetails } from "@/app/components/payments/product-details";
-import { fetchBaseFestival } from "@/app/data/festivals/actions";
 import { fetchInvoicesByReservation } from "@/app/data/invoices/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import QRCodeDetails from "@/app/components/payments/qrcode-details";
+import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 
 const ParamsSchema = z.object({
   festivalId: z.coerce.number(),

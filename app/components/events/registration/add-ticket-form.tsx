@@ -7,9 +7,9 @@ import {
   FormLabel,
 } from "@/app/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/app/components/ui/radio-group";
-import { FestivalBase, FestivalDate } from "@/app/data/festivals/definitions";
 import { createTicket, sendTicketEmail } from "@/app/data/tickets/actions";
 import { VisitorBase } from "@/app/data/visitors/actions";
+import { FestivalBase, FestivalDate } from "@/app/lib/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DateTime } from "luxon";

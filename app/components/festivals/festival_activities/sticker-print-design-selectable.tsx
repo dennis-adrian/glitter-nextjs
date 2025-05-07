@@ -1,6 +1,5 @@
 "use client";
-
-import { ActivityDetailsWithParticipants } from "@/app/data/festivals/definitions";
+import { ActivityDetailsWithParticipants } from "@/app/lib/festivals/definitions";
 import Image from "next/image";
 
 type StickerPrintDesignSelectableProps = {

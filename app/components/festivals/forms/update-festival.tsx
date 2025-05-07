@@ -11,12 +11,12 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import TextInput from "../../form/fields/text";
 import TextareaInput from "../../form/fields/textarea";
 import { PlusIcon, TrashIcon } from "lucide-react";
 import SelectInput from "../../form/fields/select";
 import { DateTime } from 'luxon';
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 
 const FormSchema = z.object({
 	name: z.string().min(1, "Required"),

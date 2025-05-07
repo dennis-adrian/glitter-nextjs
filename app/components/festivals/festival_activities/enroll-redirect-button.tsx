@@ -1,7 +1,6 @@
 "use client";
 
 import { RedirectButton } from "@/app/components/redirect-button";
-import { FestivalActivityWithDetailsAndParticipants } from "@/app/data/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { useEffect, useState } from "react";
 import {
@@ -12,6 +11,7 @@ import {
 } from "@/components/ui/tooltip";
 import { DateTime } from "luxon";
 import { BaseProfile } from "@/app/api/users/definitions";
+import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 
 type EnrollRedirectButtonProps = {
   currentProfile: BaseProfile;

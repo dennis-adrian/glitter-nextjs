@@ -13,13 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Festival } from "@/app/data/festivals/definitions";
 import { formatFullDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import { ProfileType } from "@/app/api/users/definitions";
 import { ReservationWithParticipantsAndUsersAndStandAndCollaborators } from "@/app/api/reservations/definitions";
 import InfoTabContent from "@/app/components/organisms/upcoming-festival/info-tab-content";
 import TeamTabContent from "@/app/components/organisms/upcoming-festival/team-tab-content";
+import { Festival } from "@/app/lib/festivals/definitions";
 
 type UpcomingFestivalCardProps = {
   festival: Festival;

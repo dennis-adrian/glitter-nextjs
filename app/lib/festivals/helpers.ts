@@ -1,9 +1,9 @@
 "use server";
 
-import { fetchActiveFestival } from "@/app/data/festivals/actions";
-import { FullFestival } from "@/app/data/festivals/definitions";
 import { fetchFullFestivalById } from "@/app/lib/festival_sectors/actions";
 import { cache } from "react";
+import { fetchActiveFestival } from "./actions";
+import { FullFestival } from "./definitions";
 
 export const getActiveFestival = cache(async () => {
   return await fetchActiveFestival({});

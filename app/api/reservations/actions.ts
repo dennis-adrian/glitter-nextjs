@@ -17,10 +17,10 @@ import {
   ReservationWithParticipantsAndUsersAndStandAndFestival,
   ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments,
 } from "@/app/api/reservations/definitions";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import ReservationRejectionEmailTemplate from "@/app/emails/reservation-rejection";
 import { getUserName } from "@/app/lib/users/utils";
 import { buildWhereClauseForReservationsFetching } from "@/app/api/reservations/helpers";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 
 export async function fetchReservations(options: {
   query?: string;

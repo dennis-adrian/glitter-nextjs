@@ -2,9 +2,9 @@ import { StandBase } from "@/app/api/stands/actions";
 import { ReservationStatus } from "@/app/api/user_requests/actions";
 import { RedirectButton } from "@/app/components/redirect-button";
 import BaseCard from "@/app/components/user_profile/announcements_cards/base-card";
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import { BaseProfile } from "@/app/api/users/definitions";
 import { FileSpreadsheetIcon, MapIcon } from "lucide-react";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export function ReservedStandCard({
   stand,
