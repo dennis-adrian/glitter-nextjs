@@ -1,5 +1,5 @@
 import { Badge } from "@/app/components/ui/badge";
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export default function FestivalStatusBadge({
   status,

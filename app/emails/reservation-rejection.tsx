@@ -13,7 +13,7 @@ import { getUserName } from "@/app/lib/users/utils";
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
 import { StandBase } from "@/app/api/stands/definitions";
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import { FestivalBase } from "../lib/festivals/definitions";
 
 type ProfileRejectionEmailTemplateProps = {
   profile: BaseProfile;

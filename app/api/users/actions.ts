@@ -18,12 +18,12 @@ import { isProfileComplete } from "@/app/lib/utils";
 import { sendEmail } from "@/app/vendors/resend";
 import EmailTemplate from "@/app/emails/verification_confimation/email-template";
 import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
-import { fetchActiveFestival } from "@/app/data/festivals/actions";
 import {
   getFestivalAvaibleStandsByCategory,
   getFestivalCategories,
 } from "@/app/lib/festivals/utils";
 import ProfileRejectionEmailTemplate from "@/app/emails/profile-rejection";
+import { fetchActiveFestival } from "@/app/lib/festivals/actions";
 
 export type NewUser = typeof users.$inferInsert;
 export type UserProfileType = typeof users.$inferSelect;

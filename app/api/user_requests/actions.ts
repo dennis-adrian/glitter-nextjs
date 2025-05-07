@@ -7,7 +7,6 @@ import {
   fetchBaseProfileById,
   fetchUserProfileById,
 } from "@/app/api/users/actions";
-import { fetchBaseFestival } from "@/app/data/festivals/actions";
 import ReservationCreatedEmailTemplate from "@/app/emails/reservation-created";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { db } from "@/db";
@@ -24,8 +23,9 @@ import { sendEmail } from "@/app/vendors/resend";
 import { and, eq, not, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { BaseProfile } from "@/app/api/users/definitions";
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import TermsAcceptanceEmailTemplate from "@/app/emails/terms-acceptance";
+import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export async function fetchRequestsByUserId(userId: number) {
 	try {

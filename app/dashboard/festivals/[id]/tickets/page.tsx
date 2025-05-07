@@ -1,6 +1,4 @@
 import { TicketIcon } from "lucide-react";
-
-import { fetchFestivalWithTicketsAndDates } from "@/app/data/festivals/actions";
 import TotalsCard from "@/app/components/dashboard/totals/card";
 import { formatDate } from "@/app/lib/formatters";
 import { RedirectButton } from "@/app/components/redirect-button";
@@ -8,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TicketsTable from "@/app/components/tickets/table";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import TicketsChart from "@/app/components/tickets/chart/chart";
+import { fetchFestivalWithTicketsAndDates } from "@/app/lib/festivals/actions";
 
 export default async function Page(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;

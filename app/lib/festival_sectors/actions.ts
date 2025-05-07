@@ -6,11 +6,6 @@ import {
   Participation,
   UserCategory,
 } from "@/app/api/users/definitions";
-import {
-  ActivityDetailsWithParticipants,
-  FestivalActivityWithDetailsAndParticipants,
-  FullFestival,
-} from "@/app/data/festivals/definitions";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import { db } from "@/db";
 import {
@@ -25,6 +20,7 @@ import {
 } from "@/db/schema";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { ActivityDetailsWithParticipants, FullFestival } from "../festivals/definitions";
 
 export async function fetchFestivalSectors(
   festivalId: number,

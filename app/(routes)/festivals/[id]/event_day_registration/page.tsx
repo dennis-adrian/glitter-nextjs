@@ -1,5 +1,5 @@
 import RegistrationSteps from "@/app/components/festivals/registration/registration-steps";
-import { fetchFestivalWithDates } from "@/app/data/festivals/actions";
+import { fetchFestivalWithDates } from "@/app/lib/festivals/actions";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 

@@ -2,12 +2,8 @@
 
 import { Button } from "@/app/components/ui/button";
 import { Form } from "@/app/components/ui/form";
-import {
-  getFestivalAvailableUsers,
-  sendUserEmailsTemp,
-  updateFestivalStatusTemp,
-} from "@/app/data/festivals/actions";
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import { getFestivalAvailableUsers, sendUserEmailsTemp, updateFestivalStatusTemp } from "@/app/lib/festivals/actions";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { Loader2Icon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";

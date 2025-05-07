@@ -1,5 +1,5 @@
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { cn } from "@/app/lib/utils";
 import {
   BuildingIcon,

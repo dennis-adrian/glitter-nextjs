@@ -1,8 +1,8 @@
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
-import { FestivalDate } from "@/app/data/festivals/definitions";
 import { registerArrival } from "@/app/lib/collaborators/actions";
 import { ReservationCollaborationWithRelations } from "@/app/lib/collaborators/definitions";
+import { FestivalDate } from "@/app/lib/festivals/definitions";
 import { DateTime } from "luxon";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";

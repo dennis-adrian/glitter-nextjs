@@ -4,15 +4,12 @@ import StickerPrintDesignSelectable from "@/app/components/festivals/festival_ac
 import { BaseProfile } from "@/app/api/users/definitions";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
-import {
-  ActivityDetailsWithParticipants,
-  FestivalActivityWithDetailsAndParticipants,
-} from "@/app/data/festivals/definitions";
 import { enrollInActivity } from "@/app/lib/festival_sectors/actions";
 import { ArrowDownToLineIcon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { ActivityDetailsWithParticipants, FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 
 type ActivityDetailsProps = {
   activity: FestivalActivityWithDetailsAndParticipants;

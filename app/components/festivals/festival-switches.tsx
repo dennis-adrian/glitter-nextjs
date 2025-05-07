@@ -3,11 +3,11 @@
 import { useState } from "react";
 
 import UpdateFestivalStatusModal from "@/app/components/festivals/modals/update-festival-status";
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import UpdateFestivalRegistrationModal from "@/app/components/festivals/modals/update-festival-registration";
 import clsx from "clsx";
 import FestivalSwitch from "@/app/components/festivals/switches/switch";
 import UpdateEventRegistrationModal from "@/app/components/festivals/modals/update-event-day-registration";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 type FestivalSwitchesProps = {
   festival: FestivalBase;

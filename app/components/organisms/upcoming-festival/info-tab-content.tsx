@@ -1,5 +1,4 @@
 import Image from "next/image";
-import { Festival } from "@/app/data/festivals/definitions";
 import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
 import {
   Avatar,
@@ -9,6 +8,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Palette } from "lucide-react";
 import { DateTime } from "luxon";
+import { Festival } from "@/app/lib/festivals/definitions";
 
 export default function InfoTabContent({
   festival,

@@ -1,6 +1,4 @@
 "use client";
-
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import { PlusCircleIcon } from "lucide-react";
 import { useState } from "react";
@@ -10,6 +8,7 @@ import { Button } from "@/app/components/ui/button";
 import AddTicketModal from "@/app/components/events/registration/add-ticket-modal";
 import DownloadableTicket from "@/app/components/events/registration/downloadable-ticket";
 import Tickets from "@/app/components/events/registration/tickets";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 
 export default function VisitorTickets({
   visitor,
@@ -18,7 +17,7 @@ export default function VisitorTickets({
 }: {
   visitor: VisitorWithTickets;
   festival: FestivalWithDates;
-  currentUser?: BaseProfile | null;
+  currentUser?: BaseProfile  | null;
 }) {
   const [showForm, setShowForm] = useState(false);
 

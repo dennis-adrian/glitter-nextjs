@@ -4,10 +4,10 @@ import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { ReserveStandCard } from "@/app/components/user_profile/announcements_cards/reserve-stand-card";
 import { ReservedStandCard } from "@/app/components/user_profile/announcements_cards/reserved-stand-card";
 import { TermsCard } from "@/app/components/user_profile/announcements_cards/terms-card";
-import { fetchActiveFestival } from "@/app/data/festivals/actions";
 import { isProfileComplete } from "@/app/lib/utils";
 import PendingVerificationCard from "./pending-verification-card";
 import RejectedProfileCard from "./rejected-profile.card";
+import { fetchActiveFestival } from "@/app/lib/festivals/actions";
 
 export default async function Card({ profile }: { profile: ProfileType }) {
   if (!profile || profile?.role === "admin") return null;

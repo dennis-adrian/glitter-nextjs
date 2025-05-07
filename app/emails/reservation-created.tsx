@@ -1,6 +1,5 @@
 import { ReservationBase } from "@/app/api/reservations/definitions";
 import { NewStandReservation } from "@/app/api/user_requests/actions";
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import * as styles from "@/app/emails/styles";
 import {
   Body,
