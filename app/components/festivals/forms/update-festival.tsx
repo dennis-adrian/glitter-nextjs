@@ -16,7 +16,8 @@ import TextareaInput from "../../form/fields/textarea";
 import { PlusIcon, TrashIcon } from "lucide-react";
 import SelectInput from "../../form/fields/select";
 import { DateTime } from 'luxon';
-import { FestivalWithDates } from "@/app/lib/festivals/definitions";
+import { FestivalWithDatesAndSectors } from "@/app/lib/festivals/definitions";
+import SectorImageUpload from "../sectors/sector-image-upload";
 
 const FormSchema = z.object({
 	name: z.string().min(1, "Required"),
@@ -43,9 +44,28 @@ const FormSchema = z.object({
 	address: z.string().optional(),
 	locationLabel: z.string().optional(),
 	locationUrl: z.string().url().optional().or(z.literal('')),
+	generalMapUrl: z.string().optional(),
+	mascotUrl: z.string().optional(),
+	illustrationPaymentQrCodeUrl: z.string().optional(),
+	gastronomyPaymentQrCodeUrl: z.string().optional(),
+	entrepreneurshipPaymentQrCodeUrl: z.string().optional(),
+	illustrationStandUrl: z.string().optional(),
+	gastronomyStandUrl: z.string().optional(),
+	entrepreneurshipStandUrl: z.string().optional(),
+	festivalCode: z.string().optional(),
+	festivalBannerUrl: z.string().optional(),
+	festivalSectors: z.array(
+		z.object({
+			id: z.number().optional(),
+			name: z.string().min(1, "El nombre del sector es requerido"),
+			orderInFestival: z.number().min(1, "El orden debe ser al menos 1"),
+			mapUrl: z.string().optional(),
+			mascotUrl: z.string().optional(),
+		})
+	).min(1, "Debe haber al menos un sector"),
 });
 
-export default function UpdateFestivalForm({ festival }: { festival: FestivalWithDates }) {
+export default function UpdateFestivalForm({ festival }: { festival: FestivalWithDatesAndSectors }) {
 	const router = useRouter();
 	const form = useForm<z.infer<typeof FormSchema>>({
 		resolver: zodResolver(FormSchema),
@@ -60,11 +80,28 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 			address: festival.address || '',
 			locationLabel: festival.locationLabel || '',
 			locationUrl: festival.locationUrl || '',
+			generalMapUrl: festival.generalMapUrl || '',
+			mascotUrl: festival.mascotUrl || '',
+			illustrationPaymentQrCodeUrl: festival.illustrationPaymentQrCodeUrl || '',
+			gastronomyPaymentQrCodeUrl: festival.gastronomyPaymentQrCodeUrl || '',
+			entrepreneurshipPaymentQrCodeUrl: festival.entrepreneurshipPaymentQrCodeUrl || '',
+			illustrationStandUrl: festival.illustrationStandUrl || '',
+			gastronomyStandUrl: festival.gastronomyStandUrl || '',
+			entrepreneurshipStandUrl: festival.entrepreneurshipStandUrl || '',
+			festivalCode: festival.festivalCode || '',
+			festivalBannerUrl: festival.festivalBannerUrl || '',
 			dates: festival.festivalDates.map(date => ({
 				id: date.id,
 				date: DateTime.fromJSDate(date.startDate).toFormat('yyyy-MM-dd'),
 				startTime: date.startDate.toTimeString().slice(0, 5),
 				endTime: date.endDate.toTimeString().slice(0, 5),
+			})),
+			festivalSectors: festival.festivalSectors.map(sector => ({
+				id: sector.id,
+				name: sector.name,
+				orderInFestival: sector.orderInFestival,
+				mapUrl: sector.mapUrl || '',
+				mascotUrl: sector.mascotUrl || '',
 			})),
 		}
 	});
@@ -74,11 +111,29 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 		name: "dates",
 	});
 
+	const {
+		fields: sectorFields,
+		append: appendSector,
+		remove: removeSector
+	} = useFieldArray({
+		control: form.control,
+		name: "festivalSectors",
+	});
+
 	const addNewDate = () => {
 		append({
 			date: DateTime.local().toFormat('yyyy-MM-dd'),
 			startTime: "10:00",
 			endTime: "20:00"
+		});
+	};
+
+	const addNewSector = () => {
+		appendSector({
+			name: "",
+			orderInFestival: sectorFields.length + 1,
+			mapUrl: "",
+			mascotUrl: ""
 		});
 	};
 
@@ -252,6 +307,91 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 					>
 						<PlusIcon className="mr-2 h-4 w-4" />
 						Agregar otra fecha
+					</Button>
+				</div>
+
+				{/* Sectors Section */}
+				<div className="space-y-4 p-4 border rounded-lg">
+					<h3 className="font-medium">Sectores del Festival</h3>
+
+					{sectorFields.map((field, index) => (
+						<div key={field.id} className="space-y-4 border-b pb-4 last:border-b-0 last:pb-0">
+							<div className="flex justify-between items-center">
+								<h4 className="text-sm font-medium">Sector {index + 1}</h4>
+								{index > 0 && (
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										onClick={() => removeSector(index)}
+										className="text-red-500 hover:text-red-700"
+									>
+										<TrashIcon className="h-4 w-4" />
+									</Button>
+								)}
+							</div>
+
+							<TextInput
+								formControl={form.control}
+								name={`festivalSectors.${index}.name`}
+								label="Nombre del Sector"
+								type="text"
+							/>
+
+							<TextInput
+								formControl={form.control}
+								name={`festivalSectors.${index}.orderInFestival`}
+								label="Orden en el Festival"
+								type="number"
+								min={1}
+							/>
+
+							<div className="grid grid-cols-2 gap-4">
+								{/* Map URL Upload */}
+								<FormField
+									control={form.control}
+									name={`festivalSectors.${index}.mapUrl`}
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel>Mapa del Sector (Opcional)</FormLabel>
+											<SectorImageUpload
+												imageUrl={field.value || null}
+												setImageUrl={field.onChange}
+												sectorName={`${form.watch(`festivalSectors.${index}.name`)} Mapa`}
+											/>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+
+								{/* Mascot URL Upload */}
+								<FormField
+									control={form.control}
+									name={`festivalSectors.${index}.mascotUrl`}
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel>Mascota del Sector (Opcional)</FormLabel>
+											<SectorImageUpload
+												imageUrl={field.value || null}
+												setImageUrl={field.onChange}
+												sectorName={`${form.watch(`festivalSectors.${index}.name`)} Mascota`}
+											/>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+							</div>
+						</div>
+					))}
+
+					<Button
+						type="button"
+						variant="outline"
+						className="w-full mt-4"
+						onClick={addNewSector}
+					>
+						<PlusIcon className="mr-2 h-4 w-4" />
+						Agregar otro sector
 					</Button>
 				</div>
 

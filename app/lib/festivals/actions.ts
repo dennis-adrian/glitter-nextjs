@@ -4,7 +4,7 @@ import { and, desc, eq, inArray, isNull, not, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { festivalDates, userRequests, festivals, users, reservationParticipants, festivalSectors, standReservations, profileSubcategories, tickets, userSocials } from "@/db/schema";
 import { revalidatePath } from "next/cache";
-import { FullFestival, Festival, FestivalBase, FestivalWithDates, FestivalWithTicketsAndDates } from "./definitions";
+import { FullFestival, Festival, FestivalBase, FestivalWithDates, FestivalWithTicketsAndDates, FestivalWithDatesAndSectors } from "./definitions";
 import { fetchVisitorsEmails } from "@/app/data/visitors/actions";
 import { sendEmail } from "@/app/vendors/resend";
 import RegistrationInvitationEmailTemplate from "@/app/emails/registration-invitation";
@@ -86,7 +86,7 @@ export async function createFestival(
 						name: sector.name,
 						orderInFestival: sector.orderInFestival,
 						mapUrl: sector.mapUrl || null,
-            mascotUrl: sector.mascotUrl || null,
+						mascotUrl: sector.mascotUrl || null,
 						updatedAt: new Date(),
 						createdAt: new Date(),
 					});
@@ -152,7 +152,13 @@ export async function updateFestival(
 			startDate: Date;
 			endDate: Date;
 		}>;
-		festivalSectors?: string[];
+		festivalSectors?: Array<{
+			id?: number;
+			name: string;
+			orderInFestival: number;
+			mapUrl?: string;
+			mascotUrl?: string;
+		}>;
 	}
 ) {
 	try {
@@ -227,20 +233,49 @@ export async function updateFestival(
 				}
 			}
 
+			// Process sectors
 			if (data.festivalSectors) {
-				// Delete old sectors
-				await tx.delete(festivalSectors)
+				// Get existing sectors to compare
+				const existingSectors = await tx.select()
+					.from(festivalSectors)
 					.where(eq(festivalSectors.festivalId, data.id));
 
-				// Insert new ones
-				await tx.insert(festivalSectors).values(
-					data.festivalSectors.map((sector) => ({
-						name: sector,
-						festivalId: data.id,
-						createdAt: new Date(),
-						updatedAt: new Date(),
-					}))
-				);
+				for (const sector of data.festivalSectors) {
+					if (sector.id) {
+						// Update existing sector
+						await tx.update(festivalSectors)
+							.set({
+								name: sector.name,
+								orderInFestival: sector.orderInFestival,
+								mapUrl: sector.mapUrl || null,
+								mascotUrl: sector.mascotUrl || null,
+								updatedAt: new Date(),
+							})
+							.where(eq(festivalSectors.id, sector.id));
+					} else {
+						// Insert new sector
+						await tx.insert(festivalSectors).values({
+							festivalId: data.id,
+							name: sector.name,
+							orderInFestival: sector.orderInFestival,
+							mapUrl: sector.mapUrl || null,
+							mascotUrl: sector.mascotUrl || null,
+							createdAt: new Date(),
+							updatedAt: new Date(),
+						});
+					}
+				}
+
+				// Delete sectors that were removed
+				const sectorsToKeep = data.festivalSectors.map(s => s.id).filter(Boolean) as number[] || [];
+				const sectorsToDelete = existingSectors
+					.filter(s => !sectorsToKeep.includes(s.id))
+					.map(s => s.id);
+
+				if (sectorsToDelete.length > 0) {
+					await tx.delete(festivalSectors)
+						.where(inArray(festivalSectors.id, sectorsToDelete));
+				}
 			}
 
 			return updatedFestival;
@@ -273,6 +308,25 @@ export async function fetchFestivalWithDates(
 		});
 	} catch (error) {
 		console.error("Error fetching active festival", error);
+		return null;
+	}
+}
+
+export async function fetchFestivalWithDatesAndSectors(
+	id: number,
+): Promise<FestivalWithDatesAndSectors | null> {
+	try {
+		const festival = await db.query.festivals.findFirst({
+			where: eq(festivals.id, id),
+			with: {
+				festivalDates: true,
+				festivalSectors: true,
+			},
+		});
+
+		return festival as FestivalWithDatesAndSectors | null;
+	} catch (error) {
+		console.error("Error fetching festival with dates and sectors", error);
 		return null;
 	}
 }
