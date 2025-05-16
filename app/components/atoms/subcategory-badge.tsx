@@ -1,17 +1,20 @@
 import { Badge, BadgeVariant } from "@/app/components/ui/badge";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
+import { UserCategory } from "@/app/api/users/definitions";
 
 export default function SubcategoryBadge({
-  subcategory,
+	subcategory,
+	category,
 }: {
-  subcategory: Subcategory;
+	subcategory: Subcategory;
+	category?: UserCategory;
 }) {
-  return (
-    <Badge
-      className="font-normal min-w-fit"
-      variant={subcategory.category as BadgeVariant}
-    >
-      {subcategory.label}
-    </Badge>
-  );
+	return (
+		<Badge
+			className="font-normal min-w-fit"
+			variant={(category || subcategory.category) as BadgeVariant}
+		>
+			{subcategory.label}
+		</Badge>
+	);
 }
