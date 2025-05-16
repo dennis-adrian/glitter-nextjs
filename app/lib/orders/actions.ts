@@ -60,7 +60,15 @@ export async function fetchOrder(
 	try {
 		const order = await db.query.orders.findFirst({
 			with: {
-				customer: true,
+				customer: {
+					with: {
+						profileSubcategories: {
+							with: {
+								subcategory: true,
+							},
+						},
+					},
+				},
 				orderItems: {
 					with: {
 						product: true,
@@ -85,7 +93,15 @@ export async function fetchOrders() {
 	try {
 		return await db.query.orders.findMany({
 			with: {
-				customer: true,
+				customer: {
+					with: {
+						profileSubcategories: {
+							with: {
+								subcategory: true,
+							},
+						},
+					},
+				},
 				orderItems: {
 					with: {
 						product: true,
