@@ -80,3 +80,21 @@ export async function fetchOrder(
 		return null;
 	}
 }
+
+export async function fetchOrders() {
+	try {
+		return await db.query.orders.findMany({
+			with: {
+				customer: true,
+				orderItems: {
+					with: {
+						product: true,
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
+}
