@@ -7,12 +7,12 @@ import { SignedIn, SignedOut, useClerk } from "@clerk/nextjs";
 
 import { Separator } from "@/app/components/ui/separator";
 import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
+	Sheet,
+	SheetClose,
+	SheetContent,
+	SheetHeader,
+	SheetTitle,
+	SheetTrigger,
 } from "@/app/components/ui/sheet";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -26,6 +26,7 @@ import {
 	LogOutIcon,
 	ShirtIcon,
 	StickerIcon,
+	StoreIcon,
 	TagsIcon,
 	UsersIcon,
 } from "lucide-react";
@@ -33,37 +34,37 @@ import { ProfileType } from "@/app/api/users/definitions";
 import GlitterLogo from "@/app/components/landing/glitter-logo";
 
 type MobileSidebarItemProps = {
-  href: string;
-  children: React.ReactNode;
+	href: string;
+	children: React.ReactNode;
 };
 
 const MobileSidebarItem = ({ href, children }: MobileSidebarItemProps) => {
-  return (
-    <li>
-      <SheetClose
-        asChild
-        className="hover:bg-accent hover:text-accent-foreground flex w-full rounded-md p-2 text-left"
-      >
-        <Link href={href}>{children}</Link>
-      </SheetClose>
-    </li>
-  );
+	return (
+		<li>
+			<SheetClose
+				asChild
+				className="hover:bg-accent hover:text-accent-foreground flex w-full rounded-md p-2 text-left"
+			>
+				<Link href={href}>{children}</Link>
+			</SheetClose>
+		</li>
+	);
 };
 
 type MobileSidebarProps = {
-  profile?: ProfileType | null;
-  children: React.ReactNode;
+	profile?: ProfileType | null;
+	children: React.ReactNode;
 };
 
 const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
-  const { signOut } = useClerk();
-  const router = useRouter();
-  const pathname = usePathname();
+	const { signOut } = useClerk();
+	const router = useRouter();
+	const pathname = usePathname();
 
-  if (pathname.includes("festivals") && pathname.includes("registration"))
-    return null;
+	if (pathname.includes("festivals") && pathname.includes("registration"))
+		return null;
 
-  return (
+	return (
 		<Sheet>
 			<SheetTrigger
 				className="cursor-default hover:bg-primary-100/30 hover:text-primary-500"
@@ -91,6 +92,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 					<MobileSidebarItem href="/next_event">
 						<CalendarCheck2Icon className="mr-2 h-6 w-6" />
 						Próximo Evento
+					</MobileSidebarItem>
+					<MobileSidebarItem href="/store">
+						<StoreIcon className="mr-2 h-6 w-6" />
+						Tienda
 					</MobileSidebarItem>
 					<MobileSidebarItem href="/festivals">
 						<BookImageIcon className="mr-2 h-6 w-6" />

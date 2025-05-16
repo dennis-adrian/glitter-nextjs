@@ -3,38 +3,39 @@
 import Link from "next/link";
 
 import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuListItem,
-  NavigationMenuTrigger,
-  navigationMenuTriggerStyle,
+	NavigationMenu,
+	NavigationMenuContent,
+	NavigationMenuItem,
+	NavigationMenuLink,
+	NavigationMenuList,
+	NavigationMenuListItem,
+	NavigationMenuTrigger,
+	navigationMenuTriggerStyle,
 } from "@/app/components/ui/navigation-menu";
 import {
-  BookImageIcon,
-  BoxesIcon,
-  CalendarCheck2Icon,
-  HomeIcon,
-  LayoutDashboardIcon,
+	BookImageIcon,
+	BoxesIcon,
+	CalendarCheck2Icon,
+	HomeIcon,
+	LayoutDashboardIcon,
+	StoreIcon,
 } from "lucide-react";
 import { ProfileType } from "../../api/users/definitions";
 import { usePathname } from "next/navigation";
 import { isNoNavigationPage } from "@/app/lib/utils";
 
 const NavbarNavigationMenu = ({
-  profile,
+	profile,
 }: {
-  profile?: ProfileType | null;
+	profile?: ProfileType | null;
 }) => {
-  const pathname = usePathname();
+	const pathname = usePathname();
 
-  if (isNoNavigationPage(pathname)) {
-    return null;
-  }
+	if (isNoNavigationPage(pathname)) {
+		return null;
+	}
 
-  return (
+	return (
 		<NavigationMenu>
 			<NavigationMenuList>
 				<NavigationMenuItem>
@@ -53,6 +54,16 @@ const NavbarNavigationMenu = ({
 							<div className="flex items-center">
 								<CalendarCheck2Icon className="w-4 h-4 mr-1" />
 								Próximo Evento
+							</div>
+						</Link>
+					</NavigationMenuLink>
+				</NavigationMenuItem>
+				<NavigationMenuItem>
+					<NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+						<Link href="/store">
+							<div className="flex items-center">
+								<StoreIcon className="w-4 h-4 mr-1" />
+								Tienda
 							</div>
 						</Link>
 					</NavigationMenuLink>
@@ -118,12 +129,6 @@ const NavbarNavigationMenu = ({
 									href="/dashboard/festivals"
 								>
 									Festivales que han sido organizados por Glitter
-								</NavigationMenuListItem>
-								<NavigationMenuListItem
-									title="Pedidos"
-									href="/dashboard/orders"
-								>
-									Reservas de lanyards
 								</NavigationMenuListItem>
 								<NavigationMenuListItem
 									title="Subcategorías"
