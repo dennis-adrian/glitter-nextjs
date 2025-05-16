@@ -1,12 +1,12 @@
 import SelectInput from "@/app/components/form/fields/select";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import {
   createVisitor,
   NewVisitor,
   VisitorWithTickets,
 } from "@/app/data/visitors/actions";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { genderOptions } from "@/app/lib/utils";
 import { genderEnum } from "@/db/schema";
 import { zodResolver } from "@hookform/resolvers/zod";
