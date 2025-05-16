@@ -1,4 +1,4 @@
-// import StoreProducts from "@/app/components/organisms/store-products";
+import StoreProducts from "@/app/components/organisms/store-products";
 
 export default function StorePage() {
 	return (
@@ -13,7 +13,7 @@ export default function StorePage() {
 					</p>
 				</div>
 			</div>
-			{/* <StoreProducts /> */}
+			<StoreProducts />
 		</div>
 	);
 }
