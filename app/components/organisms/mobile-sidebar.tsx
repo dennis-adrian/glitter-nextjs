@@ -24,7 +24,6 @@ import {
 	CreditCardIcon,
 	HomeIcon,
 	LogOutIcon,
-	ShirtIcon,
 	StickerIcon,
 	StoreIcon,
 	TagsIcon,
@@ -93,10 +92,12 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 						<CalendarCheck2Icon className="mr-2 h-6 w-6" />
 						Próximo Evento
 					</MobileSidebarItem>
-					<MobileSidebarItem href="/store">
-						<StoreIcon className="mr-2 h-6 w-6" />
-						Tienda
-					</MobileSidebarItem>
+					{profile && (
+						<MobileSidebarItem href="/store">
+							<StoreIcon className="mr-2 h-6 w-6" />
+							Tiendita
+						</MobileSidebarItem>
+					)}
 					<MobileSidebarItem href="/festivals">
 						<BookImageIcon className="mr-2 h-6 w-6" />
 						Festivales
@@ -132,10 +133,6 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 								<MobileSidebarItem href="/dashboard/festivals">
 									<CalendarIcon className="mr-2 h-6 w-6" />
 									Festivales
-								</MobileSidebarItem>
-								<MobileSidebarItem href="/dashboard/orders">
-									<ShirtIcon className="mr-2 h-6 w-6" />
-									Pedidos
 								</MobileSidebarItem>
 								<MobileSidebarItem href="/dashboard/subcategories">
 									<BoxesIcon className="mr-2 h-6 w-6" />
