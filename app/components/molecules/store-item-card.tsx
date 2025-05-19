@@ -9,9 +9,10 @@ import StoreItemQuantityInput from "./store-item-quantity-input";
 
 type StoreItemCardProps = {
   product: BaseProduct;
+  userId?: number;
 };
 
-export default function StoreItemCard({ product }: StoreItemCardProps) {
+export default function StoreItemCard({ product, userId }: StoreItemCardProps) {
   return (
     <Card className="overflow-hidden transition-all hover:shadow-lg max-w-80">
       <div className="relative h-80 w-80 bg-muted">
@@ -45,7 +46,7 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
             Disponible el {formatDate(product.availableDate).toLocaleString()}
           </p>
         )}
-        <StoreItemQuantityInput product={product} />
+        <StoreItemQuantityInput product={product} userId={userId} />
       </CardContent>
     </Card>
   );

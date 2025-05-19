@@ -16,6 +16,10 @@ import { MinusIcon, PlusIcon } from "lucide-react";
 import { Input } from "../ui/input";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { createOrder } from "@/app/lib/orders/actions";
+import { NewOrderItem } from "@/app/lib/orders/definitions";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 const FormSchema = z.object({
   itemQuantity: z.coerce
@@ -26,11 +30,14 @@ const FormSchema = z.object({
 
 type StoreItemQuantityInputProps = {
   product: BaseProduct;
+  userId?: number;
 };
 
 export default function StoreItemQuantityInput({
   product,
+  userId,
 }: StoreItemQuantityInputProps) {
+  const router = useRouter();
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -51,7 +58,36 @@ export default function StoreItemQuantityInput({
   };
 
   const action: () => void = form.handleSubmit(async (data) => {
-    console.log("reserving...", data.itemQuantity);
+    if (!userId) {
+      toast.error("Usuario no válido");
+      return;
+    }
+
+    const orderItemsToInsert: NewOrderItem[] = [
+      {
+        productId: product.id,
+        quantity: data.itemQuantity,
+        priceAtPurchase: product.price,
+        // this is a temporary order id, it will be replaced with the actual order id after the order is created
+        orderId: 0,
+      },
+    ];
+    const totalAmount = product.price * data.itemQuantity;
+
+    const { details, message, success } = await createOrder(
+      orderItemsToInsert,
+      userId,
+      totalAmount,
+    );
+
+    if (success && details?.orderId) {
+      toast.success(message);
+      form.reset();
+      router.push(`/profiles/${userId}/orders/${details.orderId}`);
+    } else {
+      form.setError("root", { message });
+      toast.error(message);
+    }
   });
 
   return (
