@@ -4,6 +4,7 @@ import { orderItems, orders } from "@/db/schema";
 import { NewOrderItem, OrderWithRelations } from "@/app/lib/orders/definitions";
 import { db } from "@/db";
 import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 
 export async function createOrder(
 	orderItemsToInsert: NewOrderItem[],
@@ -140,4 +141,43 @@ export async function fetchOrders() {
 		console.error(error);
 		return [];
 	}
+}
+
+export async function acceptOrder(orderId: number) {
+	try {
+		await db
+			.update(orders)
+			.set({ status: "processing" })
+			.where(eq(orders.id, orderId));
+	} catch (error) {
+		console.error(error);
+		return {
+			success: false,
+			message: "No se pudo aceptar la orden.",
+		};
+	}
+
+	revalidatePath("/dashboard/orders");
+	return {
+		success: true,
+		message: "Orden aceptada correctamente.",
+	};
+}
+
+export async function deleteOrder(orderId: number) {
+	try {
+		await db.delete(orders).where(eq(orders.id, orderId));
+	} catch (error) {
+		console.error(error);
+		return {
+			success: false,
+			message: "No se pudo eliminar la orden.",
+		};
+	}
+
+	revalidatePath("/dashboard/orders");
+	return {
+		success: true,
+		message: "Orden eliminada correctamente.",
+	};
 }
