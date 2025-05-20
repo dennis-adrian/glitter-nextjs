@@ -89,6 +89,25 @@ export async function fetchOrder(
 	}
 }
 
+export async function fetchOrdersByUserId(userId: number) {
+	try {
+		return await db.query.orders.findMany({
+			where: eq(orders.userId, userId),
+			with: {
+				customer: true,
+				orderItems: {
+					with: {
+						product: true,
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
+}
+
 export async function fetchOrders() {
 	try {
 		return await db.query.orders.findMany({
