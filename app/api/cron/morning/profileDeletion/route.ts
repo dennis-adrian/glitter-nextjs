@@ -1,6 +1,6 @@
 import { handleDeletionEmails } from "@/app/lib/profile_tasks/actions";
 
-export async function GET(req: Request) {
+export async function GET() {
 	try {
 		const profileDeletionTasks = await handleDeletionEmails();
 

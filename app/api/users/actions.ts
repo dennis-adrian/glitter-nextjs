@@ -1,6 +1,6 @@
 "use server";
 
-import { clerkClient, User } from "@clerk/nextjs/server";
+import { User } from "@clerk/nextjs/server";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -8,10 +8,10 @@ import { db } from "@/db";
 import { scheduledTasks, userRequests, userSocials, users } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import {
-  BaseProfile,
-  NewUserSocial,
-  ProfileType,
-  UserCategory,
+	BaseProfile,
+	NewUserSocial,
+	ProfileType,
+	UserCategory,
 } from "./definitions";
 import { buildNewUser, buildUserSocials } from "@/app/api/users/helpers";
 import { isProfileComplete } from "@/app/lib/utils";
@@ -20,8 +20,8 @@ import EmailTemplate from "@/app/emails/verification_confimation/email-template"
 import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
 import { fetchActiveFestival } from "@/app/data/festivals/actions";
 import {
-  getFestivalAvaibleStandsByCategory,
-  getFestivalCategories,
+	getFestivalAvaibleStandsByCategory,
+	getFestivalCategories,
 } from "@/app/lib/festivals/utils";
 import ProfileRejectionEmailTemplate from "@/app/emails/profile-rejection";
 import { deleteClerkUser } from "@/app/lib/users/actions";
@@ -247,13 +247,6 @@ export async function fetchProfilesByIds(
 		console.error(error);
 		return [];
 	}
-}
-
-export async function isProfileCreated(user?: User | null) {
-	if (!user) return false;
-
-	const profile = await fetchUserProfile(user.id);
-	return profile !== null || profile !== undefined;
 }
 
 const FormSchema = z.object({

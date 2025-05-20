@@ -1,6 +1,6 @@
 import { handleReservationReminderEmails } from "@/app/lib/profile_tasks/actions";
 
-export async function GET(req: Request) {
+export async function GET() {
 	try {
 		const pendingReservationTasks = await handleReservationReminderEmails();
 
@@ -10,6 +10,7 @@ export async function GET(req: Request) {
 					pendingReservationTasks,
 				},
 			}),
+			{ status: 200 },
 		);
 	} catch (error) {
 		console.error("Error sending reservation reminders", error);

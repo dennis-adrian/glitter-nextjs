@@ -7,7 +7,7 @@ import {
 } from "@/app/lib/users/actions";
 import { users } from "@/db/schema";
 import { buildWhereClause } from "@/db/utils";
-import { and, eq, isNotNull, isNull, like, or, not, sql } from "drizzle-orm";
+import { eq, isNotNull, isNull, like, not, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 export async function getCurrentUserProfile() {
