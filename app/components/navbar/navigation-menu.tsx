@@ -3,14 +3,14 @@
 import Link from "next/link";
 
 import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuListItem,
-  NavigationMenuTrigger,
-  navigationMenuTriggerStyle,
+	NavigationMenu,
+	NavigationMenuContent,
+	NavigationMenuItem,
+	NavigationMenuLink,
+	NavigationMenuList,
+	NavigationMenuListItem,
+	NavigationMenuTrigger,
+	navigationMenuTriggerStyle,
 } from "@/app/components/ui/navigation-menu";
 import {
   BookImageIcon,
@@ -18,6 +18,7 @@ import {
   CalendarCheck2Icon,
   HomeIcon,
   LayoutDashboardIcon,
+  StoreIcon,
 } from "lucide-react";
 import { ProfileType } from "../../api/users/definitions";
 import { usePathname } from "next/navigation";
@@ -57,6 +58,21 @@ const NavbarNavigationMenu = ({
 						</Link>
 					</NavigationMenuLink>
 				</NavigationMenuItem>
+				{profile && (
+					<NavigationMenuItem>
+						<NavigationMenuLink
+							asChild
+							className={navigationMenuTriggerStyle()}
+						>
+							<Link href="/store">
+								<div className="flex items-center">
+									<StoreIcon className="w-4 h-4 mr-1" />
+									Tiendita
+								</div>
+							</Link>
+						</NavigationMenuLink>
+					</NavigationMenuItem>
+				)}
 				<NavigationMenuItem>
 					<NavigationMenuTrigger>
 						<div className="flex items-center">

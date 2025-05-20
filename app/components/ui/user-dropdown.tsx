@@ -5,7 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { useUser } from "@clerk/nextjs";
-import { CircleUserIcon, ListIcon, UserIcon } from "lucide-react";
+import {
+  CircleUserIcon,
+  ListIcon,
+  ShoppingBagIcon,
+  UserIcon,
+} from "lucide-react";
 
 import { ProfileType } from "@/app/api/users/definitions";
 
@@ -74,6 +79,12 @@ export default function UserDropdown({
             <Link href="/my_participations">
               <ListIcon className="mr-2 h-4 w-4" />
               <span>Mis participaciones</span>
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/my_orders">
+              <ShoppingBagIcon className="mr-2 h-4 w-4" />
+              <span>Mis pedidos</span>
             </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
