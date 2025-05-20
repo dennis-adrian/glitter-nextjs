@@ -94,7 +94,15 @@ export async function fetchOrdersByUserId(userId: number) {
 		return await db.query.orders.findMany({
 			where: eq(orders.userId, userId),
 			with: {
-				customer: true,
+				customer: {
+					with: {
+						profileSubcategories: {
+							with: {
+								subcategory: true,
+							},
+						},
+					},
+				},
 				orderItems: {
 					with: {
 						product: true,
