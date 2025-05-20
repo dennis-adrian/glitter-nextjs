@@ -414,7 +414,16 @@ export async function fetchUserProfilesByEmails(emails: string[]) {
 export async function deleteClerkUser(clerkId: string) {
   try {
     const clerk = await clerkClient();
-    await clerk.users.deleteUser(clerkId);
+		const existingUser = await clerk.users.getUser(clerkId);
+		if (!existingUser) {
+			console.log("Clerk user not found");
+			return {
+				success: false,
+				message: "Usuario no encontrado",
+			};
+		}
+
+		await clerk.users.deleteUser(clerkId);
     return {
       success: true,
       message: "Cuenta eliminada correctamente.",
