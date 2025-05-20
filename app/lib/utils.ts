@@ -70,21 +70,21 @@ export function isProfileComplete(profile?: ProfileType | null) {
   const socials = profile.userSocials.filter((social) => !!social.username);
   const hasSubcategory = profile.profileSubcategories.length > 0;
 
-  return (
-    !!profile.bio &&
-    !!profile.imageUrl &&
-    !!profile.firstName &&
-    !!profile.lastName &&
-    !!profile.birthdate &&
-    !!profile.phoneNumber &&
-    !!profile.displayName &&
-    !!profile.email &&
-    !!profile.gender &&
-    !!profile.state &&
-    profile.category !== "none" &&
-    hasSubcategory &&
-    socials.length > 0
-  );
+	return (
+		!!profile.bio &&
+		!!profile.imageUrl &&
+		!!profile.firstName &&
+		!!profile.lastName &&
+		!!profile.birthdate &&
+		!!profile.phoneNumber &&
+		!!profile.displayName &&
+		!!profile.email &&
+		!!profile.gender &&
+		!!profile.country &&
+		profile.category !== "none" &&
+		hasSubcategory &&
+		socials.length > 0
+	);
 }
 
 const requiredProfileFields = [
