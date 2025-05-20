@@ -820,6 +820,9 @@ export const products = pgTable("products", {
 	price: real("price").notNull(),
 	stock: integer("stock").default(0),
 	imageUrl: text("image_url"),
+	isNew: boolean("is_new").default(true).notNull(),
+	isPreOrder: boolean("is_pre_order").default(false).notNull(),
+	availableDate: timestamp("available_date"),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -828,8 +831,15 @@ export const productsRelations = relations(products, ({ many }) => ({
 }));
 
 export const orderStatusEnum = pgEnum("order_status", [
+	/** Initial state when an order is first created but not yet processed/accepted */
 	"pending",
+	/** Order is currently being processed (e.g., being prepared for shipping) */
+	"processing",
+	/** Order has been successfully paid for */
 	"paid",
+	/** Customer has received the order */
+	"delivered",
+	/** Order was cancelled either by the user or system */
 	"cancelled",
 ]);
 export const orders = pgTable("orders", {

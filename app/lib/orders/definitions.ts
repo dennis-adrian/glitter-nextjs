@@ -1,5 +1,5 @@
 import { InferInsertModel, InferSelectModel } from "drizzle-orm";
-import { orderItems, orders } from "@/db/schema";
+import { orderItems, orderStatusEnum, orders } from "@/db/schema";
 import { BaseProduct } from "@/app/lib/products/definitions";
 import {
 	BaseProfile,
@@ -22,3 +22,5 @@ export type OrderWithRelations = BaseOrder & {
 		profileSubcategories: ProfileSubcategoryWithSubcategory[];
 	};
 };
+
+export type OrderStatus = BaseOrder["status"];
