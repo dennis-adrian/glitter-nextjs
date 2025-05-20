@@ -69,6 +69,16 @@ export function isProfileComplete(profile?: ProfileType | null) {
 
   const socials = profile.userSocials.filter((social) => !!social.username);
   const hasSubcategory = profile.profileSubcategories.length > 0;
+	let hasStateOrCountry = false;
+	if (profile.country) {
+		hasStateOrCountry = true;
+
+		if (profile.country === "BO") {
+			if (!profile.state) {
+				hasStateOrCountry = false;
+			}
+		}
+	}
 
   return (
     !!profile.bio &&
