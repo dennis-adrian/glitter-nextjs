@@ -831,8 +831,15 @@ export const productsRelations = relations(products, ({ many }) => ({
 }));
 
 export const orderStatusEnum = pgEnum("order_status", [
+	/** Initial state when an order is first created but not yet processed/accepted */
 	"pending",
+	/** Order is currently being processed (e.g., being prepared for shipping) */
+	"processing",
+	/** Order has been successfully paid for */
 	"paid",
+	/** Customer has received the order */
+	"delivered",
+	/** Order was cancelled either by the user or system */
 	"cancelled",
 ]);
 export const orders = pgTable("orders", {
