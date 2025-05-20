@@ -1,3 +1,5 @@
+import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
+import { OrdersActionsCell } from "@/app/components/organisms/orders/table-actions-cell";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
 import { formatDate } from "@/app/lib/formatters";
@@ -10,6 +12,7 @@ export const columnTitles = {
 	customer: "Cliente",
 	createdAt: "Fecha de creación",
 	items: "Artículos",
+	status: "Estado",
 	total: "Total",
 };
 
@@ -62,6 +65,15 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
 		},
 	},
 	{
+		accessorKey: "status",
+		header: ({ column }) => (
+			<DataTableColumnHeader column={column} title={columnTitles.status} />
+		),
+		cell: ({ row }) => {
+			return <OrderStatusBadge status={row.original.status} />;
+		},
+	},
+	{
 		accessorKey: "createdAt",
 		header: ({ column }) => (
 			<DataTableColumnHeader column={column} title={columnTitles.createdAt} />
@@ -75,5 +87,14 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
 				</span>
 			);
 		},
+	},
+	{
+		accessorKey: "actions",
+		header: ({ column }) => <DataTableColumnHeader column={column} title="" />,
+		cell: ({ row }) => {
+			return <OrdersActionsCell order={row.original} />;
+		},
+		enableSorting: false,
+		enableHiding: false,
 	},
 ];
