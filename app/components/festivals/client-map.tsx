@@ -6,9 +6,9 @@ import { BaseProfile, ProfileType } from "@/app/api/users/definitions";
 import MapImage from "@/app/components/festivals/map-image";
 import { ReservationModal } from "@/app/components/next_event/reservation/modal";
 import { profileHasReservation } from "@/app/helpers/next_event";
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export default function ClientMap({
   artists,

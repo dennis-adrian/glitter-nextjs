@@ -2,7 +2,7 @@
 
 import ArchiveFestivalModal from "@/app/components/festivals/modals/archive-festival";
 import { Button } from "@/app/components/ui/button";
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { ArchiveIcon } from "lucide-react";
 import { useState } from "react";
 

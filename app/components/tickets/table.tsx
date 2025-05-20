@@ -2,7 +2,7 @@ import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { columnTitles, columns } from "@/app/components/tickets/columns";
 import { TicketWithVisitor } from "@/app/data/tickets/actions";
 import { formatFullDate } from "@/app/lib/formatters";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 
 type UsersTableProps = {
   festival: FestivalWithDates;

@@ -6,7 +6,6 @@ import ReservationForm from "@/app/components/next_event/reservation/form";
 import { Button } from "@/app/components/ui/button";
 import { BaseProfile, ProfileType } from "@/app/api/users/definitions";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import {
 	DialogClose,
 	DialogContent,
@@ -15,6 +14,7 @@ import {
 	DialogTitle,
 } from "@/app/components/ui/dialog";
 import { Dialog } from "@/app/components/ui/dialog";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export function ReservationModal({
 	artists,

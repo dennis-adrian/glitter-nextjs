@@ -2,8 +2,8 @@
 
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
-import { updateFestival } from "@/app/data/festivals/actions";
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import { updateFestival } from "@/app/lib/festivals/actions";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 

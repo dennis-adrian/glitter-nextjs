@@ -1,12 +1,9 @@
 "use client";
-
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-
 import { addUserToFestival } from "@/app/api/user_requests/actions";
 import { ProfileType, UserCategory } from "@/app/api/users/definitions";
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -22,6 +19,7 @@ import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 const FormSchema = z.object({
   consent: z.boolean().refine((val) => val === true, {

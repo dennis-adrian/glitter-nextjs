@@ -1,10 +1,7 @@
 "use server";
 
 import { ReservationBase } from "@/app/api/reservations/definitions";
-import {
-  FestivalWithDates,
-  FestivalWithUserRequests,
-} from "@/app/data/festivals/definitions";
+import { FestivalWithDates, FestivalWithUserRequests } from "@/app/lib/festivals/definitions";
 import { db } from "@/db";
 import {
   reservationParticipants,

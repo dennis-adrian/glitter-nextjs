@@ -9,8 +9,8 @@ import {
   DrawerDialogHeader,
   DrawerDialogTitle,
 } from "@/app/components/ui/drawer-dialog";
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { AlertCircleIcon } from "lucide-react";
 
 export default function ArchiveFestivalModal({
