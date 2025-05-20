@@ -14,10 +14,11 @@ import {
 import { OrderWithRelations } from "@/app/lib/orders/definitions";
 import { useState } from "react";
 import AcceptOrderModal from "@/app/components/organisms/orders/accept-order-modal";
+import DeleteOrderModal from "@/app/components/organisms/orders/delete-order-modal";
 
 export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
 	const [openAcceptModal, setOpenAcceptModal] = useState(false);
-	const [openRejectModal, setOpenRejectModal] = useState(false);
+	const [openDeleteModal, setOpenDeleteModal] = useState(false);
 
 	return (
 		<>
@@ -35,7 +36,7 @@ export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
 						<CheckCircleIcon className="h-4 w-4 mr-1" />
 						Aceptar Pedido
 					</DropdownMenuItem>
-					<DropdownMenuItem>
+					<DropdownMenuItem onClick={() => setOpenDeleteModal(true)}>
 						<Trash2Icon className="h-4 w-4 mr-1" />
 						Eliminar
 					</DropdownMenuItem>
@@ -45,6 +46,11 @@ export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
 				order={order}
 				open={openAcceptModal}
 				setOpen={setOpenAcceptModal}
+			/>
+			<DeleteOrderModal
+				order={order}
+				open={openDeleteModal}
+				setOpen={setOpenDeleteModal}
 			/>
 		</>
 	);

@@ -163,3 +163,21 @@ export async function acceptOrder(orderId: number) {
 		message: "Orden aceptada correctamente.",
 	};
 }
+
+export async function deleteOrder(orderId: number) {
+	try {
+		await db.delete(orders).where(eq(orders.id, orderId));
+	} catch (error) {
+		console.error(error);
+		return {
+			success: false,
+			message: "No se pudo eliminar la orden.",
+		};
+	}
+
+	revalidatePath("/dashboard/orders");
+	return {
+		success: true,
+		message: "Orden eliminada correctamente.",
+	};
+}
