@@ -60,40 +60,40 @@ export default function CollaboratorForm({
   });
 
   return (
-    <Form {...form}>
-      <form className="grid gap-4 mb-6" onSubmit={action}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <TextInput
-            label="Nombre(s)"
-            name="name"
-            placeholder="Ej. Juan Carlos"
-            required
-            formControl={form.control}
-          />
-          <TextInput
-            label="Apellido(s)"
-            name="last_name"
-            placeholder="Ej. Perez"
-            required
-            formControl={form.control}
-          />
-          <TextInput
-            label="Nro de Carnet"
-            name="identification_number"
-            placeholder="Ej. 12345678"
-            required
-            formControl={form.control}
-          />
-        </div>
-        <SubmitButton
-          className="w-full bg-rose-500 hover:bg-rose-600 text-white"
-          disabled={form.formState.isSubmitting}
-          loading={form.formState.isSubmitting}
-          loadingLabel="Agregando colaborador..."
-        >
-          <PlusIcon className="h-4 w-4 mr-2" /> Agregar Colaborador
-        </SubmitButton>
-      </form>
-    </Form>
-  );
+		<Form {...form}>
+			<form className="grid gap-4 mb-6" onSubmit={action}>
+				<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+					<TextInput
+						label="Nombre(s)"
+						name="name"
+						placeholder="Ej. Juan Carlos"
+						required
+						formControl={form.control}
+					/>
+					<TextInput
+						label="Apellido(s)"
+						name="last_name"
+						placeholder="Ej. Perez"
+						required
+						formControl={form.control}
+					/>
+					<TextInput
+						label="Nro de Carnet"
+						name="identification_number"
+						placeholder="Ej. 12345678"
+						required
+						formControl={form.control}
+					/>
+				</div>
+				<SubmitButton
+					className="w-full bg-rose-500 hover:bg-rose-600 text-white"
+					disabled={form.formState.isSubmitting}
+					loading={form.formState.isSubmitting}
+					loadingLabel="Agregando..."
+				>
+					<PlusIcon className="h-4 w-4 mr-2" /> Agregar
+				</SubmitButton>
+			</form>
+		</Form>
+	);
 }
