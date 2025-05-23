@@ -47,58 +47,58 @@ export function UpcomingFestivalCard({
   };
 
   return (
-    <Card className="w-full max-w-4xl shadow-lg border-rose-100 mx-auto">
-      <CardHeader className="bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-t-lg">
-        <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className="text-2xl md:text-3xl font-bold">
-              {festival.name}
-            </CardTitle>
-            <CardDescription className="text-rose-100 mt-2 text-base">
-              {festival.description}
-            </CardDescription>
-          </div>
-          <Badge className="hidden md:block bg-white text-rose-500 hover:bg-rose-100 px-3 py-1 text-sm">
-            Participante Confirmado
-          </Badge>
-        </div>
+		<Card className="w-full max-w-4xl shadow-lg border-rose-100 mx-auto">
+			<CardHeader className="bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-t-lg">
+				<div className="flex justify-between items-start">
+					<div>
+						<CardTitle className="text-2xl md:text-3xl font-bold">
+							{festival.name}
+						</CardTitle>
+						<CardDescription className="text-rose-100 mt-2 text-base">
+							{festival.description}
+						</CardDescription>
+					</div>
+					<Badge className="hidden md:block bg-white text-rose-500 hover:bg-rose-100 px-3 py-1 text-sm">
+						Participante Confirmado
+					</Badge>
+				</div>
 
-        <div className="flex flex-col sm:flex-row gap-4 mt-4">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-rose-200" />
-            <span>
-              {festivalStartDate} - {festivalEndDate}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-rose-200" />
-            <span>{festival.locationLabel}</span>
-          </div>
-          {/* <div className="flex items-center gap-2">
+				<div className="flex flex-col sm:flex-row gap-4 mt-4">
+					<div className="flex items-center gap-2">
+						<Calendar className="h-5 w-5 text-rose-200" />
+						<span>
+							{festivalStartDate} - {festivalEndDate}
+						</span>
+					</div>
+					<div className="flex items-center gap-2">
+						<MapPin className="h-5 w-5 text-rose-200" />
+						<span>{festival.locationLabel}</span>
+					</div>
+					{/* <div className="flex items-center gap-2">
             <Clock className="h-5 w-5 text-rose-200" />
             <span>10 days remaining</span>
           </div> */}
-        </div>
-      </CardHeader>
+				</div>
+			</CardHeader>
 
-      <Tabs defaultValue="info" className="w-full">
-        <TabsList className="grid grid-cols-3 w-full">
-          <TabsTrigger value="info">Información</TabsTrigger>
-          <TabsTrigger value="activities">Actividades</TabsTrigger>
-          <TabsTrigger value="team">Colaboradores</TabsTrigger>
-        </TabsList>
+			<Tabs defaultValue="info" className="w-full">
+				<TabsList className="grid grid-cols-3 w-full">
+					<TabsTrigger value="info">Información</TabsTrigger>
+					<TabsTrigger value="activities">Actividades</TabsTrigger>
+					<TabsTrigger value="team">Equipo</TabsTrigger>
+				</TabsList>
 
-        <TabsContent value="info" className="p-4">
-          <InfoTabContent
-            festival={festival}
-            reservation={reservation}
-            festivalStartDate={festivalStartDate}
-            festivalEndDate={festivalEndDate}
-          />
-        </TabsContent>
+				<TabsContent value="info" className="p-4">
+					<InfoTabContent
+						festival={festival}
+						reservation={reservation}
+						festivalStartDate={festivalStartDate}
+						festivalEndDate={festivalEndDate}
+					/>
+				</TabsContent>
 
-        <TabsContent value="activities" className="p-4">
-          {/* <ScrollArea className="h-[300px] pr-4">
+				<TabsContent value="activities" className="p-4">
+					{/* <ScrollArea className="h-[300px] pr-4">
             <div className="space-y-4">
               <h3 className="font-semibold">Exclusive Activities</h3>
               <p className="text-sm text-gray-500 mb-4">
@@ -216,23 +216,23 @@ export function UpcomingFestivalCard({
               </div>
             </div>
           </ScrollArea> */}
-          <div>Contenido en construcción</div>
-        </TabsContent>
+					<div>Contenido en construcción</div>
+				</TabsContent>
 
-        <TabsContent value="team" className="p-4">
-          {reservation ? (
-            <TeamTabContent reservation={reservation} />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full">
-              <p className="text-sm text-gray-500">
-                No hay colaboradores para esta reserva.
-              </p>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+				<TabsContent value="team" className="p-4">
+					{reservation ? (
+						<TeamTabContent reservation={reservation} />
+					) : (
+						<div className="flex flex-col items-center justify-center h-full">
+							<p className="text-sm text-gray-500">
+								No hay personas en tu equipo para esta reserva.
+							</p>
+						</div>
+					)}
+				</TabsContent>
+			</Tabs>
 
-      {/* <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-gray-50 p-4 rounded-b-lg">
+			{/* <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-gray-50 p-4 rounded-b-lg">
         <div className="flex items-center gap-2">
           <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
           <span className="text-sm font-medium">
@@ -248,6 +248,6 @@ export function UpcomingFestivalCard({
           </Button>
         </div>
       </CardFooter> */}
-    </Card>
-  );
+		</Card>
+	);
 }
