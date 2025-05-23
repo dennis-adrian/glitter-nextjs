@@ -22,146 +22,146 @@ export default function InfoTabContent({
   festivalEndDate: string;
 }) {
   return (
-    <div className="space-y-4">
-      <div className="flex items-start gap-3">
-        {festival.festivalBannerUrl ? (
-          <div className="relative w-28 h-32">
-            <Image
-              className="object-cover"
-              src={festival.festivalBannerUrl}
-              alt={festival.name}
-              fill
-              unoptimized
-            />
-          </div>
-        ) : (
-          <div className="bg-rose-100 p-3 rounded-full">
-            <Palette className="h-6 w-6 text-rose-500" />
-          </div>
-        )}
-        {reservation && (
-          <div>
-            <h3 className="font-semibold text-lg">
-              Espacio #{reservation.stand.label}
-              {reservation.stand.standNumber}
-            </h3>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {reservation.participants.map((participant) => (
-                <div
-                  key={participant.id}
-                  className="text-sm flex items-center gap-1"
-                >
-                  <Avatar className="relative h-10 w-10">
-                    <AvatarImage
-                      className="object-cover"
-                      alt="avatar image"
-                      src={participant.user.imageUrl || ""}
-                    />
-                    <AvatarFallback>
-                      {participant.user.displayName
-                        ?.split(" ")
-                        .map((n) => n[0])
-                        .join("") || "N"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span>{participant.user.displayName}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+		<div className="space-y-4">
+			<div className="flex items-start gap-3">
+				{festival.festivalBannerUrl ? (
+					<div className="relative w-28 h-32">
+						<Image
+							className="object-cover"
+							src={festival.festivalBannerUrl}
+							alt={festival.name}
+							fill
+							unoptimized
+						/>
+					</div>
+				) : (
+					<div className="bg-rose-100 p-3 rounded-full">
+						<Palette className="h-6 w-6 text-rose-500" />
+					</div>
+				)}
+				{reservation && (
+					<div>
+						<h3 className="font-semibold text-lg">
+							Espacio #{reservation.stand.label}
+							{reservation.stand.standNumber}
+						</h3>
+						<div className="mt-2 flex flex-wrap items-center gap-2">
+							{reservation.participants.map((participant) => (
+								<div
+									key={participant.id}
+									className="text-sm flex items-center gap-1"
+								>
+									<Avatar className="relative h-10 w-10">
+										<AvatarImage
+											className="object-cover"
+											alt="avatar image"
+											src={participant.user.imageUrl || ""}
+										/>
+										<AvatarFallback>
+											{participant.user.displayName
+												?.split(" ")
+												.map((n) => n[0])
+												.join("") || "N"}
+										</AvatarFallback>
+									</Avatar>
+									<span>{participant.user.displayName}</span>
+								</div>
+							))}
+						</div>
+					</div>
+				)}
+			</div>
 
-      <Separator />
+			<Separator />
 
-      <div>
-        <h3 className="text-lg font-semibold mb-2">Horarios</h3>
-        <ul className="space-y-2">
-          <ul className="text-sm">
-            <span className="font-semibold">Día 1 - {festivalStartDate}</span>
-            <li className="flex justify-between items-center ml-2">
-              <span className="text-sm">Ingreso de participantes - armado</span>
-              <span className="text-sm font-medium">
-                {DateTime.fromJSDate(festival.festivalDates[0].startDate)
-                  .minus({ hours: 2 })
-                  .toLocaleString(DateTime.TIME_SIMPLE)}
-              </span>
-            </li>
-            <li className="flex justify-between items-center ml-2">
-              <span className="text-sm">Ingreso del público</span>
-              <span className="text-sm font-medium">
-                {DateTime.fromJSDate(
-                  festival.festivalDates[0].startDate,
-                ).toLocaleString(DateTime.TIME_SIMPLE)}
-              </span>
-            </li>
-            <li className="flex justify-between items-center ml-2">
-              <span className="text-sm">Cierre de puertas al público</span>
-              <span className="text-sm font-medium">
-                {DateTime.fromJSDate(
-                  festival.festivalDates[0].endDate,
-                ).toLocaleString(DateTime.TIME_SIMPLE)}
-              </span>
-            </li>
-            <li className="flex justify-between items-center ml-2">
-              <span className="text-sm">Cierre del recinto</span>
-              <span className="text-sm font-medium">
-                {DateTime.fromJSDate(festival.festivalDates[0].endDate)
-                  .plus({ minutes: 30 })
-                  .toLocaleString(DateTime.TIME_SIMPLE)}
-              </span>
-            </li>
-          </ul>
-          <ul className="text-sm">
-            <span className="font-semibold">Día 2 - {festivalEndDate}</span>
-            <li className="flex justify-between items-center ml-2">
-              <span className="text-sm">Ingreso de participantes - armado</span>
-              <span className="text-sm font-medium">
-                {DateTime.fromJSDate(festival.festivalDates[0].startDate)
-                  .minus({ hours: 1 })
-                  .toLocaleString(DateTime.TIME_SIMPLE)}
-              </span>
-            </li>
-            <li className="flex justify-between items-center ml-2">
-              <span className="text-sm">Ingreso del público</span>
-              <span className="text-sm font-medium">
-                {DateTime.fromJSDate(
-                  festival.festivalDates[0].startDate,
-                ).toLocaleString(DateTime.TIME_SIMPLE)}
-              </span>
-            </li>
-            <li className="flex justify-between items-center ml-2">
-              <span className="text-sm">Cierre de puertas al público</span>
-              <span className="text-sm font-medium">
-                {DateTime.fromJSDate(
-                  festival.festivalDates[0].endDate,
-                ).toLocaleString(DateTime.TIME_SIMPLE)}
-              </span>
-            </li>
-            <li className="flex justify-between items-center ml-2">
-              <span className="text-sm">Desarmado</span>
-              <span className="text-sm font-medium">
-                {DateTime.fromJSDate(
-                  festival.festivalDates[0].endDate,
-                ).toLocaleString(DateTime.TIME_SIMPLE)}{" "}
-                -{" "}
-                {DateTime.fromJSDate(festival.festivalDates[0].endDate)
-                  .plus({ minutes: 45 })
-                  .toLocaleString(DateTime.TIME_SIMPLE)}
-              </span>
-            </li>
-            <li className="flex justify-between items-center ml-2">
-              <span className="text-sm">Cierre del recinto</span>
-              <span className="text-sm font-medium">
-                {DateTime.fromJSDate(festival.festivalDates[0].endDate)
-                  .plus({ minutes: 45 })
-                  .toLocaleString(DateTime.TIME_SIMPLE)}{" "}
-              </span>
-            </li>
-          </ul>
-        </ul>
-      </div>
-      {/* 
+			<div>
+				<h3 className="text-lg font-semibold mb-2">Horarios</h3>
+				<ul className="space-y-2">
+					<ul className="text-sm">
+						<span className="font-semibold">Día 1 - {festivalStartDate}</span>
+						<li className="flex justify-between items-center ml-2">
+							<span className="text-sm">Ingreso de participantes - armado</span>
+							<span className="text-sm font-medium">
+								{DateTime.fromJSDate(festival.festivalDates[0].startDate)
+									.minus({ hours: 1 })
+									.toLocaleString(DateTime.TIME_SIMPLE)}
+							</span>
+						</li>
+						<li className="flex justify-between items-center ml-2">
+							<span className="text-sm">Ingreso del público</span>
+							<span className="text-sm font-medium">
+								{DateTime.fromJSDate(
+									festival.festivalDates[0].startDate,
+								).toLocaleString(DateTime.TIME_SIMPLE)}
+							</span>
+						</li>
+						<li className="flex justify-between items-center ml-2">
+							<span className="text-sm">Cierre de puertas al público</span>
+							<span className="text-sm font-medium">
+								{DateTime.fromJSDate(
+									festival.festivalDates[0].endDate,
+								).toLocaleString(DateTime.TIME_SIMPLE)}
+							</span>
+						</li>
+						<li className="flex justify-between items-center ml-2">
+							<span className="text-sm">Cierre del recinto</span>
+							<span className="text-sm font-medium">
+								{DateTime.fromJSDate(festival.festivalDates[0].endDate)
+									.plus({ minutes: 30 })
+									.toLocaleString(DateTime.TIME_SIMPLE)}
+							</span>
+						</li>
+					</ul>
+					<ul className="text-sm">
+						<span className="font-semibold">Día 2 - {festivalEndDate}</span>
+						<li className="flex justify-between items-center ml-2">
+							<span className="text-sm">Ingreso de participantes - armado</span>
+							<span className="text-sm font-medium">
+								{DateTime.fromJSDate(festival.festivalDates[0].startDate)
+									.minus({ hours: 1 })
+									.toLocaleString(DateTime.TIME_SIMPLE)}
+							</span>
+						</li>
+						<li className="flex justify-between items-center ml-2">
+							<span className="text-sm">Ingreso del público</span>
+							<span className="text-sm font-medium">
+								{DateTime.fromJSDate(
+									festival.festivalDates[0].startDate,
+								).toLocaleString(DateTime.TIME_SIMPLE)}
+							</span>
+						</li>
+						<li className="flex justify-between items-center ml-2">
+							<span className="text-sm">Cierre de puertas al público</span>
+							<span className="text-sm font-medium">
+								{DateTime.fromJSDate(
+									festival.festivalDates[0].endDate,
+								).toLocaleString(DateTime.TIME_SIMPLE)}
+							</span>
+						</li>
+						<li className="flex justify-between items-center ml-2">
+							<span className="text-sm">Desarmado</span>
+							<span className="text-sm font-medium">
+								{DateTime.fromJSDate(
+									festival.festivalDates[0].endDate,
+								).toLocaleString(DateTime.TIME_SIMPLE)}{" "}
+								-{" "}
+								{DateTime.fromJSDate(festival.festivalDates[0].endDate)
+									.plus({ minutes: 45 })
+									.toLocaleString(DateTime.TIME_SIMPLE)}
+							</span>
+						</li>
+						<li className="flex justify-between items-center ml-2">
+							<span className="text-sm">Cierre del recinto</span>
+							<span className="text-sm font-medium">
+								{DateTime.fromJSDate(festival.festivalDates[0].endDate)
+									.plus({ minutes: 45 })
+									.toLocaleString(DateTime.TIME_SIMPLE)}{" "}
+							</span>
+						</li>
+					</ul>
+				</ul>
+			</div>
+			{/*
             <Separator />
 
             <div>
@@ -193,6 +193,6 @@ export default function InfoTabContent({
                 </div>
               </div>
             </div> */}
-    </div>
-  );
+		</div>
+	);
 }
