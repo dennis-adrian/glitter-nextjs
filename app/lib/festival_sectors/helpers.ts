@@ -1,5 +1,9 @@
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
-import { FestivalActivityWithDetailsAndParticipants } from "@/app/data/festivals/definitions";
+import {
+	FestivalActivityDetail,
+	FestivalActivityDetailwithParticipants,
+	FestivalActivityWithDetailsAndParticipants,
+} from "@/app/data/festivals/definitions";
 import { FestivalSectorWithStands } from "@/app/lib/festival_sectors/definitions";
 
 export function getFestivalSectorAllowedCategories(
@@ -23,5 +27,15 @@ export function isProfileEnrolledInActivity(
 		detail.participants.some(
 			(participant) => participant.userId === profile.id,
 		),
+	);
+}
+
+export function isActivityDetailFull(
+	detail: FestivalActivityDetailwithParticipants,
+) {
+	return (
+		detail.participationLimit &&
+		detail.participationLimit > 0 &&
+		detail.participants.length >= detail.participationLimit
 	);
 }

@@ -18,7 +18,10 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Form } from "@/app/components/ui/form";
 import SubmitButton from "@/app/components/simple-submit-button";
-import { isProfileEnrolledInActivity } from "@/app/lib/festival_sectors/helpers";
+import {
+	isActivityDetailFull,
+	isProfileEnrolledInActivity,
+} from "@/app/lib/festival_sectors/helpers";
 
 type EnrollRedirectButtonProps = {
 	currentProfile: BaseProfile;
@@ -105,10 +108,20 @@ export default function EnrollRedirectButton({
 		}
 	});
 
+	if (isPassportActivity && isActivityDetailFull(activity.details[0])) {
+		return (
+			<div className="flex flex-col text-center border border-gray-200 rounded-md p-4 bg-gray-50 text-gray-800">
+				<p className="text-sm">
+					La actividad ya ha llegado al límite de inscripciones
+				</p>
+			</div>
+		);
+	}
+
 	if (isProfileEnrolledInActivity(currentProfile, activity)) {
 		return (
 			<div className="flex flex-col text-center border border-emerald-200 rounded-md p-4 bg-emerald-50 text-emerald-800">
-				<p>Ya estás inscrito en esta actividad</p>
+				<p className="text-sm">Ya estás inscrito en esta actividad</p>
 			</div>
 		);
 	}
