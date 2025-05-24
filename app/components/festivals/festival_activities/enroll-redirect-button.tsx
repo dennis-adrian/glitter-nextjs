@@ -79,32 +79,32 @@ export default function EnrollRedirectButton({
   ]);
 
   return (
-    <div className="flex flex-col gap-3 mt-6">
-      <div className="flex justify-end w-full">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="w-full md:max-w-[400px] flex flex-col gap-1 justify-center items-center">
-                <RedirectButton
-                  className="w-full self-end"
-                  href={`/profiles/${forProfileId}/festivals/${festivalId}/activity/enroll`}
-                  disabled={!isEnabled && currentProfile.role !== "admin"}
-                >
-                  {isEnabled || currentProfile.role === "admin"
-                    ? "Registrarme"
-                    : "Registro no disponible"}
-                </RedirectButton>
-                <span className="text-xs text-center text-muted-foreground lg:hidden">
-                  {statusMessage}
-                </span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{statusMessage}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </div>
-    </div>
-  );
+		<div className="flex flex-col gap-3 mt-6">
+			<div className="flex justify-end w-full">
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<div className="w-full md:max-w-[400px] flex flex-col gap-1 justify-center items-center">
+								<RedirectButton
+									className="w-full self-end"
+									href={`/profiles/${forProfileId}/festivals/${festivalId}/activity/enroll`}
+									disabled={!isEnabled && currentProfile.role !== "admin"}
+								>
+									{isEnabled || currentProfile.role === "admin"
+										? "Inscribirme"
+										: "Registro no disponible"}
+								</RedirectButton>
+								<span className="text-xs text-center text-muted-foreground lg:hidden">
+									{statusMessage}
+								</span>
+							</div>
+						</TooltipTrigger>
+						<TooltipContent>
+							<p>{statusMessage}</p>
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			</div>
+		</div>
+	);
 }
