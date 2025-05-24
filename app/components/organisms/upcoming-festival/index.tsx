@@ -2,17 +2,13 @@
 
 import { Calendar, MapPin } from "lucide-react";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+	Card,
+	CardDescription,
+	CardHeader,
+	CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { toast } from "sonner";
 import { Festival } from "@/app/data/festivals/definitions";
 import { formatFullDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
@@ -20,33 +16,29 @@ import { ProfileType } from "@/app/api/users/definitions";
 import { ReservationWithParticipantsAndUsersAndStandAndCollaborators } from "@/app/api/reservations/definitions";
 import InfoTabContent from "@/app/components/organisms/upcoming-festival/info-tab-content";
 import TeamTabContent from "@/app/components/organisms/upcoming-festival/team-tab-content";
+import ActivitiesContent from "@/app/components/organisms/upcoming-festival/activities-content";
+import { FullFestival } from "@/app/lib/festivals/definitions";
 
 type UpcomingFestivalCardProps = {
-  festival: Festival;
-  profile: ProfileType;
-  reservation?: ReservationWithParticipantsAndUsersAndStandAndCollaborators;
+	festival: FullFestival;
+	profile: ProfileType;
+	reservation?: ReservationWithParticipantsAndUsersAndStandAndCollaborators;
 };
 export function UpcomingFestivalCard({
-  festival,
-  profile,
-  reservation,
+	festival,
+	profile,
+	reservation,
 }: UpcomingFestivalCardProps) {
-  const festivalStartDate = formatFullDate(
-    festival?.festivalDates[0]?.startDate,
-    DateTime.DATE_MED,
-  );
-  const festivalEndDate = formatFullDate(
-    festival?.festivalDates[1]?.startDate,
-    DateTime.DATE_MED,
-  );
+	const festivalStartDate = formatFullDate(
+		festival?.festivalDates[0]?.startDate,
+		DateTime.DATE_MED,
+	);
+	const festivalEndDate = formatFullDate(
+		festival?.festivalDates[1]?.startDate,
+		DateTime.DATE_MED,
+	);
 
-  const handleSignUp = (activity: string) => {
-    toast.success("Signed up successfully", {
-      description: `You've been registered for ${activity}.`,
-    });
-  };
-
-  return (
+	return (
 		<Card className="w-full max-w-4xl shadow-lg border-rose-100 mx-auto">
 			<CardHeader className="bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-t-lg">
 				<div className="flex justify-between items-start">
@@ -98,125 +90,7 @@ export function UpcomingFestivalCard({
 				</TabsContent>
 
 				<TabsContent value="activities" className="p-4">
-					{/* <ScrollArea className="h-[300px] pr-4">
-            <div className="space-y-4">
-              <h3 className="font-semibold">Exclusive Activities</h3>
-              <p className="text-sm text-gray-500 mb-4">
-                Sign up for special events available to exhibitors only.
-              </p>
-
-              <div className="space-y-4">
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-medium">
-                          Industry Networking Breakfast
-                        </h4>
-                        <p className="text-sm text-gray-500">
-                          April 16, 8AM-10AM • Main Hall
-                        </p>
-                        <p className="text-sm mt-2">
-                          Connect with publishers and art directors over
-                          breakfast.
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-rose-500 text-rose-500 hover:bg-rose-50"
-                        onClick={() =>
-                          handleSignUp("Industry Networking Breakfast")
-                        }
-                      >
-                        Sign Up
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-medium">
-                          Master Class: Digital Illustration
-                        </h4>
-                        <p className="text-sm text-gray-500">
-                          April 17, 2PM-4PM • Workshop Room B
-                        </p>
-                        <p className="text-sm mt-2">
-                          Advanced techniques with award-winning illustrator
-                          Maria Chen.
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-rose-500 text-rose-500 hover:bg-rose-50"
-                        onClick={() =>
-                          handleSignUp("Master Class: Digital Illustration")
-                        }
-                      >
-                        Sign Up
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-medium">VIP Gallery Tour</h4>
-                        <p className="text-sm text-gray-500">
-                          April 17, 6PM-8PM • Exhibition Hall
-                        </p>
-                        <p className="text-sm mt-2">
-                          Private tour of the curated gallery with the festival
-                          director.
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-rose-500 text-rose-500 hover:bg-rose-50"
-                        onClick={() => handleSignUp("VIP Gallery Tour")}
-                      >
-                        Sign Up
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-medium">Live Drawing Battle</h4>
-                        <p className="text-sm text-gray-500">
-                          April 18, 3PM-5PM • Center Stage
-                        </p>
-                        <p className="text-sm mt-2">
-                          Compete with other illustrators in a timed drawing
-                          competition.
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-rose-500 text-rose-500 hover:bg-rose-50"
-                        onClick={() => handleSignUp("Live Drawing Battle")}
-                      >
-                        Sign Up
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </ScrollArea> */}
-					<div>Contenido en construcción</div>
+					<ActivitiesContent forProfile={profile} festival={festival} />
 				</TabsContent>
 
 				<TabsContent value="team" className="p-4">

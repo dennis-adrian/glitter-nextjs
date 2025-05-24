@@ -66,7 +66,8 @@ export default function PassportActivityContent({
 					</li>
 					<li>
 						Tener un sello con un diseño original de máximo 5cm de diámetro que
-						deberán tener consigo sin excepción ambos días del festival.
+						deberán tener consigo sin excepción ambos días del festival. Un
+						sello de una edición pasada también es válido.
 					</li>
 					<li>
 						Subir el diseño del sello al sitio web para ayudar con el control a

@@ -22,7 +22,7 @@ export default function InfoTabContent({
   festivalEndDate: string;
 }) {
   return (
-		<div className="space-y-4">
+		<div className="space-y-2 md:space-y-4">
 			<div className="flex items-start gap-3">
 				{festival.festivalBannerUrl ? (
 					<div className="relative w-28 h-32">
@@ -30,8 +30,9 @@ export default function InfoTabContent({
 							className="object-cover"
 							src={festival.festivalBannerUrl}
 							alt={festival.name}
+							placeholder="blur"
+							blurDataURL="/img/placeholders/placeholder-300x300.png"
 							fill
-							unoptimized
 						/>
 					</div>
 				) : (
