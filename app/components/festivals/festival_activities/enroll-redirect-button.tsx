@@ -5,10 +5,10 @@ import { FestivalActivityWithDetailsAndParticipants } from "@/app/data/festivals
 import { formatDate } from "@/app/lib/formatters";
 import { useEffect, useState } from "react";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { DateTime } from "luxon";
 import { BaseProfile } from "@/app/api/users/definitions";
@@ -91,11 +91,11 @@ export default function EnrollRedirectButton({
 		registrationEndDate,
 	]);
 
-	const activityDetail = activity.details[0];
-
-	if (!activityDetail) {
+	if (!activity.details || activity.details.length === 0) {
 		return notFound();
 	}
+
+	const activityDetail = activity.details[0];
 
 	const action: () => void = form.handleSubmit(async () => {
 		const result = await enrollInActivity(
