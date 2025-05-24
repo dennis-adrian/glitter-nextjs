@@ -2,7 +2,7 @@
 
 import { CheckCircleIcon } from "lucide-react";
 import Link from "next/link";
-import { notFound, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { z } from "zod";
 
@@ -13,10 +13,10 @@ const SearchParamsSchema = z.object({
 
 export default function Page() {
 	const router = useRouter();
-	const searchParams = useSearchParams();
+	const params = useParams();
 
-	const profileId = searchParams.get("profileId");
-	const festivalId = searchParams.get("festivalId");
+	const profileId = params.profileId;
+	const festivalId = params.festivalId;
 
 	const validatedParams = SearchParamsSchema.safeParse({
 		profileId: profileId,
@@ -32,7 +32,15 @@ export default function Page() {
 	}, [router, validatedParams.success]);
 
 	if (!validatedParams.success) {
-		return notFound();
+		return (
+			<div className="container p-3 md:p-6">
+				<div className="flex flex-col items-center justify-center text-center">
+					<p className="text-sm">
+						Error al inscribirse en la actividad. Por favor, intenta nuevamente.
+					</p>
+				</div>
+			</div>
+		);
 	}
 
 	return (

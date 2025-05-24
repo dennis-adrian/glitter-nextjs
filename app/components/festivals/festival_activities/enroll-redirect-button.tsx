@@ -91,13 +91,17 @@ export default function EnrollRedirectButton({
 		registrationEndDate,
 	]);
 
-	if (!activity.details || activity.details.length === 0) {
-		return notFound();
+	if (!activity.details?.length) {
+		return (
+			<div className="flex flex-col text-center border border-gray-200 rounded-md p-4 bg-gray-50 text-gray-800">
+				<p className="text-sm">Sin datos disponibles</p>
+			</div>
+		);
 	}
 
 	const activityDetail = activity.details[0];
 
-	const action: () => void = form.handleSubmit(async () => {
+	const action = form.handleSubmit(async () => {
 		const result = await enrollInActivity(
 			forProfileId,
 			activity.festivalId,

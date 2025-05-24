@@ -43,10 +43,10 @@ export function UpcomingFestivalCard({
 			<CardHeader className="bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-t-lg">
 				<div className="flex justify-between items-start">
 					<div>
-						<CardTitle className="text-2xl md:text-3xl font-bold">
+						<CardTitle className="text-xl md:text-3xl font-bold">
 							{festival.name}
 						</CardTitle>
-						<CardDescription className="text-rose-100 mt-2 text-base">
+						<CardDescription className="text-rose-100 mt-2 text-sm md:text-base">
 							{festival.description}
 						</CardDescription>
 					</div>

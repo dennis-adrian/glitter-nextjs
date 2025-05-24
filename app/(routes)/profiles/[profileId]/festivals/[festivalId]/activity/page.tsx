@@ -8,20 +8,20 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
-const ParamsSchems = z.object({
+const ParamsSchema = z.object({
 	profileId: z.coerce.number(),
 	festivalId: z.coerce.number(),
 });
 
 type ParticipantsActivityPageProps = {
-	params: Promise<z.infer<typeof ParamsSchems>>;
+	params: z.infer<typeof ParamsSchema>;
 };
 
 export default async function ParticipantsActivityPage({
 	params,
 }: ParticipantsActivityPageProps) {
 	const { profileId, festivalId } = await params;
-	const validatedParams = ParamsSchems.safeParse({
+	const validatedParams = ParamsSchema.safeParse({
 		profileId,
 		festivalId,
 	});
