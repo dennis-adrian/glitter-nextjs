@@ -1,10 +1,7 @@
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
-import {
-	FestivalActivityDetail,
-	FestivalActivityDetailwithParticipants,
-	FestivalActivityWithDetailsAndParticipants,
-} from "@/app/data/festivals/definitions";
+import { FestivalActivityWithDetailsAndParticipants } from "@/app/data/festivals/definitions";
 import { FestivalSectorWithStands } from "@/app/lib/festival_sectors/definitions";
+import { ActivityDetailsWithParticipants } from "@/app/lib/festivals/definitions";
 
 export function getFestivalSectorAllowedCategories(
 	sector: FestivalSectorWithStands,
@@ -30,9 +27,7 @@ export function isProfileEnrolledInActivity(
 	);
 }
 
-export function isActivityDetailFull(
-	detail: FestivalActivityDetailwithParticipants,
-) {
+export function isActivityDetailFull(detail: ActivityDetailsWithParticipants) {
 	return (
 		detail.participationLimit &&
 		detail.participationLimit > 0 &&

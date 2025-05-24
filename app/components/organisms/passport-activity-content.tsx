@@ -83,7 +83,7 @@ export default function PassportActivityContent({
 				</p>
 			</div>
 			<EnrollRedirectButton
-				currentProfile={currentProfile!}
+				currentProfile={currentProfile}
 				forProfileId={forProfile.id}
 				festivalId={activity.festivalId}
 				activity={activity}

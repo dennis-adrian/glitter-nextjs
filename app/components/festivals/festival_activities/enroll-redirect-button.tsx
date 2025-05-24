@@ -15,7 +15,7 @@ import { BaseProfile } from "@/app/api/users/definitions";
 import { useForm } from "react-hook-form";
 import { enrollInActivity } from "@/app/lib/festival_sectors/actions";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { notFound, useRouter } from "next/navigation";
 import { Form } from "@/app/components/ui/form";
 import SubmitButton from "@/app/components/simple-submit-button";
 import {
@@ -91,11 +91,17 @@ export default function EnrollRedirectButton({
 		registrationEndDate,
 	]);
 
+	const activityDetail = activity.details[0];
+
+	if (!activityDetail) {
+		return notFound();
+	}
+
 	const action: () => void = form.handleSubmit(async () => {
 		const result = await enrollInActivity(
 			forProfileId,
 			activity.festivalId,
-			activity.details[0],
+			activityDetail,
 		);
 
 		if (result.success) {
@@ -108,7 +114,7 @@ export default function EnrollRedirectButton({
 		}
 	});
 
-	if (isPassportActivity && isActivityDetailFull(activity.details[0])) {
+	if (isPassportActivity && isActivityDetailFull(activityDetail)) {
 		return (
 			<div className="flex flex-col text-center border border-gray-200 rounded-md p-4 bg-gray-50 text-gray-800">
 				<p className="text-sm">

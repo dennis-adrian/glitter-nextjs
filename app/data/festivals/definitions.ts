@@ -50,13 +50,7 @@ export type FestivalActivity = typeof festivalActivities.$inferSelect;
 export type FestivalActivityDetail =
   typeof festivalActivityDetails.$inferSelect;
 export type FestivalActivityParticipant =
-  typeof festivalActivityParticipants.$inferSelect;
-export type FestivalActivityDetailwithParticipants = FestivalActivityDetail & {
-	participants: (FestivalActivityParticipant & {
-		user: BaseProfile;
-		proofs: (typeof festivalActivityParticipantProofs.$inferSelect)[];
-	})[];
-};
+	typeof festivalActivityParticipants.$inferSelect;
 
 export type FestivalWithUserRequests = Omit<
   Festival,
