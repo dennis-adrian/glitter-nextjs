@@ -8,11 +8,19 @@ export async function sendEmail(options: {
   subject: string;
   react: React.ReactElement;
 }) {
-  if (process.env.VERCEL_ENV === "development")
-    return {
-      data: null,
-      error: null,
-    };
+  if (process.env.VERCEL_ENV === "development") {
+		console.log("Sending email to", options.to);
+		console.log("Subject:", options.subject);
+		console.log("From:", options.from);
+		console.log("To:", options.to);
+		console.log("--------------------------------");
+		console.log("--------------------------------");
+
+		return {
+			data: null,
+			error: null,
+		};
+	}
 
   return await resend.emails.send(options);
 }

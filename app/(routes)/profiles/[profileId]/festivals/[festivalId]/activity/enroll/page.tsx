@@ -205,15 +205,19 @@ export default async function Page({ params }: EnrollPageProps) {
   }
 
   return (
-    <div className="container p-4 md:p-6">
-      <h1 className="text-xl md:text-2xl font-bold mb-1">
-        Inscripción al Sticker-Print
-      </h1>
-      <p className="text-muted-foreground text-sm md:text-base mb-2 md:mb-4">
-        Selecciona una imagen para elegir el diseño para participar en la
-        actividad del Sticker-Print.
-      </p>
-      <ActivityDetails activity={activity} user={forProfile} />
-    </div>
-  );
+		<div className="container p-4 md:p-6">
+			<h1 className="text-xl md:text-2xl font-bold mb-1">
+				Inscripción al Sticker-Print
+			</h1>
+			<p className="text-muted-foreground text-sm md:text-base mb-2 md:mb-4">
+				Selecciona una imagen para elegir el diseño para participar en la
+				actividad del Sticker-Print.
+			</p>
+			<ActivityDetails
+				activity={activity}
+				user={forProfile}
+				festival={festival}
+			/>
+		</div>
+	);
 }
