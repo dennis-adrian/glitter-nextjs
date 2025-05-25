@@ -7,6 +7,8 @@ import {
 } from "@/app/lib/festivals/definitions";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { BaseProfile } from "@/app/api/users/definitions";
+import { CheckCircleIcon, TriangleAlertIcon } from "lucide-react";
+import UploadStickerDesignModal from "@/app/components/festivals/festival_activities/upload-sticker-design-modal";
 
 type ActivitiesContentProps = {
 	forProfile: BaseProfile;
@@ -50,13 +52,41 @@ export default function ActivitiesContent({
 					<p className="text-sm text-gray-500">
 						Aquí puedes ver las actividades en las que te has inscrito.
 					</p>
-					{userActivities.map((activity) => (
-						<ActivityCard
-							key={activity.id}
-							activity={activity}
-							forProfile={forProfile}
-						/>
-					))}
+					{userActivities.map((activity) => {
+						const participants = activity.details.flatMap(
+							(detail) => detail.participants,
+						);
+
+						const userParticipation = participants.find(
+							(participant) => participant.user.id === forProfile.id,
+						);
+
+						const hasUploadedProof =
+							userParticipation?.proofs.length &&
+							userParticipation.proofs.length > 0;
+
+						return (
+							<div key={activity.id}>
+								{!hasUploadedProof && (
+									<div className="flex gap-1 mt-2 flex-col items-center text-sm border border-amber-200 text-amber-800 bg-amber-50 rounded-md p-2">
+										<p>No te olvides de subir el diseño de tu sello.</p>
+										{userParticipation && (
+											<UploadStickerDesignModal
+												maxFiles={1}
+												participationId={userParticipation.id}
+											/>
+										)}
+									</div>
+								)}
+								<ActivityCard
+									activity={activity}
+									forProfile={forProfile}
+									hasUploadedProof={!!hasUploadedProof}
+									isUserInActivity
+								/>
+							</div>
+						);
+					})}
 				</div>
 			)}
 			{availableActivities.length > 0 && (
@@ -86,9 +116,13 @@ export default function ActivitiesContent({
 export function ActivityCard({
 	activity,
 	forProfile,
+	hasUploadedProof,
+	isUserInActivity,
 }: {
 	activity: FestivalActivity;
 	forProfile: BaseProfile;
+	hasUploadedProof?: boolean;
+	isUserInActivity?: boolean;
 }) {
 	return (
 		<Card className="mt-3">
@@ -108,6 +142,22 @@ export function ActivityCard({
 						Ver más
 					</RedirectButton>
 				</div>
+				{isUserInActivity &&
+					(!hasUploadedProof ? (
+						<div className="flex items-center gap-2 mt-2">
+							<TriangleAlertIcon className="w-4 h-4 text-amber-700" />
+							<p className="text-sm text-amber-700">
+								Aún no subiste el diseño de tu sello.
+							</p>
+						</div>
+					) : (
+						<div className="flex items-center gap-2 mt-2">
+							<CheckCircleIcon className="w-4 h-4 text-green-600" />
+							<p className="text-sm text-green-600">
+								Subiste el diseño de tu sello.
+							</p>
+						</div>
+					))}
 			</CardContent>
 		</Card>
 	);
