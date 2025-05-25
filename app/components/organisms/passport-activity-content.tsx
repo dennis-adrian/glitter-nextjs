@@ -70,8 +70,8 @@ export default function PassportActivityContent({
 						sello de una edición pasada también es válido.
 					</li>
 					<li>
-						Subir el diseño del sello al sitio web para ayudar con el control a
-						quienes completen la actividad.
+						Subir el diseño del sello al sitio web hasta el 3 de junio, 2025
+						para ayudar con el control a quienes completen la actividad.
 					</li>
 				</ol>
 			</div>
