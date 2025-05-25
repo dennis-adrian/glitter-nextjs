@@ -9,36 +9,46 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Palette } from "lucide-react";
 import { DateTime } from "luxon";
+import Link from "next/link";
 
 export default function InfoTabContent({
-  festival,
-  reservation,
-  festivalStartDate,
-  festivalEndDate,
+	festival,
+	reservation,
+	festivalStartDate,
+	festivalEndDate,
 }: {
-  festival: Festival;
-  reservation: ReservationWithParticipantsAndUsersAndStand | undefined;
-  festivalStartDate: string;
-  festivalEndDate: string;
+	festival: Festival;
+	reservation: ReservationWithParticipantsAndUsersAndStand | undefined;
+	festivalStartDate: string;
+	festivalEndDate: string;
 }) {
-  return (
-		<div className="space-y-4">
+	return (
+		<div className="space-y-2 md:space-y-4">
 			<div className="flex items-start gap-3">
-				{festival.festivalBannerUrl ? (
-					<div className="relative w-28 h-32">
-						<Image
-							className="object-cover"
-							src={festival.festivalBannerUrl}
-							alt={festival.name}
-							fill
-							unoptimized
-						/>
-					</div>
-				) : (
-					<div className="bg-rose-100 p-3 rounded-full">
-						<Palette className="h-6 w-6 text-rose-500" />
-					</div>
-				)}
+				<div className="flex flex-col gap-1 text-center items-center">
+					{festival.festivalBannerUrl ? (
+						<div className="relative w-28 h-32">
+							<Image
+								className="object-cover"
+								src={festival.festivalBannerUrl}
+								alt={festival.name}
+								placeholder="blur"
+								blurDataURL="/img/placeholders/placeholder-300x300.png"
+								fill
+							/>
+						</div>
+					) : (
+						<div className="bg-purple-100 p-3 rounded-full w-fit">
+							<Palette className="h-6 w-6 text-purple-500" />
+						</div>
+					)}
+					<Link
+						href={`/festivals/${festival.id}?tab=sectors`}
+						className="text-sm text-purple-500 underline"
+					>
+						Ver mapa
+					</Link>
+				</div>
 				{reservation && (
 					<div>
 						<h3 className="font-semibold text-lg">
