@@ -26,8 +26,9 @@ type UploadStickerDesignModalProps = {
 
 export default function UploadStickerDesignModal({
 	participationId,
-	maxFiles = 5,
+	maxFiles: rawMaxFiles = 5,
 }: UploadStickerDesignModalProps) {
+	const maxFiles = Math.min(Math.max(rawMaxFiles, 1), 10); // guard [1,10]
 	const isDesktop = useMediaQuery("(min-width: 768px)");
 	const [uploadSuccess, setUploadSuccess] = useState(false);
 	const [uploadedFiles, setUploadedFiles] = useState<
@@ -129,11 +130,21 @@ export default function UploadStickerDesignModal({
 		);
 	};
 	return (
-		<DrawerDialog isDesktop={isDesktop}>
+		<DrawerDialog
+			isDesktop={isDesktop}
+			onOpenChange={(open) => {
+				if (!open) {
+					setUploadSuccess(false);
+					setInsertSuccess(false);
+					setInsertError(false);
+					setUploadedFiles([]);
+				}
+			}}
+		>
 			<DrawerDialogTrigger>
 				<Button
 					variant="outline"
-					className="hover:text-current hover:bg-current/80"
+					className="hover:text-current hover:bg-current/80 w-full md:max-w-[280px] mx-auto"
 				>
 					<span>Subir diseño</span>
 					<UploadCloudIcon className="w-4 h-4 ml-2" />

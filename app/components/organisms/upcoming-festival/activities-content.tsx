@@ -62,8 +62,7 @@ export default function ActivitiesContent({
 						);
 
 						const hasUploadedProof =
-							userParticipation?.proofs.length &&
-							userParticipation.proofs.length > 0;
+							(userParticipation?.proofs?.length ?? 0) > 0;
 
 						return (
 							<div key={activity.id}>
