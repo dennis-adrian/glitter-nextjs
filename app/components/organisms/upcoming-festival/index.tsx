@@ -39,35 +39,35 @@ export function UpcomingFestivalCard({
 	);
 
 	return (
-		<Card className="w-full max-w-4xl shadow-lg border-rose-100 mx-auto">
-			<CardHeader className="bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-t-lg">
+		<Card className="w-full max-w-4xl shadow-lg border-purple-100 mx-auto">
+			<CardHeader className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-t-lg">
 				<div className="flex justify-between items-start">
 					<div>
 						<CardTitle className="text-xl md:text-3xl font-bold">
 							{festival.name}
 						</CardTitle>
-						<CardDescription className="text-rose-100 mt-2 text-sm md:text-base">
+						<CardDescription className="text-purple-100 mt-2 text-sm md:text-base">
 							{festival.description}
 						</CardDescription>
 					</div>
-					<Badge className="hidden md:block bg-white text-rose-500 hover:bg-rose-100 px-3 py-1 text-sm">
+					<Badge className="hidden md:block bg-white text-purple-500 hover:bg-purple-100 px-3 py-1 text-sm">
 						Participante Confirmado
 					</Badge>
 				</div>
 
 				<div className="flex flex-col sm:flex-row gap-4 mt-4">
 					<div className="flex items-center gap-2">
-						<Calendar className="h-5 w-5 text-rose-200" />
+						<Calendar className="h-5 w-5 text-purple-200" />
 						<span>
 							{festivalStartDate} - {festivalEndDate}
 						</span>
 					</div>
 					<div className="flex items-center gap-2">
-						<MapPin className="h-5 w-5 text-rose-200" />
+						<MapPin className="h-5 w-5 text-purple-200" />
 						<span>{festival.locationLabel}</span>
 					</div>
 					{/* <div className="flex items-center gap-2">
-            <Clock className="h-5 w-5 text-rose-200" />
+            <Clock className="h-5 w-5 text-purple-200" />
             <span>10 days remaining</span>
           </div> */}
 				</div>
@@ -117,7 +117,7 @@ export function UpcomingFestivalCard({
           <Button variant="outline" size="sm">
             Download Schedule
           </Button>
-          <Button className="bg-rose-500 hover:bg-rose-600" size="sm">
+          <Button className="bg-purple-500 hover:bg-purple-600" size="sm">
             Contact Organizers
           </Button>
         </div>

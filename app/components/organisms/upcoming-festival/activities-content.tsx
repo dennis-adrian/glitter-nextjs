@@ -53,7 +53,7 @@ export default function ActivitiesContent({
 										href={`/profiles/${forProfile.id}/festivals/${festival.id}/activity`}
 										size="sm"
 										variant="outline"
-										className="border-rose-500 text-rose-500 hover:bg-rose-50 hover:text-rose-500 focus:text-rose-500"
+										className="border-purple-500 text-purple-500 hover:bg-purple-50 hover:text-purple-500 focus:text-purple-500"
 										loadingText=""
 									>
 										Ver más

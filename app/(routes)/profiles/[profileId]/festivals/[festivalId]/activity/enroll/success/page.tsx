@@ -25,9 +25,11 @@ export default function Page() {
 
 	useEffect(() => {
 		if (validatedParams.success) {
-			setTimeout(() => {
+			const timeoutId = setTimeout(() => {
 				router.push("/my_participations");
 			}, 3000);
+
+			return () => clearTimeout(timeoutId);
 		}
 	}, [router, validatedParams.success]);
 
@@ -46,7 +48,10 @@ export default function Page() {
 	return (
 		<div className="container p-3 md:p-6">
 			<div className="flex flex-col items-center justify-center text-center">
-				<CheckCircleIcon className="w-10 h-10 text-emerald-500 mb-3" />
+				<CheckCircleIcon
+					className="w-10 h-10 text-emerald-500 mb-3"
+					aria-hidden="true"
+				/>
 				<h1 className="text-xl md:text-2xl font-bold mb-1">
 					Inscripción exitosa
 				</h1>

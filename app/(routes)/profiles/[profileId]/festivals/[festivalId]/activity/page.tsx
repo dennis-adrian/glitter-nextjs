@@ -14,7 +14,7 @@ const ParamsSchema = z.object({
 });
 
 type ParticipantsActivityPageProps = {
-	params: z.infer<typeof ParamsSchema>;
+	params: Promise<z.infer<typeof ParamsSchema>>;
 };
 
 export default async function ParticipantsActivityPage({

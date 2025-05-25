@@ -77,10 +77,9 @@ export default function PassportActivityContent({
 			</div>
 			<div className="bg-amber-50 border border-amber-100 rounded-md p-4 mt-4 text-amber-800">
 				<p className="text-sm">
-					Una vez inscrito a la actividad, el participantes se compromete a
-					cumplir con todas estas condiciones. En caso de incumplimiento, el
-					ilustrador podría perder el derecho a participar en futuros eventos
-					y/o actividades.
+					Una vez inscrito a la actividad, el participante se compromete a
+					cumplir con todas estas condiciones. En caso de incumplimiento, podría
+					perder el derecho a participar en futuros eventos y/o actividades.
 				</p>
 			</div>
 			<EnrollRedirectButton

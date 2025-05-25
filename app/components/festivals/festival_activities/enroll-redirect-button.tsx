@@ -55,21 +55,21 @@ export default function EnrollRedirectButton({
 			if (now < startDate) {
 				setIsEnabled(false);
 				setStatusMessage(
-					`El registro comenzará el ${registrationStartDate.toLocaleString(
+					`El registro comenzará el ${startDate.toLocaleString(
 						DateTime.DATETIME_MED,
 					)}`,
 				);
 			} else if (now > endDate) {
 				setIsEnabled(false);
 				setStatusMessage(
-					`El registro finalizó el ${registrationEndDate.toLocaleString(
+					`El registro finalizó el ${endDate.toLocaleString(
 						DateTime.DATETIME_MED,
 					)}`,
 				);
 			} else {
 				setIsEnabled(true);
 				setStatusMessage(
-					`Registro abierto hasta el ${registrationEndDate.toLocaleString(
+					`Registro abierto hasta el ${endDate.toLocaleString(
 						DateTime.DATETIME_MED,
 					)}`,
 				);
@@ -84,12 +84,7 @@ export default function EnrollRedirectButton({
 
 		// Clean up interval on component unmount
 		return () => clearInterval(intervalId);
-	}, [
-		activity.registrationStartDate,
-		activity.registrationEndDate,
-		registrationStartDate,
-		registrationEndDate,
-	]);
+	}, [activity.registrationStartDate, activity.registrationEndDate]);
 
 	if (!activity.details?.length) {
 		return (
@@ -102,19 +97,23 @@ export default function EnrollRedirectButton({
 	const activityDetail = activity.details[0];
 
 	const action = form.handleSubmit(async () => {
-		const result = await enrollInActivity(
-			forProfileId,
-			activity.festivalId,
-			activityDetail,
-		);
-
-		if (result.success) {
-			toast.success(result.message);
-			router.push(
-				`/profiles/${forProfileId}/festivals/${festivalId}/activity/enroll/success`,
+		try {
+			const result = await enrollInActivity(
+				forProfileId,
+				activity.festivalId,
+				activityDetail,
 			);
-		} else {
-			toast.error(result.message);
+
+			if (result.success) {
+				toast.success(result.message);
+				router.push(
+					`/profiles/${forProfileId}/festivals/${festivalId}/activity/enroll/success`,
+				);
+			} else {
+				toast.error(result.message);
+			}
+		} catch (error) {
+			toast.error("Error inesperado al procesar la inscripción");
 		}
 	});
 
