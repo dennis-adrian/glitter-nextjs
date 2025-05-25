@@ -242,24 +242,24 @@ export async function enrollInActivity(
 					detailsId,
 				});
 
-				const admins = await fetchAdminUsers();
-				const adminEmails = admins.map((admin) => admin.email);
-
-				await sendEmail({
-					from: "Actividades del Festival <no-reply@productoraglitter.com>",
-					to: [...adminEmails],
-					subject: "Inscripción a una actividad del festival",
-					react: FestivalActivityRegistrationEmail({
-						festival,
-						festivalActivity: activity,
-						user: user,
-					}),
-				});
-
 				return {
 					success: true,
 					message: "Inscripción realizada correctamente",
 				};
+			});
+
+			const admins = await fetchAdminUsers();
+			const adminEmails = admins.map((admin) => admin.email);
+
+			await sendEmail({
+				from: "Actividades del Festival <no-reply@productoraglitter.com>",
+				to: [...adminEmails],
+				subject: "Inscripción a una actividad del festival",
+				react: FestivalActivityRegistrationEmail({
+					festival,
+					festivalActivity: activity,
+					user: user,
+				}),
 			});
 
 			revalidatePath(`/profiles/${user.id}/festivals/${festival.id}/activity`);
