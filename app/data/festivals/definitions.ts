@@ -50,7 +50,7 @@ export type FestivalActivity = typeof festivalActivities.$inferSelect;
 export type FestivalActivityDetail =
   typeof festivalActivityDetails.$inferSelect;
 export type FestivalActivityParticipant =
-  typeof festivalActivityParticipants.$inferSelect;
+	typeof festivalActivityParticipants.$inferSelect;
 
 export type FestivalWithUserRequests = Omit<
   Festival,
