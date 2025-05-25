@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Festival } from "@/app/data/festivals/definitions";
 import { formatFullDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import { ProfileType } from "@/app/api/users/definitions";
@@ -43,7 +42,7 @@ export function UpcomingFestivalCard({
 			<CardHeader className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-t-lg">
 				<div className="flex justify-between items-start">
 					<div>
-						<CardTitle className="text-xl md:text-3xl font-bold">
+						<CardTitle className="text-lg md:text-2xl font-bold">
 							{festival.name}
 						</CardTitle>
 						<CardDescription className="text-purple-100 mt-2 text-sm md:text-base">
