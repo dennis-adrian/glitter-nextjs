@@ -17,13 +17,11 @@ export function getFestivalSectorAllowedCategories(
 }
 
 export function isProfileEnrolledInActivity(
-	profile: BaseProfile,
+	profileId: number,
 	activity: FestivalActivityWithDetailsAndParticipants,
 ) {
 	return activity.details.some((detail) =>
-		detail.participants.some(
-			(participant) => participant.userId === profile.id,
-		),
+		detail.participants.some((participant) => participant.userId === profileId),
 	);
 }
 

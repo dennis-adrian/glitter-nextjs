@@ -1,18 +1,23 @@
 import { BaseProfile } from "@/app/api/users/definitions";
 import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
-import { FestivalActivityWithDetailsAndParticipants } from "@/app/data/festivals/definitions";
+import {
+	FestivalActivityWithDetailsAndParticipants,
+	FestivalBase,
+} from "@/app/data/festivals/definitions";
 import Image from "next/image";
 
 type PassportActivityContentProps = {
 	currentProfile: BaseProfile;
 	forProfile: BaseProfile;
 	activity: FestivalActivityWithDetailsAndParticipants;
+	festival: FestivalBase;
 };
 
 export default function PassportActivityContent({
 	activity,
 	currentProfile,
 	forProfile,
+	festival,
 }: PassportActivityContentProps) {
 	return (
 		<div className="flex flex-col gap-4">
@@ -84,8 +89,8 @@ export default function PassportActivityContent({
 			</div>
 			<EnrollRedirectButton
 				currentProfile={currentProfile}
-				forProfileId={forProfile.id}
-				festivalId={activity.festivalId}
+				forProfile={forProfile}
+				festival={festival}
 				activity={activity}
 			/>
 		</div>
