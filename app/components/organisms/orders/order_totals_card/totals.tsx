@@ -40,7 +40,7 @@ export default function OrdersTotals(props: OrdersTotalsProps) {
 					number,
 					{
 						productName: string;
-						totals: Record<OrderStatus, number>;
+						totals: Partial<Record<OrderStatus, number>>;
 						allTotalsSum: number;
 					}
 				>,

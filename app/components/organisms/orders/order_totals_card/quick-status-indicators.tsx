@@ -5,7 +5,7 @@ import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 
 type QuickStatusIndicatorsProps = {
 	product: {
-		totals: Record<OrderStatus, number>;
+		totals: Partial<Record<OrderStatus, number>>;
 	};
 	isExpanded: boolean;
 };
@@ -17,46 +17,17 @@ export default function QuickStatusIndicators({
 	return (
 		<div className="flex items-center gap-2">
 			<div className="flex gap-1">
-				{product.totals.paid > 0 && (
-					<Badge
-						variant="outline"
-						className={`${getStatusColor("paid")} text-xs px-1.5 py-0.5`}
-					>
-						{product.totals.paid}
-					</Badge>
-				)}
-				{product.totals.pending > 0 && (
-					<Badge
-						variant="outline"
-						className={`${getStatusColor("pending")} text-xs px-1.5 py-0.5`}
-					>
-						{product.totals.pending}
-					</Badge>
-				)}
-				{product.totals.processing > 0 && (
-					<Badge
-						variant="outline"
-						className={`${getStatusColor("processing")} text-xs px-1.5 py-0.5`}
-					>
-						{product.totals.processing}
-					</Badge>
-				)}
-				{product.totals.delivered > 0 && (
-					<Badge
-						variant="outline"
-						className={`${getStatusColor("delivered")} text-xs px-1.5 py-0.5`}
-					>
-						{product.totals.delivered}
-					</Badge>
-				)}
-				{product.totals.cancelled > 0 && (
-					<Badge
-						variant="outline"
-						className={`${getStatusColor("cancelled")} text-xs px-1.5 py-0.5`}
-					>
-						{product.totals.cancelled}
-					</Badge>
-				)}
+				{(Object.entries(product.totals) as [OrderStatus, number][])
+					.filter(([_, total]) => total > 0)
+					.map(([status, total]) => (
+						<Badge
+							key={status}
+							variant="outline"
+							className={`${getStatusColor(status)} text-xs px-1.5 py-0.5`}
+						>
+							{total}
+						</Badge>
+					))}
 			</div>
 			{isExpanded ? (
 				<ChevronUpIcon className="h-4 w-4 text-muted-foreground" />

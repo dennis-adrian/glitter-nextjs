@@ -1,32 +1,21 @@
 "use client";
 
-import { Badge } from "@/app/components/ui/badge";
 import { OrderStatus } from "@/app/lib/orders/definitions";
 import {
 	CardContent,
 	Card,
-	CardDescription,
 	CardHeader,
 	CardTitle,
 } from "@/app/components/ui/card";
-import {
-	AlertCircleIcon,
-	CheckCircleIcon,
-	ChevronDownIcon,
-	ChevronUpIcon,
-	ClockIcon,
-	PackageIcon,
-} from "lucide-react";
-import { useCallback, useState } from "react";
+import { PackageIcon } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/app/components/ui/button";
-import { Progress } from "@/app/components/ui/progress";
-import { getStatusColor } from "@/app/components/organisms/orders/order_totals_card/utils";
 import QuickStatusIndicators from "@/app/components/organisms/orders/order_totals_card/quick-status-indicators";
 import StatusPercentage from "@/app/components/organisms/orders/order_totals_card/status-percentage";
 
 type OrderTotalsCardProps = {
 	product: {
-		totals: Record<OrderStatus, number>;
+		totals: Partial<Record<OrderStatus, number>>;
 		allTotalsSum: number;
 		productName: string;
 	};
@@ -35,15 +24,21 @@ type OrderTotalsCardProps = {
 export default function OrderTotalsCard({ product }: OrderTotalsCardProps) {
 	const [isExpanded, setIsExpanded] = useState(false);
 
-	const paidPercentage = (product.totals.paid / product.allTotalsSum) * 100;
-	const pendingPercentage =
-		(product.totals.pending / product.allTotalsSum) * 100;
-	const processingPercentage =
-		(product.totals.processing / product.allTotalsSum) * 100;
-	const deliveredPercentage =
-		(product.totals.delivered / product.allTotalsSum) * 100;
-	const cancelledPercentage =
-		(product.totals.cancelled / product.allTotalsSum) * 100;
+	const paidPercentage = product.totals.paid
+		? (product.totals.paid / product.allTotalsSum) * 100
+		: 0;
+	const pendingPercentage = product.totals.pending
+		? (product.totals.pending / product.allTotalsSum) * 100
+		: 0;
+	const processingPercentage = product.totals.processing
+		? (product.totals.processing / product.allTotalsSum) * 100
+		: 0;
+	const deliveredPercentage = product.totals.delivered
+		? (product.totals.delivered / product.allTotalsSum) * 100
+		: 0;
+	const cancelledPercentage = product.totals.cancelled
+		? (product.totals.cancelled / product.allTotalsSum) * 100
+		: 0;
 
 	return (
 		<Card className="w-full max-w-md transition-all duration-300 hover:shadow-md my-2">
@@ -96,7 +91,7 @@ export default function OrderTotalsCard({ product }: OrderTotalsCardProps) {
 						</div>
 
 						{/* Por confirmar */}
-						{product.totals.pending > 0 && (
+						{product.totals.pending && product.totals.pending > 0 && (
 							<StatusPercentage
 								status="pending"
 								percentage={pendingPercentage}
@@ -105,7 +100,7 @@ export default function OrderTotalsCard({ product }: OrderTotalsCardProps) {
 						)}
 
 						{/* En proceso */}
-						{product.totals.processing > 0 && (
+						{product.totals.processing && product.totals.processing > 0 && (
 							<StatusPercentage
 								status="processing"
 								percentage={processingPercentage}
@@ -114,7 +109,7 @@ export default function OrderTotalsCard({ product }: OrderTotalsCardProps) {
 						)}
 
 						{/* Pagado */}
-						{product.totals.paid > 0 && (
+						{product.totals.paid && product.totals.paid > 0 && (
 							<StatusPercentage
 								status="paid"
 								percentage={paidPercentage}
@@ -123,7 +118,7 @@ export default function OrderTotalsCard({ product }: OrderTotalsCardProps) {
 						)}
 
 						{/* Entregado */}
-						{product.totals.delivered > 0 && (
+						{product.totals.delivered && product.totals.delivered > 0 && (
 							<StatusPercentage
 								status="delivered"
 								percentage={deliveredPercentage}
@@ -132,7 +127,7 @@ export default function OrderTotalsCard({ product }: OrderTotalsCardProps) {
 						)}
 
 						{/* Cancelado */}
-						{product.totals.cancelled > 0 && (
+						{product.totals.cancelled && product.totals.cancelled > 0 && (
 							<StatusPercentage
 								status="cancelled"
 								percentage={cancelledPercentage}

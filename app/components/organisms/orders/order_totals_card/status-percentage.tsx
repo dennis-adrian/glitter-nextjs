@@ -6,9 +6,7 @@ import { OrderStatus } from "@/app/lib/orders/definitions";
 import { getOrderStatusLabel } from "@/app/lib/orders/utils";
 import {
 	AlertCircleIcon,
-	BanIcon,
 	CheckCircleIcon,
-	CheckIcon,
 	ClockIcon,
 	CogIcon,
 	CreditCardIcon,
@@ -24,22 +22,24 @@ export default function StatusPercentage({
 	percentage,
 	total,
 }: StatusPercentageProps) {
-	let Icon = <ClockIcon className="h-4 w-4 text-gray-500" />;
+	const getStatusIcon = (status: OrderStatus) => {
+		switch (status) {
+			case "pending":
+				return <ClockIcon className="h-4 w-4 text-gray-500" />;
+			case "paid":
+				return <CreditCardIcon className="h-4 w-4 text-amber-700" />;
+			case "processing":
+				return <CogIcon className="h-4 w-4 text-blue-600" />;
+			case "delivered":
+				return <CheckCircleIcon className="h-4 w-4 text-green-600" />;
+			case "cancelled":
+				return <AlertCircleIcon className="h-4 w-4 text-red-600" />;
+			default:
+				return <ClockIcon className="h-4 w-4 text-gray-500" />;
+		}
+	};
 
-	switch (status) {
-		case "paid":
-			Icon = <CreditCardIcon className="h-4 w-4 text-amber-700" />;
-			break;
-		case "processing":
-			Icon = <CogIcon className="h-4 w-4 text-blue-600" />;
-			break;
-		case "delivered":
-			Icon = <CheckCircleIcon className="h-4 w-4 text-green-600" />;
-			break;
-		case "cancelled":
-			Icon = <AlertCircleIcon className="h-4 w-4 text-red-600" />;
-			break;
-	}
+	const Icon = getStatusIcon(status);
 
 	return (
 		<div className="space-y-2">
