@@ -1,10 +1,15 @@
 "use server";
 
 import { orderItems, orders } from "@/db/schema";
-import { NewOrderItem, OrderWithRelations } from "@/app/lib/orders/definitions";
+import {
+	NewOrderItem,
+	OrderStatus,
+	OrderWithRelations,
+} from "@/app/lib/orders/definitions";
 import { db } from "@/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { products } from "@/db/schema";
 
 export async function createOrder(
 	orderItemsToInsert: NewOrderItem[],
@@ -180,4 +185,47 @@ export async function deleteOrder(orderId: number) {
 		success: true,
 		message: "Orden eliminada correctamente.",
 	};
+}
+
+export async function updateOrderStatus(orderId: number, status: OrderStatus) {
+	try {
+		await db.update(orders).set({ status }).where(eq(orders.id, orderId));
+	} catch (error) {
+		console.error(error);
+		return {
+			success: false,
+			message: "No se pudo actualizar el pedido.",
+		};
+	}
+
+	revalidatePath("/dashboard/orders");
+	return {
+		success: true,
+		message: "Pedido actualizado correctamente.",
+	};
+}
+
+export async function fetchOrdersTotalsByProduct() {
+	try {
+		const result = await db.transaction(async (tx) => {
+			const totals = await tx
+				.select({
+					productId: orderItems.productId,
+					productName: products.name,
+					status: orders.status,
+					totalQuantity: sql<number>`cast(sum(${orderItems.quantity}) as integer)`,
+				})
+				.from(orderItems)
+				.innerJoin(orders, eq(orderItems.orderId, orders.id))
+				.innerJoin(products, eq(orderItems.productId, products.id))
+				.groupBy(orderItems.productId, products.name, orders.status);
+
+			return totals;
+		});
+
+		return result;
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
 }
