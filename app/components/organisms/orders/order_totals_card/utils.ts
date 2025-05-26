@@ -16,3 +16,10 @@ export const getStatusColor = (status: OrderStatus) => {
 			return "bg-gray-100 text-gray-800 border-gray-200";
 	}
 };
+
+export const calculatePercentage = (
+	value: number | undefined,
+	total: number,
+): number => {
+	return value ? (value / total) * 100 : 0;
+};

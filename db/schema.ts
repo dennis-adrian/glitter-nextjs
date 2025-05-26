@@ -861,19 +861,26 @@ export const ordersRelations = relations(orders, ({ many, one }) => ({
 	}),
 }));
 
-export const orderItems = pgTable("order_items", {
-	id: serial("id").primaryKey(),
-	orderId: integer("order_id")
-		.notNull()
-		.references(() => orders.id, { onDelete: "cascade" }),
-	productId: integer("product_id")
-		.notNull()
-		.references(() => products.id, { onDelete: "cascade" }),
-	quantity: integer("quantity").notNull(),
-	priceAtPurchase: real("price_at_purchase").notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const orderItems = pgTable(
+	"order_items",
+	{
+		id: serial("id").primaryKey(),
+		orderId: integer("order_id")
+			.notNull()
+			.references(() => orders.id, { onDelete: "cascade" }),
+		productId: integer("product_id")
+			.notNull()
+			.references(() => products.id, { onDelete: "cascade" }),
+		quantity: integer("quantity").notNull(),
+		priceAtPurchase: real("price_at_purchase").notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(orderItems) => ({
+		orderIdIdx: index("order_items_order_id_idx").on(orderItems.orderId),
+		productIdIdx: index("order_items_product_id_idx").on(orderItems.productId),
+	}),
+);
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({
 	order: one(orders, {
 		fields: [orderItems.orderId],

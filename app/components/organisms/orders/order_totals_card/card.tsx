@@ -12,6 +12,7 @@ import { useState } from "react";
 import { Button } from "@/app/components/ui/button";
 import QuickStatusIndicators from "@/app/components/organisms/orders/order_totals_card/quick-status-indicators";
 import StatusPercentage from "@/app/components/organisms/orders/order_totals_card/status-percentage";
+import { calculatePercentage } from "@/app/components/organisms/orders/order_totals_card/utils";
 
 type OrderTotalsCardProps = {
 	product: {
@@ -24,21 +25,26 @@ type OrderTotalsCardProps = {
 export default function OrderTotalsCard({ product }: OrderTotalsCardProps) {
 	const [isExpanded, setIsExpanded] = useState(false);
 
-	const paidPercentage = product.totals.paid
-		? (product.totals.paid / product.allTotalsSum) * 100
-		: 0;
-	const pendingPercentage = product.totals.pending
-		? (product.totals.pending / product.allTotalsSum) * 100
-		: 0;
-	const processingPercentage = product.totals.processing
-		? (product.totals.processing / product.allTotalsSum) * 100
-		: 0;
-	const deliveredPercentage = product.totals.delivered
-		? (product.totals.delivered / product.allTotalsSum) * 100
-		: 0;
-	const cancelledPercentage = product.totals.cancelled
-		? (product.totals.cancelled / product.allTotalsSum) * 100
-		: 0;
+	const paidPercentage = calculatePercentage(
+		product.totals.paid,
+		product.allTotalsSum,
+	);
+	const pendingPercentage = calculatePercentage(
+		product.totals.pending,
+		product.allTotalsSum,
+	);
+	const processingPercentage = calculatePercentage(
+		product.totals.processing,
+		product.allTotalsSum,
+	);
+	const deliveredPercentage = calculatePercentage(
+		product.totals.delivered,
+		product.allTotalsSum,
+	);
+	const cancelledPercentage = calculatePercentage(
+		product.totals.cancelled,
+		product.allTotalsSum,
+	);
 
 	return (
 		<Card className="w-full max-w-md transition-all duration-300 hover:shadow-md my-2">
