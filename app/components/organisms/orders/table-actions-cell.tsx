@@ -74,15 +74,17 @@ export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
 							Marcar como entregado
 						</DropdownMenuItem>
 					)}
-					<DropdownMenuItem
-						onClick={() => {
-							setActionStatus("cancelled");
-							setOpenUpdateOrderStatusModal(true);
-						}}
-					>
-						<BanIcon className="h-4 w-4 mr-1 " />
-						<span>Cancelar pedido</span>
-					</DropdownMenuItem>
+					{!["cancelled", "delivered"].includes(order.status) && (
+						<DropdownMenuItem
+							onClick={() => {
+								setActionStatus("cancelled");
+								setOpenUpdateOrderStatusModal(true);
+							}}
+						>
+							<BanIcon className="h-4 w-4 mr-1 " />
+							<span>Cancelar pedido</span>
+						</DropdownMenuItem>
+					)}
 					<DropdownMenuItem onClick={() => setOpenDeleteModal(true)}>
 						<Trash2Icon className="h-4 w-4 mr-1" />
 						<span>Eliminar pedido</span>
