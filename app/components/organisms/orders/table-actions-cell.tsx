@@ -1,8 +1,17 @@
 "use client";
 
-import { CheckCircleIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react";
+import {
+	BanIcon,
+	CheckCheckIcon,
+	CheckCircleIcon,
+	MoreHorizontalIcon,
+	Trash2Icon,
+	TruckIcon,
+} from "lucide-react";
 
+import DeleteOrderModal from "@/app/components/organisms/orders/delete-order-modal";
 import { Button } from "@/app/components/ui/button";
+import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -11,14 +20,14 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { OrderWithRelations } from "@/app/lib/orders/definitions";
 import { useState } from "react";
-import AcceptOrderModal from "@/app/components/organisms/orders/accept-order-modal";
-import DeleteOrderModal from "@/app/components/organisms/orders/delete-order-modal";
+import UpdateOrderStatusModal from "@/app/components/organisms/orders/update-order-status-modal";
 
 export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
-	const [openAcceptModal, setOpenAcceptModal] = useState(false);
 	const [openDeleteModal, setOpenDeleteModal] = useState(false);
+	const [actionStatus, setActionStatus] = useState<OrderStatus | null>(null);
+	const [openUpdateOrderStatusModal, setOpenUpdateOrderStatusModal] =
+		useState(false);
 
 	return (
 		<>
@@ -32,25 +41,66 @@ export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
 				<DropdownMenuContent align="end">
 					<DropdownMenuLabel>Acciones</DropdownMenuLabel>
 					<DropdownMenuSeparator />
-					<DropdownMenuItem onClick={() => setOpenAcceptModal(true)}>
-						<CheckCircleIcon className="h-4 w-4 mr-1" />
-						Aceptar Pedido
-					</DropdownMenuItem>
+					{order.status === "pending" && (
+						<DropdownMenuItem
+							onClick={() => {
+								setActionStatus("processing");
+								setOpenUpdateOrderStatusModal(true);
+							}}
+						>
+							<CheckCircleIcon className="h-4 w-4 mr-1" />
+							Aceptar pedido
+						</DropdownMenuItem>
+					)}
+					{order.status === "processing" && (
+						<DropdownMenuItem
+							onClick={() => {
+								setActionStatus("paid");
+								setOpenUpdateOrderStatusModal(true);
+							}}
+						>
+							<CheckCheckIcon className="h-4 w-4 mr-1" />
+							Confirmar pago
+						</DropdownMenuItem>
+					)}
+					{order.status === "paid" && (
+						<DropdownMenuItem
+							onClick={() => {
+								setActionStatus("delivered");
+								setOpenUpdateOrderStatusModal(true);
+							}}
+						>
+							<TruckIcon className="h-4 w-4 mr-1" />
+							Marcar como entregado
+						</DropdownMenuItem>
+					)}
+					{!["cancelled", "delivered"].includes(order.status) && (
+						<DropdownMenuItem
+							onClick={() => {
+								setActionStatus("cancelled");
+								setOpenUpdateOrderStatusModal(true);
+							}}
+						>
+							<BanIcon className="h-4 w-4 mr-1 " />
+							<span>Cancelar pedido</span>
+						</DropdownMenuItem>
+					)}
 					<DropdownMenuItem onClick={() => setOpenDeleteModal(true)}>
 						<Trash2Icon className="h-4 w-4 mr-1" />
-						Eliminar
+						<span>Eliminar pedido</span>
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
-			<AcceptOrderModal
-				order={order}
-				open={openAcceptModal}
-				setOpen={setOpenAcceptModal}
-			/>
 			<DeleteOrderModal
 				order={order}
 				open={openDeleteModal}
 				setOpen={setOpenDeleteModal}
+			/>
+			<UpdateOrderStatusModal
+				order={order}
+				open={openUpdateOrderStatusModal}
+				newStatus={actionStatus}
+				setOpen={setOpenUpdateOrderStatusModal}
 			/>
 		</>
 	);
