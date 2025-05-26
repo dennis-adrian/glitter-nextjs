@@ -1,7 +1,11 @@
 "use server";
 
 import { orderItems, orders } from "@/db/schema";
-import { NewOrderItem, OrderWithRelations } from "@/app/lib/orders/definitions";
+import {
+	NewOrderItem,
+	OrderStatus,
+	OrderWithRelations,
+} from "@/app/lib/orders/definitions";
 import { db } from "@/db";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -179,5 +183,23 @@ export async function deleteOrder(orderId: number) {
 	return {
 		success: true,
 		message: "Orden eliminada correctamente.",
+	};
+}
+
+export async function updateOrderStatus(orderId: number, status: OrderStatus) {
+	try {
+		await db.update(orders).set({ status }).where(eq(orders.id, orderId));
+	} catch (error) {
+		console.error(error);
+		return {
+			success: false,
+			message: "No se pudo actualizar el pedido.",
+		};
+	}
+
+	revalidatePath("/dashboard/orders");
+	return {
+		success: true,
+		message: "Pedido actualizado correctamente.",
 	};
 }

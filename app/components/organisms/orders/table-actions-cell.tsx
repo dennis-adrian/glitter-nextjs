@@ -1,8 +1,17 @@
 "use client";
 
-import { CheckCircleIcon, MoreHorizontalIcon, Trash2Icon } from "lucide-react";
+import {
+	CheckCheckIcon,
+	CheckCircleIcon,
+	MoreHorizontalIcon,
+	Trash2Icon,
+} from "lucide-react";
 
+import AcceptOrderModal from "@/app/components/organisms/orders/accept-order-modal";
+import ConfirmPaymentModal from "@/app/components/organisms/orders/confirm-payment-modal";
+import DeleteOrderModal from "@/app/components/organisms/orders/delete-order-modal";
 import { Button } from "@/app/components/ui/button";
+import { OrderWithRelations } from "@/app/lib/orders/definitions";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -11,14 +20,12 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { OrderWithRelations } from "@/app/lib/orders/definitions";
 import { useState } from "react";
-import AcceptOrderModal from "@/app/components/organisms/orders/accept-order-modal";
-import DeleteOrderModal from "@/app/components/organisms/orders/delete-order-modal";
 
 export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
 	const [openAcceptModal, setOpenAcceptModal] = useState(false);
 	const [openDeleteModal, setOpenDeleteModal] = useState(false);
+	const [openConfirmPaymentModal, setOpenConfirmPaymentModal] = useState(false);
 
 	return (
 		<>
@@ -32,10 +39,18 @@ export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
 				<DropdownMenuContent align="end">
 					<DropdownMenuLabel>Acciones</DropdownMenuLabel>
 					<DropdownMenuSeparator />
-					<DropdownMenuItem onClick={() => setOpenAcceptModal(true)}>
-						<CheckCircleIcon className="h-4 w-4 mr-1" />
-						Aceptar Pedido
-					</DropdownMenuItem>
+					{order.status === "pending" && (
+						<DropdownMenuItem onClick={() => setOpenAcceptModal(true)}>
+							<CheckCircleIcon className="h-4 w-4 mr-1" />
+							Aceptar pedido
+						</DropdownMenuItem>
+					)}
+					{order.status === "processing" && (
+						<DropdownMenuItem onClick={() => setOpenConfirmPaymentModal(true)}>
+							<CheckCheckIcon className="h-4 w-4 mr-1" />
+							Confirmar pago
+						</DropdownMenuItem>
+					)}
 					<DropdownMenuItem onClick={() => setOpenDeleteModal(true)}>
 						<Trash2Icon className="h-4 w-4 mr-1" />
 						Eliminar
@@ -51,6 +66,11 @@ export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
 				order={order}
 				open={openDeleteModal}
 				setOpen={setOpenDeleteModal}
+			/>
+			<ConfirmPaymentModal
+				order={order}
+				open={openConfirmPaymentModal}
+				setOpen={setOpenConfirmPaymentModal}
 			/>
 		</>
 	);
