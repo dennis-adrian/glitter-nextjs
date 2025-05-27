@@ -3,7 +3,7 @@ import EnrollRedirectButton from "@/app/components/festivals/festival_activities
 import {
 	FestivalActivityWithDetailsAndParticipants,
 	FestivalBase,
-} from "@/app/data/festivals/definitions";
+} from "@/app/lib/festivals/definitions";
 import Image from "next/image";
 
 type PassportActivityContentProps = {
