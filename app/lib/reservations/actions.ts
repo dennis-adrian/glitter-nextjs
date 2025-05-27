@@ -12,89 +12,89 @@ import { and, eq } from "drizzle-orm";
 import { FullReservation } from "@/app/api/reservations/definitions";
 
 export const addCollaborator = async (
-  reservationId: number,
-  collaborator: NewCollaborator | Collaborator,
+	reservationId: number,
+	collaborator: NewCollaborator | Collaborator,
 ) => {
-  let response: {
-    success: boolean;
-    message: string;
-  };
+	let response: {
+		success: boolean;
+		message: string;
+	};
 
-  try {
-    response = await db.transaction(async (tx) => {
-      if (collaborator.id) {
-        await tx.insert(reservationCollaborators).values({
-          reservationId,
-          collaboratorId: collaborator.id,
-        });
+	try {
+		response = await db.transaction(async (tx) => {
+			if (collaborator.id) {
+				await tx.insert(reservationCollaborators).values({
+					reservationId,
+					collaboratorId: collaborator.id,
+				});
 
-        return {
-          success: true,
-          message: "Colaborador agregado correctamente.",
-        };
-      } else {
-        const [{ id: collaboratorId }] = await tx
-          .insert(collaborators)
-          .values({
-            firstName: collaborator.firstName,
-            lastName: collaborator.lastName,
-            identificationNumber: collaborator.identificationNumber,
-          })
-          .returning({ id: collaborators.id });
+				return {
+					success: true,
+					message: "Persona agregada correctamente.",
+				};
+			} else {
+				const [{ id: collaboratorId }] = await tx
+					.insert(collaborators)
+					.values({
+						firstName: collaborator.firstName,
+						lastName: collaborator.lastName,
+						identificationNumber: collaborator.identificationNumber,
+					})
+					.returning({ id: collaborators.id });
 
-        await tx.insert(reservationCollaborators).values({
-          reservationId,
-          collaboratorId,
-        });
+				await tx.insert(reservationCollaborators).values({
+					reservationId,
+					collaboratorId,
+				});
 
-        return {
-          success: true,
-          message: "Colaborador agregado correctamente.",
-        };
-      }
-    });
-  } catch (error) {
-    console.error(error);
-    return {
-      success: false,
-      message: "Error al agregar colaborador.",
-    };
-  }
+				return {
+					success: true,
+					message: "Persona agregada correctamente.",
+				};
+			}
+		});
+	} catch (error) {
+		console.error(error);
+		return {
+			success: false,
+			message: "Error al agregar persona.",
+		};
+	}
 
-  revalidatePath("/my_participations");
-  return response;
+	revalidatePath("/my_participations");
+	return response;
 };
 
 export const deleteReservationCollaborator = async (
-  reservationId: number,
-  collaboratorId: number,
+	reservationId: number,
+	collaboratorId: number,
 ) => {
-  try {
-    await db.delete(collaborators).where(eq(collaborators.id, collaboratorId));
-    // TODO: this code is here to delete the reservationCollaborator record without actually
-    // deleting the collaborator record. This might be useful in the future
-    // if we want to keep the collaborator record for future reference.
-    // await db
-    //   .delete(reservationCollaborators)
-    //   .where(
-    //     and(
-    //       eq(reservationCollaborators.reservationId, reservationId),
-    //       eq(reservationCollaborators.collaboratorId, collaboratorId),
-    //     ),
-    //   );
-  } catch (error) {
-    console.error(error);
-    return {
-      success: false,
-      message: "Error al eliminar colaborador.",
-    };
-  }
+	try {
+		await db.delete(collaborators).where(eq(collaborators.id, collaboratorId));
+		// TODO: this code is here to delete the reservationCollaborator record without actually
+		// deleting the collaborator record. This might be useful in the future
+		// if we want to keep the collaborator record for future reference.
+		// await db
+		//   .delete(reservationCollaborators)
+		//   .where(
+		//     and(
+		//       eq(reservationCollaborators.reservationId, reservationId),
+		//       eq(reservationCollaborators.collaboratorId, collaboratorId),
+		//     ),
+		//   );
+	} catch (error) {
+		console.error(error);
+		return {
+			success: false,
+			message: "Error al eliminar persona.",
+		};
+	}
 
-  revalidatePath("/my_participations");
-  return {
-    success: true,
-    message: "Colaborador eliminado correctamente.",
-  };
+	revalidatePath("/my_participations");
+	return {
+		success: true,
+		message: "Persona eliminada correctamente.",
+	};
 };
 
 export async function fetchReservationsByFestivalId(

@@ -1,5 +1,4 @@
 import { FilePenLineIcon } from "lucide-react";
-
 import { ProfileType } from "@/app/api/users/definitions";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -15,6 +14,7 @@ import { ShowField } from "@/app/components/user_profile/show-field";
 import { formatDate } from "@/app/lib/formatters";
 import { genderLabels } from "@/app/lib/utils";
 import SocialMediaBadge from "@/app/components/social-media-badge";
+import { DateTime } from "luxon";
 
 export default function PrivateProfileOverview({
   profile,
@@ -23,11 +23,10 @@ export default function PrivateProfileOverview({
 }) {
   let age = 0;
   if (profile.birthdate) {
-    const calculation = formatDate(new Date()).minus({
-      years: formatDate(profile.birthdate).year,
-    });
-
-    age = calculation.year;
+    const birthDate = DateTime.fromJSDate(new Date(profile.birthdate));
+    const now = DateTime.now();
+    age = now.diff(birthDate, 'years').years;
+    age = Math.floor(age); // Round down to get whole years
   }
 
   return (

@@ -25,10 +25,12 @@ import {
 	queueEmails,
 } from "@/app/lib/emails/helpers";
 import { BaseProfile } from "@/app/api/users/definitions";
-import { clerkClient } from "@clerk/nextjs/server";
 import ReservationReminderTemplate from "@/app/emails/reservation-reminder";
+import { deleteClerkUser } from "@/app/lib/users/actions";
 
-export async function handleReminderEmails(): Promise<ScheduledTaskWithProfile[]> {
+export async function handleReminderEmails(): Promise<
+	ScheduledTaskWithProfile[]
+> {
 	try {
 		return await db.transaction(async (tx) => {
 			const pendingTasks = await tx.query.scheduledTasks.findMany({
@@ -61,7 +63,9 @@ export async function handleReminderEmails(): Promise<ScheduledTaskWithProfile[]
 	}
 }
 
-export async function handleDeletionEmails(): Promise<ScheduledTaskWithProfile[]> {
+export async function handleDeletionEmails(): Promise<
+	ScheduledTaskWithProfile[]
+> {
 	try {
 		return await db.transaction(async (tx) => {
 			const overdueTasks = await tx.query.scheduledTasks.findMany({
@@ -88,9 +92,8 @@ export async function handleDeletionEmails(): Promise<ScheduledTaskWithProfile[]
 				)
 				.returning();
 
-			const client = await clerkClient();
 			deletedUsers.forEach(async (user) => {
-				await client.users.deleteUser(user.clerkId);
+				await deleteClerkUser(user.clerkId);
 			});
 
 			await queueEmails<BaseProfile, undefined>(
@@ -189,32 +192,13 @@ export async function handleReservationReminderEmails(): Promise<
 					profile: true,
 				},
 			})) as ScheduledTaskWithProfileAndReservation[];
-			console.log(
-				"all pending tasks",
-				pendingTasks.map((task) => {
-					return {
-						reservationId: task.reservation.id,
-						profileEmail: task.profile.email,
-						festivalName: task.reservation.festival.name,
-						profileName: task.profile.displayName,
-					};
-				}),
-			);
 
 			if (pendingTasks.length === 0) return [];
 
 			const tasksWithPendingReservations = pendingTasks.filter(
 				(task) => task.reservation.status === "pending",
 			);
-			console.log(
-				"tasksWithPendingReservations",
-				tasksWithPendingReservations.map((task) => ({
-					reservationId: task.reservation.id,
-					profileEmail: task.profile.email,
-					festivalName: task.reservation.festival.name,
-					profileName: task.profile.displayName,
-				})),
-			);
+
 			let updatedTaskIds: number[] = [];
 			await queueEmails<ScheduledTaskWithProfileAndReservation, number[]>(
 				tasksWithPendingReservations,
