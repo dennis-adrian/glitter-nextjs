@@ -2,9 +2,9 @@
 
 import { Button } from "@/app/components/ui/button";
 import { Form } from "@/app/components/ui/form";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { createTicket } from "@/app/data/tickets/actions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { Loader2Icon } from "lucide-react";
 import { useForm } from "react-hook-form";

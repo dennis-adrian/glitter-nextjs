@@ -13,8 +13,8 @@ import ActiveFestivalBody from "./active-festival-body";
 import { UserCategory } from "@/app/api/users/definitions";
 import FullFestivalBody from "./full-festival-body";
 import EmailFooter from "../email-footer";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import EmailHeader from "@/app/emails/email-header";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 
 interface FestivalActivationTemplateProps {
   name: string;

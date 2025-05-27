@@ -1,15 +1,11 @@
 import { Metadata } from "next";
 import { z } from "zod";
-
-import {
-  fetchFestivals,
-  fetchFestivalWithDates,
-} from "@/app/data/festivals/actions";
 import { userCategoryEnum } from "@/db/schema";
 import { notFound } from "next/navigation";
 import FestivalPageTabs from "@/app/components/festivals/main-page-tabs";
 import GeneralInfo from "@/app/components/festivals/general-info";
 import FestivalSectors from "@/app/components/festivals/sectors/festival-sectors";
+import { fetchFestivals, fetchFestivalWithDates } from "@/app/lib/festivals/actions";
 
 export const metadata: Metadata = {
   title: "Información del Festival",

@@ -2,7 +2,7 @@
 
 import FestivalStatusBadge from "@/app/components/atoms/festival-status-badge";
 import TableActions from "@/app/components/organisms/festivals/table-actions";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { ColumnDef } from "@tanstack/react-table";
 
 const columnTitles = {

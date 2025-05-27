@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { sendTicketEmail } from "@/app/data/tickets/actions";
 import { toast } from "sonner";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 type SendEmailFormProps = {
   visitor: VisitorWithTickets;

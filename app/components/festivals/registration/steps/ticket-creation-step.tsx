@@ -2,9 +2,9 @@
 
 import EventDayTicketCreationForm from "@/app/components/events/registration/event-day-ticket-creation-form";
 import Tickets from "@/app/components/events/registration/tickets";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
 
 type TicketCreationStepProps = {

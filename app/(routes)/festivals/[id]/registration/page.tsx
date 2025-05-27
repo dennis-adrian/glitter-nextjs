@@ -1,5 +1,3 @@
-import { fetchFestivalWithDates } from "@/app/data/festivals/actions";
-
 import { RedirectButton } from "@/app/components/redirect-button";
 import ResourceNotFound from "@/app/components/resource-not-found";
 import { fetchVisitor, fetchVisitorByEmail } from "@/app/data/visitors/actions";
@@ -8,6 +6,7 @@ import ThirdStep from "@/app/components/events/registration/steps/third-step";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import EmailCard from "@/app/components/events/registration/email-card";
 import { Metadata } from "next";
+import { fetchFestivalWithDates } from "@/app/lib/festivals/actions";
 
 export const metadata: Metadata = {
   title: "Registro para evento",

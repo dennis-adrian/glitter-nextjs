@@ -16,6 +16,9 @@ import { festivalTypeEnum } from "@/db/schema";
 import { PlusIcon, TrashIcon } from "lucide-react";
 import { useFieldArray } from "react-hook-form";
 import { DateTime } from 'luxon';
+import SectorImageUpload from "../sectors/sector-image-upload";
+import Image from "next/image";
+import { UploadButton } from "@/app/vendors/uploadthing";
 
 const FormSchema = z.object({
 	name: z.string().trim().min(2, "El nombre tiene que tener al menos dos letras"),
@@ -50,6 +53,14 @@ const FormSchema = z.object({
 	entrepreneurshipStandUrl: z.string().optional(),
 	festivalCode: z.string().optional(),
 	festivalBannerUrl: z.string().optional(),
+	festivalSectors: z.array(
+		z.object({
+			name: z.string().min(1, "El nombre del sector es requerido"),
+			orderInFestival: z.number().min(1, "El orden debe ser al menos 1"),
+			mapUrl: z.string().optional(),
+			mascotUrl: z.string().optional(),
+		})
+	).min(1, "Debe haber al menos un sector"),
 });
 
 export default function NewFestivalForm() {
@@ -69,6 +80,12 @@ export default function NewFestivalForm() {
 				date: DateTime.local().toFormat('yyyy-MM-dd'),
 				startTime: "10:00",
 				endTime: "20:00"
+			}],
+			festivalSectors: [{
+				name: "Galería",
+				orderInFestival: 1,
+				mapUrl: "",
+				mascotUrl: ""
 			}]
 		}
 	});
@@ -76,6 +93,14 @@ export default function NewFestivalForm() {
 	const { fields, append, remove } = useFieldArray({
 		control: form.control,
 		name: "dates",
+	});
+	const {
+		fields: sectorFields,
+		append: appendSector,
+		remove: removeSector
+	} = useFieldArray({
+		control: form.control,
+		name: "festivalSectors",
 	});
 
 	const addNewDate = () => {
@@ -93,7 +118,7 @@ export default function NewFestivalForm() {
 				'yyyy-MM-dd HH:mm',
 				{ zone: 'local' }
 			);
-	
+
 			const endDateTime = DateTime.fromFormat(
 				`${dateItem.date} ${dateItem.endTime}`,
 				'yyyy-MM-dd HH:mm',
@@ -101,34 +126,24 @@ export default function NewFestivalForm() {
 			);
 
 			return {
-				date: new Date(dateItem.date),
-				startTime: dateItem.startTime,
-				endTime: dateItem.endTime,
-				startDateUTC: startDateTime.toUTC().toJSDate(),
-				endDateUTC: endDateTime.toUTC().toJSDate(),
+				startDate: startDateTime.toUTC().toJSDate(),
+				endDate: endDateTime.toUTC().toJSDate(),
 			};
 		});
-	
-		const festivalData = {
-			...data,
-			dates: processedDates.map(d => ({
-				date: d.date,
-				startTime: d.startTime,
-				endTime: d.endTime
-			})),
+
+		const {
+			dates: _,
+			...rest
+		} = data;
+
+		const result = await createFestival({
+			...rest,
+			dateDetails: processedDates,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 			reservationsStartDate: new Date(),
-		};
-	
-		const result = await createFestival({
-			...festivalData,
-			dateDetails: processedDates.map(d => ({
-				startDate: d.startDateUTC,
-				endDate: d.endDateUTC
-			}))
 		});
-	
+
 		if (result.success) {
 			toast.success(result.message);
 			router.push("/dashboard/festivals");
@@ -136,6 +151,7 @@ export default function NewFestivalForm() {
 			toast.error(result.message);
 		}
 	});
+
 	return (
 		<Form {...form}>
 			<form onSubmit={onSubmit} className="space-y-6 max-w-3xl">
@@ -256,6 +272,96 @@ export default function NewFestivalForm() {
 					>
 						<PlusIcon className="mr-2 h-4 w-4" />
 						Agregar otra fecha
+					</Button>
+				</div>
+
+				{/* Sectors Section */}
+				<div className="space-y-4 p-4 border rounded-lg">
+					<h3 className="font-medium">Sectores del Festival</h3>
+
+					{sectorFields.map((field, index) => (
+						<div key={field.id} className="space-y-4 border-b pb-4 last:border-b-0 last:pb-0">
+							<div className="flex justify-between items-center">
+								<h4 className="text-sm font-medium">Sector {index + 1}</h4>
+								{index > 0 && (
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										onClick={() => removeSector(index)}
+										className="text-red-500 hover:text-red-700"
+									>
+										<TrashIcon className="h-4 w-4" />
+									</Button>
+								)}
+							</div>
+
+							<TextInput
+								formControl={form.control}
+								name={`festivalSectors.${index}.name`}
+								label="Nombre del Sector"
+								type="text"
+							/>
+
+							<TextInput
+								formControl={form.control}
+								name={`festivalSectors.${index}.orderInFestival`}
+								label="Orden en el Festival"
+								type="number"
+								min={1}
+							/>
+
+							<div className="grid grid-cols-2 gap-4">
+								{/* Map URL Upload */}
+								<FormField
+									control={form.control}
+									name={`festivalSectors.${index}.mapUrl`}
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel>Mapa del Sector (Opcional)</FormLabel>
+											<SectorImageUpload
+												imageUrl={field.value || null}
+												setImageUrl={field.onChange}
+												sectorName={`${form.watch(`festivalSectors.${index}.name`)} Mapa`}
+											/>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+
+								{/* Mascot URL Upload */}
+								<FormField
+									control={form.control}
+									name={`festivalSectors.${index}.mascotUrl`}
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel>Mascota del Sector (Opcional)</FormLabel>
+											<SectorImageUpload
+												imageUrl={field.value || null}
+												setImageUrl={field.onChange}
+												sectorName={`${form.watch(`festivalSectors.${index}.name`)} Mascota`}
+											/>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+							</div>
+
+						</div>
+					))}
+
+
+					<Button
+						type="button"
+						variant="outline"
+						className="w-full mt-4"
+						onClick={() => appendSector({
+							name: "",
+							orderInFestival: sectorFields.length + 1
+						})}
+					>
+						<PlusIcon className="mr-2 h-4 w-4" />
+						Agregar otro sector
 					</Button>
 				</div>
 
