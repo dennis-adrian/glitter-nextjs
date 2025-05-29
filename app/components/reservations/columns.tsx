@@ -79,7 +79,7 @@ export const columns: ColumnDef<FullReservation>[] = [
             <TooltipTrigger>
               <Avatar className="w-8 h-8">
                 <AvatarImage
-                  src={profile.imageUrl || "/img/profile-avatar.png"}
+                  src={profile?.imageUrl || "/img/placeholders/avatar-placeholder.png"}
                   alt={profile.displayName || "avatar"}
                 />
               </Avatar>

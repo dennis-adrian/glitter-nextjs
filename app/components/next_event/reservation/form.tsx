@@ -55,7 +55,7 @@ export default function ReservationForm({
   const avatarsInfo = [
     {
       key: profile.id,
-      src: profile.imageUrl || "/img/profile-avatar.png",
+      src: profile.imageUrl || "/img/placeholders/avatar-placeholder.png",
       alt: "imagen de usuario",
     },
   ];
@@ -63,7 +63,7 @@ export default function ReservationForm({
   if (selectedArtist) {
     avatarsInfo.push({
       key: selectedArtist.id,
-      src: selectedArtist.imageUrl || "/img/profile-avatar.png",
+      src: selectedArtist.imageUrl || "/img/placeholders/avatar-placeholder.png",
       alt: "imagen de usuario",
     });
   }
