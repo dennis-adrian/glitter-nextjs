@@ -10,6 +10,7 @@ import { getUserName } from "@/app/lib/users/utils";
 import { twMerge } from "tailwind-merge";
 import { UploadThingError } from "uploadthing/server";
 import { Json } from "@uploadthing/shared";
+import { AvatarImage } from "../../ui/avatar";
 
 export default function ProfilePicUpload({
   size,
@@ -38,12 +39,9 @@ export default function ProfilePicUpload({
   return (
     <div className="flex flex-col items-center justify-center">
       <div className={cn("relative mb-4 border border-dashed", containerSize)}>
-        <Image
-          className="object-cover"
-          alt="Imagen de perfil"
-          src={imageUrl || "/img/profile-avatar.png"}
-          sizes="240px, 240px"
-          fill
+        <AvatarImage
+          alt="avatar"
+          src={imageUrl || "/img/placeholders/avatar-placeholder.png"}
         />
       </div>
       <UploadButton
