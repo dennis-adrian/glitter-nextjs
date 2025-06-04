@@ -19,7 +19,7 @@ export default function ProfileAvatar(props: ProfileAvatarProps) {
     <div className="relative flex justify-center">
       <Avatar className={props.className}>
         <AvatarImage
-          src={profile?.imageUrl!}
+          src={profile?.imageUrl || "/img/placeholders/avatar-placeholder.png"}
           alt={
             userName ? `Imagen de perfil de ${userName}` : "Imagen de perfil"
           }
