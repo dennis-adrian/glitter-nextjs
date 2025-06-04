@@ -13,11 +13,18 @@ import { z } from "zod";
 import { useRouter } from "next/navigation";
 import TextInput from "../../form/fields/text";
 import TextareaInput from "../../form/fields/textarea";
-import { PlusIcon, TrashIcon } from "lucide-react";
+import { BuildingIcon, CalendarDaysIcon, MapPinIcon, PlusIcon, TrashIcon } from "lucide-react";
 import SelectInput from "../../form/fields/select";
 import { DateTime } from 'luxon';
 import { FestivalWithDatesAndSectors } from "@/app/lib/festivals/definitions";
 import SectorImageUpload from "../sectors/sector-image-upload";
+import {
+	Card,
+	CardContent,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import { useRef } from "react";
 
 const FormSchema = z.object({
 	name: z.string().min(1, "Required"),
@@ -58,7 +65,7 @@ const FormSchema = z.object({
 		z.object({
 			id: z.number().optional(),
 			name: z.string().min(1, "El nombre del sector es requerido"),
-			orderInFestival: z.number().min(1, "El orden debe ser al menos 1"),
+			orderInFestival: z.coerce.number().min(1, "El orden debe ser al menos 1"),
 			mapUrl: z.string().optional(),
 			mascotUrl: z.string().optional(),
 		})
@@ -66,6 +73,8 @@ const FormSchema = z.object({
 });
 
 export default function UpdateFestivalForm({ festival }: { festival: FestivalWithDatesAndSectors }) {
+	const deletedSectorIdsRef = useRef<number[]>([]);
+
 	const router = useRouter();
 	const form = useForm<z.infer<typeof FormSchema>>({
 		resolver: zodResolver(FormSchema),
@@ -137,6 +146,16 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 		});
 	};
 
+	function handleRemoveSector(index: number) {
+		const sector = form.getValues(`festivalSectors.${index}`);
+		if (sector?.id) {
+			deletedSectorIdsRef.current.push(sector.id);
+		}
+		removeSector(index);
+	}
+
+
+
 	const onSubmit = form.handleSubmit(async (data) => {
 		const processedDates = data.dates.map(dateItem => {
 			const startDateTime = DateTime.fromFormat(
@@ -164,6 +183,7 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 		const festivalData = {
 			...data,
 			id: festival.id,
+			deletedSectorIds: deletedSectorIdsRef.current,
 			dates: processedDates.map(d => ({
 				id: d.id,
 				date: d.date,
@@ -188,217 +208,237 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 	});
 
 	return (
-		<Form {...form}>
-			<form onSubmit={onSubmit} className="space-y-6 max-w-3xl">
-				{/* Basic Information Section */}
-				<div className="space-y-4 p-4 border rounded-lg">
-					<h3 className="font-medium">Informacion Básica</h3>
+		<div className="max-w-3xl mx-auto">
+			<Form {...form}>
+				<form onSubmit={onSubmit} className="space-y-6">
+					<Card>
+						<CardContent className="pt-6 space-y-6">
+							{/* Basic Information Section */}
+							<div className="space-y-4 p-4 border rounded-lg">
+								<h3 className="font-semibold text-xl flex items-center gap-2">
+									<BuildingIcon className="w-5 h-5" />
+									Información Básica
+								</h3>
 
-					<TextInput
-						formControl={form.control}
-						name="name"
-						label="Nombre del festival"
-						type="text"
-					/>
-
-					<TextareaInput formControl={form.control} label="Descripción" name="description" placeholder="Descripción" />
-
-					<SelectInput
-						formControl={form.control}
-						label="Tipo de Festival"
-						name="festivalType"
-						options={festivalTypeOptions}
-						side="bottom"
-					/>
-				</div>
-
-				{/* Location Information Section */}
-				<div className="space-y-4 p-4 border rounded-lg">
-					<h3 className="font-medium">Informacion de la Ubicación</h3>
-
-					<TextInput
-						formControl={form.control}
-						name="address"
-						label="Dirección"
-						type="text"
-					/>
-
-					<TextInput
-						formControl={form.control}
-						name="locationLabel"
-						label="Etiqueta de Dirección"
-						type="text"
-					/>
-
-					<TextInput
-						formControl={form.control}
-						name="locationUrl"
-						label="URL de Dirección"
-						type="text"
-						placeholder="https://example.com"
-					/>
-				</div>
-
-				{/* Dates Section */}
-				<div className="space-y-4 p-4 border rounded-lg">
-					<h3 className="font-medium">Fechas</h3>
-
-					{fields.map((field, index) => (
-						<div key={field.id} className="space-y-4 border-b pb-4 last:border-b-0 last:pb-0">
-							<div className="flex justify-between items-center">
-								<h4 className="text-sm font-medium">Evento {index + 1}</h4>
-								{index > 0 && (
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										onClick={() => remove(index)}
-										className="text-red-500 hover:text-red-700"
-									>
-										<TrashIcon className="h-4 w-4" />
-									</Button>
-								)}
-							</div>
-
-							<TextInput
-								formControl={form.control}
-								name={`dates.${index}.date`}
-								label="Fecha"
-								type="date"
-							/>
-
-							<div className="grid grid-cols-2 gap-4">
-								<FormField
-									control={form.control}
-									name={`dates.${index}.startTime`}
-									render={({ field }) => (
-										<FormItem>
-											<FormLabel>Hora de inicio</FormLabel>
-											<FormControl>
-												<Input type="time" {...field} />
-											</FormControl>
-											<FormMessage />
-										</FormItem>
-									)}
+								<TextInput
+									formControl={form.control}
+									name="name"
+									label="Nombre del festival"
+									type="text"
 								/>
 
-								<FormField
-									control={form.control}
-									name={`dates.${index}.endTime`}
-									render={({ field }) => (
-										<FormItem>
-											<FormLabel>Hora de finalización</FormLabel>
-											<FormControl>
-												<Input type="time" {...field} />
-											</FormControl>
-											<FormMessage />
-										</FormItem>
-									)}
+								<TextareaInput
+									formControl={form.control}
+									label="Descripción"
+									name="description"
+									placeholder="Descripción del festival"
+								/>
+
+								<SelectInput
+									formControl={form.control}
+									label="Tipo de Festival"
+									name="festivalType"
+									options={festivalTypeOptions}
+									side="bottom"
 								/>
 							</div>
-						</div>
-					))}
 
-					<Button
-						type="button"
-						variant="outline"
-						className="w-full mt-4"
-						onClick={addNewDate}
-					>
-						<PlusIcon className="mr-2 h-4 w-4" />
-						Agregar otra fecha
-					</Button>
-				</div>
+							{/* Location Information Section */}
+							<div className="space-y-4 p-4 border rounded-lg">
+								<h3 className="font-semibold text-xl flex items-center gap-2">
+									<MapPinIcon className="w-5 h-5" />
+									Información de la Ubicación
+								</h3>
 
-				{/* Sectors Section */}
-				<div className="space-y-4 p-4 border rounded-lg">
-					<h3 className="font-medium">Sectores del Festival</h3>
+								<TextInput
+									formControl={form.control}
+									name="address"
+									label="Dirección"
+									type="text"
+								/>
 
-					{sectorFields.map((field, index) => (
-						<div key={field.id} className="space-y-4 border-b pb-4 last:border-b-0 last:pb-0">
-							<div className="flex justify-between items-center">
-								<h4 className="text-sm font-medium">Sector {index + 1}</h4>
-								{index > 0 && (
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										onClick={() => removeSector(index)}
-										className="text-red-500 hover:text-red-700"
-									>
-										<TrashIcon className="h-4 w-4" />
-									</Button>
-								)}
+								<TextInput
+									formControl={form.control}
+									name="locationLabel"
+									label="Etiqueta de Dirección"
+									type="text"
+								/>
+
+								<TextInput
+									formControl={form.control}
+									name="locationUrl"
+									label="URL de Dirección"
+									type="text"
+									placeholder="https://example.com"
+								/>
 							</div>
 
-							<TextInput
-								formControl={form.control}
-								name={`festivalSectors.${index}.name`}
-								label="Nombre del Sector"
-								type="text"
-							/>
+							{/* Dates Section */}
+							<div className="space-y-4 p-4 border rounded-lg">
+								<h3 className="font-semibold text-xl flex items-center gap-2">
+									<CalendarDaysIcon className="w-5 h-5" />
+									Fechas del Evento
+								</h3>
 
-							<TextInput
-								formControl={form.control}
-								name={`festivalSectors.${index}.orderInFestival`}
-								label="Orden en el Festival"
-								type="number"
-								min={1}
-							/>
+								{fields.map((field, index) => (
+									<div key={field.id} className="space-y-4 border-b pb-4 last:border-b-0 last:pb-0">
+										<div className="flex justify-between items-center">
+											<h4 className="text-sm font-medium">Evento {index + 1}</h4>
+											{index > 0 && (
+												<Button
+													type="button"
+													variant="ghost"
+													size="sm"
+													onClick={() => remove(index)}
+													className="text-red-500 hover:text-red-700"
+												>
+													<TrashIcon className="h-4 w-4" />
+												</Button>
+											)}
+										</div>
 
-							<div className="grid grid-cols-2 gap-4">
-								{/* Map URL Upload */}
-								<FormField
-									control={form.control}
-									name={`festivalSectors.${index}.mapUrl`}
-									render={({ field }) => (
-										<FormItem>
-											<FormLabel>Mapa del Sector (Opcional)</FormLabel>
-											<SectorImageUpload
-												imageUrl={field.value || null}
-												setImageUrl={field.onChange}
-												sectorName={`${form.watch(`festivalSectors.${index}.name`)} Mapa`}
+										<TextInput
+											formControl={form.control}
+											name={`dates.${index}.date`}
+											label="Fecha"
+											type="date"
+										/>
+
+										<div className="grid grid-cols-2 gap-4">
+											<FormField
+												control={form.control}
+												name={`dates.${index}.startTime`}
+												render={({ field }) => (
+													<FormItem>
+														<FormLabel>Hora de inicio</FormLabel>
+														<FormControl>
+															<Input type="time" {...field} />
+														</FormControl>
+														<FormMessage />
+													</FormItem>
+												)}
 											/>
-											<FormMessage />
-										</FormItem>
-									)}
-								/>
 
-								{/* Mascot URL Upload */}
-								<FormField
-									control={form.control}
-									name={`festivalSectors.${index}.mascotUrl`}
-									render={({ field }) => (
-										<FormItem>
-											<FormLabel>Mascota del Sector (Opcional)</FormLabel>
-											<SectorImageUpload
-												imageUrl={field.value || null}
-												setImageUrl={field.onChange}
-												sectorName={`${form.watch(`festivalSectors.${index}.name`)} Mascota`}
+											<FormField
+												control={form.control}
+												name={`dates.${index}.endTime`}
+												render={({ field }) => (
+													<FormItem>
+														<FormLabel>Hora de finalización</FormLabel>
+														<FormControl>
+															<Input type="time" {...field} />
+														</FormControl>
+														<FormMessage />
+													</FormItem>
+												)}
 											/>
-											<FormMessage />
-										</FormItem>
-									)}
-								/>
+										</div>
+									</div>
+								))}
+
+								<Button
+									type="button"
+									variant="outline"
+									className="w-full mt-4"
+									onClick={addNewDate}
+								>
+									<PlusIcon className="mr-2 h-4 w-4" />
+									Agregar otra fecha
+								</Button>
 							</div>
-						</div>
-					))}
 
-					<Button
-						type="button"
-						variant="outline"
-						className="w-full mt-4"
-						onClick={addNewSector}
-					>
-						<PlusIcon className="mr-2 h-4 w-4" />
-						Agregar otro sector
-					</Button>
-				</div>
+							{/* Sectors Section */}
+							<div className="space-y-4 p-4 border rounded-lg">
+								<h3 className="font-semibold text-xl">Sectores del Festival</h3>
 
-				<Button type="submit" size="lg" className="w-full md:w-auto">
-					Actualizar Festival
-				</Button>
-			</form>
-		</Form>
+								{sectorFields.map((field, index) => (
+									<div key={field.id} className="space-y-4 border-b pb-4 last:border-b-0 last:pb-0">
+										<div className="flex justify-between items-center">
+											<h4 className="text-sm font-medium">Sector {index + 1}</h4>
+											{index > 0 && (
+												<Button
+													type="button"
+													variant="ghost"
+													size="sm"
+													onClick={() => handleRemoveSector(index)}
+													className="text-red-500 hover:text-red-700"
+												>
+													<TrashIcon className="h-4 w-4" />
+												</Button>
+											)}
+										</div>
+
+										<TextInput
+											formControl={form.control}
+											name={`festivalSectors.${index}.name`}
+											label="Nombre del Sector"
+											type="text"
+										/>
+
+										<TextInput
+											formControl={form.control}
+											name={`festivalSectors.${index}.orderInFestival`}
+											label="Orden en el Festival"
+											type="number"
+											min={1}
+										/>
+
+										<div className="grid grid-cols-2 gap-4">
+											{/* Map URL Upload */}
+											<FormField
+												control={form.control}
+												name={`festivalSectors.${index}.mapUrl`}
+												render={({ field }) => (
+													<FormItem>
+														<FormLabel>Mapa del Sector (Opcional)</FormLabel>
+														<SectorImageUpload
+															imageUrl={field.value || null}
+															setImageUrl={field.onChange}
+															sectorName={`${form.watch(`festivalSectors.${index}.name`)} Mapa`}
+														/>
+														<FormMessage />
+													</FormItem>
+												)}
+											/>
+
+											{/* Mascot URL Upload */}
+											<FormField
+												control={form.control}
+												name={`festivalSectors.${index}.mascotUrl`}
+												render={({ field }) => (
+													<FormItem>
+														<FormLabel>Mascota del Sector (Opcional)</FormLabel>
+														<SectorImageUpload
+															imageUrl={field.value || null}
+															setImageUrl={field.onChange}
+															sectorName={`${form.watch(`festivalSectors.${index}.name`)} Mascota`}
+														/>
+														<FormMessage />
+													</FormItem>
+												)}
+											/>
+										</div>
+									</div>
+								))}
+
+								<Button
+									type="button"
+									variant="outline"
+									className="w-full mt-4"
+									onClick={addNewSector}
+								>
+									<PlusIcon className="mr-2 h-4 w-4" />
+									Agregar otro sector
+								</Button>
+							</div>
+
+							<Button type="submit" size="lg" className="w-full md:w-auto">
+								Actualizar Festival
+							</Button>
+						</CardContent>
+					</Card>
+				</form>
+			</Form>
+		</div>
 	);
 }

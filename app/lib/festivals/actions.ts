@@ -159,6 +159,7 @@ export async function updateFestival(
 			mapUrl?: string;
 			mascotUrl?: string;
 		}>;
+		deletedSectorIds?: number[];
 	}
 ) {
 	try {
@@ -189,20 +190,17 @@ export async function updateFestival(
 				})
 				.where(eq(festivals.id, data.id))
 				.returning();
-
-			// Get existing dates to compare
+				
 			const existingDates = await tx.select()
 				.from(festivalDates)
 				.where(eq(festivalDates.festivalId, data.id));
 
-			// Process dates if they exist
 			if (data.dateDetails && data.dateDetails.length > 0) {
 				for (let i = 0; i < data.dateDetails.length; i++) {
 					const dateItem = data.dateDetails[i];
 					const originalDateItem = data.dates?.[i];
 
 					if (originalDateItem?.id) {
-						// Update existing date
 						await tx.update(festivalDates)
 							.set({
 								startDate: dateItem.startDate,
@@ -211,7 +209,6 @@ export async function updateFestival(
 							})
 							.where(eq(festivalDates.id, originalDateItem.id));
 					} else {
-						// Insert new date
 						await tx.insert(festivalDates).values({
 							festivalId: data.id,
 							startDate: dateItem.startDate,
@@ -221,7 +218,6 @@ export async function updateFestival(
 						});
 					}
 				}
-				// Delete dates that were removed
 				const datesToKeep = data.dates?.map(d => d.id).filter(Boolean) as number[] || [];
 				const datesToDelete = existingDates
 					.filter(d => !datesToKeep.includes(d.id))
@@ -232,17 +228,9 @@ export async function updateFestival(
 						.where(inArray(festivalDates.id, datesToDelete));
 				}
 			}
-
-			// Process sectors
 			if (data.festivalSectors) {
-				// Get existing sectors to compare
-				const existingSectors = await tx.select()
-					.from(festivalSectors)
-					.where(eq(festivalSectors.festivalId, data.id));
-
 				for (const sector of data.festivalSectors) {
 					if (sector.id) {
-						// Update existing sector
 						await tx.update(festivalSectors)
 							.set({
 								name: sector.name,
@@ -253,7 +241,6 @@ export async function updateFestival(
 							})
 							.where(eq(festivalSectors.id, sector.id));
 					} else {
-						// Insert new sector
 						await tx.insert(festivalSectors).values({
 							festivalId: data.id,
 							name: sector.name,
@@ -265,16 +252,9 @@ export async function updateFestival(
 						});
 					}
 				}
-
-				// Delete sectors that were removed
-				const sectorsToKeep = data.festivalSectors.map(s => s.id).filter(Boolean) as number[] || [];
-				const sectorsToDelete = existingSectors
-					.filter(s => !sectorsToKeep.includes(s.id))
-					.map(s => s.id);
-
-				if (sectorsToDelete.length > 0) {
+				if (data.deletedSectorIds && data.deletedSectorIds.length > 0) {
 					await tx.delete(festivalSectors)
-						.where(inArray(festivalSectors.id, sectorsToDelete));
+						.where(inArray(festivalSectors.id, data.deletedSectorIds));
 				}
 			}
 

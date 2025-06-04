@@ -12,8 +12,8 @@ export default async function Page(
   if (!festival) return notFound();
 
   return (
-    <div className="container p-4 md:p-6">
-      <h1 className="text-2xl font-bold mb-6">Editar Festival</h1>
+    <div className="container">
+      <h1 className="text-2xl font-bold md:text-3xl mb-2">Editar Festival</h1>
       <UpdateFestivalForm festival={festival} />
     </div>
   );
