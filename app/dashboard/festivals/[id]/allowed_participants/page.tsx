@@ -1,6 +1,6 @@
 import { BaseProfile } from "@/app/api/users/definitions";
 import UsersBuckets from "@/app/dashboard/festivals/[id]/allowed_participants/users-buckets";
-import { getFestivalAvailableUsers } from "@/app/data/festivals/actions";
+import { getFestivalAvailableUsers } from "@/app/lib/festivals/actions";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 

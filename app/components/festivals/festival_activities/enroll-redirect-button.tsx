@@ -1,7 +1,8 @@
 "use client";
 
 import { RedirectButton } from "@/app/components/redirect-button";
-import { FestivalActivityWithDetailsAndParticipants } from "@/app/data/festivals/definitions";
+import { formatDate } from "@/app/lib/formatters";
+import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import { useEffect, useState } from "react";
 import {
 	Tooltip,
@@ -23,7 +24,6 @@ import {
 } from "@/app/lib/festival_sectors/helpers";
 import UploadStickerDesignModal from "@/app/components/festivals/festival_activities/upload-sticker-design-modal";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
-
 type EnrollRedirectButtonProps = {
 	currentProfile: BaseProfile;
 	forProfile: BaseProfile;

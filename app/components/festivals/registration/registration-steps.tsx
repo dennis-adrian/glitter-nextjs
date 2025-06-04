@@ -14,10 +14,10 @@ import StepDescription from "@/app/components/festivals/registration/steps/step-
 import TicketCreationStep from "@/app/components/festivals/registration/steps/ticket-creation-step";
 import { RegistrationType } from "@/app/components/festivals/registration/types";
 import { stepsDescription } from "@/app/components/festivals/registration/utils";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { NewVisitor, VisitorWithTickets } from "@/app/data/visitors/actions";
 import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 import { formatDate } from "@/app/lib/formatters";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 
 type RegistrationInfo = {
   step: number;

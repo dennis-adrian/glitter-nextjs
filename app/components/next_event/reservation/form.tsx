@@ -19,10 +19,10 @@ import { Label } from "@/app/components/ui/label";
 import { useRouter } from "next/navigation";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { getParticipantsOptions } from "@/app/api/reservations/helpers";
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { useForm } from "react-hook-form";
 import { Form } from "@/app/components/ui/form";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export default function ReservationForm({
   artists,

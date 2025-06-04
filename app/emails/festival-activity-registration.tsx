@@ -9,7 +9,7 @@ import {
 } from "@react-email/components";
 import * as styles from "@/app/emails/styles";
 import EmailHeader from "@/app/emails/email-header";
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 import EmailFooter from "@/app/emails/email-footer";
 import { BaseProfile } from "@/app/api/users/definitions";
 import { FestivalActivity } from "@/app/lib/festivals/definitions";

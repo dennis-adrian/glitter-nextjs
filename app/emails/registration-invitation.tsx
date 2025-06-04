@@ -10,11 +10,11 @@ import {
   Section,
   Text,
 } from "@react-email/components";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { formatDate, formatFullDate } from "@/app/lib/formatters";
 import { Interval } from "luxon";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
 import { getFestivalLogo } from "@/app/lib/utils";
+import { FestivalWithDates } from "../lib/festivals/definitions";
 
 interface RegistrationInvitationEmailTemplateProps {
   festival: FestivalWithDates;
