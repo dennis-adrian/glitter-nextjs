@@ -8,6 +8,7 @@ import { Loader2Icon } from "lucide-react";
 import { twMerge } from "tailwind-merge";
 import { UploadThingError } from "uploadthing/server";
 import { Json } from "@uploadthing/shared";
+import { slugify } from "@/app/lib/formatters";
 
 export default function SectorImageUpload({
   imageUrl,
@@ -20,7 +21,7 @@ export default function SectorImageUpload({
   sectorName: string;
   onUploading?: (isUploading: boolean) => void;
 }) {
-  const fileName = `${sectorName.toLowerCase().replaceAll(" ", "_")}_image`;
+  const fileName = `${slugify(sectorName)}_image`;
 
   return (
     <div className="flex flex-col items-center justify-center">

@@ -1,7 +1,6 @@
 "use client";
 
 import { RedirectButton } from "@/app/components/redirect-button";
-import { formatDate } from "@/app/lib/formatters";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import { useEffect, useState } from "react";
 import {

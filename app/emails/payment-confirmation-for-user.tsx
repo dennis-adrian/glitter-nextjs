@@ -12,7 +12,7 @@ import {
 import { getUserName } from "@/app/lib/users/utils";
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
-import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/defiinitions";
+import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/definitions";
 
 type PaymentConfirmationForUserEmailTemplateProps = {
   invoice: InvoiceWithPaymentsAndStandAndProfile;

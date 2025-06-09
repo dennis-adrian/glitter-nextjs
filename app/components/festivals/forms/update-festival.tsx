@@ -25,6 +25,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { useRef } from "react";
+import { slugify } from "@/app/lib/formatters";
 
 const FormSchema = z.object({
 	name: z.string().min(1, "Required"),
@@ -140,7 +141,7 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 	const addNewSector = () => {
 		appendSector({
 			name: "",
-			orderInFestival: sectorFields.length + 1,
+			orderInFestival: Math.max(0, ...sectorFields.map((s) => Number(s.orderInFestival) || 0)) + 1,
 			mapUrl: "",
 			mascotUrl: ""
 		});

@@ -18,8 +18,8 @@ import { useFieldArray } from "react-hook-form";
 import { DateTime } from 'luxon';
 import SectorImageUpload from "../sectors/sector-image-upload";
 import {
-  Card,
-  CardContent,
+	Card,
+	CardContent,
 } from "@/components/ui/card";
 
 const FormSchema = z.object({
@@ -58,7 +58,7 @@ const FormSchema = z.object({
 	festivalSectors: z.array(
 		z.object({
 			name: z.string().min(1, "El nombre del sector es requerido"),
-			orderInFestival: z.number().min(1, "El orden debe ser al menos 1"),
+			orderInFestival: z.coerce.number().min(1, "El orden debe ser al menos 1"),
 			mapUrl: z.string().optional(),
 			mascotUrl: z.string().optional(),
 		})
