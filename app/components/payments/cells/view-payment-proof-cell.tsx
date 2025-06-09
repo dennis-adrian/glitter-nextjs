@@ -1,5 +1,5 @@
 import PaymentProofModal from "@/app/components/payments/payment-proof-modal";
-import { PaymentBase } from "@/app/data/invoices/defiinitions";
+import { PaymentBase } from "@/app/data/invoices/definitions";
 import { EyeIcon } from "lucide-react";
 import { useState } from "react";
 

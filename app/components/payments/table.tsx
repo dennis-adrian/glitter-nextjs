@@ -2,7 +2,7 @@
 
 import { columns, columnTitles } from "@/app/components/payments/columns";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
-import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/defiinitions";
+import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/definitions";
 import { userCategoryOptions } from "@/app/lib/utils";
 
 type PaymentsTableProps = {

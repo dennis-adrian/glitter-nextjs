@@ -8,12 +8,13 @@ import {
 	ActivityDetailsWithParticipants,
 	FestivalActivityWithDetailsAndParticipants,
 	FestivalBase,
-} from "@/app/data/festivals/definitions";
+} from "@/app/lib/festivals/definitions";
 import { enrollInActivity } from "@/app/lib/festival_sectors/actions";
 import { ArrowDownToLineIcon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+
 
 type ActivityDetailsProps = {
 	activity: FestivalActivityWithDetailsAndParticipants;

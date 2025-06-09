@@ -3,7 +3,7 @@
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { createPayment } from "@/app/data/invoices/actions";
-import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/defiinitions";
+import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 import { SendHorizonal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";

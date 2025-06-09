@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import QrCodeDownload from "@/app/components/payments/qr-code-download";
-import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/defiinitions";
+import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 
 type PaymentQRCodeProps = {
 	invoice: InvoiceWithPaymentsAndStand;

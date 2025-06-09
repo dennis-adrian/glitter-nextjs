@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import {
   BookMarkedIcon,
   BookUserIcon,

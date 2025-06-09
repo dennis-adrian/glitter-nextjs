@@ -3,7 +3,7 @@
 import UploadPaymentVoucherModal from "@/app/components/payments/upload-payment-voucher-modal";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/defiinitions";
+import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 import { UploadIcon } from "lucide-react";
 
 type CompletePaymentButtonProps = {

@@ -2,8 +2,6 @@
 
 import { and, count, desc, eq, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import { uploadQrCode } from "@/app/data/tickets/helpers";
 import { generateQRCode } from "@/app/lib/utils";
 import { db } from "@/db";
@@ -12,6 +10,7 @@ import { VisitorBase, VisitorWithTickets } from "../visitors/actions";
 import { sendEmail } from "@/app/vendors/resend";
 import TicketEmailTemplate from "@/app/emails/ticket";
 import { getTicketCode } from "@/app/lib/tickets/utils";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export type TicketBase = typeof tickets.$inferSelect;
 export type TicketWithVisitor = TicketBase & { visitor: VisitorBase };

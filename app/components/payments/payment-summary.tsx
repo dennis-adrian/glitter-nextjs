@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { InvoiceBase } from "@/app/data/invoices/defiinitions";
+import { InvoiceBase } from "@/app/data/invoices/definitions";
 
 type PaymentSummaryProps = {
   invoice: InvoiceBase;

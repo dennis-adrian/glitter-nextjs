@@ -1,7 +1,7 @@
 import { StandBase } from "@/app/api/stands/definitions";
 import { BaseProfile, ProfileSubcategoryWithSubcategory, ProfileWithSocials, UserSocial } from "@/app/api/users/definitions";
-import { FestivalBase } from "@/app/data/festivals/definitions";
-import { InvoiceWithPayments } from "@/app/data/invoices/defiinitions";
+import { InvoiceWithPayments } from "@/app/data/invoices/definitions";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { Collaborator } from "@/app/lib/reservations/definitions";
 import { reservationParticipants, standReservations } from "@/db/schema";
 

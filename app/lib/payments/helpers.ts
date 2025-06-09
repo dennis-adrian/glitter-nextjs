@@ -1,6 +1,6 @@
 import { UserCategory } from "@/app/api/users/definitions";
-import { FestivalBase } from "@/app/data/festivals/definitions";
-import { InvoiceStatus } from "@/app/data/invoices/defiinitions";
+import { InvoiceStatus } from "@/app/data/invoices/definitions";
+import { FestivalBase } from "../festivals/definitions";
 
 export function getInvoiceStatusLabel(status: InvoiceStatus) {
   switch (status) {

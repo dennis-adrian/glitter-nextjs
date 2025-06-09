@@ -30,3 +30,12 @@ export function getWeekdayFromDate(
 
   return formatDate(date).weekdayLong || "";
 }
+
+export function slugify(input: string): string {
+  return input
+    .normalize("NFKD")             // strip accents
+    .replace(/[\u0300-\u036f]/g, "") // remove diacritics
+    .replace(/[^a-z0-9]+/gi, "_")   // replace non-alphanumeric with underscores
+    .toLowerCase()                  // convert to lowercase
+    .replace(/^_+|_+$/g, "");       // trim leading/trailing underscores
+}

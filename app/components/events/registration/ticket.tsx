@@ -1,4 +1,3 @@
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import { formatDate } from "@/app/lib/formatters";
 import { TicketBase } from "@/app/data/tickets/actions";
@@ -7,6 +6,7 @@ import { DateTime } from "luxon";
 import ReactBarcode from "@/app/(routes)/festivals/[id]/registration/barcode";
 import Image from "next/image";
 import { getTicketCode } from "@/app/lib/tickets/utils";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 type TicketProps = {
   ticketRef?: React.RefObject<HTMLDivElement>;

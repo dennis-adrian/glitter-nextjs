@@ -1,7 +1,6 @@
 import { Metadata } from "next";
-
-import { fetchActiveFestivalBase } from "@/app/data/festivals/actions";
 import { redirect } from "next/navigation";
+import { fetchActiveFestivalBase } from "../lib/festivals/actions";
 
 export const metadata: Metadata = {
   title: "Próximo Evento",

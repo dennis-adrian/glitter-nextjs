@@ -3,7 +3,7 @@ import {
   ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments,
 } from "@/app/api/reservations/definitions";
 import { Badge } from "@/app/components/ui/badge";
-import { InvoiceWithPayments } from "@/app/data/invoices/defiinitions";
+import { InvoiceWithPayments } from "@/app/data/invoices/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 
