@@ -36,7 +36,7 @@ export default function ProfileAvatar(props: ProfileAvatarProps) {
         </div>
       )}
       {showBadge && isNewProfile(profile) && (
-        <div className="absolute -bottom-2">
+        <div className="absolute -bottom-2 z-10">
           <Badge className="bg-white text-foreground" variant="outline">
             Nuevo
           </Badge>
