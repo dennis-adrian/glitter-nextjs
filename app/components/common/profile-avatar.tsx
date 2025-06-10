@@ -17,9 +17,9 @@ export default function ProfileAvatar(props: ProfileAvatarProps) {
 
   return (
     <div className="relative flex justify-center">
-      <Avatar className={props.className || ""}>
+      <Avatar className={props.className}>
         <AvatarImage
-          src={profile?.imageUrl || "/img/profile-avatar.png"}
+          src={profile?.imageUrl || "/img/placeholders/avatar-placeholder.png"}
           alt={
             userName ? `Imagen de perfil de ${userName}` : "Imagen de perfil"
           }
@@ -36,7 +36,7 @@ export default function ProfileAvatar(props: ProfileAvatarProps) {
         </div>
       )}
       {showBadge && isNewProfile(profile) && (
-        <div className="absolute -bottom-2">
+        <div className="absolute -bottom-2 z-10">
           <Badge className="bg-white text-foreground" variant="outline">
             Nuevo
           </Badge>
