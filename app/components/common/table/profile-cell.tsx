@@ -8,9 +8,9 @@ export default function ProfileCell({ profile }: { profile: BaseProfile }) {
     <div className="flex gap-2 items-center" key={profile.id}>
       <Avatar className="w-8 h-8">
         <AvatarImage
-          src={profile.imageUrl || "/img/profile-avatar.png"}
+          src={profile.imageUrl || "/img/placeholders/avatar-placeholder.png"}
           alt={
-            profile.displayName
+            profile.displayName 
               ? `Imagen de perfil de ${profile.displayName}`
               : "Imagen de perfil"
           }
