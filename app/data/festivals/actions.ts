@@ -353,12 +353,17 @@ export async function sendEmailToVisitors(
 	festival: FestivalWithDates,
 ) {
 	const { error } = await sendEmail({
-		to: emails,
+		to: "visitantes@productoraglitter.com",
 		from: "Equipo Glitter <equipo@productoraglitter.com>",
+		bcc: emails,
 		subject: "Pre-registro abierto para nuestro próximo festival",
 		react: RegistrationInvitationEmailTemplate({
 			festival: festival,
 		}) as React.ReactElement,
+		headers: {
+			"X-Entity-Ref-ID": new Date().getTime().toString(),
+		},
+		replyTo: "visitantes@productoraglitter.com",
 	});
 	if (error) {
 		console.error("Error sending email to visitors", error);
