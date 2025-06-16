@@ -9,12 +9,14 @@ export function getFestivalsOptions(festivals: FestivalBase[]) {
 }
 
 export function groupVisitorEmails(visitors: { id: number; email: string }[]) {
-  const visitorEmails = visitors.map((visitor) => visitor.email);
-  let emailGroups: string[][] = [];
-  for (let i = 0; i < visitorEmails.length; i += 50) {
-    let group = visitorEmails.slice(i, i + 50);
-    emailGroups.push(group);
-  }
+	// Resend has a limit of 50 emails per group and the first email is the sender the other 49 will be in bcc
+	const maxEmailsPerGroup = 49;
+	const visitorEmails = visitors.map((visitor) => visitor.email);
+	let emailGroups: string[][] = [];
+	for (let i = 0; i < visitorEmails.length; i += maxEmailsPerGroup) {
+		let group = visitorEmails.slice(i, i + maxEmailsPerGroup);
+		emailGroups.push(group);
+	}
 
-  return emailGroups;
+	return emailGroups;
 }
