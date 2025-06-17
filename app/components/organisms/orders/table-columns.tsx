@@ -24,7 +24,8 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
 		),
 	},
 	{
-		accessorKey: "customer",
+		id: "customer",
+		accessorFn: (row) => row.customer.displayName,
 		header: ({ column }) => (
 			<DataTableColumnHeader column={column} title={columnTitles.customer} />
 		),
@@ -48,7 +49,11 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
 		},
 	},
 	{
-		accessorKey: "items",
+		id: "items",
+		accessorFn: (row) => {
+			const items = row.orderItems.map((item) => item.product.name);
+			return items.join(", ");
+		},
 		header: ({ column }) => (
 			<DataTableColumnHeader column={column} title={columnTitles.items} />
 		),
@@ -71,6 +76,10 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
 		),
 		cell: ({ row }) => {
 			return <OrderStatusBadge status={row.original.status} />;
+		},
+		filterFn: (row, columnId, filterStatus) => {
+			if (filterStatus.length === 0) return true;
+			return filterStatus.includes(row.original.status);
 		},
 	},
 	{
