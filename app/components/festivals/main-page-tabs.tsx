@@ -11,9 +11,12 @@ type TabItemProps = {
 
 function TabItem(props: TabItemProps) {
 	return (
-		<div
+		<button
+			type="button"
+			role="tab"
+			aria-selected={props.selected}
 			className={cn(
-				"p-2 text-sm cursor-default transition duration-500 ease-in-out hover:text-primary-400 hover:border-b",
+				"p-2 text-sm transition duration-500 ease-in-out hover:text-primary-400 hover:border-b",
 				{
 					"border-b-2 border-primary-400 text-primary-400": props.selected,
 					"text-muted-foreground": !props.selected,
@@ -22,7 +25,7 @@ function TabItem(props: TabItemProps) {
 			onClick={props.onClick}
 		>
 			{props.children}
-		</div>
+		</button>
 	);
 }
 

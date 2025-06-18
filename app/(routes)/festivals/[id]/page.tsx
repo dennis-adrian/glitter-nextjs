@@ -6,7 +6,6 @@ import FestivalPageTabs from "@/app/components/festivals/main-page-tabs";
 import PublicFestivalActivities from "@/app/components/festivals/public-festival-activities";
 import FestivalSectors from "@/app/components/festivals/sectors/festival-sectors";
 import { fetchFestival, fetchFestivals } from "@/app/data/festivals/actions";
-import { userCategoryEnum } from "@/db/schema";
 import { notFound } from "next/navigation";
 
 export const metadata: Metadata = {
@@ -23,27 +22,29 @@ export async function generateStaticParams() {
 	}));
 }
 
-const searchParamsSchema = z.object({
-	category: z.enum(userCategoryEnum.enumValues).optional(),
-	terms: z.coerce.boolean().optional(),
+const SearchParamsSchema = z.object({
 	tab: z.enum(["general", "sectors", "activities"]).default("general"),
 });
 
+const ParamsSchema = z.object({
+	id: z.coerce.number(),
+});
+
 export default async function Page(props: {
-	params: Promise<{ id: string }>;
-	searchParams: Promise<{
-		terms: string;
-		category: string;
-		tab: string;
-	}>;
+	params: Promise<z.infer<typeof ParamsSchema>>;
+	searchParams: Promise<z.infer<typeof SearchParamsSchema>>;
 }) {
 	const searchParams = await props.searchParams;
 	const params = await props.params;
-	const festival = await fetchFestival({ id: parseInt(params.id) });
-	if (!festival) notFound();
 
-	const validatedSearchParams = searchParamsSchema.safeParse(searchParams);
+	const validatedParams = ParamsSchema.safeParse(params);
+	if (!validatedParams.success) notFound();
+
+	const validatedSearchParams = SearchParamsSchema.safeParse(searchParams);
 	if (!validatedSearchParams.success) notFound();
+
+	const festival = await fetchFestival({ id: validatedParams.data.id });
+	if (!festival) notFound();
 
 	return (
 		<div className="container p-4 md:p-6">
