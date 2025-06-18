@@ -16,32 +16,32 @@ export default function ProfileAvatar(props: ProfileAvatarProps) {
   const userName = getUserName(profile);
 
   return (
-    <div className="relative flex justify-center">
-      <Avatar className={props.className}>
-        <AvatarImage
-          src={profile?.imageUrl || "/img/placeholders/avatar-placeholder.png"}
-          alt={
-            userName ? `Imagen de perfil de ${userName}` : "Imagen de perfil"
-          }
-        />
-      </Avatar>
-      {props.showGlitterStamp && (
-        <div className="absolute -top-1 -right-2 bg-white rounded-full p-0.5 z-20">
-          <Image
-            src="/img/glitter-stamp.svg"
-            alt="glitter stamp"
-            width={24}
-            height={24}
-          />
-        </div>
-      )}
-      {showBadge && isNewProfile(profile) && (
-        <div className="absolute -bottom-2">
-          <Badge className="bg-white text-foreground" variant="outline">
-            Nuevo
-          </Badge>
-        </div>
-      )}
-    </div>
-  );
+		<div className="relative flex justify-center">
+			<Avatar className={props.className}>
+				<AvatarImage
+					src={profile?.imageUrl}
+					alt={
+						userName ? `Imagen de perfil de ${userName}` : "Imagen de perfil"
+					}
+				/>
+			</Avatar>
+			{props.showGlitterStamp && (
+				<div className="absolute -top-1 -right-2 bg-white rounded-full p-0.5 z-20">
+					<Image
+						src="/img/glitter-stamp.svg"
+						alt="glitter stamp"
+						width={24}
+						height={24}
+					/>
+				</div>
+			)}
+			{showBadge && isNewProfile(profile) && (
+				<div className="absolute -bottom-2 z-10">
+					<Badge className="bg-white text-foreground" variant="outline">
+						Nuevo
+					</Badge>
+				</div>
+			)}
+		</div>
+	);
 }
