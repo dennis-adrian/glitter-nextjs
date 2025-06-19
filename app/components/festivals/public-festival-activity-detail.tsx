@@ -6,7 +6,7 @@ import {
 	ActivityDetailsWithParticipants,
 	FullFestival,
 } from "@/app/lib/festivals/definitions";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Tooltip } from "react-tooltip";
 
 type PublicFestivalActivityDetailProps = {
@@ -31,9 +31,6 @@ export default function PublicFestivalActivityDetail({
 	reservations,
 	festival,
 }: PublicFestivalActivityDetailProps) {
-	const [mappedParticipants, setMappedParticipants] = useState<
-		ParticipantCardData[]
-	>([]);
 	const [filteredParticipants, setFilteredParticipants] = useState<
 		ParticipantCardData[]
 	>([]);
@@ -41,7 +38,7 @@ export default function PublicFestivalActivityDetail({
 	/**
 	 * We map the participants and reservations to the ParticipantCardData type.
 	 */
-	useEffect(() => {
+	const mappedParticipants = useMemo(() => {
 		const participants = detail.participants.map((participant) => {
 			const reservation = reservations.find((reservation) =>
 				reservation.participants.some((p) => p.userId === participant.userId),
@@ -59,21 +56,21 @@ export default function PublicFestivalActivityDetail({
 			};
 		});
 
-		// group participants by sectors and stands
+		// Create a lookup map to group participants by sector order
+		const sectorStandMap = new Map();
+		festival.festivalSectors.forEach((sector) => {
+			sector.stands.forEach((stand) => {
+				sectorStandMap.set(stand.id, sector.orderInFestival || 1000);
+			});
+		});
+
 		const groupedParticipants = participants.reduce(
 			(acc, participant) => {
-				const sector = festival.festivalSectors.find((sector) =>
-					sector.stands.map((stand) => stand.id).includes(participant.standId),
-				);
-
-				// we use 1000 as default order to put the participants in the end of the list
-				const sectorOrder = sector?.orderInFestival || 1000;
-				const key = sectorOrder;
-
-				if (!acc[key]) {
-					acc[key] = [];
+				const sectorOrder = sectorStandMap.get(participant.standId) || 1000;
+				if (!acc[sectorOrder]) {
+					acc[sectorOrder] = [];
 				}
-				acc[key].push(participant);
+				acc[sectorOrder].push(participant);
 				return acc;
 			},
 			{} as Record<string, ParticipantCardData[]>,
@@ -84,9 +81,7 @@ export default function PublicFestivalActivityDetail({
 			group.sort((a, b) => a.standNumber - b.standNumber);
 		});
 
-		const orderedParticipants = Object.values(groupedParticipants).flat();
-
-		setMappedParticipants(orderedParticipants);
+		return Object.values(groupedParticipants).flat();
 	}, [detail.participants, reservations, festival]);
 
 	/**
