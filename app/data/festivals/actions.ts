@@ -45,7 +45,7 @@ export async function fetchActiveFestivalBase() {
 	}
 }
 
-export async function fetchActiveFestival({
+export async function fetchFestival({
 	acceptedUsersOnly = false,
 	id,
 }: {
