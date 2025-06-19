@@ -3,12 +3,13 @@
 import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { ActivityDetailsWithParticipants } from "@/app/lib/festivals/definitions";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Tooltip } from "react-tooltip";
 
 type PublicFestivalActivityDetailProps = {
 	detail: ActivityDetailsWithParticipants;
 	reservations: ReservationWithParticipantsAndUsersAndStand[];
+	searchTerm: string;
 };
 
 type ParticipantCardData = {
@@ -19,31 +20,60 @@ type ParticipantCardData = {
 };
 
 export default function PublicFestivalActivityDetail({
+	searchTerm,
 	detail,
 	reservations,
 }: PublicFestivalActivityDetailProps) {
-	const participantCardData = useMemo(
-		(): ParticipantCardData[] =>
-			detail.participants.map((participant) => {
-				const reservation = reservations.find((reservation) =>
-					reservation.participants.some((p) => p.userId === participant.userId),
-				);
-				const stand = reservation?.stand;
-				const standLabel = `${stand?.label}${stand?.standNumber}`.trim();
+	const [mappedParticipants, setMappedParticipants] = useState<
+		ParticipantCardData[]
+	>([]);
+	const [filteredParticipants, setFilteredParticipants] = useState<
+		ParticipantCardData[]
+	>([]);
 
-				return {
-					participantId: participant.id,
-					standLabel: standLabel ? `Espacio ${standLabel}` : "Sin espacio",
-					participantImageUrl: participant.user.imageUrl || "",
-					participantName: participant.user.displayName || "",
-				};
+	/**
+	 * We map the participants and reservations to the ParticipantCardData type.
+	 */
+	useEffect(() => {
+		const participants = detail.participants.map((participant) => {
+			const reservation = reservations.find((reservation) =>
+				reservation.participants.some((p) => p.userId === participant.userId),
+			);
+			const stand = reservation?.stand;
+			const standLabel = `${stand?.label}${stand?.standNumber}`.trim();
+
+			return {
+				participantId: participant.id,
+				standLabel: standLabel ? `Espacio ${standLabel}` : "Sin espacio",
+				participantImageUrl: participant.user.imageUrl || "",
+				participantName: participant.user.displayName || "",
+			};
+		});
+
+		setMappedParticipants(participants);
+	}, [detail.participants, reservations]);
+
+	/**
+	 * After we get the list of mapped participants, we filter them by the search term and use that list to render the participants.
+	 */
+	useEffect(() => {
+		setFilteredParticipants(
+			mappedParticipants.filter((participant) => {
+				return (
+					participant.participantName
+						.toLowerCase()
+						.includes(searchTerm.toLowerCase()) ||
+					participant.standLabel
+						.toLowerCase()
+						.includes(searchTerm.toLowerCase())
+				);
 			}),
-		[detail.participants, reservations],
-	);
+		);
+	}, [mappedParticipants, searchTerm]);
 
 	return (
 		<div className="grid xxs:grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-			{participantCardData.map((participant) => {
+			{filteredParticipants.map((participant) => {
 				return (
 					<div
 						key={participant.participantId}

@@ -3,7 +3,11 @@
 import PublicFestivalActivityDetail from "@/app/components/festivals/public-festival-activity-detail";
 import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
 import { FullFestival } from "@/app/data/festivals/definitions";
-import { use } from "react";
+import { use, useState } from "react";
+import SearchInput from "@/app/components/ui/search-input/input";
+import Search from "@/app/components/ui/search";
+import { Input } from "@/app/components/ui/input";
+import { SearchIcon } from "lucide-react";
 
 type PublicFestivalActivitiesProps = {
 	festival: FullFestival;
@@ -16,6 +20,7 @@ export default function PublicFestivalActivities({
 	festival,
 	fetchFestivalReservationsPromise,
 }: PublicFestivalActivitiesProps) {
+	const [term, setTerm] = useState("");
 	const activities = festival.festivalActivities;
 	const reservations = use(fetchFestivalReservationsPromise);
 
@@ -32,16 +37,39 @@ export default function PublicFestivalActivities({
 							<p className="text-sm text-muted-foreground">
 								{activity.visitorsDescription}
 							</p>
-							<div className="my-4">
-								<h4 className="text-base md:text-lg font-medium mb-3">
+							<div>
+								<h4 className="text-base md:text-lg font-medium my-3">
 									Participantes
 								</h4>
+								<div className="flex flex-col gap-1 mb-2">
+									<label
+										htmlFor="search"
+										className="text-sm text-muted-foreground"
+									>
+										Buscar participantes
+									</label>
+									<div className="relative flex w-full md:max-w-96">
+										<Input
+											placeholder="Busca por nombre o espacio"
+											className="peer pl-10"
+											type="search"
+											onChange={(e) => {
+												e.preventDefault();
+												setTerm(e.target.value);
+											}}
+										/>
+										<div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+											<SearchIcon aria-hidden="true" className="h-4 w-4" />
+										</div>
+									</div>
+								</div>
 								<ul>
 									{details.map((detail) => (
 										<PublicFestivalActivityDetail
 											key={detail.id}
 											detail={detail}
 											reservations={reservations}
+											searchTerm={term}
 										/>
 									))}
 								</ul>
