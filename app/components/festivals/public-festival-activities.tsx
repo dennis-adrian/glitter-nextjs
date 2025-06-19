@@ -4,8 +4,6 @@ import PublicFestivalActivityDetail from "@/app/components/festivals/public-fest
 import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
 import { FullFestival } from "@/app/data/festivals/definitions";
 import { use, useState } from "react";
-import SearchInput from "@/app/components/ui/search-input/input";
-import Search from "@/app/components/ui/search";
 import { Input } from "@/app/components/ui/input";
 import { SearchIcon } from "lucide-react";
 
@@ -67,6 +65,7 @@ export default function PublicFestivalActivities({
 									{details.map((detail) => (
 										<PublicFestivalActivityDetail
 											key={detail.id}
+											festival={festival}
 											detail={detail}
 											reservations={reservations}
 											searchTerm={term}

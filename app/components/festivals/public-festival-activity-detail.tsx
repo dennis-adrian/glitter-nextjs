@@ -2,11 +2,15 @@
 
 import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
-import { ActivityDetailsWithParticipants } from "@/app/lib/festivals/definitions";
+import {
+	ActivityDetailsWithParticipants,
+	FullFestival,
+} from "@/app/lib/festivals/definitions";
 import { useEffect, useMemo, useState } from "react";
 import { Tooltip } from "react-tooltip";
 
 type PublicFestivalActivityDetailProps = {
+	festival: FullFestival;
 	detail: ActivityDetailsWithParticipants;
 	reservations: ReservationWithParticipantsAndUsersAndStand[];
 	searchTerm: string;
@@ -17,12 +21,15 @@ type ParticipantCardData = {
 	standLabel: string;
 	participantImageUrl: string;
 	participantName: string;
+	standId: number;
+	standNumber: number;
 };
 
 export default function PublicFestivalActivityDetail({
 	searchTerm,
 	detail,
 	reservations,
+	festival,
 }: PublicFestivalActivityDetailProps) {
 	const [mappedParticipants, setMappedParticipants] = useState<
 		ParticipantCardData[]
@@ -47,11 +54,40 @@ export default function PublicFestivalActivityDetail({
 				standLabel: standLabel ? `Espacio ${standLabel}` : "Sin espacio",
 				participantImageUrl: participant.user.imageUrl || "",
 				participantName: participant.user.displayName || "",
+				standId: stand?.id || 0,
+				standNumber: stand?.standNumber || 0,
 			};
 		});
 
-		setMappedParticipants(participants);
-	}, [detail.participants, reservations]);
+		// group participants by sectors and stands
+		const groupedParticipants = participants.reduce(
+			(acc, participant) => {
+				const sector = festival.festivalSectors.find((sector) =>
+					sector.stands.map((stand) => stand.id).includes(participant.standId),
+				);
+
+				// we use 1000 as default order to put the participants in the end of the list
+				const sectorOrder = sector?.orderInFestival || 1000;
+				const key = sectorOrder;
+
+				if (!acc[key]) {
+					acc[key] = [];
+				}
+				acc[key].push(participant);
+				return acc;
+			},
+			{} as Record<string, ParticipantCardData[]>,
+		);
+
+		// Sort participants within each group by stand number
+		Object.values(groupedParticipants).forEach((group) => {
+			group.sort((a, b) => a.standNumber - b.standNumber);
+		});
+
+		const orderedParticipants = Object.values(groupedParticipants).flat();
+
+		setMappedParticipants(orderedParticipants);
+	}, [detail.participants, reservations, festival]);
 
 	/**
 	 * After we get the list of mapped participants, we filter them by the search term and use that list to render the participants.
