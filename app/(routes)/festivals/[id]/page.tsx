@@ -7,6 +7,7 @@ import PublicFestivalActivities from "@/app/components/festivals/public-festival
 import FestivalSectors from "@/app/components/festivals/sectors/festival-sectors";
 import { fetchFestival, fetchFestivals } from "@/app/data/festivals/actions";
 import { notFound } from "next/navigation";
+import { fetchPublicReservationsByFestivalId } from "@/app/lib/reservations/actions";
 
 export const metadata: Metadata = {
 	title: "Información del Festival",
@@ -46,6 +47,10 @@ export default async function Page(props: {
 	const festival = await fetchFestival({ id: validatedParams.data.id });
 	if (!festival) notFound();
 
+	const fetchFestivalReservationsPromise = fetchPublicReservationsByFestivalId(
+		festival.id,
+	);
+
 	return (
 		<div className="container p-4 md:p-6">
 			<section className="flex flex-col md:flex-row md:justify-between gap-6">
@@ -71,7 +76,10 @@ export default async function Page(props: {
 					<FestivalSectors festival={festival} />
 				)}
 				{validatedSearchParams.data.tab === "activities" && (
-					<PublicFestivalActivities festival={festival} />
+					<PublicFestivalActivities
+						festival={festival}
+						fetchFestivalReservationsPromise={fetchFestivalReservationsPromise}
+					/>
 				)}
 			</section>
 		</div>
