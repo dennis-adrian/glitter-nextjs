@@ -6,7 +6,7 @@ import {
 	ActivityDetailsWithParticipants,
 	FullFestival,
 } from "@/app/lib/festivals/definitions";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Tooltip } from "react-tooltip";
 
 type PublicFestivalActivityDetailProps = {
