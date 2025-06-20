@@ -1,9 +1,9 @@
 "use server";
 
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
-import { festivals, festivalDates } from "@/db/schema";
+import { festivals, festivalDates, festivalActivities } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 
 export async function createFestival(
@@ -114,7 +114,7 @@ export async function fetchActiveFestivalBase() {
 }
 
 export async function updateFestival(
-	data: Omit<typeof festivals.$inferInsert, 'id'> & {
+	data: Omit<typeof festivals.$inferInsert, "id"> & {
 		id: number;
 		dates?: Array<{
 			id?: number;
@@ -126,27 +126,30 @@ export async function updateFestival(
 			startDate: Date;
 			endDate: Date;
 		}>;
-	}
+	},
 ) {
 	try {
 		const result = await db.transaction(async (tx) => {
-			const [updatedFestival] = await tx.update(festivals)
+			const [updatedFestival] = await tx
+				.update(festivals)
 				.set({
 					name: data.name,
 					description: data.description || null,
 					address: data.address || null,
 					locationLabel: data.locationLabel || null,
 					locationUrl: data.locationUrl || null,
-					status: data.status || 'draft',
-					mapsVersion: data.mapsVersion || 'v1',
+					status: data.status || "draft",
+					mapsVersion: data.mapsVersion || "v1",
 					publicRegistration: data.publicRegistration || false,
 					eventDayRegistration: data.eventDayRegistration || false,
-					festivalType: data.festivalType || 'glitter',
+					festivalType: data.festivalType || "glitter",
 					generalMapUrl: data.generalMapUrl || null,
 					mascotUrl: data.mascotUrl || null,
-					illustrationPaymentQrCodeUrl: data.illustrationPaymentQrCodeUrl || null,
+					illustrationPaymentQrCodeUrl:
+						data.illustrationPaymentQrCodeUrl || null,
 					gastronomyPaymentQrCodeUrl: data.gastronomyPaymentQrCodeUrl || null,
-					entrepreneurshipPaymentQrCodeUrl: data.entrepreneurshipPaymentQrCodeUrl || null,
+					entrepreneurshipPaymentQrCodeUrl:
+						data.entrepreneurshipPaymentQrCodeUrl || null,
 					illustrationStandUrl: data.illustrationStandUrl || null,
 					gastronomyStandUrl: data.gastronomyStandUrl || null,
 					entrepreneurshipStandUrl: data.entrepreneurshipStandUrl || null,
@@ -158,7 +161,8 @@ export async function updateFestival(
 				.returning();
 
 			// Get existing dates to compare
-			const existingDates = await tx.select()
+			const existingDates = await tx
+				.select()
 				.from(festivalDates)
 				.where(eq(festivalDates.festivalId, data.id));
 
@@ -170,7 +174,8 @@ export async function updateFestival(
 
 					if (originalDateItem?.id) {
 						// Update existing date
-						await tx.update(festivalDates)
+						await tx
+							.update(festivalDates)
 							.set({
 								startDate: dateItem.startDate,
 								endDate: dateItem.endDate,
@@ -189,13 +194,15 @@ export async function updateFestival(
 					}
 				}
 				// Delete dates that were removed
-				const datesToKeep = data.dates?.map(d => d.id).filter(Boolean) as number[] || [];
+				const datesToKeep =
+					(data.dates?.map((d) => d.id).filter(Boolean) as number[]) || [];
 				const datesToDelete = existingDates
-					.filter(d => !datesToKeep.includes(d.id))
-					.map(d => d.id);
+					.filter((d) => !datesToKeep.includes(d.id))
+					.map((d) => d.id);
 
 				if (datesToDelete.length > 0) {
-					await tx.delete(festivalDates)
+					await tx
+						.delete(festivalDates)
 						.where(inArray(festivalDates.id, datesToDelete));
 				}
 			}
@@ -215,5 +222,34 @@ export async function updateFestival(
 			success: false,
 			message: "Failed to update festival. Please try again.",
 		};
+	}
+}
+
+export async function fetchFestivalActivityForReview(
+	festivalId: number,
+	activityId: number,
+) {
+	try {
+		return await db.query.festivalActivities.findFirst({
+			where: and(
+				eq(festivalActivities.festivalId, festivalId),
+				eq(festivalActivities.id, activityId),
+			),
+			with: {
+				details: {
+					with: {
+						participants: {
+							with: {
+								proofs: true,
+								user: true,
+							},
+						},
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error("Error fetching festival activity for review:", error);
+		return null;
 	}
 }
