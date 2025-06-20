@@ -54,7 +54,7 @@ export default function ParticipantCard({
 					</div>
 				)}
 				<p className="text-sm max-w-20 xs:max-w-28 text-ellipsis overflow-hidden">
-					#{index + 1} {participant.user.displayName}
+					#{index + 1} {participant.user.displayName || "Sin nombre"}
 				</p>
 			</div>
 		</div>

@@ -3,6 +3,8 @@
 import { ActivityDetailsWithParticipants } from "@/app/lib/festivals/definitions";
 import { useCallback, useEffect, useState } from "react";
 import ParticipantCard from "../../participant-card";
+import { Button } from "@/components/ui/button";
+import { RefreshCcwIcon } from "lucide-react";
 
 type ParticipantSelectionProps = {
 	participants: ActivityDetailsWithParticipants["participants"];
@@ -48,16 +50,31 @@ export default function ParticipantSelection({
 	);
 
 	return (
-		<div className="flex flex-wrap justify-center md:justify-start gap-2 my-2">
-			{participants.map((participant, index) => (
-				<ParticipantCard
-					key={participant.id}
-					participant={participant}
-					index={index}
-					selected={selectedParticipants.includes(participant.id)}
-					onSelect={() => handleSelect(participant.id)}
-				/>
-			))}
+		<div className="flex flex-col gap-3 my-2">
+			<div className="flex justify-end">
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => {
+						localStorage.removeItem(storageKey);
+						setSelectedParticipants([]);
+					}}
+				>
+					Reiniciar selección
+					<RefreshCcwIcon className="w-4 h-4 ml-1" />
+				</Button>
+			</div>
+			<div className="flex flex-wrap justify-center md:justify-start gap-2">
+				{participants.map((participant, index) => (
+					<ParticipantCard
+						key={participant.id}
+						participant={participant}
+						index={index}
+						selected={selectedParticipants.includes(participant.id)}
+						onSelect={() => handleSelect(participant.id)}
+					/>
+				))}
+			</div>
 		</div>
 	);
 }
