@@ -1,8 +1,8 @@
 "use client";
 
 import { ActivityDetailsWithParticipants } from "@/app/lib/festivals/definitions";
+import { useCallback, useEffect, useState } from "react";
 import ParticipantCard from "../../participant-card";
-import { useCallback, useState } from "react";
 
 type ParticipantSelectionProps = {
 	participants: ActivityDetailsWithParticipants["participants"];
@@ -13,15 +13,39 @@ export default function ParticipantSelection({
 	const [selectedParticipants, setSelectedParticipants] = useState<number[]>(
 		[],
 	);
+	const storageKey = `selected-participants-${participants[0]?.detailsId || "default"}`;
 
-	const handleSelect = useCallback((participantId: number) => {
-		setSelectedParticipants((prev) => {
-			if (prev.includes(participantId)) {
-				return prev.filter((id) => id !== participantId);
+	// Initialize from localStorage on mount
+	useEffect(() => {
+		const stored = localStorage.getItem(storageKey);
+		if (stored) {
+			try {
+				const parsed = JSON.parse(stored);
+				if (Array.isArray(parsed)) {
+					setSelectedParticipants(parsed);
+				}
+			} catch (e) {
+				console.error(
+					"Failed to parse selected participants from localStorage",
+				);
 			}
-			return [...prev, participantId];
-		});
-	}, []);
+		}
+	}, [storageKey]);
+
+	const handleSelect = useCallback(
+		(participantId: number) => {
+			setSelectedParticipants((prev) => {
+				const newSelection = prev.includes(participantId)
+					? prev.filter((id) => id !== participantId)
+					: [...prev, participantId];
+
+				// Update localStorage immediately
+				localStorage.setItem(storageKey, JSON.stringify(newSelection));
+				return newSelection;
+			});
+		},
+		[storageKey],
+	);
 
 	return (
 		<div className="flex flex-wrap justify-center md:justify-start gap-2 my-2">
