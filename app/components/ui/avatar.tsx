@@ -20,21 +20,22 @@ export function Avatar({
 }
 
 export function AvatarImage({
-  src,
-  alt,
-  ...props
-}: ImageProps) {
-  const [imgSrc, setImgSrc] = useState(src);
-  return (
-    <Image
-      className="rounded-full object-cover absolute inset-0 w-full h-full"
-      alt={alt}
-      src={imgSrc || "/img/placeholders/avatar-placeholder.png"}
-      placeholder="blur"
-      blurDataURL="/img/placeholders/avatar-placeholder.png"
-      onError={() => setImgSrc("/img/placeholders/avatar-placeholder.png")}
-      fill
-      {...props}
-    />
-  );
+	// since we are defining a src fallback, we can make src not required
+	src,
+	alt,
+	...props
+}: Omit<ImageProps, "src"> & { src?: string | null }) {
+	const [imgSrc, setImgSrc] = useState(src);
+	return (
+		<Image
+			className="rounded-full object-cover absolute inset-0 w-full h-full"
+			alt={alt}
+			src={imgSrc || "/img/placeholders/avatar-placeholder.png"}
+			placeholder="blur"
+			blurDataURL="/img/placeholders/avatar-placeholder.png"
+			onError={() => setImgSrc("/img/placeholders/avatar-placeholder.png")}
+			fill
+			{...props}
+		/>
+	);
 }

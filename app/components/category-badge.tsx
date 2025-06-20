@@ -1,38 +1,31 @@
 import { cn } from "@/app/lib/utils";
 
 import { UserCategory } from "@/app/api/users/definitions";
-import { Badge } from "@/app/components/ui/badge";
+import { Badge, BadgeVariant } from "@/app/components/ui/badge";
 import {
-  getCategoryLabel,
-  getCategoryOccupationLabel,
+	getCategoryLabel,
+	getCategoryOccupationLabel,
 } from "@/app/lib/maps/helpers";
 
 type CategoryBadgeProps = {
-  category: UserCategory;
-  useOccupationLabel?: boolean;
+	category: UserCategory;
+	useOccupationLabel?: boolean;
+	className?: string;
 };
 
 export default function CategoryBadge({
-  category,
-  useOccupationLabel = true,
+	category,
+	useOccupationLabel = true,
+	className,
 }: CategoryBadgeProps) {
-  let styles;
-  if (category === "gastronomy") {
-    styles = "bg-amber-500 hover:bg-amber-400";
-  }
-
-  if (category === "entrepreneurship") {
-    styles = "bg-pink-500 hover:bg-pink-400";
-  }
-
-  return (
-    <Badge
-      className={cn(styles, "max-w-fit")}
-      variant={category === "none" ? "dark" : "default"}
-    >
-      {useOccupationLabel
-        ? getCategoryOccupationLabel(category, { singular: true })
-        : getCategoryLabel(category)}
-    </Badge>
-  );
+	return (
+		<Badge
+			className={cn("font-normal min-w-fit", className)}
+			variant={category as BadgeVariant}
+		>
+			{useOccupationLabel
+				? getCategoryOccupationLabel(category, { singular: true })
+				: getCategoryLabel(category)}
+		</Badge>
+	);
 }

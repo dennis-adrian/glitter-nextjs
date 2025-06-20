@@ -16,6 +16,38 @@ export default function OrdersTable(props: OrdersTableProps) {
 	const orders = use(props.ordersPromise);
 
 	return (
-		<DataTable columns={columns} data={orders} columnTitles={columnTitles} />
+		<DataTable
+			columns={columns}
+			data={orders}
+			columnTitles={columnTitles}
+			filters={[
+				{
+					columnId: "status",
+					label: "Estado del pedido",
+					options: [
+						{
+							label: "Pendiente",
+							value: "pending",
+						},
+						{
+							label: "En proceso",
+							value: "processing",
+						},
+						{
+							label: "Pagado",
+							value: "paid",
+						},
+						{
+							label: "Entregado",
+							value: "delivered",
+						},
+						{
+							label: "Cancelado",
+							value: "cancelled",
+						},
+					],
+				},
+			]}
+		/>
 	);
 }

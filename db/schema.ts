@@ -608,6 +608,7 @@ export const festivalActivities = pgTable("festival_activities", {
 	festivalId: integer("festival_id")
 		.references(() => festivals.id, { onDelete: "cascade" })
 		.notNull(),
+	visitorsDescription: text("visitors_description"),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
