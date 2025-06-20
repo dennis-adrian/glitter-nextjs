@@ -12,7 +12,7 @@ type ParticipantCardProps = {
 export default function ParticipantCard({
 	participant,
 	index,
-	selected = true,
+	selected,
 	onSelect,
 }: ParticipantCardProps) {
 	return (
@@ -37,9 +37,9 @@ export default function ParticipantCard({
 							alt={participant.user.displayName!}
 							placeholder="blur"
 							blurDataURL="/img/placeholders/placeholder-300x300.png"
-							loading="lazy"
 							fill
 							className="object-cover"
+							unoptimized
 						/>
 					</div>
 				) : (
@@ -47,8 +47,8 @@ export default function ParticipantCard({
 						<Image
 							src="/img/placeholders/placeholder-300x300.png"
 							alt="No proof"
-							loading="lazy"
 							fill
+							blurDataURL="/img/placeholders/placeholder-300x300.png"
 							className="object-cover"
 						/>
 					</div>
