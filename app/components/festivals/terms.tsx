@@ -16,19 +16,27 @@ import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import TermsForm from "@/app/components/festivals/terms-form";
 import StandSpecificationsCards from "@/app/components/festivals/stand-specifications-cards";
 import DetailedMap from "@/app/components/festivals/detailed-map";
+import { DateTime } from "luxon";
 
 type TermsAndConditionsProps = {
-  festival: FestivalWithDates;
-  profile: ProfileType;
-  category: Exclude<UserCategory, "none">;
-  festivalSectors: FestivalSectorBase[];
+	festival: FestivalWithDates;
+	profile: ProfileType;
+	category: Exclude<UserCategory, "none">;
+	festivalSectors: FestivalSectorBase[];
 };
 
 export default function TermsAndConditions(props: TermsAndConditionsProps) {
-  const mapCategory =
-    props.category === "new_artist" ? "illustration" : props.category;
+	const mapCategory =
+		props.category === "new_artist" ? "illustration" : props.category;
 
-  return (
+	const dayOneStartDate = DateTime.fromJSDate(
+		props.festival.festivalDates[0].startDate,
+	);
+	const dayTwoStartDate = DateTime.fromJSDate(
+		props.festival.festivalDates[1].startDate,
+	);
+
+	return (
 		<div className="container mx-auto py-8 px-4 md:px-6">
 			<div className="max-w-screen-lg mx-auto">
 				<div className="space-y-4 text-left md:text-center mb-4">
@@ -40,7 +48,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						participar en el festival.
 					</p>
 					<p className="text-sm text-muted-foreground">
-						Última actualización: 2 de mayo de 2025
+						Última actualización: 20 de junio de 2025
 					</p>
 				</div>
 
@@ -242,17 +250,23 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 							<AccordionContent className="text-muted-foreground">
 								<ul className="list-disc pl-6 space-y-2">
 									<li>
-										El montaje debe completarse antes de las 13:30 ambos días
-										del evento.
+										El montaje debe completarse antes de las{" "}
+										{dayOneStartDate.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+										ambos días del evento.
 									</li>
 									<li>
 										Los expositores tendrán acceso al recinto para el montaje
-										desde las 12:00 el primer día y las 13:00 el segundo día.
+										desde las{" "}
+										{dayOneStartDate
+											.minus({ hour: 1 })
+											.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+										ambos días del evento.
 									</li>
 									<li>
-										El ingreso del público será a partir de las 14:00. No se
-										permitirá el ingreso a expositores después de que el público
-										haya ingresado al recinto.
+										El ingreso del público será a partir de las{" "}
+										{dayOneStartDate.toLocaleString(DateTime.TIME_24_SIMPLE)}.{" "}
+										No se permitirá el ingreso a expositores después de que el
+										público haya ingresado al recinto.
 									</li>
 									<li>
 										No se permite el desmontaje anticipado sin previa
