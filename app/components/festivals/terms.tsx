@@ -17,6 +17,7 @@ import TermsForm from "@/app/components/festivals/terms-form";
 import StandSpecificationsCards from "@/app/components/festivals/stand-specifications-cards";
 import DetailedMap from "@/app/components/festivals/detailed-map";
 import { DateTime } from "luxon";
+import { formatDate } from "@/app/lib/formatters";
 
 type TermsAndConditionsProps = {
 	festival: FestivalWithDates;
@@ -29,12 +30,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 	const mapCategory =
 		props.category === "new_artist" ? "illustration" : props.category;
 
-	const dayOneStartDate = DateTime.fromJSDate(
-		props.festival.festivalDates[0].startDate,
-	);
-	const dayTwoStartDate = DateTime.fromJSDate(
-		props.festival.festivalDates[1].startDate,
-	);
+	const dayOneStartDate = formatDate(props.festival.festivalDates[0].startDate);
 
 	return (
 		<div className="container mx-auto py-8 px-4 md:px-6">
