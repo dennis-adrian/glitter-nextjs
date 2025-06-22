@@ -2,12 +2,16 @@
 
 import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import { Button } from "@/app/components/ui/button";
 import {
 	ActivityDetailsWithParticipants,
 	FullFestival,
 } from "@/app/lib/festivals/definitions";
+import { cn } from "@/app/lib/utils";
+import { RefreshCcwIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Tooltip } from "react-tooltip";
+import { toast } from "sonner";
 
 type PublicFestivalActivityDetailProps = {
 	festival: FullFestival;
@@ -34,6 +38,25 @@ export default function PublicFestivalActivityDetail({
 	const [filteredParticipants, setFilteredParticipants] = useState<
 		ParticipantCardData[]
 	>([]);
+	const [selectedParticipantIds, setSelectedParticipantIds] = useState<
+		number[]
+	>([]);
+	const storageKey = `selected-public-participant-ids-activity-${detail.id}`;
+
+	// Initialize from localStorage on mount
+	useEffect(() => {
+		const stored = localStorage.getItem(storageKey);
+		if (stored) {
+			try {
+				const parsed = JSON.parse(stored);
+				if (Array.isArray(parsed)) {
+					setSelectedParticipantIds(parsed);
+				}
+			} catch (e) {
+				toast.error("Error al cargar los participantes seleccionados.");
+			}
+		}
+	}, [storageKey]);
 
 	/**
 	 * We map the participants and reservations to the ParticipantCardData type.
@@ -102,38 +125,70 @@ export default function PublicFestivalActivityDetail({
 		);
 	}, [mappedParticipants, searchTerm]);
 
+	const handleParticipantClick = (participant: ParticipantCardData) => {
+		const newSelection = selectedParticipantIds.includes(
+			participant.participantId,
+		)
+			? selectedParticipantIds.filter((id) => id !== participant.participantId)
+			: [...selectedParticipantIds, participant.participantId];
+
+		// Update localStorage immediately
+		localStorage.setItem(storageKey, JSON.stringify(newSelection));
+		setSelectedParticipantIds(newSelection);
+	};
+
 	return (
-		<div className="grid xxs:grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-			{filteredParticipants.map((participant) => {
-				return (
-					<div
-						key={participant.participantId}
-						className="flex items-center gap-2 bg-card border border-border rounded-md p-2 shadow-sm"
-					>
-						<Avatar className="w-10 md:w-16 h-10 md:h-16">
-							<AvatarImage
-								src={participant.participantImageUrl || ""}
-								alt={participant.participantName || "avatar de usuario"}
-							/>
-						</Avatar>
-						<div className="flex flex-col gap-1 max-w-fit">
-							<Tooltip
-								id={`participant-${participant.participantId}`}
-								content={participant.participantName}
-							/>
-							<h3
-								data-tooltip-id={`participant-${participant.participantId}`}
-								className="leading-tight text-sm md:text-base xxs:max-w-full xs:max-w-[95px] sm:max-w-full overflow-hidden text-ellipsis"
-							>
-								{participant.participantName}
-							</h3>
-							<p className="text-sm text-muted-foreground">
-								{participant.standLabel}
-							</p>
+		<div className="flex flex-col gap-2 my-3">
+			<Button
+				className="self-end"
+				disabled={selectedParticipantIds.length === 0}
+				size="sm"
+				onClick={() => {
+					localStorage.removeItem(storageKey);
+					setSelectedParticipantIds([]);
+				}}
+			>
+				Reiniciar
+				<RefreshCcwIcon className="w-4 h-4 ml-1" />
+			</Button>
+			<div className="grid xxs:grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+				{filteredParticipants.map((participant) => {
+					return (
+						<div
+							key={participant.participantId}
+							// className="flex items-center gap-2 bg-card border border-border rounded-md p-2 shadow-sm"
+							className={cn(
+								"flex items-center gap-2 bg-card border border-border rounded-md p-2 shadow-sm",
+								selectedParticipantIds.includes(participant.participantId) &&
+									"bg-primary/10 border-primary",
+							)}
+							onClick={() => handleParticipantClick(participant)}
+						>
+							<Avatar className="w-10 md:w-16 h-10 md:h-16">
+								<AvatarImage
+									src={participant.participantImageUrl || ""}
+									alt={participant.participantName || "avatar de usuario"}
+								/>
+							</Avatar>
+							<div className="flex flex-col gap-1 max-w-fit">
+								<Tooltip
+									id={`participant-${participant.participantId}`}
+									content={participant.participantName}
+								/>
+								<h3
+									data-tooltip-id={`participant-${participant.participantId}`}
+									className="leading-tight text-sm md:text-base xxs:max-w-full xs:max-w-[95px] sm:max-w-full overflow-hidden text-ellipsis"
+								>
+									{participant.participantName}
+								</h3>
+								<p className="text-sm text-muted-foreground">
+									{participant.standLabel}
+								</p>
+							</div>
 						</div>
-					</div>
-				);
-			})}
+					);
+				})}
+			</div>
 		</div>
 	);
 }

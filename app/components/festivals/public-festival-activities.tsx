@@ -36,9 +36,15 @@ export default function PublicFestivalActivities({
 								{activity.visitorsDescription}
 							</p>
 							<div>
-								<h4 className="text-base md:text-lg font-medium my-3">
-									Participantes
-								</h4>
+								<div className="flex flex-col gap-1 my-4">
+									<h4 className="text-base md:text-lg font-medium">
+										Participantes
+									</h4>
+									<p className="text-sm text-muted-foreground">
+										Selecciona a los participantes que ya visitaste para guiarte
+										y completar la actividad más rápido.
+									</p>
+								</div>
 								<div className="flex flex-col gap-1 mb-2">
 									<label
 										htmlFor="search"
