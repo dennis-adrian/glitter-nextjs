@@ -2,16 +2,13 @@
 
 import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
 import PublicFestivalActivityParticipantCard from "@/app/components/festivals/public-festival-activity-participant-card";
-import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Button } from "@/app/components/ui/button";
 import {
 	ActivityDetailsWithParticipants,
 	FullFestival,
 } from "@/app/lib/festivals/definitions";
-import { cn } from "@/app/lib/utils";
 import { RefreshCcwIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Tooltip } from "react-tooltip";
 import { toast } from "sonner";
 
 type PublicFestivalActivityDetailProps = {
@@ -134,7 +131,9 @@ export default function PublicFestivalActivityDetail({
 			: [...selectedParticipantIds, participant.participantId];
 
 		// Update localStorage immediately
-		localStorage.setItem(storageKey, JSON.stringify(newSelection));
+		if (typeof window !== "undefined") {
+			localStorage.setItem(storageKey, JSON.stringify(newSelection));
+		}
 		setSelectedParticipantIds(newSelection);
 	};
 

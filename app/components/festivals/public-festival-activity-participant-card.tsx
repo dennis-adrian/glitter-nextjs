@@ -1,4 +1,3 @@
-import { cn } from "@/app/lib/utils";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Tooltip } from "react-tooltip";
 import { ParticipantCardData } from "./public-festival-activity-detail";
