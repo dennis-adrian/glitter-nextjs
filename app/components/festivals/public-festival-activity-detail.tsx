@@ -1,6 +1,7 @@
 "use client";
 
 import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
+import PublicFestivalActivityParticipantCard from "@/app/components/festivals/public-festival-activity-participant-card";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -20,7 +21,7 @@ type PublicFestivalActivityDetailProps = {
 	searchTerm: string;
 };
 
-type ParticipantCardData = {
+export type ParticipantCardData = {
 	participantId: number;
 	standLabel: string;
 	participantImageUrl: string;
@@ -148,44 +149,20 @@ export default function PublicFestivalActivityDetail({
 					setSelectedParticipantIds([]);
 				}}
 			>
-				Reiniciar
+				Reiniciar selección
 				<RefreshCcwIcon className="w-4 h-4 ml-1" />
 			</Button>
 			<div className="grid xxs:grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
 				{filteredParticipants.map((participant) => {
 					return (
-						<div
+						<PublicFestivalActivityParticipantCard
 							key={participant.participantId}
-							// className="flex items-center gap-2 bg-card border border-border rounded-md p-2 shadow-sm"
-							className={cn(
-								"flex items-center gap-2 bg-card border border-border rounded-md p-2 shadow-sm",
-								selectedParticipantIds.includes(participant.participantId) &&
-									"bg-primary/10 border-primary",
+							participant={participant}
+							selected={selectedParticipantIds.includes(
+								participant.participantId,
 							)}
-							onClick={() => handleParticipantClick(participant)}
-						>
-							<Avatar className="w-10 md:w-16 h-10 md:h-16">
-								<AvatarImage
-									src={participant.participantImageUrl || ""}
-									alt={participant.participantName || "avatar de usuario"}
-								/>
-							</Avatar>
-							<div className="flex flex-col gap-1 max-w-fit">
-								<Tooltip
-									id={`participant-${participant.participantId}`}
-									content={participant.participantName}
-								/>
-								<h3
-									data-tooltip-id={`participant-${participant.participantId}`}
-									className="leading-tight text-sm md:text-base xxs:max-w-full xs:max-w-[95px] sm:max-w-full overflow-hidden text-ellipsis"
-								>
-									{participant.participantName}
-								</h3>
-								<p className="text-sm text-muted-foreground">
-									{participant.standLabel}
-								</p>
-							</div>
-						</div>
+							onSelect={() => handleParticipantClick(participant)}
+						/>
 					);
 				})}
 			</div>
