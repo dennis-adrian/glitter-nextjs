@@ -36,8 +36,8 @@ export default function UploadPaymentVoucherForm(
             voucherUrl: props.newVoucherUrl
           },
           oldVoucherUrl: payment?.voucherUrl,
-          standId: props.invoice.reservation.standId,
-          reservationId: props.invoice.reservationId
+          reservationId: props.invoice.reservationId,
+          standId: props.invoice.reservation.standId
         }
       );
 

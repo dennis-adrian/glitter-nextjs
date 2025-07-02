@@ -43,7 +43,7 @@ export async function fetchLatestInvoiceByProfileId(
 }
 
 export async function createPayment(
-	data: { oldVoucherUrl?: string, reservationId: number, standId: number, payment: NewPayment },
+	data: { payment: NewPayment, oldVoucherUrl?: string; reservationId: number; standId: number; },
 ) {
 	const { payment, oldVoucherUrl, reservationId, standId } = data;
 	try {

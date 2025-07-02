@@ -8,6 +8,8 @@ const PaymentSchema = z.object({
   invoiceId: z.number(),
   voucherUrl: z.string().url(),
   oldVoucherUrl: z.string().url().optional(),
+  reservationId: z.number(),
+  standId: z.number()
 });
 
 export type CreatePaymentRequestType = z.infer<typeof PaymentSchema>;
@@ -35,16 +37,18 @@ export async function POST(req: Request) {
   }
 
   const { data } = validatedPayment;
-  const result = await createPayment(
-    {
-      id: data.invoiceId,
+  const result = await createPayment({
+    payment: {
+      id: data.id,
       amount: data.amount,
       date: data.date,
       invoiceId: data.invoiceId,
       voucherUrl: data.voucherUrl,
     },
-    data.oldVoucherUrl,
-  );
+    oldVoucherUrl: data.oldVoucherUrl,
+    reservationId: data.reservationId,
+    standId: data.standId,
+  });
   if (!result.success) {
     return new Response(JSON.stringify(result), { status: 400 });
   }
