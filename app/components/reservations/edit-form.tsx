@@ -181,6 +181,7 @@ export default function EditReservationForm({
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="pending">Pendiente</SelectItem>
+                        <SelectItem value="verification_payment">Verificación de Pago</SelectItem>
                         <SelectItem value="accepted">Aceptada</SelectItem>
                         <SelectItem value="rejected">Rechazada</SelectItem>
                       </SelectContent>
