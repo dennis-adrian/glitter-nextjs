@@ -785,6 +785,13 @@
       "when": 1750299939856,
       "tag": "0111_exotic_ultimo",
       "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "5",
+      "when": 1751456853744,
+      "tag": "0112_solid_secret_warriors",
+      "breakpoints": true
     }
   ]
 }

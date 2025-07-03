@@ -282,6 +282,12 @@ export const requestStatusEnum = pgEnum("participation_request_status", [
 	"accepted",
 	"rejected",
 ]);
+export const reservationStatusEnum = pgEnum("reservation_status", [
+  "pending",
+  "verification_payment",
+  "accepted",
+  "rejected",
+]);
 
 export const requestTypeEnum = pgEnum("user_request_type", [
 	"festival_participation",
@@ -395,7 +401,7 @@ export const standReservations = pgTable("stand_reservations", {
 	id: serial("id").primaryKey(),
 	standId: integer("stand_id").notNull(),
 	festivalId: integer("festival_id").notNull(),
-	status: requestStatusEnum("status").default("pending").notNull(),
+	status: reservationStatusEnum("status").default("pending").notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
