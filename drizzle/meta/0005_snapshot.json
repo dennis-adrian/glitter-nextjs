@@ -1,10 +1,8 @@
 {
-  "id": "38343049-8a42-4c2f-beb1-ce140794ecca",
-  "prevId": "1f538a67-f1f9-48db-9f9d-6f7af47190fa",
-  "version": "5",
-  "dialect": "pg",
+  "version": "7",
+  "dialect": "postgresql",
   "tables": {
-    "festivals": {
+    "public.festivals": {
       "name": "festivals",
       "schema": "",
       "columns": {
@@ -62,11 +60,19 @@
       },
       "indexes": {
         "name_idx": {
-          "name": "name_idx",
           "columns": [
-            "name"
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": false
+          "with": {},
+          "name": "name_idx",
+          "isUnique": false,
+          "method": "btree",
+          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -74,14 +80,17 @@
       "uniqueConstraints": {
         "festivals_name_unique": {
           "name": "festivals_name_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "name"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
-      }
+      },
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "socials": {
+    "public.socials": {
       "name": "socials",
       "schema": "",
       "columns": {
@@ -124,14 +133,17 @@
       "uniqueConstraints": {
         "socials_name_unique": {
           "name": "socials_name_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "name"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
-      }
+      },
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "users": {
+    "public.users": {
       "name": "users",
       "schema": "",
       "columns": {
@@ -219,11 +231,19 @@
       },
       "indexes": {
         "display_name_idx": {
-          "name": "display_name_idx",
           "columns": [
-            "display_name"
+            {
+              "expression": "display_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": false
+          "with": {},
+          "name": "display_name_idx",
+          "isUnique": false,
+          "method": "btree",
+          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -231,21 +251,24 @@
       "uniqueConstraints": {
         "users_clerk_id_unique": {
           "name": "users_clerk_id_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "clerk_id"
-          ]
+          ],
+          "nullsNotDistinct": false
         },
         "users_email_unique": {
           "name": "users_email_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "email"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
-      }
+      },
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "users_to_socials": {
+    "public.users_to_socials": {
       "name": "users_to_socials",
       "schema": "",
       "columns": {
@@ -287,28 +310,28 @@
         "users_to_socials_user_id_users_id_fk": {
           "name": "users_to_socials_user_id_users_id_fk",
           "tableFrom": "users_to_socials",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "users_to_socials_social_id_users_id_fk": {
           "name": "users_to_socials_social_id_users_id_fk",
           "tableFrom": "users_to_socials",
-          "tableTo": "users",
           "columnsFrom": [
             "social_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -320,32 +343,43 @@
           ]
         }
       },
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     }
   },
   "enums": {
-    "festival_status": {
+    "public.festival_status": {
       "name": "festival_status",
-      "values": {
-        "draft": "draft",
-        "published": "published",
-        "active": "active",
-        "archived": "archived"
-      }
+      "schema": "public",
+      "values": [
+        "draft",
+        "published",
+        "active",
+        "archived"
+      ]
     },
-    "user_role": {
+    "public.user_role": {
       "name": "user_role",
-      "values": {
-        "admin": "admin",
-        "artist": "artist",
-        "user": "user"
-      }
+      "schema": "public",
+      "values": [
+        "admin",
+        "artist",
+        "user"
+      ]
     }
   },
   "schemas": {},
   "_meta": {
-    "columns": {},
     "schemas": {},
-    "tables": {}
-  }
+    "tables": {},
+    "columns": {}
+  },
+  "id": "38343049-8a42-4c2f-beb1-ce140794ecca",
+  "prevId": "1f538a67-f1f9-48db-9f9d-6f7af47190fa",
+  "sequences": {},
+  "policies": {},
+  "views": {},
+  "roles": {}
 }
