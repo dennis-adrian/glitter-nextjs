@@ -25,6 +25,7 @@ export default function SelectInput({
 	placeholder,
 	variant,
 	side,
+	disabled,
 }: {
 	className?: string;
 	formControl: UseFormReturn<any>["control"];
@@ -33,6 +34,7 @@ export default function SelectInput({
 	options: { value: string; label: string | React.ReactNode }[];
 	placeholder?: string;
 	side?: "top" | "bottom" | "left" | "right";
+	disabled?: boolean;
 } & SelectVariants) {
 	return (
 		<FormField
@@ -43,7 +45,11 @@ export default function SelectInput({
 					{label && <FormLabel>{label}</FormLabel>}
 					{variant === "quiet" && <FormMessage />}
 					<FormControl>
-						<Select onValueChange={field.onChange} {...field}>
+						<Select
+							onValueChange={field.onChange}
+							{...field}
+							disabled={disabled}
+						>
 							<FormControl>
 								<SelectTrigger variant={variant}>
 									<SelectValue placeholder={placeholder} />
