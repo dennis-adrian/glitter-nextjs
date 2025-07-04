@@ -40,31 +40,31 @@ export const genderEnum = pgEnum("gender", [
 ]);
 
 export const users = pgTable(
-  "users",
-  {
-    id: serial("id").primaryKey(),
-    bio: text("bio"),
-    birthdate: timestamp("birthdate"),
-    clerkId: text("clerk_id").unique().notNull(),
-    displayName: text("display_name"),
-    firstName: text("first_name"),
-    email: text("email").unique().notNull(),
-    imageUrl: text("image_url"),
-    lastName: text("last_name"),
-    phoneNumber: text("phone_number"),
-    role: userRoleEnum("role").default("user").notNull(),
-    category: userCategoryEnum("category").default("none").notNull(),
-    status: userStatusEnum("status").default("pending").notNull(),
-    gender: genderEnum("gender").default("undisclosed").notNull(),
-    state: text("state"),
-    country: text("country").default("BO").notNull(),
-    verifiedAt: timestamp("verified_at"),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-  },
-  (users) => ({
-    displayNameIdx: index("display_name_idx").on(users.displayName),
-  }),
+	"users",
+	{
+		id: serial("id").primaryKey(),
+		bio: text("bio"),
+		birthdate: timestamp("birthdate"),
+		clerkId: text("clerk_id").unique().notNull(),
+		displayName: text("display_name"),
+		firstName: text("first_name"),
+		email: text("email").unique().notNull(),
+		imageUrl: text("image_url"),
+		lastName: text("last_name"),
+		phoneNumber: text("phone_number"),
+		role: userRoleEnum("role").default("user").notNull(),
+		category: userCategoryEnum("category").default("none").notNull(),
+		status: userStatusEnum("status").default("pending").notNull(),
+		gender: genderEnum("gender").default("undisclosed").notNull(),
+		state: text("state"),
+		country: text("country").default("BO").notNull(),
+		verifiedAt: timestamp("verified_at"),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(users) => ({
+		displayNameIdx: index("display_name_idx").on(users.displayName),
+	}),
 );
 export const usersRelations = relations(users, ({ many }) => ({
 	userRequests: many(userRequests),
@@ -75,6 +75,7 @@ export const usersRelations = relations(users, ({ many }) => ({
 	profileTags: many(profileTags),
 	profileSubcategories: many(profileSubcategories),
 	userBadges: many(userBadges),
+	infractions: many(infractions),
 }));
 
 export const tags = pgTable("tags", {
@@ -214,6 +215,7 @@ export const festivalsRelations = relations(festivals, ({ many, one }) => ({
 	festivalDates: many(festivalDates),
 	festivalActivities: many(festivalActivities),
 	badge: one(badges),
+	infractions: many(infractions),
 }));
 
 export const festivalSectors = pgTable(
@@ -896,5 +898,105 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
 	product: one(products, {
 		fields: [orderItems.productId],
 		references: [products.id],
+	}),
+}));
+
+export const infractionSeverityEnum = pgEnum("infraction_severity", [
+	"low", // Minor issue, may result in a warning or soft sanction
+	"medium", // Moderate issue, typically requires a follow-up
+	"high", // Serious violation, likely leads to a strict sanction
+	"critical", // Severe breach, usually results in a ban or multiple sanctions
+]);
+
+export const infractionTypes = pgTable("infraction_types", {
+	id: serial("id").primaryKey(),
+	code: text("code").unique().notNull(), // e.g. 'no_show'
+	label: text("label").notNull(), // e.g. 'No Show'
+	description: text("description"), // e.g. Full explanation of the infraction
+	severity: infractionSeverityEnum("severity").default("low").notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const infractionTypesRelations = relations(
+	infractionTypes,
+	({ many }) => ({
+		infractions: many(infractions),
+	}),
+);
+
+export const infractions = pgTable("infractions", {
+	id: serial("id").primaryKey(),
+	userId: integer("user_id")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	typeId: integer("type_id")
+		.notNull()
+		.references(() => infractionTypes.id, { onDelete: "cascade" }),
+	festivalId: integer("festival_id").references(() => festivals.id, {
+		onDelete: "cascade",
+	}),
+	description: text("description"), // e.g. Full explanation of the infraction
+	handled: boolean("handled").default(false).notNull(), // Whether an admin has reviewed the infraction
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const infractionsRelations = relations(infractions, ({ one, many }) => ({
+	user: one(users, {
+		fields: [infractions.userId],
+		references: [users.id],
+	}),
+	type: one(infractionTypes, {
+		fields: [infractions.typeId],
+		references: [infractionTypes.id],
+	}),
+	festival: one(festivals, {
+		fields: [infractions.festivalId],
+		references: [festivals.id],
+	}),
+	sanctions: many(sanctions),
+}));
+
+export const sanctionTypeEnum = pgEnum("sanction_type", [
+	"ban",
+	"warning",
+	"reservation_delay",
+]);
+
+export const durationUnitEnum = pgEnum("duration_unit", [
+	"minutes",
+	"hours",
+	"days",
+	"months",
+	"years",
+	"festivals",
+	"indefinitely",
+]);
+
+export const sanctions = pgTable("sanctions", {
+	id: serial("id").primaryKey(),
+	userId: integer("user_id")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	infractionId: integer("infraction_id")
+		.notNull()
+		.references(() => infractions.id, { onDelete: "cascade" }),
+	type: sanctionTypeEnum("type").notNull(),
+	description: text("description"), // e.g. Custom explanation or extra instructions
+	duration: integer("duration"), // e.g. 2 festivals, 10 days, 1 month, 1 year
+	durationUnit: durationUnitEnum("duration_unit")
+		.default("indefinitely")
+		.notNull(),
+	active: boolean("active").default(true).notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const sanctionsRelations = relations(sanctions, ({ one }) => ({
+	user: one(users, {
+		fields: [sanctions.userId],
+		references: [users.id],
+	}),
+	infraction: one(infractions, {
+		fields: [sanctions.infractionId],
+		references: [infractions.id],
 	}),
 }));
