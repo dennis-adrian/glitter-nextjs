@@ -1,3 +1,4 @@
+import { StandBase } from "@/app/api/stands/definitions";
 import { InfractionType } from "@/app/lib/infractions/definitions";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
 import { Tag } from "@/app/lib/tags/definitions";
@@ -30,7 +31,9 @@ export type ParticipationWithParticipantWithInfractionsAndReservations =
 				type: InfractionType;
 			})[];
 		};
-		reservation: typeof standReservations.$inferSelect;
+		reservation: typeof standReservations.$inferSelect & {
+			stand: StandBase;
+		};
 	};
 
 export type NewUser = typeof users.$inferInsert;

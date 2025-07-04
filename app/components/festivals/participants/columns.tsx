@@ -12,6 +12,7 @@ export const columnTitles = {
 	participant: "Participantes",
 	reservationStatus: "Estado de la reserva",
 	infractions: "Infracciones",
+	stand: "Espacio",
 };
 
 export const columns: ColumnDef<ParticipationWithParticipantWithInfractionsAndReservations>[] =
@@ -41,6 +42,20 @@ export const columns: ColumnDef<ParticipationWithParticipantWithInfractionsAndRe
 			cell: ({ row }) => {
 				return <ReservationStatus reservation={row.original.reservation} />;
 			},
+		},
+		{
+			id: "stand",
+			accessorFn: (participant) =>
+				`${participant.reservation.stand.label}${participant.reservation.stand.standNumber}`,
+			header: ({ column }) => (
+				<DataTableColumnHeader column={column} title={columnTitles.stand} />
+			),
+			cell: ({ row }) => (
+				<span>
+					{row.original.reservation.stand.label}
+					{row.original.reservation.stand.standNumber}
+				</span>
+			),
 		},
 		{
 			id: "infractions",

@@ -482,7 +482,11 @@ export async function fetchFestivalParticipants(
 						},
 					},
 				},
-				reservation: true,
+				reservation: {
+					with: {
+						stand: true,
+					},
+				},
 			},
 		});
 	} catch (error) {
