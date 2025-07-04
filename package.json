@@ -54,7 +54,7 @@
 		"class-variance-authority": "^0.7.0",
 		"clsx": "^2.1.0",
 		"cmdk": "^1.0.4",
-		"drizzle-orm": "^0.30.7",
+		"drizzle-orm": "^0.44.2",
 		"embla-carousel-autoplay": "^8.0.1",
 		"embla-carousel-react": "^8.5.2",
 		"google-libphonenumber": "^3.2.40",
