@@ -937,6 +937,8 @@ export const infractions = pgTable("infractions", {
 	}),
 	description: text("description"), // e.g. Full explanation of the infraction
 	handled: boolean("handled").default(false).notNull(), // Whether an admin has reviewed the infraction
+	userGaveNotice: boolean("user_gave_notice").default(false).notNull(),
+	gaveNoticeAt: timestamp("gave_notice_at"),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
