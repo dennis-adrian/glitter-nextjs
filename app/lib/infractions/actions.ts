@@ -3,6 +3,7 @@
 import { NewInfraction } from "@/app/lib/infractions/definitions";
 import { db } from "@/db";
 import { infractions } from "@/db/schema";
+import { revalidatePath } from "next/cache";
 
 export async function fetchInfractionTypes() {
 	try {
@@ -18,10 +19,6 @@ export async function fetchInfractionTypes() {
 export async function registerInfraction(data: NewInfraction) {
 	try {
 		await db.insert(infractions).values(data);
-		return {
-			success: true,
-			message: "Infracción registrada correctamente",
-		};
 	} catch (error) {
 		console.error(error);
 		return {
@@ -29,4 +26,10 @@ export async function registerInfraction(data: NewInfraction) {
 			message: "Error al registrar la infracción",
 		};
 	}
+
+	revalidatePath(`/dashboard/festivals`);
+	return {
+		success: true,
+		message: "Infracción registrada correctamente",
+	};
 }
