@@ -4,6 +4,7 @@ import { ParticipationWithParticipantAndReservations } from "@/app/api/users/def
 import { Modal } from "@/app/components/atoms/modal";
 import RegisterInfractionForm from "@/app/components/festivals/participants/forms/register-infraction-form";
 import { Button } from "@/app/components/ui/button";
+import { InfractionType } from "@/app/lib/infractions/definitions";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -17,8 +18,12 @@ import { useState } from "react";
 
 type ActionCellProps = {
 	participant: ParticipationWithParticipantAndReservations;
+	infractionTypes: InfractionType[];
 };
-export default function ActionsCell({ participant }: ActionCellProps) {
+export default function ActionsCell({
+	participant,
+	infractionTypes,
+}: ActionCellProps) {
 	const [infractionModalOpen, setInfractionModalOpen] = useState(false);
 
 	return (
@@ -46,8 +51,9 @@ export default function ActionsCell({ participant }: ActionCellProps) {
 			>
 				<div className="px-1">
 					<RegisterInfractionForm
-						participantId={participant.id}
+						participantId={participant.userId}
 						festivalId={participant.reservation.festivalId}
+						infractionTypes={infractionTypes}
 						onSuccess={() => setInfractionModalOpen(false)}
 					/>
 				</div>
