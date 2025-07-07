@@ -44,7 +44,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						participar en el festival.
 					</p>
 					<p className="text-sm text-muted-foreground">
-						Última actualización: 20 de junio de 2025
+						Última actualización: 07 de julio de 2025
 					</p>
 				</div>
 
@@ -80,7 +80,10 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 							Sectores habilitados para{" "}
 							{getCategoryOccupationLabel(mapCategory).toLowerCase()}
 						</h3>
-						<StandSpecificationsCards category={mapCategory} />
+						<StandSpecificationsCards
+							festivalId={props.festival.id}
+							profileCategory={mapCategory}
+						/>
 					</div>
 
 					{mapCategory === "illustration" && (
