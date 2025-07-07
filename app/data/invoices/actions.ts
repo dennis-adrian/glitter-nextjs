@@ -8,6 +8,7 @@ import {
 } from "@/app/data/invoices/defiinitions";
 import PaymentConfirmationForAdminsEmailTemplate from "@/app/emails/payment-confirmation-for-admins";
 import PaymentConfirmationForUserEmailTemplate from "@/app/emails/payment-confirmation-for-user";
+import { updateReservationStatus } from "@/app/lib/reservations/actions";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import { invoices, payments } from "@/db/schema";
@@ -42,9 +43,9 @@ export async function fetchLatestInvoiceByProfileId(
 }
 
 export async function createPayment(
-	payment: NewPayment,
-	oldVoucherUrl?: string,
+	data: { payment: NewPayment, oldVoucherUrl?: string; reservationId: number; standId: number; },
 ) {
+	const { payment, oldVoucherUrl, reservationId, standId } = data;
 	try {
 		await db.transaction(async (tx) => {
 			if (payment.id) {
@@ -96,6 +97,9 @@ export async function createPayment(
 				});
 			}
 		}
+
+		await updateReservationStatus({ standId, reservationId, status: 'verification_payment' })
+
 	} catch (error) {
 		console.error("Error creating payment", error);
 		return {

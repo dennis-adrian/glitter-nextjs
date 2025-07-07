@@ -28,20 +28,24 @@ export default function UploadPaymentVoucherForm(
     } else {
       const res = await createPayment(
         {
-          id: payment?.id,
-          date: new Date(),
-          amount: props.invoice.amount,
-          invoiceId: props.invoice.id,
-          voucherUrl: props.newVoucherUrl,
-        },
-        payment?.voucherUrl,
+          payment: {
+            id: payment?.id,
+            date: new Date(),
+            amount: props.invoice.amount,
+            invoiceId: props.invoice.id,
+            voucherUrl: props.newVoucherUrl
+          },
+          oldVoucherUrl: payment?.voucherUrl,
+          reservationId: props.invoice.reservationId,
+          standId: props.invoice.reservation.standId
+        }
       );
 
       if (res.success) {
         toast.success("Pago enviado con éxito.");
-				router.push(
-					`/profiles/${props.invoice.userId}/invoices/${props.invoice.id}/success`,
-				);
+        router.push(
+          `/profiles/${props.invoice.userId}/invoices/${props.invoice.id}/success`,
+        );
       } else {
         toast.error("Error al enviar el pago");
       }
