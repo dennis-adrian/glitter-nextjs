@@ -24,8 +24,8 @@ export default async function Landing() {
 					<div className="flex justify-center items-center max-w-screen-lg mx-auto gap-8 lg:gap-20">
 						<div className="flex flex-col items-center">
 							<Image
-								alt="logo glitter"
-								src="/img/glitter/logo-glitter-382x160.png"
+								alt="logo festicker"
+								src="/img/glitter/festicker-v2-logo-382x160.png"
 								height={160}
 								width={382}
 							/>
