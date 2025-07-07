@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq, inArray, isNull, not, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, not } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -11,12 +11,9 @@ import {
 	festivalSectors,
 	standReservations,
 	profileSubcategories,
-	tickets,
-	userSocials,
 } from "@/db/schema";
 import {
 	FullFestival,
-	Festival,
 	FestivalBase,
 	FestivalWithDates,
 	FestivalWithTicketsAndDates,
@@ -27,7 +24,7 @@ import EmailTemplate from "@/app/emails/festival-activation";
 import { revalidatePath } from "next/cache";
 import {
 	BaseProfile,
-	ParticipationWithParticipantAndReservations,
+	ParticipationWithParticipantWithInfractionsAndReservations,
 } from "@/app/api/users/definitions";
 import { fetchVisitorsEmails } from "@/app/data/visitors/actions";
 import RegistrationInvitationEmailTemplate from "@/app/emails/registration-invitation";
@@ -463,25 +460,35 @@ export async function fetchAvailableArtistsInFestival(
 
 export async function fetchFestivalParticipants(
 	festivalId: number,
-): Promise<ParticipationWithParticipantAndReservations[]> {
+): Promise<ParticipationWithParticipantWithInfractionsAndReservations[]> {
 	try {
-		const queryResult = await db
-			.select()
-			.from(reservationParticipants)
-			.leftJoin(
-				standReservations,
-				eq(standReservations.id, reservationParticipants.reservationId),
-			)
-			.leftJoin(users, eq(users.id, reservationParticipants.userId))
+		const participantsWithReservationsSubquery = db
+			.select({ id: standReservations.id })
+			.from(standReservations)
 			.where(eq(standReservations.festivalId, festivalId));
 
-		const formattedResult = queryResult.map((res) => ({
-			...res.participations,
-			user: res.users,
-			reservation: res.stand_reservations,
-		}));
-
-		return formattedResult as ParticipationWithParticipantAndReservations[];
+		return await db.query.reservationParticipants.findMany({
+			where: inArray(
+				reservationParticipants.reservationId,
+				participantsWithReservationsSubquery,
+			),
+			with: {
+				user: {
+					with: {
+						infractions: {
+							with: {
+								type: true,
+							},
+						},
+					},
+				},
+				reservation: {
+					with: {
+						stand: true,
+					},
+				},
+			},
+		});
 	} catch (error) {
 		console.error("Error fetching festival participants", error);
 		return [];

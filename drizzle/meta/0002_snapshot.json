@@ -1,10 +1,8 @@
 {
-  "id": "8f1b8f4d-a9ac-497a-90fb-099a41046056",
-  "prevId": "103d81e0-66c3-4433-ab3f-32f8ad064086",
-  "version": "5",
-  "dialect": "pg",
+  "version": "7",
+  "dialect": "postgresql",
   "tables": {
-    "socials": {
+    "public.socials": {
       "name": "socials",
       "schema": "",
       "columns": {
@@ -47,14 +45,17 @@
       "uniqueConstraints": {
         "socials_name_unique": {
           "name": "socials_name_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "name"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
-      }
+      },
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "users": {
+    "public.users": {
       "name": "users",
       "schema": "",
       "columns": {
@@ -136,11 +137,19 @@
       },
       "indexes": {
         "display_name_idx": {
-          "name": "display_name_idx",
           "columns": [
-            "display_name"
+            {
+              "expression": "display_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": false
+          "with": {},
+          "name": "display_name_idx",
+          "isUnique": false,
+          "method": "btree",
+          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -148,21 +157,24 @@
       "uniqueConstraints": {
         "users_clerk_id_unique": {
           "name": "users_clerk_id_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "clerk_id"
-          ]
+          ],
+          "nullsNotDistinct": false
         },
         "users_email_unique": {
           "name": "users_email_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "email"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
-      }
+      },
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "users_to_socials": {
+    "public.users_to_socials": {
       "name": "users_to_socials",
       "schema": "",
       "columns": {
@@ -204,28 +216,28 @@
         "users_to_socials_user_id_users_id_fk": {
           "name": "users_to_socials_user_id_users_id_fk",
           "tableFrom": "users_to_socials",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "users_to_socials_social_id_users_id_fk": {
           "name": "users_to_socials_social_id_users_id_fk",
           "tableFrom": "users_to_socials",
-          "tableTo": "users",
           "columnsFrom": [
             "social_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -237,23 +249,33 @@
           ]
         }
       },
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     }
   },
   "enums": {
-    "user_role": {
+    "public.user_role": {
       "name": "user_role",
-      "values": {
-        "admin": "admin",
-        "artist": "artist",
-        "user": "user"
-      }
+      "schema": "public",
+      "values": [
+        "admin",
+        "artist",
+        "user"
+      ]
     }
   },
   "schemas": {},
   "_meta": {
-    "columns": {},
     "schemas": {},
-    "tables": {}
-  }
+    "tables": {},
+    "columns": {}
+  },
+  "id": "8f1b8f4d-a9ac-497a-90fb-099a41046056",
+  "prevId": "103d81e0-66c3-4433-ab3f-32f8ad064086",
+  "sequences": {},
+  "policies": {},
+  "views": {},
+  "roles": {}
 }
