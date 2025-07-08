@@ -239,6 +239,19 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 									Cancelar una reserva puede resultar en penalizaciones para
 									participaciones en futuros festivales de la productora.
 								</p>
+								<p className="mt-4">
+									<b>Evaluación de materiales:</b> Los expositores que no hayan
+									participado previamente en otros festivales de la productora,
+									estarán obligados a subir imágenes de los productos que
+									comercializarán en su espacio. Estas imágenes se subirán a la
+									plataforma designada por la organización y hasta la fecha
+									comunicada luego de hecha la reserva, para su evaluación
+									interna. En caso de incumplimiento o en caso de que el
+									material subido vaya en contra de alguno de los términos y
+									condiciones, la reserva será cancelada automáticamente, el
+									espacio será liberado y el participante no podrá participar en
+									el festival.
+								</p>
 							</AccordionContent>
 						</AccordionItem>
 
@@ -324,6 +337,19 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 										festival.
 									</li>
 								</ul>
+								{mapCategory === "illustration" && (
+									<div className="mt-3 mb-2">
+										<b>Responsabilidad compartida en stands compartidos:</b>
+										<p>
+											En caso de que un ilustrador comparta stand con otro,
+											ambos serán responsables por el cumplimiento de las
+											normas. Cualquier infracción cometida por uno de los
+											ilustradores, sus acompañantes o el equipo presente en el
+											stand podrá generar sanciones que afecten a ambos
+											participantes.
+										</p>
+									</div>
+								)}
 								<p className="mt-4">
 									La violación de este código de conducta puede resultar en la
 									expulsión inmediata del festival sin reembolso y/o la
@@ -422,6 +448,38 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 										locales
 									</li>
 								</ul>
+								<p className="mt-4">
+									<b>
+										Prohibición de venta de material de expositores
+										inhabilitados:
+									</b>{" "}
+									<span>
+										No está permitido vender productos elaborados por
+										expositores cuyo perfil esté deshabilitado en el sitio web
+										oficial del evento. Tampoco se permitirá la venta de
+										material colaborativo si uno de los involucrados tiene el
+										perfil deshabilitado. Esta medida busca garantizar que solo
+										participen y comercialicen productos los expositores
+										debidamente registrados y habilitados.
+									</span>
+								</p>
+								<p className="mt-4">
+									<b>
+										Prohibición de acreditación como acompañante a perfiles
+										deshabilitados:
+									</b>{" "}
+									<span>
+										No está permitido que una persona con perfil deshabilitado
+										participe en el evento utilizando de ninguna manera, ni
+										utilizando el credencial de acompañante asignada a otro
+										expositor. Esta medida aplica especialmente a los casos en
+										los que un participante habilitado intente acreditar como
+										acompañante o miembro de su equipo de trabajo a una persona
+										previamente deshabilitada. En caso de detectarse esta
+										situación, se podrán aplicar sanciones al titular del
+										espacio.
+									</span>
+								</p>
 								{mapCategory === "gastronomy" && (
 									<>
 										<h3 className="text-lg font-semibold mt-4">
