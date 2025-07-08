@@ -470,14 +470,13 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 									</b>{" "}
 									<span>
 										No está permitido que una persona con perfil deshabilitado
-										participe en el evento utilizando de ninguna manera, ni
-										utilizando el credencial de acompañante asignada a otro
-										expositor. Esta medida aplica especialmente a los casos en
-										los que un participante habilitado intente acreditar como
-										acompañante o miembro de su equipo de trabajo a una persona
-										previamente deshabilitada. En caso de detectarse esta
-										situación, se podrán aplicar sanciones al titular del
-										espacio.
+										participe en el evento de ninguna manera, ni utilizando el
+										credencial de acompañante asignada a otro expositor. Esta
+										medida aplica especialmente a los casos en los que un
+										participante habilitado intente acreditar como acompañante o
+										miembro de su equipo de trabajo a una persona previamente
+										deshabilitada. En caso de detectarse esta situación, se
+										podrán aplicar sanciones al titular del espacio.
 									</span>
 								</p>
 								{mapCategory === "gastronomy" && (
