@@ -1,4 +1,3 @@
-import { fetchFestival } from "@/app/data/festivals/actions";
 import { fetchReservation } from "@/app/api/reservations/actions";
 import EditReservationForm from "@/app/components/reservations/edit-form";
 import Breadcrumbs from "@/app/components/ui/breadcrumbs";
@@ -13,6 +12,7 @@ import { SearchOption } from "@/app/components/ui/search-input/search-content";
 import ResourceNotFound from "@/app/components/resource-not-found";
 import { getParticipantsOptions } from "@/app/api/reservations/helpers";
 import { ProfileWithParticipationsAndRequests } from "@/app/api/users/definitions";
+import { fetchFestival } from "@/app/lib/festivals/actions";
 
 export default async function Page(props: { params: Promise<{ id: string }> }) {
 	const params = await props.params;

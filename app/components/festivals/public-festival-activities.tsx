@@ -2,10 +2,10 @@
 
 import PublicFestivalActivityDetail from "@/app/components/festivals/public-festival-activity-detail";
 import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
-import { FullFestival } from "@/app/data/festivals/definitions";
 import { use, useState } from "react";
 import { Input } from "@/app/components/ui/input";
 import { SearchIcon } from "lucide-react";
+import { FullFestival } from "@/app/lib/festivals/definitions";
 
 type PublicFestivalActivitiesProps = {
 	festival: FullFestival;

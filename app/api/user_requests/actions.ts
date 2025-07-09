@@ -24,8 +24,8 @@ import { and, eq, not, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { BaseProfile } from "@/app/api/users/definitions";
 import TermsAcceptanceEmailTemplate from "@/app/emails/terms-acceptance";
-import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
+import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 
 export async function fetchRequestsByUserId(userId: number) {
 	try {
