@@ -1,10 +1,8 @@
 {
-  "id": "ffacc033-da8a-4c9d-8461-b4ba808f8f90",
-  "prevId": "4d995eea-8c14-4c65-b234-5692ab758ede",
-  "version": "5",
-  "dialect": "pg",
+  "version": "7",
+  "dialect": "postgresql",
   "tables": {
-    "festivals": {
+    "public.festivals": {
       "name": "festivals",
       "schema": "",
       "columns": {
@@ -74,11 +72,19 @@
       },
       "indexes": {
         "name_idx": {
-          "name": "name_idx",
           "columns": [
-            "name"
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": false
+          "with": {},
+          "name": "name_idx",
+          "isUnique": false,
+          "method": "btree",
+          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -86,14 +92,17 @@
       "uniqueConstraints": {
         "festivals_name_unique": {
           "name": "festivals_name_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "name"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
-      }
+      },
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "profile_tasks": {
+    "public.profile_tasks": {
       "name": "profile_tasks",
       "schema": "",
       "columns": {
@@ -153,21 +162,24 @@
         "profile_tasks_profile_id_users_id_fk": {
           "name": "profile_tasks_profile_id_users_id_fk",
           "tableFrom": "profile_tasks",
-          "tableTo": "users",
           "columnsFrom": [
             "profile_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "participations": {
+    "public.participations": {
       "name": "participations",
       "schema": "",
       "columns": {
@@ -207,9 +219,12 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "stand_reservations": {
+    "public.stand_reservations": {
       "name": "stand_reservations",
       "schema": "",
       "columns": {
@@ -256,9 +271,12 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "stands": {
+    "public.stands": {
       "name": "stands",
       "schema": "",
       "columns": {
@@ -317,18 +335,29 @@
       },
       "indexes": {
         "stand_label_idx": {
-          "name": "stand_label_idx",
           "columns": [
-            "label"
+            {
+              "expression": "label",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": false
+          "with": {},
+          "name": "stand_label_idx",
+          "isUnique": false,
+          "method": "btree",
+          "concurrently": false
         }
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "tickets": {
+    "public.tickets": {
       "name": "tickets",
       "schema": "",
       "columns": {
@@ -393,9 +422,12 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "user_requests": {
+    "public.user_requests": {
       "name": "user_requests",
       "schema": "",
       "columns": {
@@ -451,34 +483,37 @@
         "user_requests_user_id_users_id_fk": {
           "name": "user_requests_user_id_users_id_fk",
           "tableFrom": "user_requests",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "user_requests_festival_id_festivals_id_fk": {
           "name": "user_requests_festival_id_festivals_id_fk",
           "tableFrom": "user_requests",
-          "tableTo": "festivals",
           "columnsFrom": [
             "festival_id"
           ],
+          "tableTo": "festivals",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "user_socials": {
+    "public.user_socials": {
       "name": "user_socials",
       "schema": "",
       "columns": {
@@ -526,21 +561,24 @@
         "user_socials_user_id_users_id_fk": {
           "name": "user_socials_user_id_users_id_fk",
           "tableFrom": "user_socials",
-          "tableTo": "users",
           "columnsFrom": [
             "user_id"
           ],
+          "tableTo": "users",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "users": {
+    "public.users": {
       "name": "users",
       "schema": "",
       "columns": {
@@ -628,11 +666,19 @@
       },
       "indexes": {
         "display_name_idx": {
-          "name": "display_name_idx",
           "columns": [
-            "display_name"
+            {
+              "expression": "display_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
           ],
-          "isUnique": false
+          "with": {},
+          "name": "display_name_idx",
+          "isUnique": false,
+          "method": "btree",
+          "concurrently": false
         }
       },
       "foreignKeys": {},
@@ -640,21 +686,24 @@
       "uniqueConstraints": {
         "users_clerk_id_unique": {
           "name": "users_clerk_id_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "clerk_id"
-          ]
+          ],
+          "nullsNotDistinct": false
         },
         "users_email_unique": {
           "name": "users_email_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "email"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
-      }
+      },
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "visitors": {
+    "public.visitors": {
       "name": "visitors",
       "schema": "",
       "columns": {
@@ -729,116 +778,136 @@
       "uniqueConstraints": {
         "visitors_email_unique": {
           "name": "visitors_email_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "email"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
-      }
+      },
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     }
   },
   "enums": {
-    "event_discovery": {
+    "public.event_discovery": {
       "name": "event_discovery",
-      "values": {
-        "facebook": "facebook",
-        "instagram": "instagram",
-        "tiktok": "tiktok",
-        "cba": "cba",
-        "friends": "friends",
-        "participant_invitation": "participant_invitation",
-        "casual": "casual",
-        "la_rota": "la_rota",
-        "other": "other"
-      }
+      "schema": "public",
+      "values": [
+        "facebook",
+        "instagram",
+        "tiktok",
+        "cba",
+        "friends",
+        "participant_invitation",
+        "casual",
+        "la_rota",
+        "other"
+      ]
     },
-    "festival_status": {
+    "public.festival_status": {
       "name": "festival_status",
-      "values": {
-        "draft": "draft",
-        "published": "published",
-        "active": "active",
-        "archived": "archived"
-      }
+      "schema": "public",
+      "values": [
+        "draft",
+        "published",
+        "active",
+        "archived"
+      ]
     },
-    "gender": {
+    "public.gender": {
       "name": "gender",
-      "values": {
-        "male": "male",
-        "female": "female",
-        "non_binary": "non_binary",
-        "other": "other",
-        "undisclosed": "undisclosed"
-      }
+      "schema": "public",
+      "values": [
+        "male",
+        "female",
+        "non_binary",
+        "other",
+        "undisclosed"
+      ]
     },
-    "profile_task_type": {
+    "public.profile_task_type": {
       "name": "profile_task_type",
-      "values": {
-        "profile_creation": "profile_creation"
-      }
+      "schema": "public",
+      "values": [
+        "profile_creation"
+      ]
     },
-    "participation_request_status": {
+    "public.participation_request_status": {
       "name": "participation_request_status",
-      "values": {
-        "pending": "pending",
-        "accepted": "accepted",
-        "rejected": "rejected"
-      }
+      "schema": "public",
+      "values": [
+        "pending",
+        "accepted",
+        "rejected"
+      ]
     },
-    "user_request_type": {
+    "public.user_request_type": {
       "name": "user_request_type",
-      "values": {
-        "become_artist": "become_artist",
-        "festival_participation": "festival_participation"
-      }
+      "schema": "public",
+      "values": [
+        "become_artist",
+        "festival_participation"
+      ]
     },
-    "stand_orientation": {
+    "public.stand_orientation": {
       "name": "stand_orientation",
-      "values": {
-        "portrait": "portrait",
-        "landscape": "landscape"
-      }
+      "schema": "public",
+      "values": [
+        "portrait",
+        "landscape"
+      ]
     },
-    "stand_status": {
+    "public.stand_status": {
       "name": "stand_status",
-      "values": {
-        "available": "available",
-        "reserved": "reserved",
-        "confirmed": "confirmed",
-        "disabled": "disabled"
-      }
+      "schema": "public",
+      "values": [
+        "available",
+        "reserved",
+        "confirmed",
+        "disabled"
+      ]
     },
-    "ticket_status": {
+    "public.ticket_status": {
       "name": "ticket_status",
-      "values": {
-        "pending": "pending",
-        "checked_in": "checked_in"
-      }
+      "schema": "public",
+      "values": [
+        "pending",
+        "checked_in"
+      ]
     },
-    "user_role": {
+    "public.user_role": {
       "name": "user_role",
-      "values": {
-        "admin": "admin",
-        "artist": "artist",
-        "user": "user",
-        "festival_admin": "festival_admin"
-      }
+      "schema": "public",
+      "values": [
+        "admin",
+        "artist",
+        "user",
+        "festival_admin"
+      ]
     },
-    "user_social_type": {
+    "public.user_social_type": {
       "name": "user_social_type",
-      "values": {
-        "instagram": "instagram",
-        "facebook": "facebook",
-        "tiktok": "tiktok",
-        "twitter": "twitter",
-        "youtube": "youtube"
-      }
+      "schema": "public",
+      "values": [
+        "instagram",
+        "facebook",
+        "tiktok",
+        "twitter",
+        "youtube"
+      ]
     }
   },
   "schemas": {},
   "_meta": {
-    "columns": {},
     "schemas": {},
-    "tables": {}
-  }
+    "tables": {},
+    "columns": {}
+  },
+  "id": "ffacc033-da8a-4c9d-8461-b4ba808f8f90",
+  "prevId": "4d995eea-8c14-4c65-b234-5692ab758ede",
+  "sequences": {},
+  "policies": {},
+  "views": {},
+  "roles": {}
 }

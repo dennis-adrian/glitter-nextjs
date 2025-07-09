@@ -29,6 +29,7 @@ export default function PaymentsTable(props: PaymentsTableProps) {
             columnId: "reservationStatus",
             options: [
               { value: "pending", label: "Pendiente" },
+              { value: "verification_payment", label: "Verificacion de Pago" },
               { value: "accepted", label: "Confirmada" },
               { value: "rejected", label: "Rechazada" },
             ],

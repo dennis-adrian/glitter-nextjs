@@ -18,6 +18,7 @@ import { isProfileComplete } from "@/app/lib/utils";
 import { sendEmail } from "@/app/vendors/resend";
 import EmailTemplate from "@/app/emails/verification_confimation/email-template";
 import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
+import { fetchFestival } from "@/app/data/festivals/actions";
 import {
 	getFestivalAvaibleStandsByCategory,
 	getFestivalCategories,
@@ -423,9 +424,9 @@ export async function verifyProfile(profileId: number, category: UserCategory) {
       .where(eq(users.id, profileId))
       .returning();
 
-    const activeFestival = await fetchActiveFestival({
-      acceptedUsersOnly: true,
-    });
+    const activeFestival = await fetchFestival({
+			acceptedUsersOnly: true,
+		});
 
     const availableStands = getFestivalAvaibleStandsByCategory(
       activeFestival,

@@ -12,7 +12,12 @@ import {
 	FullFestival,
 } from "@/app/lib/festivals/definitions";
 import FestivalActivityRegistrationEmail from "@/app/emails/festival-activity-registration";
-import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
+import {
+	FestivalSectorBase,
+	FestivalSectorWithStands,
+	FestivalSectorWithStandsWithReservationsWithParticipants,
+} from "@/app/lib/festival_sectors/definitions";
+import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
 import {
 	FestivalActivity,
 	FestivalBase,
@@ -114,7 +119,9 @@ export async function fetchFestivalSectorsByUserCategory(
 	}
 }
 
-export async function fetchConfirmedProfilesByFestivalId(festivalId: number): Promise<
+export async function fetchConfirmedProfilesByFestivalId(
+	festivalId: number,
+): Promise<
 	(BaseProfile & {
 		stands: StandBase[];
 		participations: Participation[];
@@ -281,72 +288,100 @@ export async function enrollInActivity(
 }
 
 export async function fetchFullFestivalById(
-  festivalId: number,
+	festivalId: number,
 ): Promise<FullFestival | undefined | null> {
-  try {
-    return await db.query.festivals.findFirst({
-      where: eq(festivals.id, festivalId),
-      with: {
-        festivalDates: true,
-        userRequests: {
-          with: {
-            user: {
-              with: {
-                participations: {
-                  with: {
-                    reservation: true,
-                  },
-                },
-                userRequests: true,
-              },
-            },
-          },
-        },
-        standReservations: true,
-        festivalSectors: {
-          with: {
-            stands: true,
-          },
-        },
-        festivalActivities: {
-          with: {
-            details: {
-              with: {
-                participants: {
-                  with: {
-                    user: true,
-                    proofs: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching full festival", error);
-    return null;
-  }
+	try {
+		return await db.query.festivals.findFirst({
+			where: eq(festivals.id, festivalId),
+			with: {
+				festivalDates: true,
+				userRequests: {
+					with: {
+						user: {
+							with: {
+								participations: {
+									with: {
+										reservation: true,
+									},
+								},
+								userRequests: true,
+							},
+						},
+					},
+				},
+				standReservations: true,
+				festivalSectors: {
+					with: {
+						stands: true,
+					},
+				},
+				festivalActivities: {
+					with: {
+						details: {
+							with: {
+								participants: {
+									with: {
+										user: true,
+										proofs: true,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error("Error fetching full festival", error);
+		return null;
+	}
 }
 
 export async function addFestivalActivityParticipantProof(
-  participationId: number,
-  imageUrls: string[],
+	participationId: number,
+	imageUrls: string[],
 ) {
-  try {
-    await db.insert(festivalActivityParticipantProofs).values(
-      imageUrls.map((url) => ({
-        participationId,
-        imageUrl: url,
-      })),
-    );
-  } catch (error) {
-    console.error("Error adding festival activity participant proof", error);
-    return { success: false, message: "Error al subir el diseño" };
-  }
+	try {
+		await db.insert(festivalActivityParticipantProofs).values(
+			imageUrls.map((url) => ({
+				participationId,
+				imageUrl: url,
+			})),
+		);
+	} catch (error) {
+		console.error("Error adding festival activity participant proof", error);
+		return { success: false, message: "Error al subir el diseño" };
+	}
 
-  revalidatePath("/my_profile");
-  revalidatePath("/my_participations");
-  return { success: true, message: "Diseño subido correctamente" };
+	revalidatePath("/my_profile");
+	revalidatePath("/my_participations");
+	return { success: true, message: "Diseño subido correctamente" };
+}
+
+export async function fetchFestivalSectorsWithAllowedCategories(
+	festivalId: number,
+): Promise<
+	(FestivalSectorWithStands & {
+		allowedCategories: UserCategory[];
+	})[]
+> {
+	try {
+		const sectors = await db.query.festivalSectors.findMany({
+			with: {
+				stands: true,
+			},
+			where: eq(festivalSectors.festivalId, festivalId),
+		});
+
+		return sectors.map((sector) => ({
+			...sector,
+			allowedCategories: getFestivalSectorAllowedCategories(sector),
+		}));
+	} catch (error) {
+		console.error(
+			"Error fetching festival sectors with allowed categories",
+			error,
+		);
+		return [];
+	}
 }

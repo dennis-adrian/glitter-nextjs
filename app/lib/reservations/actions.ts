@@ -2,14 +2,19 @@
 
 import { db } from "@/db";
 import {
-  collaborators,
-  reservationCollaborators,
-  standReservations,
+	collaborators,
+	reservationCollaborators,
+	standReservations,
+	stands
 } from "@/db/schema";
 import { Collaborator, NewCollaborator } from "./definitions";
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
-import { FullReservation } from "@/app/api/reservations/definitions";
+import { eq } from "drizzle-orm";
+import {
+	FullReservation,
+	ReservationWithParticipantsAndUsersAndStand,
+} from "@/app/api/reservations/definitions";
+import { ReservationStatus } from "@/app/api/user_requests/actions";
 
 export const addCollaborator = async (
 	reservationId: number,
@@ -98,42 +103,101 @@ export const deleteReservationCollaborator = async (
 };
 
 export async function fetchReservationsByFestivalId(
-  festivalId: number,
+	festivalId: number,
 ): Promise<FullReservation[]> {
-  try {
-    return await db.query.standReservations.findMany({
-      where: eq(standReservations.festivalId, festivalId),
-      with: {
-        stand: true,
-        festival: true,
-        participants: {
-          with: {
-            user: {
-              with: {
-                userSocials: true,
-                profileSubcategories: {
-                  with: {
-                    subcategory: true,
-                  }
-                }
-              },
-            },
-          },
-        },
-        collaborators: {
-          with: {
-            collaborator: true,
-          },
-        },
-        invoices: {
-          with: {
-            payments: true,
-          },
-        },
-      },
-    });
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
+	try {
+		return await db.query.standReservations.findMany({
+			where: eq(standReservations.festivalId, festivalId),
+			with: {
+				stand: true,
+				festival: true,
+				participants: {
+					with: {
+						user: {
+							with: {
+								userSocials: true,
+								profileSubcategories: {
+									with: {
+										subcategory: true,
+									},
+								},
+							},
+						},
+					},
+				},
+				collaborators: {
+					with: {
+						collaborator: true,
+					},
+				},
+				invoices: {
+					with: {
+						payments: true,
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
+}
+
+/**
+ * Fetches all reservations for a festival with data that can be accessed by public users or visitors.
+ * @param festivalId - The ID of the festival to fetch reservations for.
+ * @returns An array of reservations with stands, participants and users.
+ */
+export async function fetchPublicReservationsByFestivalId(
+	festivalId: number,
+): Promise<ReservationWithParticipantsAndUsersAndStand[]> {
+	try {
+		return await db.query.standReservations.findMany({
+			where: eq(standReservations.festivalId, festivalId),
+			with: {
+				stand: true,
+				participants: {
+					with: {
+						user: {
+							with: {
+								userSocials: true,
+							},
+						},
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
+}
+
+export async function updateReservationStatus(
+	data: {
+		reservationId: number,
+		standId: number,
+		status: ReservationStatus
+	}
+): Promise<{ success: boolean; message: string }> {
+	const { reservationId, standId, status } = data;
+	try {
+		await db.transaction(async (tx) => {
+			await tx
+				.update(standReservations)
+				.set({ status })
+				.where(eq(standReservations.id, reservationId));
+			const standStatus = ["accepted", "verification_payment"].includes(status) ? "confirmed" : "available";
+			await tx
+				.update(stands)
+				.set({ status: standStatus })
+				.where(eq(stands.id, standId));
+		});
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "Error al actualizar la reserva" };
+	}
+
+	revalidatePath("/dashboard/reservations");
+	return { success: true, message: "Reserva actualizada" };
 }
