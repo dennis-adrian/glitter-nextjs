@@ -42,7 +42,7 @@ const BreadcrumbLink = React.forwardRef<
 
 	return (
 		<Comp
-			ref={asChild ? (ref as any) : ref}
+			ref={ref}
 			data-slot="breadcrumb-link"
 			className={cn("hover:text-foreground transition-colors", className)}
 			{...props}
@@ -55,9 +55,7 @@ function BreadcrumbPage({ className, ...props }: React.ComponentProps<"span">) {
 	return (
 		<span
 			data-slot="breadcrumb-page"
-			role="link"
-			aria-disabled="true"
-			aria-current="page"
+			role="text"
 			className={cn("text-foreground font-normal", className)}
 			{...props}
 		/>
