@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import dynamic from "next/dynamic";

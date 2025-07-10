@@ -1,8 +1,8 @@
 import { ProfileType } from "@/app/api/users/definitions";
 import ParticipationForm from "./participation-form";
 import BaseCard from "./base-card";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 
 export default async function ParticipationCard({
   profile,

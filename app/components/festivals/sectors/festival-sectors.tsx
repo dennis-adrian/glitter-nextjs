@@ -1,11 +1,11 @@
 import FestivalSector from "@/app/components/festivals/sectors/festival-sector";
 import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import { Suspense } from "react";
 import {
   fetchConfirmedProfilesByFestivalId,
   fetchFestivalSectors,
 } from "@/app/lib/festival_sectors/actions";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 type FestivalSectorsProps = {
   festival: FestivalBase;

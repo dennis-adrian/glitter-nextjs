@@ -13,6 +13,7 @@ import {
   festivalActivityParticipants,
   festivalDates,
   festivals,
+  festivalSectors,
   standReservations,
   userRequests,
 } from "@/db/schema";
@@ -70,3 +71,9 @@ export type FestivalWithDates = FestivalBase & {
 export type FestivalWithSectors = FestivalBase & {
   festivalSectors: FestivalSectorWithStands[];
 };
+
+export type FestivalWithDatesAndSectors = FestivalBase & {
+  festivalDates: FestivalDate[];
+  festivalSectors: FestivalSectorWithStands[];
+};
+export type FestivalSector = typeof festivalSectors.$inferSelect;

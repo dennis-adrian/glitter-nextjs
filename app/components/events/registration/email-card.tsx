@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 
 type EmailCardProps = {
   festival: FestivalWithDates;

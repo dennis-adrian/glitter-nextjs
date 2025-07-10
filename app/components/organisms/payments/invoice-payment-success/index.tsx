@@ -17,7 +17,7 @@ import {
 	DialogDescription,
 	DialogTitle,
 } from "@/app/components/ui/dialog";
-import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/defiinitions";
+import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 import { BaseProduct } from "@/app/lib/products/definitions";
 import { CheckCircleIcon, UserIcon, XIcon, ZoomInIcon } from "lucide-react";
 import Image from "next/image";

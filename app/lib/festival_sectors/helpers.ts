@@ -1,5 +1,5 @@
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
-import { FestivalActivityWithDetailsAndParticipants } from "@/app/data/festivals/definitions";
+import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import { FestivalSectorWithStands } from "@/app/lib/festival_sectors/definitions";
 import { ActivityDetailsWithParticipants } from "@/app/lib/festivals/definitions";
 

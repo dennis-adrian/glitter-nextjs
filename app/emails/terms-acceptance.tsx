@@ -1,5 +1,4 @@
 import { BaseProfile } from "@/app/api/users/definitions";
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import EmailHeader from "@/app/emails/email-header";
 import * as styles from "@/app/emails/styles";
 import { formatDate } from "@/app/lib/formatters";
@@ -17,6 +16,7 @@ import {
   Text,
 } from "@react-email/components";
 import { DateTime } from "luxon";
+import { FestivalBase } from "../lib/festivals/definitions";
 
 interface FestivalActivationTemplateProps {
   profile: BaseProfile;

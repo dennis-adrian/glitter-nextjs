@@ -1,11 +1,7 @@
 "use client";
-
 import { Dispatch, useCallback, useRef, useState } from "react";
-
 import * as htmlToImage from "html-to-image";
-
 import { Button } from "@/app/components/ui/button";
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import { getVisitorFestivalTickets } from "@/app/data/visitors/helpers";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
@@ -18,6 +14,7 @@ import {
 import { CalendarDaysIcon, ClockIcon } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export default function TicketModal({
   festival,

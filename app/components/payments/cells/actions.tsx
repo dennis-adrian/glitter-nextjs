@@ -12,7 +12,7 @@ import {
   CheckCheckIcon,
   MoreHorizontalIcon,
 } from "lucide-react";
-import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/defiinitions";
+import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/definitions";
 import { useState } from "react";
 import ConfirmReservationModal from "@/app/components/payments/confirm-reservation-modal";
 

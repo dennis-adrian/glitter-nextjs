@@ -1,6 +1,4 @@
 "use server";
-
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
 import { backendClient } from "@/app/lib/edgestore-server";
 

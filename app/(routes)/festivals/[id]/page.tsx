@@ -5,9 +5,9 @@ import GeneralInfo from "@/app/components/festivals/general-info";
 import FestivalPageTabs from "@/app/components/festivals/main-page-tabs";
 import PublicFestivalActivities from "@/app/components/festivals/public-festival-activities";
 import FestivalSectors from "@/app/components/festivals/sectors/festival-sectors";
-import { fetchFestival, fetchFestivals } from "@/app/data/festivals/actions";
 import { notFound } from "next/navigation";
 import { fetchPublicReservationsByFestivalId } from "@/app/lib/reservations/actions";
+import { fetchFestival, fetchFestivals } from "@/app/lib/festivals/actions";
 
 export const metadata: Metadata = {
 	title: "Información del Festival",

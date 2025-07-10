@@ -1,7 +1,13 @@
-import { fetchFestival } from "@/app/data/festivals/actions";
 import { fetchReservation } from "@/app/api/reservations/actions";
 import EditReservationForm from "@/app/components/reservations/edit-form";
-import Breadcrumbs from "@/app/components/ui/breadcrumbs";
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbLink,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import {
 	Card,
 	CardContent,
@@ -13,6 +19,7 @@ import { SearchOption } from "@/app/components/ui/search-input/search-content";
 import ResourceNotFound from "@/app/components/resource-not-found";
 import { getParticipantsOptions } from "@/app/api/reservations/helpers";
 import { ProfileWithParticipationsAndRequests } from "@/app/api/users/definitions";
+import { fetchFestival } from "@/app/lib/festivals/actions";
 
 export default async function Page(props: { params: Promise<{ id: string }> }) {
 	const params = await props.params;
@@ -35,17 +42,20 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
 
 	return (
 		<div className="max-w-screen-md px-4 md:px-6 m-auto">
-			<Breadcrumbs
-				breadcrumbs={[
-					{ label: "Reservas", href: "/dashboard/reservations" },
-					{
-						label: "Editar Reserva",
-						href: `/dashboard/reservations/${id}/edit`,
-						active: true,
-					},
-				]}
-			/>
-			<h1 className="mb-2 text-3xl font-bold">Editar Reserva</h1>
+			<Breadcrumb>
+				<BreadcrumbList>
+					<BreadcrumbItem>
+						<BreadcrumbLink href="/dashboard/reservations">
+							Reservas
+						</BreadcrumbLink>
+					</BreadcrumbItem>
+					<BreadcrumbSeparator />
+					<BreadcrumbItem>
+						<BreadcrumbPage>Editar Reserva</BreadcrumbPage>
+					</BreadcrumbItem>
+				</BreadcrumbList>
+			</Breadcrumb>
+			<h1 className="my-2 text-3xl font-bold">Editar Reserva</h1>
 			<Card>
 				<CardHeader>
 					<CardTitle>

@@ -1,34 +1,37 @@
 
 import NewFestivalForm from "@/app/components/festivals/forms/new-festival";
-import { RedirectButton } from "@/app/components/redirect-button";
-import Breadcrumbs from "@/app/components/ui/breadcrumbs";
-import { ChevronLeft, Link } from "lucide-react";
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbLink,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
 export default function Page() {
 	return (
-
 		<div className="container p-4 md:p-6">
 			<div className="mb-6">
-				{/* <RedirectButton href="/dashboard/festivals">
-					<ChevronLeft className="mr-2 h-4 w-4" />
-
-				</RedirectButton> */}
-				<Breadcrumbs
-					breadcrumbs={[
-						{ label: "Festivales", href: "/dashboard/festivals" },
-						{ label: "Agregar Festivales", href: "/dashboard/festivals/add" },
-
-					]}
-				/>
+				<Breadcrumb>
+					<BreadcrumbList>
+						<BreadcrumbItem>
+							<BreadcrumbLink href="/dashboard/festivals">
+								Festivales
+							</BreadcrumbLink>
+						</BreadcrumbItem>
+						<BreadcrumbSeparator />
+						<BreadcrumbItem>
+							<BreadcrumbPage>Nuevo Festival</BreadcrumbPage>
+						</BreadcrumbItem>
+					</BreadcrumbList>
+				</Breadcrumb>
 			</div>
 
 			<div className="max-w-2xl mx-auto">
-				<h1 className="text-2xl font-bold mb-6">Nuevo Festival</h1>
-				<div className="bg-background p-6 rounded-lg border">
-					<NewFestivalForm />
-				</div>
+				<h1 className="text-2xl font-bold">Nuevo Festival</h1>
+				<NewFestivalForm />
 			</div>
 		</div>
-
 	);
 }

@@ -6,7 +6,7 @@ import ViewPaymentProofCell from "@/app/components/payments/cells/view-payment-p
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
-import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/defiinitions";
+import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { getInvoiceStatusLabel } from "@/app/lib/payments/helpers";

@@ -18,12 +18,12 @@ import {
   getCategoryOccupationLabel,
 } from "@/app/lib/maps/helpers";
 import { getInvoiceStatusLabel } from "@/app/lib/payments/helpers";
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import {
   GLITTER_EMAIL_LOGO_URL,
   TWINKLER_LOGO_URL_270X80,
 } from "@/app/lib/constants";
 import { getProfileStatusLabel } from "@/app/lib/users/utils";
+import { FestivalBase } from "./festivals/definitions";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

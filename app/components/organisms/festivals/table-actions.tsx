@@ -7,16 +7,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import {
-  BookMarkedIcon,
-  BookUserIcon,
-  ExternalLinkIcon,
-  HandshakeIcon,
-  MoreHorizontalIcon,
-  StickerIcon,
-  UserCheckIcon,
-  UsersIcon,
+	BookMarkedIcon,
+	BookUserIcon,
+	CreditCardIcon,
+	ExternalLinkIcon,
+	HandshakeIcon,
+	MoreHorizontalIcon,
+	StickerIcon,
+	UserCheckIcon,
+	UsersIcon,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -46,6 +47,12 @@ export default function TableActions({ festival }: TableActionsProps) {
 					<Link href={`/dashboard/festivals/${festival.id}/reservations`}>
 						<BookMarkedIcon className="h-4 w-4 mr-2" />
 						Reservas
+					</Link>
+				</DropdownMenuItem>
+				<DropdownMenuItem asChild>
+					<Link href={`/dashboard/festivals/${festival.id}/payments`}>
+						<CreditCardIcon className="h-4 w-4 mr-2" />
+						Pagos
 					</Link>
 				</DropdownMenuItem>
 				<DropdownMenuItem asChild>

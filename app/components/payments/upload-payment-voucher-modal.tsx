@@ -3,7 +3,7 @@
 import BaseModal from "@/app/components/modals/base-modal";
 import UploadPaymentVoucherForm from "@/app/components/payments/forms/upload-payment-voucher-form";
 import PaymentProofUpload from "@/app/components/payments/payment-proof-upload";
-import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/defiinitions";
+import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 import { useState } from "react";
 
 type UploadPaymentVoucherModalProps = {

@@ -1,10 +1,10 @@
 import { StandBase } from "@/app/api/stands/definitions";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import {
   collaborators,
   collaboratorsAttendanceLogs,
   reservationCollaborators,
 } from "@/db/schema";
+import { FestivalWithDates } from "../festivals/definitions";
 
 export type ReservationCollaboration =
   typeof reservationCollaborators.$inferSelect;

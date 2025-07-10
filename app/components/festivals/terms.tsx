@@ -5,7 +5,6 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Separator } from "@/components/ui/separator";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
 import Image from "next/image";
 import { ProfileType, UserCategory } from "@/app/api/users/definitions";
 import GeneralInfoDetails from "@/app/components/festivals/general-info-details";
@@ -16,6 +15,7 @@ import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import TermsForm from "@/app/components/festivals/terms-form";
 import StandSpecificationsCards from "@/app/components/festivals/stand-specifications-cards";
 import DetailedMap from "@/app/components/festivals/detailed-map";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { DateTime } from "luxon";
 import { formatDate } from "@/app/lib/formatters";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { confirmReservation } from "@/app/api/reservations/actions";
-import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/defiinitions";
+import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/definitions";
 import { useForm } from "react-hook-form";
 import { Form } from "@/app/components/ui/form";
 import { toast } from "sonner";

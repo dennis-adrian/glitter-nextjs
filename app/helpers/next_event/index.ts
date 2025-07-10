@@ -1,8 +1,4 @@
 import {
-  FestivalWithDates,
-  FestivalWithUserRequests,
-} from "@/app/data/festivals/definitions";
-import {
   ProfileType,
   ProfileWithParticipationsAndRequests,
 } from "@/app/api/users/definitions";
@@ -11,6 +7,7 @@ import { SearchOption } from "@/app/components/ui/search-input/search-content";
 import { getParticipantsOptions } from "@/app/api/reservations/helpers";
 import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
+import { FestivalWithDates, FestivalWithUserRequests } from "@/app/lib/festivals/definitions";
 
 export function getFestivalDateLabel(festival: FestivalWithDates) {
   const dates = festival.festivalDates;

@@ -16,8 +16,8 @@ import { Button } from "@/components/ui/button";
 import { formatFullDate, getWeekdayFromDate } from "@/app/lib/formatters";
 import { TicketStatusPill } from "@/app/components/tickets/status-pill";
 import CheckInForm from "@/app/components/tickets/checkin-form";
-import { fetchActiveFestivalBase } from "@/app/data/festivals/actions";
 import SendEmailForm from "@/app/components/tickets/send-pending-email-form";
+import { fetchActiveFestivalBase } from "@/app/lib/festivals/actions";
 
 export default async function Page(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;

@@ -1,13 +1,10 @@
 import DateBadge from "@/app/components/date-badge";
-import {
-  FestivalDate,
-  FestivalWithDates,
-} from "@/app/data/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import Image from "next/image";
 import { ArrowUpRightIcon, MapPinIcon, TicketIcon } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/app/lib/utils";
+import { FestivalDate, FestivalWithDates } from "@/app/lib/festivals/definitions";
 
 function DateLabel({ date }: { date: FestivalDate }) {
   const startDate = formatDate(date.startDate);

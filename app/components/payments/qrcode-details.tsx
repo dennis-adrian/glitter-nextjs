@@ -4,7 +4,7 @@ import { PaymentQRCode } from "@/app/components/payments/payment-qr-code";
 import { CardContent } from "@/app/components/ui/card";
 
 import { Card } from "@/app/components/ui/card";
-import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/defiinitions";
+import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 import { getQRCode } from "@/app/lib/qr_codes/actions";
 
 type QRCodeDetailsProps = {

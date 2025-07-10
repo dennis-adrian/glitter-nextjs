@@ -4,7 +4,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/app/components/ui/card";
-import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/defiinitions";
+import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import Image from "next/image";
 

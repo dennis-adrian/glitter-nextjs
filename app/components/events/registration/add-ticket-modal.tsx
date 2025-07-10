@@ -8,9 +8,9 @@ import {
   DrawerDialogHeader,
   DrawerDialogTitle,
 } from "@/app/components/ui/drawer-dialog";
-import { FestivalBase, FestivalDate } from "@/app/data/festivals/definitions";
 import { VisitorBase } from "@/app/data/visitors/actions";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
+import { FestivalBase, FestivalDate } from "@/app/lib/festivals/definitions";
 
 type AddTicketModalProps = {
   festival: FestivalBase;

@@ -1,5 +1,5 @@
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import { VisitorWithTickets } from "@/app/data/visitors/actions";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export function getVisitorFestivalTickets(
   visitor: VisitorWithTickets,

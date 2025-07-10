@@ -1,7 +1,7 @@
 import { columns } from "@/app/components/organisms/festivals/columns";
 import { columnTitles } from "@/app/components/reservations/columns";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 
 type FestivalsTableProps = {
   festivals: FestivalWithDates[];

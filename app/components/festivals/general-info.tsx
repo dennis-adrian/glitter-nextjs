@@ -1,7 +1,7 @@
 import GeneralInfoDetails from "@/app/components/festivals/general-info-details";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Button } from "@/app/components/ui/button";
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import Image from "next/image";
 import Link from "next/link";
 
