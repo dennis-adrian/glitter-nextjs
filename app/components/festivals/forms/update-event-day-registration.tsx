@@ -2,8 +2,8 @@
 
 import { Button } from "@/app/components/ui/button";
 import { Form } from "@/app/components/ui/form";
-import { updateFestival } from "@/app/data/festivals/actions";
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import { updateFestival } from "@/app/lib/festivals/actions";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { Loader2Icon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";

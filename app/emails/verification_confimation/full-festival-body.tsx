@@ -1,9 +1,6 @@
 import { UserCategory } from "@/app/api/users/definitions";
-import {
-  FestivalBase,
-  FestivalWithDates,
-} from "@/app/data/festivals/definitions";
 import * as styles from "@/app/emails/styles";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { formatFullDate } from "@/app/lib/formatters";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { Button, Link, Text } from "@react-email/components";

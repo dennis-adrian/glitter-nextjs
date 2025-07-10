@@ -2,14 +2,13 @@ import ReservationsTable from "@/app/components/reservations/table";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { Suspense } from "react";
 import TableSkeleton from "@/app/components/users/skeletons/table";
-import { fetchFestivals } from "@/app/data/festivals/actions";
-import { getFestivalsOptions } from "@/app/data/festivals/helpers";
 import ReservationsTableFilters from "@/app/components/reservations/filters/table-filter";
 import {
   ReservationsSearchParamsSchema,
   ReservationsSearchParamsSchemaType,
 } from "./schemas";
 import { notFound } from "next/navigation";
+import { fetchFestivals } from "@/app/lib/festivals/actions";
 
 const statusOptions = [
   { value: "pending", label: "Pendiente" },

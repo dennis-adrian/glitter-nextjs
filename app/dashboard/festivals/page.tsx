@@ -1,7 +1,7 @@
 import FestivalsTable from "@/app/components/organisms/festivals/festivals-table";
-import { fetchFestivals } from "@/app/data/festivals/actions";
 import { PlusIcon } from "lucide-react";
 import { RedirectButton } from "@/app/components/redirect-button";
+import { fetchFestivals } from "@/app/lib/festivals/actions";
 
 export default async function Page() {
 	const festivals = await fetchFestivals();

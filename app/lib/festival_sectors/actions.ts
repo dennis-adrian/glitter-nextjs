@@ -10,7 +10,7 @@ import {
 import {
 	ActivityDetailsWithParticipants,
 	FullFestival,
-} from "@/app/data/festivals/definitions";
+} from "@/app/lib/festivals/definitions";
 import FestivalActivityRegistrationEmail from "@/app/emails/festival-activity-registration";
 import {
 	FestivalSectorBase,

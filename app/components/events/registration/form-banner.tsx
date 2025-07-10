@@ -1,4 +1,4 @@
-import { FestivalWithDates } from "@/app/data/festivals/definitions";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { FestivalInfo } from "@/components/landing/festival-info-card";
 import Image from "next/image";
 

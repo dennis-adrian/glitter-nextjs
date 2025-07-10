@@ -4,11 +4,8 @@ import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
 import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
-import {
-  fetchAvailableArtistsInFestival,
-  fetchBaseFestival,
-} from "@/app/data/festivals/actions";
 import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/actions";
+import { fetchAvailableArtistsInFestival, fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { formatDate } from "@/app/lib/formatters";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { DateTime } from "luxon";

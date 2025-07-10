@@ -3,7 +3,7 @@
 import { BaseProfile } from "@/app/api/users/definitions";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
-import { sendUserEmailsTemp } from "@/app/data/festivals/actions";
+import { sendUserEmailsTemp } from "@/app/lib/festivals/actions";
 import { useForm } from "react-hook-form";
 
 type SendEmailsFormProps = {

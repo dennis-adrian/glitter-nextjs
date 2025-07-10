@@ -1,7 +1,6 @@
 "use client";
-
 import { ProfileType } from "@/app/api/users/definitions";
-import { Festival } from "@/app/data/festivals/definitions";
+import { Festival } from "@/app/lib/festivals/definitions";
 import { getFestivalCategories } from "@/app/lib/festivals/utils";
 import { RedirectButton } from "@/components/redirect-button";
 

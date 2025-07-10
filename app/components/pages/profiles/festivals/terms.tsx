@@ -1,8 +1,8 @@
 import { fetchUserProfileById } from "@/app/api/users/actions";
 import { UserCategory } from "@/app/api/users/definitions";
 import TermsAndConditions from "@/app/components/festivals/terms";
-import { fetchFestivalWithDates } from "@/app/data/festivals/actions";
 import { fetchFestivalSectors } from "@/app/lib/festival_sectors/actions";
+import { fetchFestivalWithDates } from "@/app/lib/festivals/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { HeartCrackIcon } from "lucide-react";
 import { notFound } from "next/navigation";

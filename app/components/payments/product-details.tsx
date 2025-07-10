@@ -1,9 +1,9 @@
 import Image from "next/image";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FestivalBase } from "@/app/data/festivals/definitions";
-import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/defiinitions";
+import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 type ProductDetailsProps = {
   festival: FestivalBase;

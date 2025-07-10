@@ -15,13 +15,13 @@ import {
 } from "@react-email/components";
 
 import { formatDate } from "@/app/lib/formatters";
-import { FestivalBase } from "../data/festivals/definitions";
 import { VisitorBase } from "../data/visitors/actions";
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
 import { TicketBase } from "@/app/data/tickets/actions";
 import { getTicketCode } from "@/app/lib/tickets/utils";
 import { DateTime } from "luxon";
+import { FestivalBase } from "../lib/festivals/definitions";
 
 type TicketEmailTemplateProps = {
   festival: FestivalBase;

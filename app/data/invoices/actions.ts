@@ -5,7 +5,7 @@ import {
 	InvoiceWithPaymentsAndStand,
 	InvoiceWithPaymentsAndStandAndProfile,
 	NewPayment,
-} from "@/app/data/invoices/defiinitions";
+} from "@/app/data/invoices/definitions";
 import PaymentConfirmationForAdminsEmailTemplate from "@/app/emails/payment-confirmation-for-admins";
 import PaymentConfirmationForUserEmailTemplate from "@/app/emails/payment-confirmation-for-user";
 import { updateReservationStatus } from "@/app/lib/reservations/actions";

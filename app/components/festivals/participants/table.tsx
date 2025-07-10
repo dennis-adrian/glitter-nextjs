@@ -7,10 +7,7 @@ import {
   columnTitles as enrolledColumnTitles,
 } from "@/app/components/festivals/participants/enrolledColumns";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
-import {
-  fetchEnrolledParticipants,
-  fetchFestivalParticipants,
-} from "@/app/data/festivals/actions";
+import { fetchEnrolledParticipants, fetchFestivalParticipants } from "@/app/lib/festivals/actions";
 import { fetchInfractionTypes } from "@/app/lib/infractions/actions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 

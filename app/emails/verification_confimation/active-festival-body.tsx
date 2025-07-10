@@ -1,5 +1,5 @@
-import { FestivalBase } from "@/app/data/festivals/definitions";
 import * as styles from "@/app/emails/styles";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { Button, Link, Text } from "@react-email/components";
 import { DateTime } from "luxon";

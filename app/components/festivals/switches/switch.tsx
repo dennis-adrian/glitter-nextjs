@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { FestivalBase } from "@/app/data/festivals/definitions";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 type FestivalSwitchProps = {
   checked: boolean;

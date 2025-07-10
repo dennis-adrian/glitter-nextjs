@@ -3,8 +3,8 @@
 import { ComboboxPopover } from "@/app/components/ui/combobox";
 import Search from "@/app/components/ui/search";
 import { ReservationsSearchParamsSchema } from "@/app/dashboard/reservations/schemas";
-import { FestivalBase } from "@/app/data/festivals/definitions";
-import { getFestivalsOptions } from "@/app/data/festivals/helpers";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
+import { getFestivalsOptions } from "@/app/lib/festivals/utils";
 import { useRouter, useSearchParams } from "next/navigation";
 
 export default function ReservationsTableFilters({
