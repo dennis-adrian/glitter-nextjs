@@ -11,8 +11,8 @@ import PaymentConfirmationForUserEmailTemplate from "@/app/emails/payment-confir
 import { updateReservationStatus } from "@/app/lib/reservations/actions";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
-import { invoices, payments } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { invoices, payments, standReservations } from "@/db/schema";
+import { desc, eq, inArray } from "drizzle-orm";
 import { UTApi } from "uploadthing/server";
 
 export async function fetchLatestInvoiceByProfileId(
@@ -42,9 +42,12 @@ export async function fetchLatestInvoiceByProfileId(
 	}
 }
 
-export async function createPayment(
-	data: { payment: NewPayment, oldVoucherUrl?: string; reservationId: number; standId: number; },
-) {
+export async function createPayment(data: {
+	payment: NewPayment;
+	oldVoucherUrl?: string;
+	reservationId: number;
+	standId: number;
+}) {
 	const { payment, oldVoucherUrl, reservationId, standId } = data;
 	try {
 		await db.transaction(async (tx) => {
@@ -98,8 +101,11 @@ export async function createPayment(
 			}
 		}
 
-		await updateReservationStatus({ standId, reservationId, status: 'verification_payment' })
-
+		await updateReservationStatus({
+			standId,
+			reservationId,
+			status: "verification_payment",
+		});
 	} catch (error) {
 		console.error("Error creating payment", error);
 		return {
@@ -194,5 +200,37 @@ export async function fetchInvoice(
 	} catch (error) {
 		console.error(error);
 		return null;
+	}
+}
+
+export async function fetchInvoicesByFestival(
+	festivalId: number,
+): Promise<InvoiceWithPaymentsAndStandAndProfile[]> {
+	try {
+		const reservationsSubquery = db
+			.select({ id: standReservations.id })
+			.from(standReservations)
+			.where(eq(standReservations.festivalId, festivalId));
+
+		return await db.query.invoices.findMany({
+			where: inArray(invoices.reservationId, reservationsSubquery),
+			with: {
+				payments: true,
+				reservation: {
+					with: {
+						stand: true,
+						festival: {
+							with: {
+								festivalDates: true,
+							},
+						},
+					},
+				},
+				user: true,
+			},
+		});
+	} catch (error) {
+		console.error("Error fetching invoices by festival", error);
+		return [];
 	}
 }
