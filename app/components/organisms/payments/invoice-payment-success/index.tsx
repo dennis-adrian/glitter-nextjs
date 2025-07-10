@@ -45,58 +45,60 @@ export default function InvoicePaymentSuccess(
 		return null;
 	}
 
+	// This is the card the would show users the products that they can buy from the store after making their payment
+
+	// {!isAdded && products.length > 0 ? (
+	// 	<Card className="border-2 border-dashed border-gray-200 bg-gray-50">
+	// 		<CardHeader>
+	// 			<CardTitle className="text-lg">Te puede interesar</CardTitle>
+	// 			{/* <CardDescription>
+	// 				Estos productos te pueden interesar
+	// 			</CardDescription> */}
+	// 		</CardHeader>
+	// 		<CardContent>
+	// 			{products.map((product) => (
+	// 				<div key={product.id}>
+	// 					<div className="flex gap-4">
+	// 						<div className="w-28 h-28 bg-gray-100 rounded-md flex items-center justify-center relative group">
+	// 							<Image
+	// 								src={product.imageUrl ?? ""}
+	// 								alt={product.name}
+	// 								width={112}
+	// 								height={112}
+	// 								className="object-cover"
+	// 							/>
+	// 							<div
+	// 								className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer"
+	// 								onClick={() => {
+	// 									setSelectedProduct(product);
+	// 									setImageOpen(true);
+	// 								}}
+	// 							>
+	// 								<ZoomInIcon className="h-6 w-6 text-white drop-shadow-md" />
+	// 							</div>
+	// 						</div>
+	// 						<div className="flex-1">
+	// 							<h3 className="font-medium">{product.name}</h3>
+	// 							<p className="text-sm text-gray-500 mb-2">
+	// 								{product.description}
+	// 							</p>
+	// 						</div>
+	// 					</div>
+	// 					<CreateOrderForm profileId={profileId} product={product} />
+	// 				</div>
+	// 			))}
+	// 		</CardContent>
+	// 	</Card>
+	// ) : (
+	// 	<div className="flex justify-center">
+	// 		<CheckCircleIcon className="h-4 w-4 text-green-500" />
+	// 		<p>Added to your order!</p>
+	// 	</div>
+	// )}
+
 	return (
 		<>
 			<InvoiceSummaryCard invoice={invoice} />
-			{!isAdded && products.length > 0 ? (
-				<Card className="border-2 border-dashed border-gray-200 bg-gray-50">
-					<CardHeader>
-						<CardTitle className="text-lg">Te puede interesar</CardTitle>
-						{/* <CardDescription>
-							Estos productos te pueden interesar
-						</CardDescription> */}
-					</CardHeader>
-					<CardContent>
-						{products.map((product) => (
-							<div key={product.id}>
-								<div className="flex gap-4">
-									<div className="w-28 h-28 bg-gray-100 rounded-md flex items-center justify-center relative group">
-										<Image
-											src={product.imageUrl ?? ""}
-											alt={product.name}
-											width={112}
-											height={112}
-											className="object-cover"
-										/>
-										<div
-											className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer"
-											onClick={() => {
-												setSelectedProduct(product);
-												setImageOpen(true);
-											}}
-										>
-											<ZoomInIcon className="h-6 w-6 text-white drop-shadow-md" />
-										</div>
-									</div>
-									<div className="flex-1">
-										<h3 className="font-medium">{product.name}</h3>
-										<p className="text-sm text-gray-500 mb-2">
-											{product.description}
-										</p>
-									</div>
-								</div>
-								<CreateOrderForm profileId={profileId} product={product} />
-							</div>
-						))}
-					</CardContent>
-				</Card>
-			) : (
-				<div className="flex justify-center">
-					<CheckCircleIcon className="h-4 w-4 text-green-500" />
-					<p>Added to your order!</p>
-				</div>
-			)}
-
 			<div className="flex justify-center">
 				<RedirectButton href="/my_profile" className="gap-2" variant="outline">
 					<UserIcon className="h-4 w-4" />
