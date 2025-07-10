@@ -1,18 +1,33 @@
 
 import NewFestivalForm from "@/app/components/festivals/forms/new-festival";
-import Breadcrumbs from "@/app/components/ui/breadcrumbs";
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbLink,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+
 export default function Page() {
 	return (
 		<div className="container p-4 md:p-6">
 			<div className="mb-6">
-				<Breadcrumbs
-					breadcrumbs={[
-						{ label: "Festivales", href: "/dashboard/festivals" },
-						{ label: "Agregar Festivales", href: "/dashboard/festivals/add" },
-
-					]}
-				/>
+				<Breadcrumb>
+					<BreadcrumbList>
+						<BreadcrumbItem>
+							<BreadcrumbLink href="/dashboard/festivals">
+								Festivales
+							</BreadcrumbLink>
+						</BreadcrumbItem>
+						<BreadcrumbSeparator />
+						<BreadcrumbItem>
+							<BreadcrumbPage>Nuevo Festival</BreadcrumbPage>
+						</BreadcrumbItem>
+					</BreadcrumbList>
+				</Breadcrumb>
 			</div>
+
 			<div className="max-w-2xl mx-auto">
 				<h1 className="text-2xl font-bold">Nuevo Festival</h1>
 				<NewFestivalForm />
