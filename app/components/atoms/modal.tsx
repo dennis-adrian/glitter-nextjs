@@ -51,7 +51,7 @@ export const Modal = ({ isOpen, onClose, children, title }: ModalProps) => {
 	return createPortal(
 		<div
 			className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-300 ${
-				isVisible ? "bg-black bg-opacity-50" : "bg-transparent"
+				isVisible ? "bg-black/50" : "bg-transparent"
 			}`}
 			onClick={onClose}
 		>

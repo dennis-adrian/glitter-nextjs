@@ -57,7 +57,7 @@ export default async function UserOrderPage(props: {
 						<div className="divide-y">
 							{order.orderItems.map((item: OrderItemWithRelations) => (
 								<div key={item.id} className="py-4 flex gap-4">
-									<div className="h-20 w-20 rounded-md overflow-hidden bg-gray-100 flex-shrink-0">
+									<div className="h-20 w-20 rounded-md overflow-hidden bg-gray-100 shrink-0">
 										<Image
 											src={item.product.imageUrl || "/placeholder.svg"}
 											alt={item.product.name}
