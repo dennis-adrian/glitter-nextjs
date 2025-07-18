@@ -3,7 +3,6 @@ import plugin from "tailwindcss/plugin";
 import { withUt } from "uploadthing/tw";
 
 const config = withUt({
-	darkMode: ["class"],
 	content: [
 		"./pages/**/*.{ts,tsx}",
 		"./components/**/*.{ts,tsx}",
