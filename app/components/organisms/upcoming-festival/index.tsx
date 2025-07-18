@@ -48,16 +48,18 @@ export function UpcomingFestivalCard({
 						<CardTitle className="text-lg md:text-2xl font-bold">
 							{festival.name}
 						</CardTitle>
-						<CardDescription className="text-purple-100 mt-2 text-sm md:text-base">
-							{festival.description}
-						</CardDescription>
+						{festival.description && (
+							<CardDescription className="text-purple-100 mt-2 text-sm md:text-base">
+								{festival.description}
+							</CardDescription>
+						)}
 					</div>
 					<Badge className="hidden md:block bg-white text-purple-500 hover:bg-purple-100 px-3 py-1 text-sm">
 						Participante Confirmado
 					</Badge>
 				</div>
 
-				<div className="flex flex-col sm:flex-row gap-4 mt-4">
+				<div className="flex flex-col sm:flex-row gap-1 md:gap-4 mt-4">
 					<div className="flex items-center gap-2">
 						<Calendar className="h-5 w-5 text-purple-200" />
 						<span>
