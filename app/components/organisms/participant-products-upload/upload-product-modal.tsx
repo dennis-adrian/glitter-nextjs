@@ -9,23 +9,38 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { zodResolver } from "@hookform/resolvers/zod";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { z } from "zod";
+
+const FormSchema = z.object({
+	name: z.string().min(1, { message: "El nombre es requerido" }),
+	description: z.string().optional(),
+});
 
 type UploadProductModalProps = {
 	show: boolean;
 	onOpenChange: (open: boolean) => void;
 	currentImage: File | null;
+	onClose: () => void;
 };
 
 export default function UploadProductModal({
 	show,
 	onOpenChange,
 	currentImage,
+	onClose,
 }: UploadProductModalProps) {
 	const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-	const form = useForm();
+	const form = useForm<z.infer<typeof FormSchema>>({
+		resolver: zodResolver(FormSchema),
+		defaultValues: {
+			name: "",
+			description: "",
+		},
+	});
 
 	// Handle mobile keyboard detection
 	useEffect(() => {
@@ -44,6 +59,7 @@ export default function UploadProductModal({
 
 	const action = form.handleSubmit((data) => {
 		console.log(data);
+		// onClose();
 	});
 
 	return (
@@ -67,10 +83,10 @@ export default function UploadProductModal({
 					<div className="relative w-[120px] h-[120px] md:w-[180px] md:h-[180px] mx-auto border border-gray-200 rounded-lg">
 						{currentImage && (
 							<Image
+								className="object-contain"
 								src={URL.createObjectURL(currentImage)}
 								alt="Product image"
 								fill
-								objectFit="contain"
 							/>
 						)}
 					</div>

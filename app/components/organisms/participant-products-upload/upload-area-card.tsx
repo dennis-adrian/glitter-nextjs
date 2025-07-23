@@ -9,10 +9,12 @@ import { PlusIcon } from "lucide-react";
 
 type UploadAreaCardProps = {
 	handleImageChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+	maxFileSize: number;
 };
 
 export default function UploadAreaCard({
 	handleImageChange,
+	maxFileSize,
 }: UploadAreaCardProps) {
 	return (
 		<Card className="mb-8">
@@ -30,6 +32,7 @@ export default function UploadAreaCard({
 						id="images"
 						type="file"
 						accept="image/*"
+						max={maxFileSize}
 						onChange={handleImageChange}
 						className="hidden"
 					/>
@@ -39,7 +42,7 @@ export default function UploadAreaCard({
 							Toca para agregar imágenes de productos
 						</p>
 						<p className="text-xs md:text-sm text-gray-400">
-							PNG, JPG, GIF hasta 10MB cada una
+							PNG, JPG, GIF hasta {maxFileSize / 1024 / 1024}MB cada una
 						</p>
 						<p className="text-xs text-gray-500 mt-1">
 							Cada imagen será un producto individual
