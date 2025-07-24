@@ -4,16 +4,19 @@ import { ProfileType } from "@/app/api/users/definitions";
 import UploadAreaCard from "@/app/components/organisms/participant-products-upload/upload-area-card";
 import UploadProductModal from "@/app/components/organisms/participant-products-upload/upload-product-modal";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
+import { ReservationParticipant } from "@/app/lib/participations/definitions";
 import { useState } from "react";
 import { toast } from "sonner";
 
 type ParticipantProductsUploadProps = {
 	profile: ProfileType;
 	festival: FestivalBase;
+	participation: ReservationParticipant;
 };
 
 export function ParticipantProductsUpload({
 	profile,
+	participation,
 }: ParticipantProductsUploadProps) {
 	const [showProductModal, setShowProductModal] = useState(false);
 	const [currentImage, setCurrentImage] = useState<File | null>(null);
@@ -49,9 +52,14 @@ export function ParticipantProductsUpload({
 			/>
 			<UploadProductModal
 				show={showProductModal}
+				userId={profile.id}
+				participationId={participation.id}
 				currentImage={currentImage}
 				onOpenChange={setShowProductModal}
-				onClose={() => setCurrentImage(null)}
+				onClose={() => {
+					setCurrentImage(null);
+					setShowProductModal(false);
+				}}
 			/>
 		</div>
 	);

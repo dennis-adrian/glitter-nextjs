@@ -1,6 +1,7 @@
 import TextInput from "@/app/components/form/fields/text";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
+import { createParticipantProduct } from "@/app/lib/participant_products/actions";
 import { cn } from "@/app/lib/utils";
 import {
 	Dialog,
@@ -13,6 +14,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
 
 const FormSchema = z.object({
@@ -21,6 +23,8 @@ const FormSchema = z.object({
 });
 
 type UploadProductModalProps = {
+	participationId: number;
+	userId: number;
 	show: boolean;
 	onOpenChange: (open: boolean) => void;
 	currentImage: File | null;
@@ -28,6 +32,8 @@ type UploadProductModalProps = {
 };
 
 export default function UploadProductModal({
+	participationId,
+	userId,
 	show,
 	onOpenChange,
 	currentImage,
@@ -57,9 +63,27 @@ export default function UploadProductModal({
 		return () => window.removeEventListener("resize", handleResize);
 	}, []);
 
-	const action = form.handleSubmit((data) => {
-		console.log(data);
-		// onClose();
+	const action = form.handleSubmit(async (formData) => {
+		if (!currentImage) {
+			return;
+		}
+
+		const result = await createParticipantProduct(
+			{
+				...formData,
+				participationId: participationId,
+				userId: userId,
+			},
+			currentImage,
+		);
+
+		if (result.success) {
+			toast.success(result.message);
+			form.reset();
+			onClose();
+		} else {
+			toast.error(result.message);
+		}
 	});
 
 	return (
@@ -106,8 +130,8 @@ export default function UploadProductModal({
 							/>
 							<SubmitButton
 								label="Agregar Producto"
-								disabled={false}
-								loading={false}
+								disabled={form.formState.isSubmitting || !currentImage}
+								loading={form.formState.isSubmitting}
 							/>
 						</form>
 					</Form>

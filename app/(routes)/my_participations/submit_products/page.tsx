@@ -1,5 +1,6 @@
 import { ParticipantProductsUpload } from "@/app/components/organisms/participant-products-upload";
 import { fetchActiveFestivalBase } from "@/app/lib/festivals/actions";
+import { fetchParticipationInFestival } from "@/app/lib/participations/actions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { notFound } from "next/navigation";
 
@@ -9,6 +10,21 @@ export default async function SubmitProductsPage() {
 
 	if (!currentProfile || !currentFestival) {
 		return notFound();
+	}
+
+	const participation = await fetchParticipationInFestival(
+		currentProfile.id,
+		currentFestival.id,
+	);
+
+	if (!participation) {
+		return (
+			<div className="container p-3 md:p-6">
+				<h1 className="text-lg md:text-2xl font-bold mb-2 md:mb-3">
+					No estás participando en ningún festival en este momento.
+				</h1>
+			</div>
+		);
 	}
 
 	return (
@@ -30,6 +46,7 @@ export default async function SubmitProductsPage() {
 			<ParticipantProductsUpload
 				profile={currentProfile}
 				festival={currentFestival}
+				participation={participation}
 			/>
 		</div>
 	);
