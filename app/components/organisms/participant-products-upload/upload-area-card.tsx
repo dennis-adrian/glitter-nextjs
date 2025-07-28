@@ -17,7 +17,7 @@ export default function UploadAreaCard({
 	maxFileSize,
 }: UploadAreaCardProps) {
 	return (
-		<Card className="mb-8">
+		<Card className="mb-5">
 			<CardHeader className="p-4">
 				<CardTitle className="text-base md:text-lg">
 					Agregar Productos
