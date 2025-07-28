@@ -19,7 +19,7 @@ export function ParticipantProductsUpload({
 }: ParticipantProductsUploadProps) {
 	const [showProductModal, setShowProductModal] = useState(false);
 	const [currentImage, setCurrentImage] = useState<File | null>(null);
-	const maxFileSize = 2 * 1024 * 1024;
+	const maxFileSize = 4 * 1024 * 1024;
 
 	const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
