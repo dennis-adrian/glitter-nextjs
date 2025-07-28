@@ -643,9 +643,11 @@ export async function sendEmailToVisitors(
 		react: RegistrationInvitationEmailTemplate({
 			festival: festival,
 		}) as React.ReactElement,
-		headers: {
-			"X-Entity-Ref-ID": new Date().getTime().toString(),
-		},
+		// this might be preventing that the email is sent to all the visitors we need
+		// so i'll comment it for now
+		// headers: {
+		// 	"X-Entity-Ref-ID": new Date().getTime().toString(),
+		// },
 		replyTo: "visitantes@productoraglitter.com",
 	});
 	if (error) {
