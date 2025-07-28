@@ -59,12 +59,13 @@ export const users = pgTable(
 		state: text("state"),
 		country: text("country").default("BO").notNull(),
 		verifiedAt: timestamp("verified_at"),
+		shouldSubmitProducts: boolean("should_submit_products")
+			.default(false)
+			.notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
-	(users) => ({
-		displayNameIdx: index("display_name_idx").on(users.displayName),
-	}),
+	(users) => [index("display_name_idx").on(users.displayName)],
 );
 export const usersRelations = relations(users, ({ many }) => ({
 	userRequests: many(userRequests),

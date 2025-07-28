@@ -43,20 +43,22 @@ export default async function Page() {
 			<div className="my-2 md:my-4 w-full">
 				{isProfileInActiveFestival && activeFestival ? (
 					<div className="flex flex-col gap-2">
-						<div className=" flex flex-col gap-1 items-center bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm p-3">
-							<p>
-								Subí imágenes de lo que ofrecerás en el festival presionando el
-								botón a continuación
-							</p>
-							<RedirectButton
-								href="/my_participations/submit_products"
-								className="text-current hover:text-current"
-								variant="link"
-							>
-								Subir imágenes
-								<ExternalLinkIcon className="w-4 h-4 ml-2" />
-							</RedirectButton>
-						</div>
+						{currentProfile.shouldSubmitProducts && (
+							<div className=" flex flex-col gap-1 items-center bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm p-3">
+								<p>
+									Subí imágenes de lo que ofrecerás en el festival presionando
+									el botón a continuación
+								</p>
+								<RedirectButton
+									href="/my_participations/submit_products"
+									className="text-current hover:text-current"
+									variant="link"
+								>
+									Subir imágenes
+									<ExternalLinkIcon className="w-4 h-4 ml-2" />
+								</RedirectButton>
+							</div>
+						)}
 						<UpcomingFestivalCard
 							festival={activeFestival}
 							profile={currentProfile}
