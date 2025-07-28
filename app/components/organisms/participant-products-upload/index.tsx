@@ -10,7 +10,6 @@ import { toast } from "sonner";
 
 type ParticipantProductsUploadProps = {
 	profile: ProfileType;
-	festival: FestivalBase;
 	participation: ReservationParticipant;
 };
 

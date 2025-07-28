@@ -46,7 +46,6 @@ export default async function SubmitProductsPage() {
 			</div>
 			<ParticipantProductsUpload
 				profile={currentProfile}
-				festival={currentFestival}
 				participation={participation}
 			/>
 			<SubmittedProductsCard

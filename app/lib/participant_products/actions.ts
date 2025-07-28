@@ -38,7 +38,7 @@ export async function createParticipantProduct(
 		};
 	}
 
-	revalidatePath("my_participations/submit_products");
+	revalidatePath("/my_participations/submit_products");
 	return {
 		success: true,
 		message: "Producto agregado correctamente",

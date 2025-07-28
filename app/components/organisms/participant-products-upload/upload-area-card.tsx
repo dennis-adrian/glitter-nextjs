@@ -32,7 +32,6 @@ export default function UploadAreaCard({
 						id="images"
 						type="file"
 						accept="image/*"
-						max={maxFileSize}
 						onChange={handleImageChange}
 						className="hidden"
 					/>
