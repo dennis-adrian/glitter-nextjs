@@ -59,12 +59,13 @@ export const users = pgTable(
 		state: text("state"),
 		country: text("country").default("BO").notNull(),
 		verifiedAt: timestamp("verified_at"),
+		shouldSubmitProducts: boolean("should_submit_products")
+			.default(false)
+			.notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
-	(users) => ({
-		displayNameIdx: index("display_name_idx").on(users.displayName),
-	}),
+	(users) => [index("display_name_idx").on(users.displayName)],
 );
 export const usersRelations = relations(users, ({ many }) => ({
 	userRequests: many(userRequests),
@@ -76,6 +77,7 @@ export const usersRelations = relations(users, ({ many }) => ({
 	profileSubcategories: many(profileSubcategories),
 	userBadges: many(userBadges),
 	infractions: many(infractions),
+	participantProducts: many(participantProducts),
 }));
 
 export const tags = pgTable("tags", {
@@ -285,10 +287,10 @@ export const requestStatusEnum = pgEnum("participation_request_status", [
 	"rejected",
 ]);
 export const reservationStatusEnum = pgEnum("reservation_status", [
-  "pending",
-  "verification_payment",
-  "accepted",
-  "rejected",
+	"pending",
+	"verification_payment",
+	"accepted",
+	"rejected",
 ]);
 
 export const requestTypeEnum = pgEnum("user_request_type", [
@@ -422,6 +424,7 @@ export const standReservationsRelations = relations(
 		invoices: many(invoices),
 		scheduledTasks: many(scheduledTasks),
 		collaborators: many(reservationCollaborators),
+		participantProducts: many(participantProducts),
 	}),
 );
 
@@ -1002,3 +1005,42 @@ export const sanctionsRelations = relations(sanctions, ({ one }) => ({
 		references: [infractions.id],
 	}),
 }));
+
+export const submissionStatusEnum = pgEnum("submission_status", [
+	"pending_review",
+	"approved",
+	"rejected",
+]);
+export const participantProducts = pgTable("participant_products", {
+	id: serial("id").primaryKey(),
+	userId: integer("user_id")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	participationId: integer("participation_id")
+		.notNull()
+		.references(() => reservationParticipants.id, {
+			onDelete: "cascade",
+		}),
+	imageUrl: text("image_url").notNull(),
+	name: text("name").notNull(),
+	description: text("description"),
+	submissionStatus: submissionStatusEnum("submission_status")
+		.default("pending_review")
+		.notNull(),
+	submissionFeedback: text("submission_feedback"),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const participantProductsRelations = relations(
+	participantProducts,
+	({ one }) => ({
+		user: one(users, {
+			fields: [participantProducts.userId],
+			references: [users.id],
+		}),
+		participation: one(reservationParticipants, {
+			fields: [participantProducts.participationId],
+			references: [reservationParticipants.id],
+		}),
+	}),
+);

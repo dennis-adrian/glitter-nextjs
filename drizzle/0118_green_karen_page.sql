@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "should_submit_products" boolean DEFAULT false NOT NULL;
