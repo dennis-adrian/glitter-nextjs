@@ -1,6 +1,15 @@
 "use server";
 
-import { and, desc, eq, inArray, isNull, not, sql } from "drizzle-orm";
+import {
+	and,
+	desc,
+	eq,
+	getTableColumns,
+	inArray,
+	isNull,
+	not,
+	sql,
+} from "drizzle-orm";
 import { db } from "@/db";
 import { festivalDates, userRequests, festivals, users, reservationParticipants, festivalSectors, standReservations, profileSubcategories, tickets, userSocials, festivalActivities } from "@/db/schema";
 import { revalidatePath } from "next/cache";
@@ -667,6 +676,7 @@ export async function fetchAvailableArtistsInFestival(
 	festivalId: number,
 ): Promise<BaseProfile[]> {
 	try {
+		const usersTableColumns = getTableColumns(users);
 		return await db.transaction(async (tx) => {
 			const festivalParticipantIds = await tx
 				.select({ participantId: reservationParticipants.userId })
@@ -699,27 +709,7 @@ export async function fetchAvailableArtistsInFestival(
 			}
 
 			return await tx
-				.selectDistinctOn([users.id], {
-					id: users.id,
-					bio: users.bio,
-					birthdate: users.birthdate,
-					clerkId: users.clerkId,
-					displayName: users.displayName,
-					firstName: users.firstName,
-					gender: users.gender,
-					email: users.email,
-					imageUrl: users.imageUrl,
-					lastName: users.lastName,
-					phoneNumber: users.phoneNumber,
-					category: users.category,
-					role: users.role,
-					status: users.status,
-					state: users.state,
-					country: users.country,
-					verifiedAt: users.verifiedAt,
-					updatedAt: users.updatedAt,
-					createdAt: users.createdAt,
-				})
+				.selectDistinctOn([users.id], usersTableColumns)
 				.from(users)
 				.leftJoin(userRequests, eq(userRequests.userId, users.id))
 				.leftJoin(
