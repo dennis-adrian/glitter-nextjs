@@ -813,6 +813,13 @@
       "when": 1753238737392,
       "tag": "0115_petite_the_executioner",
       "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1753674329819,
+      "tag": "0116_striped_puppet_master",
+      "breakpoints": true
     }
   ]
 }
