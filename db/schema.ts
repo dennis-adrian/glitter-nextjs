@@ -1005,7 +1005,7 @@ export const sanctionsRelations = relations(sanctions, ({ one }) => ({
 	}),
 }));
 
-export const submitionStatusEnum = pgEnum("submition_status", [
+export const submissionStatusEnum = pgEnum("submission_status", [
 	"pending_review",
 	"approved",
 	"rejected",
@@ -1023,10 +1023,10 @@ export const participantProducts = pgTable("participant_products", {
 	imageUrl: text("image_url").notNull(),
 	name: text("name").notNull(),
 	description: text("description"),
-	submitionStatus: submitionStatusEnum("submition_status")
+	submissionStatus: submissionStatusEnum("submission_status")
 		.default("pending_review")
 		.notNull(),
-	submitionFeedback: text("submition_feedback"),
+	submissionFeedback: text("submission_feedback"),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });

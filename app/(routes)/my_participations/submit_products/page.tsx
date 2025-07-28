@@ -1,4 +1,4 @@
-import SubmitedProductsCard from "@/app/components/molecules/submited-products-card";
+import SubmittedProductsCard from "@/app/components/molecules/submitted-products-card";
 import { ParticipantProductsUpload } from "@/app/components/organisms/participant-products-upload";
 import { fetchActiveFestivalBase } from "@/app/lib/festivals/actions";
 import { fetchParticipationInFestival } from "@/app/lib/participations/actions";
@@ -49,7 +49,7 @@ export default async function SubmitProductsPage() {
 				festival={currentFestival}
 				participation={participation}
 			/>
-			<SubmitedProductsCard
+			<SubmittedProductsCard
 				profileId={currentProfile.id}
 				festivalId={currentFestival.id}
 			/>

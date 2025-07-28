@@ -17,14 +17,14 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 
-type SubmitedProductsCardProps = {
+type SubmittedProductsCardProps = {
 	profileId: number;
 	festivalId: number;
 };
-export default async function SubmitedProductsCard({
+export default async function SubmittedProductsCard({
 	profileId,
 	festivalId,
-}: SubmitedProductsCardProps) {
+}: SubmittedProductsCardProps) {
 	const submittedProducts = await fetchParticipantProducts(
 		profileId,
 		festivalId,
@@ -73,10 +73,10 @@ export default async function SubmitedProductsCard({
 											</p>
 										</div>
 										<Badge
-											className={`${getStatusColor(product.submitionStatus)} flex items-center gap-1 text-xs`}
+											className={`${getStatusColor(product.submissionStatus)} flex items-center gap-1 text-xs`}
 										>
-											{getStatusIcon(product.submitionStatus)}
-											{getStatusText(product.submitionStatus)}
+											{getStatusIcon(product.submissionStatus)}
+											{getStatusText(product.submissionStatus)}
 										</Badge>
 									</div>
 
@@ -86,7 +86,7 @@ export default async function SubmitedProductsCard({
 										</p>
 									)}
 									{/* Observations Section */}
-									{product.submitionFeedback && (
+									{product.submissionFeedback && (
 										<div className="flex flex-col gap-1 mt-2 md:mt-3">
 											<div className="flex items-center gap-1">
 												<MessageSquareIcon className="w-4 h-4" />
@@ -95,9 +95,9 @@ export default async function SubmitedProductsCard({
 												</Label>
 											</div>
 											<div
-												className={`p-3 rounded-lg border ${getStatusColor(product.submitionStatus)}`}
+												className={`p-3 rounded-lg border ${getStatusColor(product.submissionStatus)}`}
 											>
-												<p className="text-sm">{product.submitionFeedback}</p>
+												<p className="text-sm">{product.submissionFeedback}</p>
 											</div>
 										</div>
 									)}
