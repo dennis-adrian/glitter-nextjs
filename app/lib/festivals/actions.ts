@@ -1,25 +1,35 @@
 "use server";
 
 import {
-	and,
-	desc,
-	eq,
-	getTableColumns,
-	inArray,
-	isNull,
-	not,
-	sql,
-} from "drizzle-orm";
-import { db } from "@/db";
-import { festivalDates, userRequests, festivals, users, reservationParticipants, festivalSectors, standReservations, profileSubcategories, tickets, userSocials, festivalActivities } from "@/db/schema";
-import { revalidatePath } from "next/cache";
-import { FullFestival, Festival, FestivalBase, FestivalWithDates, FestivalWithTicketsAndDates, FestivalWithDatesAndSectors } from "./definitions";
+	BaseProfile,
+	ParticipationWithParticipantWithInfractionsAndReservations,
+} from "@/app/api/users/definitions";
 import { fetchVisitorsEmails } from "@/app/data/visitors/actions";
-import { sendEmail } from "@/app/vendors/resend";
-import RegistrationInvitationEmailTemplate from "@/app/emails/registration-invitation";
-import { BaseProfile, ParticipationWithParticipantAndReservations, ParticipationWithParticipantWithInfractionsAndReservations } from "@/app/api/users/definitions";
 import EmailTemplate from "@/app/emails/festival-activation";
+import RegistrationInvitationEmailTemplate from "@/app/emails/registration-invitation";
 import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
+import { sendEmail } from "@/app/vendors/resend";
+import { db } from "@/db";
+import {
+	festivalActivities,
+	festivalDates,
+	festivals,
+	festivalSectors,
+	profileSubcategories,
+	reservationParticipants,
+	standReservations,
+	userRequests,
+	users,
+} from "@/db/schema";
+import { and, desc, eq, getTableColumns, inArray, not } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import {
+	FestivalBase,
+	FestivalWithDates,
+	FestivalWithDatesAndSectors,
+	FestivalWithTicketsAndDates,
+	FullFestival,
+} from "./definitions";
 import { groupVisitorEmails } from "./utils";
 
 export async function createFestival(
