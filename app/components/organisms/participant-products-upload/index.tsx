@@ -1,7 +1,6 @@
 "use client";
 
 import { ProfileType } from "@/app/api/users/definitions";
-import { Dropzone } from "@/app/components/organisms/dropzone";
 import UploadAreaCard from "@/app/components/organisms/participant-products-upload/upload-area-card";
 import UploadProductModal from "@/app/components/organisms/participant-products-upload/upload-product-modal";
 import { ReservationParticipant } from "@/app/lib/participations/definitions";

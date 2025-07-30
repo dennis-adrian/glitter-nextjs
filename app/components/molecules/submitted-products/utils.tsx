@@ -1,7 +1,9 @@
 import { ParticipantProduct } from "@/app/lib/participant_products/definitions";
 import { AlertCircleIcon, CheckCircleIcon, ClockIcon } from "lucide-react";
 
-export const getStatusIcon = (status: string) => {
+export const getStatusIcon = (
+	status: ParticipantProduct["submissionStatus"],
+) => {
 	switch (status) {
 		case "approved":
 			return <CheckCircleIcon className="w-4 h-4 text-green-800" />;
@@ -12,7 +14,9 @@ export const getStatusIcon = (status: string) => {
 	}
 };
 
-export const getStatusColor = (status: string) => {
+export const getStatusColor = (
+	status: ParticipantProduct["submissionStatus"],
+) => {
 	switch (status) {
 		case "approved":
 			return "bg-green-50 text-green-800 border border-green-200";

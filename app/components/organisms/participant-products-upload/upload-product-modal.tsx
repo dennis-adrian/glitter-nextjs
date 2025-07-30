@@ -50,6 +50,9 @@ export default function UploadProductModal({
 			setUploadedImageUrl(res[0].url);
 			setUploadProgress(0);
 		},
+		onUploadError(error: Error) {
+			toast.error("Error al subir la imagen");
+		},
 		onUploadProgress(progress) {
 			setUploadProgress(progress);
 		},
@@ -75,10 +78,9 @@ export default function UploadProductModal({
 			return;
 		}
 
-		// this variable is used to store the image url right after the upload is complete
-		// we can't use the uploadedImageUrl because it's not updated yet in the state
-		let imageUrl: string | null = null;
-		if (!uploadedImageUrl) {
+		// Use existing uploaded URL or upload new image
+		let imageUrl: string | null = uploadedImageUrl;
+		if (!imageUrl) {
 			const imageUploadResponse = await startUpload([currentImage]);
 			if (imageUploadResponse) {
 				imageUrl = imageUploadResponse[0].url;
@@ -142,9 +144,9 @@ export default function UploadProductModal({
 								<CloudUploadIcon
 									className={cn(
 										"w-5 h-5",
-										!isUploading && "animate-pulse",
-										uploadedImageUrl && "animate-none text-emerald-500",
-										!uploadedImageUrl && "animate-none text-gray-500",
+										isUploading && "animate-pulse text-gray-500",
+										uploadedImageUrl && !isUploading && "text-emerald-500",
+										!uploadedImageUrl && !isUploading && "text-gray-500",
 									)}
 								/>
 							</div>
