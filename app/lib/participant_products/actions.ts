@@ -4,6 +4,7 @@ import {
 	NewParticipantProduct,
 	ParticipantProduct,
 } from "@/app/lib/participant_products/definitions";
+import { groupProductsByStatus } from "@/app/lib/participant_products/utils";
 import { deleteFile } from "@/app/lib/uploadthing/actions";
 import { utapi } from "@/app/server/uploadthing";
 import { db } from "@/db";
@@ -13,7 +14,7 @@ import {
 	standReservations,
 	festivals,
 } from "@/db/schema";
-import { and, eq, getTableColumns } from "drizzle-orm";
+import { and, desc, eq, getTableColumns } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function createParticipantProduct(
@@ -44,7 +45,7 @@ export async function fetchParticipantProducts(
 ): Promise<ParticipantProduct[]> {
 	try {
 		const participantProductsColumns = getTableColumns(participantProducts);
-		return await db
+		const productsRes = await db
 			.select(participantProductsColumns)
 			.from(participantProducts)
 			.leftJoin(
@@ -61,7 +62,12 @@ export async function fetchParticipantProducts(
 					eq(participantProducts.userId, profileId),
 					eq(standReservations.festivalId, festivalId),
 				),
-			);
+			)
+			.orderBy(desc(participantProducts.createdAt));
+
+		const groupedProducts = groupProductsByStatus(productsRes);
+
+		return Object.values(groupedProducts).flat();
 	} catch (error) {
 		console.error("Error fetching participant products", error);
 		return [];

@@ -1,3 +1,4 @@
+import { ParticipantProduct } from "@/app/lib/participant_products/definitions";
 import { AlertCircleIcon, CheckCircleIcon, ClockIcon } from "lucide-react";
 
 export const getStatusIcon = (status: string) => {
@@ -22,7 +23,9 @@ export const getStatusColor = (status: string) => {
 	}
 };
 
-export const getStatusText = (status: string) => {
+export const getStatusText = (
+	status: ParticipantProduct["submissionStatus"],
+) => {
 	switch (status) {
 		case "approved":
 			return "Aprobado";
