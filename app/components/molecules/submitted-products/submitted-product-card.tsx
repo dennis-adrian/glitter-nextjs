@@ -92,7 +92,7 @@ export default function SubmittedProductCard({
 					)}
 					{/* Observations Section */}
 					{product.submissionFeedback && (
-						<div className="flex flex-col gap-1 mt-2 md:mt-3 max-w-[380px]">
+						<div className="flex flex-col gap-1 mt-2 md:mt-3 max-w-[340px]">
 							<div className="flex items-center gap-1">
 								<MessageSquareIcon className="w-4 h-4" />
 								<Label className="text-sm font-medium">

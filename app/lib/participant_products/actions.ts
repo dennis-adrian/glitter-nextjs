@@ -97,3 +97,24 @@ export async function deleteParticipantProduct(product: ParticipantProduct) {
 	revalidatePath("/my_participations/submit_products");
 	return { success: true, message: "Producto eliminado correctamente" };
 }
+
+export async function fetchParticipantProductsByParticipationId(
+	profileId: number,
+	participationId: number,
+): Promise<ParticipantProduct[]> {
+	try {
+		return db.query.participantProducts.findMany({
+			where: and(
+				eq(participantProducts.participationId, participationId),
+				eq(participantProducts.userId, profileId),
+			),
+			orderBy: desc(participantProducts.createdAt),
+		});
+	} catch (error) {
+		console.error(
+			"Error fetching participant products by participation id",
+			error,
+		);
+		return [];
+	}
+}

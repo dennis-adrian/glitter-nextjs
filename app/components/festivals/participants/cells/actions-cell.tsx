@@ -13,7 +13,8 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontalIcon, NotepadTextIcon } from "lucide-react";
+import { ImageUpIcon, MoreHorizontalIcon, NotepadTextIcon } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 type ActionCellProps = {
@@ -42,6 +43,16 @@ export default function ActionsCell({
 						<NotepadTextIcon className="mr-2 h-4 w-4" />
 						Registrar infracción
 					</DropdownMenuItem>
+					{participant.user.shouldSubmitProducts && (
+						<DropdownMenuItem asChild>
+							<Link
+								href={`/profiles/${participant.user.id}/participations/${participant.id}/products`}
+							>
+								<ImageUpIcon className="mr-2 h-4 w-4" />
+								Productos subidos
+							</Link>
+						</DropdownMenuItem>
+					)}
 				</DropdownMenuContent>
 			</DropdownMenu>
 			<Modal
