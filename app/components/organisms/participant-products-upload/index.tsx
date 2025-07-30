@@ -11,6 +11,14 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+const ALLOWED_IMAGE_TYPES = [
+	"image/png",
+	"image/jpeg",
+	"image/jpg",
+	"image/gif",
+];
+const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
+
 export const UploadProductFormSchema = z.object({
 	name: z.string().min(1, { message: "El nombre es requerido" }),
 	description: z.string().optional(),
@@ -35,14 +43,13 @@ export function ParticipantProductsUpload({
 			description: "",
 		},
 	});
-	const maxFileSize = 4 * 1024 * 1024;
+	const maxFileSize = MAX_FILE_SIZE;
 
 	const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
-		const allowedTypes = ["image/png", "image/jpeg", "image/jpg", "image/gif"];
 
 		if (file) {
-			if (!allowedTypes.includes(file.type)) {
+			if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
 				toast.error("El archivo debe ser una imagen");
 				return;
 			}

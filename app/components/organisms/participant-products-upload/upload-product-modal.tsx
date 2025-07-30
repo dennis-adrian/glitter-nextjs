@@ -127,28 +127,32 @@ export default function UploadProductModal({
 						Agrega los detalles del producto.
 					</DialogDescription>
 				</DialogHeader>
-				<div className="flex flex-col gap-3 w-full">
-					<div className="relative w-[120px] h-[120px] md:w-[180px] md:h-[180px] mx-auto border border-gray-200 rounded-lg">
-						{currentImage && (
-							<Image
-								className="object-contain"
-								src={URL.createObjectURL(currentImage)}
-								alt="Product image"
-								fill
-							/>
-						)}
-						<div className="absolute bottom-2 right-2">
-							<CloudUploadIcon
-								className={cn(
-									"w-5 h-5",
-									!isUploading && "animate-pulse",
-									uploadedImageUrl && "animate-none text-emerald-500",
-									!uploadedImageUrl && "animate-none text-gray-500",
-								)}
-							/>
+				<div className="flex flex-col gap-3">
+					<div className="flex flex-col gap-1 items-center w-[120px] mx-auto">
+						<div className="relative w-[120px] h-[120px] md:w-[180px] md:h-[180px] border border-gray-200 rounded-lg">
+							{currentImage && (
+								<Image
+									className="object-contain"
+									src={URL.createObjectURL(currentImage)}
+									alt="Product image"
+									fill
+								/>
+							)}
+							<div className="absolute bottom-2 right-2">
+								<CloudUploadIcon
+									className={cn(
+										"w-5 h-5",
+										!isUploading && "animate-pulse",
+										uploadedImageUrl && "animate-none text-emerald-500",
+										!uploadedImageUrl && "animate-none text-gray-500",
+									)}
+								/>
+							</div>
 						</div>
+						{isUploading && (
+							<Progress className="h-1 w-full" value={uploadProgress} />
+						)}
 					</div>
-					{isUploading && <Progress className="h-1" value={uploadProgress} />}
 					<Form {...form}>
 						<form className="flex flex-col gap-3" onSubmit={action}>
 							<TextInput
