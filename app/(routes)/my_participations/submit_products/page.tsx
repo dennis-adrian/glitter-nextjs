@@ -1,4 +1,4 @@
-import SubmittedProductsCard from "@/app/components/molecules/submitted-products-card";
+import SubmittedProductsCard from "@/app/components/molecules/submitted-products/submitted-products-card";
 import { ParticipantProductsUpload } from "@/app/components/organisms/participant-products-upload";
 import { fetchActiveFestivalBase } from "@/app/lib/festivals/actions";
 import { fetchParticipationInFestival } from "@/app/lib/participations/actions";
@@ -29,7 +29,7 @@ export default async function SubmitProductsPage() {
 	}
 
 	return (
-		<div className="container p-3 md:p-6">
+		<div className="container p-3 md:p-6 max-w-screen-lg">
 			<h1 className="text-lg md:text-2xl font-bold mb-2 md:mb-3">
 				Subí imágenes de tus productos
 			</h1>

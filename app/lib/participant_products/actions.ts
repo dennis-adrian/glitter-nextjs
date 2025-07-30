@@ -4,6 +4,7 @@ import {
 	NewParticipantProduct,
 	ParticipantProduct,
 } from "@/app/lib/participant_products/definitions";
+import { deleteFile } from "@/app/lib/uploadthing/actions";
 import { utapi } from "@/app/server/uploadthing";
 import { db } from "@/db";
 import {
@@ -65,4 +66,28 @@ export async function fetchParticipantProducts(
 		console.error("Error fetching participant products", error);
 		return [];
 	}
+}
+
+export async function deleteParticipantProduct(product: ParticipantProduct) {
+	try {
+		await db.transaction(async (tx) => {
+			await tx
+				.delete(participantProducts)
+				.where(eq(participantProducts.id, product.id));
+
+			const imageDeleted = await deleteFile(product.imageUrl);
+			if (!imageDeleted.success) {
+				throw new Error(imageDeleted.error);
+			}
+		});
+	} catch (error) {
+		console.error("Error deleting participant product", error);
+		return {
+			success: false,
+			message: "Error al eliminar el producto",
+		};
+	}
+
+	revalidatePath("/my_participations/submit_products");
+	return { success: true, message: "Producto eliminado correctamente" };
 }

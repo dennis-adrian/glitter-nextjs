@@ -91,6 +91,7 @@ export function ParticipantProductsUpload({
 				onOpenChange={handleToggleProductModal}
 				onClose={() => {
 					setShowProductModal(false);
+					resetModal();
 				}}
 				uploadedImageUrl={uploadedImageUrl}
 				setUploadedImageUrl={setUploadedImageUrl}
