@@ -1,8 +1,11 @@
 import TextInput from "@/app/components/form/fields/text";
+import { UploadProductFormSchema } from "@/app/components/organisms/participant-products-upload";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
+import { Progress } from "@/app/components/ui/progress";
 import { createParticipantProduct } from "@/app/lib/participant_products/actions";
 import { cn } from "@/app/lib/utils";
+import { useUploadThing } from "@/app/vendors/uploadthing";
 import {
 	Dialog,
 	DialogContent,
@@ -10,41 +13,48 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { CloudUploadIcon } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { UseFormReturn } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-const FormSchema = z.object({
-	name: z.string().min(1, { message: "El nombre es requerido" }),
-	description: z.string().optional(),
-});
-
 type UploadProductModalProps = {
-	participationId: number;
-	userId: number;
-	show: boolean;
-	onOpenChange: (open: boolean) => void;
 	currentImage: File | null;
+	form: UseFormReturn<z.infer<typeof UploadProductFormSchema>>;
+	participationId: number;
+	show: boolean;
+	uploadedImageUrl: string | null;
+	userId: number;
+	setUploadedImageUrl: (url: string | null) => void;
 	onClose: () => void;
+	onOpenChange: (open: boolean) => void;
 };
 
 export default function UploadProductModal({
-	participationId,
-	userId,
-	show,
-	onOpenChange,
 	currentImage,
+	form,
+	participationId,
+	show,
+	uploadedImageUrl,
+	userId,
+	setUploadedImageUrl,
 	onClose,
+	onOpenChange,
 }: UploadProductModalProps) {
 	const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-	const form = useForm<z.infer<typeof FormSchema>>({
-		resolver: zodResolver(FormSchema),
-		defaultValues: {
-			name: "",
-			description: "",
+	const [uploadProgress, setUploadProgress] = useState<number>(0);
+	const { isUploading, startUpload } = useUploadThing("imageUploader", {
+		onClientUploadComplete(res) {
+			setUploadedImageUrl(res[0].url);
+			setUploadProgress(0);
+		},
+		onUploadError(error: Error) {
+			toast.error("Error al subir la imagen");
+		},
+		onUploadProgress(progress) {
+			setUploadProgress(progress);
 		},
 	});
 
@@ -68,18 +78,34 @@ export default function UploadProductModal({
 			return;
 		}
 
-		const result = await createParticipantProduct(
-			{
-				...formData,
-				participationId: participationId,
-				userId: userId,
-			},
-			currentImage,
-		);
+		// Use existing uploaded URL or upload new image
+		let imageUrl: string | null = uploadedImageUrl;
+		if (!imageUrl) {
+			const imageUploadResponse = await startUpload([currentImage]);
+			if (imageUploadResponse) {
+				imageUrl = imageUploadResponse[0].url;
+
+				if (!imageUrl) {
+					toast.error("Error al subir la imagen, intenta nuevamente");
+					return;
+				}
+			}
+		}
+
+		if (!imageUrl) {
+			toast.error("No hay imagen para subir.");
+			return;
+		}
+
+		const result = await createParticipantProduct({
+			...formData,
+			participationId: participationId,
+			userId: userId,
+			imageUrl,
+		});
 
 		if (result.success) {
 			toast.success(result.message);
-			form.reset();
 			onClose();
 		} else {
 			toast.error(result.message);
@@ -103,15 +129,30 @@ export default function UploadProductModal({
 						Agrega los detalles del producto.
 					</DialogDescription>
 				</DialogHeader>
-				<div className="flex flex-col gap-3 w-full">
-					<div className="relative w-[120px] h-[120px] md:w-[180px] md:h-[180px] mx-auto border border-gray-200 rounded-lg">
-						{currentImage && (
-							<Image
-								className="object-contain"
-								src={URL.createObjectURL(currentImage)}
-								alt="Product image"
-								fill
-							/>
+				<div className="flex flex-col gap-3">
+					<div className="flex flex-col gap-1 items-center w-[120px] mx-auto">
+						<div className="relative w-[120px] h-[120px] md:w-[180px] md:h-[180px] border border-gray-200 rounded-lg">
+							{currentImage && (
+								<Image
+									className="object-contain"
+									src={URL.createObjectURL(currentImage)}
+									alt="Product image"
+									fill
+								/>
+							)}
+							<div className="absolute bottom-2 right-2">
+								<CloudUploadIcon
+									className={cn(
+										"w-5 h-5",
+										isUploading && "animate-pulse text-gray-500",
+										uploadedImageUrl && !isUploading && "text-emerald-500",
+										!uploadedImageUrl && !isUploading && "text-gray-500",
+									)}
+								/>
+							</div>
+						</div>
+						{isUploading && (
+							<Progress className="h-1 w-full" value={uploadProgress} />
 						)}
 					</div>
 					<Form {...form}>
