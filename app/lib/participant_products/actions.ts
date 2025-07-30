@@ -16,19 +16,11 @@ import { and, eq, getTableColumns } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function createParticipantProduct(
-	newParticipantProduct: Omit<NewParticipantProduct, "imageUrl">,
-	image: File,
+	newParticipantProduct: NewParticipantProduct,
 ) {
 	try {
-		const uploadedImageResult = await utapi.uploadFiles(image);
-		if (uploadedImageResult.error) {
-			throw new Error(uploadedImageResult.error.message);
-		}
-
-		const uploadedImage = uploadedImageResult.data;
 		await db.insert(participantProducts).values({
 			...newParticipantProduct,
-			imageUrl: uploadedImage.url,
 		});
 	} catch (error) {
 		console.error("Error creating participant product", error);

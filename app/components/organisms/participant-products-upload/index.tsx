@@ -1,12 +1,20 @@
 "use client";
 
 import { ProfileType } from "@/app/api/users/definitions";
+import { Dropzone } from "@/app/components/organisms/dropzone";
 import UploadAreaCard from "@/app/components/organisms/participant-products-upload/upload-area-card";
 import UploadProductModal from "@/app/components/organisms/participant-products-upload/upload-product-modal";
-import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { ReservationParticipant } from "@/app/lib/participations/definitions";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { z } from "zod";
+
+export const UploadProductFormSchema = z.object({
+	name: z.string().min(1, { message: "El nombre es requerido" }),
+	description: z.string().optional(),
+});
 
 type ParticipantProductsUploadProps = {
 	profile: ProfileType;
@@ -19,6 +27,14 @@ export function ParticipantProductsUpload({
 }: ParticipantProductsUploadProps) {
 	const [showProductModal, setShowProductModal] = useState(false);
 	const [currentImage, setCurrentImage] = useState<File | null>(null);
+	const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+	const form = useForm<z.infer<typeof UploadProductFormSchema>>({
+		resolver: zodResolver(UploadProductFormSchema),
+		defaultValues: {
+			name: "",
+			description: "",
+		},
+	});
 	const maxFileSize = 4 * 1024 * 1024;
 
 	const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,6 +59,17 @@ export function ParticipantProductsUpload({
 		}
 	};
 
+	const resetModal = () => {
+		setCurrentImage(null);
+		setUploadedImageUrl(null);
+		form.reset();
+	};
+
+	const handleToggleProductModal = (open: boolean) => {
+		setShowProductModal(open);
+		if (!open) resetModal();
+	};
+
 	return (
 		<div>
 			<UploadAreaCard
@@ -54,11 +81,13 @@ export function ParticipantProductsUpload({
 				userId={profile.id}
 				participationId={participation.id}
 				currentImage={currentImage}
-				onOpenChange={setShowProductModal}
+				onOpenChange={handleToggleProductModal}
 				onClose={() => {
-					setCurrentImage(null);
 					setShowProductModal(false);
 				}}
+				uploadedImageUrl={uploadedImageUrl}
+				setUploadedImageUrl={setUploadedImageUrl}
+				form={form}
 			/>
 		</div>
 	);
