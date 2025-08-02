@@ -8,6 +8,7 @@ import {
 	FullFestival,
 } from "@/app/lib/festivals/definitions";
 import { RefreshCcwIcon } from "lucide-react";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -16,6 +17,7 @@ type PublicFestivalActivityDetailProps = {
 	detail: ActivityDetailsWithParticipants;
 	reservations: ReservationWithParticipantsAndUsersAndStand[];
 	searchTerm: string;
+	detailIndex: number;
 };
 
 export type ParticipantCardData = {
@@ -32,6 +34,7 @@ export default function PublicFestivalActivityDetail({
 	detail,
 	reservations,
 	festival,
+	detailIndex,
 }: PublicFestivalActivityDetailProps) {
 	const [filteredParticipants, setFilteredParticipants] = useState<
 		ParticipantCardData[]
@@ -137,20 +140,64 @@ export default function PublicFestivalActivityDetail({
 		setSelectedParticipantIds(newSelection);
 	};
 
+	if (filteredParticipants.length === 0) {
+		return (
+			<div className="flex flex-col gap-2 my-4">
+				<h3 className="font-medium">Variante {detailIndex + 1}</h3>
+				{detail.imageUrl && (
+					<div className="flex flex-col items-center gap-1 mt-2">
+						<Image
+							src={detail.imageUrl}
+							alt="Imagen de la actividad"
+							width={100}
+							height={100}
+							className="rounded-md mx-auto"
+						/>
+						<span className="text-xs text-muted-foreground mx-auto">
+							Imagen de la variante
+						</span>
+					</div>
+				)}
+				<div className="flex flex-col gap-2 border border-border rounded-md p-4 max-w-80 mx-auto">
+					<p className="text-sm text-muted-foreground">
+						No hay participantes para esta actividad.
+					</p>
+				</div>
+			</div>
+		);
+	}
+
 	return (
-		<div className="flex flex-col gap-2 my-3">
-			<Button
-				className="self-end"
-				disabled={selectedParticipantIds.length === 0}
-				size="sm"
-				onClick={() => {
-					localStorage.removeItem(storageKey);
-					setSelectedParticipantIds([]);
-				}}
-			>
-				Reiniciar selección
-				<RefreshCcwIcon className="w-4 h-4 ml-1" />
-			</Button>
+		<div className="flex flex-col gap-2 my-4">
+			<div className="flex justify-between items-center">
+				<h3 className="font-medium">Variante {detailIndex + 1}</h3>
+				<Button
+					className="self-end"
+					disabled={selectedParticipantIds.length === 0}
+					size="sm"
+					onClick={() => {
+						localStorage.removeItem(storageKey);
+						setSelectedParticipantIds([]);
+					}}
+				>
+					Reiniciar selección
+					<RefreshCcwIcon className="w-4 h-4 ml-1" />
+				</Button>
+			</div>
+			{detail.imageUrl && (
+				<div className="flex flex-col items-center gap-1 mt-2">
+					<Image
+						src={detail.imageUrl}
+						alt="Imagen de la actividad"
+						width={100}
+						height={100}
+						className="rounded-md mx-auto mt-1"
+					/>
+					<span className="text-xs text-muted-foreground mx-auto">
+						Imagen de la variante
+					</span>
+				</div>
+			)}
 			<div className="grid xxs:grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
 				{filteredParticipants.map((participant) => {
 					return (

@@ -68,13 +68,14 @@ export default function PublicFestivalActivities({
 									</div>
 								</div>
 								<ul>
-									{details.map((detail) => (
+									{details.map((detail, index) => (
 										<PublicFestivalActivityDetail
 											key={detail.id}
 											festival={festival}
 											detail={detail}
 											reservations={reservations}
 											searchTerm={term}
+											detailIndex={index}
 										/>
 									))}
 								</ul>
