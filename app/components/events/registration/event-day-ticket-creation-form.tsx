@@ -23,34 +23,33 @@ export default function EventDayTicketCreationForm(
   const form = useForm();
 
   const action: () => void = form.handleSubmit(async () => {
-		// const ticketDate = props.festival.festivalDates.find((festivalDate) => {
-		//   return formatDate(festivalDate.startDate)
-		//     .startOf("day")
-		//     .equals(formatDate(new Date()).startOf("day"));
-		// });
-		const ticketDate = props.festival.festivalDates[0];
+    const ticketDate = props.festival.festivalDates.find((festivalDate) => {
+      return formatDate(festivalDate.startDate)
+        .startOf("day")
+        .equals(formatDate(new Date()).startOf("day"));
+    });
 
-		if (!ticketDate) {
-			toast.error("No tenemos entradas disponibles para hoy");
-			return;
-		}
-		const res = await createTicket({
-			date: ticketDate.startDate,
-			visitor: props.visitor,
-			festival: props.festival,
-			numberOfVisitors: props.numberOfVisitors || 1,
-		});
+    if (!ticketDate) {
+      toast.error("No tenemos entradas disponibles para hoy");
+      return;
+    }
+    const res = await createTicket({
+      date: ticketDate.startDate,
+      visitor: props.visitor,
+      festival: props.festival,
+      numberOfVisitors: props.numberOfVisitors || 1,
+    });
 
-		if (res.success) {
-			props.onSuccess({
-				...props.visitor,
-				tickets: [...props.visitor.tickets, res.ticket!],
-			});
-			toast.success(res.message);
-		} else {
-			toast.error(res.message);
-		}
-	});
+    if (res.success) {
+      props.onSuccess({
+        ...props.visitor,
+        tickets: [...props.visitor.tickets, res.ticket!],
+      });
+      toast.success(res.message);
+    } else {
+      toast.error(res.message);
+    }
+  });
 
   return (
     <Form {...form}>
