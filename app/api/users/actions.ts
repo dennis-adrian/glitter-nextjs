@@ -8,10 +8,10 @@ import { db } from "@/db";
 import { scheduledTasks, userRequests, userSocials, users } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import {
-	BaseProfile,
-	NewUserSocial,
-	ProfileType,
-	UserCategory,
+  BaseProfile,
+  NewUserSocial,
+  ProfileType,
+  UserCategory,
 } from "./definitions";
 import { buildNewUser, buildUserSocials } from "@/app/api/users/helpers";
 import { isProfileComplete } from "@/app/lib/utils";
@@ -19,8 +19,8 @@ import { sendEmail } from "@/app/vendors/resend";
 import EmailTemplate from "@/app/emails/verification_confimation/email-template";
 import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
 import {
-	getFestivalAvaibleStandsByCategory,
-	getFestivalCategories,
+  getFestivalAvaibleStandsByCategory,
+  getFestivalCategories,
 } from "@/app/lib/festivals/utils";
 import ProfileRejectionEmailTemplate from "@/app/emails/profile-rejection";
 import { deleteClerkUser } from "@/app/lib/users/actions";
@@ -29,224 +29,254 @@ import { fetchFestival } from "@/app/lib/festivals/actions";
 export type NewUser = typeof users.$inferInsert;
 export type UserProfileType = typeof users.$inferSelect;
 export type UserProfileWithRequests = UserProfileType & {
-	userRequests: (typeof userRequests.$inferSelect)[];
+  userRequests: (typeof userRequests.$inferSelect)[];
 };
 
 export async function fetchUserProfileById(
-	id: number,
+  id: number,
 ): Promise<ProfileType | null | undefined> {
-	try {
-		return await db.query.users.findFirst({
-			with: {
-				userRequests: true,
-				userSocials: true,
-				participations: {
-					with: {
-						reservation: true,
-					},
-				},
-				profileTags: {
-					with: {
-						tag: true,
-					},
-				},
-				profileSubcategories: {
-					with: {
-						subcategory: true,
-					},
-				},
-			},
-			where: eq(users.id, id),
-		});
-	} catch (error) {
-		console.error("Error fetching user profile", error);
-		return null;
-	}
+  try {
+    return await db.query.users.findFirst({
+      with: {
+        userRequests: true,
+        userSocials: true,
+        participations: {
+          with: {
+            reservation: {
+              with: {
+                stand: true,
+                festival: true,
+              },
+            },
+          },
+        },
+        profileTags: {
+          with: {
+            tag: true,
+          },
+        },
+        profileSubcategories: {
+          with: {
+            subcategory: true,
+          },
+        },
+      },
+      where: eq(users.id, id),
+    });
+  } catch (error) {
+    console.error("Error fetching user profile", error);
+    return null;
+  }
 }
 
 export async function fetchUserProfile(
-	clerkId: string,
+  clerkId: string,
 ): Promise<ProfileType | undefined | null> {
-	try {
-		return await db.query.users.findFirst({
-			with: {
-				userRequests: true,
-				userSocials: true,
-				participations: {
-					with: {
-						reservation: true,
-					},
-				},
-				profileTags: {
-					with: {
-						tag: true,
-					},
-				},
-				profileSubcategories: {
-					with: {
-						subcategory: true,
-					},
-				},
-			},
-			where: eq(users.clerkId, clerkId),
-		});
-	} catch (error) {
-		console.error(error);
-		return null;
-	}
+  try {
+    return await db.query.users.findFirst({
+      with: {
+        userRequests: true,
+        userSocials: true,
+        participations: {
+          with: {
+            reservation: {
+              with: {
+                stand: true,
+                festival: true,
+              },
+            },
+          },
+        },
+        profileTags: {
+          with: {
+            tag: true,
+          },
+        },
+        profileSubcategories: {
+          with: {
+            subcategory: true,
+          },
+        },
+      },
+      where: eq(users.clerkId, clerkId),
+    });
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
 }
 
 export async function fetchOrCreateProfile(
-	user: User | null | undefined,
+  user: User | null | undefined,
 ): Promise<ProfileType | undefined | null> {
-	try {
-		if (!user) throw new Error("No logged in user provided");
-		const userEmail = user.emailAddresses[0].emailAddress;
-		return await db.transaction(async (tx) => {
-			const profile = await tx.query.users.findFirst({
-				with: {
-					userRequests: true,
-					userSocials: true,
-					participations: {
-						with: {
-							reservation: true,
-						},
-					},
-					profileTags: {
-						with: {
-							tag: true,
-						},
-					},
-					profileSubcategories: {
-						with: {
-							subcategory: true,
-						},
-					},
-				},
-				where: eq(users.email, userEmail),
-			});
+  try {
+    if (!user) throw new Error("No logged in user provided");
+    const userEmail = user.emailAddresses[0].emailAddress;
+    return await db.transaction(async (tx) => {
+      const profile = await tx.query.users.findFirst({
+        with: {
+          userRequests: true,
+          userSocials: true,
+          participations: {
+            with: {
+              reservation: {
+                with: {
+                  stand: true,
+                  festival: true,
+                },
+              },
+            },
+          },
+          profileTags: {
+            with: {
+              tag: true,
+            },
+          },
+          profileSubcategories: {
+            with: {
+              subcategory: true,
+            },
+          },
+        },
+        where: eq(users.email, userEmail),
+      });
 
-			if (profile) {
-				if (profile.clerkId === user.id) return profile;
+      if (profile) {
+        if (profile.clerkId === user.id) return profile;
 
-				await tx
-					.update(users)
-					.set({ clerkId: user.id })
-					.where(eq(users.email, userEmail));
+        await tx
+          .update(users)
+          .set({ clerkId: user.id })
+          .where(eq(users.email, userEmail));
 
-				return { ...profile, clerkId: user.id };
-			}
+        return { ...profile, clerkId: user.id };
+      }
 
-			const [newUser] = await tx
-				.insert(users)
-				.values(buildNewUser(user))
-				.returning({ id: users.id });
+      const [newUser] = await tx
+        .insert(users)
+        .values(buildNewUser(user))
+        .returning({ id: users.id });
 
-			return await tx.transaction(async (tx2) => {
-				if (newUser?.id) {
-					const userSocialsValues = buildUserSocials(newUser.id);
-					await tx2.insert(userSocials).values(userSocialsValues);
-					await tx2.insert(scheduledTasks).values({
-						dueDate: sql`now() + interval '3 days'`,
-						reminderTime: sql`now() + interval '1 days'`,
-						profileId: newUser.id,
-						taskType: "profile_creation",
-						updatedAt: new Date(),
-						createdAt: new Date(),
-					});
+      return await tx.transaction(async (tx2) => {
+        if (newUser?.id) {
+          const userSocialsValues = buildUserSocials(newUser.id);
+          await tx2.insert(userSocials).values(userSocialsValues);
+          await tx2.insert(scheduledTasks).values({
+            dueDate: sql`now() + interval '3 days'`,
+            reminderTime: sql`now() + interval '1 days'`,
+            profileId: newUser.id,
+            taskType: "profile_creation",
+            updatedAt: new Date(),
+            createdAt: new Date(),
+          });
 
-					return await tx2.query.users.findFirst({
-						with: {
-							userRequests: true,
-							userSocials: true,
-							participations: {
-								with: {
-									reservation: true,
-								},
-							},
-							profileTags: {
-								with: {
-									tag: true,
-								},
-							},
-							profileSubcategories: {
-								with: {
-									subcategory: true,
-								},
-							},
-						},
-						where: eq(users.id, newUser.id),
-					});
-				}
-			});
-		});
-	} catch (error) {
-		console.error(error);
-		return null;
-	}
+          return await tx2.query.users.findFirst({
+            with: {
+              userRequests: true,
+              userSocials: true,
+              participations: {
+                with: {
+                  reservation: {
+                    with: {
+                      stand: true,
+                      festival: true,
+                    },
+                  },
+                },
+              },
+              profileTags: {
+                with: {
+                  tag: true,
+                },
+              },
+              profileSubcategories: {
+                with: {
+                  subcategory: true,
+                },
+              },
+            },
+            where: eq(users.id, newUser.id),
+          });
+        }
+      });
+    });
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
 }
 
 export async function fetchProfiles(): Promise<ProfileType[]> {
-	try {
-		return await db.query.users.findMany({
-			with: {
-				userRequests: true,
-				userSocials: true,
-				participations: {
-					with: {
-						reservation: true,
-					},
-				},
-				profileTags: {
-					with: {
-						tag: true,
-					},
-				},
-				profileSubcategories: {
-					with: {
-						subcategory: true,
-					},
-				},
-			},
-			orderBy: desc(users.updatedAt),
-		});
-	} catch (error) {
-		console.error(error);
-		return [];
-	}
+  try {
+    return await db.query.users.findMany({
+      with: {
+        userRequests: true,
+        userSocials: true,
+        participations: {
+          with: {
+            reservation: {
+              with: {
+                stand: true,
+                festival: true,
+              },
+            },
+          },
+        },
+        profileTags: {
+          with: {
+            tag: true,
+          },
+        },
+        profileSubcategories: {
+          with: {
+            subcategory: true,
+          },
+        },
+      },
+      orderBy: desc(users.updatedAt),
+    });
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
 }
 
 export async function fetchProfilesByIds(
-	ids: number[],
+  ids: number[],
 ): Promise<ProfileType[]> {
-	try {
-		return await db.query.users.findMany({
-			with: {
-				userRequests: true,
-				userSocials: true,
-				participations: {
-					with: {
-						reservation: true,
-					},
-				},
-				profileTags: {
-					with: {
-						tag: true,
-					},
-				},
-				profileSubcategories: {
-					with: {
-						subcategory: true,
-					},
-				},
-			},
-			orderBy: desc(users.updatedAt),
-			where: inArray(users.id, ids),
-		});
-	} catch (error) {
-		console.error(error);
-		return [];
-	}
+  try {
+    return await db.query.users.findMany({
+      with: {
+        userRequests: true,
+        userSocials: true,
+        participations: {
+          with: {
+            reservation: {
+              with: {
+                stand: true,
+                festival: true,
+              },
+            },
+          },
+        },
+        profileTags: {
+          with: {
+            tag: true,
+          },
+        },
+        profileSubcategories: {
+          with: {
+            subcategory: true,
+          },
+        },
+      },
+      orderBy: desc(users.updatedAt),
+      where: inArray(users.id, ids),
+    });
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
 }
 
 const FormSchema = z.object({
@@ -261,12 +291,12 @@ const FormSchema = z.object({
 
 export type State =
   | {
-      errors?: {
-        firstName?: string[];
-        lastName?: string[];
-      };
-      message: string;
-    }
+    errors?: {
+      firstName?: string[];
+      lastName?: string[];
+    };
+    message: string;
+  }
   | undefined;
 
 const UpdateName = FormSchema.omit({ id: true });
@@ -399,7 +429,7 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
       .returning();
 
     deletedUsers.forEach(async (deletedUsers) => {
-			await deleteClerkUser(deletedUsers.clerkId);
+      await deleteClerkUser(deletedUsers.clerkId);
     });
   } catch (error) {
     console.error(error);
@@ -424,8 +454,8 @@ export async function verifyProfile(profileId: number, category: UserCategory) {
       .returning();
 
     const activeFestival = await fetchFestival({
-			acceptedUsersOnly: true,
-		});
+      acceptedUsersOnly: true,
+    });
 
     const availableStands = getFestivalAvaibleStandsByCategory(
       activeFestival,

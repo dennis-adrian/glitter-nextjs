@@ -31,82 +31,87 @@ import { cache } from "react";
 export const getCurrentClerkUser = cache(async () => await currentUser());
 
 export const fetchUserProfileByClerkId = async (
-	clerkId: string,
+  clerkId: string,
 ): Promise<ProfileType | null> => {
-	try {
-		const profile = await db.query.users.findFirst({
-			with: {
-				userRequests: true,
-				userSocials: true,
-				participations: {
-					with: {
-						reservation: true,
-					},
-				},
-				profileTags: {
-					with: {
-						tag: true,
-					},
-				},
-				profileSubcategories: {
-					with: {
-						subcategory: true,
-					},
-				},
-			},
-			where: eq(users.clerkId, clerkId),
-		});
+  try {
+    const profile = await db.query.users.findFirst({
+      with: {
+        userRequests: true,
+        userSocials: true,
+        participations: {
+          with: {
+            reservation: {
+              with: {
+                stand: true,
+                festival: true,
+              },
+            },
+          },
+        },
+        profileTags: {
+          with: {
+            tag: true,
+          },
+        },
+        profileSubcategories: {
+          with: {
+            subcategory: true,
+          },
+        },
+      },
+      where: eq(users.clerkId, clerkId),
+    });
 
-		return profile || null;
-	} catch (error) {
-		console.error(error);
-		return null;
-	}
+    return profile || null;
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
 };
 
 export const cachedFetchUserProfileByClerkId = cache(fetchUserProfileByClerkId);
 
 export async function createUserProfile(user: NewUser) {
-	try {
-		// There's something weird happening where the user tries to be created twice when using email for
-		// creating the account.
-		const userExisits = await fetchUserProfileByClerkId(user.clerkId);
-		if (userExisits) {
-			return {
-				success: true,
-				message: "Solicitud realizada correctamente.",
-			};
-		}
+  try {
+    // There's something weird happening where the user tries to be created twice when using email for
+    // creating the account.
+    const userExisits = await fetchUserProfileByClerkId(user.clerkId);
+    if (userExisits) {
+      return {
+        success: true,
+        message: "Solicitud realizada correctamente.",
+      };
+    }
 
-		await db.transaction(async (tx) => {
-			const [newUser] = await tx
-				.insert(users)
-				.values({
-					...user,
-				})
-				.returning();
+    await db.transaction(async (tx) => {
+      const [newUser] = await tx
+        .insert(users)
+        .values({
+          ...user,
+        })
+        .returning();
 
-			await tx.insert(scheduledTasks).values({
-				dueDate: sql`now() + interval '3 days'`,
-				reminderTime: sql`now() + interval '1 days'`,
-				profileId: newUser.id,
-				taskType: "profile_creation",
-			});
+      await tx.insert(scheduledTasks).values({
+        dueDate: sql`now() + interval '3 days'`,
+        reminderTime: sql`now() + interval '1 days'`,
+        profileId: newUser.id,
+        taskType: "profile_creation",
+      });
 
-			return newUser;
-		});
+      return newUser;
+    });
 
-		return {
-			success: true,
-			message: "Perfil creado correctamente.",
-		};
-	} catch (error) {
-		console.error("Error creating user profile", error);
-		return {
-			success: false,
-			message: "Error al crear el perfil.",
-		};
-	}
+    return {
+      success: true,
+      message: "Perfil creado correctamente.",
+    };
+  } catch (error) {
+    console.error("Error creating user profile", error);
+    return {
+      success: false,
+      message: "Error al crear el perfil.",
+    };
+  }
 }
 
 export async function updateProfile(userId: number, profile: UpdateUser) {
@@ -380,7 +385,12 @@ export async function fetchUserProfiles(filters: {
         userSocials: true,
         participations: {
           with: {
-            reservation: true,
+            reservation: {
+              with: {
+                stand: true,
+                festival: true,
+              },
+            },
           },
         },
         profileTags: {
@@ -414,16 +424,16 @@ export async function fetchUserProfilesByEmails(emails: string[]) {
 export async function deleteClerkUser(clerkId: string) {
   try {
     const clerk = await clerkClient();
-		const existingUser = await clerk.users.getUser(clerkId);
-		if (!existingUser) {
-			console.log("Clerk user not found");
-			return {
-				success: false,
-				message: "Usuario no encontrado",
-			};
-		}
+    const existingUser = await clerk.users.getUser(clerkId);
+    if (!existingUser) {
+      console.log("Clerk user not found");
+      return {
+        success: false,
+        message: "Usuario no encontrado",
+      };
+    }
 
-		await clerk.users.deleteUser(clerkId);
+    await clerk.users.deleteUser(clerkId);
     return {
       success: true,
       message: "Cuenta eliminada correctamente.",
@@ -438,22 +448,22 @@ export async function deleteClerkUser(clerkId: string) {
 }
 
 export async function deleteUserSocial(
-	socialId: number,
-	pathToRevalidate?: string,
+  socialId: number,
+  pathToRevalidate?: string,
 ) {
-	try {
-		await db.delete(userSocials).where(eq(userSocials.id, socialId));
-	} catch (error) {
-		console.error("Error deleting user social", error);
-		return {
-			success: false,
-			message: "Error al eliminar la red social.",
-		};
-	}
+  try {
+    await db.delete(userSocials).where(eq(userSocials.id, socialId));
+  } catch (error) {
+    console.error("Error deleting user social", error);
+    return {
+      success: false,
+      message: "Error al eliminar la red social.",
+    };
+  }
 
-	revalidatePath(pathToRevalidate || "/my_profile");
-	return {
-		success: true,
-		message: "Red social eliminada correctamente.",
-	};
+  revalidatePath(pathToRevalidate || "/my_profile");
+  return {
+    success: true,
+    message: "Red social eliminada correctamente.",
+  };
 }
