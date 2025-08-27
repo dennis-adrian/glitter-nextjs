@@ -2,41 +2,40 @@
 
 import { cn } from "@/app/lib/utils";
 import { UploadButton } from "@/app/vendors/uploadthing";
-import Image from "next/image";
 import { toast } from "sonner";
 import { Loader2Icon } from "lucide-react";
 import { BaseProfile } from "@/app/api/users/definitions";
 import { getUserName } from "@/app/lib/users/utils";
 import { twMerge } from "tailwind-merge";
-import { UploadThingError } from "uploadthing/server";
-import { Json } from "@uploadthing/shared";
+import type { UploadThingError } from "uploadthing/server";
+import type { Json } from "@uploadthing/shared";
 import { AvatarImage } from "../../ui/avatar";
 
 export default function ProfilePicUpload({
-  size,
-  imageUrl,
-  setImageUrl,
-  profile,
-  onUploading,
+	size,
+	imageUrl,
+	setImageUrl,
+	profile,
+	onUploading,
 }: {
-  imageUrl: string | null;
-  setImageUrl: (imageUrl: string) => void;
-  size?: "sm" | "md" | "lg";
-  profile: BaseProfile;
-  onUploading?: (isUploading: boolean) => void;
+	imageUrl: string | null;
+	setImageUrl: (imageUrl: string) => void;
+	size?: "sm" | "md" | "lg";
+	profile: BaseProfile;
+	onUploading?: (isUploading: boolean) => void;
 }) {
-  let containerSize = "w-32 h-32";
-  if (size === "md") {
-    containerSize = "w-60 h-60";
-  } else if (size === "lg") {
-    containerSize = "w-80 h-80";
-  }
-  const username = getUserName(profile);
-  const fileName = `${username
-    .toLowerCase()
-    .replaceAll(" ", "_")}_profile_picture`;
+	let containerSize = "w-32 h-32";
+	if (size === "md") {
+		containerSize = "w-60 h-60";
+	} else if (size === "lg") {
+		containerSize = "w-80 h-80";
+	}
+	const username = getUserName(profile);
+	const fileName = `${username
+		.toLowerCase()
+		.replaceAll(" ", "_")}_profile_picture`;
 
-  return (
+	return (
 		<div className="flex flex-col items-center justify-center">
 			<div className={cn("relative mb-4 border border-dashed", containerSize)}>
 				<AvatarImage
@@ -95,10 +94,9 @@ export default function ProfilePicUpload({
 						setImageUrl(results.imageUrl);
 					}
 				}}
-				onUploadError={(error: {
-					code: UploadThingError<Json>["code"];
-					message: string;
-				}) => {
+				onUploadError={(
+					error: Pick<UploadThingError<Json>, "code" | "message">,
+				) => {
 					if (onUploading) onUploading(false);
 					const errorMessage = error.message;
 					if (

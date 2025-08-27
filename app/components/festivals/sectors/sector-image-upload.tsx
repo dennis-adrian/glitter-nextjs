@@ -6,31 +6,31 @@ import Image from "next/image";
 import { toast } from "sonner";
 import { Loader2Icon } from "lucide-react";
 import { twMerge } from "tailwind-merge";
-import { UploadThingError } from "uploadthing/server";
-import { Json } from "@uploadthing/shared";
+import type { UploadThingError } from "uploadthing/server";
+import type { Json } from "@uploadthing/shared";
 import { slugify } from "@/app/lib/formatters";
 
 export default function SectorImageUpload({
-  imageUrl,
-  setImageUrl,
-  sectorName,
-  onUploading,
+	imageUrl,
+	setImageUrl,
+	sectorName,
+	onUploading,
 }: {
-  imageUrl: string | null;
-  setImageUrl: (imageUrl: string) => void;
-  sectorName: string;
-  onUploading?: (isUploading: boolean) => void;
+	imageUrl: string | null;
+	setImageUrl: (imageUrl: string) => void;
+	sectorName: string;
+	onUploading?: (isUploading: boolean) => void;
 }) {
-  const fileName = `${slugify(sectorName)}_image`;
+	const fileName = `${slugify(sectorName)}_image`;
 
-  return (
+	return (
 		<div className="flex flex-col items-center justify-center">
 			<div className={cn("relative mb-4 border border-dashed w-full h-48")}>
 				<Image
 					className="object-cover"
 					alt={`Imagen del sector ${sectorName}`}
 					src={imageUrl || "/img/placeholder-image.png"}
-					sizes="240px, 240px"
+					sizes="(max-width: 640px) 100vw, 240px"
 					fill
 				/>
 			</div>
@@ -81,10 +81,9 @@ export default function SectorImageUpload({
 						setImageUrl(res[0].url);
 					}
 				}}
-				onUploadError={(error: {
-					code: UploadThingError<Json>["code"];
-					message: string;
-				}) => {
+				onUploadError={(
+					error: Pick<UploadThingError<Json>, "code" | "message">,
+				) => {
 					if (onUploading) onUploading(false);
 					const errorMessage = error.message;
 					if (
