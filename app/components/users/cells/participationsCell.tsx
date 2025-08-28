@@ -19,7 +19,6 @@ export default function ParticipationsCell({ participations }: Props) {
   const [open, setOpen] = useState(false);
 
   const count = participations?.length || 0;
-  console.log({ participations });
 
   if (count === 0) {
     return <span>0 participaciones</span>;

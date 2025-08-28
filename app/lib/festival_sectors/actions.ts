@@ -128,7 +128,7 @@ export async function fetchConfirmedProfilesByFestivalId(
 	})[]
 > {
 	try {
-		
+
 		const res = await db
 			.select()
 			.from(users)
@@ -272,7 +272,12 @@ export async function fetchFullFestivalById(
 							with: {
 								participations: {
 									with: {
-										reservation: true,
+										reservation: {
+											with: {
+												stand: true,
+												festival: true,
+											},
+										},
 									},
 								},
 								userRequests: true,
