@@ -60,7 +60,7 @@ export default function GeneralInfoDetails(props: GeneralInfoDetailsProps) {
 			)}
 			<div
 				className={cn(
-					"flex flex-wrap gap-4 pb-4 flex-grow md:justify-around",
+					"flex flex-wrap gap-4 pb-4 grow md:justify-around",
 					props.detailsClassName,
 				)}
 			>

@@ -34,7 +34,7 @@ export default async function UserOrderPage(props: {
 
 	return (
 		<div className="container p-3 md:p-6">
-			<div className="bg-white rounded-xl shadow-sm border p-6 mb-8">
+			<div className="bg-white rounded-xl shadow-xs border p-6 mb-8">
 				<div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
 					<div>
 						<h1 className="text-2xl font-bold">Detalles del Pedido</h1>
@@ -48,7 +48,7 @@ export default async function UserOrderPage(props: {
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 				<div className="lg:col-span-2 space-y-8">
 					{/* Order Items */}
-					<div className="bg-white rounded-xl shadow-sm border p-6">
+					<div className="bg-white rounded-xl shadow-xs border p-6">
 						<h2 className="text-lg font-semibold mb-4 flex items-center">
 							<BoxIcon className="h-5 w-5 mr-2" />
 							Artículos
@@ -57,7 +57,7 @@ export default async function UserOrderPage(props: {
 						<div className="divide-y">
 							{order.orderItems.map((item: OrderItemWithRelations) => (
 								<div key={item.id} className="py-4 flex gap-4">
-									<div className="h-20 w-20 rounded-md overflow-hidden bg-gray-100 flex-shrink-0">
+									<div className="h-20 w-20 rounded-md overflow-hidden bg-gray-100 shrink-0">
 										<Image
 											src={item.product.imageUrl || "/placeholder.svg"}
 											alt={item.product.name}

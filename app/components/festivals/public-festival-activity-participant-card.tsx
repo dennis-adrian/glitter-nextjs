@@ -16,7 +16,7 @@ export default function PublicFestivalActivityParticipantCard({
 }: PublicFestivalActivityParticipantCardProps) {
 	return (
 		<div
-			className="relative bg-card border border-border rounded-md p-2 shadow-sm"
+			className="relative bg-card border border-border rounded-md p-2 shadow-xs"
 			onClick={onSelect}
 		>
 			{selected && (
