@@ -10,6 +10,7 @@ import {
 } from "@/app/components/ui/dialog";
 import Link from "next/link";
 import { Participation } from "@/app/api/users/definitions";
+import { ReservationStatus } from "../../reservations/cells/status";
 
 type Props = {
   participations: Participation[];
@@ -63,7 +64,10 @@ export default function ParticipationsCell({ participations }: Props) {
                     {p.reservation.stand.label}{p.reservation.stand.standNumber}
                   </td>
 
-                  <td className="p-2">{p.reservation.status}</td>
+                  <td className="p-2">
+                    <ReservationStatus reservation={p.reservation} />
+                  </td>
+
                 </tr>
               ))}
             </tbody>
