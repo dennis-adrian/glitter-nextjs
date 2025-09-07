@@ -7,13 +7,14 @@ import { fetchAdminUsers } from "@/app/api/users/actions";
 import ReservationCreatedEmailTemplate from "@/app/emails/reservation-created";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import {
-	findBlockingReservations,
 	create,
+	findBlockingReservations,
 } from "@/app/lib/repositories/reservations/reservationsRepository";
+import { validateUserSanctions } from "@/app/lib/services/reservations/utils";
 import { sendEmail } from "@/app/vendors/resend";
 import { ErrorCodes } from "@/lib/errors/codes";
 import { FestivalBase } from "@/lib/festivals/definitions";
-import { usersRepository } from "@/lib/repositories/usersRepository";
+import { findActiveUserSanctions } from "@/lib/repositories/usersRepository";
 
 export async function createReservation(
 	forUser: BaseProfile,
@@ -25,11 +26,14 @@ export async function createReservation(
 		throw new Error(ErrorCodes.NO_PERMISSIONS);
 	}
 
-	const userSanctions = await usersRepository.findUserSanctions(forUser.id);
+	const userSanctions = await findActiveUserSanctions(forUser.id);
 
 	console.log("userSanctions", userSanctions);
 
-	if (userSanctions.length > 0) {
+	if (
+		userSanctions.length > 0 &&
+		validateUserSanctions(userSanctions, festival).length > 0
+	) {
 		throw new Error(ErrorCodes.USER_HAS_SANCTIONS);
 	}
 
