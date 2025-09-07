@@ -4,6 +4,7 @@ import FestivalStatusBadge from "@/app/components/atoms/festival-status-badge";
 import TableActions from "@/app/components/organisms/festivals/table-actions";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { ColumnDef } from "@tanstack/react-table";
+import Link from "next/link";
 
 const columnTitles = {
   name: "Nombre",
@@ -16,6 +17,15 @@ export const columns: ColumnDef<FestivalWithDates>[] = [
   {
     header: columnTitles.name,
     accessorKey: "name",
+    cell: ({ row }) => (
+      <Link
+        href={`/dashboard/festivals/${row.original.id}`}
+        className="text-blue-600 hover:underline"
+        target="_blank"
+      >
+        {row.original.name}
+      </Link>
+    ),
   },
   {
     header: columnTitles.status,
