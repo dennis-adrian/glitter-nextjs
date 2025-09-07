@@ -3,6 +3,7 @@ import {
   ProfileSubcategoryWithSubcategory,
   UserSocial,
 } from "@/app/api/users/definitions";
+import { InfractionWithTypeAndFestival } from "@/app/lib/infractions/definitions";
 import { sanctions } from "@/db/schema";
 
 export type QuickViewProfile = BaseProfile & {
@@ -11,3 +12,6 @@ export type QuickViewProfile = BaseProfile & {
 };
 
 export type UserSanctionBase = typeof sanctions.$inferSelect;
+export type UserSanctionFull = UserSanctionBase & {
+	infraction: InfractionWithTypeAndFestival;
+};

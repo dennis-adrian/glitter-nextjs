@@ -31,85 +31,68 @@ type DrawerDialogProps = {
 } & React.HTMLAttributes<HTMLDivElement>;
 
 const DrawerDialog = ({
-  children,
-  isDesktop = false,
-  open,
-  onOpenChange,
-  ...props
+	children,
+	open,
+	onOpenChange,
+	...props
 }: DrawerDialogProps & DialogProps) => {
-  const Component = isDesktop ? Dialog : Drawer;
+	const isDesktop = useMediaQuery("(min-width: 768px)");
+	const Component = isDesktop ? Dialog : Drawer;
 
-  return (
-    <Component open={open} onOpenChange={onOpenChange} modal={props.modal}>
-      {children}
-    </Component>
-  );
+	return (
+		<Component open={open} onOpenChange={onOpenChange} modal={props.modal}>
+			{children}
+		</Component>
+	);
 };
 
-const DrawerDialogTrigger = ({
-  children,
-  isDesktop = false,
-}: DrawerDialogProps) => {
-  const Component = isDesktop ? DialogTrigger : DrawerTrigger;
-  return <Component asChild>{children}</Component>;
+const DrawerDialogTrigger = ({ children }: DrawerDialogProps) => {
+	const isDesktop = useMediaQuery("(min-width: 768px)");
+	const Component = isDesktop ? DialogTrigger : DrawerTrigger;
+	return <Component asChild>{children}</Component>;
 };
 
-const DrawerDialogTitle = ({
-  children,
-  isDesktop = false,
-}: DrawerDialogProps) => {
-  const Component = isDesktop ? DialogTitle : DrawerTitle;
-  return <Component>{children}</Component>;
+const DrawerDialogTitle = ({ children }: DrawerDialogProps) => {
+	const isDesktop = useMediaQuery("(min-width: 768px)");
+	const Component = isDesktop ? DialogTitle : DrawerTitle;
+	return <Component>{children}</Component>;
 };
 
-const DrawerDialogDescription = ({
-  children,
-  isDesktop = false,
-  ...props
-}: DrawerDialogProps) => {
-  const Component = isDesktop ? DialogDescription : DrawerDescription;
-  return <Component {...props}>{children}</Component>;
+const DrawerDialogDescription = ({ children, ...props }: DrawerDialogProps) => {
+	const isDesktop = useMediaQuery("(min-width: 768px)");
+	const Component = isDesktop ? DialogDescription : DrawerDescription;
+	return <Component {...props}>{children}</Component>;
 };
 
-const DrawerDialogContent = ({
-  children,
-  isDesktop = false,
-  ...props
-}: DrawerDialogProps) => {
-  const Component = isDesktop ? DialogContent : DrawerContent;
-  return (
-    <Component
-      onPointerDownOutside={(e) => e.preventDefault()}
-      onInteractOutside={(e) => e.preventDefault()}
-      {...props}
-    >
-      {children}
-    </Component>
-  );
+const DrawerDialogContent = ({ children, ...props }: DrawerDialogProps) => {
+	const isDesktop = useMediaQuery("(min-width: 768px)");
+	const Component = isDesktop ? DialogContent : DrawerContent;
+	return (
+		<Component
+			onPointerDownOutside={(e) => e.preventDefault()}
+			onInteractOutside={(e) => e.preventDefault()}
+			{...props}
+		>
+			{children}
+		</Component>
+	);
 };
 
-const DrawerDialogHeader = ({
-  children,
-  isDesktop = false,
-}: DrawerDialogProps) => {
-  const Component = isDesktop ? DialogHeader : DrawerHeader;
-  return <Component>{children}</Component>;
+const DrawerDialogHeader = ({ children }: DrawerDialogProps) => {
+	const isDesktop = useMediaQuery("(min-width: 768px)");
+	const Component = isDesktop ? DialogHeader : DrawerHeader;
+	return <Component>{children}</Component>;
 };
 
-const DrawerDialogFooter = ({
-  children,
-  isDesktop = false,
-  ...props
-}: DrawerDialogProps) => {
-  return isDesktop ? null : <DrawerFooter {...props}>{children}</DrawerFooter>;
+const DrawerDialogFooter = ({ children, ...props }: DrawerDialogProps) => {
+	const isDesktop = useMediaQuery("(min-width: 768px)");
+	return isDesktop ? null : <DrawerFooter {...props}>{children}</DrawerFooter>;
 };
 
-const DrawerDialogClose = ({
-  children,
-  isDesktop = false,
-}: DrawerDialogProps) => {
-  const Component = isDesktop ? DialogClose : DrawerClose;
-  return <Component asChild>{children}</Component>;
+const DrawerDialogClose = ({ children }: DrawerDialogProps) => {
+	const isDesktop = useMediaQuery("(min-width: 768px)");
+	const Component = isDesktop ? DialogClose : DrawerClose;
+	return <Component asChild>{children}</Component>;
 };
 
 export {

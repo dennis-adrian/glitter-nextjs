@@ -28,8 +28,6 @@ export async function createReservation(
 
 	const userSanctions = await findActiveUserSanctions(forUser.id);
 
-	console.log("userSanctions", userSanctions);
-
 	if (
 		userSanctions.length > 0 &&
 		validateUserSanctions(userSanctions, festival).length > 0

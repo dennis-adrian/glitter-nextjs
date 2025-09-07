@@ -15,6 +15,9 @@ import {
 } from "@/app/components/ui/dialog";
 import { Dialog } from "@/app/components/ui/dialog";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
+import { UserSanctionFull } from "@/app/lib/users/definitions";
+import { validateUserSanctions } from "@/app/lib/services/reservations/utils";
+import { UserSanctionModal } from "@/app/components/next_event/reservation/user-sanction-modal";
 
 export function ReservationModal({
 	artists,
@@ -22,6 +25,7 @@ export function ReservationModal({
 	profile,
 	stand,
 	festival,
+	userSanctions,
 	onOpenChange,
 	onClose,
 }: {
@@ -30,6 +34,7 @@ export function ReservationModal({
 	profile?: ProfileType | null;
 	stand: StandWithReservationsWithParticipants | null;
 	festival: FestivalBase;
+	userSanctions: UserSanctionFull[];
 	onClose: () => void;
 	onOpenChange: (open: boolean) => void;
 }) {
@@ -37,6 +42,21 @@ export function ReservationModal({
 
 	if (!stand || !profile) {
 		return null;
+	}
+
+	const validatedUserSanctions = validateUserSanctions<UserSanctionFull>(
+		userSanctions,
+		festival,
+	);
+
+	if (validatedUserSanctions.length > 0) {
+		return (
+			<UserSanctionModal
+				userSanctions={validatedUserSanctions}
+				open={open}
+				onOpenChange={onOpenChange}
+			/>
+		);
 	}
 
 	return (

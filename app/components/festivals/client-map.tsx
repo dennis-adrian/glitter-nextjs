@@ -9,62 +9,66 @@ import { profileHasReservation } from "@/app/helpers/next_event";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
+import { UserSanctionFull } from "@/app/lib/users/definitions";
 
 export default function ClientMap({
-  artists,
-  festival,
-  imageSrc,
-  profile,
-  stands,
+	artists,
+	festival,
+	imageSrc,
+	profile,
+	stands,
+	userSanctions,
 }: {
-  artists: BaseProfile[];
-  imageSrc?: string | null;
-  festival: FestivalBase;
-  profile: ProfileType | null;
-  stands: StandWithReservationsWithParticipants[];
+	artists: BaseProfile[];
+	imageSrc?: string | null;
+	festival: FestivalBase;
+	profile: ProfileType | null;
+	stands: StandWithReservationsWithParticipants[];
+	userSanctions: UserSanctionFull[];
 }) {
-  const [openModal, setOpenModal] = useState(false);
-  const [selectedStand, setSelectedStand] =
-    useState<StandWithReservationsWithParticipants | null>(null);
+	const [openModal, setOpenModal] = useState(false);
+	const [selectedStand, setSelectedStand] =
+		useState<StandWithReservationsWithParticipants | null>(null);
 
-  if (!imageSrc) return null;
+	if (!imageSrc) return null;
 
-  function handleStandClick(stand: StandWithReservationsWithParticipants) {
-    if (!profile) return;
+	function handleStandClick(stand: StandWithReservationsWithParticipants) {
+		if (!profile) return;
 
-    if (profile.role !== "admin") {
-      const inFestival = isProfileInFestival(festival.id, profile);
-      if (!inFestival || profile.category !== stand.standCategory) return;
-      if (profileHasReservation(profile, festival.id)) return;
-    }
+		if (profile.role !== "admin") {
+			const inFestival = isProfileInFestival(festival.id, profile);
+			if (!inFestival || profile.category !== stand.standCategory) return;
+			if (profileHasReservation(profile, festival.id)) return;
+		}
 
-    setSelectedStand(stand);
-    setOpenModal(true);
-  }
+		setSelectedStand(stand);
+		setOpenModal(true);
+	}
 
-  function handleModalClose() {
-    setSelectedStand(null);
-    setOpenModal(false);
-  }
+	function handleModalClose() {
+		setSelectedStand(null);
+		setOpenModal(false);
+	}
 
-  return (
-    <>
-      <MapImage
-        mapSrc={imageSrc}
-        stands={stands}
-        forReservation
-        profile={profile}
-        onStandClick={handleStandClick}
-      />
-      <ReservationModal
-        artists={artists}
-        profile={profile}
-        open={openModal}
-        stand={selectedStand}
-        festival={festival}
-        onOpenChange={setOpenModal}
-        onClose={handleModalClose}
-      />
-    </>
-  );
+	return (
+		<>
+			<MapImage
+				mapSrc={imageSrc}
+				stands={stands}
+				forReservation
+				profile={profile}
+				onStandClick={handleStandClick}
+			/>
+			<ReservationModal
+				artists={artists}
+				profile={profile}
+				open={openModal}
+				stand={selectedStand}
+				festival={festival}
+				userSanctions={userSanctions}
+				onOpenChange={setOpenModal}
+				onClose={handleModalClose}
+			/>
+		</>
+	);
 }

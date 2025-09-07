@@ -2,11 +2,11 @@ import { FestivalBase } from "@/lib/festivals/definitions";
 import { UserSanctionBase } from "@/lib/users/definitions";
 import { DateTime } from "luxon";
 
-export const validateUserSanctions = (
-	userSanctions: UserSanctionBase[],
+export const validateUserSanctions = <T extends UserSanctionBase>(
+	userSanctions: T[],
 	festival: FestivalBase,
-): UserSanctionBase[] => {
-	const validatedSanctions: UserSanctionBase[] = [];
+): T[] => {
+	const validatedSanctions: T[] = [];
 	for (const sanction of userSanctions) {
 		if (!sanction.active) continue;
 
@@ -21,9 +21,6 @@ export const validateUserSanctions = (
 			)
 				continue;
 
-			const reservationDate = DateTime.fromJSDate(
-				festival.reservationsStartDate,
-			);
 			const currentDate = DateTime.now();
 			const delayEndDate = DateTime.fromJSDate(
 				festival.reservationsStartDate,
@@ -31,18 +28,9 @@ export const validateUserSanctions = (
 				[delayUnit]: delay,
 			});
 
-			console.log("reservationDate", reservationDate);
-			console.log("currentDate", currentDate);
-			console.log("delayEndDate", delayEndDate);
-			console.log("delay", delay);
-			console.log("delayUnit", delayUnit);
+			if (delayEndDate.diff(currentDate).toMillis() <= 0) continue;
 
-			if (delayEndDate.diff(currentDate).toMillis() > 0) {
-				console.log("sanction is active");
-				validatedSanctions.push(sanction);
-			} else {
-				console.log("sanction is not active");
-			}
+			validatedSanctions.push(sanction);
 		} else {
 			validatedSanctions.push(sanction);
 		}
