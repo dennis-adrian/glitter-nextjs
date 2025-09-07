@@ -1,0 +1,2 @@
+ALTER TABLE "stand_reservations" ADD CONSTRAINT "stand_reservations_stand_id_stands_id_fk" FOREIGN KEY ("stand_id") REFERENCES "public"."stands"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "stand_reservations" ADD CONSTRAINT "stand_reservations_festival_id_festivals_id_fk" FOREIGN KEY ("festival_id") REFERENCES "public"."festivals"("id") ON DELETE cascade ON UPDATE no action;
