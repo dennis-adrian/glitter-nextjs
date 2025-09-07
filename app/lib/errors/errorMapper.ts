@@ -20,6 +20,9 @@ export function mapErrorToMessage(
 		case ErrorCodes.NO_PERMISSIONS:
 			return "No tienes permisos para realizar esta acción";
 
+		case ErrorCodes.USER_HAS_SANCTIONS:
+			return "Tu perfil tiene una sanción y no puedes realizar esta acción";
+
 		// Generic
 		default:
 			return customMessage || "Ha ocurrido un error inesperado";

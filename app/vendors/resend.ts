@@ -7,6 +7,8 @@ export async function sendEmail(
 	options?: CreateEmailRequestOptions,
 ) {
 	if (process.env.VERCEL_ENV === "development") {
+		console.log("--------------------------------");
+		console.log("--------------------------------");
 		console.log("Sending email to", payload.to);
 		console.log("Subject:", payload.subject);
 		console.log("From:", payload.from);

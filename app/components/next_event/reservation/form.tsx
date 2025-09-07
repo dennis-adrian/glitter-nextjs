@@ -9,9 +9,7 @@ import { BaseProfile, ProfileType } from "@/app/api/users/definitions";
 import AvatarGroup from "@/app/components/ui/avatar-group";
 import { Button } from "@/app/components/ui/button";
 import SearchInput from "@/app/components/ui/search-input/input";
-import { NewStandReservation } from "@/app/api/user_requests/actions";
 import { toast } from "sonner";
-import { Separator } from "@/app/components/ui/separator";
 import { Label } from "@/app/components/ui/label";
 import { useRouter } from "next/navigation";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
@@ -72,16 +70,11 @@ export default function ReservationForm({
 			Boolean,
 		) as number[];
 
-		const reservation = {
-			standId: stand.id,
-			festivalId: festival.id,
-			participantIds,
-		} as NewStandReservation;
-
 		const res = await createReservationAction(
-			reservation,
-			stand.price,
 			profile,
+			stand,
+			festival,
+			participantIds,
 		);
 
 		if (res.success) {

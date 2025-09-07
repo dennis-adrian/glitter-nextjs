@@ -1,26 +1,28 @@
 "use server";
 
-import { ReservationBase } from "@/app/api/reservations/definitions";
-import { NewStandReservation } from "@/app/api/user_requests/actions";
-import { BaseProfile } from "@/app/api/users/definitions";
-import { mapErrorToMessage } from "@/app/lib/errors/errorMapper";
+import { ReservationBase } from "@/api/reservations/definitions";
+import { BaseProfile } from "@/api/users/definitions";
+import { mapErrorToMessage } from "@/lib/errors/errorMapper";
 import { revalidatePath } from "next/cache";
-import { reservationsService } from "@/app/lib/services/reservations/reservationsService";
+import { createReservation } from "@/lib/services/reservations/reservationsService";
+import { StandBase } from "@/app/api/stands/definitions";
+import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export async function createReservationAction(
-	reservation: NewStandReservation,
-	price: number,
 	forUser: BaseProfile,
+	stand: StandBase,
+	festival: FestivalBase,
+	participantIds: number[],
 ) {
 	let newReservation: ReservationBase | null = null;
-	try {
-		const res = await reservationsService.createReservation(
-			reservation,
-			price,
-			forUser,
-		);
 
-		newReservation = res;
+	try {
+		newReservation = await createReservation(
+			forUser,
+			stand,
+			festival,
+			participantIds,
+		);
 	} catch (e) {
 		console.error("Error creating reservation", e);
 		const errorCode = e as Error;

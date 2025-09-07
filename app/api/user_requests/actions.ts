@@ -26,6 +26,7 @@ import { BaseProfile } from "@/app/api/users/definitions";
 import TermsAcceptanceEmailTemplate from "@/app/emails/terms-acceptance";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import { NewStandReservation } from "@/app/lib/repositories/reservations/types";
 
 export async function fetchRequestsByUserId(userId: number) {
 	try {
@@ -84,114 +85,6 @@ export async function fetchRequests(): Promise<UserRequest[]> {
 	} catch (error) {
 		console.error("Error fetching user requests", error);
 		return [];
-	}
-}
-
-// TODO: Move this to its own file
-export type NewStandReservation = typeof standReservations.$inferInsert & {
-	participantIds: number[];
-};
-export async function createReservation(
-	reservation: NewStandReservation,
-	price: number,
-	forUser: BaseProfile,
-) {
-	try {
-		if (forUser.status !== "verified") {
-			return {
-				success: false,
-				message: "No tienes permisos para realizar esta acción",
-			};
-		}
-
-		const blockingReservations = await db.query.standReservations.findMany({
-			where: and(
-				eq(standReservations.standId, reservation.standId),
-				not(eq(standReservations.status, "rejected")),
-			),
-		});
-
-		if (blockingReservations.length > 0) {
-			return {
-				success: false,
-				message: "Ups! Ya hay una reserva para este espacio",
-				description: "Recarga la página e intenta de nuevo",
-			};
-		}
-
-		const { festivalId, standId, participantIds } = reservation;
-		const newReservation = await db.transaction(async (tx) => {
-			const rows = await tx
-				.insert(standReservations)
-				.values({
-					festivalId,
-					standId,
-				})
-				.returning();
-
-			const reservationId = rows[0].id;
-
-			const participantValues = participantIds.map((userId) => ({
-				userId,
-				reservationId,
-			}));
-
-			await tx.insert(reservationParticipants).values(participantValues);
-
-			await tx
-				.update(stands)
-				.set({ status: "reserved", updatedAt: new Date() })
-				.where(eq(stands.id, standId));
-
-			await tx.insert(invoices).values({
-				date: new Date(),
-				userId: participantIds[0],
-				reservationId: reservationId,
-				amount: price,
-			});
-
-			await tx.insert(scheduledTasks).values({
-				dueDate: sql`now() + interval '5 days'`,
-				reminderTime: sql`now() + interval '4 days'`,
-				profileId: participantIds[0],
-				reservationId: reservationId,
-				taskType: "stand_reservation",
-			});
-
-			return rows[0];
-		});
-
-		const festival = await fetchBaseFestival(festivalId);
-		const creator = await fetchBaseProfileById(participantIds[0]);
-		const stand = await fetchStandById(standId);
-		const admins = await fetchAdminUsers();
-		const adminEmails = admins.map((admin) => admin.email);
-		await sendEmail({
-			to: [...adminEmails],
-			from: "Reservas Glitter <reservas@productoraglitter.com>",
-			subject: "Nueva reserva creada",
-			react: ReservationCreatedEmailTemplate({
-				festivalName: festival?.name || "Festival",
-				reservation: newReservation,
-				creatorName: creator?.displayName || "Usuario",
-				standName: `${stand?.label}${stand?.standNumber}` || "sin stand",
-				standCategory: getCategoryOccupationLabel(stand?.standCategory, {
-					singular: false,
-				}),
-			}) as React.ReactElement,
-		});
-
-		revalidatePath("profiles");
-		revalidatePath("/my_profile");
-
-		return {
-			success: true,
-			message: "Reserva creada",
-			reservationId: newReservation.id,
-		};
-	} catch (error) {
-		console.error("Error creating reservation", error);
-		return { success: false, message: "Ups! No pudimos crear la reserva" };
 	}
 }
 
