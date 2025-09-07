@@ -25,8 +25,8 @@ export default async function Landing() {
 						<div className="flex flex-col items-center">
 							<Image
 								alt="logo festicker"
-								src="/img/glitter/festicker-v2-logo-382x160.png"
-								height={160}
+								src="/img/twinkler/twinkler-v3-title.png"
+								height={82}
 								width={382}
 							/>
 							<Image

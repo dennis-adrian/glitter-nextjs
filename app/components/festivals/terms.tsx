@@ -1,40 +1,88 @@
+"use client";
+
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
+	BaseProfile,
+	ProfileType,
+	UserCategory,
+} from "@/app/api/users/definitions";
+import DetailedMap from "@/app/components/festivals/detailed-map";
+import GeneralInfoDetails from "@/app/components/festivals/general-info-details";
+import StandSpecificationsCards from "@/app/components/festivals/stand-specifications-cards";
+import TermsForm from "@/app/components/festivals/terms-form";
+import { isProfileInFestival } from "@/app/components/next_event/helpers";
+import { RedirectButton } from "@/app/components/redirect-button";
+import { Label } from "@/app/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/app/components/ui/select";
+import {
+	FestivalSectorBase,
+	FestivalSectorWithStands,
+} from "@/app/lib/festival_sectors/definitions";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
+import { formatDate } from "@/app/lib/formatters";
+import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
+import {
+	Accordion,
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Separator } from "@/components/ui/separator";
-import Image from "next/image";
-import { ProfileType, UserCategory } from "@/app/api/users/definitions";
-import GeneralInfoDetails from "@/app/components/festivals/general-info-details";
-import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
-import { FestivalSectorBase } from "@/app/lib/festival_sectors/definitions";
-import { RedirectButton } from "@/app/components/redirect-button";
-import { isProfileInFestival } from "@/app/components/next_event/helpers";
-import TermsForm from "@/app/components/festivals/terms-form";
-import StandSpecificationsCards from "@/app/components/festivals/stand-specifications-cards";
-import DetailedMap from "@/app/components/festivals/detailed-map";
-import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { DateTime } from "luxon";
-import { formatDate } from "@/app/lib/formatters";
+import Image from "next/image";
+import { useState } from "react";
 
 type TermsAndConditionsProps = {
 	festival: FestivalWithDates;
-	profile: ProfileType;
+	forProfile: ProfileType;
+	currentUser: BaseProfile;
 	category: Exclude<UserCategory, "none">;
 	festivalSectors: FestivalSectorBase[];
+	festivalSectorsWithAllowedCategoriesPromise: Promise<
+		(FestivalSectorWithStands & {
+			allowedCategories: UserCategory[];
+		})[]
+	>;
 };
 
 export default function TermsAndConditions(props: TermsAndConditionsProps) {
+	const [selectedCategory, setSelectedCategory] = useState<
+		Exclude<UserCategory, "none">
+	>(props.category);
+
 	const mapCategory =
-		props.category === "new_artist" ? "illustration" : props.category;
+		selectedCategory === "new_artist" ? "illustration" : selectedCategory;
 
 	const dayOneStartDate = formatDate(props.festival.festivalDates[0].startDate);
 
 	return (
 		<div className="container mx-auto py-8 px-4 md:px-6">
 			<div className="max-w-screen-lg mx-auto">
+				{props.currentUser.role === "admin" && (
+					<div className="flex flex-col gap-2 mb-4 max-w-fit">
+						<Label>Categoría de los términos y condiciones</Label>
+						<Select
+							value={selectedCategory}
+							onValueChange={(value) =>
+								setSelectedCategory(value as Exclude<UserCategory, "none">)
+							}
+						>
+							<SelectTrigger>
+								<SelectValue placeholder="Selecciona una categoría" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="illustration">Ilustración</SelectItem>
+								<SelectItem value="entrepreneurship">Emprendimiento</SelectItem>
+								<SelectItem value="gastronomy">Gastronomía</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+				)}
 				<div className="space-y-4 text-left md:text-center mb-4">
 					<h1 className="text-3xl font-bold tracking-tight">
 						Términos y Condiciones para Expositores
@@ -61,8 +109,8 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						Mapa del Evento y Precios de Espacios
 					</h2>
 
-					{props.festival.generalMapUrl && (
-						<div className="lg:col-span-2 border rounded-lg p-2 md:p-4">
+					<div className="lg:col-span-2 border rounded-lg p-2 md:p-4">
+						{props.festival.generalMapUrl ? (
 							<Image
 								src={props.festival.generalMapUrl}
 								alt="Mapa del recinto"
@@ -70,10 +118,18 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 								height={504}
 								className="mx-auto"
 							/>
-							<div />
-							<DetailedMap festivalSectors={props.festivalSectors} />
-						</div>
-					)}
+						) : (
+							<div className="text-muted-foreground text-center p-4">
+								<span>
+									El mapa general no está disponible en este momento. Pero
+									puedes ver los sectores a detalle haciendo clic en la opción
+									de abajo
+								</span>
+							</div>
+						)}
+						<div />
+						<DetailedMap festivalSectors={props.festivalSectors} />
+					</div>
 
 					<div>
 						<h3 className="text-lg md:text-xl font-medium mb-3 md:mb-4 text-left md:text-center leading-tight">
@@ -81,8 +137,10 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 							{getCategoryOccupationLabel(mapCategory).toLowerCase()}
 						</h3>
 						<StandSpecificationsCards
-							festivalId={props.festival.id}
 							profileCategory={mapCategory}
+							festivalSectorsWithAllowedCategoriesPromise={
+								props.festivalSectorsWithAllowedCategoriesPromise
+							}
 						/>
 					</div>
 
@@ -293,7 +351,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 									</li>
 								</ul>
 								<p className="mt-4">
-									No llegar a tiempo o notener montado el stand hasta la hora
+									No llegar a tiempo o no tener montado el stand hasta la hora
 									indicada puede resultar en penalizaciones para participaciones
 									futuras.
 								</p>
@@ -545,7 +603,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 					</Accordion>
 				</div>
 
-				{isProfileInFestival(props.festival.id, props.profile) ? (
+				{isProfileInFestival(props.festival.id, props.forProfile) ? (
 					<>
 						<div className="rounded-md border p-4">
 							Gracias por aceptar los términos y condiciones. Para hacer tu
@@ -553,14 +611,14 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						</div>
 						<div className="flex justify-end mt-4">
 							<RedirectButton
-								href={`/profiles/${props.profile.id}/festivals/${props.festival.id}/reservations/new`}
+								href={`/profiles/${props.forProfile.id}/festivals/${props.festival.id}/reservations/new`}
 							>
 								Completar mi reserva
 							</RedirectButton>
 						</div>
 					</>
 				) : (
-					<TermsForm festival={props.festival} profile={props.profile} />
+					<TermsForm festival={props.festival} profile={props.forProfile} />
 				)}
 			</div>
 		</div>
