@@ -25,8 +25,8 @@ export default async function Landing() {
 						<div className="flex flex-col items-center">
 							<Image
 								alt="logo festicker"
-								src="/img/glitter/festicker-v2-logo-382x160.png"
-								height={160}
+								src="/img/twinkler/twinkler-v3-title.png"
+								height={82}
 								width={382}
 							/>
 							<Image
@@ -76,7 +76,7 @@ export default async function Landing() {
 					<section className="text-center">
 						<div className="mt-8">
 							<div>
-								<h1 className="text-4xl font-bold md:text-6xl text-shadow-sm shadow-primary-200">
+								<h1 className="text-4xl font-bold md:text-6xl text-shadow-xs shadow-primary-200">
 									Nuestros festivales
 								</h1>
 								<p className="my-2 leading-6">
@@ -88,7 +88,7 @@ export default async function Landing() {
 								<Carousel />
 							</div>
 							<div className="py-4 md:py-14">
-								<h1 className="text-4xl font-bold md:text-6xl text-shadow-sm shadow-gray-400 my-6 md:my-0">
+								<h1 className="text-4xl font-bold md:text-6xl text-shadow-xs shadow-gray-400 my-6 md:my-0">
 									El mejor lugar para encontrar
 								</h1>
 								<EventFeatures />

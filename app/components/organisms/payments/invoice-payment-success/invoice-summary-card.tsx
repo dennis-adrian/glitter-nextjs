@@ -23,7 +23,7 @@ export default function InvoiceSummaryCard(props: InvoiceSummaryCardProps) {
 			</CardHeader>
 			<CardContent>
 				<div className="flex gap-4 mb-4">
-					<div className="w-20 h-20 rounded-md overflow-hidden flex-shrink-0">
+					<div className="w-20 h-20 rounded-md overflow-hidden shrink-0">
 						{stand.standCategory === "gastronomy" ? (
 							<Image
 								src="/img/stand-table-80x100.svg"

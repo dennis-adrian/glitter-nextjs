@@ -131,13 +131,13 @@ const MainCategoryCard = ({
   onSelectCategory: () => void;
 }) => {
   return (
-    <div
-      className="font-medium border py-1 px-3 rounded-md cursor-pointer overflow-hidden transition-all hover:border-primary-500 hover:scale-105 focus:border-primary-500 focus:outline-none"
-      onClick={onSelectCategory}
-    >
-      <div>{label}</div>
-    </div>
-  );
+		<div
+			className="font-medium border py-1 px-3 rounded-md cursor-pointer overflow-hidden transition-all hover:border-primary-500 hover:scale-105 focus:border-primary-500 focus:outline-hidden"
+			onClick={onSelectCategory}
+		>
+			<div>{label}</div>
+		</div>
+	);
 };
 
 const SelectedCategoryCard = ({

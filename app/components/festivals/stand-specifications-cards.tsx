@@ -1,16 +1,22 @@
+"use client";
+
 import { UserCategory } from "@/app/api/users/definitions";
 import StandSpecificationsSectorCard from "@/app/components/festivals/stand-specifications-sector-card";
-import { fetchFestivalSectorsWithAllowedCategories } from "@/app/lib/festival_sectors/actions";
+import { FestivalSectorWithStands } from "@/app/lib/festival_sectors/definitions";
+import { use } from "react";
 
-export default async function StandSpecificationsCards({
-	festivalId,
+export default function StandSpecificationsCards({
 	profileCategory,
+	festivalSectorsWithAllowedCategoriesPromise,
 }: {
-	festivalId: number;
 	profileCategory: UserCategory;
+	festivalSectorsWithAllowedCategoriesPromise: Promise<
+		(FestivalSectorWithStands & {
+			allowedCategories: UserCategory[];
+		})[]
+	>;
 }) {
-	const festivalSectors =
-		await fetchFestivalSectorsWithAllowedCategories(festivalId);
+	const festivalSectors = use(festivalSectorsWithAllowedCategoriesPromise);
 
 	const sectorsForProfile = festivalSectors.filter((sector) =>
 		sector.allowedCategories.includes(profileCategory),

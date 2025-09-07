@@ -50,7 +50,7 @@ export default function OrderTotalsCard({ product }: OrderTotalsCardProps) {
 		<Card className="w-full max-w-md transition-all duration-300 hover:shadow-md my-2">
 			<CardHeader className="pb-4">
 				<div className="flex items-start gap-3">
-					<PackageIcon className="h-6 w-6 text-muted-foreground mt-1 flex-shrink-0" />
+					<PackageIcon className="h-6 w-6 text-muted-foreground mt-1 shrink-0" />
 					<div className="flex-1 min-w-0">
 						<CardTitle className="text-lg leading-tight">
 							{product.productName}

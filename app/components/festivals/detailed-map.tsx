@@ -22,7 +22,7 @@ export default function DetailedMap({ festivalSectors }: DetailedMapProps) {
 			<div className="flex justify-center mt-4">
 				<Button
 					variant="link"
-					className="text-base md:text-lg"
+					className="text-base md:text-lg underline"
 					onClick={() => setShowModal(true)}
 				>
 					Ver mapa a detalle
@@ -37,7 +37,7 @@ export default function DetailedMap({ festivalSectors }: DetailedMapProps) {
 			>
 				{sectors.map((sector) => (
 					<div key={sector.id}>
-						<h3 className="text-lg font-semibold">Sector {sector.name}</h3>
+						<h3 className="font-semibold">Sector {sector.name}</h3>
 						<div
 							className={cn("relative h-96 w-full mx-auto my-4", {
 								"h-64": sector.name === "Galería de arte",

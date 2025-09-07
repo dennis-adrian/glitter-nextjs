@@ -46,16 +46,16 @@ export function StandShape({
     width: `${orientation === "landscape" ? size.wide : size.narrow}px`,
   };
 
-  let bgColor = "hover:bg-opacity-40 rounded-sm ";
-  if (status === "reserved") {
-    bgColor += "bg-emerald-300 hover:bg-emerald-500";
-  } else if (status === "confirmed") {
-    bgColor += "bg-rose-500 hover:bg-rose-700";
-  } else if (status === "disabled" || !canBeReserved) {
-    bgColor += "bg-zinc-800";
-  } else {
-    bgColor += "hover:bg-amber-100 hover:bg-opacity-60";
-  }
+  let bgColor = "rounded-sm ";
+	if (status === "reserved") {
+		bgColor += "bg-emerald-300/35 hover:bg-emerald-500/40";
+	} else if (status === "confirmed") {
+		bgColor += "bg-rose-500/35 hover:bg-rose-700/40";
+	} else if (status === "disabled" || !canBeReserved) {
+		bgColor += "bg-zinc-800/40";
+	} else {
+		bgColor += "hover:bg-amber-100/60";
+	}
 
   const handleClick = () => {
     if (!canBeReserved || !onClick) return;
@@ -63,18 +63,18 @@ export function StandShape({
   };
 
   return (
-    <div
-      className={`${bgColor} bg-opacity-35`}
-      key={standNumber}
-      style={style}
-      onClick={handleClick}
-    >
-      <StandContent
-        canBeReserved={canBeReserved}
-        stand={stand}
-        participantProfiles={participantProfiles}
-        standPosition={{ top: positionTop || 0, left: positionLeft || 0 }}
-      />
-    </div>
-  );
+		<div
+			className={`${bgColor}`}
+			key={standNumber}
+			style={style}
+			onClick={handleClick}
+		>
+			<StandContent
+				canBeReserved={canBeReserved}
+				stand={stand}
+				participantProfiles={participantProfiles}
+				standPosition={{ top: positionTop || 0, left: positionLeft || 0 }}
+			/>
+		</div>
+	);
 }
