@@ -12,6 +12,7 @@ import {
 	profileTags,
 	profileSubcategories,
 	infractions,
+	festivals,
 } from "@/db/schema";
 
 export type UserSocial = typeof userSocials.$inferSelect;

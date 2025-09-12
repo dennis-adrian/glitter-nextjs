@@ -36,157 +36,164 @@ export const columnTitles = {
 };
 
 export const columns: ColumnDef<FullReservation>[] = [
-  {
-    id: "select",
-    header: ({ table }) => (
-      <Checkbox
-        checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
-        }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
-      />
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: "id",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={columnTitles.id} />
-    ),
-  },
-  {
-    id: "stand",
-    accessorFn: (row) => `${row.stand.label}${row.stand.standNumber}`,
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={columnTitles.stand} />
-    ),
-  },
-  {
-    id: "artists",
-    accessorFn: (row) =>
-      row.participants.map((p) => p.user.displayName).join(", "),
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={columnTitles.artists} />
-    ),
-    cell: ({ row }) =>
-      row.original.participants.map(({ user: profile }) => (
-        <TooltipProvider key={profile.id}>
-          <Tooltip>
-            <TooltipTrigger>
-              <Avatar className="w-8 h-8">
-                <AvatarImage
-                  src={profile?.imageUrl || "/img/placeholders/avatar-placeholder.png"}
-                  alt={profile.displayName || "avatar"}
-                />
-              </Avatar>
-            </TooltipTrigger>
-            <TooltipContent>
-              <ProfileQuickViewInfo
-                className="p-4"
-                profile={profile}
-                truncateEmail
-              />
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )),
-  },
-  {
-    id: "collaborators",
-    accessorKey: "collaborators",
-    header: ({ column }) => (
-      <DataTableColumnHeader
-        column={column}
-        title={columnTitles.collaborators}
-      />
-    ),
-    cell: ({ row }) => {
-      const formattedCollaborators = row.original.collaborators.map((c) => ({
-        name: [c.collaborator.firstName, c.collaborator.lastName].join(" "),
-        idNumber: c.collaborator.identificationNumber,
-      }));
+	{
+		id: "select",
+		header: ({ table }) => (
+			<Checkbox
+				checked={
+					table.getIsAllPageRowsSelected() ||
+					(table.getIsSomePageRowsSelected() && "indeterminate")
+				}
+				onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+				aria-label="Select all"
+			/>
+		),
+		cell: ({ row }) => (
+			<Checkbox
+				checked={row.getIsSelected()}
+				onCheckedChange={(value) => row.toggleSelected(!!value)}
+				aria-label="Select row"
+			/>
+		),
+		enableSorting: false,
+		enableHiding: false,
+	},
+	{
+		accessorKey: "id",
+		header: ({ column }) => (
+			<DataTableColumnHeader column={column} title={columnTitles.id} />
+		),
+	},
+	{
+		id: "stand",
+		accessorFn: (row) => `${row.stand.label}${row.stand.standNumber}`,
+		header: ({ column }) => (
+			<DataTableColumnHeader column={column} title={columnTitles.stand} />
+		),
+	},
+	{
+		id: "artists",
+		accessorFn: (row) =>
+			row.participants.map((p) => p.user.displayName).join(", "),
+		header: ({ column }) => (
+			<DataTableColumnHeader column={column} title={columnTitles.artists} />
+		),
+		cell: ({ row }) =>
+			row.original.participants.map(({ user: profile }) => (
+				<TooltipProvider key={profile.id}>
+					<Tooltip>
+						<TooltipTrigger>
+							<Avatar className="w-8 h-8">
+								<AvatarImage
+									src={
+										profile?.imageUrl ||
+										"/img/placeholders/avatar-placeholder.png"
+									}
+									alt={profile.displayName || "avatar"}
+								/>
+							</Avatar>
+						</TooltipTrigger>
+						<TooltipContent>
+							<ProfileQuickViewInfo
+								className="p-4"
+								profile={profile}
+								truncateEmail
+							/>
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			)),
+	},
+	{
+		id: "collaborators",
+		accessorKey: "collaborators",
+		header: ({ column }) => (
+			<DataTableColumnHeader
+				column={column}
+				title={columnTitles.collaborators}
+			/>
+		),
+		cell: ({ row }) => {
+			const formattedCollaborators = row.original.collaborators.map((c) => ({
+				name: [c.collaborator.firstName, c.collaborator.lastName].join(" "),
+				idNumber: c.collaborator.identificationNumber,
+			}));
 
-      return formattedCollaborators.length > 0 ? (
-        <ol className="list-decimal text-sm text-muted-foreground max-w-40">
-          {formattedCollaborators.map((c) => (
-            <li className="" key={c.idNumber}>
-              {c.name} - {c.idNumber}
-            </li>
-          ))}
-        </ol>
-      ) : (
-        "--"
-      );
-    },
-  },
-  {
-    id: "festivalId",
-    accessorKey: "festivalId",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={columnTitles.festivalId} />
-    ),
-    cell: ({ row }) => row.original.festival.name,
-    filterFn: (row, columnId, filterFestival) => {
-      if (filterFestival.length === 0) return true;
-      const festivalId = row.getValue(columnId);
-      return filterFestival.includes(festivalId?.toString());
-    },
-  },
-  {
-    accessorKey: "status",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={columnTitles.status} />
-    ),
-    cell: ({ row }) => <ReservationStatus reservation={row.original} />,
-    filterFn: (row, columnId, filterStatus) => {
-      if (!filterStatus) return true;
-      const status = row.getValue(columnId);
-      return filterStatus === status;
-    },
-  },
-  {
-    accessorKey: "paymentStatus",
-    header: ({ column }) => (
-      <DataTableColumnHeader
-        column={column}
-        title={columnTitles.paymentStatus}
-      />
-    ),
-    cell: ({ row }) => <PaymentStatus reservation={row.original} />,
-  },
-  {
-    accessorKey: "expiration",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={columnTitles.expiration} />
-    ),
-    cell: ({ row }) => {
-      const expirationDate = formatDate(row.original.createdAt).plus({
-				hours: RESERVATION_EXPIRATION_HOURS,
-			});
-			return formatDateWithTime(expirationDate.toJSDate());
-    },
-  },
-  {
-    accessorKey: "createdAt",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={columnTitles.createdAt} />
-    ),
-    cell: ({ row }) => {
-      return formatDateWithTime(row.original.createdAt);
-    },
-  },
-  {
-    id: "actions",
-    cell: ({ row }) => <ActionsCell reservation={row.original} />,
-  },
+			return formattedCollaborators.length > 0 ? (
+				<ol className="list-decimal text-sm text-muted-foreground max-w-40">
+					{formattedCollaborators.map((c) => (
+						<li className="" key={c.idNumber}>
+							{c.name} - {c.idNumber}
+						</li>
+					))}
+				</ol>
+			) : (
+				"--"
+			);
+		},
+	},
+	{
+		id: "festivalId",
+		accessorKey: "festivalId",
+		header: ({ column }) => (
+			<DataTableColumnHeader column={column} title={columnTitles.festivalId} />
+		),
+		cell: ({ row }) => row.original.festival.name,
+		filterFn: (row, columnId, filterFestival) => {
+			if (filterFestival.length === 0) return true;
+			const festivalId = row.getValue(columnId);
+			return filterFestival.includes(festivalId?.toString());
+		},
+	},
+	{
+		accessorKey: "status",
+		header: ({ column }) => (
+			<DataTableColumnHeader column={column} title={columnTitles.status} />
+		),
+		cell: ({ row }) => <ReservationStatus reservation={row.original} />,
+		filterFn: (row, columnId, filterStatus) => {
+			if (!filterStatus) return true;
+			const status = row.getValue(columnId);
+			return filterStatus === status;
+		},
+	},
+	{
+		accessorKey: "paymentStatus",
+		header: ({ column }) => (
+			<DataTableColumnHeader
+				column={column}
+				title={columnTitles.paymentStatus}
+			/>
+		),
+		cell: ({ row }) => <PaymentStatus reservation={row.original} />,
+	},
+	{
+		id: "expiration",
+		accessorFn: (row) =>
+			formatDate(row.createdAt)
+				.plus({
+					hours: RESERVATION_EXPIRATION_HOURS,
+				})
+				.toMillis(),
+		header: ({ column }) => (
+			<DataTableColumnHeader column={column} title={columnTitles.expiration} />
+		),
+		cell: ({ getValue }) => {
+			const ms = getValue<number>()!;
+			return formatDateWithTime(new Date(ms));
+		},
+	},
+	{
+		accessorKey: "createdAt",
+		header: ({ column }) => (
+			<DataTableColumnHeader column={column} title={columnTitles.createdAt} />
+		),
+		cell: ({ row }) => {
+			return formatDateWithTime(row.original.createdAt);
+		},
+	},
+	{
+		id: "actions",
+		cell: ({ row }) => <ActionsCell reservation={row.original} />,
+	},
 ];
