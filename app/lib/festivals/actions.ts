@@ -379,7 +379,12 @@ export async function fetchFestival({
 							with: {
 								participations: {
 									with: {
-										reservation: true,
+										reservation: {
+											with: {
+												stand: true,
+												festival: true,
+											},
+										},
 									},
 								},
 								userRequests: true,
@@ -763,6 +768,7 @@ export async function fetchFestivalParticipants(
 				reservation: {
 					with: {
 						stand: true,
+						festival: true,
 					},
 				},
 			},

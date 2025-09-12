@@ -19,6 +19,7 @@ import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import { useSearchParams } from "next/navigation";
 import { use } from "react";
+import ParticipationsCell from "./cells/participations-cell";
 
 type Props = {
 	fetchUsersPromise: Promise<ProfileType[]>;
@@ -45,6 +46,7 @@ export default function UsersTable({
 						<HeaderCell canSort value="displayName" label="Perfil" />
 						<HeaderCell canSort value="category" label="Categoría" />
 						<HeaderCell canSort value="status" label="Estado del perfil" />
+						<HeaderCell canSort value="status" label="Participaciones" />
 						<HeaderCell
 							canSort
 							value="verifiedAt"
@@ -71,6 +73,9 @@ export default function UsersTable({
 								</TableCell>
 								<TableCell>
 									<ProfileStatusCell status={user.status} />
+								</TableCell>
+								<TableCell>
+									<ParticipationsCell participations={user.participations || []} />
 								</TableCell>
 								<TableCell>
 									{user.verifiedAt
