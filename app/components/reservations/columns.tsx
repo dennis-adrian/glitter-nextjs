@@ -13,10 +13,15 @@ import { ActionsCell } from "@/app/components/reservations/cells/actions";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
-import { formatFullDate } from "@/app/lib/formatters";
+import {
+	formatDate,
+	formatDateWithTime,
+	formatFullDate,
+} from "@/app/lib/formatters";
 import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import PaymentStatus from "@/app/components/reservations/cells/payment-status";
+import { RESERVATION_EXPIRATION_HOURS } from "@/app/lib/constants";
 
 export const columnTitles = {
   artists: "Participantes",
@@ -26,6 +31,7 @@ export const columnTitles = {
   stand: "Espacio",
   status: "Estado de la Reserva",
   paymentStatus: "Estado del Pago",
+  expiration: "Vencimiento",
   collaborators: "Colaboradores",
 };
 
@@ -159,12 +165,24 @@ export const columns: ColumnDef<FullReservation>[] = [
     cell: ({ row }) => <PaymentStatus reservation={row.original} />,
   },
   {
+    accessorKey: "expiration",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={columnTitles.expiration} />
+    ),
+    cell: ({ row }) => {
+      const expirationDate = formatDate(row.original.createdAt).plus({
+				hours: RESERVATION_EXPIRATION_HOURS,
+			});
+			return formatDateWithTime(expirationDate.toJSDate());
+    },
+  },
+  {
     accessorKey: "createdAt",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.createdAt} />
     ),
     cell: ({ row }) => {
-      return formatFullDate(row.original.createdAt);
+      return formatDateWithTime(row.original.createdAt);
     },
   },
   {
