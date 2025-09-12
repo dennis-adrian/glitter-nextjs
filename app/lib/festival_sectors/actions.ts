@@ -120,7 +120,7 @@ export async function fetchFestivalSectorsByUserCategory(
 }
 
 export async function fetchConfirmedProfilesByFestivalId(
-	festivalId: number,
+	festivalId: number
 ): Promise<
 	(BaseProfile & {
 		stands: StandBase[];
@@ -128,91 +128,61 @@ export async function fetchConfirmedProfilesByFestivalId(
 	})[]
 > {
 	try {
+
 		const res = await db
 			.select()
 			.from(users)
-			.leftJoin(
-				reservationParticipants,
-				eq(reservationParticipants.userId, users.id),
-			)
-			.leftJoin(
-				standReservations,
-				eq(standReservations.id, reservationParticipants.reservationId),
-			)
+			.leftJoin(reservationParticipants, eq(reservationParticipants.userId, users.id))
+			.leftJoin(standReservations, eq(standReservations.id, reservationParticipants.reservationId))
 			.leftJoin(stands, eq(stands.id, standReservations.standId))
+			.leftJoin(festivals, eq(festivals.id, standReservations.festivalId))
 			.where(
 				and(
 					eq(standReservations.festivalId, festivalId),
-					eq(standReservations.status, "accepted"),
-				),
-			);
-
-		let allUsersParticipationsObject: Record<number, Participation[]> = {};
-
-		if (res.length > 0) {
-			const allUsersParticipations = await db
-				.select()
-				.from(reservationParticipants)
-				.leftJoin(
-					standReservations,
-					eq(standReservations.id, reservationParticipants.reservationId),
+					eq(standReservations.status, "accepted")
 				)
-				.where(
-					inArray(
-						reservationParticipants.userId,
-						res.map((r) => r.users.id),
-					),
-				);
-
-			allUsersParticipationsObject = allUsersParticipations.reduce(
-				(acc, data) => {
-					const participation: Participation = {
-						...data.participations,
-						reservation: data.stand_reservations!,
-					};
-					acc[data.participations.userId] = [
-						...(acc[data.participations.userId] || []),
-						participation,
-					];
-					return acc;
-				},
-				{} as Record<number, Participation[]>,
 			);
-		}
 
-		const profilesObject = res.reduce(
-			(acc, data) => {
-				const userId = data.users.id;
-				const accStands = acc[userId]?.stands || [];
-				const userStand = data.stands;
+		const allUsersParticipationsObject: Record<number, Participation[]> = {};
 
-				const accParticipations = acc[userId]?.participations || [];
-				const userParticipations = allUsersParticipationsObject[userId];
+		res.forEach((data) => {
+			const userId = data.users.id;
+			if (!data.stand_reservations || !data.stands || !data.festivals || !data.participations) return;
 
-				if (userStand) {
-					accStands.push(userStand);
-					accStands.sort((a, b) => a.standNumber - b.standNumber);
-				}
+			const participation: Participation = {
+				...data.participations,
+				reservation: {
+					...data.stand_reservations,
+					stand: data.stands,
+					festival: data.festivals,
+				},
+			};
 
-				if (accParticipations.length !== userParticipations.length) {
-					accParticipations.push(...userParticipations);
-				}
+			allUsersParticipationsObject[userId] = [
+				...(allUsersParticipationsObject[userId] || []),
+				participation,
+			];
+		});
 
-				acc[userId] = {
-					...data.users,
-					stands: accStands,
-					participations: accParticipations,
-				};
-				return acc;
-			},
-			{} as Record<
-				number,
-				BaseProfile & {
-					stands: StandBase[];
-					participations: Participation[];
-				}
-			>,
-		);
+		const profilesObject = res.reduce((acc, data) => {
+			const userId = data.users.id;
+
+			const accStands = acc[userId]?.stands || [];
+			if (data.stands) {
+				accStands.push(data.stands);
+				accStands.sort((a, b) => a.standNumber - b.standNumber);
+			}
+
+			const accParticipations = allUsersParticipationsObject[userId] || [];
+
+			acc[userId] = {
+				...data.users,
+				stands: accStands,
+				participations: accParticipations,
+			};
+
+			return acc;
+		}, {} as Record<number, BaseProfile & { stands: StandBase[]; participations: Participation[] }>);
 
 		return Object.values(profilesObject);
 	} catch (error) {
@@ -220,6 +190,7 @@ export async function fetchConfirmedProfilesByFestivalId(
 		return [];
 	}
 }
+
 
 export async function enrollInActivity(
 	user: BaseProfile,
@@ -301,7 +272,12 @@ export async function fetchFullFestivalById(
 							with: {
 								participations: {
 									with: {
-										reservation: true,
+										reservation: {
+											with: {
+												stand: true,
+												festival: true,
+											},
+										},
 									},
 								},
 								userRequests: true,

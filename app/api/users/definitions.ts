@@ -17,8 +17,12 @@ import {
 export type UserSocial = typeof userSocials.$inferSelect;
 type UserRequest = typeof userRequests.$inferSelect;
 export type Participation = typeof reservationParticipants.$inferSelect & {
-	reservation: typeof standReservations.$inferSelect;
+	reservation: typeof standReservations.$inferSelect & {
+		stand: StandBase;
+		festival: typeof festivals.$inferSelect; // added festival here
+	};
 };
+
 export type ParticipationWithParticipantAndReservations = Participation & {
 	user: typeof users.$inferSelect;
 	reservation: typeof standReservations.$inferSelect;
