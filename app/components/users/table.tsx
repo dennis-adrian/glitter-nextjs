@@ -19,7 +19,7 @@ import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import { useSearchParams } from "next/navigation";
 import { use } from "react";
-import ParticipationsCell from "./cells/participationsCell";
+import ParticipationsCell from "./cells/participations-cell";
 
 type Props = {
 	fetchUsersPromise: Promise<ProfileType[]>;
