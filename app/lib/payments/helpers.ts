@@ -46,3 +46,16 @@ export function getStandUrlByCategory(
     return festival.entrepreneurshipStandUrl;
   }
 }
+
+export function mapPaymentStatusToDisplayPaymentStatus(status: InvoiceStatus) {
+	switch (status) {
+		case "pending":
+			return "Pendiente";
+		case "paid":
+			return "Pagado";
+		case "cancelled":
+			return "Cancelado";
+		default:
+			return "--";
+	}
+}

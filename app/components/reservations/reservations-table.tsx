@@ -8,17 +8,15 @@ export default function ReservationsTable({
   data: FullReservation[];
 }) {
   return (
-    <DataTable
-      columns={columns}
-      data={data}
-      columnTitles={columnTitles}
-      initialState={{
-        columnVisibility: {
-          festivalId: false,
-          paymentStatus: false,
-          createdAt: false,
-        },
-      }}
-    />
-  );
+		<DataTable
+			columns={columns}
+			data={data}
+			columnTitles={columnTitles}
+			initialState={{
+				columnVisibility: {
+					festivalId: false,
+				},
+			}}
+		/>
+	);
 }

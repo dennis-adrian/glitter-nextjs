@@ -1,27 +1,28 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/react-table";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ColumnDef } from "@tanstack/react-table";
 
 import { FullReservation } from "@/app/api/reservations/definitions";
 import { ActionsCell } from "@/app/components/reservations/cells/actions";
+import PaymentStatus from "@/app/components/reservations/cells/payment-status";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
+import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
+import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
+import { RESERVATION_EXPIRATION_HOURS } from "@/app/lib/constants";
 import {
 	formatDate,
 	formatDateWithTime,
 	formatFullDate,
 } from "@/app/lib/formatters";
-import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
-import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
-import PaymentStatus from "@/app/components/reservations/cells/payment-status";
-import { RESERVATION_EXPIRATION_HOURS } from "@/app/lib/constants";
+import { mapPaymentStatusToDisplayPaymentStatus } from "@/app/lib/payments/helpers";
 
 export const columnTitles = {
   artists: "Participantes",
@@ -158,7 +159,9 @@ export const columns: ColumnDef<FullReservation>[] = [
 		},
 	},
 	{
-		accessorKey: "paymentStatus",
+		id: "paymentStatus",
+		accessorFn: (row) =>
+			mapPaymentStatusToDisplayPaymentStatus(row.invoices[0].status),
 		header: ({ column }) => (
 			<DataTableColumnHeader
 				column={column}
