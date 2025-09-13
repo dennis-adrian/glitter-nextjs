@@ -9,6 +9,7 @@ import {
 import { ColumnDef } from "@tanstack/react-table";
 
 import { FullReservation } from "@/app/api/reservations/definitions";
+import CategoryBadge from "@/app/components/category-badge";
 import { ActionsCell } from "@/app/components/reservations/cells/actions";
 import PaymentStatus from "@/app/components/reservations/cells/payment-status";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
@@ -17,23 +18,23 @@ import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
 import { RESERVATION_EXPIRATION_HOURS } from "@/app/lib/constants";
+import { formatDate, formatDateWithTime } from "@/app/lib/formatters";
 import {
-	formatDate,
-	formatDateWithTime,
-	formatFullDate,
-} from "@/app/lib/formatters";
-import { mapPaymentStatusToDisplayPaymentStatus } from "@/app/lib/payments/helpers";
+	DisplayPaymentStatus,
+	mapPaymentStatusToDisplayPaymentStatus,
+} from "@/app/lib/payments/helpers";
 
 export const columnTitles = {
-  artists: "Participantes",
-  createdAt: "Creación",
-  festivalId: "Festival",
-  id: "ID",
-  stand: "Espacio",
-  status: "Estado de la Reserva",
-  paymentStatus: "Estado del Pago",
-  expiration: "Vencimiento",
-  collaborators: "Colaboradores",
+	artists: "Participantes",
+	createdAt: "Creación",
+	festivalId: "Festival",
+	id: "ID",
+	stand: "Espacio",
+	status: "Estado de la Reserva",
+	paymentStatus: "Estado del Pago",
+	expiration: "Vencimiento",
+	collaborators: "Colaboradores",
+	festivalSector: "Sector",
 };
 
 export const columns: ColumnDef<FullReservation>[] = [
@@ -106,6 +107,24 @@ export const columns: ColumnDef<FullReservation>[] = [
 			)),
 	},
 	{
+		id: "festivalSector",
+		accessorFn: (row) => row.stand.standCategory,
+		header: ({ column }) => (
+			<DataTableColumnHeader
+				column={column}
+				title={columnTitles.festivalSector}
+			/>
+		),
+		cell: ({ row }) => (
+			<CategoryBadge category={row.original.stand.standCategory} />
+		),
+		filterFn: (row, columnId, filterCategories) => {
+			if (filterCategories.length === 0) return true;
+			const category = row.getValue(columnId);
+			return filterCategories.includes(category);
+		},
+	},
+	{
 		id: "collaborators",
 		accessorKey: "collaborators",
 		header: ({ column }) => (
@@ -155,13 +174,15 @@ export const columns: ColumnDef<FullReservation>[] = [
 		filterFn: (row, columnId, filterStatus) => {
 			if (!filterStatus) return true;
 			const status = row.getValue(columnId);
-			return filterStatus === status;
+			return filterStatus.includes(status);
 		},
 	},
 	{
 		id: "paymentStatus",
 		accessorFn: (row) =>
-			mapPaymentStatusToDisplayPaymentStatus(row.invoices[0].status),
+			row.invoices.length > 0
+				? mapPaymentStatusToDisplayPaymentStatus(row.invoices[0]!, row)
+				: DisplayPaymentStatus.NONE,
 		header: ({ column }) => (
 			<DataTableColumnHeader
 				column={column}
@@ -169,6 +190,11 @@ export const columns: ColumnDef<FullReservation>[] = [
 			/>
 		),
 		cell: ({ row }) => <PaymentStatus reservation={row.original} />,
+		filterFn: (row, columnId, filter) => {
+			if (!filter || filter.length === 0) return true;
+			const status = row.getValue(columnId);
+			return filter.includes(status);
+		},
 	},
 	{
 		id: "expiration",

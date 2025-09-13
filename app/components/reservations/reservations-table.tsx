@@ -1,13 +1,15 @@
-import { DataTable } from "@/app/components/ui/data_table/data-table";
-import { columns, columnTitles } from "./columns";
 import { FullReservation } from "@/app/api/reservations/definitions";
+import { DataTable } from "@/app/components/ui/data_table/data-table";
+import { DisplayPaymentStatus } from "@/app/lib/payments/helpers";
+import { userCategoryOptions } from "@/app/lib/utils";
+import { columns, columnTitles } from "./columns";
 
 export default function ReservationsTable({
-  data,
+	data,
 }: {
-  data: FullReservation[];
+	data: FullReservation[];
 }) {
-  return (
+	return (
 		<DataTable
 			columns={columns}
 			data={data}
@@ -17,6 +19,44 @@ export default function ReservationsTable({
 					festivalId: false,
 				},
 			}}
+			filters={[
+				{
+					label: "Estado de la reserva",
+					columnId: "status",
+					options: [
+						{ value: "pending", label: "Pendiente" },
+						{ value: "accepted", label: "Confirmada" },
+						{ value: "rejected", label: "Rechazada" },
+					],
+				},
+				{
+					label: "Estado del pago",
+					columnId: "paymentStatus",
+					options: [
+						{
+							value: DisplayPaymentStatus.PENDING,
+							label: DisplayPaymentStatus.PENDING,
+						},
+						{
+							value: DisplayPaymentStatus.OUTSTANDING,
+							label: DisplayPaymentStatus.OUTSTANDING,
+						},
+						{
+							value: DisplayPaymentStatus.PAID,
+							label: DisplayPaymentStatus.PAID,
+						},
+						{
+							value: DisplayPaymentStatus.CANCELLED,
+							label: DisplayPaymentStatus.CANCELLED,
+						},
+					],
+				},
+				{
+					label: "Sector",
+					columnId: "festivalSector",
+					options: [...userCategoryOptions],
+				},
+			]}
 		/>
 	);
 }
