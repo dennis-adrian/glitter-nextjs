@@ -135,7 +135,7 @@ export function ActivityCard({
 						href={`/profiles/${forProfile.id}/festivals/${activity.festivalId}/activity`}
 						size="sm"
 						variant="outline"
-						className="border-purple-500 text-purple-500 hover:bg-purple-50 hover:text-purple-500 focus:text-purple-500"
+						className="border-emerald-500 text-emerald-500 hover:bg-emerald-50 hover:text-emerald-500 focus:text-emerald-500"
 						loadingText=""
 					>
 						Ver más
