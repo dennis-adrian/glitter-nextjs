@@ -4,6 +4,8 @@ import {
 	FestivalActivityWithDetailsAndParticipants,
 	FestivalBase,
 } from "@/app/lib/festivals/definitions";
+import { formatDate } from "@/app/lib/formatters";
+import { DateTime } from "luxon";
 import Image from "next/image";
 
 type PassportActivityContentProps = {
@@ -19,6 +21,7 @@ export default function PassportActivityContent({
 	forProfile,
 	festival,
 }: PassportActivityContentProps) {
+	const formattedRegistrationEndDate = formatDate(activity.registrationEndDate);
 	return (
 		<div className="flex flex-col gap-4">
 			<h1 className="text-2xl font-bold">{activity.name}</h1>
@@ -80,7 +83,7 @@ export default function PassportActivityContent({
 				<h2 className="text-lg font-bold">
 					Condiciones para participar de la actividad
 				</h2>
-				<ol className="ml-2 list-decimal list-inside">
+				<ol className="ml-2 list-decimal list-inside space-y-2">
 					<li>Tener una reserva confirmada para el festival</li>
 					<li>
 						Inscribirse a la actividad con el botón de inscripción que se
@@ -93,8 +96,11 @@ export default function PassportActivityContent({
 						sello de una edición pasada también es válido.
 					</li>
 					<li>
-						Subir el diseño del sello al sitio web hasta el 3 de junio, 2025
-						para ayudar con el control a quienes completen la actividad.
+						Subir el diseño del sello al sitio web hasta el{" "}
+						{formattedRegistrationEndDate
+							.plus({ days: 5 })
+							.toLocaleString(DateTime.DATE_FULL)}
+						, para ayudar con el control a quienes completen la actividad.
 					</li>
 				</ol>
 			</div>

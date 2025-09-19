@@ -1,11 +1,5 @@
 import RemoveCollaboratorForm from "@/app/components/organisms/upcoming-festival/remove-collaborator-form";
 import { Avatar, AvatarFallback } from "@/app/components/ui/avatar-radix";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/app/components/ui/tooltip";
 import { Collaborator } from "@/app/lib/reservations/definitions";
 
 type TeamMemberProps = {

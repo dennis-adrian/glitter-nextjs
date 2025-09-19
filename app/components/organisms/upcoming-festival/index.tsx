@@ -41,33 +41,33 @@ export function UpcomingFestivalCard({
 	);
 
 	return (
-		<Card className="w-full max-w-4xl shadow-lg border-purple-100 mx-auto">
-			<CardHeader className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-t-lg">
+		<Card className="w-full max-w-4xl shadow-lg border-green-100 mx-auto">
+			<CardHeader className="bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-t-lg">
 				<div className="flex justify-between items-start">
 					<div>
 						<CardTitle className="text-lg md:text-2xl font-bold">
 							{festival.name}
 						</CardTitle>
 						{festival.description && (
-							<CardDescription className="text-purple-100 mt-2 text-sm md:text-base">
+							<CardDescription className="text-green-100 mt-2 text-sm md:text-base">
 								{festival.description}
 							</CardDescription>
 						)}
 					</div>
-					<Badge className="hidden md:block bg-white text-purple-500 hover:bg-purple-100 px-3 py-1 text-sm">
+					<Badge className="hidden md:block bg-white text-green-500 hover:bg-green-100 px-3 py-1 text-sm">
 						Participante Confirmado
 					</Badge>
 				</div>
 
 				<div className="flex flex-col sm:flex-row gap-1 md:gap-4 mt-4">
 					<div className="flex items-center gap-2">
-						<Calendar className="h-5 w-5 text-purple-200" />
+						<Calendar className="h-5 w-5 text-green-200" />
 						<span>
 							{festivalStartDate} - {festivalEndDate}
 						</span>
 					</div>
 					<div className="flex items-center gap-2">
-						<MapPin className="h-5 w-5 text-purple-200" />
+						<MapPin className="h-5 w-5 text-green-200" />
 						<span>{festival.locationLabel}</span>
 					</div>
 					{/* <div className="flex items-center gap-2">
