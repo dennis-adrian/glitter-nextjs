@@ -47,11 +47,11 @@ export default async function ParticipantsActivityPage({
 	}
 
 	const stickerPrintActivity = festival.festivalActivities.find(
-		(activity) => activity.name === "Sticker-Print",
+		(activity) => activity.type === "sticker_print",
 	);
 
-	const passportActivity = festival.festivalActivities.find((activity) =>
-		activity.name.includes("Pasaporte"),
+	const passportActivity = festival.festivalActivities.find(
+		(activity) => activity.type === "stamp_passport",
 	);
 
 	if (!(stickerPrintActivity || passportActivity)) {

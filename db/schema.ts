@@ -609,6 +609,11 @@ export const qrCodesRelations = relations(qrCodes, ({ many }) => ({
 	stands: many(stands),
 }));
 
+export const festivalActivityTypeEnum = pgEnum("festival_activity_type", [
+	"stamp_passport",
+	"sticker_print",
+]);
+
 export const festivalActivities = pgTable("festival_activities", {
 	id: serial("id").primaryKey(),
 	name: text("name").notNull(),
@@ -620,6 +625,8 @@ export const festivalActivities = pgTable("festival_activities", {
 		.references(() => festivals.id, { onDelete: "cascade" })
 		.notNull(),
 	visitorsDescription: text("visitors_description"),
+	type: festivalActivityTypeEnum("type").default("stamp_passport").notNull(),
+	activityPrizeUrl: text("activity_prize_url"),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });

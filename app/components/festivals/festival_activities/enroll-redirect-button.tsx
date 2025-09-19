@@ -53,21 +53,21 @@ export default function EnrollRedirectButton({
 			if (now < startDate) {
 				setIsEnabled(false);
 				setStatusMessage(
-					`El registro comenzará el ${startDate.toLocaleString(
+					`El registro comenzará en ${startDate.toLocaleString(
 						DateTime.DATETIME_MED,
 					)}`,
 				);
 			} else if (now > endDate) {
 				setIsEnabled(false);
 				setStatusMessage(
-					`El registro finalizó el ${endDate.toLocaleString(
+					`El registro finalizó en ${endDate.toLocaleString(
 						DateTime.DATETIME_MED,
 					)}`,
 				);
 			} else {
 				setIsEnabled(true);
 				setStatusMessage(
-					`Registro abierto hasta el ${endDate.toLocaleString(
+					`Registro abierto hasta ${endDate.toLocaleString(
 						DateTime.DATETIME_MED,
 					)}`,
 				);
