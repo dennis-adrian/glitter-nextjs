@@ -97,12 +97,26 @@ export default function PassportActivityContent({
 					</li>
 					<li>
 						Subir el diseño del sello al sitio web hasta el{" "}
-						{formattedRegistrationEndDate
-							.plus({ days: 5 })
-							.toLocaleString(DateTime.DATE_FULL)}
+						<strong>
+							{formattedRegistrationEndDate
+								.plus({ days: 5 })
+								.toLocaleString(DateTime.DATE_FULL)}
+						</strong>
 						, para ayudar con el control a quienes completen la actividad.
 					</li>
+					<li>
+						Tratar con respeto a todos los expositores y público asistente
+						participantes de la actividad. Ante cualquier incoveniente,
+						reportarlo inmediatamente a la organización del festival.
+					</li>
 				</ol>
+			</div>
+			<div>
+				<p className="text-sm text-muted-foreground italic">
+					* Todos los expositores del festival podrán reservar su pasaporte a
+					través de la pre-venta en el sitio web o adquirirlo en el stand de
+					Glitter al ingresar al festival. Sólo habrá 100 unidades disponibles.
+				</p>
 			</div>
 			<div className="bg-amber-50 border border-amber-100 rounded-md p-4 mt-4 text-amber-800">
 				<p className="text-sm">
