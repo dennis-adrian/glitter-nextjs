@@ -26,7 +26,7 @@ export default function FestivalCard({
 						<CardTitle>{festival.name}</CardTitle>
 						<FestivalStatusBadge status={festival.status} />
 					</div>
-					<FestivalCardDropdown festivalId={festival.id} />
+					<FestivalCardDropdown festival={festival} />
 				</div>
 				<CardDescription>
 					{festival.description || "No definido"}
