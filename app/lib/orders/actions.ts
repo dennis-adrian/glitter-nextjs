@@ -19,7 +19,7 @@ async function sendOrderEmails(
 	orderId: number,
 	user: any,
 	products: any[],
-	total: number
+	total: number,
 ) {
 	// 1. Send to user
 	await sendEmail({
@@ -41,7 +41,8 @@ async function sendOrderEmails(
 	if (adminEmails.length > 0) {
 		await sendEmail({
 			to: adminEmails,
-			from: "Glitter Store <reservas@productoraglitter.com>",
+			from: "Glitter Store <store@productoraglitter.com>",
+			replyTo: "soporte@productoraglitter.com",
 			subject: `Nueva orden #${orderId} de ${user.displayName || "Cliente"}`,
 			react: OrderConfirmationForAdminsEmailTemplate({
 				customer: { displayName: user.displayName },
@@ -101,6 +102,8 @@ export async function createOrder(
 				name: product?.name || "Producto",
 				quantity: oi.quantity,
 				price: oi.priceAtPurchase,
+				isPreOrder: product?.isPreOrder || false,
+				availableDate: product?.availableDate || null,
 			};
 		});
 
