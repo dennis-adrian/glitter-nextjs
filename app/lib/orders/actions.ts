@@ -107,13 +107,20 @@ export async function createOrder(
 			};
 		});
 
-		await sendOrderEmails({
-			orderId,
-			customerEmail,
-			customerName,
-			products: mappedProducts,
-			total: totalAmount,
-		});
+		// Mark the order as created before attempting email notifications
+		createdOrderId = orderId;
+
+		try {
+			await sendOrderEmails({
+				orderId,
+				customerEmail,
+				customerName,
+				products: mappedProducts,
+				total: totalAmount,
+			});
+		} catch (emailError) {
+			console.error("Failed to send order emails", emailError);
+		}
 
 		createdOrderId = orderId;
 	} catch (error) {
