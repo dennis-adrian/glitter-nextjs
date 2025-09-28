@@ -1,5 +1,6 @@
 "use client";
 
+import { BaseProfile } from "@/app/api/users/definitions";
 import SubmitButton from "@/app/components/simple-submit-button";
 import {
 	Form,
@@ -33,10 +34,10 @@ const FormSchema = z.object({
 
 type CreateOrderFormProps = {
 	product: BaseProduct;
-	profileId: number;
+	profile: BaseProfile;
 };
 export default function CreateOrderForm(props: CreateOrderFormProps) {
-	const { product, profileId } = props;
+	const { product, profile } = props;
 	const [subtotal, setSubtotal] = useState(product.price);
 	const router = useRouter();
 	const form = useForm<z.infer<typeof FormSchema>>({
@@ -59,14 +60,16 @@ export default function CreateOrderForm(props: CreateOrderFormProps) {
 
 		const { success, message, details } = await createOrder(
 			orderItemsToInsert,
-			profileId,
+			profile.id,
 			subtotal,
+			profile.email,
+			profile.displayName || "",
 		);
 
 		if (success && details?.orderId) {
 			toast.success(message);
 			form.reset();
-			router.push(`/profiles/${profileId}/orders/${details.orderId}`);
+			router.push(`/profiles/${profile.id}/orders/${details.orderId}`);
 		} else {
 			form.setError("root", { message });
 			toast.error(message);

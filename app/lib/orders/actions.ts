@@ -15,19 +15,22 @@ import { fetchAdminUsers } from "@/app/api/users/actions";
 import OrderConfirmationForAdminsEmailTemplate from "@/app/emails/order-confirmation-for-admins";
 import OrderConfirmationForUsersEmailTemplate from "@/app/emails/order-confirmation-for-user";
 
-async function sendOrderEmails(
-	orderId: number,
-	user: any,
-	products: any[],
-	total: number,
-) {
+async function sendOrderEmails(emailData: {
+	orderId: number;
+	customerEmail: string;
+	customerName: string;
+	products: any[];
+	total: number;
+}) {
 	// 1. Send to user
+	const { orderId, customerEmail, customerName, products, total } = emailData;
+
 	await sendEmail({
-		to: [user.email],
+		to: [customerEmail],
 		from: "Glitter Store <reservas@productoraglitter.com>",
 		subject: `Tu orden #${orderId} ha sido recibida`,
 		react: OrderConfirmationForUsersEmailTemplate({
-			profile: user,
+			customerName,
 			orderId: String(orderId),
 			products,
 			total,
@@ -43,9 +46,9 @@ async function sendOrderEmails(
 			to: adminEmails,
 			from: "Glitter Store <store@productoraglitter.com>",
 			replyTo: "soporte@productoraglitter.com",
-			subject: `Nueva orden #${orderId} de ${user.displayName || "Cliente"}`,
+			subject: `Nueva orden #${orderId} de ${customerName || "Cliente"}`,
 			react: OrderConfirmationForAdminsEmailTemplate({
-				customer: { displayName: user.displayName },
+				customerName,
 				orderId: String(orderId),
 				products,
 				total,
@@ -57,6 +60,8 @@ export async function createOrder(
 	orderItemsToInsert: NewOrderItem[],
 	userId: number,
 	totalAmount: number,
+	customerEmail: string,
+	customerName: string,
 ) {
 	let createdOrderId = null;
 
@@ -84,11 +89,6 @@ export async function createOrder(
 			return order.id;
 		});
 
-		const [user] = await db.select().from(users).where(eq(users.id, userId));
-		if (!user) {
-			throw new Error("User not found for order");
-		}
-
 		// Fetch product info
 		const productIds = orderItemsToInsert.map((oi) => oi.productId);
 		const productList = await db.query.products.findMany({
@@ -107,7 +107,13 @@ export async function createOrder(
 			};
 		});
 
-		await sendOrderEmails(orderId, user, mappedProducts, totalAmount);
+		await sendOrderEmails({
+			orderId,
+			customerEmail,
+			customerName,
+			products: mappedProducts,
+			total: totalAmount,
+		});
 
 		createdOrderId = orderId;
 	} catch (error) {

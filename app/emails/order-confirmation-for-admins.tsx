@@ -16,9 +16,7 @@ import { DateTime } from "luxon";
 
 interface AdminOrderNotificationEmailProps {
 	orderId: string;
-	customer?: {
-		displayName?: string | null;
-	};
+	customerName?: string | null;
 	products: {
 		id: number;
 		name: string;
@@ -34,7 +32,7 @@ export default function OrderConfirmationForAdminsEmailTemplate(
 	props: AdminOrderNotificationEmailProps,
 ) {
 	const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-	const customerName = props.customer?.displayName || "Cliente";
+	const customerName = props.customerName || "Cliente";
 
 	return (
 		<Html>
@@ -153,9 +151,7 @@ export default function OrderConfirmationForAdminsEmailTemplate(
 
 OrderConfirmationForAdminsEmailTemplate.PreviewProps = {
 	orderId: "12345",
-	customer: {
-		displayName: "Jane Doe",
-	},
+	customerName: "Jane Doe",
 	products: [
 		{
 			id: 1,

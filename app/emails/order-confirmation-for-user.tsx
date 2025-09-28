@@ -22,14 +22,8 @@ interface Product {
 	isPreOrder: boolean;
 	availableDate: Date | null;
 }
-interface EmailProfile {
-	id: number;
-	email: string;
-	displayName: string | null;
-}
-
 interface OrderConfirmationForUsersEmailTemplateProps {
-	profile: EmailProfile;
+	customerName: string;
 	orderId: string;
 	products: Product[];
 	total: number;
@@ -39,7 +33,7 @@ export default function OrderConfirmationForUsersEmailTemplate(
 	props: OrderConfirmationForUsersEmailTemplateProps,
 ) {
 	const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-	const userName = props.profile.displayName || "Cliente";
+	const userName = props.customerName || "Cliente";
 
 	return (
 		<Html>
@@ -159,22 +153,7 @@ export default function OrderConfirmationForUsersEmailTemplate(
 
 OrderConfirmationForUsersEmailTemplate.PreviewProps = {
 	orderId: "12345",
-	profile: {
-		id: 1,
-		role: "user",
-		displayName: "Jane Doe",
-		email: "jane@example.com",
-		bio: null,
-		birthdate: null,
-		clerkId: "mock-clerk-id",
-		firstName: "Jane",
-		lastName: "Doe",
-		avatarUrl: null,
-		phone: null,
-		category: "customer",
-		createdAt: new Date(),
-		updatedAt: new Date(),
-	},
+	customerName: "Jane Doe",
 	products: [
 		{
 			id: 1,
