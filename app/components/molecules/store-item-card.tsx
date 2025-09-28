@@ -1,19 +1,18 @@
+import { BaseProfile } from "@/app/api/users/definitions";
 import { Badge } from "@/app/components/ui/badge";
-import { Button } from "@/app/components/ui/button";
-import { Card, CardContent, CardFooter } from "@/app/components/ui/card";
+import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate } from "@/app/lib/formatters";
 import { BaseProduct } from "@/app/lib/products/definitions";
 import Image from "next/image";
-import Link from "next/link";
 import StoreItemQuantityInput from "./store-item-quantity-input";
 
 type StoreItemCardProps = {
-  product: BaseProduct;
-  userId?: number;
+	product: BaseProduct;
+	user?: BaseProfile;
 };
 
-export default function StoreItemCard({ product, userId }: StoreItemCardProps) {
-  return (
+export default function StoreItemCard({ product, user }: StoreItemCardProps) {
+	return (
 		<Card className="overflow-hidden transition-all hover:shadow-lg max-w-80">
 			<div className="relative h-80 w-80 bg-muted">
 				{product.imageUrl ? (
@@ -48,7 +47,7 @@ export default function StoreItemCard({ product, userId }: StoreItemCardProps) {
 						Disponible el {formatDate(product.availableDate).toLocaleString()}
 					</p>
 				)}
-				<StoreItemQuantityInput product={product} userId={userId} />
+				<StoreItemQuantityInput product={product} user={user} />
 			</CardContent>
 		</Card>
 	);

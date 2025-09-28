@@ -1,15 +1,7 @@
 "use client";
 
-import CreateOrderForm from "@/app/components/organisms/payments/invoice-payment-success/create-order-form";
 import InvoiceSummaryCard from "@/app/components/organisms/payments/invoice-payment-success/invoice-summary-card";
 import { RedirectButton } from "@/app/components/redirect-button";
-import { Button } from "@/app/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "@/app/components/ui/card";
 import {
 	Dialog,
 	DialogClose,
@@ -19,7 +11,7 @@ import {
 } from "@/app/components/ui/dialog";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 import { BaseProduct } from "@/app/lib/products/definitions";
-import { CheckCircleIcon, UserIcon, XIcon, ZoomInIcon } from "lucide-react";
+import { UserIcon, XIcon } from "lucide-react";
 import Image from "next/image";
 import { use, useState } from "react";
 

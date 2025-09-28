@@ -1,6 +1,6 @@
 "use server";
 
-import { orderItems, orders } from "@/db/schema";
+import { orderItems, orders, users } from "@/db/schema";
 import {
 	NewOrderItem,
 	OrderStatus,
@@ -10,13 +10,61 @@ import { db } from "@/db";
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { products } from "@/db/schema";
+import { sendEmail } from "@/app/vendors/resend";
+import { fetchAdminUsers } from "@/app/api/users/actions";
+import OrderConfirmationForAdminsEmailTemplate from "@/app/emails/order-confirmation-for-admins";
+import OrderConfirmationForUsersEmailTemplate from "@/app/emails/order-confirmation-for-user";
 
+async function sendOrderEmails(emailData: {
+	orderId: number;
+	customerEmail: string;
+	customerName: string;
+	products: any[];
+	total: number;
+}) {
+	// 1. Send to user
+	const { orderId, customerEmail, customerName, products, total } = emailData;
+
+	await sendEmail({
+		to: [customerEmail],
+		from: "Glitter Store <reservas@productoraglitter.com>",
+		subject: `Tu orden #${orderId} ha sido recibida`,
+		react: OrderConfirmationForUsersEmailTemplate({
+			customerName,
+			orderId: String(orderId),
+			products,
+			total,
+		}) as React.ReactElement,
+	});
+
+	// 2. Fetch admins
+	const admins = await fetchAdminUsers();
+	const adminEmails = admins.map((a) => a.email).filter(Boolean);
+
+	if (adminEmails.length > 0) {
+		await sendEmail({
+			to: adminEmails,
+			from: "Glitter Store <store@productoraglitter.com>",
+			replyTo: "soporte@productoraglitter.com",
+			subject: `Nueva orden #${orderId} de ${customerName || "Cliente"}`,
+			react: OrderConfirmationForAdminsEmailTemplate({
+				customerName,
+				orderId: String(orderId),
+				products,
+				total,
+			}) as React.ReactElement,
+		});
+	}
+}
 export async function createOrder(
 	orderItemsToInsert: NewOrderItem[],
 	userId: number,
 	totalAmount: number,
+	customerEmail: string,
+	customerName: string,
 ) {
 	let createdOrderId = null;
+
 	try {
 		if (orderItemsToInsert.length === 0) {
 			throw new Error("No order items provided");
@@ -31,15 +79,48 @@ export async function createOrder(
 				})
 				.returning();
 
-			orderItemsToInsert.forEach(async (item) => {
+			for (const item of orderItemsToInsert) {
 				await tx.insert(orderItems).values({
 					...item,
 					orderId: order.id,
 				});
-			});
+			}
 
 			return order.id;
 		});
+
+		// Fetch product info
+		const productIds = orderItemsToInsert.map((oi) => oi.productId);
+		const productList = await db.query.products.findMany({
+			where: (p, { inArray }) => inArray(p.id, productIds),
+		});
+
+		const mappedProducts = orderItemsToInsert.map((oi) => {
+			const product = productList.find((p) => p.id === oi.productId);
+			return {
+				id: oi.productId,
+				name: product?.name || "Producto",
+				quantity: oi.quantity,
+				price: oi.priceAtPurchase,
+				isPreOrder: product?.isPreOrder || false,
+				availableDate: product?.availableDate || null,
+			};
+		});
+
+		// Mark the order as created before attempting email notifications
+		createdOrderId = orderId;
+
+		try {
+			await sendOrderEmails({
+				orderId,
+				customerEmail,
+				customerName,
+				products: mappedProducts,
+				total: totalAmount,
+			});
+		} catch (emailError) {
+			console.error("Failed to send order emails", emailError);
+		}
 
 		createdOrderId = orderId;
 	} catch (error) {
