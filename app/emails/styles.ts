@@ -28,6 +28,12 @@ export const text = {
   textAlign: "left" as const,
 };
 
+export const textSmall = {
+	margin: "0 0 10px 0",
+	textAlign: "left" as const,
+	fontSize: "12px",
+};
+
 export const button = {
   fontSize: "14px",
   backgroundColor: "#6320E2",
