@@ -113,7 +113,7 @@ export default function OrderConfirmationForAdminsEmailTemplate(
 											align="right"
 											style={{ ...styles.text, padding: "6px 0" }}
 										>
-											${p.price.toFixed(2)}
+											Bs{p.price.toFixed(2)}
 										</td>
 									</tr>
 								))}
@@ -127,7 +127,7 @@ export default function OrderConfirmationForAdminsEmailTemplate(
 										align="right"
 										style={{ ...styles.text, padding: "8px 0" }}
 									>
-										<strong>${props.total.toFixed(2)}</strong>
+										<strong>Bs{props.total.toFixed(2)}</strong>
 									</td>
 								</tr>
 							</tfoot>
