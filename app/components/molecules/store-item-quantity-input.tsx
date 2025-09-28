@@ -85,12 +85,13 @@ export default function StoreItemQuantityInput({
 
 		if (success && details?.orderId) {
 			toast.success(message);
-			form.reset();
 			router.push(`/profiles/${user.id}/orders/${details.orderId}`);
 		} else {
 			form.setError("root", { message });
 			toast.error(message);
 		}
+
+		form.reset();
 	});
 
 	return (
@@ -126,11 +127,9 @@ export default function StoreItemQuantityInput({
 				/>
 				<SubmitButton
 					className={`w-full ${product.isPreOrder ? "bg-amber-600 hover:bg-amber-700" : "bg-purple-600 hover:bg-purple-700"}`}
-					disabled={
-						!form.formState.isValid || form.formState.isSubmitSuccessful
-					}
+					disabled={!form.formState.isValid || form.formState.isSubmitting}
 					loading={form.formState.isSubmitting}
-					label={`${product.isPreOrder ? "Quiero reservar" : "Agregar al carrito"}`}
+					label={`${product.isPreOrder ? "Quiero reservar" : "Hacer pedido"}`}
 				/>
 			</form>
 		</Form>

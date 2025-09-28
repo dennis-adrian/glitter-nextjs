@@ -68,12 +68,14 @@ export default function CreateOrderForm(props: CreateOrderFormProps) {
 
 		if (success && details?.orderId) {
 			toast.success(message);
-			form.reset();
 			router.push(`/profiles/${profile.id}/orders/${details.orderId}`);
 		} else {
 			form.setError("root", { message });
 			toast.error(message);
 		}
+
+		setSubtotal(product.price);
+		form.reset();
 	});
 
 	return (

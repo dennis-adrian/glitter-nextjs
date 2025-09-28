@@ -101,7 +101,7 @@ export default function OrderConfirmationForUsersEmailTemplate(
 											)}
 										</td>
 										<td
-											align="center"
+											align="right"
 											style={{ ...styles.text, padding: "6px 0" }}
 										>
 											{p.quantity}
