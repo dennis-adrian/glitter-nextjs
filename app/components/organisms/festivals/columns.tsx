@@ -20,8 +20,9 @@ export const columns: ColumnDef<FestivalWithDates>[] = [
     cell: ({ row }) => (
       <Link
         href={`/dashboard/festivals/${row.original.id}`}
-        className="text-blue-600 hover:underline"
+        className="underline"
         target="_blank"
+				rel="noopener noreferrer"
       >
         {row.original.name}
       </Link>

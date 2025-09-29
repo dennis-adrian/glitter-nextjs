@@ -1,3 +1,5 @@
+"use client";
+
 import { Button } from "@/app/components/ui/button";
 import {
 	DropdownMenu,
@@ -39,7 +41,6 @@ export default function TableActions({ festival }: TableActionsProps) {
 				<Button
 					variant="ghost"
 					size="icon"
-					className="p-1 rounded-none first:rounded-l-md"
 				>
 					<PencilIcon className="h-4 w-4" />
 					<span className="sr-only">Editar festival</span>
@@ -50,7 +51,6 @@ export default function TableActions({ festival }: TableActionsProps) {
 				<Button
 					variant="ghost"
 					size="icon"
-					className="p-1 rounded-none"
 				>
 					<TrashIcon className="h-4 w-4" />
 					<span className="sr-only">Eliminar festival</span>
