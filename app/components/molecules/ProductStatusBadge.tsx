@@ -4,8 +4,8 @@ import { ClockIcon, TagIcon } from "lucide-react";
 import { BaseProduct } from "@/lib/products/definitions";
 
 type ProductStatusBadgeProps = {
-	status: "available" | "presale" | "sale";
-	discount?: number;
+	status: BaseProduct["status"];
+	discount?: number | null;
 	discountUnit?: BaseProduct["discountUnit"];
 };
 export const ProductStatusBadge: FC<ProductStatusBadgeProps> = ({

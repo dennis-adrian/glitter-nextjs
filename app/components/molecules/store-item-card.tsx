@@ -1,10 +1,10 @@
 import { BaseProfile } from "@/app/api/users/definitions";
-import { Badge } from "@/app/components/ui/badge";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate } from "@/app/lib/formatters";
 import { BaseProduct } from "@/app/lib/products/definitions";
 import Image from "next/image";
 import StoreItemQuantityInput from "./store-item-quantity-input";
+import { ProductStatusBadge } from "@/components/molecules/ProductStatusBadge";
 
 type StoreItemCardProps = {
 	product: BaseProduct;
@@ -32,11 +32,11 @@ export default function StoreItemCard({ product, user }: StoreItemCardProps) {
 						height={320}
 					/>
 				)}
-				{product.isPreOrder && (
-					<Badge className="absolute top-2 left-2 bg-amber-500 hover:bg-amber-600">
-						Pre-Venta
-					</Badge>
-				)}
+				<ProductStatusBadge
+					status={product.status}
+					discount={product.discount}
+					discountUnit={product.discountUnit}
+				/>
 			</div>
 			<CardContent className="p-4">
 				<h3 className="font-semibold text-lg">{product.name}</h3>
