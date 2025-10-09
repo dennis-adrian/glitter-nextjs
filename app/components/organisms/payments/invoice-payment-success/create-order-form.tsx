@@ -48,34 +48,27 @@ export default function CreateOrderForm(props: CreateOrderFormProps) {
 	});
 
 	const action = form.handleSubmit(async (data) => {
-		const orderItemsToInsert: NewOrderItem[] = [
-			{
-				productId: product.id,
-				quantity: data.quantity,
-				priceAtPurchase: product.price,
-				// this is a temporary order id, it will be replaced with the actual order id after the order is created
-				orderId: 0,
-			},
-		];
+		const orderItemsIdsQuantityMap: Map<number, number> = new Map([
+			[product.id, data.quantity],
+		]);
 
-		// const { success, message, details } = await createOrder(
-		// 	orderItemsToInsert,
-		// 	profile.id,
-		// 	subtotal,
-		// 	profile.email,
-		// 	profile.displayName || "",
-		// );
+		const { success, message, details } = await createOrder(
+			orderItemsIdsQuantityMap,
+			profile.id,
+			profile.email,
+			profile.displayName || "",
+		);
 
-		// if (success && details?.orderId) {
-		// 	toast.success(message);
-		// 	router.push(`/profiles/${profile.id}/orders/${details.orderId}`);
-		// } else {
-		// 	form.setError("root", { message });
-		// 	toast.error(message);
-		// }
+		if (success && details?.orderId) {
+			toast.success(message);
+			router.push(`/profiles/${profile.id}/orders/${details.orderId}`);
+		} else {
+			form.setError("root", { message });
+			toast.error(message);
+		}
 
-		// setSubtotal(product.price);
-		// form.reset();
+		setSubtotal(product.price);
+		form.reset();
 	});
 
 	return (

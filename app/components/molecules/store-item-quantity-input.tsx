@@ -3,6 +3,7 @@
 import { BaseProfile } from "@/app/api/users/definitions";
 import { createOrder } from "@/app/lib/orders/actions";
 import { NewOrderItem } from "@/app/lib/orders/definitions";
+import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { BaseProduct } from "@/app/lib/products/definitions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { MinusIcon, PlusIcon } from "lucide-react";
@@ -112,7 +113,7 @@ export default function StoreItemQuantityInput({
 							</div>
 							<FormMessage />
 							<span className="text-sm">
-								Subtotal Bs{product.price * field.value}
+								Subtotal Bs{getProductPriceAtPurchase(product) * field.value}
 							</span>
 						</FormItem>
 					)}

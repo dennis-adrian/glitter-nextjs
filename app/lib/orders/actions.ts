@@ -81,6 +81,12 @@ export async function createOrder(
 				.from(products)
 				.where(inArray(products.id, itemsIds));
 
+			if (productsInOrder.length !== itemsIds.length) {
+				const foundIds = new Set(productsInOrder.map((p) => p.id));
+				const missingIds = itemsIds.filter((id) => !foundIds.has(id));
+				throw new Error(`Products not found: ${missingIds.join(", ")}`);
+			}
+
 			totalAmount = productsInOrder.reduce(
 				(acc, product) =>
 					acc +

@@ -1,7 +1,6 @@
 import { Badge } from "@/app/components/ui/badge";
 import { formatDate } from "@/app/lib/formatters";
 import { OrderItemWithRelations } from "@/app/lib/orders/definitions";
-import { DateTime } from "luxon";
 import Image from "next/image";
 
 export default function OrderItemOverview({
