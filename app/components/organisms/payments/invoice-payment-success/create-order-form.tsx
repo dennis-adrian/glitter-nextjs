@@ -58,24 +58,24 @@ export default function CreateOrderForm(props: CreateOrderFormProps) {
 			},
 		];
 
-		const { success, message, details } = await createOrder(
-			orderItemsToInsert,
-			profile.id,
-			subtotal,
-			profile.email,
-			profile.displayName || "",
-		);
+		// const { success, message, details } = await createOrder(
+		// 	orderItemsToInsert,
+		// 	profile.id,
+		// 	subtotal,
+		// 	profile.email,
+		// 	profile.displayName || "",
+		// );
 
-		if (success && details?.orderId) {
-			toast.success(message);
-			router.push(`/profiles/${profile.id}/orders/${details.orderId}`);
-		} else {
-			form.setError("root", { message });
-			toast.error(message);
-		}
+		// if (success && details?.orderId) {
+		// 	toast.success(message);
+		// 	router.push(`/profiles/${profile.id}/orders/${details.orderId}`);
+		// } else {
+		// 	form.setError("root", { message });
+		// 	toast.error(message);
+		// }
 
-		setSubtotal(product.price);
-		form.reset();
+		// setSubtotal(product.price);
+		// form.reset();
 	});
 
 	return (

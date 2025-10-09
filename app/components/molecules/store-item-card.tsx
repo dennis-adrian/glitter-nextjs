@@ -6,6 +6,7 @@ import Image from "next/image";
 import StoreItemQuantityInput from "./store-item-quantity-input";
 import { ProductStatusBadge } from "@/components/molecules/ProductStatusBadge";
 import { ClockIcon } from "lucide-react";
+import { validatedDiscount } from "@/app/lib/orders/utils";
 
 type StoreItemCardProps = {
 	product: BaseProduct;
@@ -16,11 +17,21 @@ export default function StoreItemCard({ product, user }: StoreItemCardProps) {
 	let originalPrice = null;
 	let price = product.price;
 	if (product.discount && product.discountUnit === "percentage") {
+		const validDiscount = validatedDiscount(
+			product.price,
+			product.discount,
+			product.discountUnit,
+		);
 		originalPrice = product.price;
-		price = product.price * (1 - product.discount / 100);
+		price = product.price * (1 - validDiscount / 100);
 	} else if (product.discount && product.discountUnit === "amount") {
+		const validDiscount = validatedDiscount(
+			product.price,
+			product.discount,
+			product.discountUnit,
+		);
 		originalPrice = product.price;
-		price = product.price - product.discount;
+		price = product.price - validDiscount;
 	}
 
 	return (

@@ -64,21 +64,13 @@ export default function StoreItemQuantityInput({
 			return;
 		}
 
-		const orderItemsToInsert: NewOrderItem[] = [
-			{
-				productId: product.id,
-				quantity: data.itemQuantity,
-				priceAtPurchase: product.price,
-				// this is a temporary order id, it will be replaced with the actual order id after the order is created
-				orderId: 0,
-			},
-		];
-		const totalAmount = product.price * data.itemQuantity;
+		const orderItemsIdsQuantityMap: Map<number, number> = new Map([
+			[product.id, data.itemQuantity],
+		]);
 
 		const { details, message, success } = await createOrder(
-			orderItemsToInsert,
+			orderItemsIdsQuantityMap,
 			user.id,
-			totalAmount,
 			user.email,
 			user.displayName || "",
 		);
