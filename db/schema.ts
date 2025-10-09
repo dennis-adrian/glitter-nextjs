@@ -837,6 +837,12 @@ export const discountUnitEnum = pgEnum("discount_unit", [
 	"amount",
 ]);
 
+export const productStatusEnum = pgEnum("product_status", [
+	"available",
+	"presale",
+	"sale",
+]);
+
 export const products = pgTable("products", {
 	id: serial("id").primaryKey(),
 	name: text("name").notNull(),
@@ -848,7 +854,10 @@ export const products = pgTable("products", {
 	isPreOrder: boolean("is_pre_order").default(false).notNull(),
 	availableDate: timestamp("available_date"),
 	discount: real("discount").default(0),
-	discountUnit: discountUnitEnum("discount_unit").default("percentage").notNull(),
+	discountUnit: discountUnitEnum("discount_unit")
+		.default("percentage")
+		.notNull(),
+	status: productStatusEnum("status").default("available").notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
