@@ -5,6 +5,7 @@ import { BaseProduct } from "@/app/lib/products/definitions";
 import Image from "next/image";
 import StoreItemQuantityInput from "./store-item-quantity-input";
 import { ProductStatusBadge } from "@/components/molecules/ProductStatusBadge";
+import { ClockIcon } from "lucide-react";
 
 type StoreItemCardProps = {
 	product: BaseProduct;
@@ -12,6 +13,16 @@ type StoreItemCardProps = {
 };
 
 export default function StoreItemCard({ product, user }: StoreItemCardProps) {
+	let originalPrice = null;
+	let price = product.price;
+	if (product.discount && product.discountUnit === "percentage") {
+		originalPrice = product.price;
+		price = product.price * (1 - product.discount / 100);
+	} else if (product.discount && product.discountUnit === "amount") {
+		originalPrice = product.price;
+		price = product.price - product.discount;
+	}
+
 	return (
 		<Card className="overflow-hidden transition-all hover:shadow-lg max-w-80">
 			<div className="relative h-80 w-80 bg-muted">
@@ -38,12 +49,26 @@ export default function StoreItemCard({ product, user }: StoreItemCardProps) {
 					discountUnit={product.discountUnit}
 				/>
 			</div>
-			<CardContent className="p-4">
-				<h3 className="font-semibold text-lg">{product.name}</h3>
-				<p className="text-muted-foreground text-sm">{product.description}</p>
-				<div className="mt-2 font-bold">Bs{product.price.toFixed(2)}</div>
+			<CardContent className="p-5">
+				<h3 className="font-semibold text-lg mb-1 text-balance">
+					{product.name}
+				</h3>
+				<p className="text-sm text-muted-foreground mb-4 text-pretty leading-relaxed">
+					{product.description}
+				</p>
+				<div className="flex items-center justify-between mb-4">
+					<div className="flex items-baseline gap-2">
+						<span className="text-2xl font-semibold">Bs{price.toFixed(2)}</span>
+						{originalPrice && (
+							<span className="text-sm text-muted-foreground line-through">
+								Bs{originalPrice.toFixed(2)}
+							</span>
+						)}
+					</div>
+				</div>
 				{product.isPreOrder && product.availableDate && (
-					<p className="text-xs text-amber-600 mt-1">
+					<p className="text-xs text-muted-foreground mb-3 flex items-center gap-1">
+						<ClockIcon className="w-3 h-3" />
 						Disponible el {formatDate(product.availableDate).toLocaleString()}
 					</p>
 				)}
