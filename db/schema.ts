@@ -832,6 +832,11 @@ export const userBadgesRelations = relations(userBadges, ({ one }) => ({
 	}),
 }));
 
+export const discountUnitEnum = pgEnum("discount_unit", [
+	"percentage",
+	"amount",
+]);
+
 export const products = pgTable("products", {
 	id: serial("id").primaryKey(),
 	name: text("name").notNull(),
@@ -842,6 +847,8 @@ export const products = pgTable("products", {
 	isNew: boolean("is_new").default(true).notNull(),
 	isPreOrder: boolean("is_pre_order").default(false).notNull(),
 	availableDate: timestamp("available_date"),
+	discount: real("discount").default(0),
+	discountUnit: discountUnitEnum("discount_unit").default("percentage").notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
