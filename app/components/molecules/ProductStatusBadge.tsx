@@ -13,20 +13,19 @@ export const ProductStatusBadge: FC<ProductStatusBadgeProps> = ({
 	discount,
 	discountUnit = "percentage",
 }) => {
-	if (status === "sale") {
+	if (status === "sale" && discount) {
 		return (
-			<Badge
-				variant="destructive"
-				className="absolute top-2 left-2 font-medium"
-			>
+			<Badge variant="destructive" className="font-medium">
 				<TagIcon className="h-3 w-3 mr-1" />
-				{discount} {discountUnit === "amount" ? "Bs" : "%"} DESC
+				{discount}
+				{discountUnit === "amount" ? "Bs" : "%"} DESC
 			</Badge>
 		);
 	}
+
 	if (status === "presale") {
 		return (
-			<Badge className="absolute top-2 left-2 bg-amber-500 hover:bg-amber-600 font-medium">
+			<Badge className="bg-amber-500 hover:bg-amber-600 font-medium">
 				<ClockIcon className="h-3 w-3 mr-1" />
 				Pre-venta
 			</Badge>

@@ -24,31 +24,26 @@ export default function StoreItemCard({ product, user }: StoreItemCardProps) {
 	}
 
 	return (
-		<Card className="overflow-hidden transition-all hover:shadow-lg max-w-80">
-			<div className="relative h-80 w-80 bg-muted">
-				{product.imageUrl ? (
-					<Image
-						src={product.imageUrl}
-						alt={product.name}
-						width={320}
-						height={320}
-						placeholder="blur"
-						blurDataURL="/img/placeholders/placeholder-300x300.png"
-					/>
-				) : (
-					<Image
-						src="/img/placeholders/placeholder-300x300.png"
-						alt="Imagen no disponible"
-						width={320}
-						height={320}
-					/>
-				)}
+		<Card className="group relative bg-card rounded-lg border border-border overflow-hidden hover:shadow-lg transition-shadow">
+			<div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
 				<ProductStatusBadge
 					status={product.status}
 					discount={product.discount}
 					discountUnit={product.discountUnit}
 				/>
 			</div>
+
+			<div className="aspect-square relative overflow-hidden bg-muted">
+				<Image
+					src={product.imageUrl || "/img/placeholders/placeholder-300x300.png"}
+					alt={product.name}
+					fill
+					className="object-cover group-hover:scale-105 transition-transform duration-300"
+					placeholder="blur"
+					blurDataURL="/img/placeholders/placeholder-300x300.png"
+				/>
+			</div>
+
 			<CardContent className="p-5">
 				<h3 className="font-semibold text-lg mb-1 text-balance">
 					{product.name}
