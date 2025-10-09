@@ -70,7 +70,7 @@ export default async function UserOrderPage(props: {
 										<div className="flex justify-between">
 											<h3 className="font-medium">{item.product.name}</h3>
 											<p className="font-medium">
-												Bs{(item.product.price * item.quantity).toFixed(2)}
+												Bs{(item.priceAtPurchase * item.quantity).toFixed(2)}
 											</p>
 										</div>
 										<div className="flex justify-between mt-1">
@@ -78,7 +78,7 @@ export default async function UserOrderPage(props: {
 												Cantidad: {item.quantity}
 											</p>
 											<p className="text-sm text-gray-500">
-												Bs{item.product.price.toFixed(2)} cada uno
+												Bs{item.priceAtPurchase.toFixed(2)} cada uno
 											</p>
 										</div>
 									</div>

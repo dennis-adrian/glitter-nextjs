@@ -17,7 +17,7 @@ export default async function StorePage() {
 						Tiendita Glitter
 					</h1>
 					<p className="text-muted-foreground mt-2">
-						Consigue mercha oficial de nuestros festivales
+						Conseguí mercha oficial de nuestros festivales
 					</p>
 				</div>
 			</div>

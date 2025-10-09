@@ -48,20 +48,13 @@ export default function CreateOrderForm(props: CreateOrderFormProps) {
 	});
 
 	const action = form.handleSubmit(async (data) => {
-		const orderItemsToInsert: NewOrderItem[] = [
-			{
-				productId: product.id,
-				quantity: data.quantity,
-				priceAtPurchase: product.price,
-				// this is a temporary order id, it will be replaced with the actual order id after the order is created
-				orderId: 0,
-			},
-		];
+		const orderItemsIdsQuantityMap: Map<number, number> = new Map([
+			[product.id, data.quantity],
+		]);
 
 		const { success, message, details } = await createOrder(
-			orderItemsToInsert,
+			orderItemsIdsQuantityMap,
 			profile.id,
-			subtotal,
 			profile.email,
 			profile.displayName || "",
 		);

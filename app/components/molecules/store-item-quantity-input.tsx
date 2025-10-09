@@ -3,6 +3,7 @@
 import { BaseProfile } from "@/app/api/users/definitions";
 import { createOrder } from "@/app/lib/orders/actions";
 import { NewOrderItem } from "@/app/lib/orders/definitions";
+import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { BaseProduct } from "@/app/lib/products/definitions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { MinusIcon, PlusIcon } from "lucide-react";
@@ -64,21 +65,13 @@ export default function StoreItemQuantityInput({
 			return;
 		}
 
-		const orderItemsToInsert: NewOrderItem[] = [
-			{
-				productId: product.id,
-				quantity: data.itemQuantity,
-				priceAtPurchase: product.price,
-				// this is a temporary order id, it will be replaced with the actual order id after the order is created
-				orderId: 0,
-			},
-		];
-		const totalAmount = product.price * data.itemQuantity;
+		const orderItemsIdsQuantityMap: Map<number, number> = new Map([
+			[product.id, data.itemQuantity],
+		]);
 
 		const { details, message, success } = await createOrder(
-			orderItemsToInsert,
+			orderItemsIdsQuantityMap,
 			user.id,
-			totalAmount,
 			user.email,
 			user.displayName || "",
 		);
@@ -120,7 +113,7 @@ export default function StoreItemQuantityInput({
 							</div>
 							<FormMessage />
 							<span className="text-sm">
-								Subtotal Bs{product.price * field.value}
+								Subtotal Bs{getProductPriceAtPurchase(product) * field.value}
 							</span>
 						</FormItem>
 					)}

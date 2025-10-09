@@ -7,13 +7,15 @@ import {
 	OrderWithRelations,
 } from "@/app/lib/orders/definitions";
 import { db } from "@/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { products } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
 import { fetchAdminUsers } from "@/app/api/users/actions";
 import OrderConfirmationForAdminsEmailTemplate from "@/app/emails/order-confirmation-for-admins";
 import OrderConfirmationForUsersEmailTemplate from "@/app/emails/order-confirmation-for-user";
+import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import { BaseProduct } from "@/app/lib/products/definitions";
 
 async function sendOrderEmails(emailData: {
 	orderId: number;
@@ -57,20 +59,42 @@ async function sendOrderEmails(emailData: {
 	}
 }
 export async function createOrder(
-	orderItemsToInsert: NewOrderItem[],
+	orderItemsIdsQuantityMap: Map<number, number>,
 	userId: number,
-	totalAmount: number,
 	customerEmail: string,
 	customerName: string,
 ) {
 	let createdOrderId = null;
 
 	try {
-		if (orderItemsToInsert.length === 0) {
+		if (orderItemsIdsQuantityMap.size === 0) {
 			throw new Error("No order items provided");
 		}
 
-		const orderId = await db.transaction(async (tx) => {
+		const itemsIds = Array.from(orderItemsIdsQuantityMap.keys());
+		let productsInOrder: BaseProduct[] = [];
+		let totalAmount = 0;
+
+		createdOrderId = await db.transaction(async (tx) => {
+			productsInOrder = await db
+				.select()
+				.from(products)
+				.where(inArray(products.id, itemsIds));
+
+			if (productsInOrder.length !== itemsIds.length) {
+				const foundIds = new Set(productsInOrder.map((p) => p.id));
+				const missingIds = itemsIds.filter((id) => !foundIds.has(id));
+				throw new Error(`Products not found: ${missingIds.join(", ")}`);
+			}
+
+			totalAmount = productsInOrder.reduce(
+				(acc, product) =>
+					acc +
+					getProductPriceAtPurchase(product) *
+						(orderItemsIdsQuantityMap.get(product.id) || 0),
+				0,
+			);
+
 			const [order] = await tx
 				.insert(orders)
 				.values({
@@ -79,9 +103,11 @@ export async function createOrder(
 				})
 				.returning();
 
-			for (const item of orderItemsToInsert) {
+			for (const item of productsInOrder) {
 				await tx.insert(orderItems).values({
-					...item,
+					productId: item.id,
+					quantity: orderItemsIdsQuantityMap.get(item.id) || 0,
+					priceAtPurchase: getProductPriceAtPurchase(item),
 					orderId: order.id,
 				});
 			}
@@ -89,30 +115,20 @@ export async function createOrder(
 			return order.id;
 		});
 
-		// Fetch product info
-		const productIds = orderItemsToInsert.map((oi) => oi.productId);
-		const productList = await db.query.products.findMany({
-			where: (p, { inArray }) => inArray(p.id, productIds),
-		});
-
-		const mappedProducts = orderItemsToInsert.map((oi) => {
-			const product = productList.find((p) => p.id === oi.productId);
+		const mappedProducts = productsInOrder.map((product) => {
 			return {
-				id: oi.productId,
-				name: product?.name || "Producto",
-				quantity: oi.quantity,
-				price: oi.priceAtPurchase,
-				isPreOrder: product?.isPreOrder || false,
-				availableDate: product?.availableDate || null,
+				id: product.id,
+				name: product.name,
+				quantity: orderItemsIdsQuantityMap.get(product.id) || 0,
+				price: getProductPriceAtPurchase(product),
+				isPreOrder: !!product.isPreOrder,
+				availableDate: product.availableDate || null,
 			};
 		});
 
-		// Mark the order as created before attempting email notifications
-		createdOrderId = orderId;
-
 		try {
 			await sendOrderEmails({
-				orderId,
+				orderId: createdOrderId,
 				customerEmail,
 				customerName,
 				products: mappedProducts,
@@ -121,8 +137,6 @@ export async function createOrder(
 		} catch (emailError) {
 			console.error("Failed to send order emails", emailError);
 		}
-
-		createdOrderId = orderId;
 	} catch (error) {
 		console.error(error);
 		return {
