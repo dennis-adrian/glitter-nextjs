@@ -58,7 +58,7 @@ const NavbarNavigationMenu = ({
 						</Link>
 					</NavigationMenuLink>
 				</NavigationMenuItem>
-				{profile && (
+				{profile && profile.status === "verified" && (
 					<NavigationMenuItem>
 						<NavigationMenuLink
 							asChild

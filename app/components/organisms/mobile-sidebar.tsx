@@ -93,7 +93,7 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 						<CalendarCheck2Icon className="mr-2 h-6 w-6" />
 						Próximo Evento
 					</MobileSidebarItem>
-					{profile && (
+					{profile && profile.status === "verified" && (
 						<MobileSidebarItem href="/store">
 							<StoreIcon className="mr-2 h-6 w-6" />
 							Tiendita
