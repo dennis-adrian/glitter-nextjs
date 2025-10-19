@@ -4,7 +4,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
-import { scheduledTasks, standReservations, stands } from "@/db/schema";
+import { scheduledTasks, standReservations, stands, users } from "@/db/schema";
 
 import { BaseProfile } from "@/app/api/users/definitions";
 import { sendEmail } from "@/app/vendors/resend";
@@ -21,6 +21,8 @@ import ReservationRejectionEmailTemplate from "@/app/emails/reservation-rejectio
 import { getUserName } from "@/app/lib/users/utils";
 import { buildWhereClauseForReservationsFetching } from "@/app/api/reservations/helpers";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
+import { ReservationParticipantWithUser } from "@/app/data/invoices/definitions";
+import { normalizeEmail } from "@/app/helpers/next_event";
 
 export async function fetchReservations(options: {
   query?: string;
@@ -183,6 +185,7 @@ export async function confirmReservation(
   standId: number,
   standLabel: string,
   festival: FestivalWithDates,
+  participants: ReservationParticipantWithUser[]
 ) {
   try {
     await db.transaction(async (tx) => {
@@ -207,16 +210,36 @@ export async function confirmReservation(
         );
     });
 
-    await sendEmail({
-      to: [user.email],
-      from: "Reservas Glitter <reservas@productoraglitter.com>",
-      subject: `Reserva confirmada para el fesival ${festival.name}`,
-      react: EmailTemplate({
-        profile: user,
-        standLabel,
-        festival,
-      }) as React.ReactElement,
+    const targets: { to: string; user: typeof users.$inferSelect }[] = [];
+
+    if (user.email) targets.push({ to: user.email, user });
+
+    for (const p of participants) {
+      const email = p.user?.email?.trim();
+      if (!email) continue;
+      targets.push({ to: email, user: p.user }); 
+    }
+    const seen = new Set<string>();
+    const uniqueTargets = targets.filter(t => {
+      if (seen.has(t.to)) return false;
+      seen.add(t.to);
+      return true;
     });
+
+    await Promise.all(
+      uniqueTargets.map(({ to, user: dbUser }) =>
+        sendEmail({
+          to: [to],
+          from: "Reservas Glitter <reservas@productoraglitter.com>",
+          subject: `Reserva confirmada para el festival ${festival.name}`,
+          react: EmailTemplate({
+            profile: normalizeEmail(dbUser),
+            standLabel,
+            festival,
+          }) as React.ReactElement,
+        })
+      )
+    );
   } catch (error) {
     console.error(error);
     return { success: false, message: "Error al confirmar la reserva" };

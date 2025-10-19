@@ -2,12 +2,12 @@
 
 import { columns, columnTitles } from "@/app/components/payments/columns";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
-import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/definitions";
+import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { userCategoryOptions } from "@/app/lib/utils";
 
 type PaymentsTableProps = {
-  invoices: InvoiceWithPaymentsAndStandAndProfile[];
-  status?: InvoiceWithPaymentsAndStandAndProfile["status"];
+  invoices: InvoiceWithParticipants[];
+  status?: InvoiceWithParticipants["status"];
   columnVisbility?: Record<string, boolean>;
 };
 

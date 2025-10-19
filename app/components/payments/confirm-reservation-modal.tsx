@@ -1,10 +1,10 @@
 import { Modal } from "@/app/components/atoms/modal";
 import { ConfirmReservationForm } from "@/app/components/payments/forms/confirm-reservation-form";
-import { InvoiceWithPaymentsAndStandAndProfile } from "@/app/data/invoices/definitions";
+import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { AlertCircleIcon } from "lucide-react";
 
 type ConfirmReservationModalProps = {
-	invoice: InvoiceWithPaymentsAndStandAndProfile;
+	invoice: InvoiceWithParticipants;
 	show: boolean;
 	onOpenChange: (open: boolean) => void;
 };

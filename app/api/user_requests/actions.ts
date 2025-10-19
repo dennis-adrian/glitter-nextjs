@@ -3,21 +3,21 @@
 import { fetchStandById } from "@/app/api/stands/actions";
 import { UserRequest } from "@/app/api/user_requests/definitions";
 import {
-  fetchAdminUsers,
-  fetchBaseProfileById,
-  fetchUserProfileById,
+	fetchAdminUsers,
+	fetchBaseProfileById,
+	fetchUserProfileById,
 } from "@/app/api/users/actions";
 import ReservationCreatedEmailTemplate from "@/app/emails/reservation-created";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { db } from "@/db";
 import {
-  invoices,
-  reservationParticipants,
-  scheduledTasks,
-  standReservations,
-  stands,
-  userRequests,
-  users,
+	invoices,
+	reservationParticipants,
+	scheduledTasks,
+	standReservations,
+	stands,
+	userRequests,
+	users,
 } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
 import { and, eq, not, sql } from "drizzle-orm";
@@ -26,6 +26,8 @@ import { BaseProfile } from "@/app/api/users/definitions";
 import TermsAcceptanceEmailTemplate from "@/app/emails/terms-acceptance";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import { normalizeEmail } from "@/app/helpers/next_event";
+import ReservationConfirmationEmailTemplate from "@/app/emails/reservation-confirmation";
 
 export async function fetchRequestsByUserId(userId: number) {
 	try {
@@ -200,6 +202,13 @@ export async function updateReservationSimple(
 	data: ReservationUpdateSimple,
 ) {
 	const { status, standId, partner } = data;
+
+	// 1) Read previous status (to detect transition -> accepted)
+	const prev = await db.query.standReservations.findFirst({
+		where: eq(standReservations.id, id),
+		columns: { status: true },
+	});
+
 	try {
 		await db.transaction(async (tx) => {
 			await tx
@@ -207,13 +216,11 @@ export async function updateReservationSimple(
 				.set({ status, updatedAt: new Date() })
 				.where(eq(standReservations.id, id));
 
+	
 			let standStatus: StandStatus = "available";
-			if (status === "accepted") {
-				standStatus = "confirmed";
-			}
-			if (status === "pending") {
-				standStatus = "reserved";
-			}
+			if (status === "accepted") standStatus = "confirmed";
+			if (status === "pending") standStatus = "reserved";
+
 			await tx
 				.update(stands)
 				.set({ status: standStatus, updatedAt: new Date() })
@@ -231,16 +238,59 @@ export async function updateReservationSimple(
 							.delete(reservationParticipants)
 							.where(eq(reservationParticipants.id, partner.participationId));
 					}
-				} else {
-					if (partner.userId) {
-						await tx.insert(reservationParticipants).values({
-							userId: partner.userId,
-							reservationId: id,
-						});
-					}
+				} else if (partner.userId) {
+					await tx.insert(reservationParticipants).values({
+						userId: partner.userId,
+						reservationId: id,
+					});
 				}
 			}
 		});
+
+		if (prev?.status !== "accepted" && status === "accepted") {
+		
+			const full = await db.query.standReservations.findFirst({
+				where: eq(standReservations.id, id),
+				with: {
+					participants: { with: { user: true } },
+					stand: true,
+					festival: { with: { festivalDates: true } },
+				},
+			});
+
+			if (full) {
+				const standLabel = `${full.stand.label ?? ""}${full.stand.standNumber ?? ""}`;
+
+
+				const targets = (full.participants ?? [])
+					.map((p) => p.user)
+					.filter((u): u is typeof users.$inferSelect => !!u && !!u.email?.trim())
+					.map((u) => ({ to: u.email!.trim(), user: u }));
+
+
+				const seen = new Set<string>();
+				const uniqueTargets = targets.filter(({ to }) => {
+					if (seen.has(to)) return false;
+					seen.add(to);
+					return true;
+				});
+
+				await Promise.all(
+					uniqueTargets.map(({ to, user }) =>
+						sendEmail({
+							to: [to],
+							from: "Reservas Glitter <reservas@productoraglitter.com>",
+							subject: `Reserva confirmada para el festival ${full.festival.name}`,
+							react: ReservationConfirmationEmailTemplate({
+								profile: normalizeEmail(user), 
+								standLabel,
+								festival: full.festival,
+							}) as React.ReactElement,
+						}),
+					),
+				);
+			}
+		}
 	} catch (error) {
 		console.error(error);
 		return { success: false, message: "Error al actualizar la reserva" };
