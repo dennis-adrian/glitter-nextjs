@@ -2,13 +2,14 @@
 
 import { fetchAdminUsers, fetchUserProfileById } from "@/app/api/users/actions";
 import {
-  BaseProfile,
-  NewUser,
-  ProfileType,
-  UpdateUser,
-  UserCategory,
-  UsersAggregates,
-  UserSocial,
+	BaseProfile,
+	NewUser,
+	Participation,
+	ProfileType,
+	UpdateUser,
+	UserCategory,
+	UsersAggregates,
+	UserSocial,
 } from "@/app/api/users/definitions";
 import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
 import SubcategoryUpdateEmailTemplate from "@/app/emails/subcategory-update";
@@ -18,10 +19,11 @@ import { utapi } from "@/app/server/uploadthing";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import {
-  profileSubcategories,
-  scheduledTasks,
-  users,
-  userSocials,
+	profileSubcategories,
+	reservationParticipants,
+	scheduledTasks,
+	users,
+	userSocials,
 } from "@/db/schema";
 import { clerkClient, currentUser } from "@clerk/nextjs/server";
 import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
@@ -466,4 +468,30 @@ export async function deleteUserSocial(
     success: true,
     message: "Red social eliminada correctamente.",
   };
+}
+
+export async function fetchUserParticipations(
+	profileId: number,
+): Promise<Participation[]> {
+	try {
+		return await db.query.reservationParticipants.findMany({
+			where: eq(reservationParticipants.userId, profileId),
+			with: {
+				reservation: {
+					with: {
+						stand: true,
+						festival: {
+							with: {
+								festivalDates: true,
+							},
+						},
+					},
+				},
+			},
+			orderBy: desc(reservationParticipants.createdAt),
+		});
+	} catch (error) {
+		console.error("Error fetching user participations", error);
+		return [];
+	}
 }

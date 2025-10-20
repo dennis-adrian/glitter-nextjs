@@ -99,13 +99,21 @@ export default function ParticipationsHistory({
 				</Card>
 			)}
 			<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-				<div className="flex flex-col border rounded-md p-4 items-center justify-center gap-2 bg-card shadow-md hover:shadow-lg transition-shadow duration-300">
+				<div
+					className="flex flex-col border rounded-md p-4 items-center justify-center gap-2 bg-card shadow-md hover:shadow-lg transition-shadow duration-300"
+					onClick={() =>
+						router.push(`/profiles/${forProfile.id}/participations`)
+					}
+				>
 					<PartyPopperIcon className="w-8 h-8" />
 					<span className="text-xs md:text-sm leading-tight text-center">
-						Participaciones pasadas
+						Historial de participaciones
 					</span>
 				</div>
-				<div className="flex flex-col border rounded-md p-4 items-center justify-center gap-2 bg-card shadow-md hover:shadow-lg transition-shadow duration-300">
+				<div
+					className="flex flex-col border rounded-md p-4 items-center justify-center gap-2 bg-card shadow-md hover:shadow-lg transition-shadow duration-300"
+					onClick={() => router.push(`/profiles/${forProfile.id}/infractions`)}
+				>
 					<LogsIcon className="w-8 h-8" />
 					<span className="text-xs md:text-sm leading-tight text-center">
 						Historial de infracciones
