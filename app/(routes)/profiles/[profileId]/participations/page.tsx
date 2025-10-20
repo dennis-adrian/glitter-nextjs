@@ -9,7 +9,7 @@ import {
 import { formatDate } from "@/app/lib/formatters";
 import { fetchUserParticipations } from "@/app/lib/users/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
-import { PackageOpenIcon } from "lucide-react";
+import { CalendarIcon, LandPlotIcon, PackageOpenIcon } from "lucide-react";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 
@@ -41,58 +41,67 @@ export default async function ParticipationsPage() {
 					<h1 className="text-lg md:text-2xl font-bold my-3">
 						Participaciones
 					</h1>
-					{participations.map((participation) => {
-						const initialDate =
-							participation.reservation.festival.festivalDates?.[0];
-						const finalDate =
-							participation.reservation.festival.festivalDates?.[
-								participation.reservation.festival.festivalDates.length - 1
-							];
 
-						const startDate = formatDate(initialDate?.startDate).toLocaleString(
-							{
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+						{participations.map((participation) => {
+							const initialDate =
+								participation.reservation.festival.festivalDates?.[0];
+							const finalDate =
+								participation.reservation.festival.festivalDates?.[
+									participation.reservation.festival.festivalDates.length - 1
+								];
+
+							const startDate = formatDate(
+								initialDate?.startDate,
+							).toLocaleString({
 								day: "numeric",
 								month: "short",
-							},
-						);
-						const endDate = formatDate(finalDate?.endDate).toLocaleString({
-							day: "numeric",
-							month: "short",
-						});
+							});
+							const endDate = formatDate(finalDate?.endDate).toLocaleString({
+								day: "numeric",
+								month: "short",
+							});
 
-						return (
-							<div
-								key={participation.id}
-								className="bg-card p-3 rounded-md shadow-md border flex gap-3 items-center"
-							>
-								<div className="relative w-12 h-12 md:w-16 md:h-16 aspect-square rounded-full">
-									<Image
-										src={
-											participation.reservation.festival.festivalBannerUrl ||
-											"/img/placeholders/placeholder-300x300.png"
-										}
-										alt={participation.reservation.festival.name}
-										className="object-cover rounded-full"
-										fill
-										blurDataURL="/img/placeholders/placeholder-300x300.png"
-										placeholder="blur"
-									/>
+							return (
+								<div
+									key={participation.id}
+									className="bg-card p-3 rounded-md shadow-md border flex gap-3 items-center"
+								>
+									<div className="relative w-12 h-12 md:w-16 md:h-16 aspect-square rounded-full">
+										<Image
+											src={
+												participation.reservation.festival.festivalBannerUrl ||
+												"/img/placeholders/placeholder-300x300.png"
+											}
+											alt={participation.reservation.festival.name}
+											className="object-cover rounded-full"
+											fill
+											blurDataURL="/img/placeholders/placeholder-300x300.png"
+											placeholder="blur"
+										/>
+									</div>
+									<div className="flex flex-col gap-1">
+										<p className="text-sm md:text-base font-medium leading-tight">
+											{participation.reservation.festival.name}
+										</p>
+										<p className="text-xs md:text-sm leading-tight text-muted-foreground flex items-center gap-1">
+											<CalendarIcon className="w-4 h-4" />
+											<span>
+												{startDate} - {endDate}
+											</span>
+										</p>
+										<p className="text-xs md:text-sm leading-tight text-muted-foreground flex items-center gap-1">
+											<LandPlotIcon className="w-4 h-4" />
+											<span>
+												Espacio {participation.reservation.stand.label}
+												{participation.reservation.stand.standNumber}
+											</span>
+										</p>
+									</div>
 								</div>
-								<div className="flex flex-col gap-1">
-									<p className="text-sm md:text-base font-medium leading-tight">
-										{participation.reservation.festival.name}
-									</p>
-									<p className="text-sm md:text-base leading-tight text-muted-foreground">
-										({startDate} - {endDate})
-									</p>
-									<p className="text-sm md:text-base leading-tight text-muted-foreground">
-										Espacio {participation.reservation.stand.label}
-										{participation.reservation.stand.standNumber}
-									</p>
-								</div>
-							</div>
-						);
-					})}
+							);
+						})}
+					</div>
 				</>
 			) : (
 				<div className="flex flex-col items-center justify-center gap-2 text-muted-foreground mt-10">
