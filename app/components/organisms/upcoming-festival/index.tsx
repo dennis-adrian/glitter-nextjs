@@ -45,7 +45,7 @@ export function UpcomingFestivalCard({
 			<CardHeader className="bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-t-lg">
 				<div className="flex justify-between items-start">
 					<div>
-						<CardTitle className="text-lg md:text-2xl font-bold">
+						<CardTitle className="text-base md:text-xl font-medium md:font-bold">
 							{festival.name}
 						</CardTitle>
 						{festival.description && (
@@ -59,14 +59,14 @@ export function UpcomingFestivalCard({
 					</Badge>
 				</div>
 
-				<div className="flex flex-col sm:flex-row gap-1 md:gap-4 mt-4">
-					<div className="flex items-center gap-2">
+				<div className="flex flex-col sm:flex-row gap-1 md:gap-4 mt-2 md:mt-4">
+					<div className="flex items-center gap-2 text-sm md:text-base">
 						<Calendar className="h-5 w-5 text-green-200" />
 						<span>
 							{festivalStartDate} - {festivalEndDate}
 						</span>
 					</div>
-					<div className="flex items-center gap-2">
+					<div className="flex items-center gap-2 text-sm md:text-base">
 						<MapPin className="h-5 w-5 text-green-200" />
 						<span>{festival.locationLabel}</span>
 					</div>

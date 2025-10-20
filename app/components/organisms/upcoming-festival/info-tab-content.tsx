@@ -27,16 +27,15 @@ export default function InfoTabContent({
 			<div className="flex items-start gap-3">
 				<div className="flex flex-col gap-1 text-center items-center">
 					{festival.festivalBannerUrl ? (
-						<div className="relative w-28 h-32">
-							<Image
-								className="object-cover"
-								src={festival.festivalBannerUrl}
-								alt={festival.name}
-								placeholder="blur"
-								blurDataURL="/img/placeholders/placeholder-300x300.png"
-								fill
-							/>
-						</div>
+						<Image
+							className="rounded-md"
+							src={festival.festivalBannerUrl}
+							alt={festival.name}
+							placeholder="blur"
+							blurDataURL="/img/placeholders/placeholder-300x300.png"
+							width={100}
+							height={140}
+						/>
 					) : (
 						<div className="bg-emerald-100 p-3 rounded-full w-fit">
 							<Palette className="h-6 w-6 text-emerald-500" />

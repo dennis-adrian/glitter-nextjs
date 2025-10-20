@@ -39,7 +39,7 @@ export default async function Page() {
 
 	return (
 		<div className="container p-3 md:p-6">
-			<h1 className="text-xl md:text-3xl font-bold">Tus Participaciones</h1>
+			<h1 className="text-xl md:text-3xl font-bold">Participación activa</h1>
 			<div className="my-2 md:my-4 w-full">
 				{isProfileInActiveFestival && activeFestival ? (
 					<div className="flex flex-col gap-2">
