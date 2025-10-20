@@ -52,12 +52,12 @@ export default async function ParticipationsPage() {
 								];
 
 							const startDate = formatDate(
-								initialDate?.startDate,
+								initialDate?.startDate!,
 							).toLocaleString({
 								day: "numeric",
 								month: "short",
 							});
-							const endDate = formatDate(finalDate?.endDate).toLocaleString({
+							const endDate = formatDate(finalDate?.endDate!).toLocaleString({
 								day: "numeric",
 								month: "short",
 							});

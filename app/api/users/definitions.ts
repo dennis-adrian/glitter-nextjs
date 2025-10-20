@@ -22,7 +22,7 @@ export type Participation = typeof reservationParticipants.$inferSelect & {
 	reservation: typeof standReservations.$inferSelect & {
 		stand: StandBase;
 		festival: typeof festivals.$inferSelect & {
-			festivalDates: (typeof festivalDates.$inferSelect)[];
+			festivalDates?: (typeof festivalDates.$inferSelect)[];
 		};
 	};
 };
