@@ -203,7 +203,6 @@ export async function updateReservationSimple(
 ) {
 	const { status, standId, partner } = data;
 
-	// 1) Read previous status (to detect transition -> accepted)
 	const prev = await db.query.standReservations.findFirst({
 		where: eq(standReservations.id, id),
 		columns: { status: true },
@@ -216,7 +215,7 @@ export async function updateReservationSimple(
 				.set({ status, updatedAt: new Date() })
 				.where(eq(standReservations.id, id));
 
-	
+
 			let standStatus: StandStatus = "available";
 			if (status === "accepted") standStatus = "confirmed";
 			if (status === "pending") standStatus = "reserved";
@@ -248,7 +247,7 @@ export async function updateReservationSimple(
 		});
 
 		if (prev?.status !== "accepted" && status === "accepted") {
-		
+
 			const full = await db.query.standReservations.findFirst({
 				where: eq(standReservations.id, id),
 				with: {
@@ -265,7 +264,7 @@ export async function updateReservationSimple(
 				const targets = (full.participants ?? [])
 					.map((p) => p.user)
 					.filter((u): u is typeof users.$inferSelect => !!u && !!u.email?.trim())
-					.map((u) => ({ to: u.email!.trim(), user: u }));
+					.map((u) => ({ to: u.email!.trim().toLowerCase(), user: u }));
 
 
 				const seen = new Set<string>();
@@ -275,14 +274,14 @@ export async function updateReservationSimple(
 					return true;
 				});
 
-				await Promise.all(
+				await Promise.allSettled(
 					uniqueTargets.map(({ to, user }) =>
 						sendEmail({
 							to: [to],
 							from: "Reservas Glitter <reservas@productoraglitter.com>",
 							subject: `Reserva confirmada para el festival ${full.festival.name}`,
 							react: ReservationConfirmationEmailTemplate({
-								profile: normalizeEmail(user), 
+								profile: normalizeEmail(user),
 								standLabel,
 								festival: full.festival,
 							}) as React.ReactElement,

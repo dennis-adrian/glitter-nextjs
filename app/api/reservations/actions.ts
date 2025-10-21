@@ -210,36 +210,36 @@ export async function confirmReservation(
         );
     });
 
-    const targets: { to: string; user: typeof users.$inferSelect }[] = [];
-
-    if (user.email) targets.push({ to: user.email, user });
-
+    const targets: { to: string; profile: BaseProfile }[] = [];
+    if (user.email?.trim()) targets.push({ to: user.email.trim(), profile: user });
     for (const p of participants) {
       const email = p.user?.email?.trim();
       if (!email) continue;
-      targets.push({ to: email, user: p.user }); 
+      targets.push({ to: email, profile: normalizeEmail(p.user) });
     }
     const seen = new Set<string>();
-    const uniqueTargets = targets.filter(t => {
-      if (seen.has(t.to)) return false;
-      seen.add(t.to);
+    const uniqueTargets = targets.filter(({ to }) => {
+      const key = to.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
     });
 
-    await Promise.all(
-      uniqueTargets.map(({ to, user: dbUser }) =>
+    await Promise.allSettled(
+      uniqueTargets.map(({ to, profile }) =>
         sendEmail({
           to: [to],
           from: "Reservas Glitter <reservas@productoraglitter.com>",
           subject: `Reserva confirmada para el festival ${festival.name}`,
           react: EmailTemplate({
-            profile: normalizeEmail(dbUser),
+            profile,
             standLabel,
             festival,
           }) as React.ReactElement,
-        })
-      )
+        }),
+      ),
     );
+
   } catch (error) {
     console.error(error);
     return { success: false, message: "Error al confirmar la reserva" };
