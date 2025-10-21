@@ -42,25 +42,26 @@ export default async function ParticipationsPage() {
 						Participaciones
 					</h1>
 
-					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
 						{participations.map((participation) => {
-							const initialDate =
-								participation.reservation.festival.festivalDates?.[0];
-							const finalDate =
-								participation.reservation.festival.festivalDates?.[
-									participation.reservation.festival.festivalDates.length - 1
-								];
+							const { festivalDates } = participation.reservation.festival;
+							const initialDate = festivalDates?.[0];
+							const finalDate = festivalDates?.[festivalDates.length - 1];
 
-							const startDate = formatDate(
-								initialDate?.startDate!,
-							).toLocaleString({
-								day: "numeric",
-								month: "short",
-							});
-							const endDate = formatDate(finalDate?.endDate!).toLocaleString({
-								day: "numeric",
-								month: "short",
-							});
+							const startDate = festivalDates?.length
+								? formatDate(initialDate?.startDate!).toLocaleString({
+										day: "numeric",
+										month: "short",
+									})
+								: null;
+
+							const endDate =
+								festivalDates?.length && festivalDates.length > 1
+									? formatDate(finalDate?.endDate!).toLocaleString({
+											day: "numeric",
+											month: "short",
+										})
+									: null;
 
 							return (
 								<div
@@ -84,12 +85,14 @@ export default async function ParticipationsPage() {
 										<p className="text-sm md:text-base font-medium leading-tight">
 											{participation.reservation.festival.name}
 										</p>
-										<p className="text-xs md:text-sm leading-tight text-muted-foreground flex items-center gap-1">
-											<CalendarIcon className="w-4 h-4" />
-											<span>
-												{startDate} - {endDate}
-											</span>
-										</p>
+										{startDate && endDate && (
+											<p className="text-xs md:text-sm leading-tight text-muted-foreground flex items-center gap-1">
+												<CalendarIcon className="w-4 h-4" />
+												<span>
+													{startDate} - {endDate}
+												</span>
+											</p>
+										)}
 										<p className="text-xs md:text-sm leading-tight text-muted-foreground flex items-center gap-1">
 											<LandPlotIcon className="w-4 h-4" />
 											<span>

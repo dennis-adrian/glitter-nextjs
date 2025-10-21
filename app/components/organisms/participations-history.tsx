@@ -72,7 +72,7 @@ export default function ParticipationsHistory({
 							<p className="text-muted-foreground leading-tight text-sm md:text-base flex items-center gap-1">
 								<CalendarIcon className="w-4 h-4" />
 								{formatDate(
-									activeFestival.festivalDates[0].startDate,
+									activeFestival.festivalDates[0]?.startDate,
 								).toLocaleString({
 									day: "numeric",
 									month: "short",
@@ -80,7 +80,9 @@ export default function ParticipationsHistory({
 								})}{" "}
 								-{" "}
 								{formatDate(
-									activeFestival.festivalDates[1].endDate,
+									activeFestival.festivalDates[
+										activeFestival.festivalDates.length - 1
+									]?.endDate,
 								).toLocaleString({
 									day: "numeric",
 									month: "short",
