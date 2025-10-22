@@ -13,6 +13,7 @@ import {
 } from "@/app/api/users/definitions";
 import ProfileCompletionEmailTemplate from "@/app/emails/profile-completion";
 import SubcategoryUpdateEmailTemplate from "@/app/emails/subcategory-update";
+import { UserInfraction } from "@/app/lib/users/definitions";
 import { buildWhereClauseForProfileFetching } from "@/app/lib/users/helpers";
 import { isProfileComplete } from "@/app/lib/utils";
 import { utapi } from "@/app/server/uploadthing";
@@ -497,9 +498,16 @@ export async function fetchUserParticipations(
 	}
 }
 
-export async function fetchUserInfractions(profileId: number) {
+export async function fetchUserInfractions(
+	profileId: number,
+): Promise<UserInfraction[]> {
 	try {
 		return await db.query.infractions.findMany({
+			with: {
+				type: true,
+				festival: true,
+				sanctions: true,
+			},
 			where: eq(infractions.userId, profileId),
 			orderBy: desc(infractions.createdAt),
 		});

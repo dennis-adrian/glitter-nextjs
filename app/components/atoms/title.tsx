@@ -15,27 +15,29 @@ export default function Title({
 	let classes = "";
 	switch (level) {
 		case "h1":
-			classes = "text-2xl md:text-4xl font-bold tracking-tight";
+			classes = "text-2xl md:text-4xl font-bold tracking-tight my-3";
 			break;
 		case "h2":
-			classes = "text-xl md:text-3xl font-bold tracking-tight";
+			classes = "text-xl md:text-3xl font-bold tracking-tight my-3";
 			break;
 		case "h3":
 			classes =
-				"text-lg md:text-2xl font-semibold tracking-tight leading-tight";
+				"text-lg md:text-2xl font-semibold tracking-tight leading-tight my-2";
 			break;
 		case "h4":
 			classes =
-				"text-base md:text-lg font-semibold tracking-tight leading-tight";
+				"text-base md:text-lg font-semibold tracking-tight leading-tight my-2";
 			break;
 		case "h5":
-			classes = "text-sm md:text-base font-medium tracking-tight leading-tight";
+			classes =
+				"text-sm md:text-base font-medium tracking-tight leading-tight my-1";
 			break;
 		case "h6":
-			classes = "text-xs md:text-sm font-medium tracking-tight leading-tight";
+			classes =
+				"text-xs md:text-sm font-medium tracking-tight leading-tight my-1";
 			break;
 		default:
-			classes = "text-2xl md:text-4xl font-bold tracking-tight";
+			classes = "text-2xl md:text-4xl font-bold tracking-tight my-3";
 			break;
 	}
 
