@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, not, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
@@ -92,6 +92,39 @@ export async function fetchConfirmedReservationsByFestival(
     console.error(error);
     return [];
   }
+}
+
+export async function fetchValidReservationsByFestival(
+	festivalId: number,
+): Promise<ReservationWithParticipantsAndUsersAndStandAndCollaborators[]> {
+	try {
+		return db.query.standReservations.findMany({
+			where: and(
+				eq(standReservations.festivalId, festivalId),
+				not(eq(standReservations.status, "rejected")),
+			),
+			with: {
+				participants: {
+					with: {
+						user: {
+							with: {
+								userSocials: true,
+							},
+						},
+					},
+				},
+				stand: true,
+				collaborators: {
+					with: {
+						collaborator: true,
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
 }
 
 export async function fetchReservation(

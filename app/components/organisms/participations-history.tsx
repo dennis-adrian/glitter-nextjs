@@ -10,6 +10,7 @@ import { formatDate } from "@/app/lib/formatters";
 import {
 	ArrowRightIcon,
 	CalendarIcon,
+	LandPlotIcon,
 	LogsIcon,
 	PackageOpenIcon,
 	PartyPopperIcon,
@@ -52,23 +53,31 @@ export default function ParticipationsHistory({
 					onClick={() => router.push(`/my_participations`)}
 				>
 					<CardContent className="flex p-4 gap-2 w-full">
-						<Image
-							src={
-								activeFestival.festivalBannerUrl ||
-								"/img/placeholders/placeholder-300x300.png"
-							}
-							alt={activeFestival.name}
-							width={80}
-							height={80}
-							className="rounded-md"
-							blurDataURL="/img/placeholders/placeholder-300x300.png"
-							placeholder="blur"
-						/>
+						<div className="relative w-20 h-30 md:w-30 md:h-40 rounded-md">
+							<Image
+								src={
+									activeFestival.festivalBannerUrl ||
+									"/img/placeholders/placeholder-300x300.png"
+								}
+								alt={activeFestival.name}
+								fill
+								className="object-cover rounded-md"
+								blurDataURL="/img/placeholders/placeholder-300x300.png"
+								placeholder="blur"
+							/>
+						</div>
 						<div className="flex flex-col gap-2 grow-1">
-							<Title level="h4">{activeFestival.name}</Title>
+							<Title level="h4" className="my-0">
+								{activeFestival.name}
+							</Title>
 							<ReservationStatusBadge
 								status={currentParticipation.reservation.status}
 							/>
+							<p className="text-muted-foreground leading-tight text-sm md:text-base flex items-center gap-1">
+								<LandPlotIcon className="w-4 h-4" />
+								Espacio {currentParticipation.reservation.stand.label}
+								{currentParticipation.reservation.stand.standNumber}
+							</p>
 							<p className="text-muted-foreground leading-tight text-sm md:text-base flex items-center gap-1">
 								<CalendarIcon className="w-4 h-4" />
 								{formatDate(

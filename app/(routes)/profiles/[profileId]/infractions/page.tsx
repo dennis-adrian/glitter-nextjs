@@ -41,8 +41,6 @@ export default async function InfractionsPage(props: InfractionsPageProps) {
 		validatedParams.data.profileId,
 	);
 
-	console.log("infractions", infractions);
-
 	return (
 		<div className="container p-3 md:p-6">
 			<Breadcrumb>

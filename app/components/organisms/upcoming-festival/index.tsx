@@ -42,10 +42,10 @@ export function UpcomingFestivalCard({
 
 	return (
 		<Card className="w-full max-w-4xl shadow-lg border-green-100 mx-auto">
-			<CardHeader className="bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-t-lg">
+			<CardHeader className="bg-gradient-to-r from-[#679F39] to-[#9FBB70] text-white rounded-t-lg">
 				<div className="flex justify-between items-start">
 					<div>
-						<CardTitle className="text-base md:text-xl font-medium md:font-bold">
+						<CardTitle className="text-xl md:text-3xl font-medium md:font-bold">
 							{festival.name}
 						</CardTitle>
 						{festival.description && (
@@ -54,20 +54,17 @@ export function UpcomingFestivalCard({
 							</CardDescription>
 						)}
 					</div>
-					<Badge className="hidden md:block bg-white text-green-500 hover:bg-green-100 px-3 py-1 text-sm">
-						Participante Confirmado
-					</Badge>
 				</div>
 
 				<div className="flex flex-col sm:flex-row gap-1 md:gap-4 mt-2 md:mt-4">
 					<div className="flex items-center gap-2 text-sm md:text-base">
-						<Calendar className="h-5 w-5 text-green-200" />
+						<Calendar className="h-5 w-5 text-white" />
 						<span>
 							{festivalStartDate} - {festivalEndDate}
 						</span>
 					</div>
 					<div className="flex items-center gap-2 text-sm md:text-base">
-						<MapPin className="h-5 w-5 text-green-200" />
+						<MapPin className="h-5 w-5 text-white" />
 						<span>{festival.locationLabel}</span>
 					</div>
 					{/* <div className="flex items-center gap-2">

@@ -38,19 +38,19 @@ export default function InfoTabContent({
 						/>
 					) : (
 						<div className="bg-emerald-100 p-3 rounded-full w-fit">
-							<Palette className="h-6 w-6 text-emerald-500" />
+							<Palette className="h-6 w-6 text-[#3C8837]" />
 						</div>
 					)}
 					<Link
 						href={`/festivals/${festival.id}?tab=sectors`}
-						className="text-sm text-emerald-500 underline"
+						className="text-sm text-[#3C8837] underline"
 					>
 						Ver mapa
 					</Link>
 				</div>
 				{reservation && (
 					<div>
-						<h3 className="font-semibold text-lg">
+						<h3 className="font-semibold">
 							Espacio #{reservation.stand.label}
 							{reservation.stand.standNumber}
 						</h3>
@@ -60,7 +60,7 @@ export default function InfoTabContent({
 									key={participant.id}
 									className="text-sm flex items-center gap-1"
 								>
-									<Avatar className="relative h-10 w-10">
+									<Avatar className="relative h-8 w-8">
 										<AvatarImage
 											className="object-cover"
 											alt="avatar image"
