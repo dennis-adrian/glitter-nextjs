@@ -1,8 +1,8 @@
-import { fetchConfirmedReservationsByFestival } from "@/app/api/reservations/actions";
+import { fetchValidReservationsByFestival } from "@/app/api/reservations/actions";
 import { ReservationWithParticipantsAndUsersAndStandAndCollaborators } from "@/app/api/reservations/definitions";
 import { UpcomingFestivalCard } from "@/app/components/organisms/upcoming-festival";
 import { RedirectButton } from "@/app/components/redirect-button";
-import { profileHasConfirmedReservation } from "@/app/helpers/next_event";
+import { profileHasReservationMade } from "@/app/helpers/next_event";
 import { getActiveFestival } from "@/app/lib/festivals/helpers";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { ExternalLinkIcon } from "lucide-react";
@@ -11,7 +11,7 @@ import { notFound } from "next/navigation";
 export default async function Page() {
 	const activeFestival = await getActiveFestival();
 	const currentProfile = await getCurrentUserProfile();
-	let confirmedReservations: ReservationWithParticipantsAndUsersAndStandAndCollaborators[] =
+	let validReservations: ReservationWithParticipantsAndUsersAndStandAndCollaborators[] =
 		[];
 
 	if (!currentProfile) {
@@ -21,16 +21,16 @@ export default async function Page() {
 	let isProfileInActiveFestival = false;
 
 	if (activeFestival) {
-		isProfileInActiveFestival = profileHasConfirmedReservation(
+		isProfileInActiveFestival = profileHasReservationMade(
 			currentProfile,
 			activeFestival.id,
 		);
-		confirmedReservations = await fetchConfirmedReservationsByFestival(
+		validReservations = await fetchValidReservationsByFestival(
 			activeFestival.id,
 		);
 	}
 
-	const confirmedReservationInActiveFestival = confirmedReservations.find(
+	const confirmedReservationInActiveFestival = validReservations.find(
 		(reservation) =>
 			reservation.participants.some(
 				(participant) => participant.user.id === currentProfile.id,
@@ -39,7 +39,7 @@ export default async function Page() {
 
 	return (
 		<div className="container p-3 md:p-6">
-			<h1 className="text-xl md:text-3xl font-bold">Tus Participaciones</h1>
+			<h1 className="text-xl md:text-3xl font-bold">Participación activa</h1>
 			<div className="my-2 md:my-4 w-full">
 				{isProfileInActiveFestival && activeFestival ? (
 					<div className="flex flex-col gap-2">
