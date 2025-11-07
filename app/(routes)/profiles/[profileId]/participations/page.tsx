@@ -8,22 +8,39 @@ import {
 	BreadcrumbPage,
 	BreadcrumbSeparator,
 } from "@/app/components/ui/breadcrumb";
-import { formatDate } from "@/app/lib/formatters";
 import { fetchUserParticipations } from "@/app/lib/users/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
-import { CalendarIcon, LandPlotIcon, PackageOpenIcon } from "lucide-react";
-import Image from "next/image";
+import { PackageOpenIcon } from "lucide-react";
 import { notFound } from "next/navigation";
+import { z } from "zod";
 
-export default async function ParticipationsPage() {
+const ParamsSchema = z.object({
+	profileId: z.coerce.number(),
+});
+
+type ParticipationsPageProps = {
+	params: Promise<z.infer<typeof ParamsSchema>>;
+};
+
+export default async function ParticipationsPage(
+	props: ParticipationsPageProps,
+) {
+	const { profileId } = await props.params;
+	const { success: paramValidationSuccess, data: params } =
+		ParamsSchema.safeParse({
+			profileId,
+		});
+
+	if (!paramValidationSuccess) notFound();
+
 	const currentProfile = await getCurrentUserProfile();
-	await protectRoute(currentProfile || undefined, currentProfile?.id);
+	await protectRoute(currentProfile || undefined, params.profileId);
 
 	if (!currentProfile) {
 		notFound();
 	}
 
-	const participations = await fetchUserParticipations(currentProfile.id);
+	const participations = await fetchUserParticipations(params.profileId);
 
 	return (
 		<div className="container p-3 md:p-6">
