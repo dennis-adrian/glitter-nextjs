@@ -86,7 +86,7 @@ export default function CollaboratorForm({
 					/>
 				</div>
 				<SubmitButton
-					className="w-full bg-emerald-500 hover:bg-emerald-600 text-white"
+					className="w-full bg-[#679F39] hover:bg-[#679F39]/90 text-white"
 					disabled={form.formState.isSubmitting}
 					loading={form.formState.isSubmitting}
 					loadingLabel="Agregando..."
