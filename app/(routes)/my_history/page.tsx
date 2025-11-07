@@ -14,10 +14,6 @@ export default async function MyHistoryPage() {
 
 	const activeFestival = await getActiveFestival();
 
-	if (!activeFestival) {
-		notFound();
-	}
-
 	return (
 		<div className="container p-3 md:p-6">
 			<div className="flex flex-col gap-1 md:gap-2 mb-4">

@@ -23,7 +23,7 @@ export default function ParticipationsHistory({
 	activeFestival,
 }: {
 	forProfile: ProfileType;
-	activeFestival: FullFestival;
+	activeFestival?: FullFestival | null;
 }) {
 	const router = useRouter();
 	const participations = forProfile.participations;
@@ -39,12 +39,14 @@ export default function ParticipationsHistory({
 		);
 	}
 
-	const currentParticipation = participations.find(
-		(participation) =>
-			participation.reservation.festival.id === activeFestival.id,
-	);
+	const currentParticipation = activeFestival
+		? participations.find(
+				(participation) =>
+					participation.reservation.festival.id === activeFestival.id,
+			)
+		: null;
 
-	const festivalDates = activeFestival.festivalDates;
+	const festivalDates = activeFestival?.festivalDates;
 	const startDate = festivalDates?.[0]?.startDate
 		? formatDate(festivalDates[0].startDate).toLocaleString({
 				day: "numeric",
@@ -68,7 +70,7 @@ export default function ParticipationsHistory({
 
 	return (
 		<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-			{!!currentParticipation && (
+			{!!currentParticipation && !!activeFestival && (
 				<Card
 					className="shadow-md hover:shadow-lg transition-shadow duration-300"
 					onClick={() => router.push(`/my_participations`)}
