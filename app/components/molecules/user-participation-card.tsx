@@ -40,8 +40,6 @@ export default function UserParticipationCard({
 					alt={participation.reservation.festival.name}
 					className="object-cover rounded-full"
 					fill
-					blurDataURL="/img/placeholders/placeholder-300x300.png"
-					placeholder="blur"
 				/>
 			</div>
 			<div className="flex flex-col gap-1">

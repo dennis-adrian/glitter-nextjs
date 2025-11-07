@@ -44,18 +44,16 @@ export const getFestivalDateString = (
 	startDate: string | null,
 	endDate: string | null,
 ) => {
-	if (!(startDate && endDate)) return null;
-
-	if (startDate === endDate) {
-		return startDate;
-	}
-
 	if (startDate && !endDate) {
 		return startDate;
 	}
 
 	if (!startDate && endDate) {
 		return endDate;
+	}
+
+	if (startDate === endDate) {
+		return startDate;
 	}
 
 	return `${startDate} - ${endDate}`;
