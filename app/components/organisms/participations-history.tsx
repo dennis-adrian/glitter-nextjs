@@ -4,9 +4,8 @@ import { ProfileType } from "@/app/api/users/definitions";
 import ReservationStatusBadge from "@/app/components/atoms/reservation-status-badge";
 import Title from "@/app/components/atoms/title";
 import { Card, CardContent } from "@/app/components/ui/card";
-import { FestivalBase, FullFestival } from "@/app/lib/festivals/definitions";
-import { getActiveFestival } from "@/app/lib/festivals/helpers";
-import { formatDate } from "@/app/lib/formatters";
+import { FullFestival } from "@/app/lib/festivals/definitions";
+import { formatDate, getFestivalDateString } from "@/app/lib/formatters";
 import {
 	ArrowRightIcon,
 	CalendarIcon,
@@ -45,6 +44,28 @@ export default function ParticipationsHistory({
 			participation.reservation.festival.id === activeFestival.id,
 	);
 
+	const festivalDates = activeFestival.festivalDates;
+	const startDate = festivalDates?.[0]?.startDate
+		? formatDate(festivalDates[0].startDate).toLocaleString({
+				day: "numeric",
+				month: "short",
+				year: "2-digit",
+			})
+		: null;
+
+	const endDate =
+		festivalDates?.length &&
+		festivalDates.length > 1 &&
+		festivalDates[festivalDates.length - 1]?.endDate
+			? formatDate(
+					festivalDates[festivalDates.length - 1].endDate,
+				).toLocaleString({
+					day: "numeric",
+					month: "short",
+					year: "2-digit",
+				})
+			: null;
+
 	return (
 		<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 			{!!currentParticipation && (
@@ -78,26 +99,12 @@ export default function ParticipationsHistory({
 								Espacio {currentParticipation.reservation.stand.label}
 								{currentParticipation.reservation.stand.standNumber}
 							</p>
-							<p className="text-muted-foreground leading-tight text-sm md:text-base flex items-center gap-1">
-								<CalendarIcon className="w-4 h-4" />
-								{formatDate(
-									activeFestival.festivalDates[0]?.startDate,
-								).toLocaleString({
-									day: "numeric",
-									month: "short",
-									year: "2-digit",
-								})}{" "}
-								-{" "}
-								{formatDate(
-									activeFestival.festivalDates[
-										activeFestival.festivalDates.length - 1
-									]?.endDate,
-								).toLocaleString({
-									day: "numeric",
-									month: "short",
-									year: "2-digit",
-								})}
-							</p>
+							{getFestivalDateString(startDate, endDate) && (
+								<p className="text-muted-foreground leading-tight text-sm md:text-base flex items-center gap-1">
+									<CalendarIcon className="w-4 h-4" />
+									{getFestivalDateString(startDate, endDate)}
+								</p>
+							)}
 							<Link
 								href={`/my_participations`}
 								className="text-sm text-primary-500 underline flex items-center gap-1 self-end"
