@@ -211,7 +211,7 @@ export async function confirmReservation(
     });
 
     const targets: { to: string; profile: BaseProfile }[] = [];
-    if (user.email?.trim()) targets.push({ to: user.email.trim(), profile: user });
+    if (user.email?.trim()) targets.push({ to: user.email.trim(), profile:  normalizeEmail(user) });
     for (const p of participants) {
       const email = p.user?.email?.trim();
       if (!email) continue;

@@ -264,13 +264,13 @@ export async function updateReservationSimple(
 				const targets = (full.participants ?? [])
 					.map((p) => p.user)
 					.filter((u): u is typeof users.$inferSelect => !!u && !!u.email?.trim())
-					.map((u) => ({ to: u.email!.trim().toLowerCase(), user: u }));
+					.map((u) => ({ to: u.email!.trim(), normalizedEmail: u.email!.trim().toLowerCase(), user: u }));
 
 
 				const seen = new Set<string>();
-				const uniqueTargets = targets.filter(({ to }) => {
-					if (seen.has(to)) return false;
-					seen.add(to);
+				const uniqueTargets = targets.filter(({ normalizedEmail }) => {
+					if (seen.has(normalizedEmail)) return false;
+					seen.add(normalizedEmail);
 					return true;
 				});
 
@@ -372,7 +372,6 @@ export async function updateReservation(id: number, data: ReservationUpdate) {
 	revalidatePath("/dashboard/reservations");
 	return { success: true, message: "Reserva actualizada" };
 }
-
 type FormState = {
 	success: boolean;
 	message: string;
