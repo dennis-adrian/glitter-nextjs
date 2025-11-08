@@ -115,12 +115,21 @@ export default function CreateReservationDialog({
       toast.error("Selecciona un stand");
       return;
     }
-
     const allowPartner = primaryCategory === "illustration";
+    if (
+      allowPartner &&
+      selectedPartner &&
+      selectedPartner === selectedPrimary
+    ) {
+      toast.error("El compañero debe ser distinto al participante principal");
+      return;
+    }
+
     const participantIds = [
       selectedPrimary,
       allowPartner ? selectedPartner : undefined,
-    ].filter(Boolean) as number[];
+    ].filter((id): id is number => typeof id === "number");
+
 
     if (!primaryProfile) {
       toast.error("Participante inválido");

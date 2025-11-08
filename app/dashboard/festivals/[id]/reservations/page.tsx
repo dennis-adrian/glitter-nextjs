@@ -3,6 +3,7 @@ import CreateReservationDialog from "@/app/components/reservations/create-reserv
 import { fetchReservationsByFestivalId } from "@/app/lib/reservations/actions";
 import { fetchFestival } from "@/app/lib/festivals/actions";
 import { z } from "zod";
+import type { BaseProfile } from "@/app/api/users/definitions";
 
 const ParamsSchema = z.object({
   id: z.coerce.number(),
@@ -16,14 +17,19 @@ export default async function FestivalReservationsPage({
   const { id } = await params;
   const reservations = await fetchReservationsByFestivalId(id);
   const festival = await fetchFestival({ acceptedUsersOnly: true, id });
-  const participants = (festival?.userRequests || []).map((r) => r.user);
-  const seen: Record<number, boolean> = {};
-  const uniqueParticipants = participants.filter((u) => {
-    if (seen[u.id]) return false;
-    seen[u.id] = true;
-    return true;
-  });
-  const stands = (festival?.festivalSectors || []).flatMap((s) => s.stands);
+  const seen = new Set<number>();
+  const uniqueParticipants =
+    festival?.userRequests?.reduce<BaseProfile[]>((acc, request) => {
+      const user = request.user;
+      if (!user || seen.has(user.id)) {
+        return acc;
+      }
+      seen.add(user.id);
+      acc.push(user);
+      return acc;
+    }, []) ?? [];
+  const stands =
+    festival?.festivalSectors?.flatMap((sector) => sector.stands ?? []) ?? [];
 
   return (
     <div className="container">
@@ -31,8 +37,8 @@ export default async function FestivalReservationsPage({
         <h1 className="text-2xl font-bold">Reservas del festival</h1>
         <CreateReservationDialog
           festivalId={id}
-          participants={uniqueParticipants as any}
-          stands={stands as any}
+          participants={uniqueParticipants}
+          stands={stands}
         />
       </div>
       <ReservationsTable data={reservations} />
