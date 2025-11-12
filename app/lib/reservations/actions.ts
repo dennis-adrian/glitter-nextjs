@@ -110,7 +110,11 @@ export async function fetchReservationsByFestivalId(
 			where: eq(standReservations.festivalId, festivalId),
 			with: {
 				stand: true,
-				festival: true,
+				festival: {
+					with: {
+						festivalDates: true,
+					},
+				},
 				participants: {
 					with: {
 						user: {
@@ -173,13 +177,11 @@ export async function fetchPublicReservationsByFestivalId(
 	}
 }
 
-export async function updateReservationStatus(
-	data: {
-		reservationId: number,
-		standId: number,
-		status: ReservationStatus
-	}
-): Promise<{ success: boolean; message: string }> {
+export async function updateReservationStatus(data: {
+	reservationId: number;
+	standId: number;
+	status: ReservationStatus;
+}): Promise<{ success: boolean; message: string }> {
 	const { reservationId, standId, status } = data;
 	try {
 		await db.transaction(async (tx) => {
@@ -187,7 +189,9 @@ export async function updateReservationStatus(
 				.update(standReservations)
 				.set({ status })
 				.where(eq(standReservations.id, reservationId));
-			const standStatus = ["accepted", "verification_payment"].includes(status) ? "confirmed" : "available";
+			const standStatus = ["accepted", "verification_payment"].includes(status)
+				? "confirmed"
+				: "available";
 			await tx
 				.update(stands)
 				.set({ status: standStatus })

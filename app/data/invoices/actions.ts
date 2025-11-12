@@ -2,6 +2,7 @@
 
 import { fetchAdminUsers } from "@/app/api/users/actions";
 import {
+	InvoiceWithParticipants,
 	InvoiceWithPaymentsAndStand,
 	InvoiceWithPaymentsAndStandAndProfile,
 	NewPayment,
@@ -30,8 +31,12 @@ export async function fetchLatestInvoiceByProfileId(
 								festivalDates: true,
 							},
 						},
+						participants: {
+							with: { user: true },
+						},
 					},
 				},
+				user: true,
 			},
 			orderBy: desc(invoices.createdAt),
 			where: eq(invoices.userId, profileId),
@@ -121,7 +126,7 @@ export async function createPayment(data: {
 }
 
 export async function fetchInvoices(): Promise<
-	InvoiceWithPaymentsAndStandAndProfile[]
+	InvoiceWithParticipants[]
 > {
 	try {
 		return await db.query.invoices.findMany({
@@ -135,6 +140,9 @@ export async function fetchInvoices(): Promise<
 								festivalDates: true,
 							},
 						},
+						participants: {
+							with: { user: true },
+						},
 					},
 				},
 				user: true,
@@ -142,7 +150,7 @@ export async function fetchInvoices(): Promise<
 		});
 	} catch (error) {
 		console.error("Error fetching invoices", error);
-		return [] as InvoiceWithPaymentsAndStandAndProfile[];
+		return [] as InvoiceWithParticipants[];
 	}
 }
 
@@ -192,6 +200,9 @@ export async function fetchInvoice(
 								festivalDates: true,
 							},
 						},
+						participants: {
+							with: { user: true },
+						},
 					},
 				},
 				user: true,
@@ -205,7 +216,7 @@ export async function fetchInvoice(
 
 export async function fetchInvoicesByFestival(
 	festivalId: number,
-): Promise<InvoiceWithPaymentsAndStandAndProfile[]> {
+): Promise<InvoiceWithParticipants[]> {
 	try {
 		const reservationsSubquery = db
 			.select({ id: standReservations.id })
@@ -223,6 +234,9 @@ export async function fetchInvoicesByFestival(
 							with: {
 								festivalDates: true,
 							},
+						},
+						participants: {
+							with: { user: true },
 						},
 					},
 				},

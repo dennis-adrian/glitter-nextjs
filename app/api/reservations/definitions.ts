@@ -1,7 +1,10 @@
 import { StandBase } from "@/app/api/stands/definitions";
 import { BaseProfile, ProfileSubcategoryWithSubcategory, ProfileWithSocials, UserSocial } from "@/app/api/users/definitions";
 import { InvoiceWithPayments } from "@/app/data/invoices/definitions";
-import { FestivalBase } from "@/app/lib/festivals/definitions";
+import {
+	FestivalBase,
+	FestivalWithDates,
+} from "@/app/lib/festivals/definitions";
 import { Collaborator } from "@/app/lib/reservations/definitions";
 import { reservationParticipants, standReservations } from "@/db/schema";
 
@@ -32,9 +35,9 @@ export type ReservationWithParticipantsAndUsersAndStandAndCollaborators =
   };
 
 export type ReservationWithParticipantsAndUsersAndStandAndFestival =
-  ReservationWithParticipantsAndUsersAndStand & {
-    festival: FestivalBase;
-  };
+	ReservationWithParticipantsAndUsersAndStand & {
+		festival: FestivalWithDates;
+	};
 
 export type ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments =
   ReservationWithParticipantsAndUsersAndStandAndFestival & {
@@ -42,16 +45,16 @@ export type ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWit
   };
 
 export type FullReservation = ReservationBase & {
-  participants: (typeof reservationParticipants.$inferSelect & {
-    user: BaseProfile & {
-      userSocials: UserSocial[];
-      profileSubcategories: ProfileSubcategoryWithSubcategory[];
-    };
-  })[];
-  stand: StandBase;
-  festival: FestivalBase;
-  invoices: InvoiceWithPayments[];
-  collaborators: {
-    collaborator: Collaborator;
-  }[];
+	participants: (typeof reservationParticipants.$inferSelect & {
+		user: BaseProfile & {
+			userSocials: UserSocial[];
+			profileSubcategories: ProfileSubcategoryWithSubcategory[];
+		};
+	})[];
+	stand: StandBase;
+	festival: FestivalWithDates;
+	invoices: InvoiceWithPayments[];
+	collaborators: {
+		collaborator: Collaborator;
+	}[];
 };
