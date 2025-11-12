@@ -42,7 +42,7 @@ export default async function UserInvoicesPage(props: {
 				</div>
 				<Suspense fallback={<div>Loading...</div>}>
 					<InvoicePaymentSuccess
-						profileId={validatedParams.data.profileId}
+						profile={currentUser!}
 						invoicePromise={invoicePromise}
 						productsPromise={productsPromise}
 					/>

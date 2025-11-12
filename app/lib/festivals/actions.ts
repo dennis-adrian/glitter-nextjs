@@ -676,9 +676,10 @@ export async function sendEmailToUsers(
 ) {
 	const { error } = await sendEmail({
 		to: [user.email],
-		from: "Productora Glitter <no-reply@productoraglitter.com>",
-		subject: `¡Hola ${user.displayName || ""}! Te invitamos a participar en ${festival.name
-			}`,
+		from: "Productora Glitter <eventos@productoraglitter.com>",
+		subject: `¡Hola ${user.displayName || ""}! Te invitamos a participar en ${
+			festival.name
+		}`,
 		react: EmailTemplate({
 			profile: user,
 			festival: festival,

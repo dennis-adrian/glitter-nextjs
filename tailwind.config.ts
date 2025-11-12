@@ -171,6 +171,7 @@ const config = {
 			},
 			fontFamily: {
 				sans: ["var(--font-inter)"],
+				isidora: ["var(--font-isidora)", "sans-serif"],
 			},
 			textShadow: {
 				sm: "3px 3px 3px var(--tw-shadow-color)",

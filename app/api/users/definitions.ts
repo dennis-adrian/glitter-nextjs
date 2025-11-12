@@ -13,6 +13,7 @@ import {
 	profileSubcategories,
 	infractions,
 	festivals,
+	festivalDates,
 } from "@/db/schema";
 
 export type UserSocial = typeof userSocials.$inferSelect;
@@ -20,7 +21,9 @@ type UserRequest = typeof userRequests.$inferSelect;
 export type Participation = typeof reservationParticipants.$inferSelect & {
 	reservation: typeof standReservations.$inferSelect & {
 		stand: StandBase;
-		festival: typeof festivals.$inferSelect; // added festival here
+		festival: typeof festivals.$inferSelect & {
+			festivalDates?: (typeof festivalDates.$inferSelect)[];
+		};
 	};
 };
 
