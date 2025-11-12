@@ -22,7 +22,6 @@ import { getUserName } from "@/app/lib/users/utils";
 import { buildWhereClauseForReservationsFetching } from "@/app/api/reservations/helpers";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { ReservationParticipantWithUser } from "@/app/data/invoices/definitions";
-import { normalizeEmail } from "@/app/helpers/next_event";
 
 export async function fetchReservations(options: {
   query?: string;
@@ -211,11 +210,11 @@ export async function confirmReservation(
     });
 
     const targets: { to: string; profile: BaseProfile }[] = [];
-    if (user.email?.trim()) targets.push({ to: user.email.trim(), profile:  normalizeEmail(user) });
+    if (user.email?.trim()) targets.push({ to: user.email.trim(), profile: user });
     for (const p of participants) {
       const email = p.user?.email?.trim();
       if (!email) continue;
-      targets.push({ to: email, profile: normalizeEmail(p.user) });
+      targets.push({ to: email, profile: p.user });
     }
     const seen = new Set<string>();
     const uniqueTargets = targets.filter(({ to }) => {

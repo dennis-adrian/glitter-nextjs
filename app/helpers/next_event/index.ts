@@ -1,5 +1,4 @@
 import {
-  BaseProfile,
   ProfileType,
   ProfileWithParticipationsAndRequests,
 } from "@/app/api/users/definitions";
@@ -9,7 +8,6 @@ import { getParticipantsOptions } from "@/app/api/reservations/helpers";
 import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import { FestivalWithDates, FestivalWithUserRequests } from "@/app/lib/festivals/definitions";
-import { users } from "@/db/schema";
 
 export function getFestivalDateLabel(festival: FestivalWithDates) {
   const dates = festival.festivalDates;
@@ -61,11 +59,4 @@ export function getSearchArtistOptions(
   });
 
   return getParticipantsOptions(filteredArtists);
-}
-
-export function normalizeEmail(u: typeof users.$inferSelect): BaseProfile {
-  return {
-    ...u,
-    email: (u.email ?? "") as BaseProfile["email"],
-  };
 }

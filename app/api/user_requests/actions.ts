@@ -26,7 +26,6 @@ import { BaseProfile } from "@/app/api/users/definitions";
 import TermsAcceptanceEmailTemplate from "@/app/emails/terms-acceptance";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
-import { normalizeEmail } from "@/app/helpers/next_event";
 import ReservationConfirmationEmailTemplate from "@/app/emails/reservation-confirmation";
 
 export async function fetchRequestsByUserId(userId: number) {
@@ -281,7 +280,7 @@ export async function updateReservationSimple(
 							from: "Reservas Glitter <reservas@productoraglitter.com>",
 							subject: `Reserva confirmada para el festival ${full.festival.name}`,
 							react: ReservationConfirmationEmailTemplate({
-								profile: normalizeEmail(user),
+								profile: user,
 								standLabel,
 								festival: full.festival,
 							}) as React.ReactElement,
