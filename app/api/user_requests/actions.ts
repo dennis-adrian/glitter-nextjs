@@ -2,30 +2,32 @@
 
 import { fetchStandById } from "@/app/api/stands/actions";
 import { UserRequest } from "@/app/api/user_requests/definitions";
-import {
-  fetchAdminUsers,
-  fetchBaseProfileById,
-  fetchUserProfileById,
-} from "@/app/api/users/actions";
+import { fetchAdminUsers, fetchBaseProfileById } from "@/app/api/users/actions";
 import ReservationCreatedEmailTemplate from "@/app/emails/reservation-created";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { db } from "@/db";
 import {
-  invoices,
-  reservationParticipants,
-  scheduledTasks,
-  standReservations,
-  stands,
-  userRequests,
-  users,
+	invoices,
+	reservationParticipants,
+	scheduledTasks,
+	standReservations,
+	stands,
+	userRequests,
+	users,
 } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
 import { and, eq, not, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { BaseProfile } from "@/app/api/users/definitions";
 import TermsAcceptanceEmailTemplate from "@/app/emails/terms-acceptance";
-import { FestivalBase } from "@/app/lib/festivals/definitions";
+import {
+	FestivalBase,
+	FestivalWithDates,
+} from "@/app/lib/festivals/definitions";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import ReservationConfirmationEmailTemplate from "@/app/emails/reservation-confirmation";
+import { ReservationParticipantWithUser } from "@/app/data/invoices/definitions";
+import { StandBase } from "@/app/api/stands/definitions";
 
 export async function fetchRequestsByUserId(userId: number) {
 	try {
@@ -199,7 +201,13 @@ export async function updateReservationSimple(
 	id: number,
 	data: ReservationUpdateSimple,
 ) {
-	const { status, standId, partner } = data;
+	const { status, standId, partner, stand, participants, festival } = data;
+
+	const prev = await db.query.standReservations.findFirst({
+		where: eq(standReservations.id, id),
+		columns: { status: true },
+	});
+
 	try {
 		await db.transaction(async (tx) => {
 			await tx
@@ -208,12 +216,10 @@ export async function updateReservationSimple(
 				.where(eq(standReservations.id, id));
 
 			let standStatus: StandStatus = "available";
-			if (status === "accepted") {
+			if (status && ["accepted", "verification_payment"].includes(status))
 				standStatus = "confirmed";
-			}
-			if (status === "pending") {
-				standStatus = "reserved";
-			}
+			if (status === "pending") standStatus = "reserved";
+
 			await tx
 				.update(stands)
 				.set({ status: standStatus, updatedAt: new Date() })
@@ -231,16 +237,49 @@ export async function updateReservationSimple(
 							.delete(reservationParticipants)
 							.where(eq(reservationParticipants.id, partner.participationId));
 					}
-				} else {
-					if (partner.userId) {
-						await tx.insert(reservationParticipants).values({
-							userId: partner.userId,
-							reservationId: id,
-						});
-					}
+				} else if (partner.userId) {
+					await tx.insert(reservationParticipants).values({
+						userId: partner.userId,
+						reservationId: id,
+					});
 				}
 			}
 		});
+
+		if (prev?.status !== "accepted" && status === "accepted") {
+			const standLabel = `${stand.label ?? ""}${stand.standNumber ?? ""}`;
+
+			const targets = (participants ?? [])
+				.map((p) => p.user)
+				.filter((u): u is typeof users.$inferSelect => !!u && !!u.email?.trim())
+				.map((u) => ({
+					to: u.email!.trim(),
+					normalizedEmail: u.email!.trim().toLowerCase(),
+					user: u,
+				}));
+
+			const seen = new Set<string>();
+			const uniqueTargets = targets.filter(({ normalizedEmail }) => {
+				if (seen.has(normalizedEmail)) return false;
+				seen.add(normalizedEmail);
+				return true;
+			});
+
+			await Promise.allSettled(
+				uniqueTargets.map(({ to, user }) =>
+					sendEmail({
+						to: [to],
+						from: "Reservas Glitter <reservas@productoraglitter.com>",
+						subject: `Reserva confirmada para el festival ${festival.name}`,
+						react: ReservationConfirmationEmailTemplate({
+							profile: user,
+							standLabel,
+							festival: festival,
+						}) as React.ReactElement,
+					}),
+				),
+			);
+		}
 	} catch (error) {
 		console.error(error);
 		return { success: false, message: "Error al actualizar la reserva" };
@@ -261,6 +300,9 @@ export type ReservationUpdate = typeof standReservations.$inferInsert & {
 	}[];
 };
 export type ReservationUpdateSimple = typeof standReservations.$inferInsert & {
+	participants: ReservationParticipantWithUser[];
+	stand: StandBase;
+	festival: FestivalWithDates;
 	partner?: {
 		participationId: number | undefined;
 		userId: number | undefined;
@@ -323,7 +365,6 @@ export async function updateReservation(id: number, data: ReservationUpdate) {
 	revalidatePath("/dashboard/reservations");
 	return { success: true, message: "Reserva actualizada" };
 }
-
 type FormState = {
 	success: boolean;
 	message: string;

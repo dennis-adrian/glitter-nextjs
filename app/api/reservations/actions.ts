@@ -11,87 +11,91 @@ import { sendEmail } from "@/app/vendors/resend";
 import EmailTemplate from "@/app/emails/reservation-confirmation";
 import React from "react";
 import {
-  ReservationWithParticipantsAndUsers,
-  ReservationWithParticipantsAndUsersAndStand,
-  ReservationWithParticipantsAndUsersAndStandAndCollaborators,
-  ReservationWithParticipantsAndUsersAndStandAndFestival,
-  ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments,
+	ReservationWithParticipantsAndUsersAndStand,
+	ReservationWithParticipantsAndUsersAndStandAndCollaborators,
+	ReservationWithParticipantsAndUsersAndStandAndFestival,
+	ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments,
 } from "@/app/api/reservations/definitions";
 import ReservationRejectionEmailTemplate from "@/app/emails/reservation-rejection";
 import { getUserName } from "@/app/lib/users/utils";
 import { buildWhereClauseForReservationsFetching } from "@/app/api/reservations/helpers";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
+import { ReservationParticipantWithUser } from "@/app/data/invoices/definitions";
 
 export async function fetchReservations(options: {
-  query?: string;
-  festivalId?: number;
+	query?: string;
+	festivalId?: number;
 }): Promise<
-  ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments[]
+	ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments[]
 > {
-  const whereClause = await buildWhereClauseForReservationsFetching({
-    ...options,
-  });
+	const whereClause = await buildWhereClauseForReservationsFetching({
+		...options,
+	});
 
-  try {
-    return db.query.standReservations.findMany({
-      with: {
-        participants: {
-          with: {
-            user: {
-              with: {
-                userSocials: true,
-              },
-            },
-          },
-        },
-        stand: true,
-        festival: true,
-        invoices: {
-          with: {
-            payments: true,
-          },
-        },
-      },
-      orderBy: desc(standReservations.updatedAt),
-      where: whereClause.queryChunks.length > 0 ? and(whereClause) : undefined,
-    });
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
+	try {
+		return db.query.standReservations.findMany({
+			with: {
+				participants: {
+					with: {
+						user: {
+							with: {
+								userSocials: true,
+							},
+						},
+					},
+				},
+				stand: true,
+				festival: {
+					with: {
+						festivalDates: true,
+					},
+				},
+				invoices: {
+					with: {
+						payments: true,
+					},
+				},
+			},
+			orderBy: desc(standReservations.updatedAt),
+			where: whereClause.queryChunks.length > 0 ? and(whereClause) : undefined,
+		});
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
 }
 
 export async function fetchConfirmedReservationsByFestival(
-  festivalId: number,
+	festivalId: number,
 ): Promise<ReservationWithParticipantsAndUsersAndStandAndCollaborators[]> {
-  try {
-    return db.query.standReservations.findMany({
-      where: and(
-        eq(standReservations.festivalId, festivalId),
-        eq(standReservations.status, "accepted"),
-      ),
-      with: {
-        participants: {
-          with: {
-            user: {
-              with: {
-                userSocials: true,
-              },
-            },
-          },
-        },
-        stand: true,
-        collaborators: {
-          with: {
-            collaborator: true,
-          },
-        },
-      },
-    });
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
+	try {
+		return db.query.standReservations.findMany({
+			where: and(
+				eq(standReservations.festivalId, festivalId),
+				eq(standReservations.status, "accepted"),
+			),
+			with: {
+				participants: {
+					with: {
+						user: {
+							with: {
+								userSocials: true,
+							},
+						},
+					},
+				},
+				stand: true,
+				collaborators: {
+					with: {
+						collaborator: true,
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
 }
 
 export async function fetchValidReservationsByFestival(
@@ -128,31 +132,35 @@ export async function fetchValidReservationsByFestival(
 }
 
 export async function fetchReservation(
-  id: number,
+	id: number,
 ): Promise<
-  ReservationWithParticipantsAndUsersAndStandAndFestival | undefined | null
+	ReservationWithParticipantsAndUsersAndStandAndFestival | undefined | null
 > {
-  try {
-    return await db.query.standReservations.findFirst({
-      where: eq(standReservations.id, id),
-      with: {
-        participants: {
-          with: {
-            user: {
-              with: {
-                userSocials: true,
-              },
-            },
-          },
-        },
-        stand: true,
-        festival: true,
-      },
-    });
-  } catch (error) {
-    console.error(error);
-    return null;
-  }
+	try {
+		return await db.query.standReservations.findFirst({
+			where: eq(standReservations.id, id),
+			with: {
+				participants: {
+					with: {
+						user: {
+							with: {
+								userSocials: true,
+							},
+						},
+					},
+				},
+				stand: true,
+				festival: {
+					with: {
+						festivalDates: true,
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return null;
+	}
 }
 
 export async function updateReservation(
@@ -216,6 +224,7 @@ export async function confirmReservation(
   standId: number,
   standLabel: string,
   festival: FestivalWithDates,
+  participants: ReservationParticipantWithUser[]
 ) {
   try {
     await db.transaction(async (tx) => {
@@ -240,16 +249,36 @@ export async function confirmReservation(
         );
     });
 
-    await sendEmail({
-      to: [user.email],
-      from: "Reservas Glitter <reservas@productoraglitter.com>",
-      subject: `Reserva confirmada para el fesival ${festival.name}`,
-      react: EmailTemplate({
-        profile: user,
-        standLabel,
-        festival,
-      }) as React.ReactElement,
+    const targets: { to: string; profile: BaseProfile }[] = [];
+    if (user.email?.trim()) targets.push({ to: user.email.trim(), profile: user });
+    for (const p of participants) {
+      const email = p.user?.email?.trim();
+      if (!email) continue;
+      targets.push({ to: email, profile: p.user });
+    }
+    const seen = new Set<string>();
+    const uniqueTargets = targets.filter(({ to }) => {
+      const key = to.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
     });
+
+    await Promise.allSettled(
+      uniqueTargets.map(({ to, profile }) =>
+        sendEmail({
+          to: [to],
+          from: "Reservas Glitter <reservas@productoraglitter.com>",
+          subject: `Reserva confirmada para el festival ${festival.name}`,
+          react: EmailTemplate({
+            profile,
+            standLabel,
+            festival,
+          }) as React.ReactElement,
+        }),
+      ),
+    );
+
   } catch (error) {
     console.error(error);
     return { success: false, message: "Error al confirmar la reserva" };
