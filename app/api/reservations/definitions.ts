@@ -45,16 +45,16 @@ export type ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWit
   };
 
 export type FullReservation = ReservationBase & {
-  participants: (typeof reservationParticipants.$inferSelect & {
-    user: BaseProfile & {
-      userSocials: UserSocial[];
-      profileSubcategories: ProfileSubcategoryWithSubcategory[];
-    };
-  })[];
-  stand: StandBase;
-  festival: FestivalBase;
-  invoices: InvoiceWithPayments[];
-  collaborators: {
-    collaborator: Collaborator;
-  }[];
+	participants: (typeof reservationParticipants.$inferSelect & {
+		user: BaseProfile & {
+			userSocials: UserSocial[];
+			profileSubcategories: ProfileSubcategoryWithSubcategory[];
+		};
+	})[];
+	stand: StandBase;
+	festival: FestivalWithDates;
+	invoices: InvoiceWithPayments[];
+	collaborators: {
+		collaborator: Collaborator;
+	}[];
 };
