@@ -4,18 +4,17 @@ import { and, desc, eq, not, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
-import { scheduledTasks, standReservations, stands, users } from "@/db/schema";
+import { scheduledTasks, standReservations, stands } from "@/db/schema";
 
 import { BaseProfile } from "@/app/api/users/definitions";
 import { sendEmail } from "@/app/vendors/resend";
 import EmailTemplate from "@/app/emails/reservation-confirmation";
 import React from "react";
 import {
-  ReservationWithParticipantsAndUsers,
-  ReservationWithParticipantsAndUsersAndStand,
-  ReservationWithParticipantsAndUsersAndStandAndCollaborators,
-  ReservationWithParticipantsAndUsersAndStandAndFestival,
-  ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments,
+	ReservationWithParticipantsAndUsersAndStand,
+	ReservationWithParticipantsAndUsersAndStandAndCollaborators,
+	ReservationWithParticipantsAndUsersAndStandAndFestival,
+	ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments,
 } from "@/app/api/reservations/definitions";
 import ReservationRejectionEmailTemplate from "@/app/emails/reservation-rejection";
 import { getUserName } from "@/app/lib/users/utils";
@@ -24,75 +23,79 @@ import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { ReservationParticipantWithUser } from "@/app/data/invoices/definitions";
 
 export async function fetchReservations(options: {
-  query?: string;
-  festivalId?: number;
+	query?: string;
+	festivalId?: number;
 }): Promise<
-  ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments[]
+	ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments[]
 > {
-  const whereClause = await buildWhereClauseForReservationsFetching({
-    ...options,
-  });
+	const whereClause = await buildWhereClauseForReservationsFetching({
+		...options,
+	});
 
-  try {
-    return db.query.standReservations.findMany({
-      with: {
-        participants: {
-          with: {
-            user: {
-              with: {
-                userSocials: true,
-              },
-            },
-          },
-        },
-        stand: true,
-        festival: true,
-        invoices: {
-          with: {
-            payments: true,
-          },
-        },
-      },
-      orderBy: desc(standReservations.updatedAt),
-      where: whereClause.queryChunks.length > 0 ? and(whereClause) : undefined,
-    });
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
+	try {
+		return db.query.standReservations.findMany({
+			with: {
+				participants: {
+					with: {
+						user: {
+							with: {
+								userSocials: true,
+							},
+						},
+					},
+				},
+				stand: true,
+				festival: {
+					with: {
+						festivalDates: true,
+					},
+				},
+				invoices: {
+					with: {
+						payments: true,
+					},
+				},
+			},
+			orderBy: desc(standReservations.updatedAt),
+			where: whereClause.queryChunks.length > 0 ? and(whereClause) : undefined,
+		});
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
 }
 
 export async function fetchConfirmedReservationsByFestival(
-  festivalId: number,
+	festivalId: number,
 ): Promise<ReservationWithParticipantsAndUsersAndStandAndCollaborators[]> {
-  try {
-    return db.query.standReservations.findMany({
-      where: and(
-        eq(standReservations.festivalId, festivalId),
-        eq(standReservations.status, "accepted"),
-      ),
-      with: {
-        participants: {
-          with: {
-            user: {
-              with: {
-                userSocials: true,
-              },
-            },
-          },
-        },
-        stand: true,
-        collaborators: {
-          with: {
-            collaborator: true,
-          },
-        },
-      },
-    });
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
+	try {
+		return db.query.standReservations.findMany({
+			where: and(
+				eq(standReservations.festivalId, festivalId),
+				eq(standReservations.status, "accepted"),
+			),
+			with: {
+				participants: {
+					with: {
+						user: {
+							with: {
+								userSocials: true,
+							},
+						},
+					},
+				},
+				stand: true,
+				collaborators: {
+					with: {
+						collaborator: true,
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
 }
 
 export async function fetchValidReservationsByFestival(
@@ -129,31 +132,35 @@ export async function fetchValidReservationsByFestival(
 }
 
 export async function fetchReservation(
-  id: number,
+	id: number,
 ): Promise<
-  ReservationWithParticipantsAndUsersAndStandAndFestival | undefined | null
+	ReservationWithParticipantsAndUsersAndStandAndFestival | undefined | null
 > {
-  try {
-    return await db.query.standReservations.findFirst({
-      where: eq(standReservations.id, id),
-      with: {
-        participants: {
-          with: {
-            user: {
-              with: {
-                userSocials: true,
-              },
-            },
-          },
-        },
-        stand: true,
-        festival: true,
-      },
-    });
-  } catch (error) {
-    console.error(error);
-    return null;
-  }
+	try {
+		return await db.query.standReservations.findFirst({
+			where: eq(standReservations.id, id),
+			with: {
+				participants: {
+					with: {
+						user: {
+							with: {
+								userSocials: true,
+							},
+						},
+					},
+				},
+				stand: true,
+				festival: {
+					with: {
+						festivalDates: true,
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return null;
+	}
 }
 
 export async function updateReservation(
