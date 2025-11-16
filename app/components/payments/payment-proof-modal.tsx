@@ -27,22 +27,26 @@ export default function PaymentProofModal(props: PaymentProofModalProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const form = useForm();
   const isReservationConfirmed = props.invoice.reservation.status === "accepted";
-
   const action = form.handleSubmit(async () => {
-    const result = await confirmReservation(
-      props.invoice.reservationId,
-      props.invoice.user,
-      props.invoice.reservation.standId,
-      `${props.invoice.reservation.stand.label}${props.invoice.reservation.stand.standNumber}`,
-      props.invoice.reservation.festival,
-      props.invoice.reservation.participants,
-    );
-    if (result.success) {
-      toast.success("Reserva confirmada");
-      props.onOpenChange(false);
-      form.reset();
-    } else {
-      toast.error(result.message);
+    try {
+      const result = await confirmReservation(
+        props.invoice.reservationId,
+        props.invoice.user,
+        props.invoice.reservation.standId,
+        `${props.invoice.reservation.stand.label}${props.invoice.reservation.stand.standNumber}`,
+        props.invoice.reservation.festival,
+        props.invoice.reservation.participants,
+      );
+      if (result.success) {
+        toast.success("Reserva confirmada");
+        props.onOpenChange(false);
+        form.reset();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error("Error inesperado al confirmar la reserva");
+      console.error(error);
     }
   });
 

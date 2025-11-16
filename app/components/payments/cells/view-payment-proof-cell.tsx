@@ -3,10 +3,10 @@ import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { EyeIcon } from "lucide-react";
 import { useState } from "react";
 
-type ViewPaymetnProofCellProps = {
+type ViewPaymentProofCellProps = {
   invoice: InvoiceWithParticipants;
 };
-export default function ViewPaymentProofCell(props: ViewPaymetnProofCellProps) {
+export default function ViewPaymentProofCell(props: ViewPaymentProofCellProps) {
   const [showProofModal, setShowProofModal] = useState(false);
   const payment = props.invoice.payments[0];
 
@@ -24,7 +24,7 @@ export default function ViewPaymentProofCell(props: ViewPaymetnProofCellProps) {
         ) : (
           "--"
         )}
-      </span>
+      </span> 
       <PaymentProofModal
         invoice={props.invoice}
         imageUrl={payment?.voucherUrl}
