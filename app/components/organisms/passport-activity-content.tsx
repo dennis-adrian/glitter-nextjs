@@ -53,7 +53,7 @@ export default function PassportActivityContent({
 					Los visitantes podrán comprar en el stand de Glitter un pasaporte con
 					diseño único de esta edición del festival para coleccionar sellos.
 					Ellos buscarán en el sitio web a los expositores que cuenten con
-					sellos para pasar por sus stands. Los visitantes que consigan 60
+					sellos para pasar por sus stands. Los visitantes que consigan 50
 					sellos podrán reclamar un pin edicion especial.
 				</p>
 				{activity.activityPrizeUrl && (
@@ -87,7 +87,7 @@ export default function PassportActivityContent({
 					<li>Tener una reserva confirmada para el festival</li>
 					<li>
 						Inscribirse a la actividad con el botón de inscripción que se
-						encuentra al final de la página. El límite de inscripciones es de 60
+						encuentra al final de la página. El límite de inscripciones es de 50
 						participantes.
 					</li>
 					<li>
