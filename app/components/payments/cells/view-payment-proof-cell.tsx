@@ -1,13 +1,14 @@
 import PaymentProofModal from "@/app/components/payments/payment-proof-modal";
-import { PaymentBase } from "@/app/data/invoices/definitions";
+import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { EyeIcon } from "lucide-react";
 import { useState } from "react";
 
-type ViewPaymetnProofCellProps = {
-  payment?: PaymentBase;
+type ViewPaymentProofCellProps = {
+  invoice: InvoiceWithParticipants;
 };
-export default function ViewPaymentProofCell(props: ViewPaymetnProofCellProps) {
+export default function ViewPaymentProofCell(props: ViewPaymentProofCellProps) {
   const [showProofModal, setShowProofModal] = useState(false);
+  const payment = props.invoice.payments[0];
 
   return (
     <>
@@ -15,7 +16,7 @@ export default function ViewPaymentProofCell(props: ViewPaymetnProofCellProps) {
         className="flex items-center cursor-pointer"
         onClick={() => setShowProofModal(true)}
       >
-        {props.payment?.voucherUrl ? (
+        {payment?.voucherUrl ? (
           <>
             <EyeIcon className="w-4 h-4 mr-2" />
             Ver comprobante
@@ -23,9 +24,10 @@ export default function ViewPaymentProofCell(props: ViewPaymetnProofCellProps) {
         ) : (
           "--"
         )}
-      </span>
+      </span> 
       <PaymentProofModal
-        imageUrl={props.payment?.voucherUrl}
+        invoice={props.invoice}
+        imageUrl={payment?.voucherUrl}
         show={showProofModal}
         onOpenChange={setShowProofModal}
       />
