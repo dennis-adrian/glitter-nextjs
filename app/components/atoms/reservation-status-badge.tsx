@@ -1,5 +1,6 @@
 import { ReservationBase } from "@/app/api/reservations/definitions";
 import { Badge } from "@/app/components/ui/badge";
+import { cn } from "@/app/lib/utils";
 
 const statusColors = {
 	pending:
@@ -27,7 +28,7 @@ export default function ReservationStatusBadge({
 	className?: string;
 }) {
 	return (
-		<Badge className={`${statusColors[status]} font-normal ${className}`}>
+		<Badge className={cn(statusColors[status], "font-normal", className)}>
 			{statusLabels[status]}
 		</Badge>
 	);

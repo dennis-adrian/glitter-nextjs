@@ -76,7 +76,7 @@ export default async function ReservationsTable(props: ReservationsTableProps) {
 					))
 				) : (
 					<TableRow>
-						<TableCell colSpan={6} className="h-24 text-center">
+						<TableCell colSpan={8} className="h-24 text-center">
 							Sin resultados
 						</TableCell>
 					</TableRow>
