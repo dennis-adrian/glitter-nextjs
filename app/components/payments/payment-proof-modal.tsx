@@ -3,10 +3,12 @@
 import { Button } from "@/app/components/ui/button";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import {
-  DrawerDialog,
-  DrawerDialogClose,
-  DrawerDialogContent,
-  DrawerDialogFooter,
+	DrawerDialog,
+	DrawerDialogClose,
+	DrawerDialogContent,
+	DrawerDialogFooter,
+	DrawerDialogHeader,
+	DrawerDialogTitle,
 } from "@/components/ui/drawer-dialog";
 import Image from "next/image";
 import { confirmReservation } from "@/app/api/reservations/actions";
@@ -51,58 +53,67 @@ export default function PaymentProofModal(props: PaymentProofModalProps) {
   });
 
   return (
-    <DrawerDialog
-      isDesktop={isDesktop}
-      open={props.show}
-      onOpenChange={props.onOpenChange}
-    >
-      <DrawerDialogContent isDesktop={isDesktop}>
-        <div className={`${isDesktop ? "" : "px-4"} py-4`}>
-          {props.imageUrl && (
-            <Image
-              className="mx-auto"
-              alt="Comprobante de pago"
-              src={props.imageUrl}
-              width={320}
-              height={460}
-            />
-          )}
-        </div>
-        {isDesktop ? (
-          <div className="flex gap-2 justify-end px-4 pb-4">
-            <Button variant="outline" onClick={() => props.onOpenChange(false)}>
-              Cerrar
-            </Button>
-            <Form {...form}>
-              <form onSubmit={action}>
-                <SubmitButton
-                  disabled={form.formState.isSubmitting || isReservationConfirmed}
-                  loading={form.formState.isSubmitting}
-                  label="Confirmar"
-                  className="w-auto"
-                />
-              </form>
-            </Form>
-          </div>
-        ) : (
-          <DrawerDialogFooter isDesktop={isDesktop} className="pt-2">
-            <Form {...form}>
-              <form onSubmit={action} className="w-full">
-                <SubmitButton
-                  disabled={form.formState.isSubmitting || isReservationConfirmed}
-                  loading={form.formState.isSubmitting}
-                  label="Confirmar"
-                />
-              </form>
-            </Form>
-            <DrawerDialogClose isDesktop={isDesktop}>
-              <Button variant="outline" className="w-full">
-                Cerrar
-              </Button>
-            </DrawerDialogClose>
-          </DrawerDialogFooter>
-        )}
-      </DrawerDialogContent>
-    </DrawerDialog>
-  );
+		<DrawerDialog
+			isDesktop={isDesktop}
+			open={props.show}
+			onOpenChange={props.onOpenChange}
+		>
+			<DrawerDialogContent isDesktop={isDesktop}>
+				<DrawerDialogHeader isDesktop={isDesktop}>
+					<DrawerDialogTitle isDesktop={isDesktop}>
+						Comprobante de pago
+					</DrawerDialogTitle>
+				</DrawerDialogHeader>
+				<div className={`${isDesktop ? "" : "px-4"} py-4`}>
+					{props.imageUrl && (
+						<Image
+							className="mx-auto"
+							alt="Comprobante de pago"
+							src={props.imageUrl}
+							width={320}
+							height={460}
+						/>
+					)}
+				</div>
+				{isDesktop ? (
+					<div className="flex gap-2 justify-end px-4 pb-4">
+						<Button variant="outline" onClick={() => props.onOpenChange(false)}>
+							Cerrar
+						</Button>
+						<Form {...form}>
+							<form onSubmit={action}>
+								<SubmitButton
+									disabled={
+										form.formState.isSubmitting || isReservationConfirmed
+									}
+									loading={form.formState.isSubmitting}
+									label="Confirmar"
+									className="w-auto"
+								/>
+							</form>
+						</Form>
+					</div>
+				) : (
+					<DrawerDialogFooter isDesktop={isDesktop} className="pt-2">
+						<Form {...form}>
+							<form onSubmit={action} className="w-full">
+								<SubmitButton
+									disabled={
+										form.formState.isSubmitting || isReservationConfirmed
+									}
+									loading={form.formState.isSubmitting}
+									label="Confirmar"
+								/>
+							</form>
+						</Form>
+						<DrawerDialogClose isDesktop={isDesktop}>
+							<Button variant="outline" className="w-full">
+								Cerrar
+							</Button>
+						</DrawerDialogClose>
+					</DrawerDialogFooter>
+				)}
+			</DrawerDialogContent>
+		</DrawerDialog>
+	);
 }
