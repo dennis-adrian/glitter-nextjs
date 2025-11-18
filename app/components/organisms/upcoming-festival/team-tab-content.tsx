@@ -8,6 +8,16 @@ type TeamTabContentProps = {
 };
 
 export default function TeamTabContent(props: TeamTabContentProps) {
+  if (props.reservation.status !== "accepted") {
+		return (
+			<div className="border border-gray-200 bg-gray-50 p-4 rounded-md text-sm text-muted-foreground">
+				<p>
+					No puedes gestionar tu equipo hasta que tu reserva sea confirmada.
+				</p>
+			</div>
+		);
+	}
+
   const teamMembers = props.reservation.collaborators.map(
     (collaborator) => collaborator.collaborator,
   );

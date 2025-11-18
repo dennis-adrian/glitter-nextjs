@@ -91,7 +91,11 @@ export function UpcomingFestivalCard({
 				</TabsContent>
 
 				<TabsContent value="activities" className="p-4">
-					<ActivitiesContent forProfile={profile} festival={festival} />
+					<ActivitiesContent
+						forProfile={profile}
+						festival={festival}
+						reservationStatus={reservation?.status ?? "pending"}
+					/>
 				</TabsContent>
 
 				<TabsContent value="team" className="p-4">

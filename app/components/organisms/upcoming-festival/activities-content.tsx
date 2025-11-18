@@ -9,16 +9,30 @@ import { RedirectButton } from "@/app/components/redirect-button";
 import { BaseProfile } from "@/app/api/users/definitions";
 import { CheckCircleIcon, TriangleAlertIcon } from "lucide-react";
 import UploadStickerDesignModal from "@/app/components/festivals/festival_activities/upload-sticker-design-modal";
+import { ReservationBase } from "@/app/api/reservations/definitions";
 
 type ActivitiesContentProps = {
 	forProfile: BaseProfile;
 	festival: FullFestival;
+	reservationStatus: ReservationBase["status"];
 };
 
 export default function ActivitiesContent({
 	forProfile,
 	festival,
+	reservationStatus,
 }: ActivitiesContentProps) {
+	if (reservationStatus !== "accepted") {
+		return (
+			<div className="border border-gray-200 bg-gray-50 p-4 rounded-md text-sm text-muted-foreground">
+				<p>
+					No puedes inscribirte en actividades hasta que tu reserva sea
+					confirmada.
+				</p>
+			</div>
+		);
+	}
+
 	const activities = festival.festivalActivities;
 
 	if (activities.length === 0) {
