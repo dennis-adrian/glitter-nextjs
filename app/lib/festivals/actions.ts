@@ -791,12 +791,7 @@ export async function fetchEnrolledParticipants(
 				standReservations,
 				eq(standReservations.id, reservationParticipants.reservationId),
 			)
-			.where(
-				and(
-					eq(standReservations.festivalId, festivalId),
-					not(eq(standReservations.status, "rejected")),
-				),
-			);
+			.where(and(eq(standReservations.festivalId, festivalId)));
 
 		const queryResult = await db
 			.selectDistinctOn([userRequests.userId], {
