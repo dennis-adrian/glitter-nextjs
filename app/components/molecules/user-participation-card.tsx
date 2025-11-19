@@ -1,4 +1,5 @@
 import { Participation } from "@/app/api/users/definitions";
+import ReservationStatusBadge from "@/app/components/atoms/reservation-status-badge";
 import { formatDate, getFestivalDateString } from "@/app/lib/formatters";
 import { CalendarIcon, LandPlotIcon } from "lucide-react";
 import Image from "next/image";
@@ -46,6 +47,10 @@ export default function UserParticipationCard({
 				<p className="text-sm md:text-base font-medium leading-tight">
 					{participation.reservation.festival.name}
 				</p>
+				<ReservationStatusBadge
+					status={participation.reservation.status}
+					className="text-xs w-fit"
+				/>
 				{getFestivalDateString(startDate, endDate) && (
 					<p className="text-xs md:text-sm leading-tight text-muted-foreground flex items-center gap-1">
 						<CalendarIcon className="w-4 h-4" />

@@ -122,18 +122,20 @@ export async function fetchFestivalSectorsByUserCategory(
 export async function fetchConfirmedProfilesByFestivalId(
 	festivalId: number
 ): Promise<
-	(BaseProfile & {
-		stands: StandBase[];
-		participations: Participation[];
-	})[]
+	(BaseProfile & { stands: StandBase[]; participations: Participation[] })[]
 > {
 	try {
-
 		const res = await db
 			.select()
 			.from(users)
-			.leftJoin(reservationParticipants, eq(reservationParticipants.userId, users.id))
-			.leftJoin(standReservations, eq(standReservations.id, reservationParticipants.reservationId))
+			.leftJoin(
+				reservationParticipants,
+				eq(reservationParticipants.userId, users.id)
+			)
+			.leftJoin(
+				standReservations,
+				eq(standReservations.id, reservationParticipants.reservationId)
+			)
 			.leftJoin(stands, eq(stands.id, standReservations.standId))
 			.leftJoin(festivals, eq(festivals.id, standReservations.festivalId))
 			.where(
@@ -142,41 +144,73 @@ export async function fetchConfirmedProfilesByFestivalId(
 					eq(standReservations.status, "accepted")
 				)
 			);
+		const userIds = Array.from(
+			new Set(res.map((row) => row.users.id).filter(Boolean))
+		);
 
+		if (userIds.length === 0) return [];
+
+		// 2) Fetch ALL accepted participations for those users (across ALL festivals)
+		//    If you only need counts, do a grouped count; if you need full objects,
+		//    fetch the rows and build them like you do below.
+		const allAccepted = await db
+			.select({
+				userId: reservationParticipants.userId,
+				part: reservationParticipants,
+				resv: standReservations,
+				st: stands,
+				fest: festivals,
+			})
+			.from(reservationParticipants)
+			.innerJoin(
+				standReservations,
+				eq(standReservations.id, reservationParticipants.reservationId)
+			)
+			.innerJoin(stands, eq(stands.id, standReservations.standId))
+			.innerJoin(festivals, eq(festivals.id, standReservations.festivalId))
+			.where(
+				and(
+					inArray(reservationParticipants.userId, userIds),
+					eq(standReservations.status, "accepted")
+				)
+			);
+
+		// 3) Build a per-user list of ALL accepted participations
 		const allUsersParticipationsObject: Record<number, Participation[]> = {};
-
-		res.forEach((data) => {
-			const userId = data.users.id;
-			if (!data.stand_reservations || !data.stands || !data.festivals || !data.participations) return;
+		allAccepted.forEach((row) => {
+			const uid = row.userId;
+			if (!row.part || !row.resv) return;
 
 			const participation: Participation = {
-				...data.participations,
+				...row.part,
 				reservation: {
-					...data.stand_reservations,
-					stand: data.stands,
-					festival: data.festivals,
+					...row.resv,
+					stand: row.st ?? undefined,
+					festival: row.fest ?? undefined,
 				},
 			};
 
-			allUsersParticipationsObject[userId] = [
-				...(allUsersParticipationsObject[userId] || []),
-				participation,
-			];
+			(allUsersParticipationsObject[uid] ??= []).push(participation);
 		});
 
-		const profilesObject = res.reduce((acc, data) => {
-			const userId = data.users.id;
+		// 4) Build the final profiles list.
+		//    - stands: only for THIS festival (from the first query)
+		//    - participations: ALL accepted (from the second query)
+		const profilesObject = res.reduce((acc, row) => {
+			const uid = row.users.id;
 
-			const accStands = acc[userId]?.stands || [];
-			if (data.stands) {
-				accStands.push(data.stands);
+			// stands for current festival (avoid duplicates)
+			const accStands = acc[uid]?.stands ?? [];
+			if (row.stands) {
+				const already = accStands.some((s) => s.id === row.stands!.id);
+				if (!already) accStands.push(row.stands);
 				accStands.sort((a, b) => a.standNumber - b.standNumber);
 			}
 
-			const accParticipations = allUsersParticipationsObject[userId] || [];
+			const accParticipations = allUsersParticipationsObject[uid] ?? [];
 
-			acc[userId] = {
-				...data.users,
+			acc[uid] = {
+				...row.users,
 				stands: accStands,
 				participations: accParticipations,
 			};
@@ -190,7 +224,6 @@ export async function fetchConfirmedProfilesByFestivalId(
 		return [];
 	}
 }
-
 
 export async function enrollInActivity(
 	user: BaseProfile,
