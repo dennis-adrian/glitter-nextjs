@@ -148,6 +148,8 @@ export async function fetchConfirmedProfilesByFestivalId(
 			new Set(res.map((row) => row.users.id).filter(Boolean))
 		);
 
+		if (userIds.length === 0) return [];
+
 		// 2) Fetch ALL accepted participations for those users (across ALL festivals)
 		//    If you only need counts, do a grouped count; if you need full objects,
 		//    fetch the rows and build them like you do below.
