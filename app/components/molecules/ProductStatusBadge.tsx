@@ -1,18 +1,29 @@
 import { FC } from "react";
 import { Badge } from "@/components/ui/badge";
-import { ClockIcon, TagIcon } from "lucide-react";
+import { AlertCircleIcon, ClockIcon, TagIcon } from "lucide-react";
 import { BaseProduct } from "@/lib/products/definitions";
 
 type ProductStatusBadgeProps = {
 	status: BaseProduct["status"];
 	discount?: number | null;
 	discountUnit?: BaseProduct["discountUnit"];
+	stock: number;
 };
 export const ProductStatusBadge: FC<ProductStatusBadgeProps> = ({
 	status,
 	discount,
 	discountUnit = "percentage",
+	stock,
 }) => {
+	if (stock <= 0) {
+		return (
+			<Badge className="font-medium bg-muted text-muted-foreground">
+				<AlertCircleIcon className="h-3 w-3 mr-1" />
+				Agotado
+			</Badge>
+		);
+	}
+
 	if (status === "sale" && discount) {
 		return (
 			<Badge variant="destructive" className="font-medium">

@@ -41,10 +41,13 @@ export default function StoreItemCard({ product, user }: StoreItemCardProps) {
 					status={product.status}
 					discount={product.discount}
 					discountUnit={product.discountUnit}
+					stock={product.stock ?? 0}
 				/>
 			</div>
 
-			<div className="aspect-square relative overflow-hidden bg-muted">
+			<div
+				className={`aspect-square relative overflow-hidden bg-muted ${(product.stock ?? 0) <= 0 ? "opacity-60" : ""}`}
+			>
 				<Image
 					src={product.imageUrl || "/img/placeholders/placeholder-300x300.png"}
 					alt={product.name}
