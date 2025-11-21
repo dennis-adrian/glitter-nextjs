@@ -121,7 +121,6 @@ export default function StoreItemQuantityInput({
 					/>
 				)}
 				<SubmitProductOrderButton
-					className={`w-full ${product.isPreOrder ? "bg-amber-600 hover:bg-amber-700" : "bg-purple-600 hover:bg-purple-700"}`}
 					disabled={!form.formState.isValid || form.formState.isSubmitting}
 					loading={form.formState.isSubmitting}
 					product={product}

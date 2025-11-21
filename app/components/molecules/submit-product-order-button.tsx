@@ -20,7 +20,7 @@ export default function SubmitProductOrderButton({
 		return (
 			<Button
 				className="bg-muted text-muted-foreground hover:bg-muted hover:translate-y-0"
-				disabled={disabled}
+				disabled
 				type="button"
 			>
 				Agotado
