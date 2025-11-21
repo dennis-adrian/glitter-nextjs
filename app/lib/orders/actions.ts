@@ -79,7 +79,8 @@ export async function createOrder(
 			productsInOrder = await tx
 				.select()
 				.from(products)
-				.where(inArray(products.id, itemsIds));
+				.where(inArray(products.id, itemsIds))
+				.for("update");
 
 			if (productsInOrder.length !== itemsIds.length) {
 				const foundIds = new Set(productsInOrder.map((p) => p.id));
