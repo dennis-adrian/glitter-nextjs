@@ -76,15 +76,38 @@ export async function createOrder(
 		let totalAmount = 0;
 
 		createdOrderId = await db.transaction(async (tx) => {
-			productsInOrder = await db
+			productsInOrder = await tx
 				.select()
 				.from(products)
-				.where(inArray(products.id, itemsIds));
+				.where(inArray(products.id, itemsIds))
+				.for("update");
 
 			if (productsInOrder.length !== itemsIds.length) {
 				const foundIds = new Set(productsInOrder.map((p) => p.id));
 				const missingIds = itemsIds.filter((id) => !foundIds.has(id));
 				throw new Error(`Products not found: ${missingIds.join(", ")}`);
+			}
+
+			// Validate stock availability for non-pre-order products
+			const stockValidationErrors: string[] = [];
+			for (const product of productsInOrder) {
+				const requestedQuantity = orderItemsIdsQuantityMap.get(product.id) || 0;
+
+				const currentStock = product.stock ?? 0;
+				if (currentStock < requestedQuantity) {
+					stockValidationErrors.push(
+						`${product.name} - ${currentStock} disponible(s)`,
+					);
+				}
+			}
+
+			if (stockValidationErrors.length > 0) {
+				throw new Error(
+					`Stock insuficiente: ${stockValidationErrors.join(", ")}`,
+					{
+						cause: "stock_insufficient",
+					},
+				);
 			}
 
 			totalAmount = productsInOrder.reduce(
@@ -110,6 +133,18 @@ export async function createOrder(
 					priceAtPurchase: getProductPriceAtPurchase(item),
 					orderId: order.id,
 				});
+			}
+
+			// Decrease product stock
+			for (const item of productsInOrder) {
+				const orderedQuantity = orderItemsIdsQuantityMap.get(item.id) || 0;
+
+				await tx
+					.update(products)
+					.set({
+						stock: sql`GREATEST(0, COALESCE(${products.stock}, 0) - ${orderedQuantity})`,
+					})
+					.where(eq(products.id, item.id));
 			}
 
 			return order.id;
@@ -139,6 +174,14 @@ export async function createOrder(
 		}
 	} catch (error) {
 		console.error(error);
+		if (error instanceof Error && error.cause === "stock_insufficient") {
+			return {
+				success: false,
+				message: error.message,
+				details: null,
+			};
+		}
+
 		return {
 			success: false,
 			message: "No se pudo crear la orden.",
