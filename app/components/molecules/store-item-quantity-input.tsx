@@ -124,7 +124,6 @@ export default function StoreItemQuantityInput({
 					className={`w-full ${product.isPreOrder ? "bg-amber-600 hover:bg-amber-700" : "bg-purple-600 hover:bg-purple-700"}`}
 					disabled={!form.formState.isValid || form.formState.isSubmitting}
 					loading={form.formState.isSubmitting}
-					// label={`${product.isPreOrder ? "Quiero reservar" : "Hacer pedido"}`}
 					product={product}
 				/>
 			</form>

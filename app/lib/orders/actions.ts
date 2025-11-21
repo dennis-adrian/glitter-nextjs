@@ -92,20 +92,23 @@ export async function createOrder(
 			for (const product of productsInOrder) {
 				const requestedQuantity = orderItemsIdsQuantityMap.get(product.id) || 0;
 
-				// Skip stock validation for pre-orders
-				// if (!product.isPreOrder) {
-				const currentStock = product.stock ?? 0;
+				const currentStock =
+					(await tx
+						.select({ stock: products.stock })
+						.from(products)
+						.where(eq(products.id, product.id))
+						.then((result) => result[0].stock)) ?? 0;
+
 				if (currentStock < requestedQuantity) {
 					stockValidationErrors.push(
 						`${product.name} - ${currentStock} disponible(s)`,
 					);
 				}
-				// }
 			}
 
 			if (stockValidationErrors.length > 0) {
 				throw new Error(
-					`Stock insuficiente:\n${stockValidationErrors.join("\n")}`,
+					`Stock insuficiente: ${stockValidationErrors.join(", ")}`,
 					{
 						cause: "stock_insufficient",
 					},
