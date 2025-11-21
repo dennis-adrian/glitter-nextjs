@@ -2,7 +2,6 @@
 
 import { BaseProfile } from "@/app/api/users/definitions";
 import { createOrder } from "@/app/lib/orders/actions";
-import { NewOrderItem } from "@/app/lib/orders/definitions";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { BaseProduct } from "@/app/lib/products/definitions";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,6 +21,7 @@ import {
 	FormMessage,
 } from "../ui/form";
 import { Input } from "../ui/input";
+import SubmitProductOrderButton from "@/app/components/molecules/submit-product-order-button";
 
 const FormSchema = z.object({
 	itemQuantity: z.coerce
@@ -90,39 +90,40 @@ export default function StoreItemQuantityInput({
 	return (
 		<Form {...form}>
 			<form className="flex flex-col gap-4 mt-4" onSubmit={action}>
-				<FormField
-					control={form.control}
-					name="itemQuantity"
-					render={({ field }) => (
-						<FormItem className="flex flex-col items-end gap-1 self-end">
-							<FormLabel className="self-start">Cantidad</FormLabel>
-							<div className="flex gap-1">
-								<Button
-									variant="outline"
-									size="icon"
-									onClick={handleRemoveItem}
-								>
-									<MinusIcon className="w-4 h-4" />
-								</Button>
-								<FormControl>
-									<Input className="w-10 md:w-16" type="number" {...field} />
-								</FormControl>
-								<Button variant="outline" size="icon" onClick={handleAddItem}>
-									<PlusIcon className="w-4 h-4" />
-								</Button>
-							</div>
-							<FormMessage />
-							<span className="text-sm">
-								Subtotal Bs{getProductPriceAtPurchase(product) * field.value}
-							</span>
-						</FormItem>
-					)}
-				/>
-				<SubmitButton
-					className={`w-full ${product.isPreOrder ? "bg-amber-600 hover:bg-amber-700" : "bg-purple-600 hover:bg-purple-700"}`}
+				{(product.stock ?? 0) > 0 && (
+					<FormField
+						control={form.control}
+						name="itemQuantity"
+						render={({ field }) => (
+							<FormItem className="flex flex-col items-end gap-1 self-end">
+								<FormLabel className="self-start">Cantidad</FormLabel>
+								<div className="flex gap-1">
+									<Button
+										variant="outline"
+										size="icon"
+										onClick={handleRemoveItem}
+									>
+										<MinusIcon className="w-4 h-4" />
+									</Button>
+									<FormControl>
+										<Input className="w-10 md:w-16" type="number" {...field} />
+									</FormControl>
+									<Button variant="outline" size="icon" onClick={handleAddItem}>
+										<PlusIcon className="w-4 h-4" />
+									</Button>
+								</div>
+								<FormMessage />
+								<span className="text-sm">
+									Subtotal Bs{getProductPriceAtPurchase(product) * field.value}
+								</span>
+							</FormItem>
+						)}
+					/>
+				)}
+				<SubmitProductOrderButton
 					disabled={!form.formState.isValid || form.formState.isSubmitting}
 					loading={form.formState.isSubmitting}
-					label={`${product.isPreOrder ? "Quiero reservar" : "Hacer pedido"}`}
+					product={product}
 				/>
 			</form>
 		</Form>
