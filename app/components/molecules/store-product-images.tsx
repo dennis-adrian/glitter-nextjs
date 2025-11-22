@@ -326,7 +326,7 @@ export default function StoreProductImages({
 							}`}
 						>
 							<img
-								src={images[currentImageIndex]?.imageUrl ?? ""}
+								src={imageUrls[currentImageIndex] ?? ""}
 								alt={`${productName} - Full View`}
 								className="max-w-[90%] max-h-[90%] object-contain select-none"
 								style={{
@@ -340,7 +340,7 @@ export default function StoreProductImages({
 						</div>
 
 						{/* Navigation Controls for Modal */}
-						{images.length > 1 && !isZoomed && (
+						{imageUrls.length > 1 && !isZoomed && (
 							<>
 								<Button
 									variant="ghost"
@@ -368,12 +368,12 @@ export default function StoreProductImages({
 
 								{/* Image Counter/Dots in Modal */}
 								<div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-2 z-40">
-									{images.map((_, idx) => (
+									{imageUrls.map((_, idx) => (
 										<button
 											key={idx}
 											onClick={(e) => {
 												e.stopPropagation();
-												setCurrentImageIndex(idx);
+												api?.scrollTo(idx);
 											}}
 											className={`h-2 w-2 rounded-full transition-all ${
 												idx === currentImageIndex
