@@ -1,6 +1,14 @@
 "use client";
 
 import { Button } from "@/app/components/ui/button";
+import {
+	Carousel,
+	CarouselApi,
+	CarouselContent,
+	CarouselItem,
+	CarouselNext,
+	CarouselPrevious,
+} from "@/app/components/ui/carousel";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { BaseProductImage } from "@/app/lib/products/definitions";
 import {
@@ -26,7 +34,6 @@ export default function StoreProductImages({
 	images,
 	isHovered,
 }: StoreProductImagesProps) {
-	const [currentImageIndex, setCurrentImageIndex] = useState(0);
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [isZoomed, setIsZoomed] = useState(false);
 	const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -39,6 +46,19 @@ export default function StoreProductImages({
 	const isPanningRef = useRef(false); // Added ref for immediate state tracking
 	const panPositionRef = useRef({ x: 0, y: 0 });
 	const lastPointRef = useRef({ x: 0, y: 0 });
+
+	const [api, setApi] = useState<CarouselApi>();
+	const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+	useEffect(() => {
+		if (!api) {
+			return;
+		}
+		setCurrentImageIndex(api.selectedScrollSnap());
+		api.on("select", () => {
+			setCurrentImageIndex(api.selectedScrollSnap());
+		});
+	}, [api]);
 
 	// Prevent body scroll when modal is open
 	useEffect(() => {
@@ -195,34 +215,6 @@ export default function StoreProductImages({
 		}
 	};
 
-	const onTouchStart = (e: React.TouchEvent) => {
-		setTouchStart(e.targetTouches[0].clientX);
-		setIsDragging(true);
-	};
-
-	const onTouchMove = (e: React.TouchEvent) => {
-		if (!touchStart) return;
-		const currentTouch = e.targetTouches[0].clientX;
-		const diff = touchStart - currentTouch;
-		setCurrentTranslate(diff);
-	};
-
-	const onTouchEnd = () => {
-		setIsDragging(false);
-		const threshold = MIN_SWIPE_DISTANCE; // Minimum distance to trigger slide
-
-		if (Math.abs(currentTranslate) > threshold) {
-			if (currentTranslate > 0 && currentImageIndex < images.length - 1) {
-				setCurrentImageIndex((prev) => prev + 1);
-			} else if (currentTranslate < 0 && currentImageIndex > 0) {
-				setCurrentImageIndex((prev) => prev - 1);
-			}
-		}
-
-		setTouchStart(null);
-		setCurrentTranslate(0);
-	};
-
 	const mainImage = images.find((img) => img.isMain);
 	const secondaryImages = images.filter((img) => !img.isMain);
 	const imageUrls: string[] = [];
@@ -238,88 +230,66 @@ export default function StoreProductImages({
 
 	return (
 		<>
-			<div
-				className={`aspect-square relative overflow-hidden bg-muted ${stock === 0 ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
-				onTouchStart={onTouchStart}
-				onTouchMove={onTouchMove}
-				onTouchEnd={onTouchEnd}
-				onClick={(e) => {
-					// Prevent modal opening if it was a drag
-					if (
-						currentTranslate === 0 &&
-						stock > 0 &&
-						imageUrls?.[0] !== PLACEHOLDER_IMAGE_URLS["1200"]
-					)
-						openModal(e);
-				}}
-			>
-				<div
-					className="flex h-full transition-transform duration-300 ease-out"
-					style={{
-						transform: `translateX(calc(-${currentImageIndex * 100}% - ${isDragging ? currentTranslate : 0}px))`,
-						transition: isDragging ? "none" : "transform 300ms ease-out",
+			<Carousel setApi={setApi}>
+				<CarouselContent
+					className="aspect-square"
+					onClick={(e) => {
+						// Prevent opening the modal if image is placeholder or out of stock
+						if (stock > 0 && imageUrls?.[0] !== PLACEHOLDER_IMAGE_URLS["1200"])
+							openModal(e);
 					}}
 				>
 					{imageUrls.map((imgUrl, idx) => (
-						<div key={idx} className="min-w-full h-full relative">
-							<Image
-								src={imgUrl}
-								alt={`${productName} - Image ${idx + 1}`}
-								fill
-								className="object-cover select-none"
-								draggable={false}
-							/>
-						</div>
+						<CarouselItem key={idx}>
+							<div key={idx} className="min-w-full h-full relative">
+								<Image
+									src={imgUrl}
+									alt={`${productName} - Image ${idx + 1}`}
+									fill
+									className="object-cover select-none"
+								/>
+							</div>
+						</CarouselItem>
 					))}
-				</div>
-
+				</CarouselContent>
 				{stock > 0 && imageUrls?.[0] !== PLACEHOLDER_IMAGE_URLS["1200"] && (
-					<div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20">
-						<div className="bg-black/50 text-white p-1.5 rounded-full backdrop-blur-sm">
+					<div className="absolute top-2 right-2">
+						<div
+							onClick={openModal}
+							className="bg-black/50 text-white p-1.5 rounded-full backdrop-blur-sm hover:bg-black/70"
+						>
 							<Maximize2Icon className="h-4 w-4" />
 						</div>
 					</div>
 				)}
-
 				{imageUrls.length > 1 && (
-					<>
-						<button
-							onClick={prevImage}
-							className={`absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-1 rounded-full transition-opacity duration-200 ${
-								isHovered && currentImageIndex > 0 ? "opacity-100" : "opacity-0"
-							}`}
-							aria-label="Previous image"
-							disabled={currentImageIndex === 0}
-						>
-							<ChevronLeftIcon className="h-4 w-4" />
-						</button>
-						<button
-							onClick={nextImage}
-							className={`absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-1 rounded-full transition-opacity duration-200 ${
-								isHovered && currentImageIndex < images.length - 1
-									? "opacity-100"
-									: "opacity-0"
-							}`}
-							aria-label="Next image"
-							disabled={currentImageIndex === images.length - 1}
-						>
-							<ChevronRightIcon className="h-4 w-4" />
-						</button>
-						<div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 py-1 px-2 rounded-full bg-black/30 backdrop-blur-[2px]">
-							{images.map((_, idx) => (
-								<div
-									key={idx}
-									className={`h-1.5 w-1.5 rounded-full transition-all shadow-sm ${
-										idx === currentImageIndex
-											? "bg-white scale-110"
-											: "bg-white/50 hover:bg-white/75"
-									}`}
-								/>
-							))}
-						</div>
-					</>
+					<div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 py-1 px-2 rounded-full bg-black/30 backdrop-blur-[2px]">
+						{imageUrls.map((_, idx) => (
+							<div
+								key={idx}
+								className={`h-1.5 w-1.5 rounded-full transition-all shadow-sm ${
+									idx === currentImageIndex
+										? "bg-white scale-110"
+										: "bg-white/50 hover:bg-white/75"
+								}`}
+								onClick={() => api?.scrollTo(idx)}
+							/>
+						))}
+					</div>
 				)}
-			</div>
+				{currentImageIndex > 0 && imageUrls.length > 1 && (
+					<CarouselPrevious
+						variant="ghost"
+						className="absolute left-2 top-1/2 -translate-y-1/2 hover:-translate-y-1/2 bg-black/50 hover:bg-black/70 text-white hover:text-white"
+					/>
+				)}
+				{currentImageIndex < images.length - 1 && imageUrls.length > 1 && (
+					<CarouselNext
+						variant="ghost"
+						className="absolute right-2 top-1/2 -translate-y-1/2 hover:-translate-y-1/2 bg-black/50 hover:bg-black/70 text-white hover:text-white"
+					/>
+				)}
+			</Carousel>
 
 			{/* Lightbox Modal */}
 			{isModalOpen && (
