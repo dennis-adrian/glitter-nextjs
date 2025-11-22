@@ -7,3 +7,9 @@ export const EMAIL_FOOTER_IMG_URL =
 export const TWINKLER_LOGO_URL_270X80 =
   "https://utfs.io/f/1bbcf7ce-bdb5-40b9-a4b7-4db4e40628b0-xs2n0i.png";
 export const RESERVATION_EXPIRATION_HOURS = 120;
+
+export const PLACEHOLDER_IMAGE_URLS = {
+	"1200": "/img/placeholders/placeholder-1200x1200.png",
+	"500": "/img/placeholders/placeholder-500x500.png",
+	"300": "/img/placeholders/placeholder-300x300.png",
+};

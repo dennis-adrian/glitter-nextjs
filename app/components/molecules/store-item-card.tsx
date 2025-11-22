@@ -1,19 +1,24 @@
+"use client";
+
 import { BaseProfile } from "@/app/api/users/definitions";
+import StoreProductImages from "@/app/components/molecules/store-product-images";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate } from "@/app/lib/formatters";
-import { BaseProduct } from "@/app/lib/products/definitions";
-import Image from "next/image";
-import StoreItemQuantityInput from "./store-item-quantity-input";
+import { validatedDiscount } from "@/app/lib/orders/utils";
+import { BaseProductWithImages } from "@/app/lib/products/definitions";
 import { ProductStatusBadge } from "@/components/molecules/ProductStatusBadge";
 import { ClockIcon } from "lucide-react";
-import { validatedDiscount } from "@/app/lib/orders/utils";
+import { useState } from "react";
+import StoreItemQuantityInput from "./store-item-quantity-input";
 
 type StoreItemCardProps = {
-	product: BaseProduct;
+	product: BaseProductWithImages;
 	user?: BaseProfile;
 };
 
 export default function StoreItemCard({ product, user }: StoreItemCardProps) {
+	const [isHovered, setIsHovered] = useState(false);
+
 	let originalPrice = null;
 	let price = product.price;
 	if (product.discount && product.discountUnit === "percentage") {
@@ -35,7 +40,11 @@ export default function StoreItemCard({ product, user }: StoreItemCardProps) {
 	}
 
 	return (
-		<Card className="group relative bg-card rounded-lg border border-border overflow-hidden hover:shadow-lg transition-shadow">
+		<Card
+			className="group relative bg-card rounded-lg border border-border overflow-hidden hover:shadow-lg transition-shadow"
+			onMouseEnter={() => setIsHovered(true)}
+			onMouseLeave={() => setIsHovered(false)}
+		>
 			<div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
 				<ProductStatusBadge
 					status={product.status}
@@ -45,18 +54,12 @@ export default function StoreItemCard({ product, user }: StoreItemCardProps) {
 				/>
 			</div>
 
-			<div
-				className={`aspect-square relative overflow-hidden bg-muted ${(product.stock ?? 0) <= 0 ? "opacity-60" : ""}`}
-			>
-				<Image
-					src={product.imageUrl || "/img/placeholders/placeholder-300x300.png"}
-					alt={product.name}
-					fill
-					className="object-cover group-hover:scale-105 transition-transform duration-300"
-					placeholder="blur"
-					blurDataURL="/img/placeholders/placeholder-300x300.png"
-				/>
-			</div>
+			<StoreProductImages
+				productName={product.name}
+				stock={product.stock ?? 0}
+				images={product.images}
+				isHovered={isHovered}
+			/>
 
 			<CardContent className="p-5">
 				<h3 className="font-semibold text-lg mb-1 text-balance">
