@@ -35,6 +35,7 @@ export default function StoreProductImages({
 	const [isPanning, setIsPanning] = useState(false);
 	const dragStartRef = useRef({ x: 0, y: 0 });
 	const hasDraggedRef = useRef(false);
+	const isPanningRef = useRef(false); // Added ref for immediate state tracking
 
 	// Prevent body scroll when modal is open
 	useEffect(() => {
@@ -102,6 +103,8 @@ export default function StoreProductImages({
 		if (isZoomed) {
 			setIsZoomed(false);
 			setPanPosition({ x: 0, y: 0 }); // Reset pan when zooming out
+			setIsPanning(false); // Reset panning state
+			isPanningRef.current = false; // Reset ref
 		} else {
 			setIsZoomed(true);
 		}
@@ -117,6 +120,8 @@ export default function StoreProductImages({
 		if (isZoomed) {
 			e.preventDefault();
 			setIsPanning(true);
+			isPanningRef.current = true; // Set ref immediately
+
 			// Store offset relative to current pan position
 			dragStartRef.current = {
 				x: e.clientX - panPosition.x,
@@ -131,7 +136,7 @@ export default function StoreProductImages({
 	};
 
 	const onModalPointerMove = (e: React.PointerEvent) => {
-		if (isZoomed && isPanning) {
+		if (isZoomed && isPanningRef.current) {
 			e.preventDefault();
 			const newX = e.clientX - dragStartRef.current.x;
 			const newY = e.clientY - dragStartRef.current.y;
@@ -157,6 +162,7 @@ export default function StoreProductImages({
 	const onModalPointerUp = (e: React.PointerEvent) => {
 		if (isZoomed) {
 			setIsPanning(false);
+			isPanningRef.current = false; // Reset ref
 			e.currentTarget.releasePointerCapture(e.pointerId);
 		} else {
 			// Existing swipe end logic
