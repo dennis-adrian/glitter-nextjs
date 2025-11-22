@@ -83,12 +83,25 @@ export default function StoreProductImages({
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [isModalOpen]);
 
+	const mainImage = images.find((img) => img.isMain);
+	const secondaryImages = images.filter((img) => !img.isMain);
+	const imageUrls: string[] = [];
+
+	if (!mainImage && secondaryImages.length === 0) {
+		imageUrls.push(PLACEHOLDER_IMAGE_URLS["1200"]);
+	} else if (!mainImage) {
+		imageUrls.push(...secondaryImages.map((img) => img.imageUrl));
+	} else {
+		imageUrls.push(mainImage.imageUrl);
+		imageUrls.push(...secondaryImages.map((img) => img.imageUrl));
+	}
+
 	const nextImage = (e?: React.MouseEvent) => {
 		if (e) {
 			e.preventDefault();
 			e.stopPropagation();
 		}
-		if (currentImageIndex < images.length - 1) {
+		if (currentImageIndex < imageUrls.length - 1) {
 			setCurrentImageIndex((prev) => prev + 1);
 		}
 	};
@@ -203,7 +216,7 @@ export default function StoreProductImages({
 			const threshold = MIN_SWIPE_DISTANCE;
 
 			if (Math.abs(currentTranslate) > threshold) {
-				if (currentTranslate > 0 && currentImageIndex < images.length - 1) {
+				if (currentTranslate > 0 && currentImageIndex < imageUrls.length - 1) {
 					setCurrentImageIndex((prev) => prev + 1);
 				} else if (currentTranslate < 0 && currentImageIndex > 0) {
 					setCurrentImageIndex((prev) => prev - 1);
@@ -214,19 +227,6 @@ export default function StoreProductImages({
 			setCurrentTranslate(0);
 		}
 	};
-
-	const mainImage = images.find((img) => img.isMain);
-	const secondaryImages = images.filter((img) => !img.isMain);
-	const imageUrls: string[] = [];
-
-	if (!mainImage && secondaryImages.length === 0) {
-		imageUrls.push(PLACEHOLDER_IMAGE_URLS["1200"]);
-	} else if (!mainImage) {
-		imageUrls.push(...secondaryImages.map((img) => img.imageUrl));
-	} else {
-		imageUrls.push(mainImage.imageUrl);
-		imageUrls.push(...secondaryImages.map((img) => img.imageUrl));
-	}
 
 	return (
 		<>
@@ -283,7 +283,7 @@ export default function StoreProductImages({
 						className="absolute left-2 top-1/2 -translate-y-1/2 hover:-translate-y-1/2 bg-black/50 hover:bg-black/70 text-white hover:text-white"
 					/>
 				)}
-				{currentImageIndex < images.length - 1 && imageUrls.length > 1 && (
+				{currentImageIndex < imageUrls.length - 1 && imageUrls.length > 1 && (
 					<CarouselNext
 						variant="ghost"
 						className="absolute right-2 top-1/2 -translate-y-1/2 hover:-translate-y-1/2 bg-black/50 hover:bg-black/70 text-white hover:text-white"
@@ -373,7 +373,7 @@ export default function StoreProductImages({
 											key={idx}
 											onClick={(e) => {
 												e.stopPropagation();
-												api?.scrollTo(idx);
+												setCurrentImageIndex(idx);
 											}}
 											className={`h-2 w-2 rounded-full transition-all ${
 												idx === currentImageIndex
