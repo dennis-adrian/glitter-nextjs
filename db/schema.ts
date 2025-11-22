@@ -863,6 +863,7 @@ export const products = pgTable("products", {
 });
 export const productsRelations = relations(products, ({ many }) => ({
 	orderItems: many(orderItems),
+	images: many(productImages),
 }));
 
 export const orderStatusEnum = pgEnum("order_status", [
@@ -1067,3 +1068,27 @@ export const participantProductsRelations = relations(
 		}),
 	}),
 );
+
+export const productImages = pgTable(
+	"product_images",
+	{
+		id: serial("id").primaryKey(),
+		productId: integer("product_id")
+			.notNull()
+			.references(() => products.id, { onDelete: "cascade" }),
+		imageUrl: text("image_url").notNull(),
+		description: text("description"),
+		isMain: boolean("is_main").default(false).notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(productImages) => [
+		index("product_images_product_id_idx").on(productImages.productId),
+	],
+);
+export const productImagesRelations = relations(productImages, ({ one }) => ({
+	product: one(products, {
+		fields: [productImages.productId],
+		references: [products.id],
+	}),
+}));
