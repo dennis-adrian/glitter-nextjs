@@ -24,7 +24,7 @@ export default function StoreProductImages({
 	images,
 	isHovered,
 }: StoreProductImagesProps) {
-	const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [isZoomed, setIsZoomed] = useState(false);
 	const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -36,6 +36,8 @@ export default function StoreProductImages({
 	const dragStartRef = useRef({ x: 0, y: 0 });
 	const hasDraggedRef = useRef(false);
 	const isPanningRef = useRef(false); // Added ref for immediate state tracking
+	const panPositionRef = useRef({ x: 0, y: 0 });
+	const lastPointRef = useRef({ x: 0, y: 0 });
 
 	// Prevent body scroll when modal is open
 	useEffect(() => {
@@ -49,7 +51,7 @@ export default function StoreProductImages({
 		};
 	}, [isModalOpen]);
 
-	useEffect(() => {
+  useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if (e.key === "Escape" && isModalOpen) {
 				closeModal();
@@ -60,7 +62,9 @@ export default function StoreProductImages({
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [isModalOpen]);
 
-	const nextImage = (e?: React.MouseEvent) => {
+	const minSwipeDistance = 50;
+
+  const nextImage = (e?: React.MouseEvent) => {
 		if (e) {
 			e.preventDefault();
 			e.stopPropagation();
@@ -70,7 +74,7 @@ export default function StoreProductImages({
 		}
 	};
 
-	const prevImage = (e?: React.MouseEvent) => {
+  const prevImage = (e?: React.MouseEvent) => {
 		if (e) {
 			e.preventDefault();
 			e.stopPropagation();
@@ -80,13 +84,13 @@ export default function StoreProductImages({
 		}
 	};
 
-	const openModal = (e: React.MouseEvent) => {
+  const openModal = (e: React.MouseEvent) => {
 		e.preventDefault();
 		setIsModalOpen(true);
 		setIsZoomed(false);
 	};
 
-	const closeModal = (e?: React.MouseEvent) => {
+  const closeModal = (e?: React.MouseEvent) => {
 		if (e) {
 			e.preventDefault();
 			e.stopPropagation();
@@ -94,25 +98,25 @@ export default function StoreProductImages({
 		setIsModalOpen(false);
 		setIsZoomed(false);
 		setPanPosition({ x: 0, y: 0 }); // Reset pan on close
+		panPositionRef.current = { x: 0, y: 0 }; // reset ref
 	};
 
-	const toggleZoom = (e: React.MouseEvent) => {
+  const toggleZoom = (e: React.MouseEvent) => {
 		e.stopPropagation();
 		if (hasDraggedRef.current) return;
 
 		if (isZoomed) {
 			setIsZoomed(false);
-			setPanPosition({ x: 0, y: 0 }); // Reset pan when zooming out
-			setIsPanning(false); // Reset panning state
-			isPanningRef.current = false; // Reset ref
+			setPanPosition({ x: 0, y: 0 });
+			panPositionRef.current = { x: 0, y: 0 }; // reset ref
+			isPanningRef.current = false;
 		} else {
 			setIsZoomed(true);
 		}
 	};
 
-	const onModalPointerDown = (e: React.PointerEvent) => {
-		if (e.button !== 0) return; // Only left click/touch
-
+  const onModalPointerDown = (e: React.PointerEvent) => {
+		if (e.button !== 0) return;
 		if ((e.target as HTMLElement).closest("button")) return;
 
 		hasDraggedRef.current = false;
@@ -120,38 +124,48 @@ export default function StoreProductImages({
 		if (isZoomed) {
 			e.preventDefault();
 			setIsPanning(true);
-			isPanningRef.current = true; // Set ref immediately
+			isPanningRef.current = true;
 
-			// Store offset relative to current pan position
-			dragStartRef.current = {
-				x: e.clientX - panPosition.x,
-				y: e.clientY - panPosition.y,
-			};
+			lastPointRef.current = { x: e.clientX, y: e.clientY };
+
 			e.currentTarget.setPointerCapture(e.pointerId);
 		} else {
-			// Original swipe logic for image navigation
 			setTouchStart(e.clientX);
 			setIsDragging(true);
 		}
 	};
 
-	const onModalPointerMove = (e: React.PointerEvent) => {
+  const onModalPointerMove = (e: React.PointerEvent) => {
 		if (isZoomed && isPanningRef.current) {
 			e.preventDefault();
-			const newX = e.clientX - dragStartRef.current.x;
-			const newY = e.clientY - dragStartRef.current.y;
 
-			// Check threshold to distinguish click from drag
-			if (
-				Math.abs(newX - panPosition.x) > 2 ||
-				Math.abs(newY - panPosition.y) > 2
-			) {
+			const deltaX = e.clientX - lastPointRef.current.x;
+			const deltaY = e.clientY - lastPointRef.current.y;
+
+			// Update last point immediately
+			lastPointRef.current = { x: e.clientX, y: e.clientY };
+
+			// Check threshold for click vs drag distinction
+			if (Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0) {
+				// Only mark as dragged if there is actual movement
+				// We use a small accumulator for "hasDragged" check in the onClick if needed,
+				// but usually any move is a drag.
+				// Let's stick to the cumulative check or just use a small threshold
+				// For now, just checking if we moved significantly overall?
+				// We need to track total distance for that.
+				// Let's simplify: if we are moving, we are dragging.
 				hasDraggedRef.current = true;
 			}
 
-			setPanPosition({ x: newX, y: newY });
+			// Apply delta to the accumulated position
+			panPositionRef.current = {
+				x: panPositionRef.current.x + deltaX,
+				y: panPositionRef.current.y + deltaY,
+			};
+
+			// Force update state for render
+			setPanPosition({ ...panPositionRef.current });
 		} else if (!isZoomed && isDragging && touchStart !== null) {
-			// Existing swipe logic
 			const currentTouch = e.clientX;
 			const diff = touchStart - currentTouch;
 			if (Math.abs(diff) > 5) hasDraggedRef.current = true;
@@ -159,7 +173,7 @@ export default function StoreProductImages({
 		}
 	};
 
-	const onModalPointerUp = (e: React.PointerEvent) => {
+  const onModalPointerUp = (e: React.PointerEvent) => {
 		if (isZoomed) {
 			setIsPanning(false);
 			isPanningRef.current = false; // Reset ref
@@ -167,7 +181,7 @@ export default function StoreProductImages({
 		} else {
 			// Existing swipe end logic
 			setIsDragging(false);
-			const threshold = MIN_SWIPE_DISTANCE;
+			const threshold = minSwipeDistance;
 
 			if (Math.abs(currentTranslate) > threshold) {
 				if (currentTranslate > 0 && currentImageIndex < images.length - 1) {
@@ -182,21 +196,21 @@ export default function StoreProductImages({
 		}
 	};
 
-	const onTouchStart = (e: React.TouchEvent) => {
+  const onTouchStart = (e: React.TouchEvent) => {
 		setTouchStart(e.targetTouches[0].clientX);
 		setIsDragging(true);
 	};
 
-	const onTouchMove = (e: React.TouchEvent) => {
+  const onTouchMove = (e: React.TouchEvent) => {
 		if (!touchStart) return;
 		const currentTouch = e.targetTouches[0].clientX;
 		const diff = touchStart - currentTouch;
 		setCurrentTranslate(diff);
 	};
 
-	const onTouchEnd = () => {
+  const onTouchEnd = () => {
 		setIsDragging(false);
-		const threshold = MIN_SWIPE_DISTANCE; // Minimum distance to trigger slide
+		const threshold = minSwipeDistance; // Minimum distance to trigger slide
 
 		if (Math.abs(currentTranslate) > threshold) {
 			if (currentTranslate > 0 && currentImageIndex < images.length - 1) {
@@ -308,6 +322,7 @@ export default function StoreProductImages({
 
 					<div
 						className="relative w-full h-full flex items-center justify-center overflow-hidden touch-none"
+						style={{ touchAction: "none" }} // Enforce touch-action none inline
 						onPointerDown={onModalPointerDown}
 						onPointerMove={onModalPointerMove}
 						onPointerUp={onModalPointerUp}
