@@ -1,4 +1,4 @@
-import { SyntheticEvent, useEffect, useState } from "react";
+import { SyntheticEvent, useEffect, useMemo, useState } from "react";
 
 import SearchContent, { SearchOption } from "./search-content";
 import { Input } from "@/app/components/ui/input";
@@ -12,6 +12,7 @@ type Props = {
   options: SearchOption[];
   placeholder?: string;
   onSelect: (selectedId: number) => void;
+  selectedId?: number;
 };
 
 const SearchInput = ({
@@ -21,12 +22,18 @@ const SearchInput = ({
   options,
   placeholder = "Buscar...",
   onSelect,
+  selectedId,
 }: Props) => {
   const [inputText, setInputText] = useState("");
   const [searchedOptions, setSearchedOptions] =
     useState<SearchOption[]>(options);
+  const selectedLabel = useMemo(() => {
+    if (selectedId == null) return "";
+    const found = options.find((o) => String(o.value) === String(selectedId));
+    return found?.label ?? "";
+  }, [selectedId, options]);
 
-  const handleSearch = useDebouncedCallback((term) => {
+  const handleSearch = useDebouncedCallback((term: string) => {
     const filtered = options?.filter((option) => {
       return option.label.toLowerCase().includes(term.toLocaleLowerCase());
     });
@@ -38,10 +45,26 @@ const SearchInput = ({
     handleSearch(inputText);
   }, [inputText, handleSearch]);
 
+  useEffect(() => {
+    if (selectedLabel) {
+      setInputText(selectedLabel);
+    } else {
+      setInputText("");
+    }
+  }, [selectedLabel]);
+
   const handleSelect = (e: SyntheticEvent<HTMLLIElement>) => {
-    setInputText("");
-    onSelect(e.currentTarget.value);
+    const el = e.currentTarget;
+    const valueAttr = el.getAttribute("value") ?? el.getAttribute("data-value") ?? (el as any).value;
+    if (!valueAttr) return;
+    const id = Number(valueAttr);
+    if (Number.isNaN(id)) return;
+    const found = options.find((o) => String(o.value) === String(id));
+    setInputText(found?.label ?? "");
+    onSelect(id); 
   };
+  
+  const shouldShow = !!inputText && inputText !== selectedLabel;
 
   return (
     <div aria-label="search input">
@@ -60,11 +83,13 @@ const SearchInput = ({
           type="search"
           placeholder={placeholder}
           value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
+          onChange={(e) => {
+            setInputText(e.target.value);
+          }}
         />
       </div>
       <SearchContent
-        show={!!inputText}
+        show={shouldShow}
         options={searchedOptions}
         onSelect={handleSelect}
       />
