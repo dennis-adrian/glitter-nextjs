@@ -131,6 +131,7 @@ export default function StoreProductImages({
 		setIsZoomed(false);
 		setPanPosition({ x: 0, y: 0 }); // Reset pan on close
 		panPositionRef.current = { x: 0, y: 0 }; // reset ref
+		api?.scrollTo(0);
 	};
 
 	const toggleZoom = (e: React.MouseEvent) => {
@@ -348,7 +349,7 @@ export default function StoreProductImages({
 									className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/20 rounded-full h-12 w-12 z-40 hidden md:flex hover:-translate-y-1/2 hover:text-white"
 									onClick={(e) => {
 										e.stopPropagation();
-										prevImage(e);
+										api?.scrollPrev();
 									}}
 								>
 									<ChevronLeftIcon className="h-8 w-8" />
@@ -360,7 +361,7 @@ export default function StoreProductImages({
 									className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/20 rounded-full h-12 w-12 z-40 hidden md:flex hover:-translate-y-1/2 hover:text-white"
 									onClick={(e) => {
 										e.stopPropagation();
-										nextImage(e);
+										api?.scrollNext();
 									}}
 								>
 									<ChevronRightIcon className="h-8 w-8" />
@@ -373,7 +374,7 @@ export default function StoreProductImages({
 											key={idx}
 											onClick={(e) => {
 												e.stopPropagation();
-												setCurrentImageIndex(idx);
+												api?.scrollTo(idx);
 											}}
 											className={`h-2 w-2 rounded-full transition-all ${
 												idx === currentImageIndex
