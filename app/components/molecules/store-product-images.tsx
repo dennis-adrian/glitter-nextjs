@@ -1,6 +1,8 @@
 "use client";
 
 import { Button } from "@/app/components/ui/button";
+import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
+import { BaseProductImage } from "@/app/lib/products/definitions";
 import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
@@ -15,7 +17,7 @@ const MIN_SWIPE_DISTANCE = 50;
 type StoreProductImagesProps = {
 	productName: string;
 	stock: number;
-	images: string[];
+	images: BaseProductImage[];
 	isHovered: boolean;
 };
 export default function StoreProductImages({
@@ -24,7 +26,7 @@ export default function StoreProductImages({
 	images,
 	isHovered,
 }: StoreProductImagesProps) {
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+	const [currentImageIndex, setCurrentImageIndex] = useState(0);
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [isZoomed, setIsZoomed] = useState(false);
 	const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -33,7 +35,6 @@ export default function StoreProductImages({
 
 	const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
 	const [isPanning, setIsPanning] = useState(false);
-	const dragStartRef = useRef({ x: 0, y: 0 });
 	const hasDraggedRef = useRef(false);
 	const isPanningRef = useRef(false); // Added ref for immediate state tracking
 	const panPositionRef = useRef({ x: 0, y: 0 });
@@ -51,7 +52,7 @@ export default function StoreProductImages({
 		};
 	}, [isModalOpen]);
 
-  useEffect(() => {
+	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if (e.key === "Escape" && isModalOpen) {
 				closeModal();
@@ -62,9 +63,7 @@ export default function StoreProductImages({
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [isModalOpen]);
 
-	const minSwipeDistance = 50;
-
-  const nextImage = (e?: React.MouseEvent) => {
+	const nextImage = (e?: React.MouseEvent) => {
 		if (e) {
 			e.preventDefault();
 			e.stopPropagation();
@@ -74,7 +73,7 @@ export default function StoreProductImages({
 		}
 	};
 
-  const prevImage = (e?: React.MouseEvent) => {
+	const prevImage = (e?: React.MouseEvent) => {
 		if (e) {
 			e.preventDefault();
 			e.stopPropagation();
@@ -84,13 +83,13 @@ export default function StoreProductImages({
 		}
 	};
 
-  const openModal = (e: React.MouseEvent) => {
+	const openModal = (e: React.MouseEvent) => {
 		e.preventDefault();
 		setIsModalOpen(true);
 		setIsZoomed(false);
 	};
 
-  const closeModal = (e?: React.MouseEvent) => {
+	const closeModal = (e?: React.MouseEvent) => {
 		if (e) {
 			e.preventDefault();
 			e.stopPropagation();
@@ -101,7 +100,7 @@ export default function StoreProductImages({
 		panPositionRef.current = { x: 0, y: 0 }; // reset ref
 	};
 
-  const toggleZoom = (e: React.MouseEvent) => {
+	const toggleZoom = (e: React.MouseEvent) => {
 		e.stopPropagation();
 		if (hasDraggedRef.current) return;
 
@@ -115,7 +114,7 @@ export default function StoreProductImages({
 		}
 	};
 
-  const onModalPointerDown = (e: React.PointerEvent) => {
+	const onModalPointerDown = (e: React.PointerEvent) => {
 		if (e.button !== 0) return;
 		if ((e.target as HTMLElement).closest("button")) return;
 
@@ -135,7 +134,7 @@ export default function StoreProductImages({
 		}
 	};
 
-  const onModalPointerMove = (e: React.PointerEvent) => {
+	const onModalPointerMove = (e: React.PointerEvent) => {
 		if (isZoomed && isPanningRef.current) {
 			e.preventDefault();
 
@@ -173,7 +172,7 @@ export default function StoreProductImages({
 		}
 	};
 
-  const onModalPointerUp = (e: React.PointerEvent) => {
+	const onModalPointerUp = (e: React.PointerEvent) => {
 		if (isZoomed) {
 			setIsPanning(false);
 			isPanningRef.current = false; // Reset ref
@@ -181,7 +180,7 @@ export default function StoreProductImages({
 		} else {
 			// Existing swipe end logic
 			setIsDragging(false);
-			const threshold = minSwipeDistance;
+			const threshold = MIN_SWIPE_DISTANCE;
 
 			if (Math.abs(currentTranslate) > threshold) {
 				if (currentTranslate > 0 && currentImageIndex < images.length - 1) {
@@ -196,21 +195,21 @@ export default function StoreProductImages({
 		}
 	};
 
-  const onTouchStart = (e: React.TouchEvent) => {
+	const onTouchStart = (e: React.TouchEvent) => {
 		setTouchStart(e.targetTouches[0].clientX);
 		setIsDragging(true);
 	};
 
-  const onTouchMove = (e: React.TouchEvent) => {
+	const onTouchMove = (e: React.TouchEvent) => {
 		if (!touchStart) return;
 		const currentTouch = e.targetTouches[0].clientX;
 		const diff = touchStart - currentTouch;
 		setCurrentTranslate(diff);
 	};
 
-  const onTouchEnd = () => {
+	const onTouchEnd = () => {
 		setIsDragging(false);
-		const threshold = minSwipeDistance; // Minimum distance to trigger slide
+		const threshold = MIN_SWIPE_DISTANCE; // Minimum distance to trigger slide
 
 		if (Math.abs(currentTranslate) > threshold) {
 			if (currentTranslate > 0 && currentImageIndex < images.length - 1) {
@@ -224,6 +223,19 @@ export default function StoreProductImages({
 		setCurrentTranslate(0);
 	};
 
+	const mainImage = images.find((img) => img.isMain);
+	const secondaryImages = images.filter((img) => !img.isMain);
+	const imageUrls: string[] = [];
+
+	if (!mainImage && secondaryImages.length === 0) {
+		imageUrls.push(PLACEHOLDER_IMAGE_URLS["1200"]);
+	} else if (!mainImage) {
+		imageUrls.push(...secondaryImages.map((img) => img.imageUrl));
+	} else {
+		imageUrls.push(mainImage.imageUrl);
+		imageUrls.push(...secondaryImages.map((img) => img.imageUrl));
+	}
+
 	return (
 		<>
 			<div
@@ -233,7 +245,12 @@ export default function StoreProductImages({
 				onTouchEnd={onTouchEnd}
 				onClick={(e) => {
 					// Prevent modal opening if it was a drag
-					if (currentTranslate === 0 && stock > 0) openModal(e);
+					if (
+						currentTranslate === 0 &&
+						stock > 0 &&
+						imageUrls?.[0] !== PLACEHOLDER_IMAGE_URLS["1200"]
+					)
+						openModal(e);
 				}}
 			>
 				<div
@@ -243,10 +260,10 @@ export default function StoreProductImages({
 						transition: isDragging ? "none" : "transform 300ms ease-out",
 					}}
 				>
-					{images.map((img, idx) => (
+					{imageUrls.map((imgUrl, idx) => (
 						<div key={idx} className="min-w-full h-full relative">
 							<Image
-								src={img || "/img/placeholders/placeholder-300x300.png"}
+								src={imgUrl}
 								alt={`${productName} - Image ${idx + 1}`}
 								fill
 								className="object-cover select-none"
@@ -256,7 +273,7 @@ export default function StoreProductImages({
 					))}
 				</div>
 
-				{stock > 0 && (
+				{stock > 0 && imageUrls?.[0] !== PLACEHOLDER_IMAGE_URLS["1200"] && (
 					<div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20">
 						<div className="bg-black/50 text-white p-1.5 rounded-full backdrop-blur-sm">
 							<Maximize2Icon className="h-4 w-4" />
@@ -264,7 +281,7 @@ export default function StoreProductImages({
 					</div>
 				)}
 
-				{images.length > 1 && (
+				{imageUrls.length > 1 && (
 					<>
 						<button
 							onClick={prevImage}
@@ -339,10 +356,7 @@ export default function StoreProductImages({
 							}`}
 						>
 							<img
-								src={
-									images[currentImageIndex] ||
-									"/img/placeholders/placeholder-300x300.png"
-								}
+								src={images[currentImageIndex]?.imageUrl ?? ""}
 								alt={`${productName} - Full View`}
 								className="max-w-[90%] max-h-[90%] object-contain select-none"
 								style={{

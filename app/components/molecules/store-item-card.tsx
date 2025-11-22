@@ -1,19 +1,18 @@
 "use client";
 
 import { BaseProfile } from "@/app/api/users/definitions";
+import StoreProductImages from "@/app/components/molecules/store-product-images";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate } from "@/app/lib/formatters";
-import { BaseProduct } from "@/app/lib/products/definitions";
-import Image from "next/image";
-import StoreItemQuantityInput from "./store-item-quantity-input";
-import { ProductStatusBadge } from "@/components/molecules/ProductStatusBadge";
-import { ChevronLeftIcon, ChevronRightIcon, ClockIcon } from "lucide-react";
 import { validatedDiscount } from "@/app/lib/orders/utils";
+import { BaseProductWithImages } from "@/app/lib/products/definitions";
+import { ProductStatusBadge } from "@/components/molecules/ProductStatusBadge";
+import { ClockIcon } from "lucide-react";
 import { useState } from "react";
-import StoreProductImages from "@/app/components/molecules/store-product-images";
+import StoreItemQuantityInput from "./store-item-quantity-input";
 
 type StoreItemCardProps = {
-	product: BaseProduct;
+	product: BaseProductWithImages;
 	user?: BaseProfile;
 };
 
@@ -58,11 +57,7 @@ export default function StoreItemCard({ product, user }: StoreItemCardProps) {
 			<StoreProductImages
 				productName={product.name}
 				stock={product.stock ?? 0}
-				// TODO: Replace this with actual product images after database changes
-				images={[
-					product.imageUrl ?? "",
-					"/img/placeholders/placeholder-300x300.png",
-				]}
+				images={product.images}
 				isHovered={isHovered}
 			/>
 
