@@ -4,39 +4,39 @@ import * as styles from "@/app/emails/styles";
 import { formatDate } from "@/app/lib/formatters";
 import { getUserName } from "@/app/lib/users/utils";
 import {
-  Body,
-  Button,
-  Container,
-  Head,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Section,
-  Text,
+	Body,
+	Button,
+	Container,
+	Head,
+	Html,
+	Link,
+	Preview,
+	Section,
+	Text,
 } from "@react-email/components";
 import { DateTime } from "luxon";
 import { FestivalBase } from "../lib/festivals/definitions";
+import EmailFooter from "@/app/emails/email-footer";
 
 interface FestivalActivationTemplateProps {
-  profile: BaseProfile;
-  festival: FestivalBase;
+	profile: BaseProfile;
+	festival: FestivalBase;
 }
 
 export default function FestivalActivationEmailTemplate({
-  profile,
-  festival,
+	profile,
+	festival,
 }: FestivalActivationTemplateProps) {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-  const userName = getUserName(profile);
-  const fullDate = formatDate(festival.reservationsStartDate).toLocaleString(
-    DateTime.DATE_FULL,
-  );
-  const hour = formatDate(festival.reservationsStartDate).toLocaleString(
+	const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+	const userName = getUserName(profile);
+	const fullDate = formatDate(festival.reservationsStartDate).toLocaleString(
+		DateTime.DATE_FULL,
+	);
+	const hour = formatDate(festival.reservationsStartDate).toLocaleString(
 		DateTime.TIME_24_SIMPLE,
 	);
 
-  return (
+	return (
 		<Html>
 			<Head />
 			<Preview>Alístate para participar en nuestro próximo festival</Preview>
@@ -75,31 +75,21 @@ export default function FestivalActivationEmailTemplate({
 						</Button>
 					</Section>
 				</Container>
-				<Container style={styles.footer}>
-					<Img
-						style={{ margin: "4px auto" }}
-						src="https://utfs.io/f/a4e5ba5d-5403-4c59-99c0-7e170bb2d6f5-f0kpla.png"
-						width={32}
-					/>
-					<Text style={styles.footerText}>Enviado por el equipo Glitter</Text>
-					<Text style={styles.footerText}>
-						© 2024 | Productora Glitter, Santa Cruz, Bolivia{" "}
-					</Text>
-				</Container>
+				<EmailFooter />
 			</Body>
 		</Html>
 	);
 }
 
 FestivalActivationEmailTemplate.PreviewProps = {
-  profile: {
-    id: 90,
-    displayName: "John Doe",
-  },
-  festival: {
-    id: 11,
-    name: "Glitter 10ma edición",
-    reservationsStartDate: new Date("2024-08-12 12:00:00"),
-    festivalType: "twinkler",
-  },
+	profile: {
+		id: 90,
+		displayName: "John Doe",
+	},
+	festival: {
+		id: 11,
+		name: "Glitter 10ma edición",
+		reservationsStartDate: new Date("2024-08-12 12:00:00"),
+		festivalType: "twinkler",
+	},
 } as FestivalActivationTemplateProps;

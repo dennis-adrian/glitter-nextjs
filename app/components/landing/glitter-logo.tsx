@@ -10,16 +10,16 @@ type GlitterLogoProps = {
 
 export default function GlitterLogo(props: GlitterLogoProps) {
   return (
-    <Image
-      className={props.className}
-      src={
-        props.variant === "dark"
-          ? "/img/logo/glitter-logo-dark-160x160.png"
-          : "/img/logo/glitter-logo-light-160x160.png"
-      }
-      alt="Logo"
-      height={props.height}
-      width={props.width}
-    />
-  );
+		<Image
+			className={props.className}
+			src={
+				props.variant === "dark"
+					? "/img/logo/glitter-logo-dark-160x160.png"
+					: "/img/logo/glitter-isotype-light-no-bg-160x160.png"
+			}
+			alt="Logo"
+			height={props.height}
+			width={props.width}
+		/>
+	);
 }
