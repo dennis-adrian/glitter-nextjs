@@ -53,7 +53,7 @@ export default function ReservationConfirmationEmailTemplate(
 							confirmada!
 						</Text>
 						<Text style={styles.text}>
-							Te esparamos el{" "}
+							Te esperamos el{" "}
 							{formatFullDate(props.festival.festivalDates[0].startDate)} en{" "}
 							{props.festival.locationLabel} a las{" "}
 							{formatDate(props.festival.festivalDates[0].startDate)
