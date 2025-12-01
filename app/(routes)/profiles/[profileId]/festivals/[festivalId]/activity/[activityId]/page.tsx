@@ -1,3 +1,4 @@
+import FestivalStickerActivityPage from "@/app/components/pages/festival_activities/festival-sticker-activity";
 import PassportActivityPage from "@/app/components/pages/festival_activities/passport-activity";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
@@ -40,6 +41,10 @@ export default async function ParticipantsActivityPage({
 				/>
 			</div>
 		);
+	}
+
+	if (activity.type === "festival_sticker") {
+		return <FestivalStickerActivityPage activity={activity} />;
 	}
 
 	return <div className="container p-3 md:p-6">Hello World</div>;
