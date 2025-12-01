@@ -8,19 +8,19 @@ import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import Image from "next/image";
 
-type PassportActivityContentProps = {
+type PassportActivityPageProps = {
 	currentProfile: BaseProfile;
-	forProfile: BaseProfile;
+	forProfileId: BaseProfile["id"];
 	activity: FestivalActivityWithDetailsAndParticipants;
-	festival: FestivalBase;
+	festivalId: FestivalBase["id"];
 };
 
-export default function PassportActivityContent({
+export default function PassportActivityPage({
 	activity,
 	currentProfile,
-	forProfile,
-	festival,
-}: PassportActivityContentProps) {
+	forProfileId,
+	festivalId,
+}: PassportActivityPageProps) {
 	const formattedRegistrationEndDate = formatDate(activity.registrationEndDate);
 	return (
 		<div className="flex flex-col gap-4">
@@ -127,8 +127,8 @@ export default function PassportActivityContent({
 			</div>
 			<EnrollRedirectButton
 				currentProfile={currentProfile}
-				forProfile={forProfile}
-				festival={festival}
+				forProfileId={forProfileId}
+				festivalId={festivalId}
 				activity={activity}
 			/>
 		</div>

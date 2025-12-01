@@ -25,15 +25,15 @@ import UploadStickerDesignModal from "@/app/components/festivals/festival_activi
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 type EnrollRedirectButtonProps = {
 	currentProfile: BaseProfile;
-	forProfile: BaseProfile;
-	festival: FestivalBase;
+	forProfileId: BaseProfile["id"];
+	festivalId: FestivalBase["id"];
 	activity: FestivalActivityWithDetailsAndParticipants;
 };
 
 export default function EnrollRedirectButton({
 	currentProfile,
-	forProfile,
-	festival,
+	forProfileId,
+	festivalId,
 	activity,
 }: EnrollRedirectButtonProps) {
 	const [isEnabled, setIsEnabled] = useState(false);
@@ -97,8 +97,8 @@ export default function EnrollRedirectButton({
 	const action = form.handleSubmit(async () => {
 		try {
 			const result = await enrollInActivity(
-				forProfile,
-				festival,
+				forProfileId,
+				festivalId,
 				activityDetail,
 				activity,
 			);
@@ -106,7 +106,7 @@ export default function EnrollRedirectButton({
 			if (result.success) {
 				toast.success(result.message);
 				router.push(
-					`/profiles/${forProfile.id}/festivals/${festival.id}/activity/enroll/success`,
+					`/profiles/${forProfileId}/festivals/${festivalId}/activity/enroll/success`,
 				);
 			} else {
 				toast.error(result.message);
@@ -126,13 +126,13 @@ export default function EnrollRedirectButton({
 		);
 	}
 
-	if (isProfileEnrolledInActivity(forProfile.id, activity)) {
+	if (isProfileEnrolledInActivity(forProfileId, activity)) {
 		const participants = activity.details.flatMap(
 			(detail) => detail.participants,
 		);
 
 		const userParticipation = participants.find(
-			(participant) => participant.user.id === forProfile.id,
+			(participant) => participant.user.id === forProfileId,
 		);
 
 		const hasUploadedProof = (userParticipation?.proofs?.length ?? 0) > 0;
@@ -187,7 +187,7 @@ export default function EnrollRedirectButton({
 								) : (
 									<RedirectButton
 										className="w-full self-end"
-										href={`/profiles/${forProfile.id}/festivals/${festival.id}/activity/enroll`}
+										href={`/profiles/${forProfileId}/festivals/${festivalId}/activity/enroll`}
 										disabled={!isEnabled && currentProfile.role !== "admin"}
 									>
 										{isEnabled || currentProfile.role === "admin"

@@ -1,7 +1,7 @@
 import { fetchUserProfileById } from "@/app/api/users/actions";
 import { BaseProfile } from "@/app/api/users/definitions";
 import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
-import PassportActivityContent from "@/app/components/organisms/passport-activity-content";
+import PassportActivityContent from "@/app/components/pages/festival_activities/passport-activity";
 import { getFestivalById } from "@/app/lib/festivals/helpers";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import Image from "next/image";
@@ -64,8 +64,8 @@ export default async function ParticipantsActivityPage({
 				<PassportActivityContent
 					activity={passportActivity}
 					currentProfile={currentProfile!}
-					forProfile={forProfile}
-					festival={festival}
+					forProfileId={profileId}
+					festivalId={festivalId}
 				/>
 			</div>
 		);
@@ -243,8 +243,8 @@ export default async function ParticipantsActivityPage({
 				</div>
 				<EnrollRedirectButton
 					currentProfile={currentProfile!}
-					forProfile={forProfile}
-					festival={festival}
+					forProfileId={profileId}
+					festivalId={festivalId}
 					activity={stickerPrintActivity}
 				/>
 			</div>

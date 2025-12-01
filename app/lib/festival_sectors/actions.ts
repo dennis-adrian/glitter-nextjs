@@ -1,7 +1,7 @@
 "use server";
 
 import { StandBase } from "@/app/api/stands/definitions";
-import { fetchAdminUsers } from "@/app/api/users/actions";
+import { fetchAdminUsers, fetchBaseProfileById } from "@/app/api/users/actions";
 import {
 	BaseProfile,
 	Participation,
@@ -36,6 +36,7 @@ import {
 } from "@/db/schema";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 
 export async function fetchFestivalSectors(
 	festivalId: number,
@@ -120,7 +121,7 @@ export async function fetchFestivalSectorsByUserCategory(
 }
 
 export async function fetchConfirmedProfilesByFestivalId(
-	festivalId: number
+	festivalId: number,
 ): Promise<
 	(BaseProfile & { stands: StandBase[]; participations: Participation[] })[]
 > {
@@ -130,22 +131,22 @@ export async function fetchConfirmedProfilesByFestivalId(
 			.from(users)
 			.leftJoin(
 				reservationParticipants,
-				eq(reservationParticipants.userId, users.id)
+				eq(reservationParticipants.userId, users.id),
 			)
 			.leftJoin(
 				standReservations,
-				eq(standReservations.id, reservationParticipants.reservationId)
+				eq(standReservations.id, reservationParticipants.reservationId),
 			)
 			.leftJoin(stands, eq(stands.id, standReservations.standId))
 			.leftJoin(festivals, eq(festivals.id, standReservations.festivalId))
 			.where(
 				and(
 					eq(standReservations.festivalId, festivalId),
-					eq(standReservations.status, "accepted")
-				)
+					eq(standReservations.status, "accepted"),
+				),
 			);
 		const userIds = Array.from(
-			new Set(res.map((row) => row.users.id).filter(Boolean))
+			new Set(res.map((row) => row.users.id).filter(Boolean)),
 		);
 
 		if (userIds.length === 0) return [];
@@ -164,15 +165,15 @@ export async function fetchConfirmedProfilesByFestivalId(
 			.from(reservationParticipants)
 			.innerJoin(
 				standReservations,
-				eq(standReservations.id, reservationParticipants.reservationId)
+				eq(standReservations.id, reservationParticipants.reservationId),
 			)
 			.innerJoin(stands, eq(stands.id, standReservations.standId))
 			.innerJoin(festivals, eq(festivals.id, standReservations.festivalId))
 			.where(
 				and(
 					inArray(reservationParticipants.userId, userIds),
-					eq(standReservations.status, "accepted")
-				)
+					eq(standReservations.status, "accepted"),
+				),
 			);
 
 		// 3) Build a per-user list of ALL accepted participations
@@ -196,27 +197,33 @@ export async function fetchConfirmedProfilesByFestivalId(
 		// 4) Build the final profiles list.
 		//    - stands: only for THIS festival (from the first query)
 		//    - participations: ALL accepted (from the second query)
-		const profilesObject = res.reduce((acc, row) => {
-			const uid = row.users.id;
+		const profilesObject = res.reduce(
+			(acc, row) => {
+				const uid = row.users.id;
 
-			// stands for current festival (avoid duplicates)
-			const accStands = acc[uid]?.stands ?? [];
-			if (row.stands) {
-				const already = accStands.some((s) => s.id === row.stands!.id);
-				if (!already) accStands.push(row.stands);
-				accStands.sort((a, b) => a.standNumber - b.standNumber);
-			}
+				// stands for current festival (avoid duplicates)
+				const accStands = acc[uid]?.stands ?? [];
+				if (row.stands) {
+					const already = accStands.some((s) => s.id === row.stands!.id);
+					if (!already) accStands.push(row.stands);
+					accStands.sort((a, b) => a.standNumber - b.standNumber);
+				}
 
-			const accParticipations = allUsersParticipationsObject[uid] ?? [];
+				const accParticipations = allUsersParticipationsObject[uid] ?? [];
 
-			acc[uid] = {
-				...row.users,
-				stands: accStands,
-				participations: accParticipations,
-			};
+				acc[uid] = {
+					...row.users,
+					stands: accStands,
+					participations: accParticipations,
+				};
 
-			return acc;
-		}, {} as Record<number, BaseProfile & { stands: StandBase[]; participations: Participation[] }>);
+				return acc;
+			},
+			{} as Record<
+				number,
+				BaseProfile & { stands: StandBase[]; participations: Participation[] }
+			>,
+		);
 
 		return Object.values(profilesObject);
 	} catch (error) {
@@ -226,8 +233,8 @@ export async function fetchConfirmedProfilesByFestivalId(
 }
 
 export async function enrollInActivity(
-	user: BaseProfile,
-	festival: FestivalBase,
+	userId: number,
+	festivalId: FestivalBase["id"],
 	activityDetails: ActivityDetailsWithParticipants,
 	activity: FestivalActivity,
 ) {
@@ -249,7 +256,7 @@ export async function enrollInActivity(
 
 				// If there's space, insert the new participant
 				await tx.insert(festivalActivityParticipants).values({
-					userId: user.id,
+					userId: userId,
 					detailsId,
 				});
 
@@ -259,6 +266,13 @@ export async function enrollInActivity(
 				};
 			});
 
+			/**
+			 * Fetching user and festival here because passing down the whole user and
+			 * festival object is too cumbersome
+			 */
+			const festival = await fetchBaseFestival(festivalId);
+			const userProfile = await fetchBaseProfileById(userId);
+
 			const admins = await fetchAdminUsers();
 			const adminEmails = admins.map((admin) => admin.email);
 
@@ -267,22 +281,23 @@ export async function enrollInActivity(
 				to: [...adminEmails],
 				subject: "Inscripción a una actividad del festival",
 				react: FestivalActivityRegistrationEmail({
-					festival,
-					festivalActivity: activity,
-					user: user,
+					festivalActivityName: activity.name,
+					userDisplayName: userProfile?.displayName,
+					festivalName: festival?.name,
+					festivalType: festival?.festivalType,
 				}),
 			});
 
-			revalidatePath(`/profiles/${user.id}/festivals/${festival.id}/activity`);
+			revalidatePath(`/profiles/${userId}/festivals/${festivalId}/activity`);
 			return result;
 		} else {
 			// If there's no participation limit, just insert
 			await db.insert(festivalActivityParticipants).values({
-				userId: user.id,
+				userId: userId,
 				detailsId,
 			});
 
-			revalidatePath(`/profiles/${user.id}/festivals/${festival.id}/activity`);
+			revalidatePath(`/profiles/${userId}/festivals/${festivalId}/activity`);
 			return { success: true, message: "Inscripción realizada correctamente" };
 		}
 	} catch (error) {
