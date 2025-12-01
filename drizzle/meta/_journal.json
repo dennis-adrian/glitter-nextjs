@@ -869,6 +869,20 @@
       "when": 1764540641049,
       "tag": "0123_lovely_otto_octavius",
       "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1764542365374,
+      "tag": "0124_volatile_vengeance",
+      "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1764561566009,
+      "tag": "0125_simple_warbound",
+      "breakpoints": true
     }
   ]
 }

@@ -611,6 +611,13 @@ export const qrCodesRelations = relations(qrCodes, ({ many }) => ({
 export const festivalActivityTypeEnum = pgEnum("festival_activity_type", [
 	"stamp_passport",
 	"sticker_print",
+	"best_stand",
+	"festival_sticker",
+]);
+
+export const accessLevelEnum = pgEnum("access_level", [
+	"public",
+	"festival_participants_only",
 ]);
 
 export const festivalActivities = pgTable("festival_activities", {
@@ -629,6 +636,9 @@ export const festivalActivities = pgTable("festival_activities", {
 	allowsVoting: boolean("allows_voting").default(false).notNull(),
 	votingStartDate: timestamp("voting_start_date"),
 	votingEndDate: timestamp("voting_end_date"),
+	requiresProof: boolean("requires_proof").default(false).notNull(),
+	proofUploadLimitDate: timestamp("proof_upload_limit_date"),
+	accessLevel: accessLevelEnum("access_level").default("public").notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
