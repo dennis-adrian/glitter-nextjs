@@ -1,3 +1,5 @@
+import { fetchUserProfileById } from "@/app/api/users/actions";
+import { BaseProfile } from "@/app/api/users/definitions";
 import FestivalStickerActivityPage from "@/app/components/pages/festival_activities/festival-sticker-activity";
 import PassportActivityPage from "@/app/components/pages/festival_activities/passport-activity";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
@@ -26,6 +28,15 @@ export default async function ParticipantsActivityPage({
 	const currentProfile = await getCurrentUserProfile();
 	await protectRoute(currentProfile || undefined, profileId);
 
+	let forProfile: BaseProfile | null | undefined;
+	if (profileId === currentProfile?.id) {
+		forProfile = currentProfile;
+	} else {
+		forProfile = await fetchUserProfileById(profileId);
+	}
+
+	if (!forProfile) return notFound();
+
 	const activity = await fetchFestivalActivity(activityId);
 
 	if (!activity) return notFound();
@@ -36,7 +47,7 @@ export default async function ParticipantsActivityPage({
 				<PassportActivityPage
 					activity={activity}
 					currentProfile={currentProfile!}
-					forProfileId={profileId}
+					forProfile={forProfile}
 					festivalId={festivalId}
 				/>
 			</div>
@@ -44,7 +55,14 @@ export default async function ParticipantsActivityPage({
 	}
 
 	if (activity.type === "festival_sticker") {
-		return <FestivalStickerActivityPage activity={activity} />;
+		return (
+			<FestivalStickerActivityPage
+				activity={activity}
+				currentProfile={currentProfile!}
+				forProfile={forProfile}
+				festivalId={festivalId}
+			/>
+		);
 	}
 
 	return <div className="container p-3 md:p-6">Hello World</div>;

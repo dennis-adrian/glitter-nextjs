@@ -64,7 +64,7 @@ export default async function ParticipantsActivityPage({
 				<PassportActivityContent
 					activity={passportActivity}
 					currentProfile={currentProfile!}
-					forProfileId={profileId}
+					forProfile={forProfile}
 					festivalId={festivalId}
 				/>
 			</div>
@@ -243,7 +243,7 @@ export default async function ParticipantsActivityPage({
 				</div>
 				<EnrollRedirectButton
 					currentProfile={currentProfile!}
-					forProfileId={profileId}
+					forProfile={forProfile}
 					festivalId={festivalId}
 					activity={stickerPrintActivity}
 				/>

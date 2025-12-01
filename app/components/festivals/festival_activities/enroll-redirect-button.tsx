@@ -10,12 +10,20 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { DateTime } from "luxon";
-import { BaseProfile } from "@/app/api/users/definitions";
+import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import { useForm } from "react-hook-form";
 import { enrollInActivity } from "@/app/lib/festival_sectors/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { Form } from "@/app/components/ui/form";
+import {
+	Form,
+	FormControl,
+	FormDescription,
+	FormField,
+	FormItem,
+	FormLabel,
+	FormMessage,
+} from "@/app/components/ui/form";
 import SubmitButton from "@/app/components/simple-submit-button";
 import {
 	isActivityDetailFull,
@@ -23,24 +31,42 @@ import {
 } from "@/app/lib/festival_sectors/helpers";
 import UploadStickerDesignModal from "@/app/components/festivals/festival_activities/upload-sticker-design-modal";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
+import { Checkbox } from "@/app/components/ui/checkbox";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Button } from "@/app/components/ui/button";
+import { getCategoryLabel } from "@/app/lib/maps/helpers";
+
+const FormSchema = z.object({
+	consent: z.boolean().refine((val) => val === true, {
+		message: "Confirma que leíste y aceptaste las condiciones de la actividad.",
+	}),
+});
+
 type EnrollRedirectButtonProps = {
 	currentProfile: BaseProfile;
-	forProfileId: BaseProfile["id"];
+	forProfile: BaseProfile;
 	festivalId: FestivalBase["id"];
 	activity: FestivalActivityWithDetailsAndParticipants;
+	acceptedUserCategories?: UserCategory[];
 };
 
 export default function EnrollRedirectButton({
 	currentProfile,
-	forProfileId,
+	forProfile,
 	festivalId,
 	activity,
+	acceptedUserCategories = [],
 }: EnrollRedirectButtonProps) {
 	const [isEnabled, setIsEnabled] = useState(false);
 	const [statusMessage, setStatusMessage] = useState("");
-	const form = useForm();
 	const router = useRouter();
-	const isPassportActivity = activity.name.includes("Pasaporte");
+	const form = useForm<z.infer<typeof FormSchema>>({
+		resolver: zodResolver(FormSchema),
+		defaultValues: {
+			consent: false,
+		},
+	});
 
 	useEffect(() => {
 		// Function to check if current date is within registration period
@@ -86,8 +112,8 @@ export default function EnrollRedirectButton({
 
 	if (!activity.details?.length) {
 		return (
-			<div className="flex flex-col text-center border border-gray-200 rounded-md p-4 bg-gray-50 text-gray-800">
-				<p className="text-sm">Sin datos disponibles</p>
+			<div className="flex flex-col text-center border border-gray-200 rounded-md p-4 bg-gray-50 text-muted-foreground">
+				<p className="text-sm">Inscripción no disponible</p>
 			</div>
 		);
 	}
@@ -97,16 +123,17 @@ export default function EnrollRedirectButton({
 	const action = form.handleSubmit(async () => {
 		try {
 			const result = await enrollInActivity(
-				forProfileId,
+				forProfile,
 				festivalId,
 				activityDetail,
 				activity,
+				acceptedUserCategories,
 			);
 
 			if (result.success) {
 				toast.success(result.message);
 				router.push(
-					`/profiles/${forProfileId}/festivals/${festivalId}/activity/enroll/success`,
+					`/profiles/${forProfile.id}/festivals/${festivalId}/activity/enroll/success`,
 				);
 			} else {
 				toast.error(result.message);
@@ -116,7 +143,10 @@ export default function EnrollRedirectButton({
 		}
 	});
 
-	if (isPassportActivity && isActivityDetailFull(activityDetail)) {
+	if (
+		activity.type !== "sticker_print" &&
+		isActivityDetailFull(activityDetail)
+	) {
 		return (
 			<div className="flex flex-col text-center border border-gray-200 rounded-md p-4 bg-gray-50 text-gray-800">
 				<p className="text-sm">
@@ -126,13 +156,13 @@ export default function EnrollRedirectButton({
 		);
 	}
 
-	if (isProfileEnrolledInActivity(forProfileId, activity)) {
+	if (isProfileEnrolledInActivity(forProfile.id, activity)) {
 		const participants = activity.details.flatMap(
 			(detail) => detail.participants,
 		);
 
 		const userParticipation = participants.find(
-			(participant) => participant.user.id === forProfileId,
+			(participant) => participant.user.id === forProfile.id,
 		);
 
 		const hasUploadedProof = (userParticipation?.proofs?.length ?? 0) > 0;
@@ -162,16 +192,66 @@ export default function EnrollRedirectButton({
 		);
 	}
 
+	if (
+		acceptedUserCategories.length > 0 &&
+		!acceptedUserCategories.includes(forProfile.category)
+	) {
+		return (
+			<div className="flex flex-col gap-2">
+				<Button disabled className="w-full">
+					Inscribirme
+				</Button>
+				<p className="text-sm md:text-center text-muted-foreground">
+					Esta actividad no está disponible para la categoría de{" "}
+					{getCategoryLabel(forProfile.category).toLocaleLowerCase()}.
+				</p>
+			</div>
+		);
+	}
+
 	return (
 		<div className="flex flex-col">
 			<div className="flex justify-end w-full">
 				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<div className="w-full md:max-w-[400px] flex flex-col gap-1 justify-center items-center">
-								{isPassportActivity ? (
+							<div className="w-full flex flex-col gap-1 justify-center items-center">
+								{activity.type !== "sticker_print" ? (
 									<Form {...form}>
-										<form className="w-full" onSubmit={action}>
+										<form
+											className="w-full flex flex-col gap-2"
+											onSubmit={action}
+										>
+											<FormField
+												control={form.control}
+												name="consent"
+												render={({ field }) => (
+													<div className="flex flex-col gap-2">
+														<FormItem className=" bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800">
+															<div className="flex flex-row items-start gap-1">
+																<FormControl>
+																	<Checkbox
+																		checked={field.value}
+																		onCheckedChange={field.onChange}
+																	/>
+																</FormControl>
+																<div className="space-y-1 leading-none">
+																	<FormLabel className="text-current">
+																		Confirmo que he leído y acepto las
+																		condiciones de la actividad.
+																	</FormLabel>
+																	<FormDescription className="text-current">
+																		Incumplir las condiciones de la actividad,
+																		podría excluirte de futuros eventos y/o
+																		actividades.
+																	</FormDescription>
+																</div>
+															</div>
+														</FormItem>
+														<FormMessage />
+													</div>
+												)}
+											/>
 											<SubmitButton
 												disabled={
 													(!isEnabled && currentProfile.role !== "admin") ||
@@ -187,7 +267,7 @@ export default function EnrollRedirectButton({
 								) : (
 									<RedirectButton
 										className="w-full self-end"
-										href={`/profiles/${forProfileId}/festivals/${festivalId}/activity/enroll`}
+										href={`/profiles/${forProfile.id}/festivals/${festivalId}/activity/enroll`}
 										disabled={!isEnabled && currentProfile.role !== "admin"}
 									>
 										{isEnabled || currentProfile.role === "admin"

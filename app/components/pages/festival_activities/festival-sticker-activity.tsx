@@ -1,19 +1,44 @@
+import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import DateSpan from "@/app/components/atoms/date-span";
 import Title from "@/app/components/atoms/title";
-import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
+import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
+import {
+	FestivalActivityWithDetailsAndParticipants,
+	FestivalBase,
+} from "@/app/lib/festivals/definitions";
+import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import Image from "next/image";
 
 type FestivalStickerActivityPageProps = {
 	activity: FestivalActivityWithDetailsAndParticipants;
+	currentProfile: BaseProfile;
+	forProfile: BaseProfile;
+	festivalId: FestivalBase["id"];
 };
 
 export default function FestivalStickerActivityPage({
 	activity,
+	currentProfile,
+	forProfile,
+	festivalId,
 }: FestivalStickerActivityPageProps) {
+	// TODO: Get accepted user categories from the activity
+	const acceptedUserCategories: UserCategory[] = ["illustration"];
+
 	return (
 		<div className="container p-3 md:p-6">
 			<Title>{activity.name}</Title>
 			<p className="text-base md:text-lg">{activity.description}</p>
+			{acceptedUserCategories.length > 0 &&
+				!acceptedUserCategories.includes(forProfile.category) && (
+					<div className="my-2 md:my-3 bg-amber-50 border border-amber-200 rounded-md p-3 md:p-4 text-amber-800">
+						<p className="text-sm">
+							Esta actividad no está disponible para la categoría de{" "}
+							{getCategoryLabel(forProfile.category).toLocaleLowerCase()}.
+						</p>
+					</div>
+				)}
+
 			{activity.promotionalArtUrl && (
 				<figure className="my-2 md:my-3">
 					<div className="relative w-full max-w-[400px] h-auto aspect-square mx-auto">
@@ -153,16 +178,23 @@ export default function FestivalStickerActivityPage({
 					</p>
 					<p>
 						Al ganador de la votación se le otorgará un{" "}
-						<strong>descuento del 30%</strong> en la reserva de su espacio,
-						válido únicamente para la próxima edición del festival Glitter.
+						<strong>descuento del 50%</strong> en la reserva de su espacio,
+						válido únicamente para la próxima edición del festival Glitter*.
+					</p>
+					<p className="text-sm text-muted-foreground mt-2 italic">
+						*El descuento será aplicable solamente para reservas individuales,
+						no aplica a reservas con stand compartido. El descuento no es
+						transferible a otro participante.
 					</p>
 				</section>
 				<section>
-					<h2 className="text-lg font-bold">Resumen</h2>
+					<h2 className="text-lg font-bold">
+						Resumen de las condiciones para participar
+					</h2>
 					<ol className="ml-2 list-decimal list-inside space-y-2">
 						<li>
 							Tener una reserva confirmada para el festival y ser parte de la
-							categoría de Ilustración
+							categoría de Ilustración.
 						</li>
 						<li>
 							Inscribirse a la actividad con el botón de inscripción que se
@@ -172,7 +204,10 @@ export default function FestivalStickerActivityPage({
 							Ilustrar un sticker propio que contenga a los personajes del
 							festival: Daisy y Nino. El diseño debe ser apto para todo público,
 							es decir, no puede contener contenido sexual, violento, o que
-							pueda ser ofensivo. Subir el diseño de su sticker al sitio web{" "}
+							pueda ser ofensivo
+						</li>
+						<li>
+							Subir el diseño de su sticker al sitio web{" "}
 							{activity.proofUploadLimitDate && (
 								<span>
 									hasta el{" "}
@@ -194,18 +229,25 @@ export default function FestivalStickerActivityPage({
 						</li>
 						<li>
 							Tener el sticker a la venta en su propio stand durante el
-							festival. En caso de miembros del staff confirmen que el sticker
-							no se encuentra a la venta por el ilustrador participante o que no
-							cumple con las condiciones de la actividad, el diseño podrá ser
-							retirado de la actividad. La cantidad mínima de stickers a la
-							venta queda a disposición del ilustrador participante.
+							festival. En caso de que el staff confirme que el sticker no se
+							encuentra a la venta durante el festival o que no cumple con las
+							condiciones de la actividad, el diseño podrá ser retirado de la
+							actividad. La cantidad mínima de stickers a la venta queda a
+							disposición del ilustrador participante.
 						</li>
 						<li>
-							Votar por su diseño favorito durante el periodo de votación. No se
+							Votar por tu diseño favorito durante el periodo de votación. No se
 							permitirá votar por uno mismo.
 						</li>
 					</ol>
 				</section>
+				<EnrollRedirectButton
+					currentProfile={currentProfile}
+					forProfile={forProfile}
+					festivalId={festivalId}
+					activity={activity}
+					acceptedUserCategories={acceptedUserCategories}
+				/>
 			</div>
 		</div>
 	);

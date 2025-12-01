@@ -233,13 +233,28 @@ export async function fetchConfirmedProfilesByFestivalId(
 }
 
 export async function enrollInActivity(
-	userId: number,
+	forProfile: BaseProfile,
 	festivalId: FestivalBase["id"],
 	activityDetails: ActivityDetailsWithParticipants,
 	activity: FestivalActivity,
+	acceptedCategories: UserCategory[] = [],
 ) {
 	try {
 		const { id: detailsId, participationLimit } = activityDetails;
+
+		/**
+		 * Users need to have a valid category in case there are accepted categories
+		 * If there are no accepted categories, we can assume all categories are accepted
+		 */
+		if (
+			acceptedCategories.length > 0 &&
+			!acceptedCategories.includes(forProfile.category)
+		) {
+			return {
+				success: false,
+				message: "No tienes permisos para inscribirte en esta actividad",
+			};
+		}
 
 		if (participationLimit && participationLimit > 0) {
 			// Use a transaction to ensure atomicity
@@ -256,7 +271,7 @@ export async function enrollInActivity(
 
 				// If there's space, insert the new participant
 				await tx.insert(festivalActivityParticipants).values({
-					userId: userId,
+					userId: forProfile.id,
 					detailsId,
 				});
 
@@ -271,7 +286,6 @@ export async function enrollInActivity(
 			 * festival object is too cumbersome
 			 */
 			const festival = await fetchBaseFestival(festivalId);
-			const userProfile = await fetchBaseProfileById(userId);
 
 			const admins = await fetchAdminUsers();
 			const adminEmails = admins.map((admin) => admin.email);
@@ -282,22 +296,26 @@ export async function enrollInActivity(
 				subject: "Inscripción a una actividad del festival",
 				react: FestivalActivityRegistrationEmail({
 					festivalActivityName: activity.name,
-					userDisplayName: userProfile?.displayName,
+					userDisplayName: forProfile.displayName,
 					festivalName: festival?.name,
 					festivalType: festival?.festivalType,
 				}),
 			});
 
-			revalidatePath(`/profiles/${userId}/festivals/${festivalId}/activity`);
+			revalidatePath(
+				`/profiles/${forProfile.id}/festivals/${festivalId}/activity`,
+			);
 			return result;
 		} else {
 			// If there's no participation limit, just insert
 			await db.insert(festivalActivityParticipants).values({
-				userId: userId,
+				userId: forProfile.id,
 				detailsId,
 			});
 
-			revalidatePath(`/profiles/${userId}/festivals/${festivalId}/activity`);
+			revalidatePath(
+				`/profiles/${forProfile.id}/festivals/${festivalId}/activity`,
+			);
 			return { success: true, message: "Inscripción realizada correctamente" };
 		}
 	} catch (error) {

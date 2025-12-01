@@ -32,7 +32,7 @@ export default function ActivityDetails({ activity, user, festival }: ActivityDe
 		if (!selectedDesign) return;
 
 		const result = await enrollInActivity(
-			user.id,
+			user,
 			festival.id,
 			selectedDesign,
 			activity,

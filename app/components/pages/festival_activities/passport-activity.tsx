@@ -10,7 +10,7 @@ import Image from "next/image";
 
 type PassportActivityPageProps = {
 	currentProfile: BaseProfile;
-	forProfileId: BaseProfile["id"];
+	forProfile: BaseProfile;
 	activity: FestivalActivityWithDetailsAndParticipants;
 	festivalId: FestivalBase["id"];
 };
@@ -18,7 +18,7 @@ type PassportActivityPageProps = {
 export default function PassportActivityPage({
 	activity,
 	currentProfile,
-	forProfileId,
+	forProfile,
 	festivalId,
 }: PassportActivityPageProps) {
 	const formattedRegistrationEndDate = formatDate(activity.registrationEndDate);
@@ -127,7 +127,7 @@ export default function PassportActivityPage({
 			</div>
 			<EnrollRedirectButton
 				currentProfile={currentProfile}
-				forProfileId={forProfileId}
+				forProfile={forProfile}
 				festivalId={festivalId}
 				activity={activity}
 			/>
