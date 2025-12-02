@@ -47,7 +47,7 @@ export default function FestivalActivityCard({
 					(!hasUploadedProof ? (
 						<div className="flex gap-2 mt-3 flex-col items-center text-sm border border-amber-200 text-amber-800 bg-amber-50 rounded-md p-3">
 							<p>
-								No te olvides de subir el diseño de tu sello.{" "}
+								No te olvides subir tu diseño.{" "}
 								{activity.proofUploadLimitDate && (
 									<span>
 										Tienes hasta el{" "}
