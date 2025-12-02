@@ -33,7 +33,7 @@ export default function ActivityDetails({ activity, user, festival }: ActivityDe
 
 		const result = await enrollInActivity(
 			user,
-			festival,
+			festival.id,
 			selectedDesign,
 			activity,
 		);

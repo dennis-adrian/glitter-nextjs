@@ -15,7 +15,7 @@ export default function Title({
 	let classes = "";
 	switch (level) {
 		case "h1":
-			classes = "text-2xl md:text-4xl font-bold tracking-tight my-3";
+			classes = "text-2xl md:text-4xl font-bold tracking-tight mb-2 md:mb-3";
 			break;
 		case "h2":
 			classes = "text-xl md:text-3xl font-bold tracking-tight my-3";
