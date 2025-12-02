@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
 	boolean,
 	index,
@@ -10,6 +10,7 @@ import {
 	smallint,
 	text,
 	timestamp,
+	unique,
 } from "drizzle-orm/pg-core";
 
 export const userRoleEnum = pgEnum("user_role", [
@@ -78,6 +79,7 @@ export const usersRelations = relations(users, ({ many }) => ({
 	userBadges: many(userBadges),
 	infractions: many(infractions),
 	participantProducts: many(participantProducts),
+	festivalActivityVotes: many(festivalActivityVotes),
 }));
 
 export const tags = pgTable("tags", {
@@ -204,9 +206,7 @@ export const festivals = pgTable(
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
-	(festivals) => ({
-		nameIdx: index("name_idx").on(festivals.name),
-	}),
+	(festivals) => [index("name_idx").on(festivals.name)],
 );
 export const festivalsRelations = relations(festivals, ({ many, one }) => ({
 	userRequests: many(userRequests),
@@ -381,9 +381,7 @@ export const stands = pgTable(
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
-	(stands) => ({
-		nameIdx: index("stand_label_idx").on(stands.label),
-	}),
+	(stands) => [index("stand_label_idx").on(stands.label)],
 );
 export const standRelations = relations(stands, ({ many, one }) => ({
 	reservations: many(standReservations),
@@ -399,6 +397,7 @@ export const standRelations = relations(stands, ({ many, one }) => ({
 		fields: [stands.qrCodeId],
 		references: [qrCodes.id],
 	}),
+	festivalActivityVotes: many(festivalActivityVotes),
 }));
 
 export const standReservations = pgTable("stand_reservations", {
@@ -612,6 +611,13 @@ export const qrCodesRelations = relations(qrCodes, ({ many }) => ({
 export const festivalActivityTypeEnum = pgEnum("festival_activity_type", [
 	"stamp_passport",
 	"sticker_print",
+	"best_stand",
+	"festival_sticker",
+]);
+
+export const accessLevelEnum = pgEnum("access_level", [
+	"public",
+	"festival_participants_only",
 ]);
 
 export const festivalActivities = pgTable("festival_activities", {
@@ -627,6 +633,12 @@ export const festivalActivities = pgTable("festival_activities", {
 	visitorsDescription: text("visitors_description"),
 	type: festivalActivityTypeEnum("type").default("stamp_passport").notNull(),
 	activityPrizeUrl: text("activity_prize_url"),
+	allowsVoting: boolean("allows_voting").default(false).notNull(),
+	votingStartDate: timestamp("voting_start_date"),
+	votingEndDate: timestamp("voting_end_date"),
+	requiresProof: boolean("requires_proof").default(false).notNull(),
+	proofUploadLimitDate: timestamp("proof_upload_limit_date"),
+	accessLevel: accessLevelEnum("access_level").default("public").notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -638,6 +650,7 @@ export const festivalActivitiesRelations = relations(
 			references: [festivals.id],
 		}),
 		details: many(festivalActivityDetails),
+		votes: many(festivalActivityVotes),
 	}),
 );
 
@@ -689,6 +702,8 @@ export const festivalActivityParticipantsRelations = relations(
 			references: [users.id],
 		}),
 		proofs: many(festivalActivityParticipantProofs),
+		// Note: Votes are now polymorphic. Query votes with:
+		// votableType = 'participant' AND votableId = festivalActivityParticipants.id
 	}),
 );
 
@@ -711,6 +726,64 @@ export const festivalActivityParticipantProofsRelations = relations(
 	({ one }) => ({
 		participation: one(festivalActivityParticipants, {
 			fields: [festivalActivityParticipantProofs.participationId],
+			references: [festivalActivityParticipants.id],
+		}),
+	}),
+);
+
+export const votableTypeEnum = pgEnum("votable_type", ["participant", "stand"]);
+
+export const festivalActivityVotes = pgTable(
+	"festival_activity_votes",
+	{
+		id: serial("id").primaryKey(),
+		voterId: integer("voter_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		activityId: integer("activity_id")
+			.notNull()
+			.references(() => festivalActivities.id, { onDelete: "cascade" }),
+		votableType: votableTypeEnum("votable_type")
+			.notNull()
+			.default("participant"),
+		standId: integer("stand_id").references(() => stands.id, {
+			onDelete: "cascade",
+		}),
+		participantId: integer("participant_id").references(
+			() => festivalActivityParticipants.id,
+			{ onDelete: "cascade" },
+		),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(festivalActivityVotes) => [
+		// Constraint ensures exactly one of the FKs is present in PostgreSQL
+		sql`CHECK (
+			num_nonnulls(stand_id, participant_id) = 1
+			)`,
+		unique("unique_voter_activity").on(
+			festivalActivityVotes.voterId,
+			festivalActivityVotes.activityId,
+		),
+	],
+);
+export const festivalActivityVotesRelations = relations(
+	festivalActivityVotes,
+	({ one }) => ({
+		voter: one(users, {
+			fields: [festivalActivityVotes.voterId],
+			references: [users.id],
+		}),
+		activity: one(festivalActivities, {
+			fields: [festivalActivityVotes.activityId],
+			references: [festivalActivities.id],
+		}),
+		stand: one(stands, {
+			fields: [festivalActivityVotes.standId],
+			references: [stands.id],
+		}),
+		participant: one(festivalActivityParticipants, {
+			fields: [festivalActivityVotes.participantId],
 			references: [festivalActivityParticipants.id],
 		}),
 	}),

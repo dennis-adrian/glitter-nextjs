@@ -15,32 +15,38 @@ import { BaseProfile } from "@/app/api/users/definitions";
 import { FestivalActivity } from "@/app/lib/festivals/definitions";
 
 export default function FestivalActivityRegistrationEmail({
-	festival,
-	festivalActivity,
-	user,
+	festivalActivityName,
+	userDisplayName,
+	festivalName,
+	festivalType = "glitter",
 }: {
-	festival: FestivalBase;
-	festivalActivity: FestivalActivity;
-	user: BaseProfile;
+	festivalActivityName: FestivalActivity["name"];
+	userDisplayName?: BaseProfile["displayName"];
+	festivalName?: FestivalBase["name"];
+	festivalType?: FestivalBase["festivalType"];
 }) {
 	return (
 		<Html>
 			<Head />
 			<Preview>
-				Inscripción de {user.displayName || "un usuario"} en una actividad
+				Inscripción de {userDisplayName || "un usuario"} en una actividad
 			</Preview>
 			<Body style={styles.main}>
 				<Container style={styles.container}>
-					<EmailHeader festivalType={festival.festivalType} />
+					<EmailHeader festivalType={festivalType} />
 					<Section style={styles.sectionWithBanner}>
 						<Text style={styles.text}>¡Hola!</Text>
 						<Text style={styles.text}>
 							Ha habido una nueva inscripción en una actividad del festival{" "}
-							<strong>{festival.name}</strong>
+							{festivalName && (
+								<>
+									<strong>{festivalName}</strong>
+								</>
+							)}
 						</Text>
 						<Text style={styles.text}>
-							El usuario <strong>{user.displayName}</strong> se ha inscrito a la
-							actividad {festivalActivity.name}
+							El usuario <strong>{userDisplayName || "sin nombre"}</strong> se
+							ha inscrito a la actividad {festivalActivityName}
 						</Text>
 					</Section>
 				</Container>
@@ -51,15 +57,8 @@ export default function FestivalActivityRegistrationEmail({
 }
 
 FestivalActivityRegistrationEmail.PreviewProps = {
-	festival: {
-		festivalType: "glitter",
-		name: "Festival de la música",
-		date: "2024-01-01",
-	},
-	festivalActivity: {
-		name: "Colección de Sellos - Pasaporte Glitter",
-	},
-	user: {
-		displayName: "Juan Pérez",
-	},
+	festivalType: "glitter",
+	festivalName: "Glitter 10ma edición",
+	festivalActivityName: "Colección de Sellos - Pasaporte Glitter",
+	userDisplayName: "Juan Pérez",
 };
