@@ -38,11 +38,15 @@ export default function FestivalActivityRegistrationEmail({
 						<Text style={styles.text}>¡Hola!</Text>
 						<Text style={styles.text}>
 							Ha habido una nueva inscripción en una actividad del festival{" "}
-							<strong>{festivalName}</strong>
+							{festivalName && (
+								<>
+									<strong>{festivalName}</strong>
+								</>
+							)}
 						</Text>
 						<Text style={styles.text}>
-							El usuario <strong>{userDisplayName}</strong> se ha inscrito a la
-							actividad {festivalActivityName}
+							El usuario <strong>{userDisplayName || "sin nombre"}</strong> se
+							ha inscrito a la actividad {festivalActivityName}
 						</Text>
 					</Section>
 				</Container>
