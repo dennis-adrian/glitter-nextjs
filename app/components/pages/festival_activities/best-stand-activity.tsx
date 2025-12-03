@@ -43,16 +43,20 @@ export default function BestStandActivityPage({
 			</section>
 			{activity.promotionalArtUrl && (
 				<section>
-					<figure className="relative w-full max-w-[400px] h-auto aspect-square mx-auto">
-						<Image
-							className="object-cover mx-auto"
-							src={activity.promotionalArtUrl}
-							alt="arte promocional de la actividad"
-							fill
-							placeholder="blur"
-							blurDataURL="/img/placeholders/placeholder-300x300.png"
-						/>
-						<figcaption>Arte promocional</figcaption>
+					<figure className="relative mx-auto mb-2 md:mb-3">
+						<div className="relative w-full max-w-[400px] h-auto aspect-square">
+							<Image
+								className="object-cover mx-auto"
+								src={activity.promotionalArtUrl}
+								alt="arte promocional de la actividad"
+								fill
+								placeholder="blur"
+								blurDataURL="/img/placeholders/placeholder-300x300.png"
+							/>
+						</div>
+						<figcaption className="text-center text-sm text-muted-foreground italic mt-1">
+							Arte promocional
+						</figcaption>
 					</figure>
 				</section>
 			)}
@@ -66,7 +70,7 @@ export default function BestStandActivityPage({
 					</p>
 					<p>
 						En esta edición del festival, los propios participantes votarán en
-						nuestro sitio web para elegir al stand que más brille por su
+						nuestro sitio web para elegir al stand que más destaque por su
 						propuesta visual y originalidad.
 					</p>
 					<p>
@@ -150,9 +154,10 @@ export default function BestStandActivityPage({
 					<p>
 						A los participantes con más votos en cada categoría se los
 						reconocerá con un espacio sin costo en el primer festival Glitter
-						del 2026. En caso de ser ilustrador y compartir stand con otro
-						ilustrador, ambos deberán hacer su reserva en conjunto nuevamente
-						para recibir el espacio.
+						del 2026, además de un pin especial de reconocimiento del{" "}
+						<em>Iconic Stand</em>. En caso de ser ilustrador y compartir stand
+						con otro ilustrador, ambos deberán hacer su reserva en conjunto
+						nuevamente para recibir el espacio.
 					</p>
 					<p>
 						Los stands con más votos serán anunciados en el escenario y en la
@@ -163,21 +168,23 @@ export default function BestStandActivityPage({
 				{variantPrizeImages.find(
 					(variant) => variant.category === forProfile.category,
 				) && (
-					<figure className="relative w-full max-w-[320px] h-auto aspect-square mx-auto my-2 md:my-3">
-						<Image
-							className="object-cover mx-auto"
-							src={
-								variantPrizeImages.find(
-									(variant) => variant.category === forProfile.category,
-								)?.imageUrl ?? ""
-							}
-							alt="imagen de premio de la categoría"
-							fill
-							placeholder="blur"
-							blurDataURL="/img/placeholders/placeholder-300x300.png"
-						/>
-						<figcaption>
-							Pin exclusivo de reconocimiento del <em>Iconic Stand</em>
+					<figure className="relative mx-auto my-2 md:my-3">
+						<div className="relative w-full max-w-[320px] h-auto aspect-square">
+							<Image
+								className="object-cover mx-auto"
+								src={
+									variantPrizeImages.find(
+										(variant) => variant.category === forProfile.category,
+									)?.imageUrl ?? ""
+								}
+								alt="imagen de premio de la categoría"
+								fill
+								placeholder="blur"
+								blurDataURL="/img/placeholders/placeholder-300x300.png"
+							/>
+						</div>
+						<figcaption className="text-center text-sm text-muted-foreground italic mt-1">
+							Pin especial de reconocimiento del Iconic Stand
 						</figcaption>
 					</figure>
 				)}
