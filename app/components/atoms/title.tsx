@@ -18,11 +18,11 @@ export default function Title({
 			classes = "text-2xl md:text-4xl font-bold tracking-tight mb-2 md:mb-3";
 			break;
 		case "h2":
-			classes = "text-xl md:text-3xl font-bold tracking-tight my-3";
+			classes = "text-xl md:text-3xl font-bold tracking-tight mb-2 md:mb-3";
 			break;
 		case "h3":
 			classes =
-				"text-lg md:text-2xl font-semibold tracking-tight leading-tight my-2";
+				"text-lg md:text-2xl font-semibold tracking-tight leading-tight mb-2 md:mb-2";
 			break;
 		case "h4":
 			classes =

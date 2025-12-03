@@ -216,7 +216,8 @@ export default function EnrollRedirectButton({
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<div className="w-full flex flex-col gap-1 justify-center items-center">
-								{activity.type !== "sticker_print" ? (
+								{activity.type !== "sticker_print" &&
+								(isEnabled || currentProfile.role === "admin") ? (
 									<Form {...form}>
 										<form
 											className="w-full flex flex-col gap-2"

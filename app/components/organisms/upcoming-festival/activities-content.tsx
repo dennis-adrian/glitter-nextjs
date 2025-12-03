@@ -53,40 +53,40 @@ export default function ActivitiesContent({
 
 	return (
 		<div className="flex flex-col gap-5">
-			{userActivities.length > 0 && (
-				<div>
-					<h3 className="font-semibold">Tus inscripciones</h3>
-					<p className="text-sm text-gray-500">
-						Aquí puedes ver las actividades en las que te has inscrito.
-					</p>
-					{userActivities.map((activity) => {
-						const participants = activity.details.flatMap(
-							(detail) => detail.participants,
-						);
-
-						const userParticipation = participants.find(
-							(participant) => participant.user.id === forProfile.id,
-						);
-
-						const hasUploadedProof =
-							(userParticipation?.proofs?.length ?? 0) > 0;
-
-						return (
-							<FestivalActivityCard
-								key={activity.id}
-								activity={activity}
-								forProfile={forProfile}
-								hasUploadedProof={!!hasUploadedProof}
-								isUserInActivity
-								userParticipation={userParticipation}
-							/>
-						);
-					})}
-				</div>
-			)}
-			{availableActivities.length > 0 && (
-				<ScrollArea className="h-[300px] pr-4">
+			<ScrollArea className="h-[calc(100vh-340px)] md:h-[calc(100vh-600px)] pr-4">
+				{userActivities.length > 0 && (
 					<div>
+						<h3 className="font-semibold">Tus inscripciones</h3>
+						<p className="text-sm text-gray-500">
+							Aquí puedes ver las actividades en las que te has inscrito.
+						</p>
+						{userActivities.map((activity) => {
+							const participants = activity.details.flatMap(
+								(detail) => detail.participants,
+							);
+
+							const userParticipation = participants.find(
+								(participant) => participant.user.id === forProfile.id,
+							);
+
+							const hasUploadedProof =
+								(userParticipation?.proofs?.length ?? 0) > 0;
+
+							return (
+								<FestivalActivityCard
+									key={activity.id}
+									activity={activity}
+									forProfile={forProfile}
+									hasUploadedProof={!!hasUploadedProof}
+									isUserInActivity
+									userParticipation={userParticipation}
+								/>
+							);
+						})}
+					</div>
+				)}
+				{availableActivities.length > 0 && (
+					<div className="mt-3">
 						<h3 className="font-semibold">Actividades Exclusivas</h3>
 						<p className="text-sm text-gray-500">
 							Inscríbete en actividades especiales para expositores.
@@ -102,8 +102,8 @@ export default function ActivitiesContent({
 							))}
 						</div>
 					</div>
-				</ScrollArea>
-			)}
+				)}
+			</ScrollArea>
 		</div>
 	);
 }
