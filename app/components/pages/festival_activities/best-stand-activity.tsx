@@ -174,9 +174,9 @@ export default function BestStandActivityPage({
 				</div>
 				{variantForProfile && variantForProfile.imageUrl && (
 					<figure className="relative mx-auto my-2 md:my-3">
-						<div className="relative w-full max-w-[320px] h-auto aspect-square">
+						<div className="relative w-full max-w-[320px] h-auto aspect-square mx-auto">
 							<Image
-								className="object-cover mx-auto"
+								className="object-cover rounded-md"
 								src={
 									variantPrizeImages.find(
 										(variant) => variant.category === forProfile.category,
