@@ -3,6 +3,7 @@ import DateSpan from "@/app/components/atoms/date-span";
 import Title from "@/app/components/atoms/title";
 import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
+import Image from "next/image";
 
 type BestStandActivityPageProps = {
 	activity: FestivalActivityWithDetailsAndParticipants;
@@ -15,12 +16,46 @@ export default function BestStandActivityPage({
 	currentProfile,
 	forProfile,
 }: BestStandActivityPageProps) {
+	/**
+	 * The variant images are hardcoded for this page but in the future we should
+	 * find a way to tell them apart dynamically.
+	 */
+	const variantPrizeImages = [
+		{
+			category: "illustration",
+			imageUrl: activity.details[0]?.imageUrl,
+		},
+		{
+			category: "gastronomy",
+			imageUrl: activity.details[1]?.imageUrl,
+		},
+		{
+			category: "creative_entrepreneurship",
+			imageUrl: activity.details[2]?.imageUrl,
+		},
+	];
+
 	return (
 		<div className="container p-3 md:p-6 flex flex-col gap-4 md:gap-5">
 			<section>
 				<Title level="h1">{activity.name}</Title>
 				<p>{activity.description}</p>
 			</section>
+			{activity.promotionalArtUrl && (
+				<section>
+					<figure className="relative w-full max-w-[400px] h-auto aspect-square mx-auto">
+						<Image
+							className="object-cover mx-auto"
+							src={activity.promotionalArtUrl}
+							alt="arte promocional de la actividad"
+							fill
+							placeholder="blur"
+							blurDataURL="/img/placeholders/placeholder-300x300.png"
+						/>
+						<figcaption>Arte promocional</figcaption>
+					</figure>
+				</section>
+			)}
 			<section>
 				<Title level="h3">¿En qué consiste la actividad?</Title>
 				<div className="flex flex-col gap-1 md:gap-2">
@@ -69,7 +104,7 @@ export default function BestStandActivityPage({
 			</section>
 			<section>
 				<Title level="h3">¿Cómo funciona la votación?</Title>
-				<div>
+				<div className="flex flex-col gap-1 md:gap-2">
 					<p>
 						La votación se llevará a cabo a través de un sistema de votos
 						online. Existirán 3 categorías distintas por las cuales votar:{" "}
@@ -77,9 +112,10 @@ export default function BestStandActivityPage({
 						<strong>Emprendimiento creativo</strong>. Todos los participantes
 						deberán elegir su stand favorito en cada categoría. La votación
 						estará disponible solo para quienes tienen una reserva confirmada
-						para este festival a partir del{" "}
+						para este festival{" "}
 						{activity.votingStartDate && activity.votingEndDate && (
 							<span>
+								a partir del{" "}
 								<strong>
 									<DateSpan
 										date={activity.votingStartDate}
@@ -107,9 +143,9 @@ export default function BestStandActivityPage({
 										format={{ hour: "numeric", minute: "numeric" }}
 									/>
 								</strong>
-								.
 							</span>
 						)}
+						.{" "}
 					</p>
 					<p>
 						A los participantes con más votos en cada categoría se los
@@ -124,6 +160,27 @@ export default function BestStandActivityPage({
 						festival.
 					</p>
 				</div>
+				{variantPrizeImages.find(
+					(variant) => variant.category === forProfile.category,
+				) && (
+					<figure className="relative w-full max-w-[320px] h-auto aspect-square mx-auto my-2 md:my-3">
+						<Image
+							className="object-cover mx-auto"
+							src={
+								variantPrizeImages.find(
+									(variant) => variant.category === forProfile.category,
+								)?.imageUrl ?? ""
+							}
+							alt="imagen de premio de la categoría"
+							fill
+							placeholder="blur"
+							blurDataURL="/img/placeholders/placeholder-300x300.png"
+						/>
+						<figcaption>
+							Pin exclusivo de reconocimiento del <em>Iconic Stand</em>
+						</figcaption>
+					</figure>
+				)}
 			</section>
 			<section>
 				<Title level="h3">Resumen de condiciones para participar</Title>
