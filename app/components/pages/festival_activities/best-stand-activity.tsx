@@ -38,6 +38,10 @@ export default function BestStandActivityPage({
 		},
 	];
 
+	const variantForProfile = variantPrizeImages.find(
+		(variant) => variant.category === forProfile.category,
+	);
+
 	return (
 		<div className="container p-3 md:p-6 flex flex-col gap-4 md:gap-5">
 			<section>
@@ -168,9 +172,7 @@ export default function BestStandActivityPage({
 						festival.
 					</p>
 				</div>
-				{variantPrizeImages.find(
-					(variant) => variant.category === forProfile.category,
-				) && (
+				{variantForProfile && variantForProfile.imageUrl && (
 					<figure className="relative mx-auto my-2 md:my-3">
 						<div className="relative w-full max-w-[320px] h-auto aspect-square">
 							<Image
