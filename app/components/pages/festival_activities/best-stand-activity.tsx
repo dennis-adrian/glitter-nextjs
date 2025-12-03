@@ -16,6 +16,7 @@ export default function BestStandActivityPage({
 	currentProfile,
 	forProfile,
 }: BestStandActivityPageProps) {
+	const orderedActivityDetails = activity.details.sort((a, b) => a.id - b.id);
 	/**
 	 * The variant images are hardcoded for this page but in the future we should
 	 * find a way to tell them apart dynamically.
@@ -26,15 +27,15 @@ export default function BestStandActivityPage({
 	}[] = [
 		{
 			category: "illustration",
-			imageUrl: activity.details[0]?.imageUrl,
+			imageUrl: orderedActivityDetails[0]?.imageUrl,
 		},
 		{
 			category: "entrepreneurship",
-			imageUrl: activity.details[1]?.imageUrl,
+			imageUrl: orderedActivityDetails[1]?.imageUrl,
 		},
 		{
 			category: "gastronomy",
-			imageUrl: activity.details[2]?.imageUrl,
+			imageUrl: orderedActivityDetails[2]?.imageUrl,
 		},
 	];
 
@@ -51,9 +52,9 @@ export default function BestStandActivityPage({
 			{activity.promotionalArtUrl && (
 				<section>
 					<figure className="relative mx-auto mb-2 md:mb-3">
-						<div className="relative w-full max-w-[400px] h-auto aspect-square">
+						<div className="relative w-full max-w-[400px] h-auto aspect-square mx-auto">
 							<Image
-								className="object-cover mx-auto"
+								className="object-cover rounded-md"
 								src={activity.promotionalArtUrl}
 								alt="arte promocional de la actividad"
 								fill
