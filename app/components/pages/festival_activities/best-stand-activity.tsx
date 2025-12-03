@@ -92,9 +92,30 @@ export default function BestStandActivityPage({
 				<div className="flex flex-col gap-1 md:gap-2">
 					<p>
 						Si tenés una reserva confirmada para este festival, podrás
-						inscribirte para participar de la votación el{" "}
+						inscribirte en la actividad el{" "}
+						{activity.registrationStartDate && activity.registrationEndDate && (
+							<span>
+								<strong>
+									<DateSpan
+										date={activity.registrationStartDate}
+										format={{ month: "long", day: "numeric" }}
+									/>
+								</strong>{" "}
+								desde las{" "}
+								<strong>
+									<DateSpan
+										date={activity.registrationStartDate}
+										format={{ hour: "numeric", minute: "numeric" }}
+									/>
+								</strong>
+							</span>
+						)}{" "}
+						hasta las{" "}
 						<strong>
-							6 de diciembre a partir de las 13:00 hasta las 15:00
+							<DateSpan
+								date={activity.registrationEndDate}
+								format={{ hour: "numeric", minute: "numeric" }}
+							/>
 						</strong>
 						. Al inscribirte, deberás subir una imagen de tu stand para que los
 						demás participantes puedan verlo y votar por ti. La imagen tiene que
