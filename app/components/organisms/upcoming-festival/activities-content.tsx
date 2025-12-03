@@ -85,24 +85,22 @@ export default function ActivitiesContent({
 				</div>
 			)}
 			{availableActivities.length > 0 && (
-				<ScrollArea className="h-[300px] pr-4">
-					<div>
-						<h3 className="font-semibold">Actividades Exclusivas</h3>
-						<p className="text-sm text-gray-500">
-							Inscríbete en actividades especiales para expositores.
-						</p>
+				<div>
+					<h3 className="font-semibold">Actividades Exclusivas</h3>
+					<p className="text-sm text-gray-500">
+						Inscríbete en actividades especiales para expositores.
+					</p>
 
-						<div className="flex flex-col gap-2 md:gap-4 mt-3">
-							{availableActivities.map((activity) => (
-								<FestivalActivityCard
-									key={activity.id}
-									activity={activity}
-									forProfile={forProfile}
-								/>
-							))}
-						</div>
+					<div className="flex flex-col gap-2 md:gap-4 mt-3">
+						{availableActivities.map((activity) => (
+							<FestivalActivityCard
+								key={activity.id}
+								activity={activity}
+								forProfile={forProfile}
+							/>
+						))}
 					</div>
-				</ScrollArea>
+				</div>
 			)}
 		</div>
 	);
