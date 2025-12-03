@@ -1,4 +1,4 @@
-import { BaseProfile } from "@/app/api/users/definitions";
+import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import DateSpan from "@/app/components/atoms/date-span";
 import Title from "@/app/components/atoms/title";
 import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
@@ -20,17 +20,20 @@ export default function BestStandActivityPage({
 	 * The variant images are hardcoded for this page but in the future we should
 	 * find a way to tell them apart dynamically.
 	 */
-	const variantPrizeImages = [
+	const variantPrizeImages: {
+		category: UserCategory;
+		imageUrl?: string | null;
+	}[] = [
 		{
 			category: "illustration",
 			imageUrl: activity.details[0]?.imageUrl,
 		},
 		{
-			category: "gastronomy",
+			category: "entrepreneurship",
 			imageUrl: activity.details[1]?.imageUrl,
 		},
 		{
-			category: "creative_entrepreneurship",
+			category: "gastronomy",
 			imageUrl: activity.details[2]?.imageUrl,
 		},
 	];
