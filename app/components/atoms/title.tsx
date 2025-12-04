@@ -22,11 +22,11 @@ export default function Title({
 			break;
 		case "h3":
 			classes =
-				"text-lg md:text-2xl font-semibold tracking-tight leading-tight mb-2 md:mb-2";
+				"text-lg md:text-2xl font-semibold tracking-tight leading-tight mb-1";
 			break;
 		case "h4":
 			classes =
-				"text-base md:text-lg font-semibold tracking-tight leading-tight my-2";
+				"text-base md:text-lg font-semibold tracking-tight leading-tight mb-1";
 			break;
 		case "h5":
 			classes =
