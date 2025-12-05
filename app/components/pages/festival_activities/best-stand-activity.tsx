@@ -1,6 +1,7 @@
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import DateSpan from "@/app/components/atoms/date-span";
 import Title from "@/app/components/atoms/title";
+import EnrollBestStandForm from "@/app/components/festivals/festival_activities/enroll-best-stand-form";
 import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import Image from "next/image";
@@ -267,12 +268,7 @@ export default function BestStandActivityPage({
 					</span>
 				</p>
 			</section>
-			<EnrollRedirectButton
-				currentProfile={currentProfile}
-				forProfile={forProfile}
-				festivalId={activity.festivalId}
-				activity={activity}
-			/>
+			<EnrollBestStandForm forProfile={forProfile} activity={activity} />
 		</div>
 	);
 }
