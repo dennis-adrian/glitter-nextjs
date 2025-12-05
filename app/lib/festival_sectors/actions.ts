@@ -36,7 +36,12 @@ import {
 } from "@/db/schema";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import {
+	fetchBaseFestival,
+	fetchFestivalParticipants,
+} from "@/app/lib/festivals/actions";
+import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
+import { DateTime } from "luxon";
 
 export async function fetchFestivalSectors(
 	festivalId: number,
@@ -321,6 +326,104 @@ export async function enrollInActivity(
 	} catch (error) {
 		console.error("Error enrolling in activity", error);
 		return { success: false, message: "Error al inscribirse en la actividad" };
+	}
+}
+
+export async function enrollInBestStandActivity(
+	activityId: number,
+	forProfileId: BaseProfile["id"],
+	festivalId: FestivalBase["id"],
+	profileCategory: BaseProfile["category"],
+) {
+	try {
+		const confirmedParticipants = await fetchFestivalParticipants(
+			festivalId,
+			true,
+		);
+
+		if (
+			!confirmedParticipants.some(
+				(participant) => participant.user.id === forProfileId,
+			)
+		) {
+			return {
+				success: false,
+				message: "No tienes permisos para inscribirte en esta actividad",
+			};
+		}
+
+		const activity = await fetchFestivalActivity(activityId);
+
+		if (!activity) {
+			return {
+				success: false,
+				message: "La actividad a la que querés inscribirte no existe",
+			};
+		}
+
+		if (
+			DateTime.now() < DateTime.fromJSDate(activity.registrationStartDate) ||
+			DateTime.now() > DateTime.fromJSDate(activity.registrationEndDate)
+		) {
+			return {
+				success: false,
+				message:
+					"El registro para la actividad no está disponible en este momento",
+			};
+		}
+
+		const activityVariant = activity.details.find(
+			(detail) => detail.category === profileCategory,
+		);
+
+		if (!activityVariant) {
+			return {
+				success: false,
+				message: "No pudimos registrarte en la actividad.",
+			};
+		}
+
+		if (
+			activityVariant.participants.some(
+				(participant) => participant.user.id === forProfileId,
+			)
+		) {
+			return {
+				success: false,
+				message: "Ya estás inscrito en esta actividad",
+			};
+		}
+
+		if (profileCategory !== activityVariant.category) {
+			return {
+				success: false,
+				message: "No tienes permisos para inscribirte en esta actividad",
+			};
+		}
+
+		const res = await db.insert(festivalActivityParticipants).values({
+			userId: forProfileId,
+			detailsId: activityVariant.id,
+		});
+
+		if (!res) {
+			return {
+				success: false,
+				message: "Error al inscribirte en la actividad",
+			};
+		}
+
+		return {
+			success: true,
+			message: "Inscripción realizada correctamente",
+		};
+	} catch (error) {
+		console.error("Error enrolling in best stand activity", error);
+
+		return {
+			success: false,
+			message: "Error inesperado al inscribirte en la actividad",
+		};
 	}
 }
 

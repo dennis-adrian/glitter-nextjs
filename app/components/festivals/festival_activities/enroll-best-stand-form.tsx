@@ -13,6 +13,7 @@ import {
 	FormLabel,
 	FormMessage,
 } from "@/app/components/ui/form";
+import { enrollInBestStandActivity } from "@/app/lib/festival_sectors/actions";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DateTime } from "luxon";
@@ -101,9 +102,19 @@ export default function EnrollBestStandForm({
 	}, [activity.registrationStartDate, activity.registrationEndDate]);
 
 	const action: () => void = form.handleSubmit(async (data) => {
-		// TODO: Implement enrollment logic
-		console.log(data);
-		toast.success("Inscripción realizada correctamente");
+		const result = await enrollInBestStandActivity(
+			activity.id,
+			forProfile.id,
+			activity.festivalId,
+			forProfile.category,
+		);
+		console.log(result);
+
+		if (result.success) {
+			toast.success(result.message);
+		} else {
+			toast.error(result.message);
+		}
 	});
 
 	const buttonLabel = isRegistrationOpen

@@ -21,7 +21,7 @@ import {
 	userRequests,
 	users,
 } from "@/db/schema";
-import { and, desc, eq, getTableColumns, inArray, not } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, not, SQL } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
 	FestivalBase,
@@ -98,7 +98,10 @@ export async function createFestival(
 					});
 				}
 			}
-			if (festivalData.festivalSectors && festivalData.festivalSectors.length > 0) {
+			if (
+				festivalData.festivalSectors &&
+				festivalData.festivalSectors.length > 0
+			) {
 				for (const sector of festivalData.festivalSectors) {
 					await tx.insert(festivalSectors).values({
 						festivalId: newFestival.id,
@@ -179,7 +182,7 @@ export async function updateFestival(
 			mascotUrl?: string;
 		}>;
 		deletedSectorIds?: number[];
-	}
+	},
 ) {
 	try {
 		const result = await db.transaction(async (tx) => {
@@ -260,7 +263,8 @@ export async function updateFestival(
 			if (data.festivalSectors) {
 				for (const sector of data.festivalSectors) {
 					if (sector.id) {
-						await tx.update(festivalSectors)
+						await tx
+							.update(festivalSectors)
 							.set({
 								name: sector.name,
 								orderInFestival: sector.orderInFestival,
@@ -282,7 +286,8 @@ export async function updateFestival(
 					}
 				}
 				if (data.deletedSectorIds && data.deletedSectorIds.length > 0) {
-					await tx.delete(festivalSectors)
+					await tx
+						.delete(festivalSectors)
 						.where(inArray(festivalSectors.id, data.deletedSectorIds));
 				}
 			}
@@ -537,7 +542,7 @@ export async function sendUserEmailsTemp(
 	try {
 		const festivalWithDates = await fetchFestivalWithDates(festivalId);
 		await queueEmails<BaseProfile>(users, festivalWithDates!, sendEmailToUsers);
-	} catch (error) { }
+	} catch (error) {}
 }
 // ------ END
 
@@ -744,12 +749,20 @@ export async function fetchAvailableArtistsInFestival(
 
 export async function fetchFestivalParticipants(
 	festivalId: number,
+	confirmedOnly = false,
 ): Promise<ParticipationWithParticipantWithInfractionsAndReservations[]> {
+	const whereCondition = confirmedOnly
+		? and(
+				eq(standReservations.festivalId, festivalId),
+				eq(standReservations.status, "accepted"),
+			)
+		: eq(standReservations.festivalId, festivalId);
+
 	try {
 		const participantsWithReservationsSubquery = db
 			.select({ id: standReservations.id })
 			.from(standReservations)
-			.where(eq(standReservations.festivalId, festivalId));
+			.where(whereCondition);
 
 		return await db.query.reservationParticipants.findMany({
 			where: inArray(
