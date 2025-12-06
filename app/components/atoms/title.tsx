@@ -26,7 +26,7 @@ export default function Title({
 			break;
 		case "h4":
 			classes =
-				"text-base md:text-lg font-semibold tracking-tight leading-tight my-2";
+				"text-base md:text-lg font-semibold tracking-tight leading-tight mb-2";
 			break;
 		case "h5":
 			classes =
