@@ -425,24 +425,13 @@ export async function enrollInBestStandActivity(
 			}
 		}
 
-		const res = await db.insert(festivalActivityParticipants).values({
+		await db.insert(festivalActivityParticipants).values({
 			userId: forProfileId,
 			detailsId: activityVariant.id,
 		});
-
-		if (!res) {
-			return {
-				success: false,
-				message: "Error al inscribirte en la actividad",
-			};
-		}
 	} catch (error) {
 		console.error("Error enrolling in best stand activity", error);
-
-		return {
-			success: false,
-			message: "Error inesperado al inscribirte en la actividad",
-		};
+		return { success: false, message: "Error al inscribirte en la actividad" };
 	}
 
 	revalidatePath(`/profiles/${forProfileId}/festivals/${festivalId}/activity`);
