@@ -130,7 +130,6 @@ export default function EnrollBestStandForm({
 			activity.festivalId,
 			forProfile.category,
 		);
-		console.log(result);
 
 		if (result.success) {
 			toast.success(result.message);
@@ -172,7 +171,7 @@ export default function EnrollBestStandForm({
 				return (
 					<div className="flex gap-2 text-sm flex-col text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
 						<p>
-							Ya estás inscrito en esta actividad. No te olvides de subir el
+							Ya estás inscrito en esta actividad. No te olvides de subir la
 							imagen de tu stand.
 						</p>
 						<UploadStickerDesignModal

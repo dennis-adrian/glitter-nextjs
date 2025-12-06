@@ -402,6 +402,29 @@ export async function enrollInBestStandActivity(
 			};
 		}
 
+		const forProfileStandId = confirmedParticipants.find(
+			(participant) => participant.user.id === forProfileId,
+		)?.reservation?.standId;
+
+		const otherParticipantsWithStand = confirmedParticipants.filter(
+			(participant) =>
+				participant.reservation?.standId === forProfileStandId &&
+				participant.user.id !== forProfileId,
+		);
+
+		// Verify if none of the other participants in the same stand is enrolled
+		const activityParticipantUserIds = activityVariant.participants.map(
+			(participant) => participant.userId,
+		);
+		for (const participant of otherParticipantsWithStand) {
+			if (activityParticipantUserIds.includes(participant.user.id)) {
+				return {
+					success: false,
+					message: `Otro participante ya registró el stand ${participant.reservation?.stand?.label}${participant.reservation?.stand?.standNumber}`,
+				};
+			}
+		}
+
 		const res = await db.insert(festivalActivityParticipants).values({
 			userId: forProfileId,
 			detailsId: activityVariant.id,
