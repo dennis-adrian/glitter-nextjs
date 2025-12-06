@@ -2,12 +2,15 @@ import { fetchUserProfileById } from "@/app/api/users/actions";
 import { BaseProfile } from "@/app/api/users/definitions";
 import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
 import BestStandActivityPage from "@/app/components/pages/festival_activities/best-stand-activity";
+import BestStandActivitySkeleton from "@/app/components/pages/festival_activities/best-stand-activity-skeleton";
 import FestivalStickerActivityPage from "@/app/components/pages/festival_activities/festival-sticker-activity";
 import PassportActivityPage from "@/app/components/pages/festival_activities/passport-activity";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
+import { fetchFestivalParticipants } from "@/app/lib/festivals/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { z } from "zod";
 
 const ParamsSchema = z.object({
@@ -72,11 +75,13 @@ export default async function ParticipantsActivityPage({
 
 	if (activity.type === "best_stand") {
 		return (
-			<BestStandActivityPage
-				activity={activity}
-				currentProfile={currentProfile}
-				forProfile={forProfile}
-			/>
+			<Suspense fallback={<BestStandActivitySkeleton />}>
+				<BestStandActivityPage
+					activity={activity}
+					currentProfile={currentProfile}
+					forProfile={forProfile}
+				/>
+			</Suspense>
 		);
 	}
 

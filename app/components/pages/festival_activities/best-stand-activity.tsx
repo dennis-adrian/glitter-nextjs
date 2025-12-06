@@ -1,9 +1,11 @@
-import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
+import { BaseProfile } from "@/app/api/users/definitions";
 import DateSpan from "@/app/components/atoms/date-span";
 import Title from "@/app/components/atoms/title";
 import EnrollBestStandForm from "@/app/components/festivals/festival_activities/enroll-best-stand-form";
+import { fetchFestivalParticipants } from "@/app/lib/festivals/actions";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import Image from "next/image";
+import { notFound } from "next/navigation";
 
 type BestStandActivityPageProps = {
 	activity: FestivalActivityWithDetailsAndParticipants;
@@ -11,15 +13,21 @@ type BestStandActivityPageProps = {
 	forProfile: BaseProfile;
 };
 
-export default function BestStandActivityPage({
+export default async function BestStandActivityPage({
 	activity,
 	currentProfile,
 	forProfile,
 }: BestStandActivityPageProps) {
-	const orderedActivityDetails = activity.details.sort((a, b) => a.id - b.id);
-	const variantForProfile = orderedActivityDetails.find(
+	const confirmedParticipants = await fetchFestivalParticipants(
+		activity.festivalId,
+		true,
+	);
+
+	const activityVariantForProfile = activity.details.find(
 		(detail) => detail.category === forProfile.category,
 	);
+
+	if (!activityVariantForProfile) return notFound();
 
 	return (
 		<div className="container p-3 md:p-6 flex flex-col gap-4 md:gap-5">
@@ -172,12 +180,12 @@ export default function BestStandActivityPage({
 						festival.
 					</p>
 				</div>
-				{variantForProfile && variantForProfile.imageUrl && (
+				{activityVariantForProfile && activityVariantForProfile.imageUrl && (
 					<figure className="relative mx-auto my-2 md:my-3">
 						<div className="relative w-full max-w-[320px] h-auto aspect-square mx-auto">
 							<Image
 								className="object-cover rounded-md"
-								src={variantForProfile.imageUrl}
+								src={activityVariantForProfile.imageUrl}
 								alt="imagen de premio de la categoría"
 								fill
 								placeholder="blur"
@@ -241,7 +249,12 @@ export default function BestStandActivityPage({
 					</span>
 				</p>
 			</section>
-			<EnrollBestStandForm forProfile={forProfile} activity={activity} />
+			<EnrollBestStandForm
+				forProfile={forProfile}
+				activity={activity}
+				festivalParticipants={confirmedParticipants}
+				activityVariantForProfile={activityVariantForProfile}
+			/>
 		</div>
 	);
 }
