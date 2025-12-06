@@ -6,7 +6,6 @@ import BestStandActivitySkeleton from "@/app/components/pages/festival_activitie
 import FestivalStickerActivityPage from "@/app/components/pages/festival_activities/festival-sticker-activity";
 import PassportActivityPage from "@/app/components/pages/festival_activities/passport-activity";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
-import { fetchFestivalParticipants } from "@/app/lib/festivals/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import Image from "next/image";
 import { notFound } from "next/navigation";

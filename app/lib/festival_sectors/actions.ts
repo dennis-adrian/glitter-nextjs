@@ -531,6 +531,8 @@ export async function addFestivalActivityParticipantProof(
 export async function deleteFestivalActivityParticipantProof(
 	proofId: number,
 	activityParticipationId: number,
+	forProfileId: BaseProfile["id"],
+	festivalId: FestivalBase["id"],
 ) {
 	try {
 		// First, fetch the proof to get the imageUrl
@@ -564,8 +566,7 @@ export async function deleteFestivalActivityParticipantProof(
 		return { success: false, message: "Error al eliminar el diseño" };
 	}
 
-	revalidatePath("/my_profile");
-	revalidatePath("/my_participations");
+	revalidatePath(`/profiles/${forProfileId}/festivals/${festivalId}/activity`);
 	return { success: true, message: "Diseño eliminado correctamente" };
 }
 

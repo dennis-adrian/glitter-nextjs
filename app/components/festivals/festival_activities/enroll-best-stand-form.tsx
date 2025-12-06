@@ -321,6 +321,8 @@ export default function EnrollBestStandForm({
 										const result = await deleteFestivalActivityParticipantProof(
 											confirmDeleteProofId,
 											userParticipation.id,
+											forProfile.id,
+											activity.festivalId,
 										);
 										setDeletingProofId(null);
 										setConfirmDeleteProofId(null);
