@@ -1,7 +1,18 @@
 "use client";
 
 import { BaseProfile } from "@/app/api/users/definitions";
+import UploadStickerDesignModal from "@/app/components/festivals/festival_activities/upload-sticker-design-modal";
 import SubmitButton from "@/app/components/simple-submit-button";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/app/components/ui/alert-dialog";
 import { Button } from "@/app/components/ui/button";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import {
@@ -13,10 +24,16 @@ import {
 	FormLabel,
 	FormMessage,
 } from "@/app/components/ui/form";
-import { enrollInBestStandActivity } from "@/app/lib/festival_sectors/actions";
+import {
+	deleteFestivalActivityParticipantProof,
+	enrollInBestStandActivity,
+} from "@/app/lib/festival_sectors/actions";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Loader2Icon, Trash2Icon } from "lucide-react";
 import { DateTime } from "luxon";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -37,6 +54,7 @@ export default function EnrollBestStandForm({
 	forProfile,
 	activity,
 }: EnrollBestStandFormProps) {
+	const router = useRouter();
 	const form = useForm<z.infer<typeof FormSchema>>({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
@@ -44,6 +62,10 @@ export default function EnrollBestStandForm({
 		},
 	});
 	const [isRegistrationOpen, setIsRegistrationOpen] = useState(false);
+	const [deletingProofId, setDeletingProofId] = useState<number | null>(null);
+	const [confirmDeleteProofId, setConfirmDeleteProofId] = useState<
+		number | null
+	>(null);
 
 	const [statusMessage, setStatusMessage] = useState("");
 
@@ -130,6 +152,138 @@ export default function EnrollBestStandForm({
 				<p className="text-sm text-muted-foreground italic">{statusMessage}</p>
 			</div>
 		);
+	}
+
+	const activityVariantForProfile = activity.details.find(
+		(detail) => detail.category === forProfile.category,
+	);
+
+	if (activityVariantForProfile) {
+		if (
+			activityVariantForProfile.participants.some(
+				(participant) => participant.user.id === forProfile.id,
+			)
+		) {
+			const userParticipation = activityVariantForProfile.participants.find(
+				(participant) => participant.user.id === forProfile.id,
+			);
+
+			if (userParticipation?.proofs.length === 0) {
+				return (
+					<div className="flex gap-2 text-sm flex-col text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
+						<p>
+							Ya estás inscrito en esta actividad. No te olvides de subir el
+							imagen de tu stand.
+						</p>
+						<UploadStickerDesignModal
+							participationId={userParticipation.id}
+							maxFiles={1}
+						/>
+					</div>
+				);
+			}
+
+			// Show uploaded images with delete option
+			if (userParticipation?.proofs && userParticipation.proofs.length > 0) {
+				return (
+					<div className="flex gap-3 text-sm flex-col border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
+						<p className="text-center">
+							Ya estás inscrito en esta actividad. Tus imágenes subidas:
+						</p>
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+							{userParticipation.proofs.map((proof) => (
+								<div
+									key={proof.id}
+									className="flex flex-col gap-2 border border-amber-300 rounded-md p-2 bg-white"
+								>
+									<div className="relative w-full aspect-square rounded-md overflow-hidden">
+										<Image
+											src={proof.imageUrl}
+											alt={`Imagen de stand ${proof.id}`}
+											fill
+											className="object-contain"
+										/>
+									</div>
+									<Button
+										variant="outline"
+										size="sm"
+										className="w-full bg-red-50 hover:bg-red-100 text-red-800 border-red-300"
+										onClick={() => setConfirmDeleteProofId(proof.id)}
+										disabled={deletingProofId === proof.id}
+									>
+										{deletingProofId === proof.id ? (
+											<>
+												<Loader2Icon className="w-4 h-4 mr-2 animate-spin" />
+												<span>Eliminando...</span>
+											</>
+										) : (
+											<>
+												<Trash2Icon className="w-4 h-4 mr-2" />
+												<span>Eliminar</span>
+											</>
+										)}
+									</Button>
+								</div>
+							))}
+						</div>
+						<AlertDialog
+							open={confirmDeleteProofId !== null}
+							onOpenChange={(open) => {
+								if (!open) {
+									setConfirmDeleteProofId(null);
+								}
+							}}
+						>
+							<AlertDialogContent>
+								<AlertDialogHeader>
+									<AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+									<AlertDialogDescription>
+										Esta acción no se puede deshacer. La imagen será eliminada
+										permanentemente.
+									</AlertDialogDescription>
+								</AlertDialogHeader>
+								<AlertDialogFooter>
+									<AlertDialogCancel
+										disabled={deletingProofId !== null}
+										onClick={() => setConfirmDeleteProofId(null)}
+									>
+										Cancelar
+									</AlertDialogCancel>
+									<AlertDialogAction
+										onClick={async () => {
+											if (confirmDeleteProofId === null) return;
+											setDeletingProofId(confirmDeleteProofId);
+											const result =
+												await deleteFestivalActivityParticipantProof(
+													confirmDeleteProofId,
+												);
+											setDeletingProofId(null);
+											setConfirmDeleteProofId(null);
+											if (result.success) {
+												toast.success(result.message);
+												router.refresh();
+											} else {
+												toast.error(result.message);
+											}
+										}}
+										disabled={deletingProofId !== null}
+										className="bg-red-600 hover:bg-red-700"
+									>
+										{deletingProofId !== null ? "Eliminando..." : "Eliminar"}
+									</AlertDialogAction>
+								</AlertDialogFooter>
+							</AlertDialogContent>
+						</AlertDialog>
+					</div>
+				);
+			}
+
+			return (
+				<Button className="w-full" disabled>
+					Ya estás inscrito en esta actividad
+				</Button>
+			);
+		}
 	}
 
 	return (

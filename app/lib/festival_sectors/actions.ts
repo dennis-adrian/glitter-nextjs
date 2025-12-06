@@ -41,6 +41,7 @@ import {
 	fetchFestivalParticipants,
 } from "@/app/lib/festivals/actions";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
+import { deleteFile } from "@/app/lib/uploadthing/actions";
 import { DateTime } from "luxon";
 
 export async function fetchFestivalSectors(
@@ -412,11 +413,6 @@ export async function enrollInBestStandActivity(
 				message: "Error al inscribirte en la actividad",
 			};
 		}
-
-		return {
-			success: true,
-			message: "Inscripción realizada correctamente",
-		};
 	} catch (error) {
 		console.error("Error enrolling in best stand activity", error);
 
@@ -425,6 +421,12 @@ export async function enrollInBestStandActivity(
 			message: "Error inesperado al inscribirte en la actividad",
 		};
 	}
+
+	revalidatePath(`/profiles/${forProfileId}/festivals/${festivalId}/activity`);
+	return {
+		success: true,
+		message: "Inscripción realizada correctamente",
+	};
 }
 
 export async function fetchFullFestivalById(
@@ -501,6 +503,36 @@ export async function addFestivalActivityParticipantProof(
 	revalidatePath("/my_profile");
 	revalidatePath("/my_participations");
 	return { success: true, message: "Diseño subido correctamente" };
+}
+
+export async function deleteFestivalActivityParticipantProof(proofId: number) {
+	try {
+		// First, fetch the proof to get the imageUrl
+		const proof = await db.query.festivalActivityParticipantProofs.findFirst({
+			where: eq(festivalActivityParticipantProofs.id, proofId),
+		});
+
+		if (!proof) {
+			return { success: false, message: "Diseño no encontrado" };
+		}
+
+		// Delete the image from UploadThing
+		const imageDeleted = await deleteFile(proof.imageUrl);
+		if (!imageDeleted.success) {
+			return { success: false, message: "Error al eliminar el diseño" };
+		}
+
+		await db
+			.delete(festivalActivityParticipantProofs)
+			.where(eq(festivalActivityParticipantProofs.id, proofId));
+	} catch (error) {
+		console.error("Error deleting festival activity participant proof", error);
+		return { success: false, message: "Error al eliminar el diseño" };
+	}
+
+	revalidatePath("/my_profile");
+	revalidatePath("/my_participations");
+	return { success: true, message: "Diseño eliminado correctamente" };
 }
 
 export async function fetchFestivalSectorsWithAllowedCategories(

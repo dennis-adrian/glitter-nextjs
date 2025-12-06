@@ -2,7 +2,6 @@ import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import DateSpan from "@/app/components/atoms/date-span";
 import Title from "@/app/components/atoms/title";
 import EnrollBestStandForm from "@/app/components/festivals/festival_activities/enroll-best-stand-form";
-import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import Image from "next/image";
 
@@ -18,30 +17,8 @@ export default function BestStandActivityPage({
 	forProfile,
 }: BestStandActivityPageProps) {
 	const orderedActivityDetails = activity.details.sort((a, b) => a.id - b.id);
-	/**
-	 * The variant images are hardcoded for this page but in the future we should
-	 * find a way to tell them apart dynamically.
-	 */
-	const variantPrizeImages: {
-		category: UserCategory;
-		imageUrl?: string | null;
-	}[] = [
-		{
-			category: "illustration",
-			imageUrl: orderedActivityDetails[0]?.imageUrl,
-		},
-		{
-			category: "entrepreneurship",
-			imageUrl: orderedActivityDetails[1]?.imageUrl,
-		},
-		{
-			category: "gastronomy",
-			imageUrl: orderedActivityDetails[2]?.imageUrl,
-		},
-	];
-
-	const variantForProfile = variantPrizeImages.find(
-		(variant) => variant.category === forProfile.category,
+	const variantForProfile = orderedActivityDetails.find(
+		(detail) => detail.category === forProfile.category,
 	);
 
 	return (
@@ -200,11 +177,7 @@ export default function BestStandActivityPage({
 						<div className="relative w-full max-w-[320px] h-auto aspect-square mx-auto">
 							<Image
 								className="object-cover rounded-md"
-								src={
-									variantPrizeImages.find(
-										(variant) => variant.category === forProfile.category,
-									)?.imageUrl ?? ""
-								}
+								src={variantForProfile.imageUrl}
 								alt="imagen de premio de la categoría"
 								fill
 								placeholder="blur"
