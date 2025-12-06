@@ -3,6 +3,7 @@
 import { ProfileType } from "@/app/api/users/definitions";
 import ReservationStatusBadge from "@/app/components/atoms/reservation-status-badge";
 import Title from "@/app/components/atoms/title";
+import { RedirectButton } from "@/app/components/redirect-button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { FullFestival } from "@/app/lib/festivals/definitions";
 import { formatDate, getFestivalDateString } from "@/app/lib/formatters";
@@ -15,7 +16,6 @@ import {
 	PartyPopperIcon,
 } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export default function ParticipationsHistory({
@@ -71,10 +71,7 @@ export default function ParticipationsHistory({
 	return (
 		<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 			{!!currentParticipation && !!activeFestival && (
-				<Card
-					className="shadow-md hover:shadow-lg transition-shadow duration-300"
-					onClick={() => router.push(`/my_participations`)}
-				>
+				<Card className="shadow-md hover:shadow-lg transition-shadow duration-300">
 					<CardContent className="flex p-4 gap-2 w-full">
 						<div className="relative w-20 h-30 md:w-30 md:h-40 rounded-md">
 							<Image
@@ -107,13 +104,14 @@ export default function ParticipationsHistory({
 									{getFestivalDateString(startDate, endDate)}
 								</p>
 							)}
-							<Link
+							<RedirectButton
 								href={`/my_participations`}
-								className="text-sm text-primary-500 underline flex items-center gap-1 self-end"
+								className="text-sm flex items-center gap-1 self-end w-fit"
+								variant="link"
 							>
 								Ver detalles
 								<ArrowRightIcon className="w-4 h-4" />
-							</Link>
+							</RedirectButton>
 						</div>
 					</CardContent>
 				</Card>

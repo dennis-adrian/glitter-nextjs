@@ -72,7 +72,7 @@ export default async function Landing() {
 									<RedirectButton
 										className="hover:bg-white"
 										variant="outline"
-										href={`/festivals/${festival.id}`}
+										href={`/festivals/${festival.id}?tab=sectors`}
 									>
 										Ver evento
 									</RedirectButton>

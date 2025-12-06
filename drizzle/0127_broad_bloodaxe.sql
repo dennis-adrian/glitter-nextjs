@@ -1,0 +1,1 @@
+ALTER TABLE "festival_activity_details" ADD COLUMN "category" "user_category";
