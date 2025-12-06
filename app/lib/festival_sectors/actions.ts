@@ -528,7 +528,10 @@ export async function addFestivalActivityParticipantProof(
 	return { success: true, message: "Diseño subido correctamente" };
 }
 
-export async function deleteFestivalActivityParticipantProof(proofId: number) {
+export async function deleteFestivalActivityParticipantProof(
+	proofId: number,
+	activityParticipationId: number,
+) {
 	try {
 		// First, fetch the proof to get the imageUrl
 		const proof = await db.query.festivalActivityParticipantProofs.findFirst({
@@ -547,7 +550,15 @@ export async function deleteFestivalActivityParticipantProof(proofId: number) {
 
 		await db
 			.delete(festivalActivityParticipantProofs)
-			.where(eq(festivalActivityParticipantProofs.id, proofId));
+			.where(
+				and(
+					eq(festivalActivityParticipantProofs.id, proofId),
+					eq(
+						festivalActivityParticipantProofs.participationId,
+						activityParticipationId,
+					),
+				),
+			);
 	} catch (error) {
 		console.error("Error deleting festival activity participant proof", error);
 		return { success: false, message: "Error al eliminar el diseño" };

@@ -318,10 +318,10 @@ export default function EnrollBestStandForm({
 									onClick={async () => {
 										if (confirmDeleteProofId === null) return;
 										setDeletingProofId(confirmDeleteProofId);
-										const result =
-											await deleteFestivalActivityParticipantProof(
-												confirmDeleteProofId,
-											);
+										const result = await deleteFestivalActivityParticipantProof(
+											confirmDeleteProofId,
+											userParticipation.id,
+										);
 										setDeletingProofId(null);
 										setConfirmDeleteProofId(null);
 										if (result.success) {
