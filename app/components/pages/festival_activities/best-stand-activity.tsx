@@ -1,9 +1,11 @@
-import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
+import { BaseProfile } from "@/app/api/users/definitions";
 import DateSpan from "@/app/components/atoms/date-span";
 import Title from "@/app/components/atoms/title";
-import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
+import EnrollBestStandForm from "@/app/components/festivals/festival_activities/enroll-best-stand-form";
+import { fetchFestivalParticipants } from "@/app/lib/festivals/actions";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import Image from "next/image";
+import { notFound } from "next/navigation";
 
 type BestStandActivityPageProps = {
 	activity: FestivalActivityWithDetailsAndParticipants;
@@ -11,37 +13,21 @@ type BestStandActivityPageProps = {
 	forProfile: BaseProfile;
 };
 
-export default function BestStandActivityPage({
+export default async function BestStandActivityPage({
 	activity,
 	currentProfile,
 	forProfile,
 }: BestStandActivityPageProps) {
-	const orderedActivityDetails = activity.details.sort((a, b) => a.id - b.id);
-	/**
-	 * The variant images are hardcoded for this page but in the future we should
-	 * find a way to tell them apart dynamically.
-	 */
-	const variantPrizeImages: {
-		category: UserCategory;
-		imageUrl?: string | null;
-	}[] = [
-		{
-			category: "illustration",
-			imageUrl: orderedActivityDetails[0]?.imageUrl,
-		},
-		{
-			category: "entrepreneurship",
-			imageUrl: orderedActivityDetails[1]?.imageUrl,
-		},
-		{
-			category: "gastronomy",
-			imageUrl: orderedActivityDetails[2]?.imageUrl,
-		},
-	];
-
-	const variantForProfile = variantPrizeImages.find(
-		(variant) => variant.category === forProfile.category,
+	const confirmedParticipants = await fetchFestivalParticipants(
+		activity.festivalId,
+		true,
 	);
+
+	const activityVariantForProfile = activity.details.find(
+		(detail) => detail.category === forProfile.category,
+	);
+
+	if (!activityVariantForProfile) return notFound();
 
 	return (
 		<div className="container p-3 md:p-6 flex flex-col gap-4 md:gap-5">
@@ -194,16 +180,12 @@ export default function BestStandActivityPage({
 						festival.
 					</p>
 				</div>
-				{variantForProfile && variantForProfile.imageUrl && (
+				{activityVariantForProfile && activityVariantForProfile.imageUrl && (
 					<figure className="relative mx-auto my-2 md:my-3">
 						<div className="relative w-full max-w-[320px] h-auto aspect-square mx-auto">
 							<Image
 								className="object-cover rounded-md"
-								src={
-									variantPrizeImages.find(
-										(variant) => variant.category === forProfile.category,
-									)?.imageUrl ?? ""
-								}
+								src={activityVariantForProfile.imageUrl}
 								alt="imagen de premio de la categoría"
 								fill
 								placeholder="blur"
@@ -267,11 +249,11 @@ export default function BestStandActivityPage({
 					</span>
 				</p>
 			</section>
-			<EnrollRedirectButton
-				currentProfile={currentProfile}
+			<EnrollBestStandForm
 				forProfile={forProfile}
-				festivalId={activity.festivalId}
 				activity={activity}
+				festivalParticipants={confirmedParticipants}
+				activityVariantForProfile={activityVariantForProfile}
 			/>
 		</div>
 	);

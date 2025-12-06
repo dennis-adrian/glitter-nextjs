@@ -103,7 +103,7 @@ export default function UploadStickerDesignModal({
 		return (
 			<Dropzone
 				maxFiles={maxFiles}
-				maxSize={2 * 1024 * 1024}
+				maxSize={4 * 1024 * 1024}
 				accept={["image/*"]}
 				onUploadComplete={async (
 					files: {
@@ -146,14 +146,14 @@ export default function UploadStickerDesignModal({
 					variant="outline"
 					className="hover:text-white hover:bg-amber-700 w-full md:max-w-[280px] mx-auto"
 				>
-					<span>Subir diseño</span>
+					<span>Subir imagen</span>
 					<UploadCloudIcon className="w-4 h-4 ml-2" />
 				</Button>
 			</DrawerDialogTrigger>
 			<DrawerDialogContent isDesktop={isDesktop} className="max-w-md">
 				<DrawerDialogHeader isDesktop={isDesktop}>
 					<DrawerDialogTitle isDesktop={isDesktop}>
-						Subir diseño
+						Subir imagen
 					</DrawerDialogTitle>
 				</DrawerDialogHeader>
 				<div className={`${isDesktop ? "" : "px-4"} pt-2`}>
