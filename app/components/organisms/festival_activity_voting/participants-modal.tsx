@@ -17,7 +17,7 @@ import {
 import { StandVotingItem } from "@/app/lib/festival_activites/definitions";
 import { ActivityDetailsWithParticipants } from "@/app/lib/festivals/definitions";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
-import { ThumbsUpIcon } from "lucide-react";
+import { Loader2Icon, ThumbsUpIcon } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 
@@ -38,6 +38,8 @@ export default function ParticipantsModal({
 }: ParticipantsModalProps) {
 	const [selectedVotingItem, setSelectedVotingItem] =
 		useState<StandVotingItem | null>(null);
+	const [isVoting, setIsVoting] = useState(false);
+
 	const participants = getValidParticipantsForVariant(variant);
 	const standsWithParticipantProofs = mapStandsAndParticipantsToVotingItem(
 		participants,
@@ -60,51 +62,61 @@ export default function ParticipantsModal({
 						Participantes de {getCategoryLabel(variant.category!)}
 					</DrawerDialogTitle>
 				</DrawerDialogHeader>
-				<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3 p-3">
-					{mockParticipants.map((participant, index) => {
-						/**
-						 * In best stand activity, only one image is allowed per participant.
-						 */
-						const standImage = participant.standImage;
+				<div className="relative">
+					<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3 p-3">
+						{mockParticipants.map((participant, index) => {
+							/**
+							 * In best stand activity, only one image is allowed per participant.
+							 */
+							const standImage = participant.standImage;
 
-						return (
-							<div
-								key={`${participant.standId}-${index}`}
-								className="flex flex-col gap-2 border border-gray-200 rounded-md p-4"
-							>
-								{standImage && (
-									<Image
-										className="rounded-md mx-auto"
-										src={standImage}
-										alt={participant.standName}
-										width={140}
-										height={260}
-										placeholder="blur"
-										blurDataURL="/img/placeholders/placeholder-300x300.png"
-										unoptimized
-									/>
-								)}
-								<p className="max-w-[140px] text-ellipsis overflow-hidden text-center">
-									{participant.standName}
-								</p>
-								<Button
-									className="font-normal"
-									variant="outline"
-									size="sm"
-									onClick={() => setSelectedVotingItem(participant)}
+							return (
+								<div
+									key={`${participant.standId}-${index}`}
+									className="flex flex-col gap-2 border border-gray-200 rounded-md p-4"
 								>
-									Votar
-									<ThumbsUpIcon className="w-4 h-4 ml-1" />
-								</Button>
+									{standImage && (
+										<Image
+											className="rounded-md mx-auto"
+											src={standImage}
+											alt={participant.standName}
+											width={140}
+											height={260}
+											placeholder="blur"
+											blurDataURL="/img/placeholders/placeholder-300x300.png"
+											unoptimized
+										/>
+									)}
+									<p className="text-center">{participant.standName}</p>
+									<Button
+										className="font-normal"
+										variant="outline"
+										size="sm"
+										onClick={() => setSelectedVotingItem(participant)}
+									>
+										Votar
+										<ThumbsUpIcon className="w-4 h-4 ml-1" />
+									</Button>
+								</div>
+							);
+						})}
+					</div>
+					{isVoting && (
+						<div className="absolute h-dvh inset-0 bg-background/60 backdrop-blur-sm flex justify-center z-50 rounded-lg">
+							<div className="flex items-center justify-center">
+								<Loader2Icon className="w-10 h-10 animate-spin text-primary-500" />
 							</div>
-						);
-					})}
+						</div>
+					)}
 				</div>
 				{selectedVotingItem && (
 					<ConfirmVoteModal
 						currentProfile={currentProfile}
 						open={!!selectedVotingItem}
-						onOpenChange={() => setSelectedVotingItem(null)}
+						onOpenChange={(open) => {
+							setSelectedVotingItem(null);
+						}}
+						onVotingChange={setIsVoting}
 						standId={selectedVotingItem.standId}
 						variantId={variant.id}
 					/>

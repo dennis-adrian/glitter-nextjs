@@ -56,7 +56,10 @@ export default function BestStandActivityVoting({
 						)}
 						<div className="flex flex-col gap-2">
 							<Title level="h4" className="leading-tight">
-								Iconic Stand - {getCategoryLabel(variant.category!)}
+								Iconic Stand -{" "}
+								{variant.category
+									? getCategoryLabel(variant.category)
+									: "Sin categoría"}
 							</Title>
 							<Button size="sm" onClick={() => setSelectedVariant(variant)}>
 								<VoteIcon className="w-4 h-4 mr-1" />

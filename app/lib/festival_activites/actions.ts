@@ -81,7 +81,7 @@ export const addFestivalActivityVote = async (
 
 		return {
 			success: false,
-			message: "Error agregar el voto",
+			message: "Error al agregar el voto",
 		};
 	}
 

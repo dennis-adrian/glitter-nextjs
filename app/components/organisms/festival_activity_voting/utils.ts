@@ -56,5 +56,7 @@ export function mapStandsAndParticipantsToVotingItem(
 		};
 	});
 
-	return votingItems.filter((votingItem) => votingItem !== null);
+	return votingItems.filter(
+		(votingItem): votingItem is StandVotingItem => votingItem !== null,
+	);
 }
