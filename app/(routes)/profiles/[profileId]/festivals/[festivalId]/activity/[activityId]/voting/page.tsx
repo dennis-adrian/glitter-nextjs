@@ -1,4 +1,5 @@
 import Title from "@/app/components/atoms/title";
+import BestStandActivityVoting from "@/app/components/organisms/festival_activity_voting/best-stand-activity-voting";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound } from "next/navigation";
@@ -31,6 +32,7 @@ export default async function VotingPage({ params }: VotingPageProps) {
 	return (
 		<div className="container p-3 md:p-6">
 			<Title level="h1">Votación para {activity.name}</Title>
+			<BestStandActivityVoting activity={activity} />
 		</div>
 	);
 }
