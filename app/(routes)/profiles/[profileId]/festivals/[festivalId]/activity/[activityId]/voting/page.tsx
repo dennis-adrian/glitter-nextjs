@@ -35,11 +35,20 @@ export default async function VotingPage({ params }: VotingPageProps) {
 	return (
 		<div className="container p-3 md:p-6">
 			<Title level="h1">Votación para {activity.name}</Title>
-			<BestStandActivityVoting
-				activity={activity}
-				currentProfile={currentProfile}
-				reservations={festivalReservations}
-			/>
+			{activity.type === "best_stand" && (
+				<BestStandActivityVoting
+					activity={activity}
+					currentProfile={currentProfile}
+					reservations={festivalReservations}
+				/>
+			)}
+			{activity.type === "festival_sticker" && (
+				<div className="border p-5 rounded-md mx-auto max-w-md">
+					<p className="text-sm text-center">
+						La votación para esta actividad aún no está disponible
+					</p>
+				</div>
+			)}
 		</div>
 	);
 }
