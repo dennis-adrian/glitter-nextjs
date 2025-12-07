@@ -87,7 +87,6 @@ export default function ParticipantsModal({
 											height={260}
 											placeholder="blur"
 											blurDataURL="/img/placeholders/placeholder-300x300.png"
-											unoptimized
 										/>
 									)}
 									<p className="text-center">{participant.standName}</p>
