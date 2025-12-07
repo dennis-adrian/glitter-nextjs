@@ -1,5 +1,6 @@
 "use client";
 
+import { BaseProfile } from "@/app/api/users/definitions";
 import {
 	AlertDialog,
 	AlertDialogTitle,
@@ -10,19 +11,41 @@ import {
 	AlertDialogCancel,
 	AlertDialogFooter,
 } from "@/app/components/ui/alert-dialog";
+import { addFestivalActivityVote } from "@/app/lib/festival_activites/actions";
 import { CircleAlertIcon } from "lucide-react";
+import { toast } from "sonner";
 
 type ConfirmVoteModalProps = {
+	currentProfile: BaseProfile;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	participantId: number;
+	standId: number;
+	variantId: number;
 };
 
 export default function ConfirmVoteModal({
+	currentProfile,
 	open,
 	onOpenChange,
-	participantId,
+	standId,
+	variantId,
 }: ConfirmVoteModalProps) {
+	const addVote = async () => {
+		const res = await addFestivalActivityVote({
+			activityVariantId: variantId,
+			voterId: currentProfile.id,
+			votableType: "stand",
+			standId: standId,
+		});
+
+		if (res.success) {
+			onOpenChange(false);
+			toast.success(res.message);
+		} else {
+			toast.error(res.message);
+		}
+	};
+
 	return (
 		<AlertDialog open={open} onOpenChange={onOpenChange}>
 			<AlertDialogContent>
@@ -40,14 +63,7 @@ export default function ConfirmVoteModal({
 					<AlertDialogCancel onClick={() => onOpenChange(false)}>
 						Cancelar
 					</AlertDialogCancel>
-					{/* TODO: Implement the actual vote action */}
-					<AlertDialogAction
-						onClick={() =>
-							console.log("votar por el participante", participantId)
-						}
-					>
-						Votar
-					</AlertDialogAction>
+					<AlertDialogAction onClick={addVote}>Votar</AlertDialogAction>
 				</AlertDialogFooter>
 			</AlertDialogContent>
 		</AlertDialog>

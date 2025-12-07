@@ -1,32 +1,35 @@
 "use client";
 
+import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
+import { BaseProfile } from "@/app/api/users/definitions";
 import Title from "@/app/components/atoms/title";
 import ParticipantsModal from "@/app/components/organisms/festival_activity_voting/participants-modal";
 import { getValidParticipantsByCategory } from "@/app/components/organisms/festival_activity_voting/utils";
 import { Button } from "@/app/components/ui/button";
-import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
+import {
+	ActivityDetailsWithParticipants,
+	FestivalActivityWithDetailsAndParticipants,
+} from "@/app/lib/festivals/definitions";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import { VoteIcon } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 
 type BestStandActivityVotingProps = {
+	currentProfile: BaseProfile;
 	activity: FestivalActivityWithDetailsAndParticipants;
+	reservations: ReservationWithParticipantsAndUsersAndStand[];
 };
 
 export default function BestStandActivityVoting({
+	currentProfile,
 	activity,
+	reservations,
 }: BestStandActivityVotingProps) {
-	const [selectedVariantId, setSelectedVariantId] = useState<number | null>(
-		null,
-	);
+	const [selectedVariant, setSelectedVariant] =
+		useState<ActivityDetailsWithParticipants | null>(null);
 
 	const activityVariants = activity.details;
-
-	const illustrationValidParticipants = getValidParticipantsByCategory(
-		activity,
-		"illustration",
-	);
 
 	return (
 		<div>
@@ -55,10 +58,7 @@ export default function BestStandActivityVoting({
 							<Title level="h4" className="leading-tight">
 								Iconic Stand - {getCategoryLabel(variant.category!)}
 							</Title>
-							<Button
-								size="sm"
-								onClick={() => setSelectedVariantId(variant.id)}
-							>
+							<Button size="sm" onClick={() => setSelectedVariant(variant)}>
 								<VoteIcon className="w-4 h-4 mr-1" />
 								Votar por un participante
 							</Button>
@@ -66,12 +66,15 @@ export default function BestStandActivityVoting({
 					</div>
 				))}
 			</div>
-			<ParticipantsModal
-				open={!!selectedVariantId}
-				onOpenChange={() => setSelectedVariantId(null)}
-				participants={illustrationValidParticipants}
-				category="illustration"
-			/>
+			{selectedVariant && (
+				<ParticipantsModal
+					currentProfile={currentProfile}
+					open={!!selectedVariant}
+					variant={selectedVariant}
+					reservations={reservations}
+					onOpenChange={() => setSelectedVariant(null)}
+				/>
+			)}
 		</div>
 	);
 }
