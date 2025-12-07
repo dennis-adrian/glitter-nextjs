@@ -1,5 +1,6 @@
 import { BaseProfile } from "@/app/api/users/definitions";
 import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
+import { fetchFestivalParticipants } from "@/app/lib/festivals/actions";
 import {
 	FestivalActivityWithDetailsAndParticipants,
 	FestivalBase,
@@ -7,6 +8,7 @@ import {
 import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import Image from "next/image";
+import { notFound } from "next/navigation";
 
 type PassportActivityPageProps = {
 	currentProfile: BaseProfile;

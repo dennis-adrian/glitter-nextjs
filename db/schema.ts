@@ -662,6 +662,7 @@ export const festivalActivityDetails = pgTable("festival_activity_details", {
 	activityId: integer("activity_id")
 		.notNull()
 		.references(() => festivalActivities.id, { onDelete: "cascade" }),
+	category: userCategoryEnum("category"),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });

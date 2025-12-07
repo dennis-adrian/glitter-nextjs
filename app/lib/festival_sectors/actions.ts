@@ -36,7 +36,13 @@ import {
 } from "@/db/schema";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import {
+	fetchBaseFestival,
+	fetchFestivalParticipants,
+} from "@/app/lib/festivals/actions";
+import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
+import { deleteFile } from "@/app/lib/uploadthing/actions";
+import { DateTime } from "luxon";
 
 export async function fetchFestivalSectors(
 	festivalId: number,
@@ -324,6 +330,117 @@ export async function enrollInActivity(
 	}
 }
 
+export async function enrollInBestStandActivity(
+	activityId: number,
+	forProfileId: BaseProfile["id"],
+	festivalId: FestivalBase["id"],
+	profileCategory: BaseProfile["category"],
+) {
+	try {
+		const confirmedParticipants = await fetchFestivalParticipants(
+			festivalId,
+			true,
+		);
+
+		if (
+			!confirmedParticipants.some(
+				(participant) => participant.user.id === forProfileId,
+			)
+		) {
+			return {
+				success: false,
+				message: "No tienes permisos para inscribirte en esta actividad",
+			};
+		}
+
+		const activity = await fetchFestivalActivity(activityId);
+
+		if (!activity) {
+			return {
+				success: false,
+				message: "La actividad a la que querés inscribirte no existe",
+			};
+		}
+
+		if (
+			DateTime.now() < DateTime.fromJSDate(activity.registrationStartDate) ||
+			DateTime.now() > DateTime.fromJSDate(activity.registrationEndDate)
+		) {
+			return {
+				success: false,
+				message:
+					"El registro para la actividad no está disponible en este momento",
+			};
+		}
+
+		const activityVariant = activity.details.find(
+			(detail) => detail.category === profileCategory,
+		);
+
+		if (!activityVariant) {
+			return {
+				success: false,
+				message: "No pudimos registrarte en la actividad.",
+			};
+		}
+
+		if (
+			activityVariant.participants.some(
+				(participant) => participant.user.id === forProfileId,
+			)
+		) {
+			return {
+				success: false,
+				message: "Ya estás inscrito en esta actividad",
+			};
+		}
+
+		if (profileCategory !== activityVariant.category) {
+			return {
+				success: false,
+				message: "No tienes permisos para inscribirte en esta actividad",
+			};
+		}
+
+		const forProfileStandId = confirmedParticipants.find(
+			(participant) => participant.user.id === forProfileId,
+		)?.reservation?.standId;
+
+		const otherParticipantsWithStand = confirmedParticipants.filter(
+			(participant) =>
+				participant.reservation?.standId === forProfileStandId &&
+				participant.user.id !== forProfileId,
+		);
+
+		// Verify if none of the other participants in the same stand is enrolled
+		const activityParticipantUserIds = activityVariant.participants.map(
+			(participant) => participant.userId,
+		);
+		for (const participant of otherParticipantsWithStand) {
+			if (activityParticipantUserIds.includes(participant.user.id)) {
+				return {
+					success: false,
+					message: `Otro participante ya registró el stand ${participant.reservation?.stand?.label}${participant.reservation?.stand?.standNumber}`,
+				};
+			}
+		}
+
+		await db.insert(festivalActivityParticipants).values({
+			userId: forProfileId,
+			detailsId: activityVariant.id,
+		});
+	} catch (error) {
+		console.error("Error enrolling in best stand activity", error);
+		return { success: false, message: "Error al inscribirte en la actividad" };
+	}
+
+	revalidatePath(`/profiles/${forProfileId}/festivals/${festivalId}/activity`);
+	return {
+		success: true,
+		message: "Inscripción realizada correctamente",
+	};
+}
+
 export async function fetchFullFestivalById(
 	festivalId: number,
 ): Promise<FullFestival | undefined | null> {
@@ -398,6 +515,48 @@ export async function addFestivalActivityParticipantProof(
 	revalidatePath("/my_profile");
 	revalidatePath("/my_participations");
 	return { success: true, message: "Diseño subido correctamente" };
+}
+
+export async function deleteFestivalActivityParticipantProof(
+	proofId: number,
+	activityParticipationId: number,
+	forProfileId: BaseProfile["id"],
+	festivalId: FestivalBase["id"],
+) {
+	try {
+		// First, fetch the proof to get the imageUrl
+		const proof = await db.query.festivalActivityParticipantProofs.findFirst({
+			where: eq(festivalActivityParticipantProofs.id, proofId),
+		});
+
+		if (!proof) {
+			return { success: false, message: "Diseño no encontrado" };
+		}
+
+		// Delete the image from UploadThing
+		const imageDeleted = await deleteFile(proof.imageUrl);
+		if (!imageDeleted.success) {
+			return { success: false, message: "Error al eliminar el diseño" };
+		}
+
+		await db
+			.delete(festivalActivityParticipantProofs)
+			.where(
+				and(
+					eq(festivalActivityParticipantProofs.id, proofId),
+					eq(
+						festivalActivityParticipantProofs.participationId,
+						activityParticipationId,
+					),
+				),
+			);
+	} catch (error) {
+		console.error("Error deleting festival activity participant proof", error);
+		return { success: false, message: "Error al eliminar el diseño" };
+	}
+
+	revalidatePath(`/profiles/${forProfileId}/festivals/${festivalId}/activity`);
+	return { success: true, message: "Diseño eliminado correctamente" };
 }
 
 export async function fetchFestivalSectorsWithAllowedCategories(

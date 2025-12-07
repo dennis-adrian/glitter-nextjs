@@ -79,7 +79,9 @@ export default function FestivalActivityCard({
 							<div className="flex items-center gap-2 mt-2">
 								<CheckCircleIcon className="w-4 h-4 text-green-600" />
 								<p className="text-sm text-green-600">
-									Subiste el diseño de tu sello.
+									{activity.type === "best_stand"
+										? "Subiste la imagen de tu stand"
+										: "Subiste el diseño de tu sello."}
 								</p>
 							</div>
 						))}

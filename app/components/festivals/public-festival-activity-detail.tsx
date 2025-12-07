@@ -18,6 +18,7 @@ type PublicFestivalActivityDetailProps = {
 	reservations: ReservationWithParticipantsAndUsersAndStand[];
 	searchTerm: string;
 	detailIndex: number;
+	showVariantHeader?: boolean;
 };
 
 export type ParticipantCardData = {
@@ -35,6 +36,7 @@ export default function PublicFestivalActivityDetail({
 	reservations,
 	festival,
 	detailIndex,
+	showVariantHeader = true,
 }: PublicFestivalActivityDetailProps) {
 	const [filteredParticipants, setFilteredParticipants] = useState<
 		ParticipantCardData[]
@@ -143,7 +145,9 @@ export default function PublicFestivalActivityDetail({
 	if (filteredParticipants.length === 0) {
 		return (
 			<div className="flex flex-col gap-2 my-4">
-				<h3 className="font-medium">Variante {detailIndex + 1}</h3>
+				{showVariantHeader && (
+					<h3 className="font-medium">Variante {detailIndex + 1}</h3>
+				)}
 				{detail.imageUrl && (
 					<div className="flex flex-col items-center gap-1 mt-2">
 						<Image
@@ -170,9 +174,12 @@ export default function PublicFestivalActivityDetail({
 	return (
 		<div className="flex flex-col gap-2 my-4">
 			<div className="flex justify-between items-center">
-				<h3 className="font-medium">Variante {detailIndex + 1}</h3>
+				{showVariantHeader ? (
+					<h3 className="font-medium">Variante {detailIndex + 1}</h3>
+				) : (
+					<div></div>
+				)}
 				<Button
-					className="self-end"
 					disabled={selectedParticipantIds.length === 0}
 					size="sm"
 					onClick={() => {
