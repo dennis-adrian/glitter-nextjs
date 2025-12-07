@@ -650,7 +650,6 @@ export const festivalActivitiesRelations = relations(
 			references: [festivals.id],
 		}),
 		details: many(festivalActivityDetails),
-		votes: many(festivalActivityVotes),
 	}),
 );
 
@@ -674,6 +673,7 @@ export const festivalActivityDetailsRelations = relations(
 			references: [festivalActivities.id],
 		}),
 		participants: many(festivalActivityParticipants),
+		votes: many(festivalActivityVotes),
 	}),
 );
 
@@ -741,9 +741,9 @@ export const festivalActivityVotes = pgTable(
 		voterId: integer("voter_id")
 			.notNull()
 			.references(() => users.id, { onDelete: "cascade" }),
-		activityId: integer("activity_id")
+		activityVariantId: integer("activity_variant_id")
 			.notNull()
-			.references(() => festivalActivities.id, { onDelete: "cascade" }),
+			.references(() => festivalActivityDetails.id, { onDelete: "cascade" }),
 		votableType: votableTypeEnum("votable_type")
 			.notNull()
 			.default("participant"),
@@ -764,7 +764,7 @@ export const festivalActivityVotes = pgTable(
 			)`,
 		unique("unique_voter_activity").on(
 			festivalActivityVotes.voterId,
-			festivalActivityVotes.activityId,
+			festivalActivityVotes.activityVariantId,
 		),
 	],
 );
@@ -775,9 +775,9 @@ export const festivalActivityVotesRelations = relations(
 			fields: [festivalActivityVotes.voterId],
 			references: [users.id],
 		}),
-		activity: one(festivalActivities, {
-			fields: [festivalActivityVotes.activityId],
-			references: [festivalActivities.id],
+		activityVariant: one(festivalActivityDetails, {
+			fields: [festivalActivityVotes.activityVariantId],
+			references: [festivalActivityDetails.id],
 		}),
 		stand: one(stands, {
 			fields: [festivalActivityVotes.standId],

@@ -7,15 +7,16 @@ import {
 import { TicketWithVisitor } from "@/app/data/tickets/actions";
 import { FestivalSectorWithStands } from "@/app/lib/festival_sectors/definitions";
 import {
-  festivalActivities,
-  festivalActivityDetails,
-  festivalActivityParticipantProofs,
-  festivalActivityParticipants,
-  festivalDates,
-  festivals,
-  festivalSectors,
-  standReservations,
-  userRequests,
+	festivalActivities,
+	festivalActivityDetails,
+	festivalActivityParticipantProofs,
+	festivalActivityParticipants,
+	festivalActivityVotes,
+	festivalDates,
+	festivals,
+	festivalSectors,
+	standReservations,
+	userRequests,
 } from "@/db/schema";
 
 export type FestivalBase = typeof festivals.$inferSelect;
@@ -39,11 +40,16 @@ export type FestivalActivityWithDetailsAndParticipants = FestivalActivity & {
   details: ActivityDetailsWithParticipants[];
 };
 
+export type ParticipantWithUserAndProofs = FestivalActivityParticipant & {
+	user: BaseProfile;
+	proofs: (typeof festivalActivityParticipantProofs.$inferSelect)[];
+};
+
+export type ActivityVariantVote = typeof festivalActivityVotes.$inferSelect;
+
 export type ActivityDetailsWithParticipants = FestivalActivityDetail & {
-  participants: (FestivalActivityParticipant & {
-    user: BaseProfile;
-    proofs: (typeof festivalActivityParticipantProofs.$inferSelect)[];
-  })[];
+	participants: ParticipantWithUserAndProofs[];
+	votes: ActivityVariantVote[];
 };
 
 export type FestivalActivity = typeof festivalActivities.$inferSelect;

@@ -339,6 +339,17 @@ export async function fetchFestivalActivityForReview(
 	}
 }
 
+export async function fetchFestivalActivitiesByFestivalId(festivalId: number) {
+	try {
+		return await db.query.festivalActivities.findMany({
+			where: eq(festivalActivities.festivalId, festivalId),
+		});
+	} catch (error) {
+		console.error("Error fetching festival activities by festival id", error);
+		return [];
+	}
+}
+
 export async function fetchFestivalWithDatesAndSectors(
 	id: number,
 ): Promise<FestivalWithDatesAndSectors | null> {
@@ -414,6 +425,7 @@ export async function fetchFestival({
 										proofs: true,
 									},
 								},
+								votes: true,
 							},
 						},
 					},

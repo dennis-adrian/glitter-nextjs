@@ -144,7 +144,7 @@ export default function UploadStickerDesignModal({
 			<DrawerDialogTrigger>
 				<Button
 					variant="outline"
-					className="hover:text-white hover:bg-amber-700 w-full md:max-w-[280px] mx-auto"
+					className="hover:text-white hover:bg-amber-700 w-full md:max-w-[280px]"
 				>
 					<span>Subir imagen</span>
 					<UploadCloudIcon className="w-4 h-4 ml-2" />

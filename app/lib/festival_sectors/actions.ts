@@ -484,6 +484,7 @@ export async function fetchFullFestivalById(
 										proofs: true,
 									},
 								},
+								votes: true,
 							},
 						},
 					},
