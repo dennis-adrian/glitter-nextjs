@@ -1,5 +1,6 @@
 import { ReservationBase } from "@/app/api/reservations/definitions";
 import { BaseProfile } from "@/app/api/users/definitions";
+import Title from "@/app/components/atoms/title";
 import FestivalActivityCard from "@/app/components/molecules/festival-activity-card";
 import { ScrollArea } from "@/app/components/ui/scroll-area";
 import { FullFestival } from "@/app/lib/festivals/definitions";
@@ -53,46 +54,48 @@ export default function ActivitiesContent({
 
 	return (
 		<div className="flex flex-col gap-5">
-			<ScrollArea className="h-[calc(100vh-340px)] md:h-[calc(100vh-600px)] pr-4">
+			<ScrollArea className="h-[calc(100vh-340px)] md:h-[calc(100vh-400px)] pr-4">
 				{userActivities.length > 0 && (
 					<div>
-						<h3 className="font-semibold">Tus inscripciones</h3>
+						<Title level="h3">Tus inscripciones</Title>
 						<p className="text-sm text-gray-500">
 							Aquí puedes ver las actividades en las que te has inscrito.
 						</p>
-						{userActivities.map((activity) => {
-							const participants = activity.details.flatMap(
-								(detail) => detail.participants,
-							);
+						<div className="flex flex-col gap-3 md:gap-4 mt-3">
+							{userActivities.map((activity) => {
+								const participants = activity.details.flatMap(
+									(detail) => detail.participants,
+								);
 
-							const userParticipation = participants.find(
-								(participant) => participant.user.id === forProfile.id,
-							);
+								const userParticipation = participants.find(
+									(participant) => participant.user.id === forProfile.id,
+								);
 
-							const hasUploadedProof =
-								(userParticipation?.proofs?.length ?? 0) > 0;
+								const hasUploadedProof =
+									(userParticipation?.proofs?.length ?? 0) > 0;
 
-							return (
-								<FestivalActivityCard
-									key={activity.id}
-									activity={activity}
-									forProfile={forProfile}
-									hasUploadedProof={!!hasUploadedProof}
-									isUserInActivity
-									userParticipation={userParticipation}
-								/>
-							);
-						})}
+								return (
+									<FestivalActivityCard
+										key={activity.id}
+										activity={activity}
+										forProfile={forProfile}
+										hasUploadedProof={!!hasUploadedProof}
+										isUserInActivity
+										userParticipation={userParticipation}
+									/>
+								);
+							})}
+						</div>
 					</div>
 				)}
 				{availableActivities.length > 0 && (
 					<div className="mt-3">
-						<h3 className="font-semibold">Actividades Exclusivas</h3>
+						<Title level="h3">Actividades Exclusivas</Title>
 						<p className="text-sm text-gray-500">
 							Inscríbete en actividades especiales para expositores.
 						</p>
 
-						<div className="flex flex-col gap-2 md:gap-4 mt-3">
+						<div className="flex flex-col gap-3 md:gap-4 mt-3">
 							{availableActivities.map((activity) => (
 								<FestivalActivityCard
 									key={activity.id}

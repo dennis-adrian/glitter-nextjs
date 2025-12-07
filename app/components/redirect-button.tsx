@@ -29,7 +29,7 @@ export function RedirectButton({
 		if (loading) {
 			const timeout = setTimeout(() => {
 				setLoading(false);
-			}, 3000);
+			}, 7000);
 			return () => clearTimeout(timeout);
 		}
 	}, [loading]);

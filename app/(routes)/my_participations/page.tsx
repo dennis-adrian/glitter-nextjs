@@ -3,9 +3,15 @@ import { ReservationWithParticipantsAndUsersAndStandAndCollaborators } from "@/a
 import { UpcomingFestivalCard } from "@/app/components/organisms/upcoming-festival";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { profileHasReservationMade } from "@/app/helpers/next_event";
+import { fetchFestivalActivitiesByFestivalId } from "@/app/lib/festivals/actions";
+import { FestivalActivity } from "@/app/lib/festivals/definitions";
 import { getActiveFestival } from "@/app/lib/festivals/helpers";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import { ExternalLinkIcon } from "lucide-react";
+import {
+	ArrowRightIcon,
+	CircleAlertIcon,
+	ExternalLinkIcon,
+} from "lucide-react";
 import { notFound } from "next/navigation";
 
 export default async function Page() {
@@ -19,6 +25,7 @@ export default async function Page() {
 	}
 
 	let isProfileInActiveFestival = false;
+	let festivalActivities: FestivalActivity[] = [];
 
 	if (activeFestival) {
 		isProfileInActiveFestival = profileHasReservationMade(
@@ -28,7 +35,13 @@ export default async function Page() {
 		validReservations = await fetchValidReservationsByFestival(
 			activeFestival.id,
 		);
+		festivalActivities = await fetchFestivalActivitiesByFestivalId(
+			activeFestival?.id,
+		);
 	}
+	const bestStandActivity = festivalActivities.find(
+		(activity) => activity.type === "best_stand",
+	);
 
 	const confirmedReservationInActiveFestival = validReservations.find(
 		(reservation) =>
@@ -57,6 +70,26 @@ export default async function Page() {
 									Subir imágenes
 									<ExternalLinkIcon className="w-4 h-4 ml-2" />
 								</RedirectButton>
+							</div>
+						)}
+						{bestStandActivity && (
+							<div className="flex items-start justify-start gap-2 md:gap-4 bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800">
+								<CircleAlertIcon className="w-6 h-6 text-amber-500 shrink-0" />
+								<div>
+									<p className="text-sm text-amber-800 flex-1">
+										Ya podés votar por tu stand favorito en la actividad de{" "}
+										<strong>Iconic Stand</strong>
+									</p>
+									<RedirectButton
+										href={`/profiles/${currentProfile.id}/festivals/${activeFestival.id}/activity/${bestStandActivity.id}/voting`}
+										className="text-current hover:text-current mt-2 mx-auto"
+										variant="outline"
+										size="sm"
+									>
+										Ir a la votación
+										<ArrowRightIcon className="w-4 h-4 ml-2" />
+									</RedirectButton>
+								</div>
 							</div>
 						)}
 						<UpcomingFestivalCard
