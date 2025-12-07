@@ -105,6 +105,7 @@ export default function BestStandActivityVoting({
 					open={isParticipantsModalOpen}
 					variant={selectedVariant}
 					reservations={reservations}
+					participants={getValidParticipantsForVariant(selectedVariant)}
 					onVotingSuccess={() => {
 						setIsParticipantsModalOpen(false);
 						setSelectedVariant(null);

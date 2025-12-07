@@ -3,8 +3,13 @@
 import { NewFestivalActivityVote } from "@/app/lib/festival_activites/definitions";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import { db } from "@/db";
-import { festivalActivities, festivalActivityVotes } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import {
+	festivalActivities,
+	festivalActivityVotes,
+	reservationParticipants,
+	standReservations,
+} from "@/db/schema";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export const fetchFestivalActivity = async (
@@ -58,6 +63,10 @@ export const addFestivalActivityVote = async (
 ) => {
 	try {
 		await db.transaction(async (tx) => {
+			if (!vote.standId) {
+				throw new Error("Stand ID is required");
+			}
+
 			const existingVote = await tx.query.festivalActivityVotes.findFirst({
 				where: and(
 					eq(festivalActivityVotes.activityVariantId, vote.activityVariantId),
