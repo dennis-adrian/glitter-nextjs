@@ -22,6 +22,7 @@ type ConfirmVoteModalProps = {
 	variantId: number;
 	onOpenChange: (open: boolean) => void;
 	onVotingChange: (voting: boolean) => void;
+	onVotingSuccess: () => void;
 };
 
 export default function ConfirmVoteModal({
@@ -31,6 +32,7 @@ export default function ConfirmVoteModal({
 	variantId,
 	onOpenChange,
 	onVotingChange,
+	onVotingSuccess,
 }: ConfirmVoteModalProps) {
 	const addVote = async () => {
 		onVotingChange(true);
@@ -42,7 +44,7 @@ export default function ConfirmVoteModal({
 		});
 
 		if (res.success) {
-			onOpenChange(false);
+			onVotingSuccess();
 			toast.success(res.message);
 		} else {
 			toast.error(res.message);
@@ -65,9 +67,7 @@ export default function ConfirmVoteModal({
 					</p>
 				</div>
 				<AlertDialogFooter>
-					<AlertDialogCancel onClick={() => onOpenChange(false)}>
-						Cancelar
-					</AlertDialogCancel>
+					<AlertDialogCancel>Cancelar</AlertDialogCancel>
 					<AlertDialogAction onClick={addVote}>Votar</AlertDialogAction>
 				</AlertDialogFooter>
 			</AlertDialogContent>

@@ -60,3 +60,10 @@ export function mapStandsAndParticipantsToVotingItem(
 		(votingItem): votingItem is StandVotingItem => votingItem !== null,
 	);
 }
+
+export function hasParticipantVotedForVariant(
+	variant: ActivityDetailsWithParticipants,
+	voterId: number,
+) {
+	return variant.votes.some((vote) => vote.voterId === voterId);
+}

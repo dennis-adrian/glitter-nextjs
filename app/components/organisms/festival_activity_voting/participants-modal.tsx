@@ -11,6 +11,7 @@ import { Button } from "@/app/components/ui/button";
 import {
 	DrawerDialog,
 	DrawerDialogContent,
+	DrawerDialogFooter,
 	DrawerDialogHeader,
 	DrawerDialogTitle,
 } from "@/app/components/ui/drawer-dialog";
@@ -27,6 +28,7 @@ type ParticipantsModalProps = {
 	variant: ActivityDetailsWithParticipants;
 	reservations: ReservationWithParticipantsAndUsersAndStand[];
 	onOpenChange: (open: boolean) => void;
+	onVotingSuccess: () => void;
 };
 
 export default function ParticipantsModal({
@@ -35,6 +37,7 @@ export default function ParticipantsModal({
 	variant,
 	reservations,
 	onOpenChange,
+	onVotingSuccess,
 }: ParticipantsModalProps) {
 	const [selectedVotingItem, setSelectedVotingItem] =
 		useState<StandVotingItem | null>(null);
@@ -46,14 +49,6 @@ export default function ParticipantsModal({
 		reservations,
 	);
 
-	// TODO: This should be removed when opening the PR
-	const mockParticipants = [
-		...standsWithParticipantProofs,
-		...standsWithParticipantProofs,
-		...standsWithParticipantProofs,
-		...standsWithParticipantProofs,
-		...standsWithParticipantProofs,
-	];
 	return (
 		<DrawerDialog open={open} onOpenChange={onOpenChange}>
 			<DrawerDialogContent>
@@ -64,7 +59,7 @@ export default function ParticipantsModal({
 				</DrawerDialogHeader>
 				<div className="relative">
 					<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3 p-3">
-						{mockParticipants.map((participant, index) => {
+						{standsWithParticipantProofs.map((participant, index) => {
 							/**
 							 * In best stand activity, only one image is allowed per participant.
 							 */
@@ -114,13 +109,21 @@ export default function ParticipantsModal({
 						currentProfile={currentProfile}
 						open={!!selectedVotingItem}
 						onOpenChange={(open) => {
-							setSelectedVotingItem(null);
+							if (!open) {
+								setSelectedVotingItem(null);
+							}
 						}}
 						onVotingChange={setIsVoting}
+						onVotingSuccess={onVotingSuccess}
 						standId={selectedVotingItem.standId}
 						variantId={variant.id}
 					/>
 				)}
+				<DrawerDialogFooter className="sticky bottom-0 bg-card border-t">
+					<Button variant="outline" onClick={() => onOpenChange(false)}>
+						Cerrar
+					</Button>
+				</DrawerDialogFooter>
 			</DrawerDialogContent>
 		</DrawerDialog>
 	);
