@@ -58,18 +58,16 @@ export const fetchActivityVariantVotes = async (variantId: number) => {
 	}
 };
 
-export const addFestivalActivityVote = async (
-	vote: NewFestivalActivityVote,
-) => {
+export const addFestivalActivityVote = async (vote: NewFestivalActivityVote) => {
+	if (!vote.standId) {
+		return {
+			success: false,
+			message: "El stand no existe",
+		};
+	}
+
 	try {
 		await db.transaction(async (tx) => {
-			if (!vote.standId) {
-				return {
-					success: false,
-					message: "El stand no existe",
-				};
-			}
-
 			const existingVote = await tx.query.festivalActivityVotes.findFirst({
 				where: and(
 					eq(festivalActivityVotes.activityVariantId, vote.activityVariantId),

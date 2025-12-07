@@ -77,7 +77,7 @@ export default async function Page() {
 								<CircleAlertIcon className="w-6 h-6 text-amber-500 shrink-0" />
 								<div>
 									<p className="text-sm text-amber-800 flex-1">
-										Ya puedes votar por tu stand favorito en la actividad de{" "}
+										Ya podés votar por tu stand favorito en la actividad de{" "}
 										<strong>Iconic Stand</strong>
 									</p>
 									<RedirectButton

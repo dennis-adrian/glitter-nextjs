@@ -25,7 +25,7 @@ export default async function VotingPage({ params }: VotingPageProps) {
 	const currentProfile = await getCurrentUserProfile();
 	if (!currentProfile) return notFound();
 
-	await protectRoute(currentProfile || undefined, profileId);
+	await protectRoute(currentProfile, profileId);
 
 	const activity = await fetchFestivalActivity(activityId);
 	const festivalReservations =
