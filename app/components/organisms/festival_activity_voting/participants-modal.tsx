@@ -59,7 +59,10 @@ export default function ParticipantsModal({
 			<DrawerDialogContent>
 				<DrawerDialogHeader>
 					<DrawerDialogTitle>
-						Participantes de {getCategoryLabel(variant.category!)}
+						Participantes de{" "}
+						{variant.category
+							? getCategoryLabel(variant.category)
+							: "Sin categoría"}
 					</DrawerDialogTitle>
 				</DrawerDialogHeader>
 				<div className="relative">

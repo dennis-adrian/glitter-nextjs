@@ -54,7 +54,7 @@ export const fetchActivityVariantVotes = async (variantId: number) => {
 		});
 	} catch (error) {
 		console.error("Error fetching activity variant votes", error);
-		return;
+		return [];
 	}
 };
 
@@ -64,7 +64,10 @@ export const addFestivalActivityVote = async (
 	try {
 		await db.transaction(async (tx) => {
 			if (!vote.standId) {
-				throw new Error("Stand ID is required");
+				return {
+					success: false,
+					message: "El stand no existe",
+				};
 			}
 
 			const existingVote = await tx.query.festivalActivityVotes.findFirst({

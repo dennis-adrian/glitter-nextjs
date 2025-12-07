@@ -414,6 +414,7 @@ export async function fetchFestival({
 										proofs: true,
 									},
 								},
+								votes: true,
 							},
 						},
 					},
