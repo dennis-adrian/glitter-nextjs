@@ -11,6 +11,7 @@ import {
 	AlertDialogCancel,
 	AlertDialogFooter,
 } from "@/app/components/ui/alert-dialog";
+import { Button } from "@/app/components/ui/button";
 import { addFestivalActivityVote } from "@/app/lib/festival_activites/actions";
 import { CircleAlertIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -67,8 +68,12 @@ export default function ConfirmVoteModal({
 					</p>
 				</div>
 				<AlertDialogFooter>
-					<AlertDialogCancel>Cancelar</AlertDialogCancel>
-					<AlertDialogAction onClick={addVote}>Votar</AlertDialogAction>
+					<Button variant="outline" onClick={() => onOpenChange(false)}>
+						Cancelar
+					</Button>
+					<Button type="button" onClick={addVote}>
+						Votar
+					</Button>
 				</AlertDialogFooter>
 			</AlertDialogContent>
 		</AlertDialog>
