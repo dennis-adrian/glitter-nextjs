@@ -7,12 +7,13 @@ import {
 	hasParticipantVotedForVariant,
 } from "@/app/components/organisms/festival_activity_voting/utils";
 import { Button } from "@/app/components/ui/button";
-import { addFestivalActivityVote } from "@/app/lib/festival_activites/actions";
+import { Dialog, DialogContent, DialogTitle } from "@/app/components/ui/dialog";
+import { DialogClose } from "@/app/components/ui/dialog";
 import {
 	FestivalActivityWithDetailsAndParticipants,
 	ParticipantWithUserAndProofs,
 } from "@/app/lib/festivals/definitions";
-import { CircleCheckIcon, Loader2Icon, ThumbsUpIcon } from "lucide-react";
+import { CircleCheckIcon, Loader2Icon, ThumbsUpIcon, X } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 
@@ -125,6 +126,33 @@ export default function FestivalStickerVoting({
 					/>
 				)}
 			</div>
+			{selectedImage && (
+				<Dialog
+					open={!!selectedImage}
+					onOpenChange={(open) => !open && setSelectedImage(null)}
+				>
+					<DialogTitle></DialogTitle>
+					<DialogContent className="max-w-7xl p-0 overflow-auto border-none bg-black/95">
+						<DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-10">
+							<X className="h-6 w-6 text-white" />
+							<span className="sr-only">Close</span>
+						</DialogClose>
+						<div className="flex items-center justify-center w-full h-full min-h-[80vh] p-6">
+							<div className="relative">
+								<Image
+									src={selectedImage ?? ""}
+									alt="Vista completa del stand"
+									width={0}
+									height={0}
+									className="w-auto h-auto max-w-full max-h-[85vh] object-contain"
+									sizes="90vw"
+									unoptimized
+								/>
+							</div>
+						</div>
+					</DialogContent>
+				</Dialog>
+			)}
 		</div>
 	);
 }
