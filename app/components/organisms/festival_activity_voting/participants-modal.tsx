@@ -140,8 +140,9 @@ export default function ParticipantsModal({
 						}}
 						onVotingChange={setIsVoting}
 						onVotingSuccess={onVotingSuccess}
-						standId={selectedVotingItem.standId}
 						variantId={variant.id}
+						votableType="stand"
+						votableId={selectedVotingItem.standId}
 					/>
 				)}
 				<DrawerDialogFooter className="sticky bottom-0 bg-card border-t">

@@ -1,5 +1,6 @@
 import Title from "@/app/components/atoms/title";
 import BestStandActivityVoting from "@/app/components/organisms/festival_activity_voting/best-stand-activity-voting";
+import FestivalStickerVoting from "@/app/components/organisms/festival_activity_voting/festival-sticker-voting";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
 import { fetchPublicReservationsByFestivalId } from "@/app/lib/reservations/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
@@ -43,11 +44,10 @@ export default async function VotingPage({ params }: VotingPageProps) {
 				/>
 			)}
 			{activity.type === "festival_sticker" && (
-				<div className="border p-5 rounded-md mx-auto max-w-md">
-					<p className="text-sm text-center">
-						La votación para esta actividad aún no está disponible
-					</p>
-				</div>
+				<FestivalStickerVoting
+					activity={activity}
+					currentProfile={currentProfile}
+				/>
 			)}
 		</div>
 	);

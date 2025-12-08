@@ -42,6 +42,9 @@ export default async function Page() {
 	const bestStandActivity = festivalActivities.find(
 		(activity) => activity.type === "best_stand",
 	);
+	const festivalStickerActivity = festivalActivities.find(
+		(activity) => activity.type === "festival_sticker",
+	);
 
 	const confirmedReservationInActiveFestival = validReservations.find(
 		(reservation) =>
@@ -82,6 +85,26 @@ export default async function Page() {
 									</p>
 									<RedirectButton
 										href={`/profiles/${currentProfile.id}/festivals/${activeFestival.id}/activity/${bestStandActivity.id}/voting`}
+										className="text-current hover:text-current mt-2 mx-auto"
+										variant="outline"
+										size="sm"
+									>
+										Ir a la votación
+										<ArrowRightIcon className="w-4 h-4 ml-2" />
+									</RedirectButton>
+								</div>
+							</div>
+						)}
+						{festivalStickerActivity && (
+							<div className="flex items-start justify-start gap-2 md:gap-4 bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800">
+								<CircleAlertIcon className="w-6 h-6 text-amber-500 shrink-0" />
+								<div>
+									<p className="text-sm text-amber-800 flex-1">
+										Ya podés votar por tu <strong>Sticker Navideño</strong>{" "}
+										favorito
+									</p>
+									<RedirectButton
+										href={`/profiles/${currentProfile.id}/festivals/${activeFestival.id}/activity/${festivalStickerActivity.id}/voting`}
 										className="text-current hover:text-current mt-2 mx-auto"
 										variant="outline"
 										size="sm"
