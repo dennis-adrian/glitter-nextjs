@@ -13,7 +13,14 @@ import {
 	FestivalActivityWithDetailsAndParticipants,
 	ParticipantWithUserAndProofs,
 } from "@/app/lib/festivals/definitions";
-import { CircleCheckIcon, Loader2Icon, ThumbsUpIcon, X } from "lucide-react";
+import {
+	CircleAlertIcon,
+	CircleCheckIcon,
+	Loader2Icon,
+	ThumbsUpIcon,
+	X,
+} from "lucide-react";
+import { DateTime } from "luxon";
 import Image from "next/image";
 import { useState } from "react";
 
@@ -48,6 +55,23 @@ export default function FestivalStickerVoting({
 				<CircleCheckIcon className="w-5 h-5 text-emerald-500" />
 				<p className="text-sm text-emerald-800">
 					Ya votaste por tu sticker navideño favorito
+				</p>
+			</div>
+		);
+	}
+
+	const isVotingOpen =
+		activity.votingStartDate && activity.votingEndDate
+			? DateTime.now() >= DateTime.fromJSDate(activity.votingStartDate) &&
+				DateTime.now() <= DateTime.fromJSDate(activity.votingEndDate)
+			: false;
+
+	if (!isVotingOpen) {
+		return (
+			<div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800">
+				<CircleAlertIcon className="w-5 h-5 text-amber-500" />
+				<p className="text-sm text-amber-800">
+					La votación para el sticker navideño ya finalizó
 				</p>
 			</div>
 		);

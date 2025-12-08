@@ -15,6 +15,7 @@ import {
 } from "@/app/lib/festivals/definitions";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import { CircleAlertIcon, CircleCheckIcon, VoteIcon } from "lucide-react";
+import { DateTime } from "luxon";
 import Image from "next/image";
 import { useState } from "react";
 
@@ -39,6 +40,12 @@ export default function BestStandActivityVoting({
 		setSelectedVariant(variant);
 		setIsParticipantsModalOpen(true);
 	};
+
+	const isVotingOpen =
+		activity.votingStartDate && activity.votingEndDate
+			? DateTime.now() >= DateTime.fromJSDate(activity.votingStartDate) &&
+				DateTime.now() <= DateTime.fromJSDate(activity.votingEndDate)
+			: false;
 
 	return (
 		<div>
@@ -85,21 +92,23 @@ export default function BestStandActivityVoting({
 									</p>
 								</div>
 							) : (
-								<Button
-									className="font-normal"
-									size="sm"
-									variant="outline"
-									onClick={() => handleCategoryClick(variant)}
-								>
-									<VoteIcon className="w-4 h-4 mr-1" />
-									Agregar voto
-								</Button>
+								isVotingOpen && (
+									<Button
+										className="font-normal"
+										size="sm"
+										variant="outline"
+										onClick={() => handleCategoryClick(variant)}
+									>
+										<VoteIcon className="w-4 h-4 mr-1" />
+										Agregar voto
+									</Button>
+								)
 							)}
 						</div>
 					</div>
 				))}
 			</div>
-			{selectedVariant && (
+			{selectedVariant && isVotingOpen && (
 				<ParticipantsModal
 					currentProfile={currentProfile}
 					open={isParticipantsModalOpen}
