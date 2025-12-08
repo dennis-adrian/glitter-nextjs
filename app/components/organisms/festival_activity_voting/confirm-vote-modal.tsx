@@ -19,30 +19,43 @@ import { toast } from "sonner";
 type ConfirmVoteModalProps = {
 	currentProfile: BaseProfile;
 	open: boolean;
-	standId: number;
 	variantId: number;
 	onOpenChange: (open: boolean) => void;
 	onVotingChange: (voting: boolean) => void;
 	onVotingSuccess: () => void;
+	votableType: "stand" | "participant";
+	votableId: number;
 };
 
 export default function ConfirmVoteModal({
 	currentProfile,
 	open,
-	standId,
 	variantId,
 	onOpenChange,
 	onVotingChange,
 	onVotingSuccess,
+	votableType,
+	votableId,
 }: ConfirmVoteModalProps) {
 	const addVote = async () => {
 		onVotingChange(true);
-		const res = await addFestivalActivityVote({
-			activityVariantId: variantId,
-			voterId: currentProfile.id,
-			votableType: "stand",
-			standId: standId,
-		});
+
+		let res;
+		if (votableType === "stand") {
+			res = await addFestivalActivityVote({
+				activityVariantId: variantId,
+				voterId: currentProfile.id,
+				votableType: votableType,
+				standId: votableId,
+			});
+		} else {
+			res = await addFestivalActivityVote({
+				activityVariantId: variantId,
+				voterId: currentProfile.id,
+				votableType: votableType,
+				participantId: votableId,
+			});
+		}
 
 		if (res.success) {
 			onVotingSuccess();

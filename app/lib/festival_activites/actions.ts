@@ -59,10 +59,17 @@ export const fetchActivityVariantVotes = async (variantId: number) => {
 };
 
 export const addFestivalActivityVote = async (vote: NewFestivalActivityVote) => {
-	if (!vote.standId) {
+	if (vote.votableType === "stand" && !vote.standId) {
 		return {
 			success: false,
 			message: "El stand no existe",
+		};
+	}
+
+	if (vote.votableType === "participant" && !vote.participantId) {
+		return {
+			success: false,
+			message: "El participante no existe",
 		};
 	}
 
