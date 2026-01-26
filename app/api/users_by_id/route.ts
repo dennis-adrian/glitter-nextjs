@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     return new Response(
       JSON.stringify({
         message: "Datos inválidos",
-        errors: validatedRequest.error.flatten().fieldErrors,
+        errors: z.treeifyError(validatedRequest.error),
         success: false,
       }),
       {

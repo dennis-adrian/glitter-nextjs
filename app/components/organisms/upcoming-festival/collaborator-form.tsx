@@ -11,20 +11,24 @@ import { toast } from "sonner";
 const FormSchema = z.object({
   name: z
     .string({
-      required_error: "El nombre es requerido",
+        error: (issue) => issue.input === undefined ? "El nombre es requerido" : undefined
     })
-    .min(3, { message: "El nombre debe tener al menos 3 caracteres" }),
+    .min(3, {
+        error: "El nombre debe tener al menos 3 caracteres"
+    }),
   last_name: z
     .string({
-      required_error: "El apellido es requerido",
+        error: (issue) => issue.input === undefined ? "El apellido es requerido" : undefined
     })
-    .min(3, { message: "El apellido debe tener al menos 3 caracteres" }),
+    .min(3, {
+        error: "El apellido debe tener al menos 3 caracteres"
+    }),
   identification_number: z
     .string({
-      required_error: "El número de carnet es requerido",
+        error: (issue) => issue.input === undefined ? "El número de carnet es requerido" : undefined
     })
     .min(5, {
-      message: "El número de carnet debe tener al menos 5 caracteres",
+        error: "El número de carnet debe tener al menos 5 caracteres"
     }),
 });
 

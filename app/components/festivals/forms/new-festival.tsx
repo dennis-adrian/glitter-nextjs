@@ -24,9 +24,9 @@ import {
 
 const FormSchema = z.object({
 	name: z.string().trim().min(2, "El nombre tiene que tener al menos dos letras"),
-	status: z.enum(['draft', 'published', 'active', 'archived']).default('draft'),
-	publicRegistration: z.boolean().default(false),
-	eventDayRegistration: z.boolean().default(false),
+	status: z.enum(['draft', 'published', 'active', 'archived']).prefault('draft'),
+	publicRegistration: z.boolean().prefault(false),
+	eventDayRegistration: z.boolean().prefault(false),
 	festivalType: z.enum([...festivalTypeEnum.enumValues]),
 	dates: z.array(
 		z.object({
@@ -44,7 +44,7 @@ const FormSchema = z.object({
 	description: z.string().trim().optional(),
 	address: z.string().trim().optional(),
 	locationLabel: z.string().trim().optional(),
-	locationUrl: z.string().trim().url().optional().or(z.literal('')),
+	locationUrl: z.url().trim().optional().or(z.literal('')),
 	generalMapUrl: z.string().optional(),
 	mascotUrl: z.string().optional(),
 	illustrationPaymentQrCodeUrl: z.string().optional(),

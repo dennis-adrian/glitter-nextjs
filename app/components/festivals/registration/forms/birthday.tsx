@@ -16,39 +16,44 @@ const FormSchema = z
   .object({
     day: z.coerce
       .number({
-        invalid_type_error: "El día no es válido",
-        required_error: "El día es requerido",
-      })
-      .min(1, { message: "Mes no válido" }),
+          error: (issue) => issue.input === undefined ? "El día es requerido" : "El día no es válido"
+    })
+      .min(1, {
+          error: "Mes no válido"
+    }),
     month: z.coerce
       .number({
-        invalid_type_error: "El mes no es válido",
-        required_error: "El mes es requerido",
-      })
-      .min(1, { message: "Mes no válido" })
-      .max(12, { message: "Mes no válido" }),
+          error: (issue) => issue.input === undefined ? "El mes es requerido" : "El mes no es válido"
+    })
+      .min(1, {
+          error: "Mes no válido"
+    })
+      .max(12, {
+          error: "Mes no válido"
+    }),
     year: z.coerce
       .number({
-        invalid_type_error: "El año no es válido",
-        required_error: "El año es requerido",
-      })
-      .min(1940, { message: "El año no puede ser menor a 1940" }),
+          error: (issue) => issue.input === undefined ? "El año es requerido" : "El año no es válido"
+    })
+      .min(1940, {
+          error: "El año no puede ser menor a 1940"
+    }),
   })
   .superRefine((data, ctx) => {
     const date = DateTime.fromObject(data);
     if (!date.isValid) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "La fecha no es válida",
         path: ["year"],
       });
 
-      return z.NEVER;
+      return;
     }
 
     if (DateTime.now().diff(date, "years").years < 10) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "Un menor de 10 años no puede registrarse",
         path: ["year"],
       });

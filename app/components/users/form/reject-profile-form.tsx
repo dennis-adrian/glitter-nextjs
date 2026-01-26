@@ -14,7 +14,9 @@ type RejectProfileFormProps = {
 };
 
 const FormSchema = z.object({
-  reason: z.string().min(10, { message: "La razón es requerida" }),
+  reason: z.string().min(10, {
+      error: "La razón es requerida"
+}),
 });
 
 export default function RejectProfileForm(props: RejectProfileFormProps) {

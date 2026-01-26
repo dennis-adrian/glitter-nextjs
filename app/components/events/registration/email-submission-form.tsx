@@ -26,13 +26,9 @@ import { Input } from "@/app/components/ui/input";
 import SubmitButton from "@/app/components/simple-submit-button";
 
 const FormSchema = z.object({
-  email: z
-    .string({
-      required_error: "El correo electronico es requerido",
-    })
-    .email({
-      message: "El correo electronico no es valido",
-    }),
+  email: z.email({
+            error: "El correo electronico no es valido"
+        }),
 });
 
 export default function EmailSubmissionForm() {

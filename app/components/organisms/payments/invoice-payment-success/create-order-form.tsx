@@ -24,12 +24,11 @@ import { z } from "zod";
 const FormSchema = z.object({
 	quantity: z
 		.number({
-			required_error: "La cantidad es requerida",
-			invalid_type_error: "La cantidad debe ser un número",
-		})
+            error: (issue) => issue.input === undefined ? "La cantidad es requerida" : "La cantidad debe ser un número"
+        })
 		.min(1, {
-			message: "La cantidad debe ser mayor que 0",
-		}),
+            error: "La cantidad debe ser mayor que 0"
+        }),
 });
 
 type CreateOrderFormProps = {

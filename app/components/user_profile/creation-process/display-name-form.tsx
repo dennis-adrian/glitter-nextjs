@@ -15,12 +15,18 @@ const FormSchema = z.object({
   displayName: z
     .string()
     .trim()
-    .min(2, { message: "El nombre tiene que tener al menos dos letras" }),
+    .min(2, {
+        error: "El nombre tiene que tener al menos dos letras"
+    }),
   bio: z
     .string()
     .trim()
-    .min(10, { message: "La bio/descripción tiene que tener al menos 10 letras" })
-    .max(80, { message: "La bio/descripción no puede tener mas de 80 letras" }),
+    .min(10, {
+        error: "La bio/descripción tiene que tener al menos 10 letras"
+    })
+    .max(80, {
+        error: "La bio/descripción no puede tener mas de 80 letras"
+    }),
 });
 
 type DisplayNameFormProps = {

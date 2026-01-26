@@ -17,11 +17,11 @@ import { z } from "zod";
 const FormSchema = z.object({
   instagram: z
     .string({
-      required_error: "El perfil de Instagram es requerido",
+        error: (issue) => issue.input === undefined ? "El perfil de Instagram es requerido" : undefined
     })
     .trim()
     .min(2, {
-      message: "El nombre de tu usuario de Instagram no puede estar vacío",
+        error: "El nombre de tu usuario de Instagram no puede estar vacío"
     })
     .regex(
       usernameRegex,
@@ -31,14 +31,14 @@ const FormSchema = z.object({
     .string()
     .trim()
     .refine((value) => value === "" || usernameRegex.test(value), {
-      message: "El nombre de usuario no puede tener caracteres especiales",
+        error: "El nombre de usuario no puede tener caracteres especiales"
     })
     .optional(),
   facebook: z
     .string()
     .trim()
     .refine((value) => value === "" || usernameRegex.test(value), {
-      message: "El nombre de usuario no puede tener caracteres especiales",
+        error: "El nombre de usuario no puede tener caracteres especiales"
     })
     .optional(),
 });

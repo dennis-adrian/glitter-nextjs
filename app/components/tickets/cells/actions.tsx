@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
 const FormSchema = z.object({
-  confirmTicket: z.boolean().default(false).optional(),
+  confirmTicket: z.boolean().prefault(false).optional(),
 });
 
 export default function ActionsCell({ ticket }: { ticket: TicketWithVisitor }) {

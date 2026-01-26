@@ -6,8 +6,8 @@ const PaymentSchema = z.object({
   amount: z.number(),
   date: z.coerce.date(),
   invoiceId: z.number(),
-  voucherUrl: z.string().url(),
-  oldVoucherUrl: z.string().url().optional(),
+  voucherUrl: z.url(),
+  oldVoucherUrl: z.url().optional(),
   reservationId: z.number(),
   standId: z.number()
 });

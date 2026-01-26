@@ -19,13 +19,9 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 const FormSchema = z.object({
-  email: z
-    .string({
-      required_error: "El correo electronico es requerido",
-    })
-    .email({
-      message: "El correo electronico no es valido",
-    }),
+  email: z.email({
+            error: "El correo electronico no es valido"
+        }),
 });
 
 type EmailFormProps = {

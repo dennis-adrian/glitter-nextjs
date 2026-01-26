@@ -13,9 +13,11 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 const FormSchema = z.object({
-	name: z.string({ required_error: "El nombre es requerido" }).trim().min(1),
+	name: z.string({
+        error: (issue) => issue.input === undefined ? "El nombre es requerido" : undefined
+    }).trim().min(1),
 	description: z.string().trim().optional(),
-	imageUrl: z.string().trim().url(),
+	imageUrl: z.url().trim(),
 	festivalId: z.coerce.number().int().positive(),
 });
 

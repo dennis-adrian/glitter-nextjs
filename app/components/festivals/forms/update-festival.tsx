@@ -29,10 +29,10 @@ import { slugify } from "@/app/lib/formatters";
 
 const FormSchema = z.object({
 	name: z.string().min(1, "Required"),
-	status: z.enum(['draft', 'published', 'active', 'archived']).default('draft'),
-	mapsVersion: z.enum(['v1', 'v2', 'v3']).default('v1'),
-	publicRegistration: z.boolean().default(false),
-	eventDayRegistration: z.boolean().default(false),
+	status: z.enum(['draft', 'published', 'active', 'archived']).prefault('draft'),
+	mapsVersion: z.enum(['v1', 'v2', 'v3']).prefault('v1'),
+	publicRegistration: z.boolean().prefault(false),
+	eventDayRegistration: z.boolean().prefault(false),
 	festivalType: z.enum([...festivalTypeEnum.enumValues]),
 	dates: z.array(
 		z.object({
@@ -51,7 +51,7 @@ const FormSchema = z.object({
 	description: z.string().optional(),
 	address: z.string().optional(),
 	locationLabel: z.string().optional(),
-	locationUrl: z.string().url().optional().or(z.literal('')),
+	locationUrl: z.url().optional().or(z.literal('')),
 	generalMapUrl: z.string().optional(),
 	mascotUrl: z.string().optional(),
 	illustrationPaymentQrCodeUrl: z.string().optional(),

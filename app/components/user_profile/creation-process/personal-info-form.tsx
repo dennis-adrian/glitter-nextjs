@@ -22,26 +22,28 @@ const FormSchema = z
 			minAgeMessage: "Debes tener al menos 16 años para participar de nuestros eventos",
 		}),
 		gender: z.enum([...genderEnum.enumValues], {
-			required_error: "El género es requerido",
-		}),
+            error: (issue) => issue.input === undefined ? "El género es requerido" : undefined
+        }),
 		country: z
 			.string({
-				required_error: "El país es requerido",
-			})
+                error: (issue) => issue.input === undefined ? "El país es requerido" : undefined
+            })
 			.trim()
-			.min(2, { message: "El país es requerido" }),
+			.min(2, {
+                error: "El país es requerido"
+            }),
 		state: z.string().trim().optional(),
 	})
 	.superRefine((data, ctx) => {
 		if (data.country === "BO" && !data.state) {
 			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
+				code: "custom",
 				message: "El departamento es requerido",
 				path: ["state"],
 			});
-			return false;
+			return;
 		}
-		return true;
+		return;
 	});
 
 type PersonalInfoFormProps = {

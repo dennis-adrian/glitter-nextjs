@@ -27,20 +27,20 @@ const FormSchema = z.object({
 		minAge: 10,
 		minAgeMessage: "Debes tener al menos 10 años para registrarte",
 	}),
-	email: z
-		.string({
-			required_error: "El correo electronico es requerido",
-		})
-		.email({
-			message: "El correo electronico no es valido",
-		}),
+	email: z.email({
+                error: "El correo electronico no es valido"
+            }),
 	firstName: z
 		.string()
-		.min(2, { message: "El nombre tiene que tener al menos dos letras" }),
+		.min(2, {
+            error: "El nombre tiene que tener al menos dos letras"
+        }),
 	gender: z.enum([...genderEnum.enumValues]),
 	lastName: z
 		.string()
-		.min(2, { message: "El apellido tiene que tener al menos dos letras" }),
+		.min(2, {
+            error: "El apellido tiene que tener al menos dos letras"
+        }),
 	phoneNumber: phoneValidator(),
 });
 

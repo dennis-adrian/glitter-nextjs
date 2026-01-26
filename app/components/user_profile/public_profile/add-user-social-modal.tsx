@@ -29,14 +29,16 @@ import { useState } from "react";
 
 const FormSchema = z.object({
 	type: z.enum(userSocialTypeEnum.enumValues, {
-		required_error: "La plataforma es requerida",
-	}),
+        error: (issue) => issue.input === undefined ? "La plataforma es requerida" : undefined
+    }),
 	username: z
-		.string({ required_error: "El nombre de usuario es requerido" })
+		.string({
+            error: (issue) => issue.input === undefined ? "El nombre de usuario es requerido" : undefined
+        })
 		.trim()
 		.min(2, {
-			message: "El nombre de usuario no puede estar vacío",
-		})
+            error: "El nombre de usuario no puede estar vacío"
+        })
 		.regex(
 			usernameRegex,
 			"El nombre de usuario no puede tener caracteres especiales",

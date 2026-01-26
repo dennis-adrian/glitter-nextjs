@@ -19,9 +19,11 @@ import { z } from "zod";
 const FormSchema = z.object({
 	infractionType: z
 		.string({
-			required_error: "El tipo de infracción requerido",
-		})
-		.min(1, { message: "El tipo de infracción requerido" }),
+            error: (issue) => issue.input === undefined ? "El tipo de infracción requerido" : undefined
+        })
+		.min(1, {
+            error: "El tipo de infracción requerido"
+        }),
 	userGaveNotice: z.boolean(),
 });
 

@@ -283,10 +283,14 @@ const FormSchema = z.object({
   id: z.number(),
   firstName: z
     .string()
-    .min(2, { message: "El nombre tiene que tener al menos dos letras" }),
+    .min(2, {
+        error: "El nombre tiene que tener al menos dos letras"
+    }),
   lastName: z
     .string()
-    .min(2, { message: "El apellido tiene que tener al menos dos letras" }),
+    .min(2, {
+        error: "El apellido tiene que tener al menos dos letras"
+    }),
 });
 
 export type State =
@@ -312,7 +316,7 @@ export async function updateProfile(
 
   if (!validateFields.success) {
     return {
-      errors: validateFields.error.flatten().fieldErrors,
+      errors: z.treeifyError(validateFields.error),
       message: "Error de validación",
     };
   }

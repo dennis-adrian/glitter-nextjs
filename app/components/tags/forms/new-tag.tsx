@@ -12,9 +12,13 @@ import { z } from "zod";
 
 const FormSchema = z.object({
   label: z
-    .string({ required_error: "La etiqueta es requerida" })
+    .string({
+        error: (issue) => issue.input === undefined ? "La etiqueta es requerida" : undefined
+    })
     .trim()
-    .min(3, { message: "La etiqueta es requerida" }),
+    .min(3, {
+        error: "La etiqueta es requerida"
+    }),
   category: z.enum(userCategoryEnum.enumValues),
 });
 

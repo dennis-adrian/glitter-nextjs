@@ -12,11 +12,15 @@ const FormSchema = z.object({
   firstName: z
     .string()
     .trim()
-    .min(2, { message: "El nombre tiene que tener al menos dos letras" }),
+    .min(2, {
+        error: "El nombre tiene que tener al menos dos letras"
+    }),
   lastName: z
     .string()
     .trim()
-    .min(2, { message: "El apellido tiene que tener al menos dos letras" }),
+    .min(2, {
+        error: "El apellido tiene que tener al menos dos letras"
+    }),
 });
 
 type NameFormProps = {

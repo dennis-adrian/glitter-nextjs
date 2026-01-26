@@ -26,8 +26,12 @@ import SubmitProductOrderButton from "@/app/components/molecules/submit-product-
 const FormSchema = z.object({
 	itemQuantity: z.coerce
 		.number()
-		.min(1, { message: "La cantidad mínima es 1" })
-		.max(5, { message: "La cantidad máxima es 5" }),
+		.min(1, {
+            error: "La cantidad mínima es 1"
+        })
+		.max(5, {
+            error: "La cantidad máxima es 5"
+        }),
 });
 
 type StoreItemQuantityInputProps = {

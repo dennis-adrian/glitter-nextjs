@@ -12,9 +12,13 @@ import { z } from "zod";
 
 const FormSchema = z.object({
   label: z
-    .string({ required_error: "La subcategoría es requerida" })
+    .string({
+        error: (issue) => issue.input === undefined ? "La subcategoría es requerida" : undefined
+    })
     .trim()
-    .min(3, { message: "La subcategoría es requerida" }),
+    .min(3, {
+        error: "La subcategoría es requerida"
+    }),
   category: z.enum(userCategoryEnum.enumValues),
 });
 
