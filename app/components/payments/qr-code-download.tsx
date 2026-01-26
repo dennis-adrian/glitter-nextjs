@@ -8,7 +8,7 @@ import { DownloadIcon } from "lucide-react";
 
 export default function QrCodeDownload({ qrCodeUrl }: { qrCodeUrl?: string }) {
 	const [downloading, setDownloading] = useState(false);
-	const qrCodeRef = useRef(null);
+	const qrCodeRef = useRef<HTMLImageElement>(null);
 
 	if (!qrCodeUrl)
 		return (

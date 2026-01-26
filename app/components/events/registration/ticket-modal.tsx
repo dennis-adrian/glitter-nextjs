@@ -29,7 +29,7 @@ export default function TicketModal({
 }) {
   const [showDownloadButton, setShowDownloadButton] = useState(false);
   const isDesktop = useMediaQuery("(min-width: 768px)");
-  const ticketRef = useRef(null);
+  const ticketRef = useRef<HTMLDivElement>(null);
   const visitorTickets = getVisitorFestivalTickets(visitor, festival);
   const eventLogoUrl =
     festival.festivalType === "glitter"
