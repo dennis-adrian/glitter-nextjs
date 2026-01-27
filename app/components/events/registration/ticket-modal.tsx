@@ -78,7 +78,7 @@ export default function TicketModal({
               />
             </div>
             <h1
-              className={`${junegull.className} text-shadow text-5xl text-white shadow-blue-950 sm:text-6xl`}
+              className={`${junegull.className} text-shadow-lg text-5xl text-white shadow-blue-950 sm:text-6xl`}
             >
               Entrada
             </h1>

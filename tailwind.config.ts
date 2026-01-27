@@ -1,13 +1,7 @@
 import type { Config } from "tailwindcss";
-import plugin from "tailwindcss/plugin";
 
 const config = {
-	content: [
-		"./pages/**/*.{ts,tsx}",
-		"./components/**/*.{ts,tsx}",
-		"./app/**/*.{ts,tsx}",
-		"./src/**/*.{ts,tsx}",
-	],
+	content: [],
 	prefix: "",
 	theme: {
 		container: {
@@ -173,26 +167,8 @@ const config = {
 				sans: ["var(--font-inter)"],
 				isidora: ["var(--font-isidora)", "sans-serif"],
 			},
-			textShadow: {
-				sm: "3px 3px 3px var(--tw-shadow-color)",
-				DEFAULT: "6px 6px 3px var(--tw-shadow-color)",
-				lg: "8px 8px 4px var(--tw-shadow-color)",
-			},
 		},
 	},
-	plugins: [
-		require("tailwindcss-animate"),
-		plugin(function ({ matchUtilities, theme }) {
-			matchUtilities(
-				{
-					"text-shadow": (value) => ({
-						textShadow: value,
-					}),
-				},
-				{ values: theme("textShadow") },
-			);
-		}),
-	],
 } satisfies Config;
 
 export default config;
