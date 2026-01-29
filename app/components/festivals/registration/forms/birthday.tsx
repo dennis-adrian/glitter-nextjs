@@ -1,3 +1,5 @@
+"use client";
+
 import {
 	getDaysOptions,
 	getMonthsOptions,
@@ -15,38 +17,38 @@ import { z } from "zod";
 const FormSchema = z
 	.object({
 		day: z
-			.number({
+			.string({
 				error: (issue) =>
-					issue.input === undefined
-						? "El día es requerido"
-						: "El día no es válido",
+					issue.input === undefined ? "El día es requerido" : undefined,
 			})
-			.min(1, {
-				error: "El día no es válido",
-			}),
+			.transform((val) => Number(val))
+			.pipe(
+				z.number().min(1, {
+					error: "El día no es válido",
+				}),
+			),
 		month: z
-			.number({
+			.string({
 				error: (issue) =>
-					issue.input === undefined
-						? "El mes es requerido"
-						: "El mes no es válido",
+					issue.input === undefined ? "El mes es requerido" : undefined,
 			})
-			.min(1, {
-				error: "El mes no es válido",
-			})
-			.max(12, {
-				error: "El mes no es válido",
-			}),
+			.transform((val) => Number(val))
+			.pipe(
+				z.number().min(1, {
+					error: "El mes no es válido",
+				}),
+			),
 		year: z
-			.number({
+			.string({
 				error: (issue) =>
-					issue.input === undefined
-						? "El año es requerido"
-						: "El año no es válido",
+					issue.input === undefined ? "El año es requerido" : undefined,
 			})
-			.min(1920, {
-				error: "El año no puede ser menor a 1920",
-			}),
+			.transform((val) => Number(val))
+			.pipe(
+				z.number().min(1920, {
+					error: "El año no es válido",
+				}),
+			),
 	})
 	.superRefine((data, ctx) => {
 		const date = DateTime.fromObject(data);
@@ -74,12 +76,16 @@ type BirthdayFormProps = {
 };
 
 export default function BirthdayForm(props: BirthdayFormProps) {
-	const form = useForm({
+	const form = useForm<
+		z.input<typeof FormSchema>,
+		unknown,
+		z.output<typeof FormSchema>
+	>({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
-			day: new Date().getDate(),
-			month: new Date().getMonth() + 1,
-			year: new Date().getFullYear() - 2,
+			day: new Date().getDate().toString(),
+			month: (new Date().getMonth() + 1).toString(),
+			year: DateTime.now().minus({ years: 10 }).year.toString(),
 		},
 	});
 
@@ -127,7 +133,7 @@ export default function BirthdayForm(props: BirthdayFormProps) {
 						label="Día"
 						name="day"
 						placeholder="DD"
-						options={getDaysOptions(month, year)}
+						options={getDaysOptions(Number(month), Number(year))}
 					/>
 				</div>
 				<SubmitButton
