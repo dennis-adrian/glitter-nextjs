@@ -70,7 +70,7 @@ export default function EnrollBestStandForm({
 	activityVariantForProfile,
 }: EnrollBestStandFormProps) {
 	const router = useRouter();
-	const form = useForm<z.infer<typeof FormSchema>>({
+	const form = useForm({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
 			consent: false,

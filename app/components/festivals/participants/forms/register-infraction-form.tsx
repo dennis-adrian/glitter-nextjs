@@ -40,7 +40,7 @@ export default function RegisterInfractionForm({
 	infractionTypes,
 	onSuccess,
 }: RegisterInfractionFormProps) {
-	const form = useForm<z.infer<typeof FormSchema>>({
+	const form = useForm({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
 			userGaveNotice: false,

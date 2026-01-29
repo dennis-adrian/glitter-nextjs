@@ -35,7 +35,7 @@ export default function TermsForm({
   festival: FestivalBase;
 }) {
   const router = useRouter();
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       consent: false,

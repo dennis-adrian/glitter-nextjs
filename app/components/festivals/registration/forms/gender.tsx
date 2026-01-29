@@ -26,10 +26,10 @@ type GenderFormProps = {
   onSuccess: (visitor: VisitorWithTickets) => void;
 };
 export default function GenderForm(props: GenderFormProps) {
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
-      gender: props.visitor.gender,
+      gender: props.visitor.gender ?? "other",
     },
   });
 

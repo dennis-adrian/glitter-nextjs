@@ -39,7 +39,7 @@ export default function PublicProfileForm({
 	profile: ProfileType;
 	onSuccess: () => void;
 }) {
-	const form = useForm<z.infer<typeof FormSchema>>({
+	const form = useForm({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
 			bio: profile.bio || "",

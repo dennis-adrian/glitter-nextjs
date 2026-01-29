@@ -37,7 +37,7 @@ export function ParticipantProductsUpload({
 	const [showProductModal, setShowProductModal] = useState(false);
 	const [currentImage, setCurrentImage] = useState<File | null>(null);
 	const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
-	const form = useForm<z.infer<typeof UploadProductFormSchema>>({
+	const form = useForm({
 		resolver: zodResolver(UploadProductFormSchema),
 		defaultValues: {
 			name: "",

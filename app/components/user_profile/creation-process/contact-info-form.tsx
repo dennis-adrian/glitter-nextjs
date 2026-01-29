@@ -26,7 +26,7 @@ type ContactInfoFormProps = {
 };
 
 export default function ContactInfoForm(props: ContactInfoFormProps) {
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       firstName: props.profile.firstName || "",

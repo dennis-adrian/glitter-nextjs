@@ -10,7 +10,6 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import SubmitButton from "../simple-submit-button";
 import { Button } from "../ui/button";
 import {
 	Form,
@@ -24,14 +23,14 @@ import { Input } from "../ui/input";
 import SubmitProductOrderButton from "@/app/components/molecules/submit-product-order-button";
 
 const FormSchema = z.object({
-	itemQuantity: z.coerce
+	itemQuantity: z
 		.number()
 		.min(1, {
-            error: "La cantidad mínima es 1"
-        })
+			error: "La cantidad mínima es 1",
+		})
 		.max(5, {
-            error: "La cantidad máxima es 5"
-        }),
+			error: "La cantidad máxima es 5",
+		}),
 });
 
 type StoreItemQuantityInputProps = {
@@ -44,7 +43,7 @@ export default function StoreItemQuantityInput({
 	user,
 }: StoreItemQuantityInputProps) {
 	const router = useRouter();
-	const form = useForm<z.infer<typeof FormSchema>>({
+	const form = useForm({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
 			itemQuantity: 1,
@@ -53,7 +52,8 @@ export default function StoreItemQuantityInput({
 
 	const handleAddItem = (e: React.MouseEvent<HTMLButtonElement>) => {
 		e.preventDefault();
-		form.setValue("itemQuantity", form.getValues("itemQuantity") + 1);
+		const currentValue = form.getValues("itemQuantity");
+		form.setValue("itemQuantity", currentValue + 1);
 	};
 
 	const handleRemoveItem = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -118,7 +118,8 @@ export default function StoreItemQuantityInput({
 								</div>
 								<FormMessage />
 								<span className="text-sm">
-									Subtotal Bs{getProductPriceAtPurchase(product) * field.value}
+									Subtotal Bs
+									{getProductPriceAtPurchase(product) * field.value}
 								</span>
 							</FormItem>
 						)}

@@ -53,7 +53,7 @@ export default function AddUserSocialModal({
 	profile,
 }: AddUserSocialModalProps) {
 	const [showModal, setShowModal] = useState(false);
-	const form = useForm<z.infer<typeof FormSchema>>({
+	const form = useForm({
 		resolver: zodResolver(FormSchema),
 	});
 

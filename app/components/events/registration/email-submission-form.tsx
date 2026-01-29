@@ -33,7 +33,7 @@ const FormSchema = z.object({
 
 export default function EmailSubmissionForm() {
   const router = useRouter();
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       email: "",

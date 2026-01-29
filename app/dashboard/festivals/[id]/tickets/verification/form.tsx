@@ -21,7 +21,7 @@ export default function VerifyTicketForm({
 }: {
   festivalId: number;
 }) {
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       ticketCode: "",

@@ -20,7 +20,7 @@ const FormSchema = z.object({
 });
 
 export default function RejectProfileForm(props: RejectProfileFormProps) {
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
   });
 

@@ -28,19 +28,15 @@ const FormSchema = z.object({
 		minAgeMessage: "Debes tener al menos 10 años para registrarte",
 	}),
 	email: z.email({
-                error: "El correo electronico no es valido"
-            }),
-	firstName: z
-		.string()
-		.min(2, {
-            error: "El nombre tiene que tener al menos dos letras"
-        }),
+		error: "El correo electronico no es valido",
+	}),
+	firstName: z.string().min(2, {
+		error: "El nombre tiene que tener al menos dos letras",
+	}),
 	gender: z.enum([...genderEnum.enumValues]),
-	lastName: z
-		.string()
-		.min(2, {
-            error: "El apellido tiene que tener al menos dos letras"
-        }),
+	lastName: z.string().min(2, {
+		error: "El apellido tiene que tener al menos dos letras",
+	}),
 	phoneNumber: phoneValidator(),
 });
 
@@ -52,7 +48,7 @@ export default function VisitorRegistrationForm({
 	visitor: VisitorBase | undefined | null;
 }) {
 	const router = useRouter();
-	const form = useForm<z.infer<typeof FormSchema>>({
+	const form = useForm({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
 			birthdate:
@@ -65,7 +61,7 @@ export default function VisitorRegistrationForm({
 		},
 	});
 
-	const action = form.handleSubmit(async (data: z.infer<typeof FormSchema>) => {
+	const action = form.handleSubmit(async (data) => {
 		const stringBirthdate = dateToString(data.birthdate);
 		const birthdate = stringToUTCDate(stringBirthdate);
 

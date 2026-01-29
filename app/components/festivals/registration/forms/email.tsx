@@ -29,7 +29,7 @@ type EmailFormProps = {
 };
 
 export default function EmailForm(props: EmailFormProps) {
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       email: "",

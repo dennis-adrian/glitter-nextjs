@@ -48,7 +48,7 @@ type UserSocialsFormProps = {
 };
 
 export default function UserSocialsForm(props: UserSocialsFormProps) {
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
   });
 

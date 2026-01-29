@@ -28,7 +28,7 @@ type NameFormProps = {
 };
 
 export default function NameForm(props: NameFormProps) {
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       firstName: "",

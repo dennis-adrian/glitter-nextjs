@@ -36,7 +36,7 @@ type DisplayNameFormProps = {
 };
 
 export default function DisplayNameForm(props: DisplayNameFormProps) {
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       displayName: props.profile.displayName || "",

@@ -13,11 +13,9 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 const FormSchema = z.object({
-	name: z.string({
-        error: (issue) => issue.input === undefined ? "El nombre es requerido" : undefined
-    }).trim().min(1),
+	name: z.string().trim().min(1, "El nombre es requerido"),
 	description: z.string().trim().optional(),
-	imageUrl: z.url().trim(),
+	imageUrl: z.url(),
 	festivalId: z.coerce.number().int().positive(),
 });
 
@@ -27,7 +25,7 @@ type BadgesFormProps = {
 
 export default function BadgesForm({ festivalsOptions }: BadgesFormProps) {
 	const router = useRouter();
-	const form = useForm<z.infer<typeof FormSchema>>({
+	const form = useForm({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
 			name: "",

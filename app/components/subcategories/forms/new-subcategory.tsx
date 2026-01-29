@@ -26,11 +26,11 @@ type NewSubcategoryFormProps = {
   onSuccess: () => void;
 };
 export default function NewSubcategoryForm(props: NewSubcategoryFormProps) {
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       label: "",
-      category: "illustration",
+      category: "illustration" as const,
     },
   });
 

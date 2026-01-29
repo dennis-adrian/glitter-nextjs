@@ -39,7 +39,7 @@ export default function CreateOrderForm(props: CreateOrderFormProps) {
 	const { product, profile } = props;
 	const [subtotal, setSubtotal] = useState(product.price);
 	const router = useRouter();
-	const form = useForm<z.infer<typeof FormSchema>>({
+	const form = useForm({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
 			quantity: 1,

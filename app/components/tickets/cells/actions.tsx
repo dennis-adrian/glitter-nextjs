@@ -14,7 +14,7 @@ const FormSchema = z.object({
 });
 
 export default function ActionsCell({ ticket }: { ticket: TicketWithVisitor }) {
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       confirmTicket: ticket.status === "checked_in",
