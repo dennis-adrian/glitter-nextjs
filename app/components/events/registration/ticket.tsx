@@ -9,7 +9,7 @@ import { getTicketCode } from "@/app/lib/tickets/utils";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 type TicketProps = {
-  ticketRef?: React.RefObject<HTMLDivElement>;
+  ticketRef?: React.RefObject<HTMLDivElement | null>;
   ticket: TicketBase;
   visitor: VisitorWithTickets;
   festival: FestivalBase;

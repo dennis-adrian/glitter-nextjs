@@ -616,13 +616,15 @@ export async function updateFestivalStatus(festival: FestivalBase) {
 	return { success: true, message: "Festival actualizado con éxito" };
 }
 
-export async function updateFestivalRegistration(festival: FestivalBase) {
+export async function updateFestivalRegistration(
+	publicRegistrationValue: FestivalBase["publicRegistration"],
+	festivalId: FestivalBase["id"],
+) {
 	try {
-		const { publicRegistration } = festival;
 		const [updatedFestival] = await db
 			.update(festivals)
-			.set({ publicRegistration })
-			.where(eq(festivals.id, festival.id))
+			.set({ publicRegistration: publicRegistrationValue })
+			.where(eq(festivals.id, festivalId))
 			.returning({ festivalId: festivals.id });
 
 		const festivalWithDates = await fetchFestivalWithDates(
@@ -654,7 +656,7 @@ export async function queueEmails<T>(
 	callback: (entity: T, festival: FestivalWithDates) => Promise<void>,
 ) {
 	let counter = 0;
-	for (let entity of entities) {
+	for (const entity of entities) {
 		if (counter % 10 === 0) {
 			await new Promise((resolve) => setTimeout(resolve, 1000));
 		}
@@ -851,4 +853,3 @@ export async function fetchEnrolledParticipants(
 		return [];
 	}
 }
-

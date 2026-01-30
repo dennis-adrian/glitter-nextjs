@@ -23,9 +23,8 @@ import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 const FormSchema = z.object({
   consent: z.boolean().refine((val) => val === true, {
-    message:
-      "¡Si no leíste toda la información vuelve y léela que es importante!",
-  }),
+      error: "¡Si no leíste toda la información vuelve y léela que es importante!"
+}),
 });
 
 export default function TermsForm({
@@ -36,7 +35,7 @@ export default function TermsForm({
   festival: FestivalBase;
 }) {
   const router = useRouter();
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       consent: false,

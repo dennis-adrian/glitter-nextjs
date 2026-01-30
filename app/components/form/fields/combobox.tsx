@@ -82,7 +82,8 @@ export default function ComboboxInput<T extends FieldValues>({
 												onSelect={() => {
 													form.setValue(
 														name,
-														option.value as PathValue<T, Path<T>>,
+														// eslint-disable-next-line @typescript-eslint/no-explicit-any
+													option.value as any,
 													);
 													setOpen(false);
 												}}

@@ -23,7 +23,7 @@ export async function generateStaticParams() {
 }
 
 const SearchParamsSchema = z.object({
-	tab: z.enum(["general", "sectors", "activities"]).default("general"),
+	tab: z.enum(["general", "sectors", "activities"]).prefault("general"),
 });
 
 const ParamsSchema = z.object({

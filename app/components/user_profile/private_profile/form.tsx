@@ -1,6 +1,6 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -31,36 +31,38 @@ const FormSchema = z
 			minAgeMessage:
 				"Debes tener al menos 16 años para participar de nuestros eventos",
 		}),
-		firstName: z
-			.string()
-			.trim()
-			.min(2, { message: "El nombre tiene que tener al menos dos letras" }),
-		lastName: z
-			.string()
-			.trim()
-			.min(2, { message: "El apellido tiene que tener al menos dos letras" }),
+		firstName: z.string().trim().min(2, {
+			error: "El nombre tiene que tener al menos dos letras",
+		}),
+		lastName: z.string().trim().min(2, {
+			error: "El apellido tiene que tener al menos dos letras",
+		}),
 		phoneNumber: phoneValidator(),
 		gender: z.enum([...genderEnum.enumValues], {
-			required_error: "El género es requerido",
+			error: (issue) =>
+				issue.input === undefined ? "El género es requerido" : undefined,
 		}),
 		country: z
 			.string({
-				required_error: "El país es requerido",
+				error: (issue) =>
+					issue.input === undefined ? "El país es requerido" : undefined,
 			})
 			.trim()
-			.min(2, { message: "El país es requerido" }),
+			.min(2, {
+				error: "El país es requerido",
+			}),
 		state: z.string().trim().optional(),
 	})
 	.superRefine((data, ctx) => {
 		if (data.country === "BO" && !data.state) {
 			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
+				code: "custom",
 				message: "El departamento es requerido",
 				path: ["state"],
 			});
-			return false;
+			return;
 		}
-		return true;
+		return;
 	});
 
 export default function PrivateProfileForm({
@@ -70,7 +72,7 @@ export default function PrivateProfileForm({
 	profile: ProfileType;
 	onSuccess: () => void;
 }) {
-	const form = useForm<z.infer<typeof FormSchema>>({
+	const form = useForm({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
 			birthdate: profile.birthdate || undefined,
@@ -82,6 +84,8 @@ export default function PrivateProfileForm({
 			country: profile.country || "",
 		},
 	});
+
+	const country = useWatch({ control: form.control, name: "country" });
 
 	const action: () => void = form.handleSubmit(async (data) => {
 		const stringBirthdate = dateToString(data.birthdate);
@@ -100,7 +104,7 @@ export default function PrivateProfileForm({
 			}
 
 			if (value !== undefined) {
-				fieldsToUpdate[key as keyof UpdateUser] = value as any;
+				Object.assign(fieldsToUpdate, { [key]: value });
 			}
 		}
 
@@ -161,7 +165,7 @@ export default function PrivateProfileForm({
 					placeholder="Elige una opción"
 					variant="quiet"
 				/>
-				{form.watch("country") === "BO" && (
+				{country === "BO" && (
 					<SelectInput
 						formControl={form.control}
 						label="Departamento de residencia"

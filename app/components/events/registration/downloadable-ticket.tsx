@@ -16,7 +16,7 @@ type DownloadableTicketProps = {
   festival: FestivalBase;
 };
 export default function DownloadableTicket(props: DownloadableTicketProps) {
-  const ticketRef = useRef(null);
+  const ticketRef = useRef<HTMLDivElement>(null);
   const downloadTicket = () => {
     if (ticketRef.current === null) {
       return;

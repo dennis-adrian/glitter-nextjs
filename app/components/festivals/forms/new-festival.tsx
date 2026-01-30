@@ -1,6 +1,13 @@
 "use client";
 import { Button } from "@/app/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/app/components/ui/form";
+import {
+	Form,
+	FormControl,
+	FormField,
+	FormItem,
+	FormLabel,
+	FormMessage,
+} from "@/app/components/ui/form";
 import { Input } from "@/app/components/ui/input";
 import { createFestival } from "@/app/lib/festivals/actions";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,43 +15,57 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import TextareaInput from '@/app/components/form/fields/textarea';
+import TextareaInput from "@/app/components/form/fields/textarea";
 import TextInput from "../../form/fields/text";
 import SelectInput from "../../form/fields/select";
 import { festivalTypeOptions } from "@/app/lib/utils";
 import { festivalTypeEnum } from "@/db/schema";
-import { BuildingIcon, CalendarDaysIcon, MapPinIcon, PlusIcon, TrashIcon } from "lucide-react";
-import { useFieldArray } from "react-hook-form";
-import { DateTime } from 'luxon';
-import SectorImageUpload from "../sectors/sector-image-upload";
 import {
-	Card,
-	CardContent,
-} from "@/components/ui/card";
+	BuildingIcon,
+	CalendarDaysIcon,
+	MapPinIcon,
+	PlusIcon,
+	TrashIcon,
+} from "lucide-react";
+import { useFieldArray } from "react-hook-form";
+import { DateTime } from "luxon";
+import SectorImageUpload from "../sectors/sector-image-upload";
+import { Card, CardContent } from "@/components/ui/card";
 
 const FormSchema = z.object({
-	name: z.string().trim().min(2, "El nombre tiene que tener al menos dos letras"),
-	status: z.enum(['draft', 'published', 'active', 'archived']).default('draft'),
-	publicRegistration: z.boolean().default(false),
-	eventDayRegistration: z.boolean().default(false),
+	name: z
+		.string()
+		.trim()
+		.min(2, "El nombre tiene que tener al menos dos letras"),
+	status: z
+		.enum(["draft", "published", "active", "archived"])
+		.prefault("draft"),
+	publicRegistration: z.boolean().prefault(false),
+	eventDayRegistration: z.boolean().prefault(false),
 	festivalType: z.enum([...festivalTypeEnum.enumValues]),
-	dates: z.array(
-		z.object({
-			date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-			startTime: z.string().regex(/^\d{2}:\d{2}$/, "Formato Invalido (HH:MM)"),
-			endTime: z.string().regex(/^\d{2}:\d{2}$/, "Formato Invalido (HH:MM)"),
-		})
-	).min(1, "AL menos uno es requerido"),
-	dateDetails: z.array(
-		z.object({
-			startDate: z.coerce.date(),
-			endDate: z.coerce.date(),
-		})
-	).optional(),
+	dates: z
+		.array(
+			z.object({
+				date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+				startTime: z
+					.string()
+					.regex(/^\d{2}:\d{2}$/, "Formato Invalido (HH:MM)"),
+				endTime: z.string().regex(/^\d{2}:\d{2}$/, "Formato Invalido (HH:MM)"),
+			}),
+		)
+		.min(1, "AL menos uno es requerido"),
+	dateDetails: z
+		.array(
+			z.object({
+				startDate: z.coerce.date(),
+				endDate: z.coerce.date(),
+			}),
+		)
+		.optional(),
 	description: z.string().trim().optional(),
 	address: z.string().trim().optional(),
 	locationLabel: z.string().trim().optional(),
-	locationUrl: z.string().trim().url().optional().or(z.literal('')),
+	locationUrl: z.url().optional().or(z.literal("")),
 	generalMapUrl: z.string().optional(),
 	mascotUrl: z.string().optional(),
 	illustrationPaymentQrCodeUrl: z.string().optional(),
@@ -55,19 +76,27 @@ const FormSchema = z.object({
 	entrepreneurshipStandUrl: z.string().optional(),
 	festivalCode: z.string().optional(),
 	festivalBannerUrl: z.string().optional(),
-	festivalSectors: z.array(
-		z.object({
-			name: z.string().min(1, "El nombre del sector es requerido"),
-			orderInFestival: z.coerce.number().min(1, "El orden debe ser al menos 1"),
-			mapUrl: z.string().optional(),
-			mascotUrl: z.string().optional(),
-		})
-	).min(1, "Debe haber al menos un sector"),
+	festivalSectors: z
+		.array(
+			z.object({
+				name: z.string().min(1, "El nombre del sector es requerido"),
+				orderInFestival: z.coerce
+					.number()
+					.min(1, "El orden debe ser al menos 1"),
+				mapUrl: z.string().optional(),
+				mascotUrl: z.string().optional(),
+			}),
+		)
+		.min(1, "Debe haber al menos un sector"),
 });
 
 export default function NewFestivalForm() {
 	const router = useRouter();
-	const form = useForm<z.infer<typeof FormSchema>>({
+	const form = useForm<
+		z.input<typeof FormSchema>,
+		unknown,
+		z.output<typeof FormSchema>
+	>({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
 			name: "",
@@ -78,18 +107,22 @@ export default function NewFestivalForm() {
 			address: "",
 			locationLabel: "",
 			locationUrl: "",
-			dates: [{
-				date: DateTime.local().toFormat('yyyy-MM-dd'),
-				startTime: "10:00",
-				endTime: "20:00"
-			}],
-			festivalSectors: [{
-				name: "Galería",
-				orderInFestival: 1,
-				mapUrl: "",
-				mascotUrl: ""
-			}]
-		}
+			dates: [
+				{
+					date: DateTime.local().toFormat("yyyy-MM-dd"),
+					startTime: "10:00",
+					endTime: "20:00",
+				},
+			],
+			festivalSectors: [
+				{
+					name: "Galería",
+					orderInFestival: 1,
+					mapUrl: "",
+					mascotUrl: "",
+				},
+			],
+		},
 	});
 
 	const { fields, append, remove } = useFieldArray({
@@ -99,7 +132,7 @@ export default function NewFestivalForm() {
 	const {
 		fields: sectorFields,
 		append: appendSector,
-		remove: removeSector
+		remove: removeSector,
 	} = useFieldArray({
 		control: form.control,
 		name: "festivalSectors",
@@ -107,24 +140,24 @@ export default function NewFestivalForm() {
 
 	const addNewDate = () => {
 		append({
-			date: DateTime.local().toFormat('yyyy-MM-dd'),
+			date: DateTime.local().toFormat("yyyy-MM-dd"),
 			startTime: "10:00",
-			endTime: "20:00"
+			endTime: "20:00",
 		});
 	};
 
 	const onSubmit = form.handleSubmit(async (data) => {
-		const processedDates = data.dates.map(dateItem => {
+		const processedDates = data.dates.map((dateItem) => {
 			const startDateTime = DateTime.fromFormat(
 				`${dateItem.date} ${dateItem.startTime}`,
-				'yyyy-MM-dd HH:mm',
-				{ zone: 'local' }
+				"yyyy-MM-dd HH:mm",
+				{ zone: "local" },
 			);
 
 			const endDateTime = DateTime.fromFormat(
 				`${dateItem.date} ${dateItem.endTime}`,
-				'yyyy-MM-dd HH:mm',
-				{ zone: 'local' }
+				"yyyy-MM-dd HH:mm",
+				{ zone: "local" },
 			);
 
 			return {
@@ -133,10 +166,7 @@ export default function NewFestivalForm() {
 			};
 		});
 
-		const {
-			dates: _,
-			...rest
-		} = data;
+		const { dates: _, ...rest } = data;
 
 		const result = await createFestival({
 			...rest,
@@ -228,9 +258,14 @@ export default function NewFestivalForm() {
 								</h3>
 
 								{fields.map((field, index) => (
-									<div key={field.id} className="space-y-4 border-b pb-4 last:border-b-0 last:pb-0">
+									<div
+										key={field.id}
+										className="space-y-4 border-b pb-4 last:border-b-0 last:pb-0"
+									>
 										<div className="flex justify-between items-center">
-											<h4 className="text-sm font-medium">Evento {index + 1}</h4>
+											<h4 className="text-sm font-medium">
+												Evento {index + 1}
+											</h4>
 											{index > 0 && (
 												<Button
 													type="button"
@@ -299,9 +334,14 @@ export default function NewFestivalForm() {
 								<h3 className="font-semibold text-xl">Sectores del Festival</h3>
 
 								{sectorFields.map((field, index) => (
-									<div key={field.id} className="space-y-4 border-b pb-4 last:border-b-0 last:pb-0">
+									<div
+										key={field.id}
+										className="space-y-4 border-b pb-4 last:border-b-0 last:pb-0"
+									>
 										<div className="flex justify-between items-center">
-											<h4 className="text-sm font-medium">Sector {index + 1}</h4>
+											<h4 className="text-sm font-medium">
+												Sector {index + 1}
+											</h4>
 											{index > 0 && (
 												<Button
 													type="button"
@@ -370,12 +410,14 @@ export default function NewFestivalForm() {
 									type="button"
 									variant="outline"
 									className="w-full mt-4"
-									onClick={() => appendSector({
-										name: "",
-										orderInFestival: sectorFields.length + 1,
-										mapUrl: "",
-										mascotUrl: ""
-									})}
+									onClick={() =>
+										appendSector({
+											name: "",
+											orderInFestival: sectorFields.length + 1,
+											mapUrl: "",
+											mascotUrl: "",
+										})
+									}
 								>
 									<PlusIcon className="mr-2 h-4 w-4" />
 									Agregar otro sector

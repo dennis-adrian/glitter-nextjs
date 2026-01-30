@@ -12,8 +12,8 @@ import { z } from "zod";
 
 const FormSchema = z.object({
   ticketCode: z.string().trim().min(1, {
-    message: "El código de entrada es requerido",
-  }),
+      error: "El código de entrada es requerido"
+}),
 });
 
 export default function VerifyTicketForm({
@@ -21,7 +21,7 @@ export default function VerifyTicketForm({
 }: {
   festivalId: number;
 }) {
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       ticketCode: "",

@@ -1,7 +1,14 @@
 "use client";
 
 import { Button } from "@/app/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/app/components/ui/form";
+import {
+	Form,
+	FormControl,
+	FormField,
+	FormItem,
+	FormLabel,
+	FormMessage,
+} from "@/app/components/ui/form";
 import { Input } from "@/app/components/ui/input";
 import { festivalTypeOptions } from "@/app/lib/utils";
 import { festivalTypeEnum } from "@/db/schema";
@@ -13,45 +20,55 @@ import { z } from "zod";
 import { useRouter } from "next/navigation";
 import TextInput from "../../form/fields/text";
 import TextareaInput from "../../form/fields/textarea";
-import { BuildingIcon, CalendarDaysIcon, MapPinIcon, PlusIcon, TrashIcon } from "lucide-react";
+import {
+	BuildingIcon,
+	CalendarDaysIcon,
+	MapPinIcon,
+	PlusIcon,
+	TrashIcon,
+} from "lucide-react";
 import SelectInput from "../../form/fields/select";
-import { DateTime } from 'luxon';
+import { DateTime } from "luxon";
 import { FestivalWithDatesAndSectors } from "@/app/lib/festivals/definitions";
 import SectorImageUpload from "../sectors/sector-image-upload";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { useRef } from "react";
-import { slugify } from "@/app/lib/formatters";
 
 const FormSchema = z.object({
-	name: z.string().min(1, "Required"),
-	status: z.enum(['draft', 'published', 'active', 'archived']).default('draft'),
-	mapsVersion: z.enum(['v1', 'v2', 'v3']).default('v1'),
-	publicRegistration: z.boolean().default(false),
-	eventDayRegistration: z.boolean().default(false),
+	name: z.string().min(1, "El nombre es requerido"),
+	status: z
+		.enum(["draft", "published", "active", "archived"])
+		.prefault("draft"),
+	mapsVersion: z.enum(["v1", "v2", "v3"]).prefault("v1"),
+	publicRegistration: z.boolean().prefault(false),
+	eventDayRegistration: z.boolean().prefault(false),
 	festivalType: z.enum([...festivalTypeEnum.enumValues]),
-	dates: z.array(
-		z.object({
-			id: z.number().optional(),
-			date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-			startTime: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format (HH:MM)"),
-			endTime: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format (HH:MM)"),
-		})
-	).min(1, "At least one date is required"),
-	dateDetails: z.array(
-		z.object({
-			startDate: z.coerce.date(),
-			endDate: z.coerce.date(),
-		})
-	).optional(),
+	dates: z
+		.array(
+			z.object({
+				id: z.number().optional(),
+				date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+				startTime: z
+					.string()
+					.regex(/^\d{2}:\d{2}$/, "Invalid time format (HH:MM)"),
+				endTime: z
+					.string()
+					.regex(/^\d{2}:\d{2}$/, "Invalid time format (HH:MM)"),
+			}),
+		)
+		.min(1, "Debe haber al menos una fecha"),
+	dateDetails: z
+		.array(
+			z.object({
+				startDate: z.coerce.date(),
+				endDate: z.coerce.date(),
+			}),
+		)
+		.optional(),
 	description: z.string().optional(),
 	address: z.string().optional(),
 	locationLabel: z.string().optional(),
-	locationUrl: z.string().url().optional().or(z.literal('')),
+	locationUrl: z.url().optional().or(z.literal("")),
 	generalMapUrl: z.string().optional(),
 	mascotUrl: z.string().optional(),
 	illustrationPaymentQrCodeUrl: z.string().optional(),
@@ -62,22 +79,30 @@ const FormSchema = z.object({
 	entrepreneurshipStandUrl: z.string().optional(),
 	festivalCode: z.string().optional(),
 	festivalBannerUrl: z.string().optional(),
-	festivalSectors: z.array(
-		z.object({
-			id: z.number().optional(),
-			name: z.string().min(1, "El nombre del sector es requerido"),
-			orderInFestival: z.coerce.number().min(1, "El orden debe ser al menos 1"),
-			mapUrl: z.string().optional(),
-			mascotUrl: z.string().optional(),
-		})
-	).min(1, "Debe haber al menos un sector"),
+	festivalSectors: z
+		.array(
+			z.object({
+				id: z.number().optional(),
+				name: z.string().min(1, "El nombre del sector es requerido"),
+				orderInFestival: z.coerce
+					.number()
+					.min(1, "El orden debe ser al menos 1"),
+				mapUrl: z.string().optional(),
+				mascotUrl: z.string().optional(),
+			}),
+		)
+		.min(1, "Debe haber al menos un sector"),
 });
 
-export default function UpdateFestivalForm({ festival }: { festival: FestivalWithDatesAndSectors }) {
+export default function UpdateFestivalForm({
+	festival,
+}: {
+	festival: FestivalWithDatesAndSectors;
+}) {
 	const deletedSectorIdsRef = useRef<number[]>([]);
 
 	const router = useRouter();
-	const form = useForm<z.infer<typeof FormSchema>>({
+	const form = useForm({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
 			name: festival.name,
@@ -86,34 +111,35 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 			publicRegistration: festival.publicRegistration,
 			eventDayRegistration: festival.eventDayRegistration,
 			festivalType: festival.festivalType,
-			description: festival.description || '',
-			address: festival.address || '',
-			locationLabel: festival.locationLabel || '',
-			locationUrl: festival.locationUrl || '',
-			generalMapUrl: festival.generalMapUrl || '',
-			mascotUrl: festival.mascotUrl || '',
-			illustrationPaymentQrCodeUrl: festival.illustrationPaymentQrCodeUrl || '',
-			gastronomyPaymentQrCodeUrl: festival.gastronomyPaymentQrCodeUrl || '',
-			entrepreneurshipPaymentQrCodeUrl: festival.entrepreneurshipPaymentQrCodeUrl || '',
-			illustrationStandUrl: festival.illustrationStandUrl || '',
-			gastronomyStandUrl: festival.gastronomyStandUrl || '',
-			entrepreneurshipStandUrl: festival.entrepreneurshipStandUrl || '',
-			festivalCode: festival.festivalCode || '',
-			festivalBannerUrl: festival.festivalBannerUrl || '',
-			dates: festival.festivalDates.map(date => ({
+			description: festival.description || "",
+			address: festival.address || "",
+			locationLabel: festival.locationLabel || "",
+			locationUrl: festival.locationUrl || "",
+			generalMapUrl: festival.generalMapUrl || "",
+			mascotUrl: festival.mascotUrl || "",
+			illustrationPaymentQrCodeUrl: festival.illustrationPaymentQrCodeUrl || "",
+			gastronomyPaymentQrCodeUrl: festival.gastronomyPaymentQrCodeUrl || "",
+			entrepreneurshipPaymentQrCodeUrl:
+				festival.entrepreneurshipPaymentQrCodeUrl || "",
+			illustrationStandUrl: festival.illustrationStandUrl || "",
+			gastronomyStandUrl: festival.gastronomyStandUrl || "",
+			entrepreneurshipStandUrl: festival.entrepreneurshipStandUrl || "",
+			festivalCode: festival.festivalCode || "",
+			festivalBannerUrl: festival.festivalBannerUrl || "",
+			dates: festival.festivalDates.map((date) => ({
 				id: date.id,
-				date: DateTime.fromJSDate(date.startDate).toFormat('yyyy-MM-dd'),
+				date: DateTime.fromJSDate(date.startDate).toFormat("yyyy-MM-dd"),
 				startTime: date.startDate.toTimeString().slice(0, 5),
 				endTime: date.endDate.toTimeString().slice(0, 5),
 			})),
-			festivalSectors: festival.festivalSectors.map(sector => ({
+			festivalSectors: festival.festivalSectors.map((sector) => ({
 				id: sector.id,
 				name: sector.name,
 				orderInFestival: sector.orderInFestival,
-				mapUrl: sector.mapUrl || '',
-				mascotUrl: sector.mascotUrl || '',
+				mapUrl: sector.mapUrl || "",
+				mascotUrl: sector.mascotUrl || "",
 			})),
-		}
+		},
 	});
 
 	const { fields, append, remove } = useFieldArray({
@@ -124,7 +150,7 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 	const {
 		fields: sectorFields,
 		append: appendSector,
-		remove: removeSector
+		remove: removeSector,
 	} = useFieldArray({
 		control: form.control,
 		name: "festivalSectors",
@@ -132,18 +158,22 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 
 	const addNewDate = () => {
 		append({
-			date: DateTime.local().toFormat('yyyy-MM-dd'),
+			date: DateTime.local().toFormat("yyyy-MM-dd"),
 			startTime: "10:00",
-			endTime: "20:00"
+			endTime: "20:00",
 		});
 	};
 
 	const addNewSector = () => {
 		appendSector({
 			name: "",
-			orderInFestival: Math.max(0, ...sectorFields.map((s) => Number(s.orderInFestival) || 0)) + 1,
+			orderInFestival:
+				Math.max(
+					0,
+					...sectorFields.map((s) => Number(s.orderInFestival) || 0),
+				) + 1,
 			mapUrl: "",
-			mascotUrl: ""
+			mascotUrl: "",
 		});
 	};
 
@@ -155,20 +185,18 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 		removeSector(index);
 	}
 
-
-
 	const onSubmit = form.handleSubmit(async (data) => {
-		const processedDates = data.dates.map(dateItem => {
+		const processedDates = data.dates.map((dateItem) => {
 			const startDateTime = DateTime.fromFormat(
 				`${dateItem.date} ${dateItem.startTime}`,
-				'yyyy-MM-dd HH:mm',
-				{ zone: 'local' }
+				"yyyy-MM-dd HH:mm",
+				{ zone: "local" },
 			);
 
 			const endDateTime = DateTime.fromFormat(
 				`${dateItem.date} ${dateItem.endTime}`,
-				'yyyy-MM-dd HH:mm',
-				{ zone: 'local' }
+				"yyyy-MM-dd HH:mm",
+				{ zone: "local" },
 			);
 
 			return {
@@ -177,7 +205,7 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 				startTime: dateItem.startTime,
 				endTime: dateItem.endTime,
 				startDateUTC: startDateTime.toUTC().toJSDate(),
-				endDateUTC: endDateTime.toUTC().toJSDate()
+				endDateUTC: endDateTime.toUTC().toJSDate(),
 			};
 		});
 
@@ -185,15 +213,15 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 			...data,
 			id: festival.id,
 			deletedSectorIds: deletedSectorIdsRef.current,
-			dates: processedDates.map(d => ({
+			dates: processedDates.map((d) => ({
 				id: d.id,
 				date: d.date,
 				startTime: d.startTime,
-				endTime: d.endTime
+				endTime: d.endTime,
 			})),
-			dateDetails: processedDates.map(d => ({
+			dateDetails: processedDates.map((d) => ({
 				startDate: d.startDateUTC,
-				endDate: d.endDateUTC
+				endDate: d.endDateUTC,
 			})),
 			updatedAt: new Date(),
 		};
@@ -282,9 +310,14 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 								</h3>
 
 								{fields.map((field, index) => (
-									<div key={field.id} className="space-y-4 border-b pb-4 last:border-b-0 last:pb-0">
+									<div
+										key={field.id}
+										className="space-y-4 border-b pb-4 last:border-b-0 last:pb-0"
+									>
 										<div className="flex justify-between items-center">
-											<h4 className="text-sm font-medium">Evento {index + 1}</h4>
+											<h4 className="text-sm font-medium">
+												Evento {index + 1}
+											</h4>
 											{index > 0 && (
 												<Button
 													type="button"
@@ -353,9 +386,14 @@ export default function UpdateFestivalForm({ festival }: { festival: FestivalWit
 								<h3 className="font-semibold text-xl">Sectores del Festival</h3>
 
 								{sectorFields.map((field, index) => (
-									<div key={field.id} className="space-y-4 border-b pb-4 last:border-b-0 last:pb-0">
+									<div
+										key={field.id}
+										className="space-y-4 border-b pb-4 last:border-b-0 last:pb-0"
+									>
 										<div className="flex justify-between items-center">
-											<h4 className="text-sm font-medium">Sector {index + 1}</h4>
+											<h4 className="text-sm font-medium">
+												Sector {index + 1}
+											</h4>
 											{index > 0 && (
 												<Button
 													type="button"

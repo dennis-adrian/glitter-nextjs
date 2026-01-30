@@ -9,44 +9,44 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 export default function UpdateFestivalRegistrationForm({
-  festival,
-  onSuccess,
+	festival,
+	onSuccess,
 }: {
-  festival: FestivalBase;
-  onSuccess: () => void;
+	festival: FestivalBase;
+	onSuccess: () => void;
 }) {
-  const form = useForm();
+	const form = useForm();
 
-  const action: () => void = form.handleSubmit(async () => {
-    const res = await updateFestivalRegistration({
-      ...festival,
-      publicRegistration: !festival.publicRegistration,
-    });
+	const action: () => void = form.handleSubmit(async () => {
+		const res = await updateFestivalRegistration(
+			!festival.publicRegistration,
+			festival.id,
+		);
 
-    if (res.success) {
-      toast.success(res.message);
-      onSuccess();
-    } else toast.error(res.message);
-  });
+		if (res.success) {
+			toast.success(res.message);
+			onSuccess();
+		} else toast.error(res.message);
+	});
 
-  const buttonLabel = festival.publicRegistration
-    ? "Deshabilitar acreditación"
-    : "Habilitar acreditación";
+	const buttonLabel = festival.publicRegistration
+		? "Deshabilitar acreditación"
+		: "Habilitar acreditación";
 
-  return (
-    <Form {...form}>
-      <form onSubmit={action} className="flex flex-col gap-4 mt-4">
-        <Button disabled={form.formState.isSubmitting} className="w-full">
-          {form.formState.isSubmitting ? (
-            <span className="flex items-center gap-2">
-              <Loader2Icon className="w-4 h-4 animate-spin" />
-              Actualizando festival
-            </span>
-          ) : (
-            <span>{buttonLabel}</span>
-          )}
-        </Button>
-      </form>
-    </Form>
-  );
+	return (
+		<Form {...form}>
+			<form onSubmit={action} className="flex flex-col gap-4 mt-4">
+				<Button disabled={form.formState.isSubmitting} className="w-full">
+					{form.formState.isSubmitting ? (
+						<span className="flex items-center gap-2">
+							<Loader2Icon className="w-4 h-4 animate-spin" />
+							Actualizando festival
+						</span>
+					) : (
+						<span>{buttonLabel}</span>
+					)}
+				</Button>
+			</form>
+		</Form>
+	);
 }
