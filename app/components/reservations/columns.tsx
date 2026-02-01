@@ -172,7 +172,7 @@ export const columns: ColumnDef<FullReservation>[] = [
 		),
 		cell: ({ row }) => <ReservationStatus reservation={row.original} />,
 		filterFn: (row, columnId, filterStatus) => {
-			if (!filterStatus) return true;
+			if (!filterStatus || filterStatus.length === 0) return true;
 			const status = row.getValue(columnId);
 			return filterStatus.includes(status);
 		},

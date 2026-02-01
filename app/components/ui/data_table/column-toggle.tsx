@@ -1,4 +1,5 @@
 "use client";
+"use no memo";
 
 import { DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SlidersHorizontalIcon } from "lucide-react";

@@ -1,3 +1,5 @@
+"use no memo";
+
 import { TableBody, TableCell, TableRow } from "@/app/components/ui/table";
 import { ColumnDef, flexRender, Table } from "@tanstack/react-table";
 
