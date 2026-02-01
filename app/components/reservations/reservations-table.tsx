@@ -25,6 +25,7 @@ export default function ReservationsTable({
 					columnId: "status",
 					options: [
 						{ value: "pending", label: "Pendiente" },
+						{ value: "verification_payment", label: "Verificación de Pago" },
 						{ value: "accepted", label: "Confirmada" },
 						{ value: "rejected", label: "Rechazada" },
 					],
