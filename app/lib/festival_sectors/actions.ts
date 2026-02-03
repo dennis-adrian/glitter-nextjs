@@ -77,6 +77,35 @@ export async function fetchFestivalSectors(
 	}
 }
 
+export async function updateSectorMapBounds(
+	sectorId: number,
+	bounds: { minX: number; minY: number; width: number; height: number },
+): Promise<{ success: boolean; message: string }> {
+	try {
+		await db
+			.update(festivalSectors)
+			.set({
+				mapOriginX: bounds.minX,
+				mapOriginY: bounds.minY,
+				mapWidth: bounds.width,
+				mapHeight: bounds.height,
+				updatedAt: new Date(),
+			})
+			.where(eq(festivalSectors.id, sectorId));
+
+		revalidatePath("/dashboard/festivals");
+		revalidatePath("/", "layout");
+
+		return { success: true, message: "Dimensiones del mapa actualizadas" };
+	} catch (error) {
+		console.error("Error updating sector map bounds", error);
+		return {
+			success: false,
+			message: "Error al actualizar las dimensiones del mapa",
+		};
+	}
+}
+
 export async function fetchFestivalSectorsByUserCategory(
 	festivalId: number,
 	category: UserCategory,

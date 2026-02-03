@@ -3,22 +3,20 @@
 import { useState } from "react";
 
 import { BaseProfile, ProfileType } from "@/app/api/users/definitions";
-import MapImage from "@/app/components/festivals/map-image";
 import { ReservationModal } from "@/app/components/next_event/reservation/modal";
 import { profileHasReservation } from "@/app/helpers/next_event";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
+import UserMap from "@/app/components/maps/user/user-map";
 
 export default function ClientMap({
   artists,
   festival,
-  imageSrc,
   profile,
   stands,
 }: {
   artists: BaseProfile[];
-  imageSrc?: string | null;
   festival: FestivalBase;
   profile: ProfileType | null;
   stands: StandWithReservationsWithParticipants[];
@@ -26,8 +24,6 @@ export default function ClientMap({
   const [openModal, setOpenModal] = useState(false);
   const [selectedStand, setSelectedStand] =
     useState<StandWithReservationsWithParticipants | null>(null);
-
-  if (!imageSrc) return null;
 
   function handleStandClick(stand: StandWithReservationsWithParticipants) {
     if (!profile) return;
@@ -49,8 +45,7 @@ export default function ClientMap({
 
   return (
     <>
-      <MapImage
-        mapSrc={imageSrc}
+      <UserMap
         stands={stands}
         forReservation
         profile={profile}

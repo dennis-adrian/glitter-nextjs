@@ -1,6 +1,6 @@
 import { StandBase } from "@/app/api/stands/definitions";
 import { BaseProfile, Participation } from "@/app/api/users/definitions";
-import MapImage from "@/app/components/festivals/map-image";
+import UserMap from "@/app/components/maps/user/user-map";
 import ParticipantsGrid from "@/app/components/festivals/participants";
 import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
@@ -18,14 +18,11 @@ export default function FestivalSector(props: FestivalSectorProps) {
   return (
     <div key={props.sector.id}>
       <FestivalSectorTitle sector={props.sector} />
-      {props.sector.stands.length > 0 && props.sector.mapUrl ? (
+      {props.sector.stands.length > 0 ? (
         <div className="flex flex-wrap gap-4 justify-center">
           <div className="flex flex-col items-center gap-2">
-            <div className="mx-auto">
-              <MapImage
-                mapSrc={props.sector.mapUrl}
-                stands={props.sector.stands}
-              />
+            <div className="w-full md:max-w-2xl mx-auto">
+              <UserMap stands={props.sector.stands} />
             </div>
             <p className="text-center text-[10px] md:text-xs text-muted-foreground leading-3 md:leading-4 max-w-[400px]">
               El plano muestra las ubicaciones y la distribución confirmada de

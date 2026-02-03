@@ -1,0 +1,709 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  TransformComponent,
+  TransformWrapper,
+  type ReactZoomPanPinchRef,
+} from "react-zoom-pan-pinch";
+import {
+  AlignEndHorizontal,
+  AlignEndVertical,
+  AlignHorizontalSpaceAround,
+  AlignStartHorizontal,
+  AlignStartVertical,
+  AlignVerticalSpaceAround,
+  Grid3x3,
+  Magnet,
+  Maximize2,
+  Ruler,
+  RotateCcw,
+  Save,
+  Undo2,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
+import { updateStandPositions } from "@/app/api/stands/actions";
+import { updateSectorMapBounds } from "@/app/lib/festival_sectors/actions";
+import { getStandPosition, STAND_SIZE } from "../map-utils";
+import { Button } from "@/app/components/ui/button";
+import { Switch } from "@/app/components/ui/switch";
+import { Separator } from "@/app/components/ui/separator";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/app/components/ui/tabs";
+import AdminMapCanvas, {
+  type AdminMapCanvasHandle,
+  type MapBounds,
+} from "./admin-map-canvas";
+
+type StandPositionEditorProps = {
+  festivalId: number;
+  sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
+};
+
+function buildPositionsMap(
+  sectors: FestivalSectorWithStandsWithReservationsWithParticipants[],
+): Map<number, { left: number; top: number }> {
+  const map = new Map<number, { left: number; top: number }>();
+  for (const sector of sectors) {
+    for (const stand of sector.stands) {
+      const pos = getStandPosition(stand);
+      map.set(stand.id, { left: pos.left, top: pos.top });
+    }
+  }
+  return map;
+}
+
+function getSectorInitialBounds(
+  sector: FestivalSectorWithStandsWithReservationsWithParticipants,
+): MapBounds | null {
+  if (
+    sector.mapOriginX != null &&
+    sector.mapOriginY != null &&
+    sector.mapWidth != null &&
+    sector.mapHeight != null
+  ) {
+    return {
+      minX: sector.mapOriginX,
+      minY: sector.mapOriginY,
+      width: sector.mapWidth,
+      height: sector.mapHeight,
+    };
+  }
+  return null;
+}
+
+function buildOriginalBoundsMap(
+  sectors: FestivalSectorWithStandsWithReservationsWithParticipants[],
+): Map<number, MapBounds | null> {
+  const map = new Map<number, MapBounds | null>();
+  for (const sector of sectors) {
+    map.set(sector.id, getSectorInitialBounds(sector));
+  }
+  return map;
+}
+
+const MAX_UNDO = 30;
+
+export default function StandPositionEditor({
+  sectors,
+}: StandPositionEditorProps) {
+  const [positions, setPositions] = useState(() => buildPositionsMap(sectors));
+  const originalPositionsRef = useRef(buildPositionsMap(sectors));
+  const [history, setHistory] = useState<
+    Map<number, { left: number; top: number }>[]
+  >([]);
+  const [panDisabled, setPanDisabled] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Map bounds per sector
+  const [boundsPerSector, setBoundsPerSector] = useState<Map<number, MapBounds>>(
+    new Map(),
+  );
+  const originalBoundsRef = useRef(buildOriginalBoundsMap(sectors));
+  const canvasRefsMap = useRef<Map<number, AdminMapCanvasHandle>>(new Map());
+
+  // Alignment aids state
+  const [selectedStands, setSelectedStands] = useState<Set<number>>(
+    new Set(),
+  );
+  const [snapToGrid, setSnapToGrid] = useState(true);
+  const [gridSize, setGridSize] = useState(2);
+  const [showGrid, setShowGrid] = useState(false);
+  const [showGuides, setShowGuides] = useState(true);
+  const [focusedStandId, setFocusedStandId] = useState<number | null>(null);
+  const arrowUndoPushedRef = useRef(false);
+  const transformRef = useRef<ReactZoomPanPinchRef>(null);
+
+  // Keyboard handler for arrow key movement
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (!focusedStandId) return;
+
+      if (e.key === "Escape") {
+        setFocusedStandId(null);
+        return;
+      }
+
+      const arrowKeys = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+      if (!arrowKeys.includes(e.key)) return;
+
+      e.preventDefault();
+
+      // Push undo only on first keypress of a sequence
+      if (!arrowUndoPushedRef.current) {
+        arrowUndoPushedRef.current = true;
+        setHistory((prev) => {
+          const snapshot = new Map(positions);
+          const next = [...prev, snapshot];
+          if (next.length > MAX_UNDO) next.shift();
+          return next;
+        });
+      }
+
+      const step = e.shiftKey ? 0.5 : snapToGrid ? gridSize : 1;
+      let dx = 0;
+      let dy = 0;
+
+      if (e.key === "ArrowLeft") dx = -step;
+      if (e.key === "ArrowRight") dx = step;
+      if (e.key === "ArrowUp") dy = -step;
+      if (e.key === "ArrowDown") dy = step;
+
+      // Determine which stands to move
+      const standsToMove =
+        selectedStands.has(focusedStandId) && selectedStands.size >= 2
+          ? selectedStands
+          : new Set([focusedStandId]);
+
+      setPositions((prev) => {
+        const next = new Map(prev);
+        for (const id of standsToMove) {
+          const pos = next.get(id);
+          if (pos) {
+            next.set(id, { left: pos.left + dx, top: pos.top + dy });
+          }
+        }
+        return next;
+      });
+    }
+
+    function handleKeyUp(e: KeyboardEvent) {
+      const arrowKeys = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+      if (arrowKeys.includes(e.key)) {
+        arrowUndoPushedRef.current = false;
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keyup", handleKeyUp);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [focusedStandId, selectedStands, positions, snapToGrid, gridSize]);
+
+  const handleFocus = useCallback((standId: number) => {
+    setFocusedStandId(standId);
+  }, []);
+
+  const defaultSector =
+    sectors.length > 0 ? String(sectors[0].id) : undefined;
+
+  const changedCount = Array.from(positions.entries()).filter(([id, pos]) => {
+    const orig = originalPositionsRef.current.get(id);
+    if (!orig) return false;
+    return (
+      Math.abs(orig.left - pos.left) > 0.01 ||
+      Math.abs(orig.top - pos.top) > 0.01
+    );
+  }).length;
+
+  const boundsChanged = Array.from(boundsPerSector.entries()).some(
+    ([sectorId, bounds]) => {
+      const orig = originalBoundsRef.current.get(sectorId);
+      if (!orig) return true; // Was null (auto), now has explicit bounds
+      return (
+        Math.abs(orig.minX - bounds.minX) > 0.01 ||
+        Math.abs(orig.minY - bounds.minY) > 0.01 ||
+        Math.abs(orig.width - bounds.width) > 0.01 ||
+        Math.abs(orig.height - bounds.height) > 0.01
+      );
+    },
+  );
+
+  const hasChanges = changedCount > 0 || boundsChanged;
+
+  const pushUndo = useCallback(() => {
+    setHistory((prev) => {
+      const snapshot = new Map(positions);
+      const next = [...prev, snapshot];
+      if (next.length > MAX_UNDO) next.shift();
+      return next;
+    });
+  }, [positions]);
+
+  const handleDragStart = useCallback(
+    (standId: number) => {
+      setPanDisabled(true);
+      pushUndo();
+    },
+    [pushUndo],
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setPanDisabled(false);
+  }, []);
+
+  const handlePositionChange = useCallback(
+    (standId: number, left: number, top: number) => {
+      setPositions((prev) => {
+        const next = new Map(prev);
+        next.set(standId, { left, top });
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleSelect = useCallback((standId: number) => {
+    setSelectedStands((prev) => {
+      const next = new Set(prev);
+      if (next.has(standId)) {
+        next.delete(standId);
+      } else {
+        next.add(standId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    setHistory((prev) => {
+      if (prev.length === 0) return prev;
+      const next = [...prev];
+      const snapshot = next.pop()!;
+      setPositions(snapshot);
+      return next;
+    });
+  }, []);
+
+  const handleReset = useCallback(() => {
+    setPositions(new Map(originalPositionsRef.current));
+    setHistory([]);
+    setSelectedStands(new Set());
+    setFocusedStandId(null);
+    // Reset bounds for each sector
+    for (const [sectorId, handle] of canvasRefsMap.current) {
+      const origBounds = originalBoundsRef.current.get(sectorId) ?? null;
+      handle.resetBounds(origBounds);
+    }
+    setBoundsPerSector(new Map());
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    const changedPositions = Array.from(positions.entries())
+      .filter(([id, pos]) => {
+        const orig = originalPositionsRef.current.get(id);
+        if (!orig) return false;
+        return (
+          Math.abs(orig.left - pos.left) > 0.01 ||
+          Math.abs(orig.top - pos.top) > 0.01
+        );
+      })
+      .map(([id, pos]) => ({
+        id,
+        positionLeft: Math.round(pos.left * 100) / 100,
+        positionTop: Math.round(pos.top * 100) / 100,
+      }));
+
+    const changedBounds = Array.from(boundsPerSector.entries()).filter(
+      ([sectorId, bounds]) => {
+        const orig = originalBoundsRef.current.get(sectorId);
+        if (!orig) return true;
+        return (
+          Math.abs(orig.minX - bounds.minX) > 0.01 ||
+          Math.abs(orig.minY - bounds.minY) > 0.01 ||
+          Math.abs(orig.width - bounds.width) > 0.01 ||
+          Math.abs(orig.height - bounds.height) > 0.01
+        );
+      },
+    );
+
+    if (changedPositions.length === 0 && changedBounds.length === 0) {
+      toast.info("No hay cambios para guardar");
+      return;
+    }
+
+    setIsSaving(true);
+
+    const results: { success: boolean; message: string }[] = [];
+
+    if (changedPositions.length > 0) {
+      results.push(await updateStandPositions(changedPositions));
+    }
+
+    for (const [sectorId, bounds] of changedBounds) {
+      results.push(await updateSectorMapBounds(sectorId, bounds));
+    }
+
+    setIsSaving(false);
+
+    const failed = results.find((r) => !r.success);
+    if (failed) {
+      toast.error(failed.message);
+    } else {
+      toast.success("Cambios guardados con éxito");
+      originalPositionsRef.current = new Map(positions);
+      // Update original bounds to match saved values
+      for (const [sectorId, bounds] of changedBounds) {
+        originalBoundsRef.current.set(sectorId, bounds);
+      }
+      setHistory([]);
+    }
+  }, [positions, boundsPerSector]);
+
+  // Alignment actions
+  const applyAlignment = useCallback(
+    (
+      action: (
+        selected: Map<number, { left: number; top: number }>,
+      ) => Map<number, { left: number; top: number }>,
+    ) => {
+      if (selectedStands.size < 2) return;
+      pushUndo();
+
+      const selectedPositions = new Map<number, { left: number; top: number }>();
+      for (const id of selectedStands) {
+        const pos = positions.get(id);
+        if (pos) selectedPositions.set(id, { ...pos });
+      }
+
+      const updated = action(selectedPositions);
+
+      setPositions((prev) => {
+        const next = new Map(prev);
+        for (const [id, pos] of updated) {
+          next.set(id, pos);
+        }
+        return next;
+      });
+    },
+    [selectedStands, positions, pushUndo],
+  );
+
+  const alignLeft = () =>
+    applyAlignment((selected) => {
+      const minLeft = Math.min(
+        ...Array.from(selected.values()).map((p) => p.left),
+      );
+      const result = new Map(selected);
+      for (const [id, pos] of result) {
+        result.set(id, { ...pos, left: minLeft });
+      }
+      return result;
+    });
+
+  const alignRight = () =>
+    applyAlignment((selected) => {
+      const maxLeft = Math.max(
+        ...Array.from(selected.values()).map((p) => p.left),
+      );
+      const result = new Map(selected);
+      for (const [id, pos] of result) {
+        result.set(id, { ...pos, left: maxLeft });
+      }
+      return result;
+    });
+
+  const alignTop = () =>
+    applyAlignment((selected) => {
+      const minTop = Math.min(
+        ...Array.from(selected.values()).map((p) => p.top),
+      );
+      const result = new Map(selected);
+      for (const [id, pos] of result) {
+        result.set(id, { ...pos, top: minTop });
+      }
+      return result;
+    });
+
+  const alignBottom = () =>
+    applyAlignment((selected) => {
+      const maxTop = Math.max(
+        ...Array.from(selected.values()).map((p) => p.top),
+      );
+      const result = new Map(selected);
+      for (const [id, pos] of result) {
+        result.set(id, { ...pos, top: maxTop });
+      }
+      return result;
+    });
+
+  const distributeHorizontally = () =>
+    applyAlignment((selected) => {
+      const entries = Array.from(selected.entries()).sort(
+        ([, a], [, b]) => a.left - b.left,
+      );
+      if (entries.length < 3) {
+        // With 2 items, just align them to the same left
+        return selected;
+      }
+      const first = entries[0][1].left;
+      const last = entries[entries.length - 1][1].left;
+      const step = (last - first) / (entries.length - 1);
+      const result = new Map(selected);
+      for (let i = 0; i < entries.length; i++) {
+        const [id, pos] = entries[i];
+        result.set(id, { ...pos, left: first + step * i });
+      }
+      return result;
+    });
+
+  const distributeVertically = () =>
+    applyAlignment((selected) => {
+      const entries = Array.from(selected.entries()).sort(
+        ([, a], [, b]) => a.top - b.top,
+      );
+      if (entries.length < 3) {
+        return selected;
+      }
+      const first = entries[0][1].top;
+      const last = entries[entries.length - 1][1].top;
+      const step = (last - first) / (entries.length - 1);
+      const result = new Map(selected);
+      for (let i = 0; i < entries.length; i++) {
+        const [id, pos] = entries[i];
+        result.set(id, { ...pos, top: first + step * i });
+      }
+      return result;
+    });
+
+  const hasSelection = selectedStands.size >= 2;
+
+  return (
+    <div className="space-y-4">
+      {/* Main toolbar: Save / Undo / Reset */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button
+          variant="default"
+          size="sm"
+          onClick={handleSave}
+          disabled={isSaving || !hasChanges}
+        >
+          <Save className="h-4 w-4 mr-1" />
+          {isSaving ? "Guardando..." : "Guardar"}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleUndo}
+          disabled={history.length === 0}
+        >
+          <Undo2 className="h-4 w-4 mr-1" />
+          Deshacer
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleReset}
+          disabled={!hasChanges}
+        >
+          <RotateCcw className="h-4 w-4 mr-1" />
+          Restablecer
+        </Button>
+        {changedCount > 0 && (
+          <span className="text-sm text-muted-foreground">
+            {changedCount} espacio{changedCount !== 1 ? "s" : ""} movido
+            {changedCount !== 1 ? "s" : ""}
+          </span>
+        )}
+      </div>
+
+      {/* Toggles toolbar */}
+      <div className="flex items-center gap-4 flex-wrap text-sm">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <Ruler className="h-4 w-4 text-muted-foreground" />
+          <span>Guias</span>
+          <Switch checked={showGuides} onCheckedChange={setShowGuides} />
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <Magnet className="h-4 w-4 text-muted-foreground" />
+          <span>Ajustar a grilla</span>
+          <Switch checked={snapToGrid} onCheckedChange={setSnapToGrid} />
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <Grid3x3 className="h-4 w-4 text-muted-foreground" />
+          <span>Mostrar grilla</span>
+          <Switch checked={showGrid} onCheckedChange={setShowGrid} />
+        </label>
+        {(snapToGrid || showGrid) && (
+          <label className="flex items-center gap-2">
+            <span className="text-muted-foreground">Tamaño:</span>
+            <select
+              value={gridSize}
+              onChange={(e) => setGridSize(Number(e.target.value))}
+              className="h-8 rounded-md border bg-background px-2 text-sm"
+            >
+              <option value={1}>1</option>
+              <option value={2}>2</option>
+              <option value={4}>4</option>
+              <option value={5}>5</option>
+              <option value={8}>8</option>
+            </select>
+          </label>
+        )}
+      </div>
+
+      {/* Alignment toolbar */}
+      <div className="flex items-center gap-1 flex-wrap">
+        <span className="text-sm text-muted-foreground mr-1">
+          Alinear ({selectedStands.size} seleccionados):
+        </span>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={alignLeft}
+          disabled={!hasSelection}
+          title="Alinear a la izquierda"
+        >
+          <AlignStartVertical className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={alignRight}
+          disabled={!hasSelection}
+          title="Alinear a la derecha"
+        >
+          <AlignEndVertical className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={alignTop}
+          disabled={!hasSelection}
+          title="Alinear arriba"
+        >
+          <AlignStartHorizontal className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={alignBottom}
+          disabled={!hasSelection}
+          title="Alinear abajo"
+        >
+          <AlignEndHorizontal className="h-4 w-4" />
+        </Button>
+        <Separator orientation="vertical" className="h-6 mx-1" />
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={distributeHorizontally}
+          disabled={selectedStands.size < 3}
+          title="Distribuir horizontalmente"
+        >
+          <AlignHorizontalSpaceAround className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={distributeVertically}
+          disabled={selectedStands.size < 3}
+          title="Distribuir verticalmente"
+        >
+          <AlignVerticalSpaceAround className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <Tabs defaultValue={defaultSector}>
+        <TabsList>
+          {sectors.map((sector) => (
+            <TabsTrigger key={sector.id} value={String(sector.id)}>
+              {sector.name}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        {sectors.map((sector) => (
+          <TabsContent key={sector.id} value={String(sector.id)}>
+            <TransformWrapper
+              ref={transformRef}
+              initialScale={1}
+              minScale={0.1}
+              maxScale={6}
+              wheel={{ step: 0.1 }}
+              panning={{ disabled: panDisabled }}
+            >
+              <div
+                className="relative w-full rounded-lg border bg-background shadow-sm overflow-hidden resize-y"
+                style={{ height: "calc(100vh - 320px)", minHeight: 300 }}
+              >
+                <TransformComponent
+                  wrapperStyle={{ width: "100%", height: "100%" }}
+                  contentStyle={{ width: "100%", height: "100%" }}
+                >
+                  <AdminMapCanvas
+                    ref={(handle) => {
+                      if (handle) {
+                        canvasRefsMap.current.set(sector.id, handle);
+                      } else {
+                        canvasRefsMap.current.delete(sector.id);
+                      }
+                    }}
+                    stands={sector.stands}
+                    positions={positions}
+                    selectedStands={selectedStands}
+                    focusedStandId={focusedStandId}
+                    snapToGrid={snapToGrid}
+                    gridSize={gridSize}
+                    showGrid={showGrid}
+                    showGuides={showGuides}
+                    initialBounds={getSectorInitialBounds(sector)}
+                    onPositionChange={handlePositionChange}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    onSelect={handleSelect}
+                    onFocus={handleFocus}
+                    onBoundsChange={(bounds) => {
+                      setBoundsPerSector((prev) => {
+                        const next = new Map(prev);
+                        next.set(sector.id, bounds);
+                        return next;
+                      });
+                    }}
+                    onResizeStart={() => setPanDisabled(true)}
+                    onResizeEnd={() => setPanDisabled(false)}
+                  />
+                </TransformComponent>
+                <div className="absolute bottom-2 right-2 z-10 flex gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => transformRef.current?.zoomIn()}
+                    title="Acercar"
+                  >
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => transformRef.current?.zoomOut()}
+                    title="Alejar"
+                  >
+                    <ZoomOut className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => transformRef.current?.resetTransform()}
+                    title="Ajustar mapa al contenedor"
+                  >
+                    <Maximize2 className="h-4 w-4 mr-1" />
+                    Ajustar
+                  </Button>
+                </div>
+              </div>
+            </TransformWrapper>
+          </TabsContent>
+        ))}
+      </Tabs>
+    </div>
+  );
+}
