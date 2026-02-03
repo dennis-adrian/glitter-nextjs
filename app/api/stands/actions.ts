@@ -121,6 +121,44 @@ export async function createStands(
   }
 }
 
+const updateStandSchema = z.object({
+  id: z.number().int().positive(),
+  label: z.string().min(1),
+  standNumber: z.coerce.number().int().min(1),
+  status: z.enum(["available", "reserved", "confirmed", "disabled"]),
+});
+
+export async function updateStand(
+  input: z.infer<typeof updateStandSchema>,
+): Promise<{ success: boolean; message: string; stand?: StandBase }> {
+  try {
+    const parsed = updateStandSchema.parse(input);
+
+    const [updated] = await db
+      .update(stands)
+      .set({
+        label: parsed.label,
+        standNumber: parsed.standNumber,
+        status: parsed.status,
+        updatedAt: new Date(),
+      })
+      .where(eq(stands.id, parsed.id))
+      .returning();
+
+    if (!updated) {
+      return { success: false, message: "Espacio no encontrado" };
+    }
+
+    revalidatePath("/dashboard/festivals");
+    revalidatePath("/", "layout");
+
+    return { success: true, message: "Espacio actualizado con éxito", stand: updated };
+  } catch (error) {
+    console.error("Error updating stand", error);
+    return { success: false, message: "Error al actualizar el espacio" };
+  }
+}
+
 const deleteStandsSchema = z.array(z.number().int().positive()).min(1);
 
 export async function deleteStands(

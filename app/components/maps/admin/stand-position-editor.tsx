@@ -16,6 +16,7 @@ import {
   Grid3x3,
   Magnet,
   Maximize2,
+  Pencil,
   Plus,
   Ruler,
   RotateCcw,
@@ -29,7 +30,7 @@ import { toast } from "sonner";
 
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { createStands, deleteStands, updateStandPositions } from "@/app/api/stands/actions";
+import { createStands, deleteStands, updateStand, updateStandPositions } from "@/app/api/stands/actions";
 import { updateSectorMapBounds } from "@/app/lib/festival_sectors/actions";
 import { getStandPosition, STAND_SIZE } from "../map-utils";
 import { Button } from "@/app/components/ui/button";
@@ -162,6 +163,16 @@ export default function StandPositionEditor({
   const [isAdding, setIsAdding] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Edit stand dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editStandId, setEditStandId] = useState<number | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editStandNumber, setEditStandNumber] = useState(1);
+  const [editStatus, setEditStatus] = useState<
+    "available" | "reserved" | "confirmed" | "disabled"
+  >("disabled");
+  const [isEditing, setIsEditing] = useState(false);
+
   // Keyboard handler for arrow key movement
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -232,10 +243,8 @@ export default function StandPositionEditor({
 
   const handleFocus = useCallback((standId: number) => {
     setFocusedStandId(standId);
-    if (!selectedStands.has(standId)) {
-      setSelectedStands(new Set());
-    }
-  }, [selectedStands]);
+    setSelectedStands(new Set([standId]));
+  }, []);
 
   const handleDeselectAll = useCallback(() => {
     setSelectedStands(new Set());
@@ -314,7 +323,7 @@ export default function StandPositionEditor({
     // Client-side check: block deletion of stands with reservations
     for (const [, sectorStands] of standsPerSector) {
       for (const stand of sectorStands) {
-        if (ids.includes(stand.id) && stand.status !== "available") {
+        if (ids.includes(stand.id) && stand.reservations.length > 0) {
           toast.error("No se pueden eliminar espacios con reservaciones");
           return;
         }
@@ -355,6 +364,59 @@ export default function StandPositionEditor({
     setFocusedStandId(null);
     toast.success(result.message);
   }, [selectedStands, standsPerSector]);
+
+  const openEditDialog = useCallback(() => {
+    if (selectedStands.size !== 1) return;
+    const standId = Array.from(selectedStands)[0];
+    for (const [, sectorStands] of standsPerSector) {
+      const stand = sectorStands.find((s) => s.id === standId);
+      if (stand) {
+        setEditStandId(stand.id);
+        setEditLabel(stand.label ?? "");
+        setEditStandNumber(stand.standNumber);
+        setEditStatus(stand.status);
+        setEditDialogOpen(true);
+        return;
+      }
+    }
+  }, [selectedStands, standsPerSector]);
+
+  const handleEditStand = useCallback(async () => {
+    if (editStandId == null || !editLabel.trim()) return;
+
+    setIsEditing(true);
+    const result = await updateStand({
+      id: editStandId,
+      label: editLabel.trim(),
+      standNumber: editStandNumber,
+      status: editStatus,
+    });
+    setIsEditing(false);
+
+    if (!result.success || !result.stand) {
+      toast.error(result.message);
+      return;
+    }
+
+    const updated = result.stand;
+
+    setStandsPerSector((prev) => {
+      const next = new Map(prev);
+      for (const [sectorId, sectorStands] of next) {
+        const idx = sectorStands.findIndex((s) => s.id === updated.id);
+        if (idx !== -1) {
+          const copy = [...sectorStands];
+          copy[idx] = { ...copy[idx], ...updated };
+          next.set(sectorId, copy);
+          break;
+        }
+      }
+      return next;
+    });
+
+    toast.success(result.message);
+    setEditDialogOpen(false);
+  }, [editStandId, editLabel, editStandNumber, editStatus]);
 
   const changedCount = Array.from(positions.entries()).filter(([id, pos]) => {
     const orig = originalPositionsRef.current.get(id);
@@ -776,6 +838,16 @@ export default function StandPositionEditor({
           <Plus className="h-4 w-4 mr-1" />
           Agregar stands
         </Button>
+        {selectedStands.size === 1 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={openEditDialog}
+          >
+            <Pencil className="h-4 w-4 mr-1" />
+            Editar
+          </Button>
+        )}
         {selectedStands.size > 0 && (
           <Button
             variant="destructive"
@@ -956,6 +1028,60 @@ export default function StandPositionEditor({
               disabled={isAdding || !addLabel.trim()}
             >
               {isAdding ? "Creando..." : "Agregar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar espacio</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-label">Etiqueta</Label>
+              <Input
+                id="edit-label"
+                value={editLabel}
+                onChange={(e) => setEditLabel(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-number">Número</Label>
+              <Input
+                id="edit-number"
+                type="number"
+                min={1}
+                value={editStandNumber}
+                onChange={(e) =>
+                  setEditStandNumber(Math.max(1, Number(e.target.value)))
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-status">Estado</Label>
+              <select
+                id="edit-status"
+                value={editStatus}
+                onChange={(e) =>
+                  setEditStatus(e.target.value as typeof editStatus)
+                }
+                className="h-9 rounded-md border bg-background px-3 text-sm"
+              >
+                <option value="disabled">Deshabilitado</option>
+                <option value="available">Disponible</option>
+                <option value="reserved">Reservado</option>
+                <option value="confirmed">Confirmado</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={handleEditStand}
+              disabled={isEditing || !editLabel.trim()}
+            >
+              {isEditing ? "Guardando..." : "Guardar"}
             </Button>
           </DialogFooter>
         </DialogContent>
