@@ -92,7 +92,9 @@ export default function DraggableMapStand({
 
   const fillColor = dragging
     ? "rgba(59, 130, 246, 0.3)"
-    : getStandFillColor(stand.status, false);
+    : stand.status === "available"
+      ? "rgba(254, 243, 199, 0.35)" // amber-100/35
+      : getStandFillColor(stand.status, false);
 
   let strokeColor: string;
   let strokeWidth: number;
@@ -111,7 +113,9 @@ export default function DraggableMapStand({
     strokeWidth = 0.3;
     strokeDasharray = "0.6,0.4";
   } else {
-    strokeColor = getStandStrokeColor(stand.status, false);
+    strokeColor = stand.status === "available"
+      ? "rgba(217, 119, 6, 0.4)" // amber-600
+      : getStandStrokeColor(stand.status, false);
     strokeWidth = 0.2;
     strokeDasharray = undefined;
   }

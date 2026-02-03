@@ -16,9 +16,11 @@ import {
   Grid3x3,
   Magnet,
   Maximize2,
+  Plus,
   Ruler,
   RotateCcw,
   Save,
+  Trash2,
   Undo2,
   ZoomIn,
   ZoomOut,
@@ -26,12 +28,22 @@ import {
 import { toast } from "sonner";
 
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
-import { updateStandPositions } from "@/app/api/stands/actions";
+import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
+import { createStands, deleteStands, updateStandPositions } from "@/app/api/stands/actions";
 import { updateSectorMapBounds } from "@/app/lib/festival_sectors/actions";
 import { getStandPosition, STAND_SIZE } from "../map-utils";
 import { Button } from "@/app/components/ui/button";
+import { Input } from "@/app/components/ui/input";
+import { Label } from "@/app/components/ui/label";
 import { Switch } from "@/app/components/ui/switch";
 import { Separator } from "@/app/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/app/components/ui/dialog";
 import {
   Tabs,
   TabsContent,
@@ -93,6 +105,7 @@ function buildOriginalBoundsMap(
 const MAX_UNDO = 30;
 
 export default function StandPositionEditor({
+  festivalId,
   sectors,
 }: StandPositionEditorProps) {
   const [positions, setPositions] = useState(() => buildPositionsMap(sectors));
@@ -121,6 +134,33 @@ export default function StandPositionEditor({
   const [focusedStandId, setFocusedStandId] = useState<number | null>(null);
   const arrowUndoPushedRef = useRef(false);
   const transformRef = useRef<ReactZoomPanPinchRef>(null);
+
+  // Local stands per sector (allows add/delete without full page reload)
+  const [standsPerSector, setStandsPerSector] = useState<
+    Map<number, StandWithReservationsWithParticipants[]>
+  >(() => {
+    const map = new Map<number, StandWithReservationsWithParticipants[]>();
+    for (const sector of sectors) {
+      map.set(sector.id, sector.stands);
+    }
+    return map;
+  });
+
+  // Track active sector tab for add/delete operations
+  const defaultSectorId =
+    sectors.length > 0 ? String(sectors[0].id) : undefined;
+  const [activeSectorId, setActiveSectorId] = useState(defaultSectorId);
+
+  // Add stands dialog state
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addLabel, setAddLabel] = useState("");
+  const [addCount, setAddCount] = useState(1);
+  const [addStartNumber, setAddStartNumber] = useState(1);
+  const [addStatus, setAddStatus] = useState<
+    "available" | "reserved" | "confirmed" | "disabled"
+  >("disabled");
+  const [isAdding, setIsAdding] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Keyboard handler for arrow key movement
   useEffect(() => {
@@ -192,10 +232,129 @@ export default function StandPositionEditor({
 
   const handleFocus = useCallback((standId: number) => {
     setFocusedStandId(standId);
+    if (!selectedStands.has(standId)) {
+      setSelectedStands(new Set());
+    }
+  }, [selectedStands]);
+
+  const handleDeselectAll = useCallback(() => {
+    setSelectedStands(new Set());
+    setFocusedStandId(null);
   }, []);
 
-  const defaultSector =
-    sectors.length > 0 ? String(sectors[0].id) : undefined;
+  const handleAddStands = useCallback(async () => {
+    if (!activeSectorId || !addLabel.trim()) return;
+    const sectorId = Number(activeSectorId);
+
+    setIsAdding(true);
+
+    // Place new stands at center of current sector bounds
+    const bounds = boundsPerSector.get(sectorId);
+    const centerLeft = bounds
+      ? bounds.minX + bounds.width / 2 - STAND_SIZE / 2
+      : 0;
+    const centerTop = bounds
+      ? bounds.minY + bounds.height / 2 - STAND_SIZE / 2
+      : 0;
+
+    const result = await createStands({
+      sectorId,
+      festivalId,
+      label: addLabel.trim(),
+      count: addCount,
+      startNumber: addStartNumber,
+      status: addStatus,
+      positionLeft: centerLeft,
+      positionTop: centerTop,
+    });
+
+    setIsAdding(false);
+
+    if (!result.success) {
+      toast.error(result.message);
+      return;
+    }
+
+    // Add new stands to local state
+    const newStands: StandWithReservationsWithParticipants[] = result.stands.map(
+      (s) => ({ ...s, reservations: [] }),
+    );
+
+    setStandsPerSector((prev) => {
+      const next = new Map(prev);
+      const current = next.get(sectorId) || [];
+      next.set(sectorId, [...current, ...newStands]);
+      return next;
+    });
+
+    setPositions((prev) => {
+      const next = new Map(prev);
+      for (const stand of result.stands) {
+        next.set(stand.id, {
+          left: stand.positionLeft ?? centerLeft,
+          top: stand.positionTop ?? centerTop,
+        });
+      }
+      return next;
+    });
+
+    toast.success(result.message);
+    setAddDialogOpen(false);
+    setAddLabel("");
+    setAddCount(1);
+    setAddStartNumber(1);
+    setAddStatus("disabled");
+  }, [activeSectorId, addLabel, addCount, addStartNumber, addStatus, festivalId, boundsPerSector]);
+
+  const handleDeleteStands = useCallback(async () => {
+    if (selectedStands.size === 0) return;
+
+    const ids = Array.from(selectedStands);
+
+    // Client-side check: block deletion of stands with reservations
+    for (const [, sectorStands] of standsPerSector) {
+      for (const stand of sectorStands) {
+        if (ids.includes(stand.id) && stand.status !== "available") {
+          toast.error("No se pueden eliminar espacios con reservaciones");
+          return;
+        }
+      }
+    }
+
+    setIsDeleting(true);
+    const result = await deleteStands(ids);
+    setIsDeleting(false);
+
+    if (!result.success) {
+      toast.error(result.message);
+      return;
+    }
+
+    const deletedSet = new Set(ids);
+
+    setStandsPerSector((prev) => {
+      const next = new Map(prev);
+      for (const [sectorId, sectorStands] of next) {
+        next.set(
+          sectorId,
+          sectorStands.filter((s) => !deletedSet.has(s.id)),
+        );
+      }
+      return next;
+    });
+
+    setPositions((prev) => {
+      const next = new Map(prev);
+      for (const id of ids) {
+        next.delete(id);
+      }
+      return next;
+    });
+
+    setSelectedStands(new Set());
+    setFocusedStandId(null);
+    toast.success(result.message);
+  }, [selectedStands, standsPerSector]);
 
   const changedCount = Array.from(positions.entries()).filter(([id, pos]) => {
     const orig = originalPositionsRef.current.get(id);
@@ -608,9 +767,31 @@ export default function StandPositionEditor({
         >
           <AlignVerticalSpaceAround className="h-4 w-4" />
         </Button>
+        <Separator orientation="vertical" className="h-6 mx-1" />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setAddDialogOpen(true)}
+        >
+          <Plus className="h-4 w-4 mr-1" />
+          Agregar stands
+        </Button>
+        {selectedStands.size > 0 && (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleDeleteStands}
+            disabled={isDeleting}
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            {isDeleting
+              ? "Eliminando..."
+              : `Eliminar (${selectedStands.size})`}
+          </Button>
+        )}
       </div>
 
-      <Tabs defaultValue={defaultSector}>
+      <Tabs value={activeSectorId} onValueChange={setActiveSectorId}>
         <TabsList>
           {sectors.map((sector) => (
             <TabsTrigger key={sector.id} value={String(sector.id)}>
@@ -645,7 +826,7 @@ export default function StandPositionEditor({
                         canvasRefsMap.current.delete(sector.id);
                       }
                     }}
-                    stands={sector.stands}
+                    stands={standsPerSector.get(sector.id) ?? sector.stands}
                     positions={positions}
                     selectedStands={selectedStands}
                     focusedStandId={focusedStandId}
@@ -659,6 +840,7 @@ export default function StandPositionEditor({
                     onDragEnd={handleDragEnd}
                     onSelect={handleSelect}
                     onFocus={handleFocus}
+                    onDeselectAll={handleDeselectAll}
                     onBoundsChange={(bounds) => {
                       setBoundsPerSector((prev) => {
                         const next = new Map(prev);
@@ -704,6 +886,80 @@ export default function StandPositionEditor({
           </TabsContent>
         ))}
       </Tabs>
+
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Agregar stands</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-2">
+              <Label htmlFor="add-label">Etiqueta</Label>
+              <Input
+                id="add-label"
+                placeholder='Ej: "A", "B", "Espacio"'
+                value={addLabel}
+                onChange={(e) => setAddLabel(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="add-status">Estado</Label>
+              <select
+                id="add-status"
+                value={addStatus}
+                onChange={(e) =>
+                  setAddStatus(
+                    e.target.value as typeof addStatus,
+                  )
+                }
+                className="h-9 rounded-md border bg-background px-3 text-sm"
+              >
+                <option value="disabled">Deshabilitado</option>
+                <option value="available">Disponible</option>
+                <option value="reserved">Reservado</option>
+                <option value="confirmed">Confirmado</option>
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="add-count">Cantidad</Label>
+              <Input
+                id="add-count"
+                type="number"
+                min={1}
+                max={100}
+                value={addCount}
+                onChange={(e) => setAddCount(Math.max(1, Number(e.target.value)))}
+              />
+            </div>
+            {addCount > 1 && (
+              <div className="grid gap-2">
+                <Label htmlFor="add-start">Número inicial</Label>
+                <Input
+                  id="add-start"
+                  type="number"
+                  min={1}
+                  value={addStartNumber}
+                  onChange={(e) =>
+                    setAddStartNumber(Math.max(1, Number(e.target.value)))
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Se crearán: {addLabel || "?"}{addStartNumber}
+                  {addCount > 1 && ` – ${addLabel || "?"}${addStartNumber + addCount - 1}`}
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={handleAddStands}
+              disabled={isAdding || !addLabel.trim()}
+            >
+              {isAdding ? "Creando..." : "Agregar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -34,6 +34,7 @@ type AdminMapCanvasProps = {
   onSelect: (standId: number) => void;
   onFocus: (standId: number) => void;
   onBoundsChange: (bounds: MapBounds) => void;
+  onDeselectAll: () => void;
   onResizeStart: () => void;
   onResizeEnd: () => void;
 };
@@ -194,6 +195,7 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
     onSelect,
     onFocus,
     onBoundsChange,
+    onDeselectAll,
     onResizeStart,
     onResizeEnd,
   }, ref) {
@@ -381,6 +383,14 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
         height: bounds.height,
       }}
     >
+      <rect
+        x={bounds.minX}
+        y={bounds.minY}
+        width={bounds.width}
+        height={bounds.height}
+        fill="transparent"
+        onPointerDown={onDeselectAll}
+      />
       {gridLines}
       {stands.map((stand) => {
         const pos = positions.get(stand.id);
