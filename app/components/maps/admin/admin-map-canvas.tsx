@@ -73,7 +73,7 @@ function computeBoundsFromPositions(
 const GUIDE_THRESHOLD = 0.5;
 
 function computeSnappedPosition(
-  standId: number,
+  excludeIds: Set<number>,
   rawLeft: number,
   rawTop: number,
   allPositions: Map<number, { left: number; top: number }>,
@@ -107,7 +107,7 @@ function computeSnappedPosition(
     null;
 
   for (const [id, pos] of allPositions.entries()) {
-    if (id === standId) continue;
+    if (excludeIds.has(id)) continue;
 
     const otherCenter = {
       x: pos.left + STAND_SIZE / 2,
@@ -284,8 +284,15 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 
   const handleDrag = useCallback(
     (standId: number, rawLeft: number, rawTop: number) => {
+      const isMultiDrag =
+        selectedStands.has(standId) && selectedStands.size >= 2;
+
+      const excludeIds = isMultiDrag
+        ? selectedStands
+        : new Set([standId]);
+
       const result = computeSnappedPosition(
-        standId,
+        excludeIds,
         rawLeft,
         rawTop,
         positions,
@@ -294,9 +301,23 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
         showGuides,
       );
       setActiveGuides(result.guides);
-      onPositionChange(standId, result.left, result.top);
+
+      if (isMultiDrag) {
+        const oldPos = positions.get(standId);
+        if (!oldPos) return;
+        const dx = result.left - oldPos.left;
+        const dy = result.top - oldPos.top;
+
+        for (const id of selectedStands) {
+          const pos = positions.get(id);
+          if (!pos) continue;
+          onPositionChange(id, pos.left + dx, pos.top + dy);
+        }
+      } else {
+        onPositionChange(standId, result.left, result.top);
+      }
     },
-    [positions, snapToGrid, gridSize, showGuides, onPositionChange],
+    [positions, selectedStands, snapToGrid, gridSize, showGuides, onPositionChange],
   );
 
   const handleDragEnd = useCallback(() => {
