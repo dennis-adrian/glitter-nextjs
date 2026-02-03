@@ -14,7 +14,11 @@ export default async function StandPositionsPage({
 }: {
   params: Promise<z.infer<typeof ParamsSchema>>;
 }) {
-  const { id } = await params;
+  const parsed = ParamsSchema.safeParse(await params);
+  if (!parsed.success) {
+    return notFound();
+  }
+  const { id } = parsed.data;
   const [festival, sectors] = await Promise.all([
     getFestivalById(id),
     fetchFestivalSectors(id),

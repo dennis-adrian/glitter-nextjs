@@ -48,9 +48,9 @@ export default function MapTooltip({
               <p className="text-sm text-muted-foreground text-center">
                 Espacio deshabilitado
               </p>
-            ) : canBeReserved || status !== "available" ? (
+            ) : (canBeReserved || status !== "available") && stand.festivalId != null ? (
               <StandArtists
-                festivalId={stand.festivalId!}
+                festivalId={stand.festivalId}
                 participants={participantProfiles}
                 stand={stand}
               />

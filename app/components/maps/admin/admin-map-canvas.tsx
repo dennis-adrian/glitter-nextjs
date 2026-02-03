@@ -232,8 +232,11 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
     const el = e.currentTarget;
     el.setPointerCapture(e.pointerId);
 
-    const svg = svgRef.current!;
-    const ctmInverse = svg.getScreenCTM()!.inverse();
+    const svg = svgRef.current;
+    if (!svg) return;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return;
+    const ctmInverse = ctm.inverse();
     const startPt = svg.createSVGPoint();
     startPt.x = e.clientX;
     startPt.y = e.clientY;

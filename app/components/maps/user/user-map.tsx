@@ -47,13 +47,20 @@ export default function UserMap({
     fetch("/api/users_by_id", {
       method: "POST",
       body: JSON.stringify({ ids: participantIds }),
-    }).then((res) => {
-      if (res.ok) {
-        (res.json() as Promise<ProfileType[]>).then((profiles) => {
-          setParticipantProfiles(profiles);
-        });
-      }
-    });
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          console.error("Failed to fetch participant profiles:", res.status);
+          setParticipantProfiles([]);
+          return;
+        }
+        const profiles = (await res.json()) as ProfileType[];
+        setParticipantProfiles(profiles);
+      })
+      .catch((error) => {
+        console.error("Error fetching participant profiles:", error);
+        setParticipantProfiles([]);
+      });
   }, [stands]);
 
   function getParticipantProfilesForStand(
@@ -89,7 +96,8 @@ export default function UserMap({
               {stands.map((stand) => {
                 const standCanBeReserved =
                   !!forReservation &&
-                  canStandBeReserved(stand, profile as ProfileType);
+                  !!profile &&
+                  canStandBeReserved(stand, profile);
                 const profiles = getParticipantProfilesForStand(stand);
 
                 return (

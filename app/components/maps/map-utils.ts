@@ -16,12 +16,12 @@ export const STAND_SIZE = 6;
 
 export function getStandPosition(stand: StandWithReservationsWithParticipants) {
   const left =
-    stand.positionLeft ||
-    standsPositions.find((p) => p.id === stand.standNumber)?.left ||
+    stand.positionLeft ??
+    standsPositions.find((p) => p.id === stand.standNumber)?.left ??
     0;
   const top =
-    stand.positionTop ||
-    standsPositions.find((p) => p.id === stand.standNumber)?.top ||
+    stand.positionTop ??
+    standsPositions.find((p) => p.id === stand.standNumber)?.top ??
     0;
 
   return { left, top };
@@ -36,8 +36,8 @@ export function computeCanvasBounds(
 
   let minLeft = Infinity;
   let minTop = Infinity;
-  let maxRight = 0;
-  let maxBottom = 0;
+  let maxRight = -Infinity;
+  let maxBottom = -Infinity;
 
   for (const stand of stands) {
     const { left, top } = getStandPosition(stand);
