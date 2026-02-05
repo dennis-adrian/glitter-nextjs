@@ -119,7 +119,7 @@ export default function UserMap({
 			<MapLegend />
 			<TransformWrapper
 				initialScale={1}
-				minScale={0.5}
+				minScale={1}
 				maxScale={4}
 				centerOnInit
 				wheel={{ step: 0.1 }}
