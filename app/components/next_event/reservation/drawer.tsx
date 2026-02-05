@@ -63,7 +63,7 @@ export function ReservationDrawer({
         </div>
         <DrawerFooter>
           <DrawerClose asChild>
-            <Button variant="outline" className="w-full" onClick={onClose}>
+            <Button variant="outline" className="w-full">
               Cancelar
             </Button>
           </DrawerClose>
