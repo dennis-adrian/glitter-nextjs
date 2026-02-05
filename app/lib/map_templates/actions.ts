@@ -345,9 +345,7 @@ export async function importTemplateToFestival(
 						};
 					}
 
-					await tx
-						.delete(stands)
-						.where(eq(stands.festivalSectorId, targetSector.id));
+					await tx.delete(stands).where(inArray(stands.id, standIds));
 				}
 
 				// Update sector bounds
@@ -396,10 +394,7 @@ export async function importTemplateToFestival(
 
 		// Full festival import - reconcile sectors to match template
 		const allExistingStands = targetSectors.flatMap((s) => s.stands);
-		if (
-			allExistingStands.length > 0 &&
-			parsedOptions.mode === "create_only"
-		) {
+		if (allExistingStands.length > 0 && parsedOptions.mode === "create_only") {
 			return {
 				success: false,
 				message: "El festival ya tiene espacios configurados",
