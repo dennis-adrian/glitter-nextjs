@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
 import { ZoomIn } from "lucide-react";
 
@@ -32,6 +32,16 @@ export default function UserMap({
   const [participantProfiles, setParticipantProfiles] = useState<ProfileType[]>(
     [],
   );
+  const [hoveredStand, setHoveredStand] = useState<StandWithReservationsWithParticipants | null>(null);
+  const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
+
+  const handleHoverChange = useCallback(
+    (stand: StandWithReservationsWithParticipants | null, rect: DOMRect | null) => {
+      setHoveredStand(stand);
+      setHoveredRect(rect);
+    },
+    [],
+  );
 
   useEffect(() => {
     const reservations = stands.flatMap((stand) => stand.reservations);
@@ -39,10 +49,7 @@ export default function UserMap({
       reservation.participants.map((participant) => participant.user.id),
     );
 
-    if (participantIds.length === 0) {
-      setParticipantProfiles([]);
-      return;
-    }
+    if (participantIds.length === 0) return;
 
     fetch("/api/users_by_id", {
       method: "POST",
@@ -98,26 +105,32 @@ export default function UserMap({
                   !!forReservation &&
                   !!profile &&
                   canStandBeReserved(stand, profile);
-                const profiles = getParticipantProfilesForStand(stand);
 
                 return (
-                  <MapTooltip
+                  <MapStand
                     key={stand.id}
                     stand={stand}
                     canBeReserved={standCanBeReserved}
-                    participantProfiles={profiles}
-                  >
-                    <MapStand
-                      stand={stand}
-                      canBeReserved={standCanBeReserved}
-                      onClick={onStandClick}
-                    />
-                  </MapTooltip>
+                    onClick={onStandClick}
+                    onHoverChange={handleHoverChange}
+                  />
                 );
               })}
             </MapCanvas>
           </TransformComponent>
         </div>
+        {hoveredStand && hoveredRect && (
+          <MapTooltip
+            stand={hoveredStand}
+            canBeReserved={
+              !!forReservation &&
+              !!profile &&
+              canStandBeReserved(hoveredStand, profile)
+            }
+            participantProfiles={getParticipantProfilesForStand(hoveredStand)}
+            anchorRect={hoveredRect}
+          />
+        )}
         <div className="flex items-center gap-3 mt-2">
           <MapToolbar />
           <p className="text-xs text-muted-foreground flex items-center gap-1">

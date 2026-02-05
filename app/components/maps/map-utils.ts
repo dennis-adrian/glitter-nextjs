@@ -1,4 +1,3 @@
-import { standsPositions } from "@/app/components/next_event/config";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { MapCanvasConfig } from "./map-types";
 
@@ -15,16 +14,10 @@ export const DEFAULT_CANVAS_CONFIG: MapCanvasConfig = {
 export const STAND_SIZE = 6;
 
 export function getStandPosition(stand: StandWithReservationsWithParticipants) {
-  const left =
-    stand.positionLeft ??
-    standsPositions.find((p) => p.id === stand.standNumber)?.left ??
-    0;
-  const top =
-    stand.positionTop ??
-    standsPositions.find((p) => p.id === stand.standNumber)?.top ??
-    0;
-
-  return { left, top };
+  return {
+    left: stand.positionLeft ?? 0,
+    top: stand.positionTop ?? 0,
+  };
 }
 
 export function computeCanvasBounds(
