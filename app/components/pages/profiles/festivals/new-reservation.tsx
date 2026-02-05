@@ -69,10 +69,9 @@ export default async function NewReservationPage(
               <Suspense key={sector.id} fallback={<FestivalSkeleton />}>
                 <div className="flex flex-col items-center gap-2">
                   <FestivalSectorTitle sector={sector} />
-                  <div className="mx-auto">
+                  <div className="w-full md:max-w-2xl mx-auto">
                     <ClientMap
                       artists={acceptedArtists}
-                      imageSrc={sector.mapUrl}
                       festival={festival}
                       profile={forProfile}
                       stands={sector.stands}

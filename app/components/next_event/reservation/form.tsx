@@ -10,11 +10,10 @@ import AvatarGroup from "@/app/components/ui/avatar-group";
 import { Button } from "@/app/components/ui/button";
 import SearchInput from "@/app/components/ui/search-input/input";
 import {
-  NewStandReservation,
-  createReservation,
+	NewStandReservation,
+	createReservation,
 } from "@/app/api/user_requests/actions";
 import { toast } from "sonner";
-import { Separator } from "@/app/components/ui/separator";
 import { Label } from "@/app/components/ui/label";
 import { useRouter } from "next/navigation";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
@@ -25,81 +24,82 @@ import { Form } from "@/app/components/ui/form";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export default function ReservationForm({
-  artists,
-  festival,
-  isDesktop,
-  profile,
-  stand,
-  onModalClose,
+	artists,
+	festival,
+	isDesktop,
+	profile,
+	stand,
+	onModalClose,
 }: {
-  artists: BaseProfile[];
-  festival: FestivalBase;
-  isDesktop: boolean;
-  profile: ProfileType;
-  stand: StandWithReservationsWithParticipants;
-  onModalClose: () => void;
+	artists: BaseProfile[];
+	festival: FestivalBase;
+	isDesktop: boolean;
+	profile: ProfileType;
+	stand: StandWithReservationsWithParticipants;
+	onModalClose: () => void;
 }) {
-  const router = useRouter();
-  const searchOptions = getParticipantsOptions(artists);
-  const [selectedArtist, setSelectedArtist] = useState<
-    BaseProfile | undefined
-  >();
-  const [addPartner, setAddPartner] = useState(false);
-  const form = useForm();
+	const router = useRouter();
+	const searchOptions = getParticipantsOptions(artists);
+	const [selectedArtist, setSelectedArtist] = useState<
+		BaseProfile | undefined
+	>();
+	const [addPartner, setAddPartner] = useState(false);
+	const form = useForm();
 
-  function handleSelectArtist(artistId: number) {
-    const foundArtist = artists.find((artist) => artist.id === artistId);
-    setSelectedArtist(foundArtist);
-  }
+	function handleSelectArtist(artistId: number) {
+		const foundArtist = artists.find((artist) => artist.id === artistId);
+		setSelectedArtist(foundArtist);
+	}
 
-  const avatarsInfo = [
-    {
-      key: profile.id,
-      src: profile.imageUrl || "/img/placeholders/avatar-placeholder.png",
-      alt: "imagen de usuario",
-    },
-  ];
+	const avatarsInfo = [
+		{
+			key: profile.id,
+			src: profile.imageUrl || "/img/placeholders/avatar-placeholder.png",
+			alt: "imagen de usuario",
+		},
+	];
 
-  if (selectedArtist) {
-    avatarsInfo.push({
-      key: selectedArtist.id,
-      src: selectedArtist.imageUrl || "/img/placeholders/avatar-placeholder.png",
-      alt: "imagen de usuario",
-    });
-  }
+	if (selectedArtist) {
+		avatarsInfo.push({
+			key: selectedArtist.id,
+			src:
+				selectedArtist.imageUrl || "/img/placeholders/avatar-placeholder.png",
+			alt: "imagen de usuario",
+		});
+	}
 
-  const action: () => void = form.handleSubmit(async () => {
-    const participantIds = [profile.id, selectedArtist?.id].filter(
-      Boolean,
-    ) as number[];
+	const action: () => void = form.handleSubmit(async () => {
+		const participantIds = [profile.id, selectedArtist?.id].filter(
+			Boolean,
+		) as number[];
 
-    const reservation = {
-      standId: stand.id,
-      festivalId: festival.id,
-      participantIds,
-    } as NewStandReservation;
+		const reservation = {
+			standId: stand.id,
+			festivalId: festival.id,
+			participantIds,
+		} as NewStandReservation;
 
-    const res = await createReservation(reservation, stand.price, profile);
-    if (res.success) {
-      onModalClose();
-      setSelectedArtist(undefined);
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
-      toast.success(res.message);
-      router.push(
-        `/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.reservationId}/payments`,
-      );
-    } else {
-      toast.error(res.message, {
-        description: res.description,
-      });
-    }
-  });
+		const res = await createReservation(reservation, stand.price, profile);
+		if (res.success) {
+			onModalClose();
+			setSelectedArtist(undefined);
+			confetti({
+				particleCount: 100,
+				spread: 70,
+				origin: { y: 0.6 },
+			});
+			toast.success(res.message);
+			router.push(
+				`/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.reservationId}/payments`,
+			);
+		} else {
+			toast.error(res.message, {
+				description: res.description,
+			});
+		}
+	});
 
-  return (
+	return (
 		<div>
 			<h1 className="mb-4">Reservando para:</h1>
 			<div className="flex flex-col items-center mb-4">
