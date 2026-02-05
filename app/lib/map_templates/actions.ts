@@ -5,6 +5,7 @@ import {
 	festivals,
 	festivalSectors,
 	mapTemplates,
+	standReservations,
 	stands,
 	users,
 } from "@/db/schema";
@@ -287,11 +288,7 @@ export async function importTemplateToFestival(
 		const targetSectors = await db.query.festivalSectors.findMany({
 			where: eq(festivalSectors.festivalId, festivalId),
 			with: {
-				stands: {
-					with: {
-						reservations: true,
-					},
-				},
+				stands: true,
 			},
 			orderBy: festivalSectors.orderInFestival,
 		});
@@ -306,25 +303,14 @@ export async function importTemplateToFestival(
 			}
 
 			// Check for existing stands
-			if (targetSector.stands.length > 0) {
-				if (parsedOptions.mode === "create_only") {
-					return {
-						success: false,
-						message: "El sector ya tiene espacios configurados",
-					};
-				}
-
-				// Check for reservations before replacing
-				const hasReservations = targetSector.stands.some(
-					(s) => s.reservations && s.reservations.length > 0,
-				);
-				if (hasReservations) {
-					return {
-						success: false,
-						message:
-							"No se puede reemplazar: algunos espacios tienen reservaciones activas",
-					};
-				}
+			if (
+				targetSector.stands.length > 0 &&
+				parsedOptions.mode === "create_only"
+			) {
+				return {
+					success: false,
+					message: "El sector ya tiene espacios configurados",
+				};
 			}
 
 			// Use first sector from template for single sector import
@@ -342,6 +328,23 @@ export async function importTemplateToFestival(
 					parsedOptions.mode === "replace" &&
 					targetSector.stands.length > 0
 				) {
+					const standIds = targetSector.stands.map((s) => s.id);
+
+					// Atomic reservation check inside transaction
+					const existingReservations = await tx
+						.select({ id: standReservations.id })
+						.from(standReservations)
+						.where(inArray(standReservations.standId, standIds))
+						.limit(1);
+
+					if (existingReservations.length > 0) {
+						return {
+							success: false,
+							message:
+								"No se puede reemplazar: algunos espacios tienen reservaciones activas",
+						};
+					}
+
 					await tx
 						.delete(stands)
 						.where(eq(stands.festivalSectorId, targetSector.id));
@@ -393,25 +396,14 @@ export async function importTemplateToFestival(
 
 		// Full festival import - reconcile sectors to match template
 		const allExistingStands = targetSectors.flatMap((s) => s.stands);
-		if (allExistingStands.length > 0) {
-			if (parsedOptions.mode === "create_only") {
-				return {
-					success: false,
-					message: "El festival ya tiene espacios configurados",
-				};
-			}
-
-			// Check for reservations before replacing
-			const hasReservations = allExistingStands.some(
-				(s) => s.reservations && s.reservations.length > 0,
-			);
-			if (hasReservations) {
-				return {
-					success: false,
-					message:
-						"No se puede reemplazar: algunos espacios tienen reservaciones activas",
-				};
-			}
+		if (
+			allExistingStands.length > 0 &&
+			parsedOptions.mode === "create_only"
+		) {
+			return {
+				success: false,
+				message: "El festival ya tiene espacios configurados",
+			};
 		}
 
 		return await db.transaction(async (tx) => {
@@ -420,6 +412,22 @@ export async function importTemplateToFestival(
 			// 1. Delete all existing stands across all sectors
 			if (allExistingStands.length > 0) {
 				const standIds = allExistingStands.map((s) => s.id);
+
+				// Atomic reservation check inside transaction
+				const existingReservations = await tx
+					.select({ id: standReservations.id })
+					.from(standReservations)
+					.where(inArray(standReservations.standId, standIds))
+					.limit(1);
+
+				if (existingReservations.length > 0) {
+					return {
+						success: false,
+						message:
+							"No se puede reemplazar: algunos espacios tienen reservaciones activas",
+					};
+				}
+
 				await tx.delete(stands).where(inArray(stands.id, standIds));
 			}
 
