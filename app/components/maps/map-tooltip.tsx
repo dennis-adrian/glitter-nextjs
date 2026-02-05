@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { ProfileType } from "@/app/api/users/definitions";
@@ -26,7 +26,7 @@ export default function MapTooltip({
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
 
-  useLayoutEffect(() => {
+  const recomputePosition = useCallback(() => {
     const el = tooltipRef.current;
     if (!el) return;
 
@@ -48,6 +48,27 @@ export default function MapTooltip({
 
     setPos({ top, left });
   }, [anchorRect]);
+
+  // Initial position and anchorRect changes
+  useLayoutEffect(() => {
+    recomputePosition();
+  }, [recomputePosition]);
+
+  // Window resize and tooltip content size changes
+  useEffect(() => {
+    const el = tooltipRef.current;
+    if (!el) return;
+
+    window.addEventListener("resize", recomputePosition);
+
+    const resizeObserver = new ResizeObserver(recomputePosition);
+    resizeObserver.observe(el);
+
+    return () => {
+      window.removeEventListener("resize", recomputePosition);
+      resizeObserver.disconnect();
+    };
+  }, [recomputePosition]);
 
   const tooltip = (
     <div

@@ -219,6 +219,7 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 	) {
 		const svgRef = useRef<SVGSVGElement>(null);
 		const resizeCleanupRef = useRef<(() => void) | null>(null);
+		const onBoundsChangeRef = useRef(onBoundsChange);
 		const [activeGuides, setActiveGuides] = useState<GuideLine[]>([]);
 		const [mapBounds, setMapBounds] = useState<MapBounds>(
 			() => initialBounds ?? computeBoundsFromPositions(positions),
@@ -245,10 +246,15 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 			[positions],
 		);
 
-		// Notify parent when bounds change
+		// Keep ref updated (React 19 compliant - via effect, not during render)
 		useEffect(() => {
-			onBoundsChange(mapBounds);
-		}, [mapBounds, onBoundsChange]);
+			onBoundsChangeRef.current = onBoundsChange;
+		});
+
+		// Notify parent when bounds change (only depends on mapBounds)
+		useEffect(() => {
+			onBoundsChangeRef.current(mapBounds);
+		}, [mapBounds]);
 
 		const bounds = mapBounds;
 
@@ -260,15 +266,19 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 			e: React.PointerEvent<SVGRectElement>,
 		) {
 			e.stopPropagation();
+
+			// Validate before starting resize to avoid stuck state
+			const svg = svgRef.current;
+			if (!svg) return;
+			const ctm = svg.getScreenCTM();
+			if (!ctm) return;
+
+			// Now safe to start resize
 			onResizeStart();
 			const el = e.currentTarget;
 			const pointerId = e.pointerId;
 			el.setPointerCapture(pointerId);
 
-			const svg = svgRef.current;
-			if (!svg) return;
-			const ctm = svg.getScreenCTM();
-			if (!ctm) return;
 			const ctmInverse = ctm.inverse();
 			const startPt = svg.createSVGPoint();
 			startPt.x = e.clientX;
@@ -313,6 +323,7 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 			const cleanup = () => {
 				el.removeEventListener("pointermove", onMove);
 				el.removeEventListener("pointerup", onUp);
+				el.removeEventListener("pointercancel", onUp);
 				try {
 					el.releasePointerCapture(pointerId);
 				} catch {
@@ -329,6 +340,7 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 			resizeCleanupRef.current = cleanup;
 			el.addEventListener("pointermove", onMove);
 			el.addEventListener("pointerup", onUp);
+			el.addEventListener("pointercancel", onUp);
 		}
 
 		const handleDrag = useCallback(

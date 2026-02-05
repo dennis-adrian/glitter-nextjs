@@ -36,7 +36,15 @@ export function ReservationDrawer({
   }
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
+    <Drawer
+      open={open}
+      onOpenChange={(newOpen) => {
+        onOpenChange(newOpen);
+        if (!newOpen) {
+          onClose();
+        }
+      }}
+    >
       <DrawerContent>
         <DrawerHeader>
           <DrawerTitle>
@@ -55,7 +63,7 @@ export function ReservationDrawer({
         </div>
         <DrawerFooter>
           <DrawerClose asChild>
-            <Button variant="outline" className="w-full">
+            <Button variant="outline" className="w-full" onClick={onClose}>
               Cancelar
             </Button>
           </DrawerClose>

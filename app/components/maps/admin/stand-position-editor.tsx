@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	TransformComponent,
 	TransformWrapper,
-	type ReactZoomPanPinchRef,
+	type ReactZoomPanPinchContentRef,
 } from "react-zoom-pan-pinch";
 import {
 	AlignEndHorizontal,
@@ -141,7 +141,7 @@ export default function StandPositionEditor({
 	const [showGuides, setShowGuides] = useState(true);
 	const [focusedStandId, setFocusedStandId] = useState<number | null>(null);
 	const arrowUndoPushedRef = useRef(false);
-	const transformRef = useRef<ReactZoomPanPinchRef>(null);
+	const transformRefsMap = useRef<Map<number, ReactZoomPanPinchContentRef>>(new Map());
 
 	// Local stands per sector (allows add/delete without full page reload)
 	const [standsPerSector, setStandsPerSector] = useState<
@@ -268,7 +268,7 @@ export default function StandPositionEditor({
 		setFocusedStandId(null);
 	}, []);
 
-	const handleAddStands = useCallback(async () => {
+	const handleAddStands = async () => {
 		if (!activeSectorId || !addLabel.trim()) return;
 		const sectorId = Number(activeSectorId);
 
@@ -340,15 +340,7 @@ export default function StandPositionEditor({
 		setAddCount(1);
 		setAddStartNumber(1);
 		setAddStatus("disabled");
-	}, [
-		activeSectorId,
-		addLabel,
-		addCount,
-		addStartNumber,
-		addStatus,
-		festivalId,
-		boundsPerSector,
-	]);
+	};
 
 	const handleDeleteStands = useCallback(async () => {
 		if (selectedStands.size === 0) return;
@@ -400,7 +392,7 @@ export default function StandPositionEditor({
 		toast.success(result.message);
 	}, [selectedStands, standsPerSector]);
 
-	const openEditDialog = useCallback(() => {
+	const openEditDialog = () => {
 		if (selectedStands.size !== 1) return;
 		const standId = Array.from(selectedStands)[0];
 		for (const [, sectorStands] of standsPerSector) {
@@ -414,9 +406,9 @@ export default function StandPositionEditor({
 				return;
 			}
 		}
-	}, [selectedStands, standsPerSector]);
+	};
 
-	const handleEditStand = useCallback(async () => {
+	const handleEditStand = async () => {
 		if (editStandId == null || !editLabel.trim()) return;
 
 		setIsEditing(true);
@@ -451,7 +443,7 @@ export default function StandPositionEditor({
 
 		toast.success(result.message);
 		setEditDialogOpen(false);
-	}, [editStandId, editLabel, editStandNumber, editStatus]);
+	};
 
 	const changedCount = Array.from(positions.entries()).filter(([id, pos]) => {
 		const orig = originalPositions.get(id);
@@ -912,7 +904,13 @@ export default function StandPositionEditor({
 				{sectors.map((sector) => (
 					<TabsContent key={sector.id} value={String(sector.id)}>
 						<TransformWrapper
-							ref={transformRef}
+							ref={(handle) => {
+								if (handle) {
+									transformRefsMap.current.set(sector.id, handle);
+								} else {
+									transformRefsMap.current.delete(sector.id);
+								}
+							}}
 							initialScale={1}
 							minScale={0.1}
 							maxScale={6}
@@ -966,7 +964,7 @@ export default function StandPositionEditor({
 										variant="outline"
 										size="icon"
 										className="h-8 w-8"
-										onClick={() => transformRef.current?.zoomIn()}
+										onClick={() => transformRefsMap.current.get(sector.id)?.zoomIn()}
 										title="Acercar"
 									>
 										<ZoomIn className="h-4 w-4" />
@@ -975,7 +973,7 @@ export default function StandPositionEditor({
 										variant="outline"
 										size="icon"
 										className="h-8 w-8"
-										onClick={() => transformRef.current?.zoomOut()}
+										onClick={() => transformRefsMap.current.get(sector.id)?.zoomOut()}
 										title="Alejar"
 									>
 										<ZoomOut className="h-4 w-4" />
@@ -983,7 +981,7 @@ export default function StandPositionEditor({
 									<Button
 										variant="outline"
 										size="sm"
-										onClick={() => transformRef.current?.resetTransform()}
+										onClick={() => transformRefsMap.current.get(sector.id)?.resetTransform()}
 										title="Ajustar mapa al contenedor"
 									>
 										<Maximize2 className="h-4 w-4 mr-1" />
