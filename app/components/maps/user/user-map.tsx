@@ -22,6 +22,7 @@ type UserMapProps = {
   profile?: ProfileType | BaseProfile | null;
   forReservation?: boolean;
   onStandClick?: StandClickHandler;
+  onStandTouchTap?: (stand: StandWithReservationsWithParticipants) => boolean;
 };
 
 export default function UserMap({
@@ -29,6 +30,7 @@ export default function UserMap({
   profile,
   forReservation,
   onStandClick,
+  onStandTouchTap,
 }: UserMapProps) {
   const [participantProfiles, setParticipantProfiles] = useState<ProfileType[]>(
     [],
@@ -125,7 +127,10 @@ export default function UserMap({
                     canBeReserved={standCanBeReserved}
                     onClick={onStandClick}
                     onHoverChange={handleHoverChange}
-                    onTouchTap={handleTap}
+                    onTouchTap={(stand) => {
+                      if (onStandTouchTap?.(stand)) return;
+                      handleTap(stand);
+                    }}
                   />
                 );
               })}
