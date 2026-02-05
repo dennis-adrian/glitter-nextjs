@@ -3,6 +3,7 @@ import {
 	boolean,
 	index,
 	integer,
+	jsonb,
 	pgEnum,
 	pgTable,
 	real,
@@ -1168,5 +1169,32 @@ export const productImagesRelations = relations(productImages, ({ one }) => ({
 	product: one(products, {
 		fields: [productImages.productId],
 		references: [products.id],
+	}),
+}));
+
+// Map Templates - for reusable festival map layouts
+export const mapTemplates = pgTable("map_templates", {
+	id: serial("id").primaryKey(),
+	name: text("name").notNull(),
+	description: text("description"),
+	templateData: jsonb("template_data").notNull(),
+	createdByUserId: integer("created_by_user_id").references(() => users.id, {
+		onDelete: "set null",
+	}),
+	createdFromFestivalId: integer("created_from_festival_id").references(
+		() => festivals.id,
+		{ onDelete: "set null" },
+	),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const mapTemplatesRelations = relations(mapTemplates, ({ one }) => ({
+	createdBy: one(users, {
+		fields: [mapTemplates.createdByUserId],
+		references: [users.id],
+	}),
+	createdFromFestival: one(festivals, {
+		fields: [mapTemplates.createdFromFestivalId],
+		references: [festivals.id],
 	}),
 }));
