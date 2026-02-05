@@ -14,6 +14,7 @@ type MapStandProps = {
   stand: StandWithReservationsWithParticipants;
   canBeReserved: boolean;
   onClick?: (stand: StandWithReservationsWithParticipants) => void;
+  onTouchTap?: (stand: StandWithReservationsWithParticipants) => void;
   onHoverChange?: (
     stand: StandWithReservationsWithParticipants | null,
     rect: DOMRect | null,
@@ -21,7 +22,7 @@ type MapStandProps = {
 };
 
 const MapStand = forwardRef<SVGGElement, MapStandProps>(
-  ({ stand, canBeReserved, onClick, onHoverChange }, ref) => {
+  ({ stand, canBeReserved, onClick, onTouchTap, onHoverChange }, ref) => {
     const [hovered, setHovered] = useState(false);
     const gRef = useRef<SVGGElement>(null);
     const { left, top } = getStandPosition(stand);
@@ -32,9 +33,13 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
       : getStandFillColor(status, canBeReserved);
     const strokeColor = getStandStrokeColor(status, canBeReserved);
 
-    const handleClick = () => {
-      if (!canBeReserved || !onClick) return;
-      onClick(stand);
+    const handlePointerUp = (e: React.PointerEvent) => {
+      if (e.pointerType === "touch" || e.pointerType === "pen") {
+        onTouchTap?.(stand);
+      } else {
+        if (!canBeReserved || !onClick) return;
+        onClick(stand);
+      }
     };
 
     return (
@@ -45,7 +50,7 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
           else if (ref) (ref as React.MutableRefObject<SVGGElement | null>).current = node;
         }}
         transform={`translate(${left}, ${top})`}
-        onClick={handleClick}
+        onPointerUp={handlePointerUp}
         onMouseEnter={() => {
           setHovered(true);
           if (onHoverChange && gRef.current) {
@@ -63,7 +68,7 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            handleClick();
+            if (canBeReserved && onClick) onClick(stand);
           }
         }}
       >

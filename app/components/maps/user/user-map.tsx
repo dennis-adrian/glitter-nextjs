@@ -13,6 +13,7 @@ import MapStand from "@/app/components/maps/map-stand";
 import MapToolbar from "@/app/components/maps/map-toolbar";
 import MapLegend from "@/app/components/maps/map-legend";
 import MapTooltip from "@/app/components/maps/map-tooltip";
+import MapStandDrawer from "@/app/components/maps/map-stand-drawer";
 import { StandClickHandler } from "@/app/components/maps/map-types";
 import { computeCanvasBounds } from "@/app/components/maps/map-utils";
 
@@ -32,8 +33,19 @@ export default function UserMap({
   const [participantProfiles, setParticipantProfiles] = useState<ProfileType[]>(
     [],
   );
+
   const [hoveredStand, setHoveredStand] = useState<StandWithReservationsWithParticipants | null>(null);
   const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
+  const [tappedStand, setTappedStand] = useState<StandWithReservationsWithParticipants | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const handleTap = useCallback(
+    (stand: StandWithReservationsWithParticipants) => {
+      setTappedStand(stand);
+      setDrawerOpen(true);
+    },
+    [],
+  );
 
   const handleHoverChange = useCallback(
     (stand: StandWithReservationsWithParticipants | null, rect: DOMRect | null) => {
@@ -113,6 +125,7 @@ export default function UserMap({
                     canBeReserved={standCanBeReserved}
                     onClick={onStandClick}
                     onHoverChange={handleHoverChange}
+                    onTouchTap={handleTap}
                   />
                 );
               })}
@@ -131,6 +144,22 @@ export default function UserMap({
             anchorRect={hoveredRect}
           />
         )}
+        <MapStandDrawer
+          stand={tappedStand}
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          canBeReserved={
+            !!tappedStand &&
+            !!forReservation &&
+            !!profile &&
+            canStandBeReserved(tappedStand, profile)
+          }
+          participantProfiles={
+            tappedStand
+              ? getParticipantProfilesForStand(tappedStand)
+              : []
+          }
+        />
         <div className="flex items-center gap-3 mt-2">
           <MapToolbar />
           <p className="text-xs text-muted-foreground flex items-center gap-1">
