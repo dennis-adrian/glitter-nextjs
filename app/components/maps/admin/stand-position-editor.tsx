@@ -13,6 +13,7 @@ import {
 	AlignStartHorizontal,
 	AlignStartVertical,
 	AlignVerticalSpaceAround,
+	Download,
 	Grid3x3,
 	Magnet,
 	Maximize2,
@@ -23,6 +24,7 @@ import {
 	Save,
 	Trash2,
 	Undo2,
+	Upload,
 	ZoomIn,
 	ZoomOut,
 } from "lucide-react";
@@ -60,6 +62,8 @@ import AdminMapCanvas, {
 	type AdminMapCanvasHandle,
 	type MapBounds,
 } from "./admin-map-canvas";
+import TemplateExportDialog from "./template-export-dialog";
+import TemplateImportDialog from "./template-import-dialog";
 
 type StandPositionEditorProps = {
 	festivalId: number;
@@ -179,6 +183,10 @@ export default function StandPositionEditor({
 		"available" | "reserved" | "confirmed" | "disabled"
 	>("disabled");
 	const [isEditing, setIsEditing] = useState(false);
+
+	// Template export/import dialog state
+	const [exportDialogOpen, setExportDialogOpen] = useState(false);
+	const [importDialogOpen, setImportDialogOpen] = useState(false);
 
 	// Keyboard handler for arrow key movement
 	useEffect(() => {
@@ -761,6 +769,23 @@ export default function StandPositionEditor({
 						{changedCount !== 1 ? "s" : ""}
 					</span>
 				)}
+				<Separator orientation="vertical" className="h-6 mx-1" />
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => setExportDialogOpen(true)}
+				>
+					<Download className="h-4 w-4 mr-1" />
+					Exportar
+				</Button>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => setImportDialogOpen(true)}
+				>
+					<Upload className="h-4 w-4 mr-1" />
+					Importar
+				</Button>
 			</div>
 
 			{/* Toggles toolbar */}
@@ -1123,6 +1148,24 @@ export default function StandPositionEditor({
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+
+			<TemplateExportDialog
+				open={exportDialogOpen}
+				onOpenChange={setExportDialogOpen}
+				festivalId={festivalId}
+				sectors={sectors}
+			/>
+
+			<TemplateImportDialog
+				open={importDialogOpen}
+				onOpenChange={setImportDialogOpen}
+				festivalId={festivalId}
+				sectors={sectors}
+				onImportSuccess={() => {
+					// Refresh the page to get updated data
+					window.location.reload();
+				}}
+			/>
 		</div>
 	);
 }
