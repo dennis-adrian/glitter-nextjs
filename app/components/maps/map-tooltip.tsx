@@ -91,5 +91,7 @@ export default function MapTooltip({
     </div>
   );
 
+  if (typeof document === "undefined") return null;
+
   return createPortal(tooltip, document.body);
 }

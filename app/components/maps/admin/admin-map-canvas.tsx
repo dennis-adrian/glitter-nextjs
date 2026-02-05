@@ -218,6 +218,7 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 		ref,
 	) {
 		const svgRef = useRef<SVGSVGElement>(null);
+		const resizeCleanupRef = useRef<(() => void) | null>(null);
 		const [activeGuides, setActiveGuides] = useState<GuideLine[]>([]);
 		const [mapBounds, setMapBounds] = useState<MapBounds>(
 			() => initialBounds ?? computeBoundsFromPositions(positions),
@@ -225,6 +226,13 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 		const [hoveredEdge, setHoveredEdge] = useState<Edge | "corner" | null>(
 			null,
 		);
+
+		// Cleanup resize listeners on unmount
+		useEffect(() => {
+			return () => {
+				resizeCleanupRef.current?.();
+			};
+		}, []);
 
 		useImperativeHandle(
 			ref,
@@ -238,11 +246,9 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 		);
 
 		// Notify parent when bounds change
-		const onBoundsChangeRef = useRef(onBoundsChange);
-		onBoundsChangeRef.current = onBoundsChange;
 		useEffect(() => {
-			onBoundsChangeRef.current(mapBounds);
-		}, [mapBounds]);
+			onBoundsChange(mapBounds);
+		}, [mapBounds, onBoundsChange]);
 
 		const bounds = mapBounds;
 
@@ -256,7 +262,8 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 			e.stopPropagation();
 			onResizeStart();
 			const el = e.currentTarget;
-			el.setPointerCapture(e.pointerId);
+			const pointerId = e.pointerId;
+			el.setPointerCapture(pointerId);
 
 			const svg = svgRef.current;
 			if (!svg) return;
@@ -302,11 +309,24 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 
 				setMapBounds({ minX, minY, width, height });
 			};
-			const onUp = () => {
+
+			const cleanup = () => {
 				el.removeEventListener("pointermove", onMove);
 				el.removeEventListener("pointerup", onUp);
+				try {
+					el.releasePointerCapture(pointerId);
+				} catch {
+					// Pointer capture may already be released
+				}
+				resizeCleanupRef.current = null;
+			};
+
+			const onUp = () => {
+				cleanup();
 				onResizeEnd();
 			};
+
+			resizeCleanupRef.current = cleanup;
 			el.addEventListener("pointermove", onMove);
 			el.addEventListener("pointerup", onUp);
 		}
