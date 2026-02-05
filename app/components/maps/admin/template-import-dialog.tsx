@@ -355,7 +355,7 @@ export default function TemplateImportDialog({
                   <span className="text-sm">
                     Reemplazar existentes
                     <span className="text-muted-foreground ml-1">
-                      (elimina espacios actuales)
+                      (elimina espacios y ajusta sectores)
                     </span>
                   </span>
                 </label>
@@ -372,9 +372,32 @@ export default function TemplateImportDialog({
               </div>
             )}
 
-            <div className="text-sm text-muted-foreground">
-              Se crearán <strong>{getTotalStandsInTemplate()}</strong> espacios
-              con estado <strong>deshabilitado</strong>.
+            <div className="text-sm text-muted-foreground space-y-1">
+              {targetSectorId === "all" && selectedTemplate && (
+                <p>
+                  Se configurarán <strong>{selectedTemplate.sectors.length}</strong>{" "}
+                  sector{selectedTemplate.sectors.length !== 1 && "es"} con{" "}
+                  <strong>{getTotalStandsInTemplate()}</strong> espacios en total.
+                  {importMode === "replace" &&
+                    sectors.length !== selectedTemplate.sectors.length && (
+                      <span>
+                        {" "}
+                        Los sectores del festival se ajustarán para coincidir con
+                        la plantilla.
+                      </span>
+                    )}
+                </p>
+              )}
+              {targetSectorId !== "all" && (
+                <p>
+                  Se crearán <strong>{getTotalStandsInTemplate()}</strong>{" "}
+                  espacios en el sector seleccionado.
+                </p>
+              )}
+              <p>
+                Los espacios importados tendrán estado{" "}
+                <strong>disponible</strong>.
+              </p>
             </div>
           </div>
         )}
