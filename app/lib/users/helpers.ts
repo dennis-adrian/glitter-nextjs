@@ -17,7 +17,10 @@ export async function getCurrentUserProfile() {
 
 		// TODO: if the profile is not found, it should log out the user
 		return await cachedFetchUserProfileByClerkId(user.id);
-	} catch (error) {}
+	} catch (error) {
+		console.error("Error getting current user profile:", error);
+		return null;
+	}
 }
 
 export async function protectRoute(currentUser?: BaseProfile, profileId?: number) {
