@@ -64,7 +64,7 @@ export default function TicketModal({
 				<div className={`${isDesktop ? "" : "px-4"} py-4`}>
 					<div
 						ref={ticketRef}
-						className="flex flex-col items-center rounded-lg bg-gradient-to-b from-[#6173CD] via-[#b0b8e2] to-[#96B440] p-6 pb-0 md:p-8 md:pb-0"
+						className="flex flex-col items-center rounded-lg bg-linear-to-b from-[#6173CD] via-[#b0b8e2] to-[#96B440] p-6 pb-0 md:p-8 md:pb-0"
 					>
 						<Image alt="logo" src={eventLogoUrl} height={80} width={270} />
 						<div className="m-2 flex h-60 w-60 items-center justify-center rounded-lg bg-white/50 backdrop-blur-sm">
