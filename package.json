@@ -4,14 +4,15 @@
 	"private": true,
 	"scripts": {
 		"dev": "next dev",
-		"build": "next build",
+		"build": "npm run generate && next build",
 		"start": "next start",
 		"lint": "next lint",
 		"generate": "drizzle-kit generate",
 		"migrate": "npx tsx scripts/migrate.ts",
 		"push": "drizzle-kit push:pg",
 		"seed": "npx tsx scripts/seed.ts",
-		"postinstall": "npm run generate && npm run migrate && npm run seed",
+		"db:setup": "npm run generate && npm run migrate && npm run seed",
+		"vercel-build": "npm run generate && npm run migrate && next build",
 		"email": "email dev --dir app/emails"
 	},
 	"dependencies": {
