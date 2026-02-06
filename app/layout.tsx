@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { esES } from "@clerk/localizations";
 import { ClerkProvider } from "@clerk/nextjs";
 
+import { EdgeStoreProvider } from "@/app/lib/edgestore";
 import { Toaster } from "@/components/ui/sonner";
 import { inter, isidora } from "@/ui/fonts";
 
@@ -39,17 +40,19 @@ export default function RootLayout({
 		<ClerkProvider localization={esES}>
 			<html lang="es">
 				<body className={`${inter.variable} ${isidora.variable} font-sans`}>
-					<Suspense fallback={<header className="w-full h-16 md:h-20" />}>
-						<Navbar />
-					</Suspense>
-					<main className="min-h-[calc(100vh-64px-180px)] md:min-h-[calc(100vh-80px-290px)]">
-						{children}
-					</main>
-					<Suspense fallback={null}>
-						<Footer />
-					</Suspense>
-					<Toaster richColors />
-					<Analytics />
+					<EdgeStoreProvider>
+						<Suspense fallback={<header className="w-full h-16 md:h-20" />}>
+							<Navbar />
+						</Suspense>
+						<main className="min-h-[calc(100vh-64px-180px)] md:min-h-[calc(100vh-80px-290px)]">
+							{children}
+						</main>
+						<Suspense fallback={null}>
+							<Footer />
+						</Suspense>
+						<Toaster richColors />
+						<Analytics />
+					</EdgeStoreProvider>
 				</body>
 			</html>
 		</ClerkProvider>

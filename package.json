@@ -11,7 +11,6 @@
 		"migrate": "npx tsx scripts/migrate.ts",
 		"push": "drizzle-kit push:pg",
 		"seed": "npx tsx scripts/seed.ts",
-		"postinstall": "npm run generate && npm run migrate && npm run seed",
 		"email": "email dev --dir app/emails"
 	},
 	"dependencies": {
