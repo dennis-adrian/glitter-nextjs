@@ -14,9 +14,14 @@ export default clerkMiddleware(async (auth, req) => {
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes
+    // Only run middleware on protected routes and API routes.
+    // Public pages (home, festivals, etc.) are excluded so Clerk's
+    // dev-mode URL-based session sync does not trigger redirect loops.
+    "/dashboard(.*)",
+    "/user_profile(.*)",
+    "/my_profile(.*)",
+    "/profiles(.*)",
+    "/profile_verification(.*)",
     "/(api|trpc)(.*)",
   ],
 };
