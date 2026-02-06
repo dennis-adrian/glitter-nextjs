@@ -37,7 +37,7 @@ export default function RootLayout({
 	children: React.ReactNode;
 }) {
 	return (
-		<ClerkProvider localization={esES}>
+		<ClerkProvider localization={esES} dynamic>
 			<html lang="es">
 				<body className={`${inter.variable} ${isidora.variable} font-sans`}>
 					<EdgeStoreProvider>
