@@ -68,13 +68,15 @@ export default function InvoicePaymentSuccess(
 							<div key={product.id}>
 								<div className="flex gap-4">
 									<div className="w-28 h-28 bg-gray-100 rounded-md flex items-center justify-center relative group">
-										<Image
-											src={product.imageUrl ?? ""}
-											alt={product.name}
-											width={112}
-											height={112}
-											className="object-cover"
-										/>
+										{product.imageUrl && (
+											<Image
+												src={product.imageUrl}
+												alt={product.name}
+												width={112}
+												height={112}
+												className="object-cover"
+											/>
+										)}
 										<div
 											className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer"
 											onClick={() => {
@@ -118,15 +120,17 @@ export default function InvoicePaymentSuccess(
 					</DialogClose>
 					<div className="flex items-center justify-center w-full h-full p-6">
 						<div className="relative">
-							<Image
-								src={selectedProduct?.imageUrl ?? ""}
-								alt={selectedProduct?.name ?? ""}
-								width={0}
-								height={0}
-								className="w-auto h-auto max-w-none"
-								sizes="80vw"
-								priority
-							/>
+							{selectedProduct?.imageUrl && (
+								<Image
+									src={selectedProduct.imageUrl}
+									alt={selectedProduct?.name ?? ""}
+									width={0}
+									height={0}
+									className="w-auto h-auto max-w-none"
+									sizes="80vw"
+									priority
+								/>
+							)}
 						</div>
 					</div>
 					<div className="bg-black p-4">

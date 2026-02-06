@@ -27,10 +27,12 @@ export default function PublicFestivalActivityParticipantCard({
 			)}
 			<div className="flex items-center gap-2">
 				<Avatar className="w-10 md:w-16 h-10 md:h-16">
-					<AvatarImage
-						src={participant.participantImageUrl || ""}
-						alt={participant.participantName || "avatar de usuario"}
-					/>
+					{participant.participantImageUrl && (
+						<AvatarImage
+							src={participant.participantImageUrl}
+							alt={participant.participantName || "avatar de usuario"}
+						/>
+					)}
 				</Avatar>
 				<div className="flex flex-col gap-1 max-w-fit">
 					<Tooltip

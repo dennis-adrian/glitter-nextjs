@@ -164,15 +164,17 @@ export default function ParticipantsModal({
 						</DialogClose>
 						<div className="flex items-center justify-center w-full h-full min-h-[80vh] p-6">
 							<div className="relative">
-								<Image
-									src={selectedImage ?? ""}
-									alt="Vista completa del stand"
-									width={0}
-									height={0}
-									className="w-auto h-auto max-w-full max-h-[85vh] object-contain"
-									sizes="90vw"
-									unoptimized
-								/>
+								{selectedImage && (
+									<Image
+										src={selectedImage}
+										alt="Vista completa del stand"
+										width={0}
+										height={0}
+										className="w-auto h-auto max-w-full max-h-[85vh] object-contain"
+										sizes="90vw"
+										unoptimized
+									/>
+								)}
 							</div>
 						</div>
 					</DialogContent>

@@ -16,13 +16,18 @@ export default function StickerPrintDesignSelectable({
   return (
     <div className="flex flex-col gap-1 relative" key={detail.id}>
       <div className="relative" onClick={() => setSelected(detail)}>
-        <Image
-          // TODO: Add a blur image when loading and a skeleton
-          src={detail.imageUrl ?? ""}
-          alt={`Sticker Print ${detail.id}`}
-          width={320}
-          height={480}
-        />
+        {detail.imageUrl ? (
+          <Image
+            src={detail.imageUrl}
+            alt={`Sticker Print ${detail.id}`}
+            width={320}
+            height={480}
+          />
+        ) : (
+          <div className="w-[320px] h-[480px] bg-muted rounded flex items-center justify-center text-muted-foreground text-sm">
+            Sin imagen
+          </div>
+        )}
         {selected && (
           <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
             <span className="text-white text-lg">Seleccionado</span>

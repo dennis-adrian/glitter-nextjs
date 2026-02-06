@@ -61,11 +61,13 @@ export default function InfoTabContent({
 									className="text-sm flex items-center gap-1"
 								>
 									<Avatar className="relative h-8 w-8">
-										<AvatarImage
-											className="object-cover"
-											alt="avatar image"
-											src={participant.user.imageUrl || ""}
-										/>
+										{participant.user.imageUrl && (
+											<AvatarImage
+												className="object-cover"
+												alt="avatar image"
+												src={participant.user.imageUrl}
+											/>
+										)}
 										<AvatarFallback>
 											{participant.user.displayName
 												?.split(" ")

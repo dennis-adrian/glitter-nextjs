@@ -150,14 +150,15 @@ export default async function ParticipantsActivityPage({
 				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mx-auto">
 					{activity.details.map((detail) => (
 						<div key={detail.id} className="">
-							<Image
-								className="mx-auto"
-								// TODO: Add a blur image when loading and a skeleton
-								src={detail.imageUrl ?? ""}
-								alt="Sticker Print Example"
-								width={320}
-								height={480}
-							/>
+							{detail.imageUrl && (
+								<Image
+									className="mx-auto"
+									src={detail.imageUrl}
+									alt="Sticker Print Example"
+									width={320}
+									height={480}
+								/>
+							)}
 							<p className="text-center text-muted-foreground text-sm">
 								Medidas: 432 mm x 330 mm
 							</p>

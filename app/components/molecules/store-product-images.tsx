@@ -327,7 +327,7 @@ export default function StoreProductImages({
 							}`}
 						>
 							<img
-								src={imageUrls[currentImageIndex] ?? ""}
+								src={imageUrls[currentImageIndex] ?? PLACEHOLDER_IMAGE_URLS["1200"]}
 								alt={`${productName} - Full View`}
 								className="max-w-[90%] max-h-[90%] object-contain select-none"
 								style={{
