@@ -54,13 +54,15 @@ export default async function Landing() {
 								height={80}
 								width={380}
 							/>
-							<Image
-								className="lg:hidden my-4"
-								alt="mascota del evento"
-								src={festival.mascotUrl || ""}
-								height={222}
-								width={282}
-							/>
+							{festival.mascotUrl && (
+								<Image
+									className="lg:hidden my-4"
+									alt="mascota del evento"
+									src={festival.mascotUrl}
+									height={222}
+									width={282}
+								/>
+							)}
 							<GeneralInfoDetails
 								className="p-0 lg:mb-0"
 								detailsClassName="flex-col items-start p-0"
@@ -95,6 +97,7 @@ export default async function Landing() {
 							src={festival.mascotUrl || "/img/glitter/max-500x500.png"}
 							height={394}
 							width={500}
+							style={{ width: "auto" }}
 						/>
 					</div>
 					<section className="text-center">
