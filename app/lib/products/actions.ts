@@ -15,3 +15,18 @@ export async function fetchProducts() {
 		return [];
 	}
 }
+
+export async function fetchFeaturedProducts(limit = 4) {
+	try {
+		return await db.query.products.findMany({
+			with: {
+				images: true,
+			},
+			orderBy: (products, { desc }) => [desc(products.createdAt)],
+			limit,
+		});
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
+}
