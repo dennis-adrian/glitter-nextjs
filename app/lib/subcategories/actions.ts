@@ -1,16 +1,20 @@
 "use server";
 
 import {
-  NewSubcategory,
-  Subcategory,
+	NewSubcategory,
+	Subcategory,
 } from "@/app/lib/subcategories/definitions";
 import { db } from "@/db";
 import { subcategories } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { cacheLife, cacheTag, revalidatePath, updateTag } from "next/cache";
 import { cache } from "react";
 
 export const fetchSubcategories = cache(async (): Promise<Subcategory[]> => {
+	"use cache";
+	cacheLife("hours");
+	cacheTag("subcategories");
+
 	try {
 		return await db.query.subcategories.findMany();
 	} catch (error) {
@@ -21,11 +25,6 @@ export const fetchSubcategories = cache(async (): Promise<Subcategory[]> => {
 
 export async function createSubcategory(subcategory: NewSubcategory) {
 	try {
-		let category = subcategory.category;
-		if (subcategory.category === "new_artist") {
-			category = "illustration";
-		}
-
 		if (subcategory.category === "none") {
 			throw new Error("Subcategoría inválida");
 		}
@@ -40,6 +39,7 @@ export async function createSubcategory(subcategory: NewSubcategory) {
 	}
 
 	revalidatePath("/dashboard/subcategories");
+	updateTag("subcategories");
 	return {
 		success: true,
 		message: "Subcategoría creada correctamente",
@@ -58,6 +58,7 @@ export async function deleteSubcategory(subcategoryId: number) {
 	}
 
 	revalidatePath("/dashboard/subcategories");
+	updateTag("subcategories");
 	return {
 		success: true,
 		message: "Subcategoría eliminada correctamente",

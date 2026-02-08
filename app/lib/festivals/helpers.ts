@@ -2,12 +2,18 @@
 
 import { fetchFullFestivalById } from "@/app/lib/festival_sectors/actions";
 import { cache } from "react";
-import { FestivalBase, FullFestival } from "./definitions";
-import { fetchFestival } from "./actions";
+import { FestivalBase, FestivalWithDates, FullFestival } from "./definitions";
+import { fetchActiveFestivalWithDates, fetchFestival } from "./actions";
 
 export const getActiveFestival = cache(async () => {
 	return await fetchFestival({});
 });
+
+export const getActiveFestivalBase = cache(
+	async (): Promise<FestivalWithDates | null> => {
+		return await fetchActiveFestivalWithDates();
+	},
+);
 
 export const getFestivalById = cache(
   async (festivalId: number): Promise<FullFestival | undefined | null> => {

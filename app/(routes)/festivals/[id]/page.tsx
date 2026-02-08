@@ -6,21 +6,12 @@ import FestivalPageTabs from "@/app/components/festivals/main-page-tabs";
 import PublicFestivalActivities from "@/app/components/festivals/public-festival-activities";
 import FestivalSectors from "@/app/components/festivals/sectors/festival-sectors";
 import { notFound } from "next/navigation";
-import { fetchFestival, fetchFestivals } from "@/app/lib/festivals/actions";
+import { fetchFestival } from "@/app/lib/festivals/actions";
 
 export const metadata: Metadata = {
 	title: "Información del Festival",
 	description: "Productora Glitter",
 };
-
-export const dynamicParams = true;
-export async function generateStaticParams() {
-	const festivals = await fetchFestivals();
-
-	return festivals.map((festival) => ({
-		id: festival.id.toString(),
-	}));
-}
 
 const SearchParamsSchema = z.object({
 	tab: z.enum(["general", "sectors", "activities"]).prefault("general"),

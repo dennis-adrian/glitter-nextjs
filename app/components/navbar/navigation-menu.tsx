@@ -20,14 +20,14 @@ import {
   LayoutDashboardIcon,
   StoreIcon,
 } from "lucide-react";
-import { ProfileType } from "../../api/users/definitions";
+import { NavbarProfile } from "../../api/users/definitions";
 import { usePathname } from "next/navigation";
 import { isNoNavigationPage } from "@/app/lib/utils";
 
 const NavbarNavigationMenu = ({
   profile,
 }: {
-  profile?: ProfileType | null;
+  profile?: NavbarProfile | null;
 }) => {
   const pathname = usePathname();
 

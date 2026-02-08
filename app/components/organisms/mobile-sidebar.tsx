@@ -30,7 +30,7 @@ import {
 	TagsIcon,
 	UsersIcon,
 } from "lucide-react";
-import { ProfileType } from "@/app/api/users/definitions";
+import { NavbarProfile } from "@/app/api/users/definitions";
 import GlitterLogo from "@/app/components/landing/glitter-logo";
 
 type MobileSidebarItemProps = {
@@ -52,7 +52,7 @@ const MobileSidebarItem = ({ href, children }: MobileSidebarItemProps) => {
 };
 
 type MobileSidebarProps = {
-	profile?: ProfileType | null;
+	profile?: NavbarProfile | null;
 	children: React.ReactNode;
 };
 

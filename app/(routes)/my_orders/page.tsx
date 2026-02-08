@@ -1,10 +1,10 @@
 import OrdersList from "@/app/components/organisms/profile-orders/orders-list";
 import { fetchOrdersByUserId } from "@/app/lib/orders/actions";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 import { notFound } from "next/navigation";
 
 export default async function MyOrdersPage() {
-  const currentProfile = await getCurrentUserProfile();
+  const currentProfile = await getCurrentBaseProfile();
   if (!currentProfile) {
     notFound();
   }
