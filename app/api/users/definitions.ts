@@ -59,6 +59,10 @@ export type ProfileSubcategory = typeof profileSubcategories.$inferSelect;
 export type ProfileSubcategoryWithSubcategory = ProfileSubcategory & {
 	subcategory: Subcategory;
 };
+export type NavbarProfile = BaseProfile & {
+	participations: Participation[];
+	profileSubcategories: ProfileSubcategoryWithSubcategory[];
+};
 export type ProfileType = BaseProfile & {
 	userSocials: UserSocial[];
 	userRequests: UserRequest[];

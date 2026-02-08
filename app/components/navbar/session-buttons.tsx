@@ -1,6 +1,6 @@
 "use client";
 
-import { ProfileType } from "@/app/api/users/definitions";
+import { NavbarProfile } from "@/app/api/users/definitions";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -20,7 +20,7 @@ import { useState } from "react";
 export default function SessionButtons({
 	profile,
 }: {
-	profile?: ProfileType | null;
+	profile?: NavbarProfile | null;
 }) {
 	const [open, setOpen] = useState(false);
 	const router = useRouter();

@@ -12,7 +12,7 @@ import {
   UserIcon,
 } from "lucide-react";
 
-import { ProfileType } from "@/app/api/users/definitions";
+import { NavbarProfile } from "@/app/api/users/definitions";
 
 import SignOutButton from "@/app/components/user_dropdown/sign-out-button";
 import { UserDropdownSkeleton } from "@/app/components/user_dropdown/skeleton";
@@ -29,7 +29,7 @@ import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info
 export default function UserDropdown({
   profile,
 }: {
-  profile?: ProfileType | null;
+  profile?: NavbarProfile | null;
 }) {
   const clerk = useUser();
   const pathname = usePathname();

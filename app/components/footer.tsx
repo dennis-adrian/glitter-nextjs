@@ -10,11 +10,13 @@ export default async function Footer() {
     headers.get("x-current-path"),
   );
 
+  const shouldHide =
+    pathname?.includes("festivals") && pathname.includes("registration");
+
   return (
     <footer
       className={cn("py-12 bg-background border-t", {
-        hidden:
-          pathname?.includes("festivals") && pathname.includes("registration"),
+        hidden: shouldHide,
       })}
     >
       <div className="container">

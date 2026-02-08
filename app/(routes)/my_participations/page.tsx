@@ -15,8 +15,10 @@ import {
 import { notFound } from "next/navigation";
 
 export default async function Page() {
-	const activeFestival = await getActiveFestival();
-	const currentProfile = await getCurrentUserProfile();
+	const [activeFestival, currentProfile] = await Promise.all([
+		getActiveFestival(),
+		getCurrentUserProfile(),
+	]);
 	let validReservations: ReservationWithParticipantsAndUsersAndStandAndCollaborators[] =
 		[];
 
@@ -32,12 +34,10 @@ export default async function Page() {
 			currentProfile,
 			activeFestival.id,
 		);
-		validReservations = await fetchValidReservationsByFestival(
-			activeFestival.id,
-		);
-		festivalActivities = await fetchFestivalActivitiesByFestivalId(
-			activeFestival?.id,
-		);
+		[validReservations, festivalActivities] = await Promise.all([
+			fetchValidReservationsByFestival(activeFestival.id),
+			fetchFestivalActivitiesByFestivalId(activeFestival.id),
+		]);
 	}
 	const bestStandActivity = festivalActivities.find(
 		(activity) => activity.type === "best_stand",
