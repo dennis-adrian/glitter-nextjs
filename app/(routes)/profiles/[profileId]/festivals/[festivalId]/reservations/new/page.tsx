@@ -1,5 +1,5 @@
 import Loader from "@/app/components/loader";
-import NewReservationPage from "@/app/components/pages/profiles/festivals/new-reservation";
+import SectorSelectionPage from "@/app/components/pages/profiles/festivals/sector-selection";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { z } from "zod";
@@ -20,7 +20,7 @@ export default async function Page(
 
   return (
     <Suspense fallback={<Loader />}>
-      <NewReservationPage
+      <SectorSelectionPage
         profileId={validatedParams.data.profileId}
         festivalId={validatedParams.data.festivalId}
       />
