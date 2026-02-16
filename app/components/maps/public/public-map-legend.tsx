@@ -11,7 +11,7 @@ const legendItems = [
 
 export default function PublicMapLegend() {
 	return (
-		<div className="flex flex-wrap items-center justify-center gap-3 mt-2">
+		<div className="flex flex-wrap items-center gap-3">
 			{legendItems.map((item) => (
 				<div key={item.label} className="flex items-center gap-1.5">
 					<div
