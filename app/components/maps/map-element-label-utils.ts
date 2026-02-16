@@ -20,7 +20,7 @@ export function getLabelLayout(
 	estTextWidth: number,
 	padX: number,
 ): LabelLayout {
-	const gap = 1;
+	const gap = 0.7;
 
 	switch (position) {
 		case "top":

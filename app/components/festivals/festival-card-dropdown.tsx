@@ -1,18 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
 	ArchiveIcon,
+	DownloadIcon,
 	MoreVerticalIcon,
 	PencilIcon,
 	TrashIcon,
+	UploadIcon,
 	UsersIcon,
 } from "lucide-react";
 import DeleteFestival from "./delete-festival";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import ArchiveFestivalModal from "@/app/components/festivals/modals/archive-festival";
+import FestivalExportDialog from "@/app/components/festivals/festival-export-dialog";
+import FestivalImportDialog from "@/app/components/festivals/festival-import-dialog";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export default function FestivalCardDropdown({
@@ -21,6 +30,8 @@ export default function FestivalCardDropdown({
 	festival: FestivalBase;
 }) {
 	const [openArchiveModal, setOpenArchiveModal] = useState(false);
+	const [openExportDialog, setOpenExportDialog] = useState(false);
+	const [openImportDialog, setOpenImportDialog] = useState(false);
 
 	return (
 		<>
@@ -49,6 +60,14 @@ export default function FestivalCardDropdown({
 							Editar
 						</Link>
 					</DropdownMenuItem>
+					<DropdownMenuItem onClick={() => setOpenExportDialog(true)}>
+						<DownloadIcon className="w-4 h-4 mr-2" />
+						Exportar datos
+					</DropdownMenuItem>
+					<DropdownMenuItem onClick={() => setOpenImportDialog(true)}>
+						<UploadIcon className="w-4 h-4 mr-2" />
+						Importar datos
+					</DropdownMenuItem>
 					<DropdownMenuItem onClick={() => setOpenArchiveModal(true)}>
 						<ArchiveIcon className="w-4 h-4 mr-2" />
 						Archivar
@@ -68,6 +87,20 @@ export default function FestivalCardDropdown({
 				open={openArchiveModal}
 				setOpen={setOpenArchiveModal}
 				festival={festival}
+			/>
+
+			<FestivalExportDialog
+				open={openExportDialog}
+				onOpenChange={setOpenExportDialog}
+				festivalId={festival.id}
+			/>
+
+			<FestivalImportDialog
+				open={openImportDialog}
+				onOpenChange={setOpenImportDialog}
+				mode="existing"
+				festivalId={festival.id}
+				festivalName={festival.name}
 			/>
 		</>
 	);
