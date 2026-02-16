@@ -32,6 +32,8 @@ export default function SectorCard({
 	return (
 		<Card
 			role="button"
+			aria-disabled={isDisabled}
+			aria-pressed={isSelected}
 			tabIndex={isDisabled ? -1 : 0}
 			onClick={() => {
 				if (!isDisabled) onSelect();

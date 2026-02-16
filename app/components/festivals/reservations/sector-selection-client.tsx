@@ -78,7 +78,7 @@ export default function SectorSelectionClient({
 						<Title level="h2">
 							Sectores
 							<span className="ml-2 text-muted-foreground font-normal text-sm md:text-base">
-								{orderedSectors.length} hablitados para tu categoría
+								{orderedSectors.length} habilitados para tu categoría
 							</span>
 						</Title>
 						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

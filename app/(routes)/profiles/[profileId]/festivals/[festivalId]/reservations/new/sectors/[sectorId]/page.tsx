@@ -19,7 +19,6 @@ export default async function Page(props: {
 }) {
 	const params = await props.params;
 	const validatedParams = ParamsSchema.safeParse(params);
-	console.log(validatedParams);
 	if (!validatedParams.success) notFound();
 
 	return (

@@ -204,7 +204,8 @@ export default function StandPositionEditor({
 	// Edit element dialog state
 	const [editElementDialogOpen, setEditElementDialogOpen] = useState(false);
 	const [editElementId, setEditElementId] = useState<number | null>(null);
-	const [editElementType, setEditElementType] = useState<MapElementType>("entrance");
+	const [editElementType, setEditElementType] =
+		useState<MapElementType>("entrance");
 	const [editElementLabel, setEditElementLabel] = useState("");
 	const [editElementLabelFontSize, setEditElementLabelFontSize] = useState(2);
 	const [editElementShowIcon, setEditElementShowIcon] = useState(true);
@@ -239,7 +240,9 @@ export default function StandPositionEditor({
 	const [showGuides, setShowGuides] = useState(true);
 	const [focusedStandId, setFocusedStandId] = useState<number | null>(null);
 	const arrowUndoPushedRef = useRef(false);
-	const transformRefsMap = useRef<Map<number, ReactZoomPanPinchContentRef>>(new Map());
+	const transformRefsMap = useRef<Map<number, ReactZoomPanPinchContentRef>>(
+		new Map(),
+	);
 
 	// Local stands per sector (allows add/delete without full page reload)
 	const [standsPerSector, setStandsPerSector] = useState<
@@ -287,17 +290,26 @@ export default function StandPositionEditor({
 	const [importDialogOpen, setImportDialogOpen] = useState(false);
 
 	const pushUndo = useCallback(() => {
-		setHistory((prev) => {
-			const snapshot: HistorySnapshot = {
-				standPositions: new Map(positions),
-				elementPositions: new Map(elementPositions),
-				elementSizes: new Map(elementSizes),
-			};
-			const next = [...prev, snapshot];
-			if (next.length > MAX_UNDO) next.shift();
-			return next;
+		setPositions((currentPositions) => {
+			setElementPositions((currentElementPositions) => {
+				setElementSizes((currentElementSizes) => {
+					setHistory((prev) => {
+						const snapshot: HistorySnapshot = {
+							standPositions: new Map(currentPositions),
+							elementPositions: new Map(currentElementPositions),
+							elementSizes: new Map(currentElementSizes),
+						};
+						const next = [...prev, snapshot];
+						if (next.length > MAX_UNDO) next.shift();
+						return next;
+					});
+					return currentElementSizes;
+				});
+				return currentElementPositions;
+			});
+			return currentPositions;
 		});
-	}, [positions, elementPositions, elementSizes]);
+	}, []);
 
 	// Keyboard handler for arrow key movement (stands and elements)
 	useEffect(() => {
@@ -359,8 +371,7 @@ export default function StandPositionEditor({
 				});
 			} else if (focusedElementId) {
 				const elementsToMove =
-					selectedElements.has(focusedElementId) &&
-					selectedElements.size >= 2
+					selectedElements.has(focusedElementId) && selectedElements.size >= 2
 						? selectedElements
 						: new Set([focusedElementId]);
 
@@ -390,7 +401,17 @@ export default function StandPositionEditor({
 			document.removeEventListener("keydown", handleKeyDown);
 			document.removeEventListener("keyup", handleKeyUp);
 		};
-	}, [focusedStandId, focusedElementId, selectedStands, selectedElements, positions, elementPositions, snapToGrid, gridSize, pushUndo]);
+	}, [
+		focusedStandId,
+		focusedElementId,
+		selectedStands,
+		selectedElements,
+		positions,
+		elementPositions,
+		snapToGrid,
+		gridSize,
+		pushUndo,
+	]);
 
 	const handleFocus = useCallback((standId: number) => {
 		setFocusedStandId(standId);
@@ -652,6 +673,17 @@ export default function StandPositionEditor({
 			return next;
 		});
 
+		setOriginalElementPositions((prev) => {
+			const next = new Map(prev);
+			for (const id of ids) next.delete(id);
+			return next;
+		});
+
+		setOriginalElementSizes((prev) => {
+			const next = new Map(prev);
+			for (const id of ids) next.delete(id);
+			return next;
+		});
 		setSelectedElements(new Set());
 		setFocusedElementId(null);
 		toast.success(result.message);
@@ -951,7 +983,12 @@ export default function StandPositionEditor({
 			handle.resetBounds(origBounds);
 		}
 		setBoundsPerSector(new Map());
-	}, [originalPositions, originalElementPositions, originalElementSizes, originalBounds]);
+	}, [
+		originalPositions,
+		originalElementPositions,
+		originalElementSizes,
+		originalBounds,
+	]);
 
 	const handleSave = useCallback(async () => {
 		const changedPositions = Array.from(positions.entries())
@@ -1030,9 +1067,7 @@ export default function StandPositionEditor({
 		}
 
 		if (changedElementPositions.length > 0) {
-			results.push(
-				await updateMapElementPositions(changedElementPositions),
-			);
+			results.push(await updateMapElementPositions(changedElementPositions));
 		}
 
 		for (const id of changedElementSizeIds) {
@@ -1070,7 +1105,16 @@ export default function StandPositionEditor({
 			});
 			setHistory([]);
 		}
-	}, [positions, elementPositions, elementSizes, boundsPerSector, originalPositions, originalElementPositions, originalElementSizes, originalBounds]);
+	}, [
+		positions,
+		elementPositions,
+		elementSizes,
+		boundsPerSector,
+		originalPositions,
+		originalElementPositions,
+		originalElementSizes,
+		originalBounds,
+	]);
 
 	// Alignment actions
 	const applyAlignment = useCallback(
@@ -1241,8 +1285,7 @@ export default function StandPositionEditor({
 			let maxRight = -Infinity;
 			for (const [id, pos] of selected) {
 				const size = sizes.get(id);
-				if (size)
-					maxRight = Math.max(maxRight, pos.left + size.width);
+				if (size) maxRight = Math.max(maxRight, pos.left + size.width);
 			}
 			const result = new Map(selected);
 			for (const [id, pos] of result) {
@@ -1272,8 +1315,7 @@ export default function StandPositionEditor({
 			let maxBottom = -Infinity;
 			for (const [id, pos] of selected) {
 				const size = sizes.get(id);
-				if (size)
-					maxBottom = Math.max(maxBottom, pos.top + size.height);
+				if (size) maxBottom = Math.max(maxBottom, pos.top + size.height);
 			}
 			const result = new Map(selected);
 			for (const [id, pos] of result) {
@@ -1517,7 +1559,9 @@ export default function StandPositionEditor({
 					</DropdownMenuTrigger>
 					<DropdownMenuContent>
 						{(
-							Object.values(MAP_ELEMENT_TYPES) as (typeof MAP_ELEMENT_TYPES)[MapElementType][]
+							Object.values(
+								MAP_ELEMENT_TYPES,
+							) as (typeof MAP_ELEMENT_TYPES)[MapElementType][]
 						).map((config) => (
 							<DropdownMenuItem
 								key={config.type}
@@ -1559,11 +1603,7 @@ export default function StandPositionEditor({
 					</Button>
 				)}
 				{selectedElements.size === 1 && (
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={openEditElementDialog}
-					>
+					<Button variant="outline" size="sm" onClick={openEditElementDialog}>
 						<Pencil className="h-4 w-4 mr-1" />
 						Editar señal
 					</Button>
@@ -1668,7 +1708,9 @@ export default function StandPositionEditor({
 										variant="outline"
 										size="icon"
 										className="h-8 w-8"
-										onClick={() => transformRefsMap.current.get(sector.id)?.zoomIn()}
+										onClick={() =>
+											transformRefsMap.current.get(sector.id)?.zoomIn()
+										}
 										title="Acercar"
 									>
 										<ZoomIn className="h-4 w-4" />
@@ -1677,7 +1719,9 @@ export default function StandPositionEditor({
 										variant="outline"
 										size="icon"
 										className="h-8 w-8"
-										onClick={() => transformRefsMap.current.get(sector.id)?.zoomOut()}
+										onClick={() =>
+											transformRefsMap.current.get(sector.id)?.zoomOut()
+										}
 										title="Alejar"
 									>
 										<ZoomOut className="h-4 w-4" />
@@ -1685,7 +1729,9 @@ export default function StandPositionEditor({
 									<Button
 										variant="outline"
 										size="sm"
-										onClick={() => transformRefsMap.current.get(sector.id)?.resetTransform()}
+										onClick={() =>
+											transformRefsMap.current.get(sector.id)?.resetTransform()
+										}
 										title="Ajustar mapa al contenedor"
 									>
 										<Maximize2 className="h-4 w-4 mr-1" />
@@ -1877,9 +1923,7 @@ export default function StandPositionEditor({
 								id="edit-el-type"
 								value={editElementType}
 								onChange={(e) =>
-									setEditElementType(
-										e.target.value as MapElementType,
-									)
+									setEditElementType(e.target.value as MapElementType)
 								}
 								className="h-9 rounded-md border bg-background px-3 text-sm"
 							>
@@ -1956,7 +2000,9 @@ export default function StandPositionEditor({
 								/>
 							</div>
 							<div className="grid gap-2">
-								<Label htmlFor="edit-el-label-position">Posición etiqueta</Label>
+								<Label htmlFor="edit-el-label-position">
+									Posición etiqueta
+								</Label>
 								<select
 									id="edit-el-label-position"
 									value={editElementLabelPosition}
@@ -2002,9 +2048,7 @@ export default function StandPositionEditor({
 									step={0.5}
 									value={editElementWidth}
 									onChange={(e) =>
-										setEditElementWidth(
-											Math.max(3, Number(e.target.value)),
-										)
+										setEditElementWidth(Math.max(3, Number(e.target.value)))
 									}
 								/>
 							</div>
@@ -2017,19 +2061,14 @@ export default function StandPositionEditor({
 									step={0.5}
 									value={editElementHeight}
 									onChange={(e) =>
-										setEditElementHeight(
-											Math.max(3, Number(e.target.value)),
-										)
+										setEditElementHeight(Math.max(3, Number(e.target.value)))
 									}
 								/>
 							</div>
 						</div>
 					</div>
 					<DialogFooter>
-						<Button
-							onClick={handleEditElement}
-							disabled={isEditingElement}
-						>
+						<Button onClick={handleEditElement} disabled={isEditingElement}>
 							{isEditingElement ? "Guardando..." : "Guardar"}
 						</Button>
 					</DialogFooter>
