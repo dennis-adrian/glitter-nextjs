@@ -44,6 +44,7 @@ export default function ClientMap({
 			/>
 			{selectedStand != null && profile != null && sectorName != null && (
 				<StandInfoCard
+					key={selectedStand.id}
 					stand={selectedStand}
 					sectorName={sectorName}
 					profile={profile}

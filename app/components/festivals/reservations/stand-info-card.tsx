@@ -134,7 +134,7 @@ export function StandInfoCard({
 	};
 
 	return (
-		<div className="fixed bottom-4 left-4 right-4 z-50 animate-slide-up md:bottom-6 md:left-auto md:right-6 md:w-[400px]">
+		<div className="fixed bottom-4 left-4 right-4 z-50 animate-slide-up-fast md:bottom-6 md:left-auto md:right-6 md:w-[400px]">
 			<div className="bg-card rounded-xl border border-border shadow-lg flex flex-col">
 				<Button
 					className="self-end m-2 text-muted-foreground"
@@ -143,7 +143,7 @@ export function StandInfoCard({
 					onClick={onClose}
 					aria-label="Cerrar"
 				>
-					<X className="h-4 w-4" />
+					<X className="h-4 w-4 mr-1" />
 					Cerrar
 				</Button>
 

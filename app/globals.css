@@ -102,6 +102,7 @@
 	--animate-accordion-up: accordion-up 0.2s ease-out;
 	--animate-expand: expand 0.3s ease-out;
 	--animate-slide-up: slide-up 0.5s ease-out;
+	--animate-slide-up-fast: slide-up 0.2s ease-out;
 
 	@keyframes accordion-down {
 		from {
