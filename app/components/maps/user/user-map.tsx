@@ -20,6 +20,7 @@ type UserMapProps = {
 	mapElements?: MapElementBase[];
 	mapBounds?: { minX: number; minY: number; width: number; height: number };
 	profile?: ProfileType | BaseProfile | null;
+	selectedStandId?: number | null;
 	onStandClick?: (stand: StandWithReservationsWithParticipants) => void;
 	onStandTouchTap?: (stand: StandWithReservationsWithParticipants) => void;
 };
@@ -29,6 +30,7 @@ export default function UserMap({
 	mapElements,
 	mapBounds,
 	profile,
+	selectedStandId,
 	onStandClick,
 	onStandTouchTap,
 }: UserMapProps) {
@@ -69,6 +71,7 @@ export default function UserMap({
 										key={stand.id}
 										stand={stand}
 										canBeReserved={standCanBeReserved}
+										selected={stand.id === selectedStandId}
 										onClick={onStandClick}
 										onTouchTap={onStandTouchTap}
 									/>

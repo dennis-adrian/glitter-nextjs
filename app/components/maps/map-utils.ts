@@ -122,7 +122,7 @@ export function getStandStrokeColor(
 			return "rgba(209, 213, 219, 0.4)"; // gray-300
 		default:
 			return canBeReserved
-				? "rgba(139, 92, 246, 0.6)" // violet-500 — disponible
+				? "rgba(139, 92, 246, 0.8)" // violet-500 — disponible
 				: "rgba(209, 213, 219, 0.4)"; // gray-300
 	}
 }
@@ -139,9 +139,17 @@ export function getStandTextColor(
 		case "disabled":
 			return "#9CA3AF"; // gray-400
 		default:
-			return canBeReserved ? "#374151" : "#9CA3AF"; // gray-700 or gray-400
+			return canBeReserved
+				? "hsl(262, 77%, 49%)" // primary — purple text
+				: "#9CA3AF"; // gray-400
 	}
 }
+
+// Selected stand colors (reservation map)
+export const SELECTED_FILL = "hsl(262, 77%, 49%)"; // primary
+export const SELECTED_STROKE = "#ffffff"; // white border
+export const SELECTED_TEXT = "#ffffff"; // white text
+export const SELECTED_RING = "hsl(262, 76%, 90%)"; // primary-100
 
 export function getPublicStandColors(status: string): StandColors {
 	if (status === "available") {

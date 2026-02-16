@@ -38,6 +38,7 @@ export default function ClientMap({
 				mapElements={mapElements}
 				mapBounds={mapBounds}
 				profile={profile}
+				selectedStandId={selectedStand?.id ?? null}
 				onStandClick={handleStandSelect}
 				onStandTouchTap={handleStandSelect}
 			/>
