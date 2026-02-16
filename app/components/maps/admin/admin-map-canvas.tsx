@@ -9,8 +9,10 @@ import {
 	useState,
 } from "react";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
+import { MapElementBase } from "@/app/lib/map_elements/definitions";
 import MapCanvas from "@/app/components/maps/map-canvas";
 import DraggableMapStand from "./draggable-map-stand";
+import DraggableMapElement from "./draggable-map-element";
 import { STAND_SIZE } from "../map-utils";
 
 export type GuideLine = {
@@ -44,6 +46,30 @@ type AdminMapCanvasProps = {
 	onDeselectAll: () => void;
 	onResizeStart: () => void;
 	onResizeEnd: () => void;
+	// Map elements
+	elements: MapElementBase[];
+	elementPositions: Map<number, { left: number; top: number }>;
+	elementSizes: Map<number, { width: number; height: number }>;
+	selectedElements: Set<number>;
+	focusedElementId: number | null;
+	onElementPositionChange: (
+		elementId: number,
+		left: number,
+		top: number,
+	) => void;
+	onElementDragStart: (elementId: number) => void;
+	onElementDragEnd: () => void;
+	onElementSelect: (elementId: number) => void;
+	onElementFocus: (elementId: number) => void;
+	onElementResize: (
+		elementId: number,
+		left: number,
+		top: number,
+		width: number,
+		height: number,
+	) => void;
+	onElementResizeStart?: () => void;
+	onElementResizeEnd: () => void;
 };
 
 export type AdminMapCanvasHandle = {
@@ -80,11 +106,19 @@ function computeBoundsFromPositions(
 
 const GUIDE_THRESHOLD = 0.5;
 
+type SnapItem = {
+	left: number;
+	top: number;
+	width: number;
+	height: number;
+};
+
 function computeSnappedPosition(
-	excludeIds: Set<number>,
+	draggedWidth: number,
+	draggedHeight: number,
 	rawLeft: number,
 	rawTop: number,
-	allPositions: Map<number, { left: number; top: number }>,
+	snapItems: SnapItem[],
 	snapToGrid: boolean,
 	gridSize: number,
 	showGuides: boolean,
@@ -105,28 +139,29 @@ function computeSnappedPosition(
 	}
 
 	// Step 2: Smart guide snapping (overrides grid if within threshold)
-	const draggedCenter = { x: left + STAND_SIZE / 2, y: top + STAND_SIZE / 2 };
-	const draggedRight = left + STAND_SIZE;
-	const draggedBottom = top + STAND_SIZE;
+	const draggedCenter = {
+		x: left + draggedWidth / 2,
+		y: top + draggedHeight / 2,
+	};
+	const draggedRight = left + draggedWidth;
+	const draggedBottom = top + draggedHeight;
 
 	let bestSnapX: { distance: number; snapTo: number; guidePos: number } | null =
 		null;
 	let bestSnapY: { distance: number; snapTo: number; guidePos: number } | null =
 		null;
 
-	for (const [id, pos] of allPositions.entries()) {
-		if (excludeIds.has(id)) continue;
-
+	for (const item of snapItems) {
 		const otherCenter = {
-			x: pos.left + STAND_SIZE / 2,
-			y: pos.top + STAND_SIZE / 2,
+			x: item.left + item.width / 2,
+			y: item.top + item.height / 2,
 		};
-		const otherRight = pos.left + STAND_SIZE;
-		const otherBottom = pos.top + STAND_SIZE;
+		const otherRight = item.left + item.width;
+		const otherBottom = item.top + item.height;
 
 		// Vertical guides (matching X positions)
 		const xChecks = [
-			{ dragVal: left, otherVal: pos.left, guidePos: pos.left }, // left-left
+			{ dragVal: left, otherVal: item.left, guidePos: item.left }, // left-left
 			{ dragVal: draggedRight, otherVal: otherRight, guidePos: otherRight }, // right-right
 			{
 				dragVal: draggedCenter.x,
@@ -134,7 +169,7 @@ function computeSnappedPosition(
 				guidePos: otherCenter.x,
 			}, // center-center
 			{ dragVal: left, otherVal: otherRight, guidePos: otherRight }, // left-right
-			{ dragVal: draggedRight, otherVal: pos.left, guidePos: pos.left }, // right-left
+			{ dragVal: draggedRight, otherVal: item.left, guidePos: item.left }, // right-left
 		];
 
 		for (const check of xChecks) {
@@ -153,7 +188,7 @@ function computeSnappedPosition(
 
 		// Horizontal guides (matching Y positions)
 		const yChecks = [
-			{ dragVal: top, otherVal: pos.top, guidePos: pos.top }, // top-top
+			{ dragVal: top, otherVal: item.top, guidePos: item.top }, // top-top
 			{ dragVal: draggedBottom, otherVal: otherBottom, guidePos: otherBottom }, // bottom-bottom
 			{
 				dragVal: draggedCenter.y,
@@ -161,7 +196,7 @@ function computeSnappedPosition(
 				guidePos: otherCenter.y,
 			}, // center-center
 			{ dragVal: top, otherVal: otherBottom, guidePos: otherBottom }, // top-bottom
-			{ dragVal: draggedBottom, otherVal: pos.top, guidePos: pos.top }, // bottom-top
+			{ dragVal: draggedBottom, otherVal: item.top, guidePos: item.top }, // bottom-top
 		];
 
 		for (const check of yChecks) {
@@ -214,6 +249,19 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 			onDeselectAll,
 			onResizeStart,
 			onResizeEnd,
+			elements,
+			elementPositions,
+			elementSizes,
+			selectedElements,
+			focusedElementId,
+			onElementPositionChange,
+			onElementDragStart,
+			onElementDragEnd,
+			onElementSelect,
+			onElementFocus,
+			onElementResize,
+			onElementResizeStart,
+			onElementResizeEnd,
 		},
 		ref,
 	) {
@@ -343,18 +391,54 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 			el.addEventListener("pointercancel", onUp);
 		}
 
+		// Build snap items from both stands and elements, excluding given IDs
+		const buildSnapItems = useCallback(
+			(
+				excludeStandIds: Set<number>,
+				excludeElementIds: Set<number>,
+			): SnapItem[] => {
+				const items: SnapItem[] = [];
+				for (const [id, pos] of positions.entries()) {
+					if (excludeStandIds.has(id)) continue;
+					items.push({
+						left: pos.left,
+						top: pos.top,
+						width: STAND_SIZE,
+						height: STAND_SIZE,
+					});
+				}
+				for (const [id, pos] of elementPositions.entries()) {
+					if (excludeElementIds.has(id)) continue;
+					const size = elementSizes.get(id);
+					if (!size) continue;
+					items.push({
+						left: pos.left,
+						top: pos.top,
+						width: size.width,
+						height: size.height,
+					});
+				}
+				return items;
+			},
+			[positions, elementPositions, elementSizes],
+		);
+
 		const handleDrag = useCallback(
 			(standId: number, rawLeft: number, rawTop: number) => {
 				const isMultiDrag =
 					selectedStands.has(standId) && selectedStands.size >= 2;
 
-				const excludeIds = isMultiDrag ? selectedStands : new Set([standId]);
+				const excludeStandIds = isMultiDrag
+					? selectedStands
+					: new Set([standId]);
+				const snapItems = buildSnapItems(excludeStandIds, new Set());
 
 				const result = computeSnappedPosition(
-					excludeIds,
+					STAND_SIZE,
+					STAND_SIZE,
 					rawLeft,
 					rawTop,
-					positions,
+					snapItems,
 					snapToGrid,
 					gridSize,
 					showGuides,
@@ -383,6 +467,60 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 				gridSize,
 				showGuides,
 				onPositionChange,
+				buildSnapItems,
+			],
+		);
+
+		const handleElementDrag = useCallback(
+			(elementId: number, rawLeft: number, rawTop: number) => {
+				const isMultiDrag =
+					selectedElements.has(elementId) && selectedElements.size >= 2;
+
+				const excludeElementIds = isMultiDrag
+					? selectedElements
+					: new Set([elementId]);
+				const snapItems = buildSnapItems(new Set(), excludeElementIds);
+
+				const size = elementSizes.get(elementId);
+				const dragW = size?.width ?? 8;
+				const dragH = size?.height ?? 8;
+
+				const result = computeSnappedPosition(
+					dragW,
+					dragH,
+					rawLeft,
+					rawTop,
+					snapItems,
+					snapToGrid,
+					gridSize,
+					showGuides,
+				);
+				setActiveGuides(result.guides);
+
+				if (isMultiDrag) {
+					const oldPos = elementPositions.get(elementId);
+					if (!oldPos) return;
+					const dx = result.left - oldPos.left;
+					const dy = result.top - oldPos.top;
+
+					for (const id of selectedElements) {
+						const pos = elementPositions.get(id);
+						if (!pos) continue;
+						onElementPositionChange(id, pos.left + dx, pos.top + dy);
+					}
+				} else {
+					onElementPositionChange(elementId, result.left, result.top);
+				}
+			},
+			[
+				elementPositions,
+				elementSizes,
+				selectedElements,
+				snapToGrid,
+				gridSize,
+				showGuides,
+				onElementPositionChange,
+				buildSnapItems,
 			],
 		);
 
@@ -390,6 +528,11 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 			setActiveGuides([]);
 			onDragEnd();
 		}, [onDragEnd]);
+
+		const handleElementDragEndCb = useCallback(() => {
+			setActiveGuides([]);
+			onElementDragEnd();
+		}, [onElementDragEnd]);
 
 		// Grid lines
 		const gridLines: React.ReactNode[] = [];
@@ -451,6 +594,34 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 					onPointerDown={onDeselectAll}
 				/>
 				{gridLines}
+				{/* Elements render behind stands */}
+				{elements.map((element) => {
+					const pos = elementPositions.get(element.id);
+					if (!pos) return null;
+					const size = elementSizes.get(element.id);
+
+					return (
+						<DraggableMapElement
+							key={`el-${element.id}`}
+							element={element}
+							left={pos.left}
+							top={pos.top}
+							width={size?.width ?? element.width}
+							height={size?.height ?? element.height}
+							isSelected={selectedElements.has(element.id)}
+							isFocused={element.id === focusedElementId}
+							svgRef={svgRef}
+							onDragStart={onElementDragStart}
+							onDrag={handleElementDrag}
+							onDragEnd={handleElementDragEndCb}
+							onSelect={onElementSelect}
+							onFocus={onElementFocus}
+							onResize={onElementResize}
+							onResizeStart={onElementResizeStart}
+							onResizeEnd={onElementResizeEnd}
+						/>
+					);
+				})}
 				{stands.map((stand) => {
 					const pos = positions.get(stand.id);
 					if (!pos) return null;

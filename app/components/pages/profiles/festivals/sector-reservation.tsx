@@ -71,6 +71,12 @@ export default async function SectorReservationPage(
 							festival={festival}
 							profile={forProfile}
 							stands={sector.stands}
+							mapElements={sector.mapElements ?? []}
+							mapBounds={
+								sector.mapOriginX != null && sector.mapOriginY != null && sector.mapWidth != null && sector.mapHeight != null
+									? { minX: sector.mapOriginX, minY: sector.mapOriginY, width: sector.mapWidth, height: sector.mapHeight }
+									: undefined
+							}
 						/>
 					</div>
 					<p className="text-center text-[10px] md:text-xs text-muted-foreground leading-3 md:leading-4 max-w-[400px]">

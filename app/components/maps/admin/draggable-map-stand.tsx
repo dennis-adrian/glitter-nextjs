@@ -6,6 +6,7 @@ import {
 	STAND_SIZE,
 	getStandFillColor,
 	getStandStrokeColor,
+	getStandTextColor,
 } from "../map-utils";
 
 function clientToSvgCoords(
@@ -99,9 +100,7 @@ export default function DraggableMapStand({
 
 	const fillColor = dragging
 		? "rgba(59, 130, 246, 0.3)"
-		: stand.status === "available"
-			? "rgba(254, 243, 199, 0.35)" // amber-100/35
-			: getStandFillColor(stand.status, false);
+		: getStandFillColor(stand.status, false);
 
 	let strokeColor: string;
 	let strokeWidth: number;
@@ -120,10 +119,7 @@ export default function DraggableMapStand({
 		strokeWidth = 0.3;
 		strokeDasharray = "0.6,0.4";
 	} else {
-		strokeColor =
-			stand.status === "available"
-				? "rgba(217, 119, 6, 0.4)" // amber-600
-				: getStandStrokeColor(stand.status, false);
+		strokeColor = getStandStrokeColor(stand.status, false);
 		strokeWidth = 0.2;
 		strokeDasharray = undefined;
 	}
@@ -160,7 +156,7 @@ export default function DraggableMapStand({
 				dominantBaseline="central"
 				fontSize={2.2}
 				fontWeight={500}
-				fill="#374151"
+				fill={getStandTextColor(stand.status, false)}
 				style={{ pointerEvents: "none", userSelect: "none" }}
 			>
 				{stand.label}

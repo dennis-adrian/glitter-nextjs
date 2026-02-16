@@ -135,6 +135,10 @@ const updateStandSchema = z.object({
 	label: z.string().min(1),
 	standNumber: z.coerce.number().int().min(1),
 	status: z.enum(["available", "reserved", "confirmed", "disabled"]),
+	price: z.number().min(0).optional(),
+	standCategory: z
+		.enum(["none", "illustration", "gastronomy", "entrepreneurship", "new_artist"])
+		.optional(),
 });
 
 export async function updateStand(
@@ -143,14 +147,19 @@ export async function updateStand(
 	try {
 		const parsed = updateStandSchema.parse(input);
 
+		const setData: Record<string, unknown> = {
+			label: parsed.label,
+			standNumber: parsed.standNumber,
+			status: parsed.status,
+			updatedAt: new Date(),
+		};
+		if (parsed.price !== undefined) setData.price = parsed.price;
+		if (parsed.standCategory !== undefined)
+			setData.standCategory = parsed.standCategory;
+
 		const [updated] = await db
 			.update(stands)
-			.set({
-				label: parsed.label,
-				standNumber: parsed.standNumber,
-				status: parsed.status,
-				updatedAt: new Date(),
-			})
+			.set(setData)
 			.where(eq(stands.id, parsed.id))
 			.returning();
 

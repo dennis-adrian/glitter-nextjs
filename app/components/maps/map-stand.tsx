@@ -8,6 +8,7 @@ import {
 	getStandFillColor,
 	getStandHoverFillColor,
 	getStandStrokeColor,
+	getStandTextColor,
 } from "./map-utils";
 
 type MapStandProps = {
@@ -32,6 +33,7 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
 			? getStandHoverFillColor(status, canBeReserved)
 			: getStandFillColor(status, canBeReserved);
 		const strokeColor = getStandStrokeColor(status, canBeReserved);
+		const textColor = getStandTextColor(status, canBeReserved);
 
 		const handlePointerUp = (e: React.PointerEvent) => {
 			if (e.pointerType === "touch" || e.pointerType === "pen") {
@@ -89,7 +91,7 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
 					dominantBaseline="central"
 					fontSize={2.2}
 					fontWeight={500}
-					fill="#374151"
+					fill={textColor}
 					style={{ pointerEvents: "none", userSelect: "none" }}
 				>
 					{stand.label}

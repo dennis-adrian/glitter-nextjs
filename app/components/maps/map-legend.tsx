@@ -1,19 +1,19 @@
 const legendItems = [
   {
     label: "Disponible",
-    color: "bg-amber-100 border-amber-400",
+    color: "bg-violet-200/60 border-violet-500/60",
   },
   {
-    label: "Reservado",
-    color: "bg-emerald-300/35 border-emerald-400",
+    label: "Seleccionado",
+    color: "bg-violet-800/85 border-violet-800",
   },
   {
-    label: "Confirmado",
-    color: "bg-rose-500/35 border-rose-500",
+    label: "Ocupado",
+    color: "bg-gray-300/50 border-gray-400/60",
   },
   {
-    label: "Deshabilitado",
-    color: "bg-zinc-800/40 border-zinc-500",
+    label: "No disponible",
+    color: "bg-gray-200/35 border-gray-300/40",
   },
 ];
 

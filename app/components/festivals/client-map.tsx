@@ -9,6 +9,7 @@ import { profileHasReservation } from "@/app/helpers/next_event";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
+import { MapElementBase } from "@/app/lib/map_elements/definitions";
 import UserMap from "@/app/components/maps/user/user-map";
 
 export default function ClientMap({
@@ -16,11 +17,15 @@ export default function ClientMap({
   festival,
   profile,
   stands,
+  mapElements,
+  mapBounds,
 }: {
   artists: BaseProfile[];
   festival: FestivalBase;
   profile: ProfileType | null;
   stands: StandWithReservationsWithParticipants[];
+  mapElements?: MapElementBase[];
+  mapBounds?: { minX: number; minY: number; width: number; height: number };
 }) {
   const [openModal, setOpenModal] = useState(false);
   const [selectedStand, setSelectedStand] =
@@ -72,6 +77,8 @@ export default function ClientMap({
     <>
       <UserMap
         stands={stands}
+        mapElements={mapElements}
+        mapBounds={mapBounds}
         forReservation
         profile={profile}
         onStandClick={handleStandClick}

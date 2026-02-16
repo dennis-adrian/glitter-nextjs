@@ -1,0 +1,1 @@
+ALTER TYPE "public"."map_element_type" ADD VALUE 'stairs';

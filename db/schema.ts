@@ -254,6 +254,7 @@ export const festivalSectorsRelations = relations(
 			references: [festivals.id],
 		}),
 		stands: many(stands),
+		mapElements: many(mapElements),
 	}),
 );
 
@@ -1169,6 +1170,56 @@ export const productImagesRelations = relations(productImages, ({ one }) => ({
 	product: one(products, {
 		fields: [productImages.productId],
 		references: [products.id],
+	}),
+}));
+
+// Map Elements - signaling elements on festival maps (entrances, stages, etc.)
+export const mapElementTypeEnum = pgEnum("map_element_type", [
+	"entrance",
+	"stage",
+	"door",
+	"bathroom",
+	"label",
+	"custom",
+	"stairs",
+]);
+export const mapElementLabelPositionEnum = pgEnum("map_element_label_position", [
+	"left",
+	"right",
+	"top",
+	"bottom",
+]);
+export const mapElements = pgTable(
+	"map_elements",
+	{
+		id: serial("id").primaryKey(),
+		type: mapElementTypeEnum("type").notNull(),
+		label: text("label"),
+		labelPosition: mapElementLabelPositionEnum("label_position")
+			.notNull()
+			.default("bottom"),
+		labelFontSize: real("label_font_size").notNull().default(2),
+		labelFontWeight: real("label_font_weight").notNull().default(500),
+		showIcon: boolean("show_icon").notNull().default(true),
+		positionLeft: real("position_left").notNull().default(0),
+		positionTop: real("position_top").notNull().default(0),
+		width: real("width").notNull().default(8),
+		height: real("height").notNull().default(8),
+		rotation: real("rotation").notNull().default(0),
+		festivalSectorId: integer("festival_sector_id")
+			.notNull()
+			.references(() => festivalSectors.id, { onDelete: "cascade" }),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(mapElements) => [
+		index("map_elements_sector_idx").on(mapElements.festivalSectorId),
+	],
+);
+export const mapElementsRelations = relations(mapElements, ({ one }) => ({
+	festivalSector: one(festivalSectors, {
+		fields: [mapElements.festivalSectorId],
+		references: [festivalSectors.id],
 	}),
 }));
 

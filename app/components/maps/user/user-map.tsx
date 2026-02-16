@@ -6,10 +6,12 @@ import { ZoomIn } from "lucide-react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { BaseProfile, ProfileType } from "@/app/api/users/definitions";
+import { MapElementBase } from "@/app/lib/map_elements/definitions";
 import { canStandBeReserved } from "@/app/lib/stands/helpers";
 
 import MapCanvas from "@/app/components/maps/map-canvas";
 import MapStand from "@/app/components/maps/map-stand";
+import MapElement from "@/app/components/maps/map-element";
 import MapToolbar from "@/app/components/maps/map-toolbar";
 import MapLegend from "@/app/components/maps/map-legend";
 import MapTooltip from "@/app/components/maps/map-tooltip";
@@ -19,6 +21,8 @@ import { computeCanvasBounds } from "@/app/components/maps/map-utils";
 
 type UserMapProps = {
 	stands: StandWithReservationsWithParticipants[];
+	mapElements?: MapElementBase[];
+	mapBounds?: { minX: number; minY: number; width: number; height: number };
 	profile?: ProfileType | BaseProfile | null;
 	forReservation?: boolean;
 	onStandClick?: StandClickHandler;
@@ -27,6 +31,8 @@ type UserMapProps = {
 
 export default function UserMap({
 	stands,
+	mapElements,
+	mapBounds,
 	profile,
 	forReservation,
 	onStandClick,
@@ -112,7 +118,7 @@ export default function UserMap({
 		return participantProfiles.filter((p) => participantIds.includes(p.id));
 	}
 
-	const canvasBounds = computeCanvasBounds(stands);
+	const canvasBounds = mapBounds ?? computeCanvasBounds(stands, mapElements);
 
 	return (
 		<div className="flex flex-col items-center w-full">
@@ -137,6 +143,9 @@ export default function UserMap({
 								height: canvasBounds.height,
 							}}
 						>
+							{mapElements?.map((element) => (
+								<MapElement key={`el-${element.id}`} element={element} />
+							))}
 							{stands.map((stand) => {
 								const standCanBeReserved =
 									!!forReservation &&
