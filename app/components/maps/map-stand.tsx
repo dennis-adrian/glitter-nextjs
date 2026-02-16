@@ -39,8 +39,7 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
 			if (e.pointerType === "touch" || e.pointerType === "pen") {
 				onTouchTap?.(stand);
 			} else {
-				if (!canBeReserved || !onClick) return;
-				onClick(stand);
+				onClick?.(stand);
 			}
 		};
 
@@ -64,14 +63,14 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
 					setHovered(false);
 					onHoverChange?.(null, null);
 				}}
-				style={{ cursor: canBeReserved ? "pointer" : "default" }}
-				role={canBeReserved ? "button" : undefined}
+				style={{ cursor: onClick ? "pointer" : "default" }}
+				role={onClick ? "button" : undefined}
 				aria-label={`Espacio ${stand.label || ""}${standNumber} - ${status}`}
-				tabIndex={canBeReserved ? 0 : undefined}
+				tabIndex={onClick ? 0 : undefined}
 				onKeyDown={(e) => {
 					if (e.key === "Enter" || e.key === " ") {
 						e.preventDefault();
-						if (canBeReserved && onClick) onClick(stand);
+						onClick?.(stand);
 					}
 				}}
 			>

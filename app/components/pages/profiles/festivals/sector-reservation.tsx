@@ -70,6 +70,7 @@ export default async function SectorReservationPage(
 							artists={acceptedArtists}
 							festival={festival}
 							profile={forProfile}
+							sectorName={sector.name}
 							stands={sector.stands}
 							mapElements={sector.mapElements ?? []}
 							mapBounds={

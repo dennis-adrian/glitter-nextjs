@@ -3,105 +3,62 @@
 import { useState } from "react";
 
 import { BaseProfile, ProfileType } from "@/app/api/users/definitions";
-import { ReservationModal } from "@/app/components/next_event/reservation/modal";
-import { ReservationDrawer } from "@/app/components/next_event/reservation/drawer";
-import { profileHasReservation } from "@/app/helpers/next_event";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { MapElementBase } from "@/app/lib/map_elements/definitions";
 import UserMap from "@/app/components/maps/user/user-map";
+import { StandInfoCard } from "@/app/components/festivals/reservations/stand-info-card";
 
 export default function ClientMap({
-  artists,
-  festival,
-  profile,
-  stands,
-  mapElements,
-  mapBounds,
+	festival,
+	profile,
+	sectorName,
+	stands,
+	mapElements,
+	mapBounds,
 }: {
-  artists: BaseProfile[];
-  festival: FestivalBase;
-  profile: ProfileType | null;
-  stands: StandWithReservationsWithParticipants[];
-  mapElements?: MapElementBase[];
-  mapBounds?: { minX: number; minY: number; width: number; height: number };
+	artists: BaseProfile[];
+	festival: FestivalBase;
+	profile: ProfileType | null;
+	sectorName?: string;
+	stands: StandWithReservationsWithParticipants[];
+	mapElements?: MapElementBase[];
+	mapBounds?: { minX: number; minY: number; width: number; height: number };
 }) {
-  const [openModal, setOpenModal] = useState(false);
-  const [selectedStand, setSelectedStand] =
-    useState<StandWithReservationsWithParticipants | null>(null);
+	const [selectedStand, setSelectedStand] =
+		useState<StandWithReservationsWithParticipants | null>(null);
 
-  const [openDrawer, setOpenDrawer] = useState(false);
-  const [touchSelectedStand, setTouchSelectedStand] =
-    useState<StandWithReservationsWithParticipants | null>(null);
+	function handleStandClick(stand: StandWithReservationsWithParticipants) {
+		setSelectedStand(stand);
+	}
 
-  function canReserve(stand: StandWithReservationsWithParticipants): boolean {
-    if (!profile) return false;
-    if (stand.status !== "available") return false;
+	function handleStandTouchTap(
+		stand: StandWithReservationsWithParticipants,
+	): boolean {
+		setSelectedStand(stand);
+		return true;
+	}
 
-    if (profile.role !== "admin") {
-      const inFestival = isProfileInFestival(festival.id, profile);
-      if (!inFestival || profile.category !== stand.standCategory) return false;
-      if (profileHasReservation(profile, festival.id)) return false;
-    }
-
-    return true;
-  }
-
-  function handleStandClick(stand: StandWithReservationsWithParticipants) {
-    if (!canReserve(stand)) return;
-
-    setSelectedStand(stand);
-    setOpenModal(true);
-  }
-
-  function handleStandTouchTap(stand: StandWithReservationsWithParticipants): boolean {
-    if (!canReserve(stand)) return false;
-
-    setTouchSelectedStand(stand);
-    setOpenDrawer(true);
-    return true;
-  }
-
-  function handleModalClose() {
-    setSelectedStand(null);
-    setOpenModal(false);
-  }
-
-  function handleDrawerClose() {
-    setTouchSelectedStand(null);
-    setOpenDrawer(false);
-  }
-
-  return (
-    <>
-      <UserMap
-        stands={stands}
-        mapElements={mapElements}
-        mapBounds={mapBounds}
-        forReservation
-        profile={profile}
-        onStandClick={handleStandClick}
-        onStandTouchTap={handleStandTouchTap}
-      />
-      <ReservationModal
-        artists={artists}
-        profile={profile}
-        open={openModal}
-        stand={selectedStand}
-        festival={festival}
-        onOpenChange={setOpenModal}
-        onClose={handleModalClose}
-      />
-      <ReservationDrawer
-        artists={artists}
-        profile={profile}
-        open={openDrawer}
-        stand={touchSelectedStand}
-        festival={festival}
-        onOpenChange={setOpenDrawer}
-        onClose={handleDrawerClose}
-      />
-    </>
-  );
+	return (
+		<>
+			<UserMap
+				stands={stands}
+				mapElements={mapElements}
+				mapBounds={mapBounds}
+				forReservation
+				profile={profile}
+				onStandClick={handleStandClick}
+				onStandTouchTap={handleStandTouchTap}
+			/>
+			{selectedStand != null && profile != null && sectorName != null && (
+				<StandInfoCard
+					stand={selectedStand}
+					sectorName={sectorName}
+					profile={profile}
+					festival={festival}
+					onClose={() => setSelectedStand(null)}
+				/>
+			)}
+		</>
+	);
 }
