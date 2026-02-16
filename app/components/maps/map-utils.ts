@@ -2,6 +2,13 @@ import { StandWithReservationsWithParticipants } from "@/app/api/stands/definiti
 import { MapElementBase } from "@/app/lib/map_elements/definitions";
 import { MapCanvasConfig } from "./map-types";
 
+export type StandColors = {
+	fill: string;
+	hoverFill: string;
+	stroke: string;
+	text: string;
+};
+
 // Default canvas config
 export const DEFAULT_CANVAS_CONFIG: MapCanvasConfig = {
 	minX: 0,
@@ -134,4 +141,22 @@ export function getStandTextColor(
 		default:
 			return canBeReserved ? "#374151" : "#9CA3AF"; // gray-700 or gray-400
 	}
+}
+
+export function getPublicStandColors(status: string): StandColors {
+	if (status === "available") {
+		return {
+			fill: "rgba(221, 214, 254, 0.6)", // violet-200 — disponible
+			hoverFill: "rgba(196, 181, 253, 0.7)", // violet-300
+			stroke: "rgba(139, 92, 246, 0.6)", // violet-500
+			text: "#374151", // gray-700
+		};
+	}
+	// reserved | confirmed → occupied
+	return {
+		fill: "rgba(209, 213, 219, 0.5)", // gray-300 — ocupado
+		hoverFill: "rgba(209, 213, 219, 0.65)", // gray-300 hover
+		stroke: "rgba(156, 163, 175, 0.6)", // gray-400
+		text: "#6B7280", // gray-500
+	};
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { BaseProfile, ProfileType } from "@/app/api/users/definitions";
+import { ProfileType } from "@/app/api/users/definitions";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { MapElementBase } from "@/app/lib/map_elements/definitions";
@@ -17,7 +17,6 @@ export default function ClientMap({
 	mapElements,
 	mapBounds,
 }: {
-	artists: BaseProfile[];
 	festival: FestivalBase;
 	profile: ProfileType | null;
 	sectorName?: string;
@@ -28,15 +27,8 @@ export default function ClientMap({
 	const [selectedStand, setSelectedStand] =
 		useState<StandWithReservationsWithParticipants | null>(null);
 
-	function handleStandClick(stand: StandWithReservationsWithParticipants) {
+	function handleStandSelect(stand: StandWithReservationsWithParticipants) {
 		setSelectedStand(stand);
-	}
-
-	function handleStandTouchTap(
-		stand: StandWithReservationsWithParticipants,
-	): boolean {
-		setSelectedStand(stand);
-		return true;
 	}
 
 	return (
@@ -45,10 +37,9 @@ export default function ClientMap({
 				stands={stands}
 				mapElements={mapElements}
 				mapBounds={mapBounds}
-				forReservation
 				profile={profile}
-				onStandClick={handleStandClick}
-				onStandTouchTap={handleStandTouchTap}
+				onStandClick={handleStandSelect}
+				onStandTouchTap={handleStandSelect}
 			/>
 			{selectedStand != null && profile != null && sectorName != null && (
 				<StandInfoCard

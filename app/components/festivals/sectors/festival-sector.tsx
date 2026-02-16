@@ -1,6 +1,6 @@
 import { StandBase } from "@/app/api/stands/definitions";
 import { BaseProfile, Participation } from "@/app/api/users/definitions";
-import UserMap from "@/app/components/maps/user/user-map";
+import PublicMap from "@/app/components/maps/public/public-map";
 import ParticipantsGrid from "@/app/components/festivals/participants";
 import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
@@ -22,7 +22,7 @@ export default function FestivalSector(props: FestivalSectorProps) {
         <div className="flex flex-wrap gap-4 justify-center">
           <div className="flex flex-col items-center gap-2">
             <div className="w-full md:max-w-2xl mx-auto">
-              <UserMap
+              <PublicMap
                 stands={props.sector.stands}
                 mapElements={props.sector.mapElements ?? []}
                 mapBounds={

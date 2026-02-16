@@ -10,10 +10,12 @@ import {
 	getStandStrokeColor,
 	getStandTextColor,
 } from "./map-utils";
+import type { StandColors } from "./map-utils";
 
 type MapStandProps = {
 	stand: StandWithReservationsWithParticipants;
 	canBeReserved: boolean;
+	colors?: StandColors;
 	onClick?: (stand: StandWithReservationsWithParticipants) => void;
 	onTouchTap?: (stand: StandWithReservationsWithParticipants) => void;
 	onHoverChange?: (
@@ -23,17 +25,19 @@ type MapStandProps = {
 };
 
 const MapStand = forwardRef<SVGGElement, MapStandProps>(
-	({ stand, canBeReserved, onClick, onTouchTap, onHoverChange }, ref) => {
+	({ stand, canBeReserved, colors, onClick, onTouchTap, onHoverChange }, ref) => {
 		const [hovered, setHovered] = useState(false);
 		const gRef = useRef<SVGGElement>(null);
 		const { left, top } = getStandPosition(stand);
 		const { standNumber, status } = stand;
 
-		const fillColor = hovered
-			? getStandHoverFillColor(status, canBeReserved)
-			: getStandFillColor(status, canBeReserved);
-		const strokeColor = getStandStrokeColor(status, canBeReserved);
-		const textColor = getStandTextColor(status, canBeReserved);
+		const fillColor = colors
+			? (hovered ? colors.hoverFill : colors.fill)
+			: (hovered
+				? getStandHoverFillColor(status, canBeReserved)
+				: getStandFillColor(status, canBeReserved));
+		const strokeColor = colors?.stroke ?? getStandStrokeColor(status, canBeReserved);
+		const textColor = colors?.text ?? getStandTextColor(status, canBeReserved);
 
 		const handlePointerUp = (e: React.PointerEvent) => {
 			if (e.pointerType === "touch" || e.pointerType === "pen") {

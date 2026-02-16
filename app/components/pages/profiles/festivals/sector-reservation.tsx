@@ -5,10 +5,7 @@ import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
 import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/actions";
-import {
-	fetchAvailableArtistsInFestival,
-	fetchBaseFestival,
-} from "@/app/lib/festivals/actions";
+import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { formatDate } from "@/app/lib/formatters";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { DateTime } from "luxon";
@@ -58,8 +55,6 @@ export default async function SectorReservationPage(
 	const sector = sectors.find((s) => s.id === props.sectorId);
 	if (!sector) notFound();
 
-	const acceptedArtists = await fetchAvailableArtistsInFestival(festival.id);
-
 	return (
 		<div className="container p-4 md:p-6">
 			<Suspense fallback={<FestivalSkeleton />}>
@@ -67,7 +62,6 @@ export default async function SectorReservationPage(
 					<FestivalSectorTitle sector={sector} />
 					<div className="w-full md:max-w-2xl mx-auto">
 						<ClientMap
-							artists={acceptedArtists}
 							festival={festival}
 							profile={forProfile}
 							sectorName={sector.name}
