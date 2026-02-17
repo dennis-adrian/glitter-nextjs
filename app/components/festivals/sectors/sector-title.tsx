@@ -10,7 +10,7 @@ export default function FestivalSectorTitle(props: SectorTitleProps) {
 	const sectorCategories = getFestivalSectorAllowedCategories(props.sector);
 	return (
 		<div className="self-start flex flex-col">
-			<div className="flex gap-3 mt-4 self-start flex-wrap">
+			<div className="flex gap-1 sm:gap-3 mb-2 self-start flex-wrap">
 				<h3 className="font-semibold text-xl">Sector {props.sector.name}</h3>
 				{sectorCategories.length > 0 && (
 					<div className="flex gap-1 items-center flex-wrap">

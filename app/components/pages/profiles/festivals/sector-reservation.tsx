@@ -72,7 +72,7 @@ export default async function SectorReservationPage(
 
 	return (
 		<>
-			<StepIndicator step={2} totalSteps={3} label="Reserva de Stand" />
+			<StepIndicator step={2} totalSteps={4} label="Selección de Stand" />
 			<div className="max-w-3xl mx-auto px-4 py-4 md:py-6">
 				<div className="flex flex-col items-center gap-2">
 					<FestivalSectorTitle sector={sector} />
