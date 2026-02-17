@@ -4,6 +4,7 @@ import { db } from "@/db";
 import {
 	festivals,
 	festivalSectors,
+	mapElements,
 	mapTemplates,
 	standReservations,
 	stands,
@@ -13,6 +14,7 @@ import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
+	MapElementTemplate,
 	MapTemplate,
 	MapTemplateRecord,
 	SectorTemplate,
@@ -79,11 +81,12 @@ export async function exportFestivalMapAsTemplate(
 			return { success: false, message: "Festival no encontrado" };
 		}
 
-		// Fetch sectors with stands
+		// Fetch sectors with stands and elements
 		const sectorsQuery = db.query.festivalSectors.findMany({
 			where: eq(festivalSectors.festivalId, festivalId),
 			with: {
 				stands: true,
+				mapElements: true,
 			},
 			orderBy: festivalSectors.orderInFestival,
 		});
@@ -124,10 +127,30 @@ export async function exportFestivalMapAsTemplate(
 					price: stand.price,
 				}),
 			),
+			elements:
+				sector.mapElements.length > 0
+					? sector.mapElements.map(
+							(el): MapElementTemplate => ({
+								type: el.type,
+								label: el.label,
+								labelPosition: el.labelPosition,
+								labelFontSize: el.labelFontSize,
+								showIcon: el.showIcon,
+								labelFontWeight: el.labelFontWeight,
+								rotation: el.rotation ?? 0,
+								positionLeft: el.positionLeft,
+								positionTop: el.positionTop,
+								width: el.width,
+								height: el.height,
+							}),
+						)
+					: undefined,
 		}));
 
+		const hasElements = sectorTemplates.some((s) => s.elements);
+
 		const template: MapTemplate = {
-			version: "1.0",
+			version: hasElements ? "1.1" : "1.0",
 			metadata: {
 				name: `${festival.name} - Plantilla`,
 				createdAt: new Date().toISOString(),
@@ -159,6 +182,7 @@ export async function exportSectorAsTemplate(
 			where: eq(festivalSectors.id, sectorId),
 			with: {
 				stands: true,
+				mapElements: true,
 				festival: true,
 			},
 		});
@@ -191,10 +215,30 @@ export async function exportSectorAsTemplate(
 					price: stand.price,
 				}),
 			),
+			elements:
+				sector.mapElements.length > 0
+					? sector.mapElements.map(
+							(el): MapElementTemplate => ({
+								type: el.type,
+								label: el.label,
+								labelPosition: el.labelPosition,
+								labelFontSize: el.labelFontSize,
+								showIcon: el.showIcon,
+								labelFontWeight: el.labelFontWeight,
+								rotation: el.rotation ?? 0,
+								positionLeft: el.positionLeft,
+								positionTop: el.positionTop,
+								width: el.width,
+								height: el.height,
+							}),
+						)
+					: undefined,
 		};
 
+		const hasElements = sectorTemplate.elements !== undefined;
+
 		const template: MapTemplate = {
-			version: "1.0",
+			version: hasElements ? "1.1" : "1.0",
 			metadata: {
 				name: `${sector.name} - Plantilla`,
 				createdAt: new Date().toISOString(),
@@ -289,6 +333,7 @@ export async function importTemplateToFestival(
 			where: eq(festivalSectors.festivalId, festivalId),
 			with: {
 				stands: true,
+				mapElements: true,
 			},
 			orderBy: festivalSectors.orderInFestival,
 		});
@@ -348,6 +393,17 @@ export async function importTemplateToFestival(
 					await tx.delete(stands).where(inArray(stands.id, standIds));
 				}
 
+				// Delete existing elements if replace mode
+				if (
+					parsedOptions.mode === "replace" &&
+					targetSector.mapElements.length > 0
+				) {
+					const elementIds = targetSector.mapElements.map((e) => e.id);
+					await tx
+						.delete(mapElements)
+						.where(inArray(mapElements.id, elementIds));
+				}
+
 				// Update sector bounds
 				await tx
 					.update(festivalSectors)
@@ -376,6 +432,27 @@ export async function importTemplateToFestival(
 							price: stand.price,
 							status: "available" as const,
 							festivalId,
+							festivalSectorId: targetSector.id,
+						})),
+					);
+				}
+
+				// Create elements from template
+				const templateElements = templateSector.elements ?? [];
+				if (templateElements.length > 0) {
+					await tx.insert(mapElements).values(
+						templateElements.map((el) => ({
+							type: el.type,
+							label: el.label,
+							labelPosition: el.labelPosition ?? "bottom",
+							labelFontSize: el.labelFontSize ?? 2,
+							showIcon: el.showIcon ?? true,
+							labelFontWeight: el.labelFontWeight ?? 500,
+							rotation: el.rotation ?? 0,
+							positionLeft: el.positionLeft,
+							positionTop: el.positionTop,
+							width: el.width,
+							height: el.height,
 							festivalSectorId: targetSector.id,
 						})),
 					);
@@ -426,12 +503,23 @@ export async function importTemplateToFestival(
 				await tx.delete(stands).where(inArray(stands.id, standIds));
 			}
 
+			// 1b. Delete all existing elements across all sectors
+			const allExistingElements = targetSectors.flatMap(
+				(s) => s.mapElements,
+			);
+			if (allExistingElements.length > 0) {
+				const elementIds = allExistingElements.map((e) => e.id);
+				await tx
+					.delete(mapElements)
+					.where(inArray(mapElements.id, elementIds));
+			}
+
 			// 2. Delete extra sectors if festival has more than template
 			if (targetSectors.length > template.sectors.length) {
 				const extraSectorIds = targetSectors
 					.slice(template.sectors.length)
 					.map((s) => s.id);
-				// Stands already deleted above, safe to delete sectors
+				// Stands and elements already deleted above, safe to delete sectors
 				await tx
 					.delete(festivalSectors)
 					.where(inArray(festivalSectors.id, extraSectorIds));
@@ -479,7 +567,7 @@ export async function importTemplateToFestival(
 				}
 			}
 
-			// 4. Create stands for each sector
+			// 4. Create stands and elements for each sector
 			for (let i = 0; i < template.sectors.length; i++) {
 				const templateSector = template.sectors[i];
 				const sectorId = sectorIds[i];
@@ -503,6 +591,27 @@ export async function importTemplateToFestival(
 						})),
 					);
 					totalCreated += templateSector.stands.length;
+				}
+
+				// Create elements from template
+				const templateElements = templateSector.elements ?? [];
+				if (templateElements.length > 0) {
+					await tx.insert(mapElements).values(
+						templateElements.map((el) => ({
+							type: el.type,
+							label: el.label,
+							labelPosition: el.labelPosition ?? "bottom",
+							labelFontSize: el.labelFontSize ?? 2,
+							showIcon: el.showIcon ?? true,
+							labelFontWeight: el.labelFontWeight ?? 500,
+							rotation: el.rotation ?? 0,
+							positionLeft: el.positionLeft,
+							positionTop: el.positionTop,
+							width: el.width,
+							height: el.height,
+							festivalSectorId: sectorId,
+						})),
+					);
 				}
 			}
 

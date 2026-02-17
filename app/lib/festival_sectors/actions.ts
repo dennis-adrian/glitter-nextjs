@@ -67,6 +67,7 @@ export async function fetchFestivalSectors(
 						},
 					},
 				},
+				mapElements: true,
 			},
 			orderBy: festivalSectors.orderInFestival,
 			where: eq(festivalSectors.festivalId, festivalId),
@@ -146,6 +147,7 @@ export async function fetchFestivalSectorsByUserCategory(
 							},
 						},
 					},
+					mapElements: true,
 				},
 			});
 		});

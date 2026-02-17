@@ -17,6 +17,21 @@ export interface StandTemplate {
   price: number;
 }
 
+// Map element template - represents a signaling element in a template
+export interface MapElementTemplate {
+  type: "entrance" | "stage" | "door" | "bathroom" | "label" | "custom" | "stairs";
+  label: string | null;
+  labelPosition?: "left" | "right" | "top" | "bottom";
+  labelFontSize?: number;
+  showIcon?: boolean;
+  labelFontWeight?: number;
+  rotation?: number;
+  positionLeft: number;
+  positionTop: number;
+  width: number;
+  height: number;
+}
+
 // Sector template - represents a sector with its stands
 export interface SectorTemplate {
   name: string;
@@ -29,11 +44,12 @@ export interface SectorTemplate {
     height: number | null;
   };
   stands: StandTemplate[];
+  elements?: MapElementTemplate[];
 }
 
 // Full map template structure
 export interface MapTemplate {
-  version: "1.0";
+  version: "1.0" | "1.1";
   metadata: {
     name: string;
     description?: string;

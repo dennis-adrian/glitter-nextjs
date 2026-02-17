@@ -20,6 +20,21 @@ export const standTemplateSchema = z.object({
   price: z.number().min(0),
 });
 
+// Map element template schema
+export const mapElementTemplateSchema = z.object({
+  type: z.enum(["entrance", "stage", "door", "bathroom", "label", "custom", "stairs"]),
+  label: z.string().nullable(),
+  labelPosition: z.enum(["left", "right", "top", "bottom"]).optional(),
+  labelFontSize: z.number().positive().optional(),
+  showIcon: z.boolean().optional(),
+  labelFontWeight: z.number().min(100).max(900).optional(),
+  rotation: z.number().finite().optional(),
+  positionLeft: z.number().finite(),
+  positionTop: z.number().finite(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+});
+
 // Sector template schema
 export const sectorTemplateSchema = z.object({
   name: z.string().min(1),
@@ -32,11 +47,12 @@ export const sectorTemplateSchema = z.object({
     height: z.number().nullable(),
   }),
   stands: z.array(standTemplateSchema),
+  elements: z.array(mapElementTemplateSchema).optional(),
 });
 
 // Full map template schema
 export const mapTemplateSchema = z.object({
-  version: z.literal("1.0"),
+  version: z.enum(["1.0", "1.1"]),
   metadata: z.object({
     name: z.string().min(1).max(100),
     description: z.string().max(500).optional(),
