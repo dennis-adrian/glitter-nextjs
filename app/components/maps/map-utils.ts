@@ -157,14 +157,14 @@ export function getPublicStandColors(status: string): StandColors {
 			fill: "rgba(221, 214, 254, 0.6)", // violet-200 — disponible
 			hoverFill: "rgba(196, 181, 253, 0.7)", // violet-300
 			stroke: "rgba(139, 92, 246, 0.6)", // violet-500
-			text: "#374151", // gray-700
+			text: "hsl(262, 77%, 49%)", // primary purple
 		};
 	}
-	// reserved | confirmed → occupied
+	// reserved | confirmed → occupied (deep violet + white text)
 	return {
-		fill: "rgba(209, 213, 219, 0.5)", // gray-300 — ocupado
-		hoverFill: "rgba(209, 213, 219, 0.65)", // gray-300 hover
-		stroke: "rgba(156, 163, 175, 0.6)", // gray-400
-		text: "#6B7280", // gray-500
+		fill: "rgba(109, 40, 217, 0.85)", // violet-700 — ocupado
+		hoverFill: "rgba(109, 40, 217, 0.95)", // violet-700 hover
+		stroke: "rgba(91, 33, 182, 0.8)", // violet-800
+		text: "#ffffff", // white
 	};
 }
