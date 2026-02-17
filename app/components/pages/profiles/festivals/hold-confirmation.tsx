@@ -1,13 +1,12 @@
 import { fetchUserProfileById } from "@/app/api/users/actions";
 import { getParticipantsOptions } from "@/app/api/reservations/helpers";
 import HoldConfirmationClient from "@/app/components/festivals/reservations/hold-confirmation-client";
+import { computeCanvasBounds } from "@/app/components/maps/map-utils";
+import { fetchSectorWithStandsAndReservations } from "@/app/lib/festival_sectors/actions";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { fetchFestivalParticipants } from "@/app/lib/festivals/actions";
+import { fetchHoldWithStand } from "@/app/lib/stands/hold-actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
-import { computeCanvasBounds } from "@/app/components/maps/map-utils";
-import { db } from "@/db";
-import { festivalSectors, standHolds } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 
 type HoldConfirmationPageProps = {
@@ -30,14 +29,11 @@ export default async function HoldConfirmationPage(
 	if (!forProfile) notFound();
 
 	// Fetch and validate the hold
-	const hold = await db.query.standHolds.findFirst({
-		where: and(
-			eq(standHolds.id, props.holdId),
-			eq(standHolds.userId, props.profileId),
-			eq(standHolds.festivalId, props.festivalId),
-		),
-		with: { stand: true },
-	});
+	const hold = await fetchHoldWithStand(
+		props.holdId,
+		props.profileId,
+		props.festivalId,
+	);
 
 	if (!hold) {
 		redirect(
@@ -53,16 +49,7 @@ export default async function HoldConfirmationPage(
 	}
 
 	// Fetch sector for name + stands for thumbnail
-	const sector = await db.query.festivalSectors.findFirst({
-		where: eq(festivalSectors.id, props.sectorId),
-		with: {
-			stands: {
-				with: {
-					reservations: { with: { participants: { with: { user: true } } } },
-				},
-			},
-		},
-	});
+	const sector = await fetchSectorWithStandsAndReservations(props.sectorId);
 
 	const sectorStands = (sector?.stands ?? []).map((s) => ({
 		id: s.id,

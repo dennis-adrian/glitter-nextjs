@@ -20,6 +20,21 @@ import { revalidatePath } from "next/cache";
 
 const HOLD_DURATION_MINUTES = 3;
 
+export async function fetchHoldWithStand(
+	holdId: number,
+	userId: number,
+	festivalId: number,
+) {
+	return db.query.standHolds.findFirst({
+		where: and(
+			eq(standHolds.id, holdId),
+			eq(standHolds.userId, userId),
+			eq(standHolds.festivalId, festivalId),
+		),
+		with: { stand: true },
+	});
+}
+
 export async function getActiveHold(
 	userId: number,
 	festivalId: number,

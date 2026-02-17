@@ -1,6 +1,11 @@
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { MapElementBase } from "@/app/lib/map_elements/definitions";
 import { MapCanvasConfig } from "./map-types";
+
+/** Minimal stand shape needed to compute canvas bounds from positions */
+export type StandWithPosition = {
+	positionLeft: number | null;
+	positionTop: number | null;
+};
 
 export type StandColors = {
 	fill: string;
@@ -21,7 +26,7 @@ export const DEFAULT_CANVAS_CONFIG: MapCanvasConfig = {
 // Uniform square size for all stands (in viewBox units)
 export const STAND_SIZE = 6;
 
-export function getStandPosition(stand: StandWithReservationsWithParticipants) {
+export function getStandPosition(stand: StandWithPosition) {
 	return {
 		left: stand.positionLeft ?? 0,
 		top: stand.positionTop ?? 0,
@@ -29,7 +34,7 @@ export function getStandPosition(stand: StandWithReservationsWithParticipants) {
 }
 
 export function computeCanvasBounds(
-	stands: StandWithReservationsWithParticipants[],
+	stands: StandWithPosition[],
 	mapElements?: MapElementBase[],
 ): { minX: number; minY: number; width: number; height: number } {
 	const positioned = stands.filter(

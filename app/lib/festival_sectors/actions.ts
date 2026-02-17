@@ -591,6 +591,31 @@ export async function deleteFestivalActivityParticipantProof(
 	return { success: true, message: "Diseño eliminado correctamente" };
 }
 
+export async function fetchSectorWithStandsAndReservations(
+	sectorId: number,
+) {
+	try {
+		return await db.query.festivalSectors.findFirst({
+			where: eq(festivalSectors.id, sectorId),
+			with: {
+				stands: {
+					with: {
+						reservations: {
+							with: { participants: { with: { user: true } } },
+						},
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error(
+			"Error fetching sector with stands and reservations",
+			error,
+		);
+		return null;
+	}
+}
+
 export async function fetchFestivalSectorsWithAllowedCategories(
 	festivalId: number,
 ): Promise<
