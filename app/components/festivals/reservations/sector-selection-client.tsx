@@ -31,8 +31,12 @@ export default function SectorSelectionClient({
 	const [selectedSectorId, setSelectedSectorId] = useState<number | null>(null);
 
 	const orderedSectors = [...sectors].sort((a, b) => {
-		const aAvailable = a.stands.filter((s) => s.status === "available").length;
-		const bAvailable = b.stands.filter((s) => s.status === "available").length;
+		const aAvailable = a.stands.filter(
+			(s) => s.standCategory === profileCategory && s.status === "available",
+		).length;
+		const bAvailable = b.stands.filter(
+			(s) => s.standCategory === profileCategory && s.status === "available",
+		).length;
 		if (aAvailable > 0 && bAvailable === 0) return -1;
 		if (aAvailable === 0 && bAvailable > 0) return 1;
 		return a.orderInFestival - b.orderInFestival;

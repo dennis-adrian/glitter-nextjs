@@ -28,7 +28,7 @@ export function getLabelLayout(
 				textX: width / 2,
 				textY: -(fontSize / 2 + gap),
 				textAnchor: "middle",
-				bgX: width / 2 - estTextWidth / 2,
+				bgX: width / 2 - (estTextWidth / 2 + padX),
 				bgY: -(fontSize + gap),
 			};
 		case "left":
@@ -53,7 +53,7 @@ export function getLabelLayout(
 				textX: width / 2,
 				textY: height + fontSize / 2 + gap,
 				textAnchor: "middle",
-				bgX: width / 2 - estTextWidth / 2,
+				bgX: width / 2 - (estTextWidth / 2 + padX),
 				bgY: height + gap,
 			};
 	}

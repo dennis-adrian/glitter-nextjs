@@ -20,10 +20,11 @@ export default function SectorCard({
 	onSelect,
 	profileCategory,
 }: SectorCardProps) {
-	const price =
-		sector.stands.find((s) => s.standCategory === profileCategory)?.price ?? 0;
-
-	const availableStands = sector.stands.filter(
+	const categoryStands = sector.stands.filter(
+		(s) => s.standCategory === profileCategory,
+	);
+	const price = categoryStands[0]?.price ?? 0;
+	const availableStands = categoryStands.filter(
 		(s) => s.status === "available",
 	).length;
 

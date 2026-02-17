@@ -757,6 +757,12 @@ export default function StandPositionEditor({
 			return next;
 		});
 
+		setOriginalElementSizes((prev) => {
+			const next = new Map(prev);
+			next.set(updated.id, { width: updated.width, height: updated.height });
+			return next;
+		});
+
 		toast.success(result.message);
 		setEditElementDialogOpen(false);
 	};

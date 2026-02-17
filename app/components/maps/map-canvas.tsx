@@ -1,4 +1,4 @@
-import { forwardRef } from "react";
+import { forwardRef, useId } from "react";
 import { DEFAULT_CANVAS_CONFIG } from "./map-utils";
 import { MapCanvasConfig } from "./map-types";
 
@@ -12,6 +12,7 @@ const MapCanvas = forwardRef<SVGSVGElement, MapCanvasProps>(
 	({ config, className = "w-full h-auto", children }, ref) => {
 		const canvasConfig = { ...DEFAULT_CANVAS_CONFIG, ...config };
 		const { minX, minY, width, height } = canvasConfig;
+		const patternId = useId();
 
 		const dotSpacing = 3;
 		const dotRadius = 0.35;
@@ -27,7 +28,7 @@ const MapCanvas = forwardRef<SVGSVGElement, MapCanvasProps>(
 			>
 				<defs>
 					<pattern
-						id="dot-grid"
+						id={patternId}
 						x={minX}
 						y={minY}
 						width={dotSpacing}
@@ -56,7 +57,7 @@ const MapCanvas = forwardRef<SVGSVGElement, MapCanvasProps>(
 					width={width}
 					height={height}
 					rx={1}
-					fill="url(#dot-grid)"
+					fill={`url(#${patternId})`}
 				/>
 				{children}
 			</svg>

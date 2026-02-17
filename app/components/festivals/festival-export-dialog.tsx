@@ -149,11 +149,19 @@ export default function FestivalExportDialog({
 		}
 		if (showSectorSelection) {
 			const sectorCount = selectedSectorIds.size;
-			const standCount = festival.festivalSectors
-				.filter((s) => selectedSectorIds.has(s.id))
-				.reduce((acc, s) => acc + (s.stands?.length ?? 0), 0);
+			const selectedSectors = festival.festivalSectors.filter((s) =>
+				selectedSectorIds.has(s.id),
+			);
+			const hasStandCounts = selectedSectors.every((s) =>
+				Array.isArray(s.stands),
+			);
+			const standCount = hasStandCounts
+				? selectedSectors.reduce((acc, s) => acc + (s.stands?.length ?? 0), 0)
+				: 0;
 			parts.push(
-				`${sectorCount} sector${sectorCount !== 1 ? "es" : ""}, ${standCount} espacio${standCount !== 1 ? "s" : ""}`,
+				hasStandCounts
+					? `${sectorCount} sector${sectorCount !== 1 ? "es" : ""}, ${standCount} espacio${standCount !== 1 ? "s" : ""}`
+					: `${sectorCount} sector${sectorCount !== 1 ? "es" : ""}`,
 			);
 		}
 		return `Se exportaran: ${parts.join(", ")}`;

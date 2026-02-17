@@ -18,6 +18,7 @@ import { Button } from "@/app/components/ui/button";
 import { profileHasReservation } from "@/app/helpers/next_event";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { canStandBeReserved } from "@/app/lib/stands/helpers";
+import { toast } from "sonner";
 
 type StandInfoCardProps = {
 	stand: StandWithReservationsWithParticipants;
@@ -113,23 +114,29 @@ export function StandInfoCard({
 			festivalId: festival.id,
 			participantIds: [profile.id],
 		} as NewStandReservation;
-		const res = await createReservation(reservation, stand.price, profile);
-		setIsSubmitting(false);
-		if (res.success) {
-			onClose();
-			confetti({
-				particleCount: 100,
-				spread: 70,
-				origin: { y: 0.6 },
-			});
-			const { toast } = await import("sonner");
-			toast.success(res.message);
-			router.push(
-				`/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.reservationId}/payments`,
-			);
-		} else {
-			const { toast } = await import("sonner");
-			toast.error(res.message, { description: res.description });
+
+		try {
+			const res = await createReservation(reservation, stand.price, profile);
+			if (res.success) {
+				onClose();
+				confetti({
+					particleCount: 100,
+					spread: 70,
+					origin: { y: 0.6 },
+				});
+				const { toast } = await import("sonner");
+				toast.success(res.message);
+				router.push(
+					`/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.reservationId}/payments`,
+				);
+			} else {
+				const { toast } = await import("sonner");
+				toast.error(res.message, { description: res.description });
+			}
+		} catch {
+			toast.error("No se pudo crear la reserva");
+		} finally {
+			setIsSubmitting(false);
 		}
 	};
 
