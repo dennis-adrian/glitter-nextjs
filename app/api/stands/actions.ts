@@ -88,7 +88,7 @@ const createStandsSchema = z.object({
 	count: z.coerce.number().int().min(1).max(100),
 	startNumber: z.coerce.number().int().min(1),
 	status: z
-		.enum(["available", "reserved", "confirmed", "disabled"])
+		.enum(["available", "held", "reserved", "confirmed", "disabled"])
 		.default("disabled"),
 	positionLeft: z.number().finite().optional(),
 	positionTop: z.number().finite().optional(),
@@ -134,7 +134,7 @@ const updateStandSchema = z.object({
 	id: z.number().int().positive(),
 	label: z.string().min(1),
 	standNumber: z.coerce.number().int().min(1),
-	status: z.enum(["available", "reserved", "confirmed", "disabled"]),
+	status: z.enum(["available", "held", "reserved", "confirmed", "disabled"]),
 	price: z.number().min(0).optional(),
 	standCategory: z
 		.enum(["none", "illustration", "gastronomy", "entrepreneurship", "new_artist"])

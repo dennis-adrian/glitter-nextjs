@@ -1,6 +1,6 @@
 import { fetchUserProfileById } from "@/app/api/users/actions";
 import ClientMap from "@/app/components/festivals/client-map";
-import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
+import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
 import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
@@ -8,9 +8,11 @@ import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/a
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { formatDate } from "@/app/lib/formatters";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
+import { db } from "@/db";
+import { standHolds } from "@/db/schema";
+import { and, eq, gt } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
 
 type SectorReservationPageProps = {
 	profileId: number;
@@ -55,21 +57,45 @@ export default async function SectorReservationPage(
 	const sector = sectors.find((s) => s.id === props.sectorId);
 	if (!sector) notFound();
 
+	// Fetch user's active hold for this festival (if any)
+	const activeHoldRow = await db.query.standHolds.findFirst({
+		where: and(
+			eq(standHolds.userId, forProfile.id),
+			eq(standHolds.festivalId, festival.id),
+			gt(standHolds.expiresAt, new Date()),
+		),
+		columns: { id: true, standId: true },
+	});
+	const activeHold = activeHoldRow
+		? { id: activeHoldRow.id, standId: activeHoldRow.standId }
+		: null;
+
 	return (
-		<div className="container p-4 md:p-6">
-			<Suspense fallback={<FestivalSkeleton />}>
+		<>
+			<StepIndicator step={2} totalSteps={4} label="Selección de Stand" />
+			<div className="max-w-3xl mx-auto px-4 py-4 md:py-6">
 				<div className="flex flex-col items-center gap-2">
 					<FestivalSectorTitle sector={sector} />
 					<div className="w-full md:max-w-2xl mx-auto">
 						<ClientMap
 							festival={festival}
 							profile={forProfile}
+							sectorId={sector.id}
 							sectorName={sector.name}
 							stands={sector.stands}
 							mapElements={sector.mapElements ?? []}
+							activeHold={activeHold}
 							mapBounds={
-								sector.mapOriginX != null && sector.mapOriginY != null && sector.mapWidth != null && sector.mapHeight != null
-									? { minX: sector.mapOriginX, minY: sector.mapOriginY, width: sector.mapWidth, height: sector.mapHeight }
+								sector.mapOriginX != null &&
+								sector.mapOriginY != null &&
+								sector.mapWidth != null &&
+								sector.mapHeight != null
+									? {
+											minX: sector.mapOriginX,
+											minY: sector.mapOriginY,
+											width: sector.mapWidth,
+											height: sector.mapHeight,
+										}
 									: undefined
 							}
 						/>
@@ -80,7 +106,7 @@ export default async function SectorReservationPage(
 						estimadas y se utilizan de manera orientativa.
 					</p>
 				</div>
-			</Suspense>
-		</div>
+			</div>
+		</>
 	);
 }

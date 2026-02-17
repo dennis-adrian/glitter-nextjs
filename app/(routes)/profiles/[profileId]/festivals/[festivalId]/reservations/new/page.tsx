@@ -1,4 +1,4 @@
-import Loader from "@/app/components/loader";
+import SectorSelectionSkeleton from "@/app/components/festivals/reservations/sector-selection-skeleton";
 import SectorSelectionPage from "@/app/components/pages/profiles/festivals/sector-selection";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -19,7 +19,7 @@ export default async function Page(
   if (!validatedParams.success) notFound();
 
   return (
-    <Suspense fallback={<Loader />}>
+    <Suspense fallback={<SectorSelectionSkeleton />}>
       <SectorSelectionPage
         profileId={validatedParams.data.profileId}
         festivalId={validatedParams.data.festivalId}

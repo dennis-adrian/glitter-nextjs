@@ -1,6 +1,11 @@
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { MapElementBase } from "@/app/lib/map_elements/definitions";
 import { MapCanvasConfig } from "./map-types";
+
+/** Minimal stand shape needed to compute canvas bounds from positions */
+export type StandWithPosition = {
+	positionLeft: number | null;
+	positionTop: number | null;
+};
 
 export type StandColors = {
 	fill: string;
@@ -21,7 +26,7 @@ export const DEFAULT_CANVAS_CONFIG: MapCanvasConfig = {
 // Uniform square size for all stands (in viewBox units)
 export const STAND_SIZE = 6;
 
-export function getStandPosition(stand: StandWithReservationsWithParticipants) {
+export function getStandPosition(stand: StandWithPosition) {
 	return {
 		left: stand.positionLeft ?? 0,
 		top: stand.positionTop ?? 0,
@@ -29,7 +34,7 @@ export function getStandPosition(stand: StandWithReservationsWithParticipants) {
 }
 
 export function computeCanvasBounds(
-	stands: StandWithReservationsWithParticipants[],
+	stands: StandWithPosition[],
 	mapElements?: MapElementBase[],
 ): { minX: number; minY: number; width: number; height: number } {
 	const positioned = stands.filter(
@@ -78,6 +83,8 @@ export function getStandFillColor(
 	canBeReserved: boolean,
 ): string {
 	switch (status) {
+		case "held":
+			return "rgba(251, 191, 36, 0.6)"; // amber-400 — en espera
 		case "reserved":
 			return "rgba(91, 33, 182, 0.85)"; // violet-800 — seleccionado
 		case "confirmed":
@@ -96,6 +103,8 @@ export function getStandHoverFillColor(
 	canBeReserved: boolean,
 ): string {
 	switch (status) {
+		case "held":
+			return "rgba(245, 158, 11, 0.7)"; // amber-500 — en espera hover
 		case "reserved":
 			return "rgba(91, 33, 182, 0.95)"; // violet-800 darker
 		case "confirmed":
@@ -114,6 +123,8 @@ export function getStandStrokeColor(
 	canBeReserved: boolean,
 ): string {
 	switch (status) {
+		case "held":
+			return "rgba(217, 119, 6, 0.8)"; // amber-600 — en espera
 		case "reserved":
 			return "rgba(91, 33, 182, 1)"; // violet-800
 		case "confirmed":
@@ -132,6 +143,8 @@ export function getStandTextColor(
 	canBeReserved: boolean,
 ): string {
 	switch (status) {
+		case "held":
+			return "#92400E"; // amber-800 — en espera
 		case "reserved":
 			return "#ffffff"; // white on dark purple
 		case "confirmed":
@@ -158,6 +171,14 @@ export function getPublicStandColors(status: string): StandColors {
 			hoverFill: "rgba(196, 181, 253, 0.7)", // violet-300
 			stroke: "rgba(139, 92, 246, 0.6)", // violet-500
 			text: "hsl(262, 77%, 49%)", // primary purple
+		};
+	}
+	if (status === "held") {
+		return {
+			fill: "rgba(251, 191, 36, 0.6)", // amber-400 — en espera
+			hoverFill: "rgba(245, 158, 11, 0.7)", // amber-500
+			stroke: "rgba(217, 119, 6, 0.8)", // amber-600
+			text: "#92400E", // amber-800
 		};
 	}
 	// reserved | confirmed → occupied (deep violet + white text)

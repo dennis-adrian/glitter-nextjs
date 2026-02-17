@@ -174,7 +174,7 @@ export async function createReservation(
 			subject: "Nueva reserva creada",
 			react: ReservationCreatedEmailTemplate({
 				festivalName: festival?.name || "Festival",
-				reservation: newReservation,
+				reservationId: newReservation.id,
 				creatorName: creator?.displayName || "Usuario",
 				standName: `${stand?.label}${stand?.standNumber}` || "sin stand",
 				standCategory: getCategoryOccupationLabel(stand?.standCategory, {

@@ -1,15 +1,11 @@
 "use client";
 
-import confetti from "canvas-confetti";
 import { ArrowRight, Maximize2Icon, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import {
-	createReservation,
-	NewStandReservation,
-} from "@/app/api/user_requests/actions";
+import { createStandHold } from "@/app/lib/stands/hold-actions";
 import { ProfileType } from "@/app/api/users/definitions";
 import CategoryBadge from "@/app/components/category-badge";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
@@ -20,11 +16,15 @@ import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { canStandBeReserved } from "@/app/lib/stands/helpers";
 import { toast } from "sonner";
 
+type ActiveHold = { id: number; standId: number } | null;
+
 type StandInfoCardProps = {
 	stand: StandWithReservationsWithParticipants;
 	sectorName: string;
 	profile: ProfileType;
 	festival: FestivalBase;
+	activeHold?: ActiveHold;
+	onHoldChange?: (hold: ActiveHold) => void;
 	onClose: () => void;
 };
 
@@ -52,8 +52,11 @@ function getEligibilityMessage(
 	stand: StandWithReservationsWithParticipants,
 	profile: ProfileType,
 	festivalId: number,
+	activeHold?: ActiveHold,
 ): string | null {
 	if (stand.status === "disabled") return "Espacio deshabilitado";
+	if (stand.status === "held" && stand.id !== activeHold?.standId)
+		return "Espacio en espera por otro participante";
 	if (!isProfileInFestival(festivalId, profile))
 		return "No estás habilitado para participar en este evento";
 	if (
@@ -76,22 +79,35 @@ export function StandInfoCard({
 	sectorName,
 	profile,
 	festival,
+	activeHold,
+	onHoldChange,
 	onClose,
 }: StandInfoCardProps) {
 	const router = useRouter();
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
+	const isOwnHold =
+		stand.status === "held" && stand.id === activeHold?.standId;
+
 	const isStandTaken =
-		stand.status === "reserved" || stand.status === "confirmed";
+		stand.status === "reserved" ||
+		stand.status === "confirmed" ||
+		(stand.status === "held" && !isOwnHold);
 
 	const canReserve =
 		!isStandTaken &&
+		!isOwnHold &&
 		(profile.role === "admin" ||
 			(canStandBeReserved(stand, profile) &&
 				isProfileInFestival(festival.id, profile) &&
 				!profileHasReservation(profile, festival.id)));
 
-	const eligibilityMessage = getEligibilityMessage(stand, profile, festival.id);
+	const eligibilityMessage = getEligibilityMessage(
+		stand,
+		profile,
+		festival.id,
+		activeHold,
+	);
 	const hasReservation = profileHasReservation(profile, festival.id);
 	const standReservation = stand.reservations?.find(
 		(r) => r.status !== "rejected",
@@ -109,35 +125,35 @@ export function StandInfoCard({
 	const handleSelectStand = async () => {
 		if (!canReserve || isSubmitting) return;
 		setIsSubmitting(true);
-		const reservation = {
-			standId: stand.id,
-			festivalId: festival.id,
-			participantIds: [profile.id],
-		} as NewStandReservation;
 
 		try {
-			const res = await createReservation(reservation, stand.price, profile);
-			if (res.success) {
+			const res = await createStandHold(
+				stand.id,
+				profile.id,
+				festival.id,
+			);
+			if (res.success && res.holdId) {
+				onHoldChange?.({ id: res.holdId, standId: stand.id });
 				onClose();
-				confetti({
-					particleCount: 100,
-					spread: 70,
-					origin: { y: 0.6 },
-				});
-				const { toast } = await import("sonner");
-				toast.success(res.message);
 				router.push(
-					`/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.reservationId}/payments`,
+					`/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${stand.festivalSectorId}/confirm/${res.holdId}`,
 				);
 			} else {
-				const { toast } = await import("sonner");
-				toast.error(res.message, { description: res.description });
+				toast.error(res.message);
 			}
 		} catch {
-			toast.error("No se pudo crear la reserva");
+			toast.error("No se pudo reservar el espacio temporalmente");
 		} finally {
 			setIsSubmitting(false);
 		}
+	};
+
+	const handleContinueToHold = () => {
+		if (!activeHold) return;
+		onClose();
+		router.push(
+			`/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${stand.festivalSectorId}/confirm/${activeHold.id}`,
+		);
 	};
 
 	return (
@@ -164,8 +180,16 @@ export function StandInfoCard({
 									className="text-[9px] font-bold uppercase tracking-wide"
 								/>
 								{isStandTaken && (
-									<span className="rounded-full bg-red-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-red-600">
-										OCUPADO
+									<span
+										className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
+											stand.status === "held"
+												? "bg-amber-50 text-amber-600"
+												: "bg-red-50 text-red-600"
+										}`}
+									>
+										{stand.status === "held"
+											? "EN ESPERA"
+											: "OCUPADO"}
 									</span>
 								)}
 							</div>
@@ -200,8 +224,28 @@ export function StandInfoCard({
 						</Badge>
 					</div>
 
+					{/* Stand held by current user */}
+					{isOwnHold && (
+						<div className="rounded-r-lg border-l-4 border-amber-500 bg-amber-50 p-4">
+							<p className="text-sm text-amber-800">
+								Tienes este espacio reservado temporalmente. Confirma
+								tu reserva antes de que expire.
+							</p>
+						</div>
+					)}
+
+					{/* Stand held by another user */}
+					{stand.status === "held" && !isOwnHold && (
+						<div className="rounded-r-lg border-l-4 border-amber-500 bg-amber-50 p-4">
+							<p className="text-sm text-amber-800">
+								Otro participante está considerando este espacio.
+								Volverá a estar disponible en breve.
+							</p>
+						</div>
+					)}
+
 					{/* Stand taken - show reserver info */}
-					{isStandTaken && standReservation && (
+					{isStandTaken && stand.status !== "held" && standReservation && (
 						<div className="rounded-r-lg border-l-4 border-red-500 bg-red-50 p-4">
 							<div className="mb-3 flex items-center gap-3">
 								<div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-100">
@@ -252,7 +296,12 @@ export function StandInfoCard({
 					)}
 
 					{/* Action button */}
-					{canReserve ? (
+					{isOwnHold ? (
+						<Button type="button" onClick={handleContinueToHold}>
+							<span>Continuar con tu reserva</span>
+							<ArrowRight className="h-4 w-4" />
+						</Button>
+					) : canReserve ? (
 						<Button
 							type="button"
 							onClick={handleSelectStand}

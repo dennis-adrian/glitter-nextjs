@@ -266,7 +266,7 @@ export default function StandPositionEditor({
 	const [addCount, setAddCount] = useState(1);
 	const [addStartNumber, setAddStartNumber] = useState(1);
 	const [addStatus, setAddStatus] = useState<
-		"available" | "reserved" | "confirmed" | "disabled"
+		"available" | "held" | "reserved" | "confirmed" | "disabled"
 	>("disabled");
 	const [isAdding, setIsAdding] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
@@ -277,7 +277,7 @@ export default function StandPositionEditor({
 	const [editLabel, setEditLabel] = useState("");
 	const [editStandNumber, setEditStandNumber] = useState(1);
 	const [editStatus, setEditStatus] = useState<
-		"available" | "reserved" | "confirmed" | "disabled"
+		"available" | "held" | "reserved" | "confirmed" | "disabled"
 	>("disabled");
 	const [editPrice, setEditPrice] = useState(0);
 	const [editStandCategory, setEditStandCategory] = useState<
