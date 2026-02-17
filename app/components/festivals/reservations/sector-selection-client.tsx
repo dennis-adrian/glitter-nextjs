@@ -4,13 +4,13 @@ import { UserCategory } from "@/app/api/users/definitions";
 import FestivalMapModal from "@/app/components/festivals/reservations/festival-map-modal";
 import SectorCard from "@/app/components/festivals/reservations/sector-card";
 import { Button } from "@/app/components/ui/button";
-import { Progress } from "@/app/components/ui/progress";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { ArrowRightIcon } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Title from "@/app/components/atoms/title";
+import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
 
 type SectorSelectionClientProps = {
 	profileId: number;
@@ -51,18 +51,7 @@ export default function SectorSelectionClient({
 
 	return (
 		<div className="flex min-h-[calc(100dvh-4rem)] flex-col">
-			{/* Step indicator */}
-			<div className="border-b bg-background px-4 py-3">
-				<div className="mx-auto max-w-3xl">
-					<div className="flex items-center justify-between text-xs">
-						<span className="font-bold uppercase tracking-wider text-primary">
-							Paso 1 de 3
-						</span>
-						<span className="text-muted-foreground">Selección de Sector</span>
-					</div>
-					<Progress value={33} className="mt-2 h-1.5" />
-				</div>
-			</div>
+			<StepIndicator step={1} totalSteps={4} label="Selección de Sector" />
 
 			{/* Content */}
 			<div className="flex-1 px-4 py-4 md:py-6">
@@ -85,7 +74,7 @@ export default function SectorSelectionClient({
 								{orderedSectors.length} habilitados para tu categoría
 							</span>
 						</Title>
-						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 							{orderedSectors.map((sector) => (
 								<SectorCard
 									key={sector.id}

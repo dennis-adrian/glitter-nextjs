@@ -1,6 +1,6 @@
 import { fetchUserProfileById } from "@/app/api/users/actions";
 import ClientMap from "@/app/components/festivals/client-map";
-import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
+import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
 import FestivalSectorTitle from "@/app/components/festivals/sectors/sector-title";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
@@ -13,7 +13,6 @@ import { standHolds } from "@/db/schema";
 import { and, eq, gt } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
 
 type SectorReservationPageProps = {
 	profileId: number;
@@ -72,8 +71,9 @@ export default async function SectorReservationPage(
 		: null;
 
 	return (
-		<div className="container p-4 md:p-6">
-			<Suspense fallback={<FestivalSkeleton />}>
+		<>
+			<StepIndicator step={2} totalSteps={3} label="Reserva de Stand" />
+			<div className="max-w-3xl mx-auto px-4 py-4 md:py-6">
 				<div className="flex flex-col items-center gap-2">
 					<FestivalSectorTitle sector={sector} />
 					<div className="w-full md:max-w-2xl mx-auto">
@@ -86,8 +86,16 @@ export default async function SectorReservationPage(
 							mapElements={sector.mapElements ?? []}
 							activeHold={activeHold}
 							mapBounds={
-								sector.mapOriginX != null && sector.mapOriginY != null && sector.mapWidth != null && sector.mapHeight != null
-									? { minX: sector.mapOriginX, minY: sector.mapOriginY, width: sector.mapWidth, height: sector.mapHeight }
+								sector.mapOriginX != null &&
+								sector.mapOriginY != null &&
+								sector.mapWidth != null &&
+								sector.mapHeight != null
+									? {
+											minX: sector.mapOriginX,
+											minY: sector.mapOriginY,
+											width: sector.mapWidth,
+											height: sector.mapHeight,
+										}
 									: undefined
 							}
 						/>
@@ -98,7 +106,7 @@ export default async function SectorReservationPage(
 						estimadas y se utilizan de manera orientativa.
 					</p>
 				</div>
-			</Suspense>
-		</div>
+			</div>
+		</>
 	);
 }

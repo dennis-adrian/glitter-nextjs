@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
 import { toast } from "sonner";
-import { ArrowRight, Timer, X } from "lucide-react";
+import { ArrowRight, TimerIcon, X } from "lucide-react";
 
 import { Button } from "@/app/components/ui/button";
 import SearchInput from "@/app/components/ui/search-input/input";
@@ -25,6 +25,7 @@ import {
 	confirmStandHold,
 	cancelStandHold,
 } from "@/app/lib/stands/hold-actions";
+import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
 
 type ThumbnailStand = {
 	id: number;
@@ -265,7 +266,9 @@ export default function HoldConfirmationClient({
 		setIsSubmitting(true);
 		try {
 			await cancelStandHold(hold.id, profile.id);
-			toast.info("Reserva temporal cancelada");
+			toast.info("Reserva temporal cancelada", {
+				duration: 2000,
+			});
 			router.push(
 				`/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${sectorId}`,
 			);
@@ -279,137 +282,139 @@ export default function HoldConfirmationClient({
 	const isExpired = remainingSeconds === 0;
 
 	return (
-		<div className="container max-w-lg mx-auto p-4 md:p-6">
-			{/* Countdown banner */}
-			<div
-				className={`rounded-lg p-4 mb-6 text-center ${
-					remainingSeconds <= 30
-						? "bg-red-50 border border-red-200"
-						: "bg-amber-50 border border-amber-200"
-				}`}
-			>
-				<div className="flex items-center justify-center gap-2 mb-1">
-					<Timer
-						className={`h-5 w-5 ${
-							remainingSeconds <= 30 ? "text-red-600" : "text-amber-600"
-						}`}
-					/>
-					<span
-						className={`text-2xl font-bold font-mono ${
-							remainingSeconds <= 30 ? "text-red-600" : "text-amber-800"
+		<div className="flex min-h-[calc(100dvh-4rem)] flex-col">
+			<StepIndicator step={3} totalSteps={4} label="Confirmación de Reserva" />
+			<div className="flex-1 px-4 py-4 md:py-6">
+				<div className="mx-auto max-w-lg">
+					{/* Countdown banner */}
+					<div
+						className={`rounded-lg flex items-start gap-3 p-4 mb-4 md:mb-6 ${
+							remainingSeconds <= 30
+								? "bg-red-50 border border-red-200"
+								: "bg-amber-50 border border-amber-200"
 						}`}
 					>
-						{formatTime(remainingSeconds)}
-					</span>
-				</div>
-				<p className="text-sm text-muted-foreground">
-					Tu espacio está reservado temporalmente
-				</p>
-			</div>
-
-			{/* Resumen de Reserva */}
-			<h2 className="text-lg font-semibold mb-3">Resumen de Reserva</h2>
-			<div className="rounded-xl border bg-card shadow-sm p-5 mb-6">
-				<div className="flex gap-4">
-					{/* Left: stand info */}
-					<div className="flex-1 space-y-3">
-						<div>
-							<p className="text-xs text-muted-foreground">
-								Stand seleccionado
-							</p>
-							<p className="text-base font-bold">
-								Stand #{(stand.label ?? "") + stand.standNumber}
-							</p>
-						</div>
-						<div>
-							<p className="text-xs text-muted-foreground">Ubicación</p>
-							<p className="text-base font-bold">{sectorName}</p>
-						</div>
-					</div>
-
-					{/* Right: map thumbnail */}
-					<div className="w-24 h-24 shrink-0 rounded-lg border bg-muted/30 overflow-hidden">
-						<StandMapThumbnail
-							stands={sectorStands}
-							selectedStandId={stand.id}
-							mapBounds={mapBounds}
-						/>
-					</div>
-				</div>
-
-				{/* Price */}
-				<div className="flex items-center justify-between mt-4 pt-4 border-t">
-					<p className="text-sm text-muted-foreground">Total a pagar</p>
-					<p className="text-xl font-bold text-primary">
-						{formatPrice(stand.price)}
-					</p>
-				</div>
-			</div>
-
-			{/* Partner selection (illustration/new_artist only) */}
-			{(profile.category === "illustration" ||
-				profile.category === "new_artist") && (
-				<div className="rounded-xl border bg-card shadow-sm p-6 mb-6">
-					{addPartner ? (
-						<div className="grid gap-2">
-							<Label htmlFor="partner-search">
-								Elige a tu compañero de espacio
-							</Label>
-							<SearchInput
-								id="partner-search"
-								options={partnerOptions}
-								placeholder="Ingresa el nombre..."
-								onSelect={(id) => setSelectedPartnerId(id)}
+						<p className="text-sm text-muted-foreground">
+							Confirma tu reservá antes de que expire el tiempo
+						</p>
+						<div className="flex items-center gap-1">
+							<TimerIcon
+								className={`h-5 w-5 ${
+									remainingSeconds <= 30 ? "text-red-600" : "text-amber-800"
+								}`}
 							/>
-							{selectedPartnerId && (
-								<Button
-									variant="ghost"
-									size="sm"
-									className="self-start"
-									onClick={() => {
-										setSelectedPartnerId(undefined);
-										setAddPartner(false);
-									}}
-								>
-									<X className="h-4 w-4 mr-1" />
-									Quitar compañero
-								</Button>
-							)}
+							<span
+								className={`text-xl font-bold font-mono ${
+									remainingSeconds <= 30 ? "text-red-600" : "text-amber-800"
+								}`}
+							>
+								{formatTime(remainingSeconds)}
+							</span>
 						</div>
-					) : (
-						<div className="bg-amber-50 rounded-md p-4 md:p-6 border border-amber-200">
-							<div className="flex flex-col md:flex-row items-center gap-1">
-								<span>¿Compartes espacio?</span>
-								<Button variant="link" onClick={() => setAddPartner(true)}>
-									¡Haz click aquí!
-								</Button>
+					</div>
+
+					{/* Resumen de Reserva */}
+					<h2 className="text-lg font-semibold mb-3">Resumen de Reserva</h2>
+					<div className="rounded-xl border bg-card shadow-sm p-5 mb-6">
+						<div className="flex gap-4">
+							{/* Left: stand info */}
+							<div className="flex-1 space-y-3">
+								<div>
+									<p className="text-xs text-muted-foreground">
+										Stand seleccionado
+									</p>
+									<p className="text-lg font-bold text-primary">
+										Stand #{(stand.label ?? "") + stand.standNumber}
+									</p>
+								</div>
+								<div>
+									<p className="text-xs text-muted-foreground">Ubicación</p>
+									<p className="text-base font-bold">Sector {sectorName}</p>
+								</div>
 							</div>
+
+							{/* Right: map thumbnail */}
+							<div className="w-24 h-24 shrink-0 rounded-lg border bg-muted/30 overflow-hidden">
+								<StandMapThumbnail
+									stands={sectorStands}
+									selectedStandId={stand.id}
+									mapBounds={mapBounds}
+								/>
+							</div>
+						</div>
+
+						{/* Price */}
+						<div className="flex items-center justify-between mt-4 pt-4 border-t">
+							<p className="text-sm text-muted-foreground">Total a pagar</p>
+							<p className="text-lg font-bold">{formatPrice(stand.price)}</p>
+						</div>
+					</div>
+
+					{/* Partner selection (illustration/new_artist only) */}
+					{(profile.category === "illustration" ||
+						profile.category === "new_artist") && (
+						<div className="rounded-xl border bg-card shadow-sm p-6 mb-6">
+							{addPartner ? (
+								<div className="grid gap-2">
+									<Label htmlFor="partner-search">
+										Elige a tu compañero de espacio
+									</Label>
+									<SearchInput
+										id="partner-search"
+										options={partnerOptions}
+										placeholder="Ingresa el nombre..."
+										onSelect={(id) => setSelectedPartnerId(id)}
+									/>
+									{selectedPartnerId && (
+										<Button
+											variant="ghost"
+											size="sm"
+											className="self-start"
+											onClick={() => {
+												setSelectedPartnerId(undefined);
+												setAddPartner(false);
+											}}
+										>
+											<X className="h-4 w-4 mr-1" />
+											Quitar compañero
+										</Button>
+									)}
+								</div>
+							) : (
+								<div className="bg-amber-50 rounded-md p-4 md:p-6 border border-amber-200">
+									<div className="flex flex-col md:flex-row items-center gap-1">
+										<span>¿Compartes espacio?</span>
+										<Button variant="link" onClick={() => setAddPartner(true)}>
+											¡Haz click aquí!
+										</Button>
+									</div>
+								</div>
+							)}
 						</div>
 					)}
 				</div>
-			)}
+			</div>
 
 			{/* Action buttons */}
-			<div className="flex flex-col gap-3">
-				<Button
-					onClick={handleConfirm}
-					disabled={isSubmitting || isExpired}
-					size="lg"
-					className="w-full"
-				>
-					<span>Confirmar Reserva</span>
-					<ArrowRight className="h-4 w-4 ml-2" />
-				</Button>
-				<Button
-					variant="outline"
-					onClick={handleCancel}
-					disabled={isSubmitting}
-					size="lg"
-					className="w-full"
-				>
-					<X className="h-4 w-4 mr-2" />
-					<span>Cancelar</span>
-				</Button>
+			<div className="sticky bottom-0 border-t bg-background p-4">
+				<div className="mx-auto max-w-lg flex gap-1">
+					<Button
+						className="shrink"
+						variant="outline"
+						onClick={handleCancel}
+						disabled={isSubmitting}
+					>
+						<span>Cancelar</span>
+					</Button>
+					<Button
+						className="flex-1"
+						onClick={handleConfirm}
+						disabled={isSubmitting || isExpired}
+					>
+						<span>Confirmar Reserva</span>
+						<ArrowRight className="h-4 w-4 ml-2" />
+					</Button>
+				</div>
 			</div>
 		</div>
 	);
