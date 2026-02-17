@@ -48,6 +48,16 @@ export default async function HoldConfirmationPage(
 		);
 	}
 
+	if (hold.stand.festivalSectorId === null) {
+		notFound();
+	}
+
+	if (hold.stand.festivalSectorId !== props.sectorId) {
+		redirect(
+			`/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new/sectors/${hold.stand.festivalSectorId}`,
+		);
+	}
+
 	// Fetch sector for name + stands for thumbnail
 	const sector = await fetchSectorWithStandsAndReservations(props.sectorId);
 

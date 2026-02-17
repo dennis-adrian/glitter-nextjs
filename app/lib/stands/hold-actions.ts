@@ -138,7 +138,7 @@ export async function createStandHold(
 			};
 		});
 
-		revalidatePath("profiles");
+		revalidatePath("/profiles");
 		return result;
 	} catch (error) {
 		console.error("Error creating stand hold", error);
@@ -175,7 +175,7 @@ export async function cancelStandHold(
 				.where(and(eq(stands.id, hold.standId), eq(stands.status, "held")));
 		});
 
-		revalidatePath("profiles");
+		revalidatePath("/profiles");
 		return { success: true, message: "Reserva temporal cancelada" };
 	} catch (error) {
 		console.error("Error cancelling stand hold", error);
@@ -298,9 +298,12 @@ export async function confirmStandHold(
 				subject: "Nueva reserva creada",
 				react: ReservationCreatedEmailTemplate({
 					festivalName: festival?.name || "Festival",
-					reservation: { id: result.reservationId } as never,
+					reservationId: result.reservationId,
 					creatorName: creator?.displayName || "Usuario",
-					standName: `${stand?.label}${stand?.standNumber}` || "sin stand",
+					standName:
+						stand?.label && stand?.standNumber
+							? `${stand.label}${stand.standNumber}`
+							: "sin stand",
 					standCategory: getCategoryOccupationLabel(stand?.standCategory, {
 						singular: false,
 					}),
@@ -308,7 +311,7 @@ export async function confirmStandHold(
 			});
 		}
 
-		revalidatePath("profiles");
+		revalidatePath("/profiles");
 		revalidatePath("/my_profile");
 
 		return {

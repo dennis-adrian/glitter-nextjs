@@ -190,12 +190,28 @@ export default function HoldConfirmationClient({
 	// Auto-expire: when timer hits 0, cancel hold and redirect
 	useEffect(() => {
 		if (remainingSeconds === 0) {
-			cancelStandHold(hold.id, profile.id).then(() => {
-				toast.info("Tu reserva temporal expiró");
-				router.push(
-					`/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${sectorId}`,
-				);
-			});
+			if (remainingSeconds !== 0) return;
+
+			let cancelled = false;
+			(async () => {
+				try {
+					await cancelStandHold(hold.id, profile.id);
+					toast.info("Tu reserva temporal expiró");
+				} catch (error) {
+					console.error("Error expiring hold", error);
+					toast.error("No se pudo cancelar la reserva temporal");
+				} finally {
+					if (!cancelled) {
+						router.push(
+							`/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${sectorId}`,
+						);
+					}
+				}
+			})();
+
+			return () => {
+				cancelled = true;
+			};
 		}
 	}, [remainingSeconds, hold.id, profile.id, festival.id, sectorId, router]);
 
@@ -275,16 +291,12 @@ export default function HoldConfirmationClient({
 				<div className="flex items-center justify-center gap-2 mb-1">
 					<Timer
 						className={`h-5 w-5 ${
-							remainingSeconds <= 30
-								? "text-red-600"
-								: "text-amber-600"
+							remainingSeconds <= 30 ? "text-red-600" : "text-amber-600"
 						}`}
 					/>
 					<span
 						className={`text-2xl font-bold font-mono ${
-							remainingSeconds <= 30
-								? "text-red-600"
-								: "text-amber-800"
+							remainingSeconds <= 30 ? "text-red-600" : "text-amber-800"
 						}`}
 					>
 						{formatTime(remainingSeconds)}
@@ -306,14 +318,11 @@ export default function HoldConfirmationClient({
 								Stand seleccionado
 							</p>
 							<p className="text-base font-bold">
-								Stand #
-								{(stand.label ?? "") + stand.standNumber}
+								Stand #{(stand.label ?? "") + stand.standNumber}
 							</p>
 						</div>
 						<div>
-							<p className="text-xs text-muted-foreground">
-								Ubicación
-							</p>
+							<p className="text-xs text-muted-foreground">Ubicación</p>
 							<p className="text-base font-bold">{sectorName}</p>
 						</div>
 					</div>
@@ -330,9 +339,7 @@ export default function HoldConfirmationClient({
 
 				{/* Price */}
 				<div className="flex items-center justify-between mt-4 pt-4 border-t">
-					<p className="text-sm text-muted-foreground">
-						Total a pagar
-					</p>
+					<p className="text-sm text-muted-foreground">Total a pagar</p>
 					<p className="text-xl font-bold text-primary">
 						{formatPrice(stand.price)}
 					</p>
@@ -373,10 +380,7 @@ export default function HoldConfirmationClient({
 						<div className="bg-amber-50 rounded-md p-4 md:p-6 border border-amber-200">
 							<div className="flex flex-col md:flex-row items-center gap-1">
 								<span>¿Compartes espacio?</span>
-								<Button
-									variant="link"
-									onClick={() => setAddPartner(true)}
-								>
+								<Button variant="link" onClick={() => setAddPartner(true)}>
 									¡Haz click aquí!
 								</Button>
 							</div>

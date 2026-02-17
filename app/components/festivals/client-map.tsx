@@ -36,7 +36,7 @@ export default function ClientMap({
 	const [selectedStandId, setSelectedStandId] = useState<number | null>(null);
 	const selectedStand =
 		selectedStandId != null
-			? stands.find((s) => s.id === selectedStandId) ?? null
+			? (stands.find((s) => s.id === selectedStandId) ?? null)
 			: null;
 	const [activeHold, setActiveHold] = useState<ActiveHold>(
 		initialActiveHold ?? null,
@@ -49,9 +49,18 @@ export default function ClientMap({
 	// Fetch latest active hold on mount to handle stale server cache
 	useEffect(() => {
 		if (!profile) return;
-		getActiveHold(profile.id, festival.id).then((hold) => {
-			setActiveHold(hold);
-		});
+		let cancelled = false;
+		getActiveHold(profile.id, festival.id)
+			.then((hold) => {
+				if (!cancelled) setActiveHold(hold);
+			})
+			.catch((error) => {
+				console.error("Error fetching active hold", error);
+			});
+
+		return () => {
+			cancelled = true;
+		};
 	}, [profile, festival.id]);
 
 	// Poll for stand status changes every 4 seconds

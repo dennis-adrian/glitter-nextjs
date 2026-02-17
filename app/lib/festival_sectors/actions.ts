@@ -1,7 +1,7 @@
 "use server";
 
 import { StandBase } from "@/app/api/stands/definitions";
-import { fetchAdminUsers, fetchBaseProfileById } from "@/app/api/users/actions";
+import { fetchAdminUsers } from "@/app/api/users/actions";
 import {
 	BaseProfile,
 	Participation,
@@ -13,7 +13,6 @@ import {
 } from "@/app/lib/festivals/definitions";
 import FestivalActivityRegistrationEmail from "@/app/emails/festival-activity-registration";
 import {
-	FestivalSectorBase,
 	FestivalSectorWithStands,
 	FestivalSectorWithStandsWithReservationsWithParticipants,
 } from "@/app/lib/festival_sectors/definitions";
@@ -591,9 +590,7 @@ export async function deleteFestivalActivityParticipantProof(
 	return { success: true, message: "Diseño eliminado correctamente" };
 }
 
-export async function fetchSectorWithStandsAndReservations(
-	sectorId: number,
-) {
+export async function fetchSectorWithStandsAndReservations(sectorId: number) {
 	try {
 		return await db.query.festivalSectors.findFirst({
 			where: eq(festivalSectors.id, sectorId),
@@ -608,10 +605,7 @@ export async function fetchSectorWithStandsAndReservations(
 			},
 		});
 	} catch (error) {
-		console.error(
-			"Error fetching sector with stands and reservations",
-			error,
-		);
+		console.error("Error fetching sector with stands and reservations", error);
 		return null;
 	}
 }
