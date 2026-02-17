@@ -8,6 +8,9 @@ import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/a
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { formatDate } from "@/app/lib/formatters";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
+import { db } from "@/db";
+import { standHolds } from "@/db/schema";
+import { and, eq, gt } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -55,6 +58,19 @@ export default async function SectorReservationPage(
 	const sector = sectors.find((s) => s.id === props.sectorId);
 	if (!sector) notFound();
 
+	// Fetch user's active hold for this festival (if any)
+	const activeHoldRow = await db.query.standHolds.findFirst({
+		where: and(
+			eq(standHolds.userId, forProfile.id),
+			eq(standHolds.festivalId, festival.id),
+			gt(standHolds.expiresAt, new Date()),
+		),
+		columns: { id: true, standId: true },
+	});
+	const activeHold = activeHoldRow
+		? { id: activeHoldRow.id, standId: activeHoldRow.standId }
+		: null;
+
 	return (
 		<div className="container p-4 md:p-6">
 			<Suspense fallback={<FestivalSkeleton />}>
@@ -64,9 +80,11 @@ export default async function SectorReservationPage(
 						<ClientMap
 							festival={festival}
 							profile={forProfile}
+							sectorId={sector.id}
 							sectorName={sector.name}
 							stands={sector.stands}
 							mapElements={sector.mapElements ?? []}
+							activeHold={activeHold}
 							mapBounds={
 								sector.mapOriginX != null && sector.mapOriginY != null && sector.mapWidth != null && sector.mapHeight != null
 									? { minX: sector.mapOriginX, minY: sector.mapOriginY, width: sector.mapWidth, height: sector.mapHeight }

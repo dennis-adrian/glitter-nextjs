@@ -81,6 +81,7 @@ export const usersRelations = relations(users, ({ many }) => ({
 	infractions: many(infractions),
 	participantProducts: many(participantProducts),
 	festivalActivityVotes: many(festivalActivityVotes),
+	standHolds: many(standHolds),
 }));
 
 export const tags = pgTable("tags", {
@@ -351,6 +352,7 @@ export const userSocialsRelations = relations(userSocials, ({ one }) => ({
 
 export const standStatusEnum = pgEnum("stand_status", [
 	"available",
+	"held",
 	"reserved",
 	"confirmed",
 	"disabled",
@@ -404,6 +406,47 @@ export const standRelations = relations(stands, ({ many, one }) => ({
 		references: [qrCodes.id],
 	}),
 	festivalActivityVotes: many(festivalActivityVotes),
+	holds: many(standHolds),
+}));
+
+export const standHolds = pgTable(
+	"stand_holds",
+	{
+		id: serial("id").primaryKey(),
+		standId: integer("stand_id")
+			.notNull()
+			.references(() => stands.id, { onDelete: "cascade" }),
+		userId: integer("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		festivalId: integer("festival_id")
+			.notNull()
+			.references(() => festivals.id, { onDelete: "cascade" }),
+		expiresAt: timestamp("expires_at").notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(standHolds) => [
+		index("stand_holds_stand_idx").on(standHolds.standId),
+		index("stand_holds_user_festival_idx").on(
+			standHolds.userId,
+			standHolds.festivalId,
+		),
+	],
+);
+export const standHoldsRelations = relations(standHolds, ({ one }) => ({
+	stand: one(stands, {
+		fields: [standHolds.standId],
+		references: [stands.id],
+	}),
+	user: one(users, {
+		fields: [standHolds.userId],
+		references: [users.id],
+	}),
+	festival: one(festivals, {
+		fields: [standHolds.festivalId],
+		references: [festivals.id],
+	}),
 }));
 
 export const standReservations = pgTable("stand_reservations", {

@@ -8,6 +8,10 @@ const legendItems = [
 		color: "bg-primary border-white ring-2 ring-primary-200",
 	},
 	{
+		label: "En espera",
+		color: "bg-amber-400/60 border-amber-600/80",
+	},
+	{
 		label: "Ocupado",
 		color: "bg-gray-300/50 border-gray-400/60",
 	},
