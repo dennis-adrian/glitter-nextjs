@@ -18,7 +18,7 @@ import {
 import { and, eq, gt, lte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-const HOLD_DURATION_MINUTES = 3;
+const HOLD_DURATION_MINUTES = 5;
 
 export async function fetchHoldWithStand(
 	holdId: number,
