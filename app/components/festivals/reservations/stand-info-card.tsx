@@ -135,7 +135,7 @@ export function StandInfoCard({
 			if (res.success && res.holdId) {
 				onHoldChange?.({ id: res.holdId, standId: stand.id });
 				onClose();
-				router.push(
+				router.replace(
 					`/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${stand.festivalSectorId}/confirm/${res.holdId}`,
 				);
 			} else {
@@ -151,7 +151,7 @@ export function StandInfoCard({
 	const handleContinueToHold = () => {
 		if (!activeHold) return;
 		onClose();
-		router.push(
+		router.replace(
 			`/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${stand.festivalSectorId}/confirm/${activeHold.id}`,
 		);
 	};
