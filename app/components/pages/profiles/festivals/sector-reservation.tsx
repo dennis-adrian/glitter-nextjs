@@ -72,7 +72,12 @@ export default async function SectorReservationPage(
 
 	return (
 		<>
-			<StepIndicator step={2} totalSteps={4} label="Selección de Stand" />
+			<StepIndicator
+				step={2}
+				totalSteps={4}
+				backLabel="Cambiar sector"
+				backHref={`/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new`}
+			/>
 			<div className="max-w-3xl mx-auto px-4 py-4 md:py-6">
 				<div className="flex flex-col items-center gap-2">
 					<FestivalSectorTitle sector={sector} />

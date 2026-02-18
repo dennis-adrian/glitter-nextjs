@@ -51,7 +51,12 @@ export default function SectorSelectionClient({
 
 	return (
 		<div className="flex min-h-[calc(100dvh-4rem)] flex-col">
-			<StepIndicator step={1} totalSteps={4} label="Selección de Sector" />
+			<StepIndicator
+				step={1}
+				totalSteps={4}
+				backLabel="Mi perfil"
+				backHref="/my_profile"
+			/>
 
 			{/* Content */}
 			<div className="flex-1 px-4 py-4 md:py-6">

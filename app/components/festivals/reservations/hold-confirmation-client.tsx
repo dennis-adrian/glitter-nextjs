@@ -26,6 +26,15 @@ import {
 	cancelStandHold,
 } from "@/app/lib/stands/hold-actions";
 import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
+import {
+	AlertDialog,
+	AlertDialogContent,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogCancel,
+} from "@/app/components/ui/alert-dialog";
 
 type ThumbnailStand = {
 	id: number;
@@ -165,6 +174,9 @@ export default function HoldConfirmationClient({
 		number | undefined
 	>();
 	const [addPartner, setAddPartner] = useState(false);
+	const [showExitDialog, setShowExitDialog] = useState(false);
+
+	const mapUrl = `/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${sectorId}`;
 
 	// Countdown timer
 	const [remainingSeconds, setRemainingSeconds] = useState(() => {
@@ -203,9 +215,7 @@ export default function HoldConfirmationClient({
 					toast.error("No se pudo cancelar la reserva temporal");
 				} finally {
 					if (!cancelled) {
-						router.push(
-							`/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${sectorId}`,
-						);
+						router.replace(mapUrl);
 					}
 				}
 			})();
@@ -214,7 +224,15 @@ export default function HoldConfirmationClient({
 				cancelled = true;
 			};
 		}
-	}, [remainingSeconds, hold.id, profile.id, festival.id, sectorId, router]);
+	}, [
+		remainingSeconds,
+		hold.id,
+		profile.id,
+		festival.id,
+		sectorId,
+		router,
+		mapUrl,
+	]);
 
 	const formatTime = (seconds: number) => {
 		const mins = Math.floor(seconds / 60);
@@ -245,14 +263,12 @@ export default function HoldConfirmationClient({
 					origin: { y: 0.6 },
 				});
 				toast.success(res.message);
-				router.push(
+				router.replace(
 					`/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.reservationId}/payments`,
 				);
 			} else {
 				toast.info(res.message);
-				router.push(
-					`/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${sectorId}`,
-				);
+				router.replace(mapUrl);
 			}
 		} catch {
 			toast.error("Error al confirmar la reserva");
@@ -269,9 +285,7 @@ export default function HoldConfirmationClient({
 			toast.info("Reserva temporal cancelada", {
 				duration: 2000,
 			});
-			router.push(
-				`/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${sectorId}`,
-			);
+			router.replace(mapUrl);
 		} catch {
 			toast.error("Error al cancelar");
 		} finally {
@@ -279,11 +293,21 @@ export default function HoldConfirmationClient({
 		}
 	};
 
+	const handleExitConfirm = async () => {
+		setShowExitDialog(false);
+		await handleCancel();
+	};
+
 	const isExpired = remainingSeconds === 0;
 
 	return (
 		<div className="flex min-h-[calc(100dvh-4rem)] flex-col">
-			<StepIndicator step={3} totalSteps={4} label="Confirmación de Reserva" />
+			<StepIndicator
+				step={3}
+				totalSteps={4}
+				backLabel="Volver al mapa"
+				onBack={() => setShowExitDialog(true)}
+			/>
 			<div className="flex-1 px-4 py-4 md:py-6">
 				<div className="mx-auto max-w-lg">
 					{/* Countdown banner */}
@@ -416,6 +440,24 @@ export default function HoldConfirmationClient({
 					</Button>
 				</div>
 			</div>
+
+			{/* Exit confirmation dialog */}
+			<AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>¿Salir de la confirmación?</AlertDialogTitle>
+						<AlertDialogDescription>
+							Se liberará tu espacio temporal y podrás elegir otro stand.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Quedarme</AlertDialogCancel>
+						<Button onClick={handleExitConfirm} disabled={isSubmitting}>
+							Sí, volver al mapa
+						</Button>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }
