@@ -21,7 +21,7 @@ import {
 	userRequests,
 	users,
 } from "@/db/schema";
-import { and, desc, eq, getTableColumns, inArray, not, SQL } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, not, or, SQL } from "drizzle-orm";
 import { cacheLife, cacheTag, revalidatePath, updateTag } from "next/cache";
 import {
 	FestivalBase,
@@ -339,6 +339,23 @@ export async function fetchFestivalActivityForReview(
 	} catch (error) {
 		console.error("Error fetching festival activity for review:", error);
 		return null;
+	}
+}
+
+export async function fetchCarouselFestivals(): Promise<FestivalWithDates[]> {
+	"use cache";
+	cacheLife("minutes");
+	cacheTag("active-festival");
+
+	try {
+		return await db.query.festivals.findMany({
+			where: or(eq(festivals.status, "active"), eq(festivals.status, "published")),
+			with: { festivalDates: true },
+			orderBy: desc(festivals.id),
+		}) as FestivalWithDates[];
+	} catch (error) {
+		console.error("Error fetching carousel festivals", error);
+		return [];
 	}
 }
 
