@@ -78,7 +78,7 @@ export default function StandSpecificationsSectorCard({
 							<span className="font-medium">Especificaciones:</span>
 							<p className="text-muted-foreground">{sectorSpecifications}</p>
 						</div>
-						<Badge variant="outline" className="text-lg">
+						<Badge variant="outline" className="text-lg font-semibold">
 							Bs{sectorPrice.toLocaleString()}
 						</Badge>
 					</div>

@@ -5,8 +5,7 @@ import {
 	ProfileType,
 	UserCategory,
 } from "@/app/api/users/definitions";
-import DetailedMap from "@/app/components/festivals/detailed-map";
-import GeneralInfoDetails from "@/app/components/festivals/general-info-details";
+import Title from "@/app/components/atoms/title";
 import StandSpecificationsCards from "@/app/components/festivals/stand-specifications-cards";
 import TermsForm from "@/app/components/festivals/terms-form";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
@@ -34,7 +33,6 @@ import {
 } from "@/components/ui/accordion";
 import { Separator } from "@/components/ui/separator";
 import { DateTime } from "luxon";
-import Image from "next/image";
 import { useState } from "react";
 
 type TermsAndConditionsProps = {
@@ -60,6 +58,14 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 
 	const dayOneStartDate = formatDate(props.festival.festivalDates[0].startDate);
 
+	const SHOW_HIGHLIGHTS = true;
+	const hNew = SHOW_HIGHLIGHTS
+		? "rounded bg-green-100 ring-1 ring-green-300 px-0.5"
+		: "";
+	const hMod = SHOW_HIGHLIGHTS
+		? "rounded bg-amber-100 ring-1 ring-amber-300 px-0.5"
+		: "";
+
 	return (
 		<div className="container mx-auto py-8 px-4 md:px-6">
 			<div className="max-w-5xl mx-auto">
@@ -83,59 +89,31 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						</Select>
 					</div>
 				)}
-				<div className="space-y-4 text-left md:text-center mb-4">
-					<h1 className="text-3xl font-bold tracking-tight">
-						Términos y Condiciones para Expositores
-					</h1>
-					<p className="text-muted-foreground">
-						Por favor, lee estos términos y condiciones cuidadosamente antes de
-						participar en el festival.
-					</p>
-					<p className="text-sm text-muted-foreground">
-						Última actualización: 07 de julio de 2025
-					</p>
-				</div>
-
-				<div>
-					<h2 className="text-xl md:text-2xl font-semibold text-left md:text-center">
-						Información para {getCategoryOccupationLabel(mapCategory)}
-					</h2>
-
-					<GeneralInfoDetails festival={props.festival} />
-				</div>
-
-				<div className="flex flex-col gap-4 md:gap-6">
-					<h2 className="text-xl md:text-2xl font-semibold text-left md:text-center">
-						Mapa del Evento y Precios de Espacios
-					</h2>
-
-					<div className="lg:col-span-2 border rounded-lg p-2 md:p-4">
-						{props.festival.generalMapUrl ? (
-							<Image
-								src={props.festival.generalMapUrl}
-								alt="Mapa del recinto"
-								width={800}
-								height={504}
-								className="mx-auto"
-							/>
-						) : (
-							<div className="text-muted-foreground text-center p-4">
-								<span>
-									El mapa general no está disponible en este momento. Pero
-									puedes ver los sectores a detalle haciendo clic en la opción
-									de abajo
-								</span>
-							</div>
-						)}
-						<div />
-						<DetailedMap festivalSectors={props.festivalSectors} />
+				{SHOW_HIGHLIGHTS && (
+					<div className="flex flex-wrap gap-3 items-center text-sm mb-6 p-3 bg-muted rounded-lg border">
+						<span className="font-medium">Guía de revisión:</span>
+						<span className="rounded bg-green-100 ring-1 ring-green-300 px-2 py-0.5">Contenido nuevo</span>
+						<span className="rounded bg-amber-100 ring-1 ring-amber-300 px-2 py-0.5">Contenido modificado</span>
 					</div>
+				)}
+				<div className="space-y-4 text-left md:text-center mb-4">
+					<Title level="h1">Términos y Condiciones para Expositores</Title>
+					<p className="text-sm text-muted-foreground">
+						Última actualización: 18 de febrero de 2026
+					</p>
+					<p className="text-muted-foreground">
+						Por favor, leé estos términos y condiciones cuidadosamente para
+						habilitar tu participación en el festival.
+					</p>
+				</div>
 
+				<div className="flex flex-col">
+					<Title level="h2">Mapa del Evento y Precios de Espacios</Title>
 					<div>
-						<h3 className="text-lg md:text-xl font-medium mb-3 md:mb-4 text-left md:text-center leading-tight">
+						<Title level="h3" className="mb-3">
 							Sectores habilitados para{" "}
 							{getCategoryOccupationLabel(mapCategory).toLowerCase()}
-						</h3>
+						</Title>
 						<StandSpecificationsCards
 							profileCategory={mapCategory}
 							festivalSectorsWithAllowedCategoriesPromise={
@@ -160,36 +138,43 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						<h2 className="text-lg md:text-xl font-semibold mb-4">
 							1. Aceptación de Términos
 						</h2>
-						<p className="text-muted-foreground">
-							Al registrarte y participar en el festival como expositor, aceptas
-							estar sujeto a estos Términos y Condiciones. Cualquier
-							incumplimiento y según la gravedad podría resultar en la expulsión
-							del evento sin reembolso y/o la prohibición temporal o permanente
-							de participar en futuros festivales.
+						<p className={`text-muted-foreground ${hMod}`}>
+							Al hacer clic en &quot;Acepto los términos y condiciones&quot;
+							estás suscribiendo un acuerdo vinculante con la organización. Al
+							registrarte y participar en el festival como expositor, aceptas
+							estar sujeto a estos Términos y Condiciones. El incumplimiento de
+							cualquiera de estas condiciones puede derivar en consecuencias
+							según la gravedad de la infracción: desde una advertencia formal,
+							hasta la restricción temporal o permanente de participar en
+							futuros festivales de la productora.
 						</p>
 					</section>
 
 					<Separator />
 
 					<section>
-						<h2 className="text-lg md:text-xl font-semibold mb-4">
+						<h2 className="text-lg md:text-xl font-semibold mb-4 flex items-center flex-wrap gap-2">
 							2. Participación en el Festival
+							{SHOW_HIGHLIGHTS && (
+								<span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 font-normal">
+									Modificado
+								</span>
+							)}
 						</h2>
 						<p className="text-muted-foreground mb-4">
 							La participación en el festival está sujeta a las siguientes
 							condiciones:
 						</p>
 						<ul className="list-disc pl-6 space-y-2 text-muted-foreground">
-							<li>
-								Los expositores deben tener al menos 16 años de edad o estar
-								presentes con un adulto responsable durante la totalidad del
-								evento.
-							</li>
-							<li>
-								Todos los participantes deben tener un perfil aprobado en
-								nuestro sitio web y una reserva confirmada y pagada para su
-								espacio.
-							</li>
+							<li><span className={hMod}>								Los expositores deben tener al menos 16 años de edad. Los
+								expositores menores de 18 años deben estar presentes con un
+								padre, madre o tutor legal durante la totalidad del evento.
+							</span></li>
+							<li><span className={hMod}>								Todos los participantes deben tener un perfil aprobado en
+								nuestro sitio web — es decir, una cuenta que haya pasado por
+								revisión y esté habilitada por la organización — y una reserva
+								confirmada y pagada para su espacio.
+							</span></li>
 							<li>
 								Los organizadores del festival se reservan el derecho de
 								rechazar la participación de cualquier expositor sin
@@ -226,6 +211,10 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 								verificar que los expositores cumplen con las reglas del
 								festival.
 							</li>
+							<li><span className={hNew}>								La organización no se responsabiliza por robos, daños o pérdidas
+								de mercadería o equipamiento ocurridos en el stand durante el
+								evento.
+							</span></li>
 						</ul>
 					</section>
 
@@ -235,6 +224,11 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						<AccordionItem value="item-1">
 							<AccordionTrigger className="text-lg md:text-xl font-semibold">
 								3. Reservas, Pagos y Cancelaciones
+								{SHOW_HIGHLIGHTS && (
+									<span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 font-normal ml-2">
+										Modificado
+									</span>
+								)}
 							</AccordionTrigger>
 							<AccordionContent className="text-muted-foreground">
 								<ul className="list-disc pl-6 space-y-2">
@@ -256,11 +250,12 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 												contacto en lugar de tarjetas de presentación comunes.
 											</li>
 										)}
-									<li>
-										La reserva se confirma al realizar el pago correspondiente.
-										El estado de la reserva puede tomar hasta 48hrs en
-										actualizarse en el sitio web.
-									</li>
+									<li><span className={hMod}>										La reserva se confirma al realizar el pago correspondiente.
+										El estado de la reserva puede tomar hasta 48 horas en
+										actualizarse en el sitio web, contadas a partir de que el
+										participante haya subido el comprobante de pago en el sitio
+										web.
+									</span></li>
 									<li>
 										Toda reserva debe ser pagada en su totalidad hasta 5 días o
 										120 horas después de creada la reserva. En caso de no
@@ -292,6 +287,14 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 										Las reservas de stands no son transferibles a menos que sea
 										explícitamente permitido por los organizadores del festival.
 									</li>
+									<li><span className={hNew}>										En caso de no presentarse al evento sin haber cancelado la
+										reserva previamente, se registrará una infracción formal en
+										el sistema, lo que puede derivar en restricciones para la
+										reserva de espacios en futuros festivales. Se considera
+										aviso previo cualquier comunicación enviada a la
+										organización con al menos 48 horas de anticipación al inicio
+										del evento.
+									</span></li>
 								</ul>
 								<p className="mt-4">
 									Cancelar una reserva puede resultar en penalizaciones para
@@ -316,6 +319,11 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						<AccordionItem value="item-2">
 							<AccordionTrigger className="text-lg md:text-xl font-semibold">
 								4. Horarios, Montaje y Desmontaje de Stands
+								{SHOW_HIGHLIGHTS && (
+									<span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 font-normal ml-2">
+										Modificado
+									</span>
+								)}
 							</AccordionTrigger>
 							<AccordionContent className="text-muted-foreground">
 								<ul className="list-disc pl-6 space-y-2">
@@ -355,11 +363,24 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 									indicada puede resultar en penalizaciones para participaciones
 									futuras.
 								</p>
+								<p className={`mt-4 ${hNew}`}>
+									<b>Uso de electricidad:</b> El acceso a puntos eléctricos en
+									el recinto depende de la disponibilidad del establecimiento.
+									Los expositores que requieran electricidad para su stand deben
+									comunicarlo a la organización con al menos 20 días de
+									anticipación al evento. La organización hará lo posible por
+									gestionar la solicitud, pero no garantiza su disponibilidad.
+								</p>
 							</AccordionContent>
 						</AccordionItem>
 						<AccordionItem value="item-3">
 							<AccordionTrigger className="text-lg md:text-xl font-semibold">
 								5. Código de Conducta
+								{SHOW_HIGHLIGHTS && (
+									<span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 font-normal ml-2">
+										Modificado
+									</span>
+								)}
 							</AccordionTrigger>
 							<AccordionContent className="text-muted-foreground">
 								<p className="mb-4">Se espera que todos los expositores:</p>
@@ -372,19 +393,19 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 										Respeten el espacio asignado y no lo extiendan más allá de
 										los límites del stand.
 									</li>
-									<li>
-										Tengan todo contenido +18 censurado y comercializado con
-										solicitud previa.
-									</li>
+									<li><span className={hMod}>										Mantengan todo contenido para adultos (explícito, erótico o
+										con violencia gráfica) debidamente cubierto y disponible
+										únicamente bajo solicitud directa del cliente.
+									</span></li>
 									<li>
 										Se abstengan de cualquier comportamiento que pueda causar
 										incomodidad, miedo o daño a otros.
 									</li>
-									<li>
-										No participen en ninguna forma de acoso, discriminación o
-										comportamiento amenazante tanto dentro como fuera de los
-										festivales.
-									</li>
+									<li><span className={hMod}>										No participen en ninguna forma de acoso, discriminación o
+										comportamiento amenazante, ya sea en persona, en redes
+										sociales o en cualquier plataforma digital, hacia otros
+										expositores, asistentes, staff o la organización.
+									</span></li>
 									<li>
 										No posean ni usen sustancias ilegales. Ni se encuentren en
 										el evento bajo la influencia del alcohol o de sustancias
@@ -394,6 +415,14 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 										Mantengan un área de stand limpia y segura durante todo el
 										festival.
 									</li>
+									<li><span className={hNew}>										No publiquen, compartan ni reproduzcan el trabajo, los
+										productos o la imagen de otros expositores en redes sociales
+										sin su consentimiento explícito.
+									</span></li>
+									<li><span className={hNew}>										Cuiden la imagen del festival en sus publicaciones: eviten
+										compartir contenido que pueda afectar negativamente su
+										reputación o la de la organización.
+									</span></li>
 								</ul>
 								{mapCategory === "illustration" && (
 									<div className="mt-3 mb-2">
@@ -454,6 +483,11 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						<AccordionItem value="item-5">
 							<AccordionTrigger className="text-lg md:text-xl font-semibold">
 								7. Artículos y Actividades Prohibidas
+								{SHOW_HIGHLIGHTS && (
+									<span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 font-normal ml-2">
+										Modificado
+									</span>
+								)}
 							</AccordionTrigger>
 							<AccordionContent className="text-muted-foreground">
 								<p className="mb-4">
@@ -473,6 +507,9 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 										Sistemas de audio fuertes que interfieran con los espacios
 										vecinos
 									</li>
+									<li><span className={hNew}>										El uso de luces parpadeantes o estroboscópicas de cualquier
+										tipo en el stand.
+									</span></li>
 									<li>
 										Distribución de materiales de marketing fuera del área de
 										stand asignada
@@ -505,6 +542,10 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 										Cualquier actividad que viole las leyes o regulaciones
 										locales
 									</li>
+									<li><span className={hNew}>										La presencia de animales o mascotas de cualquier tipo en el
+										stand o en el recinto del festival sin autorización previa
+										de la organización.
+									</span></li>
 								</ul>
 								<p className="mt-4">
 									<b>
@@ -568,14 +609,22 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 												No está permitido ofrecer productos afuera del espacio
 												asignado a su stand
 											</li>
-											<li>
-												Tener algún tipo de luces parpadeantes en el stand.
-											</li>
-											<li>
-												Cada expositor se compromete a mantener la estética de
-												su stand.
-											</li>
+											<li><span className={hNew}>												La manipulación de alimentos debe realizarse con guantes
+												en todo momento. Su uso es obligatorio durante la
+												preparación, manipulación y entrega de productos al
+												cliente.
+											</span></li>
 										</ul>
+										<p className={`mt-4 ${hNew}`}>
+											<b>Presentación y estética del stand:</b> Todos los stands
+											deberán cumplir con un estándar mínimo de presentación
+											visual y estética acorde a la identidad del evento. No se
+											permitirán montajes improvisados, envases de uso
+											doméstico, carteles manuscritos o materiales que no formen
+											parte de una propuesta visual cuidada y coherente. La
+											organización se reserva el derecho de solicitar ajustes o
+											rechazar stands que no cumplan con estos lineamientos.
+										</p>
 										<p className="mt-4">
 											La violación de estas prohibiciones puede resultar en la
 											expulsión inmediata del festival sin reembolso.
@@ -584,9 +633,64 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 								)}
 							</AccordionContent>
 						</AccordionItem>
+
 						<AccordionItem value="item-6">
 							<AccordionTrigger className="text-lg md:text-xl font-semibold">
-								8. Información de Contacto
+								8. Resolución de Conflictos
+								{SHOW_HIGHLIGHTS && (
+									<span className="text-xs bg-green-100 text-green-700 rounded-full px-2 py-0.5 font-normal ml-2">
+										Nuevo
+									</span>
+								)}
+							</AccordionTrigger>
+							<AccordionContent className="text-muted-foreground">
+								<ul className="list-disc pl-6 space-y-2">
+									<li>
+										Los conflictos entre expositores durante el evento serán
+										mediados por el staff del festival, cuya resolución es
+										definitiva en el contexto del evento.
+									</li>
+									<li>
+										Las disputas con la organización deben comunicarse por
+										escrito al correo expositores@productoraglitter.com dentro
+										de los 15 días posteriores a la fecha del evento. La
+										organización responderá dentro de los 10 días hábiles
+										siguientes.
+									</li>
+									<li>
+										En caso de no alcanzar una resolución satisfactoria, estos
+										Términos y Condiciones y cualquier disputa derivada de los
+										mismos se rigen por las leyes de la República de Bolivia.
+									</li>
+								</ul>
+							</AccordionContent>
+						</AccordionItem>
+
+						<AccordionItem value="item-7">
+							<AccordionTrigger className="text-lg md:text-xl font-semibold">
+								9. Modificaciones a los Términos
+								{SHOW_HIGHLIGHTS && (
+									<span className="text-xs bg-green-100 text-green-700 rounded-full px-2 py-0.5 font-normal ml-2">
+										Nuevo
+									</span>
+								)}
+							</AccordionTrigger>
+							<AccordionContent className="text-muted-foreground">
+								<p className="mb-4">
+									La organización se reserva el derecho de actualizar o
+									modificar estos Términos y Condiciones en cualquier momento.
+									Los cambios serán comunicados con al menos 15 días de
+									anticipación a través de la plataforma y/o por correo
+									electrónico. La participación continuada en festivales de la
+									productora tras la entrada en vigencia de los nuevos términos
+									implica la aceptación de los mismos.
+								</p>
+							</AccordionContent>
+						</AccordionItem>
+
+						<AccordionItem value="item-8">
+							<AccordionTrigger className="text-lg md:text-xl font-semibold">
+								10. Información de Contacto
 							</AccordionTrigger>
 							<AccordionContent className="text-muted-foreground">
 								<p>
@@ -601,6 +705,38 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 							</AccordionContent>
 						</AccordionItem>
 					</Accordion>
+				</div>
+
+				<div className={`rounded-lg border bg-muted/40 p-6 my-4 md:my-6 ${SHOW_HIGHLIGHTS ? "ring-2 ring-green-300 ring-offset-2" : ""}`}>
+					<h2 className="text-lg font-semibold mb-2">
+						¡Forma parte de nuestra comunidad!
+					</h2>
+					<p className="text-muted-foreground text-sm">
+						Formas parte de nuestra comunidad y puedes ayudarnos a llegar a más
+						personas — lo que también significa más público en el festival y más
+						ojos en tu stand. La forma más efectiva de lograrlo es interactuando
+						con nuestro contenido: dale like a nuestras publicaciones e
+						historias en{" "}
+						<a
+							href="https://www.instagram.com/glitter.bo"
+							target="_blank"
+							rel="noopener noreferrer"
+							className="font-medium underline underline-offset-4 hover:text-foreground transition-colors"
+						>
+							Instagram
+						</a>
+						, comenta lo que se te ocurra en nuestros videos de{" "}
+						<a
+							href="https://www.tiktok.com/@glitter.bo"
+							target="_blank"
+							rel="noopener noreferrer"
+							className="font-medium underline underline-offset-4 hover:text-foreground transition-colors"
+						>
+							TikTok
+						</a>
+						, y comparte lo que te guste. Eso es lo que realmente hace crecer a
+						una comunidad.
+					</p>
 				</div>
 
 				{isProfileInFestival(props.festival.id, props.forProfile) ? (
