@@ -14,6 +14,7 @@ import {
 import { Participation, ProfileType } from "@/app/api/users/definitions";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
+import { ArrowRightIcon } from "lucide-react";
 
 type Props = {
 	festivals: FestivalWithDates[];
@@ -30,13 +31,10 @@ function getCtaProps(
 	const participation = isActiveFestival ? activeParticipation : null;
 
 	if (!participation) {
-		if (festival.publicRegistration || festival.eventDayRegistration) {
-			return {
-				text: "Reservar mi stand",
-				href: `/festivals/${festival.id}/registration`,
-			};
-		}
-		return { text: "Ver festival", href: `/festivals/${festival.id}` };
+		return {
+			text: "Participar",
+			href: `/profiles/${profileId}/festivals/${festival.id}/terms`,
+		};
 	}
 
 	const { status } = participation.reservation;
@@ -99,25 +97,29 @@ export default function FestivalCarousel({
 								{/* Slide content */}
 								<div className="relative z-10 w-full max-w-2xl px-4 md:px-10 pb-4 md:pb-14">
 									{dateLabel && (
-										<Badge className="mb-1 bg-white/15 text-white border-white/25 backdrop-blur-sm text-xs">
+										<Badge className="mb-1 text-xs">
 											<span>{dateLabel}</span>
 										</Badge>
 									)}
-									<h1 className="text-3xl md:text-5xl font-bold text-white leading-[1.2] tracking-tight mb-2 max-w-40 md:max-w-80">
+									<h1 className="text-3xl md:text-5xl font-bold text-white leading-[1.2] tracking-tight mb-2">
 										{festival.name}
 									</h1>
 									<Button
 										asChild
 										className="sm:hidden bg-white text-foreground hover:bg-white/90 font-semibold shadow-lg"
 									>
-										<Link href={cta.href}>{cta.text}</Link>
+										<Link href={cta.href}>
+											{cta.text} <ArrowRightIcon className="size-4 ml-2" />
+										</Link>
 									</Button>
 									<Button
 										asChild
 										size="lg"
 										className="hidden w-40 sm:flex items-center justify-center bg-white text-foreground hover:bg-white/90 font-semibold shadow-lg"
 									>
-										<Link href={cta.href}>{cta.text}</Link>
+										<Link href={cta.href}>
+											{cta.text} <ArrowRightIcon className="size-4 ml-2" />
+										</Link>
 									</Button>
 								</div>
 							</div>

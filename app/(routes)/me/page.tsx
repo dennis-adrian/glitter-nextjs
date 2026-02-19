@@ -1,3 +1,5 @@
+import { CakeIcon, CogIcon } from "lucide-react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import FestivalCarousel from "@/app/components/participant_dashboard/festival-carousel";
@@ -7,12 +9,16 @@ import QuickActions from "@/app/components/participant_dashboard/quick-actions";
 import ReservationCard from "@/app/components/participant_dashboard/reservation-card";
 import StatsStrip from "@/app/components/participant_dashboard/stats-strip";
 import UpcomingFestivalsSection from "@/app/components/participant_dashboard/upcoming-festivals";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import {
 	fetchCarouselFestivals,
 	fetchFestivalActivitiesByFestivalId,
 } from "@/app/lib/festivals/actions";
 import { FestivalActivity } from "@/app/lib/festivals/definitions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { DateTime } from "luxon";
+import VerificationStatusLabel from "@/app/components/atoms/verification-status-label";
 
 export default async function ParticipantDashboardPage() {
 	const [currentProfile, carouselFestivals] = await Promise.all([
@@ -47,15 +53,33 @@ export default async function ParticipantDashboardPage() {
 
 	return (
 		<div className="container p-3 md:p-6">
-			{/* Greeting — always visible, above the carousel */}
-			<div className="">
-				<h1 className="font-bold tracking-tight text-2xl md:text-3xl">
-					¡Hola,{" "}
-					{currentProfile.firstName ?? currentProfile.displayName ?? "artista"}!
-				</h1>
-				<p className="text-sm text-muted-foreground">
-					Bienvenida a tu espacio en Glitter.
-				</p>
+			{/* Header — always visible, above the carousel */}
+			<div>
+				<div className="flex items-start justify-between">
+					<div>
+						<VerificationStatusLabel status={currentProfile.status} />
+						<h1 className="font-bold tracking-tight text-3xl md:text-5xl">
+							Hola,{" "}
+							{currentProfile.firstName ??
+								currentProfile.displayName ??
+								"artista"}
+						</h1>
+						{currentProfile.verifiedAt && (
+							<p className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+								<CakeIcon className="size-4" />
+								Te uniste en{" "}
+								{DateTime.fromJSDate(currentProfile.verifiedAt).year}
+							</p>
+						)}
+					</div>
+					<Button variant="outline" size="sm" className="flex shrink-0" asChild>
+						<Link href="/my_profile">
+							<CogIcon className="size-4 mr-1" />
+							Editar perfil
+						</Link>
+					</Button>
+				</div>
+				<Separator className="mt-4" />
 			</div>
 
 			{carouselFestivals.length > 0 && (
