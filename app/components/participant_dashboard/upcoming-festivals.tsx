@@ -22,7 +22,7 @@ export default function UpcomingFestivalsSection({
 	return (
 		<div>
 			<div className="flex items-center justify-between mb-3">
-				<h2 className="font-isidora font-bold italic tracking-wide text-lg">
+				<h2 className="font-space-grotesk font-bold tracking-wide text-lg">
 					Próximos Festivales
 				</h2>
 				<Button asChild variant="ghost" size="sm" className="text-xs">

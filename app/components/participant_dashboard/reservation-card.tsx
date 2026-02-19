@@ -84,7 +84,7 @@ export default function ReservationCard({
 						</p>
 					)}
 					<div className="flex items-start justify-between gap-2">
-						<h3 className="font-isidora font-bold italic tracking-wide text-base leading-snug">
+						<h3 className="font-space-grotesk font-bold tracking-wide text-base leading-snug">
 							{festival.name}
 						</h3>
 						<Badge className={statusConfig.badge} size="sm">
@@ -168,7 +168,7 @@ export default function ReservationCard({
 						<p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">
 							Próximo festival
 						</p>
-						<h3 className="font-isidora font-bold italic tracking-wide text-base leading-snug">
+						<h3 className="font-space-grotesk font-bold tracking-wide text-base leading-snug">
 							{activeFestival.name}
 						</h3>
 						{dateLabel && (

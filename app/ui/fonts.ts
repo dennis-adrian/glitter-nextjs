@@ -1,4 +1,4 @@
-import { Inter } from "next/font/google";
+import { Inter, Space_Grotesk } from "next/font/google";
 import localFont from "next/font/local";
 
 export const junegull = localFont({
@@ -10,14 +10,8 @@ export const inter = Inter({
 	variable: "--font-inter",
 });
 
-export const isidora = localFont({
-	src: [
-		{
-			path: "../fonts/isidora/Isidora-Bold-Italic.otf",
-			weight: "700",
-			style: "italic",
-		},
-	],
+export const spaceGrotesk = Space_Grotesk({
+	subsets: ["latin"],
 	display: "swap",
-	variable: "--font-isidora",
+	variable: "--font-space-grotesk",
 });

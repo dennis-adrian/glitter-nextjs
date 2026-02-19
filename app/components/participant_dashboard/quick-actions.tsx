@@ -60,7 +60,7 @@ export default function QuickActions({ profile }: Props) {
 
 	return (
 		<div>
-			<h2 className="font-isidora font-bold italic tracking-wide text-lg mb-3">
+			<h2 className="font-space-grotesk font-bold tracking-wide text-lg mb-3">
 				Acceso rápido
 			</h2>
 			<div className="grid grid-cols-3 md:grid-cols-5 gap-2">

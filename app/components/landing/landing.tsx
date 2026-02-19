@@ -32,7 +32,7 @@ export default async function Landing() {
 									priority
 								/>
 								<div className="absolute flex flex-col items-center justify-center">
-									<h1 className="text-4xl lg:text-5xl mb-4 font-isidora font-bold italic tracking-wide text-[#002B48] text-shadow-[3px_3px_0_#E3DFDB,-3px_-3px_0_#E3DFDB,3px_-3px_0_#E3DFDB,-3px_3px_0_#E3DFDB]">
+									<h1 className="text-4xl lg:text-5xl mb-4 font-space-grotesk font-bold tracking-wide text-[#002B48] text-shadow-[3px_3px_0_#E3DFDB,-3px_-3px_0_#E3DFDB,3px_-3px_0_#E3DFDB,-3px_3px_0_#E3DFDB]">
 										Cacería de Sellos
 									</h1>
 									<RedirectButton

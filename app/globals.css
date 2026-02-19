@@ -6,7 +6,7 @@
 
 @theme inline {
 	--font-sans: var(--font-inter);
-	--font-isidora: var(--font-isidora), sans-serif;
+	--font-space-grotesk: var(--font-space-grotesk), sans-serif;
 }
 
 @theme {

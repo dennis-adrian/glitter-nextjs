@@ -62,7 +62,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 
 	return (
 		<div className="container mx-auto py-8 px-4 md:px-6">
-			<div className="max-w-screen-lg mx-auto">
+			<div className="max-w-5xl mx-auto">
 				{props.currentUser.role === "admin" && (
 					<div className="flex flex-col gap-2 mb-4 max-w-fit">
 						<Label>Categoría de los términos y condiciones</Label>

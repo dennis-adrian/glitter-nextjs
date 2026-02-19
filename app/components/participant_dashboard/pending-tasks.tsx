@@ -108,7 +108,7 @@ export default function PendingTasksList({
 	return (
 		<Card>
 			<CardHeader className="pb-3 pt-5 px-5 md:px-6">
-				<CardTitle className="font-isidora font-bold italic tracking-wide text-lg">
+				<CardTitle className="font-space-grotesk font-bold tracking-wide text-lg">
 					Pendientes
 				</CardTitle>
 			</CardHeader>
