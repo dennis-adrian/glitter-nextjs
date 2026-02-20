@@ -87,6 +87,7 @@ export default async function ParticipantDashboardPage() {
 						festivals={carouselFestivals}
 						profile={currentProfile}
 						activeParticipation={activeParticipation}
+						enrollment={profileEnrollment}
 					/>
 				</div>
 			)}

@@ -15,38 +15,38 @@ import { Participation, ProfileType } from "@/app/api/users/definitions";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { getFestivalDateLabel } from "@/app/helpers/next_event";
 import { ArrowRightIcon } from "lucide-react";
+import { UserRequestBase } from "@/app/api/user_requests/definitions";
 
 type Props = {
 	festivals: FestivalWithDates[];
 	profile: ProfileType;
 	activeParticipation: Participation | null | undefined;
+	enrollment: UserRequestBase | null | undefined;
 };
 
 function getCtaProps(
 	festival: FestivalWithDates,
 	profileId: number,
 	activeParticipation: Participation | null | undefined,
+	enrollment: UserRequestBase | null | undefined,
 ) {
 	const isActiveFestival = festival.status === "active";
 	const participation = isActiveFestival ? activeParticipation : null;
 
-	if (!participation) {
+	if (!enrollment) {
 		return {
 			text: "Participar",
 			href: `/profiles/${profileId}/festivals/${festival.id}/terms`,
 		};
 	}
 
-	const { status } = participation.reservation;
-	if (status === "pending" || status === "verification_payment") {
+	if (!participation) {
 		return {
-			text: "Ver mi reserva",
-			href: `/profiles/${profileId}/festivals/${festival.id}/reservations`,
+			text: "Hacer mi reserva",
+			href: `/profiles/${profileId}/festivals/${festival.id}/reservations/new`,
 		};
 	}
-	if (status === "accepted") {
-		return { text: "Ver mi participación", href: "/my_participations" };
-	}
+
 	return { text: "Ver festival", href: `/festivals/${festival.id}` };
 }
 
@@ -54,6 +54,7 @@ export default function FestivalCarousel({
 	festivals,
 	profile,
 	activeParticipation,
+	enrollment,
 }: Props) {
 	const plugin = useRef(
 		Autoplay({ delay: 5500, stopOnInteraction: true, stopOnMouseEnter: true }),
@@ -69,7 +70,12 @@ export default function FestivalCarousel({
 		>
 			<CarouselContent className="ml-0">
 				{festivals.map((festival) => {
-					const cta = getCtaProps(festival, profile.id, activeParticipation);
+					const cta = getCtaProps(
+						festival,
+						profile.id,
+						activeParticipation,
+						enrollment,
+					);
 					const dateLabel =
 						festival.festivalDates.length > 0
 							? getFestivalDateLabel(festival, true)

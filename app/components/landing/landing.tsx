@@ -9,12 +9,12 @@ import Image from "next/image";
 export default async function Landing() {
 	const festival = await getActiveFestival();
 
-	let eventRegistrationLink = "";
-	if (festival) {
-		eventRegistrationLink = festival.eventDayRegistration
-			? `/festivals/${festival.id}/event_day_registration`
-			: `/festivals/${festival.id}/registration`;
-	}
+	// let eventRegistrationLink = "";
+	// if (festival) {
+	// 	eventRegistrationLink = festival.eventDayRegistration
+	// 		? `/festivals/${festival.id}/event_day_registration`
+	// 		: `/festivals/${festival.id}/registration`;
+	// }
 
 	return (
 		<div className="container p-4 md:p-6">
