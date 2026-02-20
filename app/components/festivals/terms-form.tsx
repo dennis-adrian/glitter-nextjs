@@ -2,7 +2,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { addUserToFestival } from "@/app/api/user_requests/actions";
+import { createUserEnrollment } from "@/app/api/user_requests/actions";
 import { ProfileType } from "@/app/api/users/definitions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -45,7 +45,15 @@ export default function TermsForm({
 
 	async function onSubmit(data: z.infer<typeof FormSchema>) {
 		if (data.consent) {
-			const res = await addUserToFestival(profile, festival);
+			const res = await createUserEnrollment({
+				profileId: profile.id,
+				profileCategory: profile.category,
+				profileDisplayName: profile.displayName,
+				festivalId: festival.id,
+				festivalName: festival.name,
+				festivalReservationsStartDate: festival.reservationsStartDate,
+			});
+
 			if (res.success) {
 				toast.success(res.message);
 				router.push(

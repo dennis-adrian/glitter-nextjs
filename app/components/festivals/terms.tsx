@@ -19,12 +19,11 @@ import {
 	SelectValue,
 } from "@/app/components/ui/select";
 import {
-	FestivalSectorBase,
 	FestivalSectorWithStands,
+	FestivalSectorWithStandsWithReservationsWithParticipants,
 } from "@/app/lib/festival_sectors/definitions";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
-import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import {
 	Accordion,
 	AccordionContent,
@@ -42,7 +41,7 @@ type TermsAndConditionsProps = {
 	forProfile: ProfileType;
 	currentUser: BaseProfile;
 	category: Exclude<UserCategory, "none">;
-	festivalSectors: FestivalSectorBase[];
+	festivalSectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
 	festivalSectorsWithAllowedCategoriesPromise: Promise<
 		(FestivalSectorWithStands & {
 			allowedCategories: UserCategory[];
@@ -106,23 +105,18 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 				)}
 
 				<div className="flex flex-col">
-					<Title level="h2">Mapa del Evento y Precios de Espacios</Title>
+					<Title level="h2">Sectores habilitados para tu categoría</Title>
 
-					<div>
-						<Title level="h3" className="mb-3">
-							Sectores habilitados para{" "}
-							{getCategoryOccupationLabel(mapCategory).toLowerCase()}
-						</Title>
-						<StandSpecificationsCards
-							profileCategory={mapCategory}
-							festivalSectorsWithAllowedCategoriesPromise={
-								props.festivalSectorsWithAllowedCategoriesPromise
-							}
-						/>
-					</div>
+					<StandSpecificationsCards
+						profileCategory={mapCategory}
+						festivalSectorsWithAllowedCategoriesPromise={
+							props.festivalSectorsWithAllowedCategoriesPromise
+						}
+						fullSectors={props.festivalSectors}
+					/>
 
 					{mapCategory === "illustration" && (
-						<p className="text-sm text-muted-foreground text-left md:text-center">
+						<p className="text-sm text-muted-foreground mt-2">
 							* En el caso de ilustradores que comparten espacio, si en el
 							transcurso de tiempo entre confirmada la reserva y el día del
 							evento una de las partes no puede participar, el otro ilustrador
@@ -167,8 +161,8 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 							</li>
 							<li>
 								Todos los participantes deben tener un perfil aprobado en
-								nuestro sitio web — es decir, una cuenta que haya pasado por
-								revisión y esté habilitada por la organización — y una reserva
+								nuestro sitio web, es decir, una cuenta que haya pasado por
+								revisión y esté habilitada por la organización, y una reserva
 								confirmada y pagada para su espacio.
 							</li>
 							<li>
@@ -277,7 +271,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 							</AccordionTrigger>
 							<AccordionContent className="text-muted-foreground">
 								<ul className="list-disc pl-6 space-y-2">
-									{mapCategory === "illustration" && (
+									{mapCategory === "illustration" ? (
 										<li>
 											Los ilustradores que quieran compartir espacio deben
 											agregar a su compañero al momento de hacer la reserva.
@@ -285,6 +279,12 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 											aceptado los términos y condiciones para poder ser
 											agregado como compañero. No se aceptarán cambios una vez
 											hecha la reserva.
+										</li>
+									) : (
+										<li>
+											Las reservas son individuales y no se permiten a ningún
+											otro expositor más que el propio que hizo la reserva. No
+											se permiten reservas compartidas.
 										</li>
 									)}
 									{mapCategory === "entrepreneurship" &&

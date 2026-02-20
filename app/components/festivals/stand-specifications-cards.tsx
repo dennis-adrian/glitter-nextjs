@@ -2,12 +2,13 @@
 
 import { UserCategory } from "@/app/api/users/definitions";
 import StandSpecificationsSectorCard from "@/app/components/festivals/stand-specifications-sector-card";
-import { FestivalSectorWithStands } from "@/app/lib/festival_sectors/definitions";
+import { FestivalSectorWithStands, FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import { use } from "react";
 
 export default function StandSpecificationsCards({
 	profileCategory,
 	festivalSectorsWithAllowedCategoriesPromise,
+	fullSectors,
 }: {
 	profileCategory: UserCategory;
 	festivalSectorsWithAllowedCategoriesPromise: Promise<
@@ -15,6 +16,7 @@ export default function StandSpecificationsCards({
 			allowedCategories: UserCategory[];
 		})[]
 	>;
+	fullSectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
 }) {
 	const festivalSectors = use(festivalSectorsWithAllowedCategoriesPromise);
 
@@ -29,6 +31,7 @@ export default function StandSpecificationsCards({
 					key={sector.id}
 					sector={sector}
 					category={profileCategory}
+					fullSector={fullSectors.find((s) => s.id === sector.id)}
 				/>
 			))}
 		</div>
