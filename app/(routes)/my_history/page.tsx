@@ -1,4 +1,4 @@
-import Title from "@/app/components/atoms/title";
+import Title from "@/app/components/atoms/heading";
 import ParticipationsHistory from "@/app/components/organisms/participations-history";
 import { getActiveFestivalBase } from "@/app/lib/festivals/helpers";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";

@@ -1,6 +1,6 @@
 import { ReservationBase } from "@/app/api/reservations/definitions";
 import { BaseProfile } from "@/app/api/users/definitions";
-import Title from "@/app/components/atoms/title";
+import Heading from "@/app/components/atoms/heading";
 import FestivalActivityCard from "@/app/components/molecules/festival-activity-card";
 import { ScrollArea } from "@/app/components/ui/scroll-area";
 import { FullFestival } from "@/app/lib/festivals/definitions";
@@ -57,7 +57,7 @@ export default function ActivitiesContent({
 			<ScrollArea className="h-[calc(100vh-340px)] md:h-[calc(100vh-400px)] pr-4">
 				{userActivities.length > 0 && (
 					<div>
-						<Title level="h3">Tus inscripciones</Title>
+						<Heading level={3}>Tus inscripciones</Heading>
 						<p className="text-sm text-gray-500">
 							Aquí puedes ver las actividades en las que te has inscrito.
 						</p>
@@ -90,7 +90,7 @@ export default function ActivitiesContent({
 				)}
 				{availableActivities.length > 0 && (
 					<div className="mt-3">
-						<Title level="h3">Actividades Exclusivas</Title>
+						<Heading level={3}>Actividades Exclusivas</Heading>
 						<p className="text-sm text-gray-500">
 							Inscríbete en actividades especiales para expositores.
 						</p>

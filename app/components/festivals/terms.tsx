@@ -5,7 +5,7 @@ import {
 	ProfileType,
 	UserCategory,
 } from "@/app/api/users/definitions";
-import Title from "@/app/components/atoms/title";
+import Heading from "@/app/components/atoms/heading";
 import StandSpecificationsCards from "@/app/components/festivals/stand-specifications-cards";
 import TermsForm from "@/app/components/festivals/terms-form";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
@@ -84,7 +84,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 				)}
 
 				<div className="space-y-4 text-left md:text-center mb-4">
-					<Title level="h1">Términos y Condiciones para Expositores</Title>
+					<Heading level={1}>Términos y Condiciones para Expositores</Heading>
 					<p className="text-sm text-muted-foreground">
 						Última actualización: 18 de febrero de 2026
 					</p>
@@ -105,7 +105,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 				)}
 
 				<div className="flex flex-col">
-					<Title level="h2">Sectores habilitados para tu categoría</Title>
+					<Heading level={2}>Sectores habilitados para tu categoría</Heading>
 
 					<StandSpecificationsCards
 						profileCategory={mapCategory}

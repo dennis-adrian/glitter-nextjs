@@ -6,7 +6,7 @@ import {
 	BreadcrumbPage,
 	BreadcrumbSeparator,
 } from "@/app/components/ui/breadcrumb";
-import Title from "@/app/components/atoms/title";
+import Title from "@/app/components/atoms/heading";
 import { fetchUserInfractions } from "@/app/lib/users/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound } from "next/navigation";
@@ -56,7 +56,7 @@ export default async function InfractionsPage(props: InfractionsPageProps) {
 			</Breadcrumb>
 			{!!infractions.length ? (
 				<div className="my-3">
-					<Title level="h1">Historial de Infracciones</Title>
+					<Title>Historial de Infracciones</Title>
 					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
 						{infractions.map((infraction) => (
 							<UserInfractionCard key={infraction.id} infraction={infraction} />

@@ -1,7 +1,7 @@
 "use client";
 
 import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
-import Title from "@/app/components/atoms/title";
+import Heading from "@/app/components/atoms/heading";
 import PublicFestivalActivityDetail from "@/app/components/festivals/public-festival-activity-detail";
 import { Input } from "@/app/components/ui/input";
 import {
@@ -28,7 +28,7 @@ export default function FestivalActivityContent({
 		<div>
 			<div>
 				<div className="flex flex-col my-4">
-					<Title level="h3">Participantes</Title>
+					<Heading level={3}>Participantes</Heading>
 					<p className="text-muted-foreground">
 						Selecciona a los participantes que ya visitaste para guiarte y
 						completar la actividad más rápido.

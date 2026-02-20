@@ -1,4 +1,4 @@
-import Title from "@/app/components/atoms/title";
+import Title from "@/app/components/atoms/heading";
 import FestivalActivityContent from "@/app/components/festivals/festival-activity-content";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
 import { fetchFestival } from "@/app/lib/festivals/actions";
@@ -33,7 +33,7 @@ export default async function Page({ params }: PageProps) {
 
 	return (
 		<div className="container p-3 md:p-6">
-			<Title level="h1">{activity.name}</Title>
+			<Title>{activity.name}</Title>
 			<p className="text-muted-foreground">{activity.visitorsDescription}</p>
 
 			<FestivalActivityContent
