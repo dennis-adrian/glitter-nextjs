@@ -21,7 +21,7 @@ import {
 	userRequests,
 	users,
 } from "@/db/schema";
-import { and, desc, eq, getTableColumns, inArray, not, or, SQL } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, not, or } from "drizzle-orm";
 import { cacheLife, cacheTag, revalidatePath, updateTag } from "next/cache";
 import {
 	FestivalBase,
@@ -118,7 +118,7 @@ export async function createFestival(
 		});
 
 		revalidatePath("/dashboard/festivals");
-	updateTag("active-festival");
+		updateTag("active-festival");
 		return {
 			success: true,
 			message: "Festival creado exitosamente!",
@@ -298,7 +298,7 @@ export async function updateFestival(
 		});
 
 		revalidatePath("/dashboard/festivals");
-	updateTag("active-festival");
+		updateTag("active-festival");
 		return {
 			success: true,
 			message: "Festival updated successfully",
@@ -348,11 +348,14 @@ export async function fetchCarouselFestivals(): Promise<FestivalWithDates[]> {
 	cacheTag("active-festival");
 
 	try {
-		return await db.query.festivals.findMany({
-			where: or(eq(festivals.status, "active"), eq(festivals.status, "published")),
+		return (await db.query.festivals.findMany({
+			where: or(
+				eq(festivals.status, "active"),
+				eq(festivals.status, "published"),
+			),
 			with: { festivalDates: true },
 			orderBy: desc(festivals.id),
-		}) as FestivalWithDates[];
+		})) as FestivalWithDates[];
 	} catch (error) {
 		console.error("Error fetching carousel festivals", error);
 		return [];
@@ -850,6 +853,11 @@ export async function fetchFestivalParticipants(
 	}
 }
 
+/**
+ * Fetch all participants that have enrolled in a festival
+ * @param festivalId - The id of the festival
+ * @returns An array of profiles
+ */
 export async function fetchEnrolledParticipants(
 	festivalId: number,
 ): Promise<BaseProfile[]> {
