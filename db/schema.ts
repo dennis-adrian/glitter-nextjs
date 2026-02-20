@@ -207,6 +207,7 @@ export const festivals = pgTable(
 		festivalBannerUrl: text("festival_banner_url"),
 		termsAndConditionsUrl: text("terms_and_conditions_url"),
 		thumbnailUrl: text("thumbnail_url"),
+		posterUrl: text("poster_url"),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
