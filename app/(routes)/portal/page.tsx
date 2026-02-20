@@ -8,7 +8,6 @@ import VerificationStatusLabel from "@/app/components/atoms/verification-status-
 import FestivalCarousel from "@/app/components/participant_dashboard/festival-carousel";
 import ReservationCard from "@/app/components/participant_dashboard/reservation-card";
 import RestrictedDashboard from "@/app/components/participant_dashboard/restricted-dashboard";
-import StatsStrip from "@/app/components/participant_dashboard/stats-strip";
 import {
 	fetchCarouselFestivals,
 	fetchProfileEnrollmentInFestival,
@@ -93,8 +92,6 @@ export default async function ParticipantDashboardPage() {
 			)}
 
 			<div className="flex flex-col gap-6 mt-4">
-				<StatsStrip profile={currentProfile} />
-
 				<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
 					{/* Left column: primary / action */}
 					<div className="flex flex-col gap-6">
