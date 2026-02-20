@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-type BannerVariant =
+export type BannerVariant =
 	| "info"
 	| "note"
 	| "warning"
@@ -93,7 +93,7 @@ export function Banner({
 			className={`${config.bgColor} border-l-4 ${config.borderColor} rounded-r-lg p-4 ${className}`}
 		>
 			<div className="flex items-start gap-3">
-				<Icon className={`w-5 h-5 ${config.iconColor} shrink-0 mt-0.5`} />
+				<Icon className={`w-4 h-4 ${config.iconColor} shrink-0 mt-0.5`} />
 				<div className={`text-sm ${config.textColor} flex-1`}>
 					{title && <p className="font-semibold mb-1">{title}</p>}
 					<div>{children}</div>

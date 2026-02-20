@@ -31,6 +31,7 @@ import {
 	FullFestival,
 } from "./definitions";
 import { groupVisitorEmails } from "./utils";
+import { UserRequest } from "@/app/api/user_requests/definitions";
 
 export async function createFestival(
 	festivalData: Omit<typeof festivals.$inferInsert, "id"> & {
@@ -902,5 +903,23 @@ export async function fetchEnrolledParticipants(
 	} catch (error) {
 		console.error(error);
 		return [];
+	}
+}
+
+export async function fetchProfileEnrollmentInFestival(
+	profileId: number,
+	festivalId: number,
+) {
+	try {
+		return await db.query.userRequests.findFirst({
+			where: and(
+				eq(userRequests.userId, profileId),
+				eq(userRequests.festivalId, festivalId),
+				eq(userRequests.type, "festival_participation"),
+			),
+		});
+	} catch (error) {
+		console.error("Error fetching profile enrollment in festival", error);
+		return null;
 	}
 }

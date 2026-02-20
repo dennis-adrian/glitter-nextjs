@@ -1,34 +1,39 @@
 import { CakeIcon, CogIcon } from "lucide-react";
+import { DateTime } from "luxon";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import Heading from "@/app/components/atoms/heading";
+import VerificationStatusLabel from "@/app/components/atoms/verification-status-label";
 import FestivalCarousel from "@/app/components/participant_dashboard/festival-carousel";
-import ParticipationHistoryPreview from "@/app/components/participant_dashboard/participation-history-preview";
-import PendingTasksList from "@/app/components/participant_dashboard/pending-tasks";
-import QuickActions from "@/app/components/participant_dashboard/quick-actions";
 import ReservationCard from "@/app/components/participant_dashboard/reservation-card";
+import RestrictedDashboard from "@/app/components/participant_dashboard/restricted-dashboard";
 import StatsStrip from "@/app/components/participant_dashboard/stats-strip";
-import UpcomingFestivalsSection from "@/app/components/participant_dashboard/upcoming-festivals";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import {
 	fetchCarouselFestivals,
-	fetchFestivalActivitiesByFestivalId,
+	fetchProfileEnrollmentInFestival,
 } from "@/app/lib/festivals/actions";
-import { FestivalActivity } from "@/app/lib/festivals/definitions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import { DateTime } from "luxon";
-import VerificationStatusLabel from "@/app/components/atoms/verification-status-label";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 export default async function ParticipantDashboardPage() {
-	const [currentProfile, carouselFestivals] = await Promise.all([
-		getCurrentUserProfile(),
-		fetchCarouselFestivals(),
-	]);
+	const currentProfile = await getCurrentUserProfile();
 
 	if (!currentProfile) {
 		redirect("/");
 	}
+
+	if (currentProfile.status !== "verified") {
+		return (
+			<RestrictedDashboard
+				profile={currentProfile}
+				status={currentProfile.status}
+			/>
+		);
+	}
+
+	const carouselFestivals = await fetchCarouselFestivals();
 
 	const activeFestival =
 		carouselFestivals.find((f) => f.status === "active") ?? null;
@@ -41,15 +46,10 @@ export default async function ParticipantDashboardPage() {
 			) ?? null)
 		: null;
 
-	let festivalActivities: FestivalActivity[] = [];
-	if (
-		activeFestival &&
-		activeParticipation?.reservation.status === "accepted"
-	) {
-		festivalActivities = await fetchFestivalActivitiesByFestivalId(
-			activeFestival.id,
-		);
-	}
+	const profileEnrollment = await fetchProfileEnrollmentInFestival(
+		currentProfile.id,
+		activeFestival?.id ?? 0,
+	);
 
 	return (
 		<div className="container p-3 md:p-6">
@@ -98,31 +98,32 @@ export default async function ParticipantDashboardPage() {
 				<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
 					{/* Left column: primary / action */}
 					<div className="flex flex-col gap-6">
-						<ReservationCard
-							profile={currentProfile}
-							activeFestival={activeFestival}
-							activeParticipation={activeParticipation}
-						/>
+						{profileEnrollment && activeFestival && (
+							<div className="flex flex-col gap-2 md:gap-3">
+								<Heading level={2}>Mi participación</Heading>
+								<ReservationCard
+									profile={currentProfile}
+									activeFestival={activeFestival}
+									activeParticipation={activeParticipation}
+									profileEnrollment={profileEnrollment}
+								/>
+							</div>
+						)}
 
-						<PendingTasksList
-							profile={currentProfile}
-							activeFestival={activeFestival}
-							activeParticipation={activeParticipation}
-							festivalActivities={festivalActivities}
-						/>
+						{/* <PendingTasksList
+						 	profile={currentProfile}
+						 	activeFestival={activeFestival}
+						 	activeParticipation={activeParticipation}
+						 	festivalActivities={festivalActivities}
+						/> */}
 					</div>
 
 					{/* Right column: secondary / discovery */}
-					<div className="flex flex-col gap-6">
-						<UpcomingFestivalsSection
-							festivals={carouselFestivals}
-							activeFestivalId={activeFestival?.id ?? null}
-						/>
-
+					{/* <div className="flex flex-col gap-6">
 						<ParticipationHistoryPreview profile={currentProfile} />
 
 						<QuickActions profile={currentProfile} />
-					</div>
+					</div> */}
 				</div>
 			</div>
 		</div>

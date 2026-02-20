@@ -6,3 +6,4 @@ export type UserRequest = typeof userRequests.$inferSelect & {
 	user: typeof users.$inferSelect;
 	festival: typeof festivals.$inferSelect | null;
 };
+export type UserRequestBase = typeof userRequests.$inferSelect;
