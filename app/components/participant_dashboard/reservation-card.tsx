@@ -211,7 +211,6 @@ export default function ReservationCard({
 	activeParticipation,
 	profileEnrollment,
 }: Props) {
-	console.log("activeParticipation", activeParticipation);
 	const cardStatus = getCardStatus(
 		profileEnrollment,
 		activeParticipation,

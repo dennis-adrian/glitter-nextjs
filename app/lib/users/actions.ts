@@ -48,7 +48,11 @@ export const fetchUserProfileByClerkId = async (
 						reservation: {
 							with: {
 								stand: true,
-								festival: true,
+								festival: {
+									with: {
+										festivalDates: true,
+									},
+								},
 							},
 						},
 					},

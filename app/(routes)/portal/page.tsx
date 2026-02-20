@@ -15,6 +15,7 @@ import {
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import ParticipationHistoryPreview from "@/app/components/participant_dashboard/participation-history-preview";
 
 export default async function ParticipantDashboardPage() {
 	const currentProfile = await getCurrentUserProfile();
@@ -94,34 +95,26 @@ export default async function ParticipantDashboardPage() {
 
 			<div className="flex flex-col gap-6 mt-4">
 				<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-					{/* Left column: primary / action */}
+					{profileEnrollment && activeFestival && (
+						<div className="flex flex-col gap-2 md:gap-3">
+							<Heading level={2}>Mi participación</Heading>
+							<ReservationCard
+								profile={currentProfile}
+								activeFestival={activeFestival}
+								activeParticipation={activeParticipation}
+								profileEnrollment={profileEnrollment}
+							/>
+						</div>
+					)}
+
 					<div className="flex flex-col gap-6">
-						{profileEnrollment && activeFestival && (
-							<div className="flex flex-col gap-2 md:gap-3">
-								<Heading level={2}>Mi participación</Heading>
-								<ReservationCard
-									profile={currentProfile}
-									activeFestival={activeFestival}
-									activeParticipation={activeParticipation}
-									profileEnrollment={profileEnrollment}
-								/>
-							</div>
-						)}
+						<ParticipationHistoryPreview
+							profile={currentProfile}
+							activeFestivalId={activeFestival?.id}
+						/>
 
-						{/* <PendingTasksList
-						 	profile={currentProfile}
-						 	activeFestival={activeFestival}
-						 	activeParticipation={activeParticipation}
-						 	festivalActivities={festivalActivities}
-						/> */}
+						{/* <QuickActions profile={currentProfile} /> */}
 					</div>
-
-					{/* Right column: secondary / discovery */}
-					{/* <div className="flex flex-col gap-6">
-						<ParticipationHistoryPreview profile={currentProfile} />
-
-						<QuickActions profile={currentProfile} />
-					</div> */}
 				</div>
 			</div>
 		</div>
