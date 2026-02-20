@@ -34,6 +34,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { ArrowRightIcon } from "lucide-react";
 import { DateTime } from "luxon";
+import Image from "next/image";
 import { useState } from "react";
 
 type TermsAndConditionsProps = {
@@ -94,8 +95,19 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 					</p>
 				</div>
 
+				{props.festival.termsAndConditionsUrl && (
+					<Image
+						className="mx-auto"
+						src={props.festival.termsAndConditionsUrl}
+						alt="Términos y condiciones"
+						width={320}
+						height={320}
+					/>
+				)}
+
 				<div className="flex flex-col">
 					<Title level="h2">Mapa del Evento y Precios de Espacios</Title>
+
 					<div>
 						<Title level="h3" className="mb-3">
 							Sectores habilitados para{" "}
@@ -750,7 +762,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 
 				{isProfileInFestival(props.festival.id, props.forProfile) ? (
 					<>
-						<div className="rounded-md border p-4">
+						<div className="text-sm w-full text-muted-foreground text-pretty">
 							{mapCategory === "gastronomy" ? (
 								<>
 									Gracias por aceptar los términos y condiciones. La
