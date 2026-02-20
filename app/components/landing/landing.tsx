@@ -1,7 +1,7 @@
-import GeneralInfoDetails from "@/app/components/festivals/general-info-details";
 import Carousel from "@/app/components/landing/carousel";
 import EventFeatures from "@/app/components/landing/event-features";
 import NoFestivalBanner from "@/app/components/landing/no-festival-banner";
+import FestivalBanner from "@/app/components/molecules/festival-banner";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { getActiveFestival } from "@/app/lib/festivals/helpers";
 import Image from "next/image";
@@ -46,57 +46,7 @@ export default async function Landing() {
 							</div>
 						)}
 					</div>
-					<div className="flex justify-center items-center max-w-screen-lg mx-auto gap-8 lg:gap-20">
-						<div className="flex flex-col items-center">
-							<Image
-								alt="festival logo"
-								src="/img/glitter/glitter-v8-logo-760x160.png"
-								height={80}
-								width={380}
-							/>
-							<Image
-								className="lg:hidden my-4"
-								alt="mascota del evento"
-								src={festival.mascotUrl || ""}
-								height={222}
-								width={282}
-							/>
-							<GeneralInfoDetails
-								className="p-0 lg:mb-0"
-								detailsClassName="flex-col items-start p-0"
-								festival={festival}
-								noMascot
-							/>
-							{festival.publicRegistration ? (
-								<div className="space-x-2 my-2">
-									<RedirectButton
-										className="hover:bg-white"
-										variant="outline"
-										href={`/festivals/${festival.id}?tab=sectors`}
-									>
-										Ver evento
-									</RedirectButton>
-									<RedirectButton variant="cta" href={eventRegistrationLink}>
-										Registrar asistencia
-									</RedirectButton>
-								</div>
-							) : (
-								<RedirectButton
-									className="my-2 lg:my-0 w-32"
-									href={`/festivals/${festival.id}?tab=sectors`}
-								>
-									Ver evento
-								</RedirectButton>
-							)}
-						</div>
-						<Image
-							className="hidden lg:block"
-							alt="mascota max el caiman"
-							src={festival.mascotUrl || "/img/glitter/max-500x500.png"}
-							height={394}
-							width={500}
-						/>
-					</div>
+					<FestivalBanner festival={festival} />
 					<section className="text-center">
 						<div className="mt-8">
 							<div>
