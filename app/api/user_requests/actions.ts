@@ -412,7 +412,7 @@ export async function createUserEnrollment(params: {
 			await sendEmail({
 				to: [...adminEmails],
 				from: "Inscripciones Glitter <inscripciones@productoraglitter.com>",
-				subject: `${profileDisplayName} se ha inscrito a ${festivalName}`,
+				subject: `${profileDisplayName || "Usuario"} se ha inscrito a ${festivalName || "Festival"}`,
 				react: TermsAcceptanceEmailTemplate({
 					profile: {
 						id: profileId,

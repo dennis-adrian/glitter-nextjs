@@ -272,26 +272,6 @@ export async function fetchProfilesByIds(
 	}
 }
 
-const FormSchema = z.object({
-	id: z.number(),
-	firstName: z.string().min(2, {
-		error: "El nombre tiene que tener al menos dos letras",
-	}),
-	lastName: z.string().min(2, {
-		error: "El apellido tiene que tener al menos dos letras",
-	}),
-});
-
-export type State =
-	| {
-			errors?: {
-				firstName?: string[];
-				lastName?: string[];
-			};
-			message: string;
-	  }
-	| undefined;
-
 type FormState = {
 	success: boolean;
 	message: string;
@@ -303,9 +283,9 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
 			.where(eq(users.id, profileId))
 			.returning();
 
-		deletedUsers.forEach(async (deletedUsers) => {
-			await deleteClerkUser(deletedUsers.clerkId);
-		});
+		await Promise.all(
+			deletedUsers.map((user) => deleteClerkUser(user.clerkId)),
+		);
 	} catch (error) {
 		console.error(error);
 		return { success: false, message: "Error al eliminar el perfil" };

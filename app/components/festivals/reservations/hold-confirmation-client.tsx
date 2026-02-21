@@ -388,7 +388,12 @@ export default function HoldConfirmationClient({
 										id="partner-search"
 										options={partnerOptions}
 										placeholder="Ingresa el nombre..."
-										onSelect={(id) => setSelectedPartnerId(id)}
+										onSelect={(id) => {
+											const parsed = typeof id === "string" ? Number(id) : id;
+											setSelectedPartnerId(
+												Number.isFinite(parsed) ? parsed : undefined,
+											);
+										}}
 									/>
 									{selectedPartnerId && (
 										<Button
