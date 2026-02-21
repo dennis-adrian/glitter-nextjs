@@ -73,6 +73,29 @@ export async function updateUserRequest(id: number, data: UserRequest) {
 	return { success: true };
 }
 
+export async function fetchFestivalParticipationRequests(
+	festivalId: number,
+): Promise<UserRequest[]> {
+	try {
+		const requests = await db.query.userRequests.findMany({
+			where: and(
+				eq(userRequests.festivalId, festivalId),
+				eq(userRequests.type, "festival_participation"),
+			),
+			with: {
+				user: true,
+				festival: true,
+			},
+			orderBy: (userRequests, { desc }) => [desc(userRequests.createdAt)],
+		});
+
+		return requests;
+	} catch (error) {
+		console.error("Error fetching festival participation requests", error);
+		return [];
+	}
+}
+
 export async function fetchRequests(): Promise<UserRequest[]> {
 	try {
 		const requests = await db.query.userRequests.findMany({
