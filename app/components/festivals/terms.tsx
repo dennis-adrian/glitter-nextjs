@@ -218,19 +218,20 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 
 					{mapCategory === "gastronomy" && (
 						<section className="ml-4">
-							<h3 className="font-semibold">2.1. Sector de gastronomía</h3>
+							<h3 className="font-semibold text-lg">
+								2.1. Sector de gastronomía
+							</h3>
 							<p className="mt-2 text-muted-foreground">
 								El sector gastronómico constituye una categoría especial dentro
 								del festival y está sujeto a un proceso de evaluación previo a
 								la confirmación de participación. Esta evaluación busca mantener
 								una oferta equilibrada y coherente con la identidad del evento.
 							</p>
-							<p className="mt-2 text-muted-foreground">
-								La aceptación de los presentes Términos y Condiciones en la
-								categoría de gastronomía constituye una postulación formal y no
-								otorga derecho adquirido de participación. Únicamente los
-								perfiles que sean expresamente aprobados por la organización
-								podrán acceder a la reserva de un espacio dentro del festival.
+							<p className="mt-2 font-semibold">
+								A partir de 2026, en la categoría de gastronomía la aceptación
+								de estos Términos y Condiciones constituye una postulación. La
+								participación no está garantizada y solo las postulaciones
+								aprobadas para este evento podrán realizar una reserva.
 							</p>
 							<ul className="list-disc pl-6 space-y-2 text-muted-foreground mt-4">
 								<li>

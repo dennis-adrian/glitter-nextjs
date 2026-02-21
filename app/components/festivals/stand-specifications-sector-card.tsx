@@ -71,6 +71,12 @@ export default function StandSpecificationsSectorCard({
 	if (category === "gastronomy") {
 		sectorSpecifications =
 			"80cm x 100cm (mesa completa). Área final. No puede compartir espacio.";
+	} else if (
+		category === "entrepreneurship" &&
+		sector.name.toLowerCase().includes("balliv")
+	) {
+		sectorSpecifications =
+			"140cm x 70cm (dos mesas de 70cm x 70cm). Sector habilitado para emprendimientos cuyo negocio interactúa con el público con actividades.";
 	} else {
 		sectorSpecifications = "60cm x 120cm (media mesa).";
 		if (category === "illustration") {
@@ -123,6 +129,9 @@ export default function StandSpecificationsSectorCard({
 					<div className="bg-primary p-3">
 						<h3 className="font-semibold text-primary-foreground">
 							{sector.name}
+							{category === "entrepreneurship" &&
+								sector.name.toLowerCase().includes("balliv") &&
+								" (Activaciones)"}
 						</h3>
 					</div>
 					<div className="p-4 space-y-3">
