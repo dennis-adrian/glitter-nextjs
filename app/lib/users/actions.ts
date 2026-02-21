@@ -137,23 +137,18 @@ export const cachedFetchNavbarProfileByClerkId = cache(
 
 export async function createUserProfile(user: NewUser) {
 	try {
-		// There's something weird happening where the user tries to be created twice when using email for
-		// creating the account.
-		const userExisits = await fetchUserProfileByClerkId(user.clerkId);
-		if (userExisits) {
-			return {
-				success: true,
-				message: "Solicitud realizada correctamente.",
-			};
-		}
-
 		await db.transaction(async (tx) => {
 			const [newUser] = await tx
 				.insert(users)
 				.values({
 					...user,
 				})
+				.onConflictDoNothing({ target: users.clerkId })
 				.returning();
+
+			if (!newUser) {
+				return;
+			}
 
 			await tx.insert(scheduledTasks).values({
 				dueDate: sql`now() + interval '3 days'`,
@@ -161,8 +156,6 @@ export async function createUserProfile(user: NewUser) {
 				profileId: newUser.id,
 				taskType: "profile_creation",
 			});
-
-			return newUser;
 		});
 
 		return {
