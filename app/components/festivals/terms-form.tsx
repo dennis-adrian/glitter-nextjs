@@ -70,6 +70,11 @@ export default function TermsForm({
 		}
 	}
 
+	const submitButtonLabel =
+		profile.category === "gastronomy"
+			? "Postularme al festival"
+			: "Inscribirme al festival";
+
 	return (
 		<Form {...form}>
 			<form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -112,10 +117,8 @@ export default function TermsForm({
 								<Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
 								Cargando
 							</>
-						) : profile.category === "gastronomy" ? (
-							<span>Postularme al festival</span>
 						) : (
-							<span>Inscribirme al festival</span>
+							<span>{submitButtonLabel}</span>
 						)}
 					</Button>
 					<Button variant="outline" className="flex-1" asChild>
