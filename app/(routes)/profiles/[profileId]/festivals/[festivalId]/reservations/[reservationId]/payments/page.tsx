@@ -71,7 +71,10 @@ export default async function Page(props: {
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 								<div className="flex flex-col gap-6">
 									<ProductDetails festival={festival} invoice={invoice} />
-									<PaymentSummary invoice={invoice} />
+									<PaymentSummary
+									invoice={invoice}
+									festivalId={validatedParams.data.festivalId}
+								/>
 								</div>
 
 								<QRCodeDetails invoice={invoice} />
