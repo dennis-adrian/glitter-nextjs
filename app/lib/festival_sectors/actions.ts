@@ -81,8 +81,20 @@ export async function updateSectorMapBounds(
 	sectorId: number,
 	bounds: { minX: number; minY: number; width: number; height: number },
 ): Promise<{ success: boolean; message: string }> {
+	if (
+		!Number.isFinite(bounds.minX) ||
+		!Number.isFinite(bounds.minY) ||
+		!Number.isFinite(bounds.width) ||
+		!Number.isFinite(bounds.height)
+	) {
+		return {
+			success: false,
+			message: "Dimensiones del mapa inválidas",
+		};
+	}
+
 	try {
-		await db
+		const updated = await db
 			.update(festivalSectors)
 			.set({
 				mapOriginX: bounds.minX,
@@ -91,7 +103,15 @@ export async function updateSectorMapBounds(
 				mapHeight: bounds.height,
 				updatedAt: new Date(),
 			})
-			.where(eq(festivalSectors.id, sectorId));
+			.where(eq(festivalSectors.id, sectorId))
+			.returning({ id: festivalSectors.id });
+
+		if (updated.length === 0) {
+			return {
+				success: false,
+				message: "No se pudo actualizar las dimensiones del mapa",
+			};
+		}
 
 		revalidatePath("/dashboard/festivals");
 		revalidatePath("/", "layout");

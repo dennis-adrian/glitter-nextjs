@@ -384,6 +384,21 @@ export async function createUserEnrollment(params: {
 	} = params;
 
 	try {
+		const existing = await db.query.userRequests.findFirst({
+			where: and(
+				eq(userRequests.userId, profileId),
+				eq(userRequests.festivalId, festivalId),
+				eq(userRequests.type, "festival_participation"),
+			),
+		});
+
+		if (existing) {
+			return {
+				success: true,
+				message: "Ya tenés una solicitud de participación.",
+			};
+		}
+
 		await db.insert(userRequests).values({
 			userId: profileId,
 			festivalId: festivalId,

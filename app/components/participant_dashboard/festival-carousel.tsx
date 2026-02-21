@@ -31,9 +31,16 @@ function getCtaProps(
 	enrollment: UserRequestBase | null | undefined,
 ) {
 	const isActiveFestival = festival.status === "active";
-	const participation = isActiveFestival ? activeParticipation : null;
+	const participation =
+		isActiveFestival &&
+		activeParticipation?.reservation?.festival?.id === festival.id
+			? activeParticipation
+			: null;
 
-	if (!enrollment) {
+	const enrollmentForFestival =
+		enrollment?.festivalId === festival.id ? enrollment : null;
+
+	if (!enrollmentForFestival) {
 		return {
 			text: "Participar",
 			href: `/profiles/${profileId}/festivals/${festival.id}/terms`,

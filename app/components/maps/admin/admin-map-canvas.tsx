@@ -78,8 +78,11 @@ export type AdminMapCanvasHandle = {
 
 function computeBoundsFromPositions(
 	positions: Map<number, { left: number; top: number }>,
+	elementPositions?: Map<number, { left: number; top: number }>,
+	elementSizes?: Map<number, { width: number; height: number }>,
 ) {
-	if (positions.size === 0) {
+	const hasElements = elementPositions && elementPositions.size > 0;
+	if (positions.size === 0 && !hasElements) {
 		return { minX: 0, minY: 0, width: 50, height: 50 };
 	}
 
@@ -93,6 +96,17 @@ function computeBoundsFromPositions(
 		minTop = Math.min(minTop, top);
 		maxRight = Math.max(maxRight, left + STAND_SIZE);
 		maxBottom = Math.max(maxBottom, top + STAND_SIZE);
+	}
+
+	if (elementPositions && elementSizes) {
+		for (const [id, { left, top }] of elementPositions.entries()) {
+			const size = elementSizes.get(id);
+			if (!size) continue;
+			minLeft = Math.min(minLeft, left);
+			minTop = Math.min(minTop, top);
+			maxRight = Math.max(maxRight, left + size.width);
+			maxBottom = Math.max(maxBottom, top + size.height);
+		}
 	}
 
 	const padding = 4;
@@ -270,7 +284,9 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 		const onBoundsChangeRef = useRef(onBoundsChange);
 		const [activeGuides, setActiveGuides] = useState<GuideLine[]>([]);
 		const [mapBounds, setMapBounds] = useState<MapBounds>(
-			() => initialBounds ?? computeBoundsFromPositions(positions),
+			() =>
+				initialBounds ??
+				computeBoundsFromPositions(positions, elementPositions, elementSizes),
 		);
 		const [hoveredEdge, setHoveredEdge] = useState<Edge | "corner" | null>(
 			null,
@@ -287,11 +303,17 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
 			ref,
 			() => ({
 				resetBounds: (bounds: MapBounds | null) => {
-					const newBounds = bounds ?? computeBoundsFromPositions(positions);
+					const newBounds =
+						bounds ??
+						computeBoundsFromPositions(
+							positions,
+							elementPositions,
+							elementSizes,
+						);
 					setMapBounds(newBounds);
 				},
 			}),
-			[positions],
+			[positions, elementPositions, elementSizes],
 		);
 
 		// Keep ref updated (React 19 compliant - via effect, not during render)

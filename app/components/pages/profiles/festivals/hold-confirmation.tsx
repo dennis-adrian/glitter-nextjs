@@ -60,8 +60,13 @@ export default async function HoldConfirmationPage(
 
 	// Fetch sector for name + stands for thumbnail
 	const sector = await fetchSectorWithStandsAndReservations(props.sectorId);
+	if (!sector) {
+		redirect(
+			`/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new/sectors/${props.sectorId}`,
+		);
+	}
 
-	const sectorStands = (sector?.stands ?? []).map((s) => ({
+	const sectorStands = sector.stands.map((s) => ({
 		id: s.id,
 		status: s.status,
 		positionLeft: s.positionLeft,
@@ -81,7 +86,7 @@ export default async function HoldConfirmationPage(
 					width: sector.mapWidth,
 					height: sector.mapHeight,
 				}
-			: computeCanvasBounds(sector?.stands ?? []);
+			: computeCanvasBounds(sector.stands);
 
 	// Fetch potential partners for illustration/new_artist categories
 	let partnerOptions: {

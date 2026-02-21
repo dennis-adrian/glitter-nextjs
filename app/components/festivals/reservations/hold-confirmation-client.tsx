@@ -202,7 +202,7 @@ export default function HoldConfirmationClient({
 
 	// Auto-expire: when timer hits 0, cancel hold and redirect
 	useEffect(() => {
-		if (remainingSeconds === 0) {
+		if (remainingSeconds === 0 && !isSubmitting) {
 			if (remainingSeconds !== 0) return;
 
 			let cancelled = false;
@@ -226,6 +226,7 @@ export default function HoldConfirmationClient({
 		}
 	}, [
 		remainingSeconds,
+		isSubmitting,
 		hold.id,
 		profile.id,
 		festival.id,
