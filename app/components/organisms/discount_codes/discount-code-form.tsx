@@ -47,7 +47,12 @@ const FormSchema = z.object({
 	code: z.string().trim().min(1, "El código es requerido"),
 	discountUnit: z.enum(["percentage", "amount"]),
 	discountValue: z.coerce.number().positive("El valor debe ser mayor a 0"),
-	maxUses: z.coerce.number().int().positive().nullable().optional(),
+	maxUses: z
+		.preprocess(
+			(value) => (value === "" ? null : value),
+			z.coerce.number().int().positive().nullable(),
+		)
+		.optional(),
 	festivalId: z.coerce.number().int().positive().nullable().optional(),
 	userId: z.coerce.number().int().positive().nullable().optional(),
 	expiresAt: z.coerce.date({
