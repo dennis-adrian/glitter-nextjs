@@ -40,6 +40,10 @@ export const genderEnum = pgEnum("gender", [
 	"other",
 	"undisclosed",
 ]);
+export const participationTypeEnum = pgEnum("participation_type", [
+	"standard",
+	"live_activity",
+]);
 
 export const users = pgTable(
 	"users",
@@ -63,6 +67,9 @@ export const users = pgTable(
 		verifiedAt: timestamp("verified_at"),
 		shouldSubmitProducts: boolean("should_submit_products")
 			.default(false)
+			.notNull(),
+		participationType: participationTypeEnum("participation_type")
+			.default("standard")
 			.notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -385,6 +392,9 @@ export const stands = pgTable(
 		positionLeft: real("position_left"),
 		positionTop: real("position_top"),
 		price: real("price").notNull().default(0),
+		participationType: participationTypeEnum("participation_type")
+			.default("standard")
+			.notNull(),
 		festivalId: integer("festival_id"),
 		festivalSectorId: integer("festival_sector_id").references(
 			() => festivalSectors.id,
@@ -632,6 +642,8 @@ export const invoiceStatusEnum = pgEnum("invoice_status", [
 ]);
 export const invoices = pgTable("invoices", {
 	id: serial("id").primaryKey(),
+	originalAmount: real("original_amount").default(0).notNull(),
+	discountAmount: real("discount_amount").default(0).notNull(),
 	amount: real("amount").notNull(),
 	date: timestamp("date").notNull(),
 	status: invoiceStatusEnum("status").default("pending").notNull(),
@@ -641,6 +653,10 @@ export const invoices = pgTable("invoices", {
 	reservationId: integer("reservation_id")
 		.notNull()
 		.references(() => standReservations.id, { onDelete: "cascade" }),
+	discountCodeId: integer("discount_code_id").references(
+		() => discountCodes.id,
+		{ onDelete: "set null" },
+	),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -652,6 +668,10 @@ export const invoicesRelations = relations(invoices, ({ one, many }) => ({
 	reservation: one(standReservations, {
 		fields: [invoices.reservationId],
 		references: [standReservations.id],
+	}),
+	discountCode: one(discountCodes, {
+		fields: [invoices.discountCodeId],
+		references: [discountCodes.id],
 	}),
 	payments: many(payments),
 }));
@@ -1319,3 +1339,38 @@ export const mapTemplatesRelations = relations(mapTemplates, ({ one }) => ({
 		references: [festivals.id],
 	}),
 }));
+
+export const discountCodes = pgTable("discount_codes", {
+	id: serial("id").primaryKey(),
+	code: text("code").notNull().unique(),
+	discountUnit: discountUnitEnum("discount_unit")
+		.default("percentage")
+		.notNull(),
+	discountValue: real("discount_value").notNull(),
+	maxUses: integer("max_uses"),
+	currentUses: integer("current_uses").default(0).notNull(),
+	festivalId: integer("festival_id").references(() => festivals.id, {
+		onDelete: "set null",
+	}),
+	userId: integer("user_id").references(() => users.id, {
+		onDelete: "set null",
+	}),
+	expiresAt: timestamp("expires_at").notNull(),
+	isActive: boolean("is_active").default(true).notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const discountCodesRelations = relations(
+	discountCodes,
+	({ one, many }) => ({
+		festival: one(festivals, {
+			fields: [discountCodes.festivalId],
+			references: [festivals.id],
+		}),
+		user: one(users, {
+			fields: [discountCodes.userId],
+			references: [users.id],
+		}),
+		invoices: many(invoices),
+	}),
+);

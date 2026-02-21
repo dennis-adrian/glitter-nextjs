@@ -78,6 +78,7 @@ export type ProfileWithParticipationsAndRequests = typeof users.$inferSelect & {
 export type NewUserSocial = typeof userSocials.$inferInsert;
 export type NewProfileTask = typeof scheduledTasks.$inferInsert;
 export type UserCategory = BaseProfile["category"];
+export type ParticipationType = BaseProfile["participationType"];
 export type UsersAggregates = {
 	total: number;
 };

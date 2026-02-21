@@ -28,6 +28,7 @@ import {
 	StickerIcon,
 	StoreIcon,
 	TagsIcon,
+	TicketIcon,
 	UsersIcon,
 } from "lucide-react";
 import { NavbarProfile } from "@/app/api/users/definitions";
@@ -146,6 +147,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 								<MobileSidebarItem href="/dashboard/tags">
 									<TagsIcon className="mr-2 h-6 w-6" />
 									Etiquetas
+								</MobileSidebarItem>
+								<MobileSidebarItem href="/dashboard/discount_codes">
+									<TicketIcon className="mr-2 h-6 w-6" />
+									Códigos de descuento
 								</MobileSidebarItem>
 							</div>
 						</>
