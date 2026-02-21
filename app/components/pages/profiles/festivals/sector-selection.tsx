@@ -50,6 +50,7 @@ export default async function SectorSelectionPage(
 		festival.id,
 		forProfile.category,
 		subcategoryIds,
+		forProfile.participationType,
 	);
 
 	return (
@@ -60,6 +61,7 @@ export default async function SectorSelectionPage(
 			generalMapUrl={festival.generalMapUrl}
 			profileCategory={forProfile.category}
 			subcategoryIds={subcategoryIds}
+			participationType={forProfile.participationType}
 		/>
 	);
 }

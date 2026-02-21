@@ -40,6 +40,10 @@ export const genderEnum = pgEnum("gender", [
 	"other",
 	"undisclosed",
 ]);
+export const participationTypeEnum = pgEnum("participation_type", [
+	"standard",
+	"live_activity",
+]);
 
 export const users = pgTable(
 	"users",
@@ -63,6 +67,9 @@ export const users = pgTable(
 		verifiedAt: timestamp("verified_at"),
 		shouldSubmitProducts: boolean("should_submit_products")
 			.default(false)
+			.notNull(),
+		participationType: participationTypeEnum("participation_type")
+			.default("standard")
 			.notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -385,6 +392,9 @@ export const stands = pgTable(
 		positionLeft: real("position_left"),
 		positionTop: real("position_top"),
 		price: real("price").notNull().default(0),
+		participationType: participationTypeEnum("participation_type")
+			.default("standard")
+			.notNull(),
 		festivalId: integer("festival_id"),
 		festivalSectorId: integer("festival_sector_id").references(
 			() => festivalSectors.id,

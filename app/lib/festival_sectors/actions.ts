@@ -5,6 +5,7 @@ import { fetchAdminUsers } from "@/app/api/users/actions";
 import {
 	BaseProfile,
 	Participation,
+	ParticipationType,
 	UserCategory,
 } from "@/app/api/users/definitions";
 import {
@@ -134,13 +135,14 @@ export async function fetchFestivalSectorsByUserCategory(
 	festivalId: number,
 	category: UserCategory,
 	subcategoryIds: number[] = [],
+	participationType: ParticipationType = "standard",
 ): Promise<FestivalSectorWithStandsWithReservationsWithParticipants[]> {
 	try {
 		return await db.transaction(async (tx) => {
 			// A stand is visible if it has no subcategory restrictions, OR has a
 			// restriction that matches one of the user's subcategories.
 			const noRestrictions = notExists(
-				db
+				tx
 					.select()
 					.from(standSubcategories)
 					.where(eq(standSubcategories.standId, stands.id)),
@@ -150,7 +152,7 @@ export async function fetchFestivalSectorsByUserCategory(
 					? or(
 							noRestrictions,
 							exists(
-								db
+								tx
 									.select()
 									.from(standSubcategories)
 									.where(
@@ -174,6 +176,7 @@ export async function fetchFestivalSectorsByUserCategory(
 					and(
 						eq(festivals.id, festivalId),
 						eq(stands.standCategory, category),
+						eq(stands.participationType, participationType),
 						subcategoryFilter,
 					),
 				);

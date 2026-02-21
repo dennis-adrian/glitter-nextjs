@@ -1,6 +1,6 @@
 "use client";
 
-import { UserCategory } from "@/app/api/users/definitions";
+import { ParticipationType, UserCategory } from "@/app/api/users/definitions";
 import { Badge } from "@/app/components/ui/badge";
 import { Card } from "@/app/components/ui/card";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
@@ -13,6 +13,7 @@ type SectorCardProps = {
 	onSelect: () => void;
 	profileCategory: UserCategory;
 	subcategoryIds: number[];
+	participationType: ParticipationType;
 };
 
 export default function SectorCard({
@@ -21,10 +22,12 @@ export default function SectorCard({
 	onSelect,
 	profileCategory,
 	subcategoryIds,
+	participationType,
 }: SectorCardProps) {
 	const categoryStands = sector.stands.filter(
 		(s) =>
 			s.standCategory === profileCategory &&
+			s.participationType === participationType &&
 			(s.standSubcategories.length === 0 ||
 				s.standSubcategories.some((sc) =>
 					subcategoryIds.includes(sc.subcategoryId),

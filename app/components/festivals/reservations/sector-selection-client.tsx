@@ -1,6 +1,6 @@
 "use client";
 
-import { UserCategory } from "@/app/api/users/definitions";
+import { ParticipationType, UserCategory } from "@/app/api/users/definitions";
 import FestivalMapModal from "@/app/components/festivals/reservations/festival-map-modal";
 import SectorCard from "@/app/components/festivals/reservations/sector-card";
 import { Button } from "@/app/components/ui/button";
@@ -19,6 +19,7 @@ type SectorSelectionClientProps = {
 	generalMapUrl: FestivalBase["generalMapUrl"];
 	profileCategory: UserCategory;
 	subcategoryIds: number[];
+	participationType: ParticipationType;
 };
 
 export default function SectorSelectionClient({
@@ -28,6 +29,7 @@ export default function SectorSelectionClient({
 	generalMapUrl,
 	profileCategory,
 	subcategoryIds,
+	participationType,
 }: SectorSelectionClientProps) {
 	const router = useRouter();
 	const [selectedSectorId, setSelectedSectorId] = useState<number | null>(null);
@@ -35,6 +37,7 @@ export default function SectorSelectionClient({
 	const orderedSectors = [...sectors].sort((a, b) => {
 		const isVisible = (s: (typeof a.stands)[0]) =>
 			s.standCategory === profileCategory &&
+			s.participationType === participationType &&
 			s.status === "available" &&
 			(s.standSubcategories.length === 0 ||
 				s.standSubcategories.some((sc) =>
@@ -93,6 +96,7 @@ export default function SectorSelectionClient({
 									onSelect={() => setSelectedSectorId(sector.id)}
 									profileCategory={profileCategory}
 									subcategoryIds={subcategoryIds}
+									participationType={participationType}
 								/>
 							))}
 						</div>

@@ -56,6 +56,7 @@ export default async function SectorReservationPage(
 		festival.id,
 		forProfile.category,
 		subcategoryIds,
+		forProfile.participationType,
 	);
 
 	const sector = sectors.find((s) => s.id === props.sectorId);

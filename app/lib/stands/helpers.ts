@@ -15,6 +15,10 @@ export function canStandBeReserved(
 		return false;
 	}
 
+	if (stand.participationType !== profile.participationType) {
+		return false;
+	}
+
 	if (stand.standSubcategories.length > 0) {
 		return subcategoryIds.some((id) =>
 			stand.standSubcategories.some((sc) => sc.subcategoryId === id),

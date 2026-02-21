@@ -974,6 +974,13 @@
       "when": 1771691936190,
       "tag": "0138_striped_pandemic",
       "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1771698284787,
+      "tag": "0139_opposite_cardiac",
+      "breakpoints": true
     }
   ]
 }
