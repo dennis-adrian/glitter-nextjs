@@ -257,11 +257,13 @@ export async function confirmStandHold(
 				.limit(1);
 
 			// Create invoice
+			const standPrice = stand?.price ?? 0;
 			await tx.insert(invoices).values({
 				date: new Date(),
 				userId: userId,
 				reservationId: reservation.id,
-				amount: stand?.price ?? 0,
+				originalAmount: standPrice,
+				amount: standPrice,
 			});
 
 			// Create scheduled task
