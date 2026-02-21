@@ -29,7 +29,7 @@ const FormSchema = z.object({
 });
 
 export default function UserRequestForm({ request }: { request: UserRequest }) {
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       status: request.status,

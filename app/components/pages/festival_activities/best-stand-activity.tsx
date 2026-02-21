@@ -1,6 +1,6 @@
 import { BaseProfile } from "@/app/api/users/definitions";
 import DateSpan from "@/app/components/atoms/date-span";
-import Title from "@/app/components/atoms/title";
+import Heading from "@/app/components/atoms/heading";
 import EnrollBestStandForm from "@/app/components/festivals/festival_activities/enroll-best-stand-form";
 import { fetchFestivalParticipants } from "@/app/lib/festivals/actions";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
@@ -32,7 +32,7 @@ export default async function BestStandActivityPage({
 	return (
 		<div className="container p-3 md:p-6 flex flex-col gap-4 md:gap-5">
 			<section>
-				<Title level="h1">{activity.name}</Title>
+				<Heading level={1}>{activity.name}</Heading>
 				<p>{activity.description}</p>
 			</section>
 			{activity.promotionalArtUrl && (
@@ -55,7 +55,7 @@ export default async function BestStandActivityPage({
 				</section>
 			)}
 			<section>
-				<Title level="h3">¿En qué consiste la actividad?</Title>
+				<Heading level={3}>¿En qué consiste la actividad?</Heading>
 				<div className="flex flex-col gap-1 md:gap-2">
 					<p>
 						<em>Iconic Stand</em> es un reconocimiento especial para celebrar a
@@ -75,7 +75,7 @@ export default async function BestStandActivityPage({
 				</div>
 			</section>
 			<section>
-				<Title level="h3">¿Cómo participar?</Title>
+				<Heading level={3}>¿Cómo participar?</Heading>
 				<div className="flex flex-col gap-1 md:gap-2">
 					<p>
 						Si tenés una reserva confirmada para este festival, podrás
@@ -122,7 +122,7 @@ export default async function BestStandActivityPage({
 				</div>
 			</section>
 			<section>
-				<Title level="h3">¿Cómo funciona la votación?</Title>
+				<Heading level={3}>¿Cómo funciona la votación?</Heading>
 				<div className="flex flex-col gap-1 md:gap-2">
 					<p>
 						La votación se llevará a cabo a través de un sistema de votos
@@ -199,7 +199,7 @@ export default async function BestStandActivityPage({
 				)}
 			</section>
 			<section>
-				<Title level="h3">Resumen de condiciones para participar</Title>
+				<Heading level={3}>Resumen de condiciones para participar</Heading>
 				<ol className="ml-2 list-decimal list-inside space-y-2">
 					<li>Tener una reserva confirmada para este festival.</li>
 					<li>

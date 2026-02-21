@@ -13,8 +13,8 @@ export const birthdateValidator = ({
 		return z.coerce
 			.date()
 			.refine((date) => date < new Date(), {
-				message: "La fecha de nacimiento no puede ser en el futuro",
-			})
+                error: "La fecha de nacimiento no puede ser en el futuro"
+            })
 			.refine(
 				(date) => {
 					const ageLimit = formatDate(new Date()).minus({ years: minAge });
@@ -27,12 +27,12 @@ export const birthdateValidator = ({
 	}
 
 	return z.coerce.date().refine((date) => date < new Date(), {
-		message: "La fecha de nacimiento no puede ser en el futuro",
-	});
+        error: "La fecha de nacimiento no puede ser en el futuro"
+    });
 };
 
 export const phoneValidator = () => {
 	return z.string().refine((phone) => isPhoneValid(phone), {
-		message: "El número de teléfono no es válido",
-	});
+        error: "El número de teléfono no es válido"
+    });
 };

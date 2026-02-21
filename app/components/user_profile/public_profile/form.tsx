@@ -24,10 +24,12 @@ const FormSchema = z.object({
 	bio: z
 		.string()
 		.trim()
-		.min(10, { message: "Escribe una bio un poco más larga" }),
+		.min(10, {
+            error: "Escribe una bio un poco más larga"
+        }),
 	displayName: z.string().trim().min(2, {
-		message: "El nombre de artista tiene que tener al menos dos letras",
-	}),
+        error: "El nombre de artista tiene que tener al menos dos letras"
+    }),
 });
 
 export default function PublicProfileForm({
@@ -37,7 +39,7 @@ export default function PublicProfileForm({
 	profile: ProfileType;
 	onSuccess: () => void;
 }) {
-	const form = useForm<z.infer<typeof FormSchema>>({
+	const form = useForm({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
 			bio: profile.bio || "",

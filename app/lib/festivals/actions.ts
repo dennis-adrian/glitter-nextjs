@@ -21,8 +21,8 @@ import {
 	userRequests,
 	users,
 } from "@/db/schema";
-import { and, desc, eq, getTableColumns, inArray, not, SQL } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { and, desc, eq, getTableColumns, inArray, not, or } from "drizzle-orm";
+import { cacheLife, cacheTag, revalidatePath, updateTag } from "next/cache";
 import {
 	FestivalBase,
 	FestivalWithDates,
@@ -31,6 +31,7 @@ import {
 	FullFestival,
 } from "./definitions";
 import { groupVisitorEmails } from "./utils";
+import { UserRequest } from "@/app/api/user_requests/definitions";
 
 export async function createFestival(
 	festivalData: Omit<typeof festivals.$inferInsert, "id"> & {
@@ -118,6 +119,7 @@ export async function createFestival(
 		});
 
 		revalidatePath("/dashboard/festivals");
+		updateTag("active-festival");
 		return {
 			success: true,
 			message: "Festival creado exitosamente!",
@@ -144,6 +146,7 @@ export async function deleteFestival(festivalId: number) {
 		};
 	}
 	revalidatePath("/dashboard/festivals");
+	updateTag("active-festival");
 	return {
 		success: true,
 		message: "Festival eliminado correctamente!",
@@ -296,6 +299,7 @@ export async function updateFestival(
 		});
 
 		revalidatePath("/dashboard/festivals");
+		updateTag("active-festival");
 		return {
 			success: true,
 			message: "Festival updated successfully",
@@ -339,6 +343,26 @@ export async function fetchFestivalActivityForReview(
 	}
 }
 
+export async function fetchCarouselFestivals(): Promise<FestivalWithDates[]> {
+	"use cache";
+	cacheLife("minutes");
+	cacheTag("active-festival");
+
+	try {
+		return (await db.query.festivals.findMany({
+			where: or(
+				eq(festivals.status, "active"),
+				eq(festivals.status, "published"),
+			),
+			with: { festivalDates: true },
+			orderBy: desc(festivals.id),
+		})) as FestivalWithDates[];
+	} catch (error) {
+		console.error("Error fetching carousel festivals", error);
+		return [];
+	}
+}
+
 export async function fetchFestivalActivitiesByFestivalId(festivalId: number) {
 	try {
 		return await db.query.festivalActivities.findMany({
@@ -365,6 +389,26 @@ export async function fetchFestivalWithDatesAndSectors(
 		return festival as FestivalWithDatesAndSectors | null;
 	} catch (error) {
 		console.error("Error fetching festival with dates and sectors", error);
+		return null;
+	}
+}
+
+export async function fetchActiveFestivalWithDates(): Promise<FestivalWithDates | null> {
+	"use cache";
+	cacheLife("minutes");
+	cacheTag("active-festival");
+
+	try {
+		const festival = await db.query.festivals.findFirst({
+			where: eq(festivals.status, "active"),
+			with: {
+				festivalDates: true,
+			},
+		});
+
+		return festival as FestivalWithDates | null;
+	} catch (error) {
+		console.error("Error fetching active festival base", error);
 		return null;
 	}
 }
@@ -516,6 +560,7 @@ export async function updateFestivalStatusTemp(festival: FestivalBase) {
 	}
 
 	revalidatePath("/dashboard/festivals");
+	updateTag("active-festival");
 	return { success: true, message: "Festival actualizado con éxito" };
 }
 
@@ -613,16 +658,19 @@ export async function updateFestivalStatus(festival: FestivalBase) {
 	}
 
 	revalidatePath("/dashboard/festivals");
+	updateTag("active-festival");
 	return { success: true, message: "Festival actualizado con éxito" };
 }
 
-export async function updateFestivalRegistration(festival: FestivalBase) {
+export async function updateFestivalRegistration(
+	publicRegistrationValue: FestivalBase["publicRegistration"],
+	festivalId: FestivalBase["id"],
+) {
 	try {
-		const { publicRegistration } = festival;
 		const [updatedFestival] = await db
 			.update(festivals)
-			.set({ publicRegistration })
-			.where(eq(festivals.id, festival.id))
+			.set({ publicRegistration: publicRegistrationValue })
+			.where(eq(festivals.id, festivalId))
 			.returning({ festivalId: festivals.id });
 
 		const festivalWithDates = await fetchFestivalWithDates(
@@ -645,6 +693,7 @@ export async function updateFestivalRegistration(festival: FestivalBase) {
 	}
 
 	revalidatePath("/dashboard/festivals");
+	updateTag("active-festival");
 	return { success: true, message: "Festival actualizado con éxito" };
 }
 
@@ -654,7 +703,7 @@ export async function queueEmails<T>(
 	callback: (entity: T, festival: FestivalWithDates) => Promise<void>,
 ) {
 	let counter = 0;
-	for (let entity of entities) {
+	for (const entity of entities) {
 		if (counter % 10 === 0) {
 			await new Promise((resolve) => setTimeout(resolve, 1000));
 		}
@@ -805,6 +854,11 @@ export async function fetchFestivalParticipants(
 	}
 }
 
+/**
+ * Fetch all participants that have enrolled in a festival
+ * @param festivalId - The id of the festival
+ * @returns An array of profiles
+ */
 export async function fetchEnrolledParticipants(
 	festivalId: number,
 ): Promise<BaseProfile[]> {
@@ -852,3 +906,20 @@ export async function fetchEnrolledParticipants(
 	}
 }
 
+export async function fetchProfileEnrollmentInFestival(
+	profileId: number,
+	festivalId: number,
+) {
+	try {
+		return await db.query.userRequests.findFirst({
+			where: and(
+				eq(userRequests.userId, profileId),
+				eq(userRequests.festivalId, festivalId),
+				eq(userRequests.type, "festival_participation"),
+			),
+		});
+	} catch (error) {
+		console.error("Error fetching profile enrollment in festival", error);
+		return null;
+	}
+}

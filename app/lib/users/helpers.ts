@@ -2,6 +2,8 @@
 
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import {
+	cachedFetchBaseUserProfileByClerkId,
+	cachedFetchNavbarProfileByClerkId,
 	cachedFetchUserProfileByClerkId,
 	getCurrentClerkUser,
 } from "@/app/lib/users/actions";
@@ -17,10 +19,40 @@ export async function getCurrentUserProfile() {
 
 		// TODO: if the profile is not found, it should log out the user
 		return await cachedFetchUserProfileByClerkId(user.id);
-	} catch (error) {}
+	} catch (error) {
+		console.error(error);
+		return null;
+	}
 }
 
-export async function protectRoute(currentUser?: BaseProfile, profileId?: number) {
+export async function getCurrentBaseProfile() {
+	try {
+		const user = await getCurrentClerkUser();
+		if (!user) return null;
+
+		return await cachedFetchBaseUserProfileByClerkId(user.id);
+	} catch (error) {
+		console.error(error);
+		return null;
+	}
+}
+
+export async function getCurrentNavbarProfile() {
+	try {
+		const user = await getCurrentClerkUser();
+		if (!user) return null;
+
+		return await cachedFetchNavbarProfileByClerkId(user.id);
+	} catch (error) {
+		console.error(error);
+		return null;
+	}
+}
+
+export async function protectRoute(
+	currentUser?: BaseProfile,
+	profileId?: number,
+) {
 	if (!(currentUser && profileId)) redirect("/");
 
 	const canAccessResource =

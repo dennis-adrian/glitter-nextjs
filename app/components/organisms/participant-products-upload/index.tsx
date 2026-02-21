@@ -19,7 +19,9 @@ const ALLOWED_IMAGE_TYPES = [
 const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
 
 export const UploadProductFormSchema = z.object({
-	name: z.string().min(1, { message: "El nombre es requerido" }),
+	name: z.string().min(1, {
+        error: "El nombre es requerido"
+    }),
 	description: z.string().optional(),
 });
 
@@ -35,7 +37,7 @@ export function ParticipantProductsUpload({
 	const [showProductModal, setShowProductModal] = useState(false);
 	const [currentImage, setCurrentImage] = useState<File | null>(null);
 	const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
-	const form = useForm<z.infer<typeof UploadProductFormSchema>>({
+	const form = useForm({
 		resolver: zodResolver(UploadProductFormSchema),
 		defaultValues: {
 			name: "",

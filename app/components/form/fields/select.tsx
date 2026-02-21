@@ -1,22 +1,26 @@
 import {
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
+	FormControl,
+	FormField,
+	FormItem,
+	FormLabel,
+	FormMessage,
 } from "@/app/components/ui/form";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  SelectVariants,
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+	SelectVariants,
 } from "@/app/components/ui/select";
 import { cn } from "@/app/lib/utils";
-import { UseFormReturn } from "react-hook-form";
+import { Control, FieldValues, Path } from "react-hook-form";
 
-export default function SelectInput({
+export default function SelectInput<
+	T extends FieldValues,
+	TContext = unknown,
+	TTransformedValues extends FieldValues | undefined = undefined,
+>({
 	className,
 	formControl,
 	label,
@@ -27,16 +31,16 @@ export default function SelectInput({
 	side,
 }: {
 	className?: string;
-	formControl: UseFormReturn<any>["control"];
+	formControl: Control<T, TContext, TTransformedValues>;
 	label?: string;
-	name: string;
+	name: Path<T>;
 	options: { value: string; label: string | React.ReactNode }[];
 	placeholder?: string;
 	side?: "top" | "bottom" | "left" | "right";
 } & SelectVariants) {
 	return (
 		<FormField
-			control={formControl}
+			control={formControl as unknown as Control<T>}
 			name={name}
 			render={({ field }) => (
 				<FormItem className={cn("grid gap-2", className)}>

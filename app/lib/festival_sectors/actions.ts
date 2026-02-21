@@ -1,7 +1,7 @@
 "use server";
 
 import { StandBase } from "@/app/api/stands/definitions";
-import { fetchAdminUsers, fetchBaseProfileById } from "@/app/api/users/actions";
+import { fetchAdminUsers } from "@/app/api/users/actions";
 import {
 	BaseProfile,
 	Participation,
@@ -13,7 +13,6 @@ import {
 } from "@/app/lib/festivals/definitions";
 import FestivalActivityRegistrationEmail from "@/app/emails/festival-activity-registration";
 import {
-	FestivalSectorBase,
 	FestivalSectorWithStands,
 	FestivalSectorWithStandsWithReservationsWithParticipants,
 } from "@/app/lib/festival_sectors/definitions";
@@ -67,6 +66,7 @@ export async function fetchFestivalSectors(
 						},
 					},
 				},
+				mapElements: true,
 			},
 			orderBy: festivalSectors.orderInFestival,
 			where: eq(festivalSectors.festivalId, festivalId),
@@ -74,6 +74,55 @@ export async function fetchFestivalSectors(
 	} catch (error) {
 		console.error("Error fetching festival sectors", error);
 		return [];
+	}
+}
+
+export async function updateSectorMapBounds(
+	sectorId: number,
+	bounds: { minX: number; minY: number; width: number; height: number },
+): Promise<{ success: boolean; message: string }> {
+	if (
+		!Number.isFinite(bounds.minX) ||
+		!Number.isFinite(bounds.minY) ||
+		!Number.isFinite(bounds.width) ||
+		!Number.isFinite(bounds.height)
+	) {
+		return {
+			success: false,
+			message: "Dimensiones del mapa inválidas",
+		};
+	}
+
+	try {
+		const updated = await db
+			.update(festivalSectors)
+			.set({
+				mapOriginX: bounds.minX,
+				mapOriginY: bounds.minY,
+				mapWidth: bounds.width,
+				mapHeight: bounds.height,
+				updatedAt: new Date(),
+			})
+			.where(eq(festivalSectors.id, sectorId))
+			.returning({ id: festivalSectors.id });
+
+		if (updated.length === 0) {
+			return {
+				success: false,
+				message: "No se pudo actualizar las dimensiones del mapa",
+			};
+		}
+
+		revalidatePath("/dashboard/festivals");
+		revalidatePath("/", "layout");
+
+		return { success: true, message: "Dimensiones del mapa actualizadas" };
+	} catch (error) {
+		console.error("Error updating sector map bounds", error);
+		return {
+			success: false,
+			message: "Error al actualizar las dimensiones del mapa",
+		};
 	}
 }
 
@@ -117,6 +166,7 @@ export async function fetchFestivalSectorsByUserCategory(
 							},
 						},
 					},
+					mapElements: true,
 				},
 			});
 		});
@@ -558,6 +608,26 @@ export async function deleteFestivalActivityParticipantProof(
 
 	revalidatePath(`/profiles/${forProfileId}/festivals/${festivalId}/activity`);
 	return { success: true, message: "Diseño eliminado correctamente" };
+}
+
+export async function fetchSectorWithStandsAndReservations(sectorId: number) {
+	try {
+		return await db.query.festivalSectors.findFirst({
+			where: eq(festivalSectors.id, sectorId),
+			with: {
+				stands: {
+					with: {
+						reservations: {
+							with: { participants: { with: { user: true } } },
+						},
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error("Error fetching sector with stands and reservations", error);
+		return null;
+	}
 }
 
 export async function fetchFestivalSectorsWithAllowedCategories(

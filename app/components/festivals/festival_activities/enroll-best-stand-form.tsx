@@ -52,8 +52,8 @@ import { z } from "zod";
 
 const FormSchema = z.object({
 	consent: z.boolean().refine((val) => val === true, {
-		message: "Confirma que leíste y aceptaste las condiciones de la actividad.",
-	}),
+        error: "Confirma que leíste y aceptaste las condiciones de la actividad."
+    }),
 });
 
 type EnrollBestStandFormProps = {
@@ -70,7 +70,7 @@ export default function EnrollBestStandForm({
 	activityVariantForProfile,
 }: EnrollBestStandFormProps) {
 	const router = useRouter();
-	const form = useForm<z.infer<typeof FormSchema>>({
+	const form = useForm({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
 			consent: false,

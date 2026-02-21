@@ -1,70 +1,115 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { BaseProfile, ProfileType } from "@/app/api/users/definitions";
-import MapImage from "@/app/components/festivals/map-image";
-import { ReservationModal } from "@/app/components/next_event/reservation/modal";
-import { profileHasReservation } from "@/app/helpers/next_event";
+import { ProfileType } from "@/app/api/users/definitions";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
+import { MapElementBase } from "@/app/lib/map_elements/definitions";
+import UserMap from "@/app/components/maps/user/user-map";
+import { StandInfoCard } from "@/app/components/festivals/reservations/stand-info-card";
+import { useStandPolling } from "@/app/hooks/use-stand-polling";
+import { getActiveHold } from "@/app/lib/stands/hold-actions";
+
+type ActiveHold = { id: number; standId: number } | null;
 
 export default function ClientMap({
-  artists,
-  festival,
-  imageSrc,
-  profile,
-  stands,
+	festival,
+	profile,
+	sectorId,
+	sectorName,
+	stands: initialStands,
+	mapElements,
+	mapBounds,
+	activeHold: initialActiveHold,
 }: {
-  artists: BaseProfile[];
-  imageSrc?: string | null;
-  festival: FestivalBase;
-  profile: ProfileType | null;
-  stands: StandWithReservationsWithParticipants[];
+	festival: FestivalBase;
+	profile: ProfileType | null;
+	sectorId?: number;
+	sectorName?: string;
+	stands: StandWithReservationsWithParticipants[];
+	mapElements?: MapElementBase[];
+	mapBounds?: { minX: number; minY: number; width: number; height: number };
+	activeHold?: ActiveHold;
 }) {
-  const [openModal, setOpenModal] = useState(false);
-  const [selectedStand, setSelectedStand] =
-    useState<StandWithReservationsWithParticipants | null>(null);
+	const [stands, setStands] = useState(initialStands);
+	const [selectedStandId, setSelectedStandId] = useState<number | null>(null);
+	const selectedStand =
+		selectedStandId != null
+			? (stands.find((s) => s.id === selectedStandId) ?? null)
+			: null;
+	const [activeHold, setActiveHold] = useState<ActiveHold>(
+		initialActiveHold ?? null,
+	);
 
-  if (!imageSrc) return null;
+	const handleHoldChange = useCallback((hold: ActiveHold) => {
+		setActiveHold(hold);
+	}, []);
 
-  function handleStandClick(stand: StandWithReservationsWithParticipants) {
-    if (!profile) return;
+	// Fetch latest active hold on mount to handle stale server cache
+	useEffect(() => {
+		if (!profile) return;
+		let cancelled = false;
+		getActiveHold(profile.id, festival.id)
+			.then((hold) => {
+				if (!cancelled) setActiveHold(hold);
+			})
+			.catch((error) => {
+				console.error("Error fetching active hold", error);
+			});
 
-    if (profile.role !== "admin") {
-      const inFestival = isProfileInFestival(festival.id, profile);
-      if (!inFestival || profile.category !== stand.standCategory) return;
-      if (profileHasReservation(profile, festival.id)) return;
-    }
+		return () => {
+			cancelled = true;
+		};
+	}, [profile, festival.id]);
 
-    setSelectedStand(stand);
-    setOpenModal(true);
-  }
+	// Poll for stand status changes every 4 seconds
+	useStandPolling(sectorId ?? null, 4000, (polledStands) => {
+		setStands((prev) => {
+			let changed = false;
+			const updated = prev.map((s) => {
+				const polled = polledStands.find((p) => p.id === s.id);
+				if (polled && polled.status !== s.status) {
+					changed = true;
+					return {
+						...s,
+						status:
+							polled.status as StandWithReservationsWithParticipants["status"],
+					};
+				}
+				return s;
+			});
+			return changed ? updated : prev;
+		});
+	});
 
-  function handleModalClose() {
-    setSelectedStand(null);
-    setOpenModal(false);
-  }
+	function handleStandSelect(stand: StandWithReservationsWithParticipants) {
+		setSelectedStandId(stand.id);
+	}
 
-  return (
-    <>
-      <MapImage
-        mapSrc={imageSrc}
-        stands={stands}
-        forReservation
-        profile={profile}
-        onStandClick={handleStandClick}
-      />
-      <ReservationModal
-        artists={artists}
-        profile={profile}
-        open={openModal}
-        stand={selectedStand}
-        festival={festival}
-        onOpenChange={setOpenModal}
-        onClose={handleModalClose}
-      />
-    </>
-  );
+	return (
+		<>
+			<UserMap
+				stands={stands}
+				mapElements={mapElements}
+				mapBounds={mapBounds}
+				profile={profile}
+				selectedStandId={selectedStandId}
+				onStandClick={handleStandSelect}
+				onStandTouchTap={handleStandSelect}
+			/>
+			{selectedStand != null && profile != null && sectorName != null && (
+				<StandInfoCard
+					key={selectedStand.id}
+					stand={selectedStand}
+					sectorName={sectorName}
+					profile={profile}
+					festival={festival}
+					activeHold={activeHold}
+					onHoldChange={handleHoldChange}
+					onClose={() => setSelectedStandId(null)}
+				/>
+			)}
+		</>
+	);
 }

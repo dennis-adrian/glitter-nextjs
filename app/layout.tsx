@@ -1,5 +1,6 @@
 import { Analytics } from "@vercel/analytics/react";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { esES } from "@clerk/localizations";
 import { ClerkProvider } from "@clerk/nextjs";
@@ -7,7 +8,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { EdgeStoreProvider } from "@/app/lib/edgestore";
 
 import { Toaster } from "@/components/ui/sonner";
-import { inter, isidora } from "@/ui/fonts";
+import { inter, spaceGrotesk } from "@/ui/fonts";
 
 import Navbar from "@/app/components/navbar/navbar";
 import Footer from "@/app/components/footer";
@@ -37,20 +38,26 @@ export default function RootLayout({
 	children: React.ReactNode;
 }) {
 	return (
-		<ClerkProvider localization={esES}>
-			<html lang="es">
-				<body className={`${inter.variable} ${isidora.variable} font-sans`}>
-					<EdgeStoreProvider>
-						<Navbar />
-						<main className="min-h-[calc(100vh-64px-180px)] md:min-h-[calc(100vh-80px-290px)]">
-							{children}
-						</main>
-						<Footer />
-						<Toaster richColors />
-						<Analytics />
-					</EdgeStoreProvider>
-				</body>
-			</html>
-		</ClerkProvider>
+		<html lang="es">
+			<body className={`${inter.variable} ${spaceGrotesk.variable} font-sans`}>
+				<Suspense fallback={<div className="min-h-screen" />}>
+					<ClerkProvider localization={esES}>
+						<EdgeStoreProvider>
+							<Suspense fallback={<div className="h-16 md:h-20" />}>
+								<Navbar />
+							</Suspense>
+							<main className="min-h-[calc(100vh-64px-180px)] md:min-h-[calc(100vh-80px-290px)]">
+								{children}
+							</main>
+							<Suspense fallback={<div className="h-[180px] md:h-[290px]" />}>
+								<Footer />
+							</Suspense>
+							<Toaster richColors />
+							<Analytics />
+						</EdgeStoreProvider>
+					</ClerkProvider>
+				</Suspense>
+			</body>
+		</html>
 	);
 }

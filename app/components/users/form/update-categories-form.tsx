@@ -15,8 +15,8 @@ import { z } from "zod";
 
 const FormSchema = z.object({
   mainCategory: z.string({
-    required_error: "La categoría principal es requerida",
-  }),
+      error: (issue) => issue.input === undefined ? "La categoría principal es requerida" : undefined
+}),
   subcategories: z.array(z.string()).optional(),
 });
 
@@ -27,7 +27,7 @@ type UpdateCategoriesFormProps = {
 
 export default function UpdateCategoriesForm(props: UpdateCategoriesFormProps) {
   const router = useRouter();
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       subcategories: [],

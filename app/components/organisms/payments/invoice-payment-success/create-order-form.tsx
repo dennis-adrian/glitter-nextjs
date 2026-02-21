@@ -24,12 +24,11 @@ import { z } from "zod";
 const FormSchema = z.object({
 	quantity: z
 		.number({
-			required_error: "La cantidad es requerida",
-			invalid_type_error: "La cantidad debe ser un número",
-		})
+            error: (issue) => issue.input === undefined ? "La cantidad es requerida" : "La cantidad debe ser un número"
+        })
 		.min(1, {
-			message: "La cantidad debe ser mayor que 0",
-		}),
+            error: "La cantidad debe ser mayor que 0"
+        }),
 });
 
 type CreateOrderFormProps = {
@@ -40,7 +39,7 @@ export default function CreateOrderForm(props: CreateOrderFormProps) {
 	const { product, profile } = props;
 	const [subtotal, setSubtotal] = useState(product.price);
 	const router = useRouter();
-	const form = useForm<z.infer<typeof FormSchema>>({
+	const form = useForm({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
 			quantity: 1,

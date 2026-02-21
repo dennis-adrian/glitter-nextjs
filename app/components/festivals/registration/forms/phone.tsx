@@ -16,7 +16,7 @@ type PhoneFormProps = {
 };
 
 export default function PhoneForm(props: PhoneFormProps) {
-	const form = useForm<z.infer<typeof FormSchema>>({
+	const form = useForm({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
 			phoneNumber: "",

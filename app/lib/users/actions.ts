@@ -3,6 +3,7 @@
 import { fetchAdminUsers, fetchUserProfileById } from "@/app/api/users/actions";
 import {
 	BaseProfile,
+	NavbarProfile,
 	NewUser,
 	Participation,
 	ProfileType,
@@ -47,7 +48,11 @@ export const fetchUserProfileByClerkId = async (
 						reservation: {
 							with: {
 								stand: true,
-								festival: true,
+								festival: {
+									with: {
+										festivalDates: true,
+									},
+								},
 							},
 						},
 					},
@@ -74,6 +79,61 @@ export const fetchUserProfileByClerkId = async (
 };
 
 export const cachedFetchUserProfileByClerkId = cache(fetchUserProfileByClerkId);
+
+export const fetchBaseUserProfileByClerkId = async (
+	clerkId: string,
+): Promise<BaseProfile | null> => {
+	try {
+		const profile = await db.query.users.findFirst({
+			where: eq(users.clerkId, clerkId),
+		});
+
+		return profile || null;
+	} catch (error) {
+		console.error(error);
+		return null;
+	}
+};
+
+export const cachedFetchBaseUserProfileByClerkId = cache(
+	fetchBaseUserProfileByClerkId,
+);
+
+export const fetchNavbarProfileByClerkId = async (
+	clerkId: string,
+): Promise<NavbarProfile | null> => {
+	try {
+		const profile = await db.query.users.findFirst({
+			with: {
+				participations: {
+					with: {
+						reservation: {
+							with: {
+								stand: true,
+								festival: true,
+							},
+						},
+					},
+				},
+				profileSubcategories: {
+					with: {
+						subcategory: true,
+					},
+				},
+			},
+			where: eq(users.clerkId, clerkId),
+		});
+
+		return profile || null;
+	} catch (error) {
+		console.error(error);
+		return null;
+	}
+};
+
+export const cachedFetchNavbarProfileByClerkId = cache(
+	fetchNavbarProfileByClerkId,
+);
 
 export async function createUserProfile(user: NewUser) {
 	try {
@@ -292,7 +352,7 @@ export async function updateProfilePicture(
 			.where(eq(users.id, profile.id));
 
 		if (oldImageUrl && oldImageUrl.includes("utfs")) {
-			const [_, key] = oldImageUrl.split("/f/");
+			const [, key] = oldImageUrl.split("/f/");
 			await utapi.deleteFiles(key);
 		}
 	} catch (error) {

@@ -1,4 +1,4 @@
-import Title from "@/app/components/atoms/title";
+import Title from "@/app/components/atoms/heading";
 import UserParticipationCard from "@/app/components/molecules/user-participation-card";
 import {
 	Breadcrumb,
@@ -57,7 +57,7 @@ export default async function ParticipationsPage(
 			</Breadcrumb>
 			{!!participations.length ? (
 				<>
-					<Title level="h1">Participaciones</Title>
+					<Title>Participaciones</Title>
 
 					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
 						{participations.map((participation) => (

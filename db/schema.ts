@@ -3,6 +3,7 @@ import {
 	boolean,
 	index,
 	integer,
+	jsonb,
 	pgEnum,
 	pgTable,
 	real,
@@ -80,6 +81,7 @@ export const usersRelations = relations(users, ({ many }) => ({
 	infractions: many(infractions),
 	participantProducts: many(participantProducts),
 	festivalActivityVotes: many(festivalActivityVotes),
+	standHolds: many(standHolds),
 }));
 
 export const tags = pgTable("tags", {
@@ -203,6 +205,9 @@ export const festivals = pgTable(
 		entrepreneurshipStandUrl: text("entrepreneurship_stand_url"),
 		festivalCode: text("festival_code"),
 		festivalBannerUrl: text("festival_banner_url"),
+		termsAndConditionsUrl: text("terms_and_conditions_url"),
+		thumbnailUrl: text("thumbnail_url"),
+		posterUrl: text("poster_url"),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
@@ -232,6 +237,10 @@ export const festivalSectors = pgTable(
 			.references(() => festivals.id, { onDelete: "cascade" }),
 		orderInFestival: smallint("order_in_festival").notNull().default(1),
 		mascotUrl: text("mascot_url"),
+		mapOriginX: real("map_origin_x"),
+		mapOriginY: real("map_origin_y"),
+		mapWidth: real("map_width"),
+		mapHeight: real("map_height"),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
@@ -249,6 +258,7 @@ export const festivalSectorsRelations = relations(
 			references: [festivals.id],
 		}),
 		stands: many(stands),
+		mapElements: many(mapElements),
 	}),
 );
 
@@ -345,6 +355,7 @@ export const userSocialsRelations = relations(userSocials, ({ one }) => ({
 
 export const standStatusEnum = pgEnum("stand_status", [
 	"available",
+	"held",
 	"reserved",
 	"confirmed",
 	"disabled",
@@ -398,6 +409,47 @@ export const standRelations = relations(stands, ({ many, one }) => ({
 		references: [qrCodes.id],
 	}),
 	festivalActivityVotes: many(festivalActivityVotes),
+	holds: many(standHolds),
+}));
+
+export const standHolds = pgTable(
+	"stand_holds",
+	{
+		id: serial("id").primaryKey(),
+		standId: integer("stand_id")
+			.notNull()
+			.references(() => stands.id, { onDelete: "cascade" }),
+		userId: integer("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		festivalId: integer("festival_id")
+			.notNull()
+			.references(() => festivals.id, { onDelete: "cascade" }),
+		expiresAt: timestamp("expires_at").notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(standHolds) => [
+		index("stand_holds_stand_idx").on(standHolds.standId),
+		index("stand_holds_user_festival_idx").on(
+			standHolds.userId,
+			standHolds.festivalId,
+		),
+	],
+);
+export const standHoldsRelations = relations(standHolds, ({ one }) => ({
+	stand: one(stands, {
+		fields: [standHolds.standId],
+		references: [stands.id],
+	}),
+	user: one(users, {
+		fields: [standHolds.userId],
+		references: [users.id],
+	}),
+	festival: one(festivals, {
+		fields: [standHolds.festivalId],
+		references: [festivals.id],
+	}),
 }));
 
 export const standReservations = pgTable("stand_reservations", {
@@ -1164,5 +1216,80 @@ export const productImagesRelations = relations(productImages, ({ one }) => ({
 	product: one(products, {
 		fields: [productImages.productId],
 		references: [products.id],
+	}),
+}));
+
+// Map Elements - signaling elements on festival maps (entrances, stages, etc.)
+export const mapElementTypeEnum = pgEnum("map_element_type", [
+	"entrance",
+	"stage",
+	"door",
+	"bathroom",
+	"label",
+	"custom",
+	"stairs",
+]);
+export const mapElementLabelPositionEnum = pgEnum(
+	"map_element_label_position",
+	["left", "right", "top", "bottom"],
+);
+export const mapElements = pgTable(
+	"map_elements",
+	{
+		id: serial("id").primaryKey(),
+		type: mapElementTypeEnum("type").notNull(),
+		label: text("label"),
+		labelPosition: mapElementLabelPositionEnum("label_position")
+			.notNull()
+			.default("bottom"),
+		labelFontSize: real("label_font_size").notNull().default(2),
+		labelFontWeight: real("label_font_weight").notNull().default(500),
+		showIcon: boolean("show_icon").notNull().default(true),
+		positionLeft: real("position_left").notNull().default(0),
+		positionTop: real("position_top").notNull().default(0),
+		width: real("width").notNull().default(8),
+		height: real("height").notNull().default(8),
+		rotation: real("rotation").notNull().default(0),
+		festivalSectorId: integer("festival_sector_id")
+			.notNull()
+			.references(() => festivalSectors.id, { onDelete: "cascade" }),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(mapElements) => [
+		index("map_elements_sector_idx").on(mapElements.festivalSectorId),
+	],
+);
+export const mapElementsRelations = relations(mapElements, ({ one }) => ({
+	festivalSector: one(festivalSectors, {
+		fields: [mapElements.festivalSectorId],
+		references: [festivalSectors.id],
+	}),
+}));
+
+// Map Templates - for reusable festival map layouts
+export const mapTemplates = pgTable("map_templates", {
+	id: serial("id").primaryKey(),
+	name: text("name").notNull(),
+	description: text("description"),
+	templateData: jsonb("template_data").notNull(),
+	createdByUserId: integer("created_by_user_id").references(() => users.id, {
+		onDelete: "set null",
+	}),
+	createdFromFestivalId: integer("created_from_festival_id").references(
+		() => festivals.id,
+		{ onDelete: "set null" },
+	),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const mapTemplatesRelations = relations(mapTemplates, ({ one }) => ({
+	createdBy: one(users, {
+		fields: [mapTemplates.createdByUserId],
+		references: [users.id],
+	}),
+	createdFromFestival: one(festivals, {
+		fields: [mapTemplates.createdFromFestivalId],
+		references: [festivals.id],
 	}),
 }));

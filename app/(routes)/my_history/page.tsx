@@ -1,10 +1,11 @@
-import Title from "@/app/components/atoms/title";
+import Title from "@/app/components/atoms/heading";
 import ParticipationsHistory from "@/app/components/organisms/participations-history";
-import { getActiveFestival } from "@/app/lib/festivals/helpers";
+import { getActiveFestivalBase } from "@/app/lib/festivals/helpers";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound } from "next/navigation";
 
 export default async function MyHistoryPage() {
+	const activeFestivalPromise = getActiveFestivalBase();
 	const currentProfile = await getCurrentUserProfile();
 	await protectRoute(currentProfile || undefined, currentProfile?.id);
 
@@ -12,7 +13,7 @@ export default async function MyHistoryPage() {
 		notFound();
 	}
 
-	const activeFestival = await getActiveFestival();
+	const activeFestival = await activeFestivalPromise;
 
 	return (
 		<div className="container p-3 md:p-6">

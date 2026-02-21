@@ -30,7 +30,7 @@ export const SearchParamsSchema = z.object({
       if (typeof value === "string") return [value];
       return value;
     }),
-  query: z.string().trim().default(""),
+  query: z.string().trim().prefault(""),
   sort: z
     .enum([
       "displayName",
@@ -40,9 +40,9 @@ export const SearchParamsSchema = z.object({
       "updatedAt",
       "createdAt",
     ])
-    .default("updatedAt"),
-  direction: z.enum(["asc", "desc"]).default("desc"),
-  profileCompletion: z.enum(["complete", "incomplete", "all"]).default("all"),
+    .prefault("updatedAt"),
+  direction: z.enum(["asc", "desc"]).prefault("desc"),
+  profileCompletion: z.enum(["complete", "incomplete", "all"]).prefault("all"),
 });
 
 export type SearchParamsSchemaType = z.infer<typeof SearchParamsSchema>;

@@ -22,7 +22,7 @@ export function RejectReservationForm({
   reservation: ReservationWithParticipantsAndUsersAndStandAndFestival;
   onSuccess: () => void;
 }) {
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       reason: "",

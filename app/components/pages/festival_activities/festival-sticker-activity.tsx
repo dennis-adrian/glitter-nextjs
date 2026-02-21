@@ -1,6 +1,6 @@
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import DateSpan from "@/app/components/atoms/date-span";
-import Title from "@/app/components/atoms/title";
+import Heading from "@/app/components/atoms/heading";
 import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
 import {
 	FestivalActivityWithDetailsAndParticipants,
@@ -27,7 +27,7 @@ export default function FestivalStickerActivityPage({
 
 	return (
 		<div className="container p-3 md:p-6">
-			<Title>{activity.name}</Title>
+			<Heading level={1}>{activity.name}</Heading>
 			<p className="text-base md:text-lg">{activity.description}</p>
 			{acceptedUserCategories.length > 0 &&
 				!acceptedUserCategories.includes(forProfile.category) && (
@@ -58,7 +58,7 @@ export default function FestivalStickerActivityPage({
 			)}
 			<div className="flex flex-col gap-2 md:gap-3">
 				<section>
-					<h2 className="text-lg font-bold">¿En qué consiste la actividad?</h2>
+					<Heading level={2}>¿En qué consiste la actividad?</Heading>
 					<p>
 						Esta actividad contiene dos dinámicas distintas, una para los
 						visitantes y otra para los ilustradores.
@@ -66,7 +66,7 @@ export default function FestivalStickerActivityPage({
 				</section>
 				<section className="flex flex-col gap-2 md:gap-3">
 					<div>
-						<h3 className="font-semibold mb-1">Para los ilustradores</h3>
+						<Heading level={3}>Para los ilustradores</Heading>
 						<p>
 							Diseña un sticker exclusivo con temática navideña que contenga los
 							personajes del festival: Daisy y Nino. A través de una votación
@@ -75,7 +75,7 @@ export default function FestivalStickerActivityPage({
 						</p>
 					</div>
 					<div>
-						<h3 className="font-semibold mb-1">Para los visitantes</h3>
+						<Heading level={3}>Para los visitantes</Heading>
 						<p className="mb-2">
 							En el stand de Glitter tendremos disponible un sticker
 							coleccionable exclusivo de este festival que los visitantes podrán
@@ -99,7 +99,7 @@ export default function FestivalStickerActivityPage({
 					</div>
 				</section>
 				<section>
-					<h2 className="text-lg font-bold">¿Cómo se puede participar?</h2>
+					<Heading level={2}>¿Cómo se puede participar?</Heading>
 					<p>
 						La inscripción a la actividad está abierta para cualquier
 						participante del festival con la{" "}
@@ -129,9 +129,9 @@ export default function FestivalStickerActivityPage({
 					<p>El botón de inscripción se encuentra al final de la página.</p>
 				</section>
 				<section>
-					<h2 className="text-lg font-bold">
+					<Heading level={2}>
 						¿Cómo funciona la votación y cuál es el premio?
-					</h2>
+					</Heading>
 					<p>
 						La votación se llevará a cabo a través de un sistema de votos
 						online. Todos los participantes del festival podrán votar por su
@@ -188,9 +188,9 @@ export default function FestivalStickerActivityPage({
 					</p>
 				</section>
 				<section>
-					<h2 className="text-lg font-bold">
+					<Heading level={2}>
 						Resumen de las condiciones para participar
-					</h2>
+					</Heading>
 					<ol className="ml-2 list-decimal list-inside space-y-2">
 						<li>
 							Tener una reserva confirmada para el festival y ser parte de la

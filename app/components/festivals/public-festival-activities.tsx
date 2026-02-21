@@ -1,6 +1,6 @@
 import { ArrowRightIcon } from "lucide-react";
 import { FullFestival } from "@/app/lib/festivals/definitions";
-import Title from "@/app/components/atoms/title";
+import Heading from "@/app/components/atoms/heading";
 import Image from "next/image";
 import { RedirectButton } from "@/app/components/redirect-button";
 
@@ -37,7 +37,7 @@ export default function PublicFestivalActivities({
 								</div>
 							)}
 							<div className="flex flex-col w-full">
-								<Title level="h4">{activity.name}</Title>
+								<Heading level={4}>{activity.name}</Heading>
 								<p className="text-sm text-muted-foreground">
 									{activity.visitorsDescription}
 								</p>

@@ -1,7 +1,7 @@
 import { cn } from "@/app/lib/utils";
 
 import { UserCategory } from "@/app/api/users/definitions";
-import { Badge, BadgeVariant } from "@/app/components/ui/badge";
+import { Badge, BadgeProps, BadgeVariant } from "@/app/components/ui/badge";
 import {
 	getCategoryLabel,
 	getCategoryOccupationLabel,
@@ -11,17 +11,19 @@ type CategoryBadgeProps = {
 	category: UserCategory;
 	useOccupationLabel?: boolean;
 	className?: string;
-};
+} & BadgeProps;
 
 export default function CategoryBadge({
 	category,
 	useOccupationLabel = true,
 	className,
+	...props
 }: CategoryBadgeProps) {
 	return (
 		<Badge
-			className={cn("font-normal min-w-fit", className)}
+			className={cn("font-bold min-w-fit uppercase", className)}
 			variant={category as BadgeVariant}
+			{...props}
 		>
 			{useOccupationLabel
 				? getCategoryOccupationLabel(category, { singular: true })

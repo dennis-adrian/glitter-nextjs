@@ -2,10 +2,10 @@
 
 import { ProfileType } from "@/app/api/users/definitions";
 import ReservationStatusBadge from "@/app/components/atoms/reservation-status-badge";
-import Title from "@/app/components/atoms/title";
+import Heading from "@/app/components/atoms/heading";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Card, CardContent } from "@/app/components/ui/card";
-import { FullFestival } from "@/app/lib/festivals/definitions";
+import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { formatDate, getFestivalDateString } from "@/app/lib/formatters";
 import {
 	ArrowRightIcon,
@@ -23,7 +23,7 @@ export default function ParticipationsHistory({
 	activeFestival,
 }: {
 	forProfile: ProfileType;
-	activeFestival?: FullFestival | null;
+	activeFestival?: FestivalWithDates | null;
 }) {
 	const router = useRouter();
 	const participations = forProfile.participations;
@@ -86,10 +86,10 @@ export default function ParticipationsHistory({
 								placeholder="blur"
 							/>
 						</div>
-						<div className="flex flex-col gap-2 grow-1">
-							<Title level="h4" className="my-0">
+						<div className="flex flex-col gap-2 grow">
+							<Heading level={4} className="my-0">
 								{activeFestival.name}
-							</Title>
+							</Heading>
 							<ReservationStatusBadge
 								status={currentParticipation.reservation.status}
 							/>

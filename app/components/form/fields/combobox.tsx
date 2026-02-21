@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/popover";
 import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import { useState } from "react";
-import { FieldValues, Path, PathValue, UseFormReturn } from "react-hook-form";
+import { FieldValues, Path, UseFormReturn } from "react-hook-form";
 
 type ComboboxInputProps<T extends FieldValues> = {
 	form: UseFormReturn<T>;
@@ -82,7 +82,8 @@ export default function ComboboxInput<T extends FieldValues>({
 												onSelect={() => {
 													form.setValue(
 														name,
-														option.value as PathValue<T, Path<T>>,
+														// eslint-disable-next-line @typescript-eslint/no-explicit-any
+														option.value as any,
 													);
 													setOpen(false);
 												}}

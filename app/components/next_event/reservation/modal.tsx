@@ -59,7 +59,7 @@ export function ReservationModal({
 				/>
 				{isDesktop ? null : (
 					<DialogFooter className="pt-2 w-full">
-						<DialogClose>
+						<DialogClose asChild>
 							<Button variant="outline" className="w-full">
 								Cancelar
 							</Button>

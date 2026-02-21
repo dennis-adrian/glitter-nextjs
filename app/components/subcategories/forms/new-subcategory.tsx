@@ -12,9 +12,13 @@ import { z } from "zod";
 
 const FormSchema = z.object({
   label: z
-    .string({ required_error: "La subcategoría es requerida" })
+    .string({
+        error: (issue) => issue.input === undefined ? "La subcategoría es requerida" : undefined
+    })
     .trim()
-    .min(3, { message: "La subcategoría es requerida" }),
+    .min(3, {
+        error: "La subcategoría es requerida"
+    }),
   category: z.enum(userCategoryEnum.enumValues),
 });
 
@@ -22,11 +26,11 @@ type NewSubcategoryFormProps = {
   onSuccess: () => void;
 };
 export default function NewSubcategoryForm(props: NewSubcategoryFormProps) {
-  const form = useForm<z.infer<typeof FormSchema>>({
+  const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       label: "",
-      category: "illustration",
+      category: "illustration" as const,
     },
   });
 
