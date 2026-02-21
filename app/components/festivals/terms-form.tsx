@@ -55,10 +55,15 @@ export default function TermsForm({
 			});
 
 			if (res.success) {
-				toast.success(res.message);
-				router.push(
-					`/profiles/${profile.id}/festivals/${festival.id}/reservations/new`,
-				);
+				if (profile.category === "gastronomy") {
+					toast.success("Postulación enviada. Te avisaremos si es aprobada.");
+					router.push(`/portal`);
+				} else {
+					toast.success(res.message);
+					router.push(
+						`/profiles/${profile.id}/festivals/${festival.id}/reservations/new`,
+					);
+				}
 			} else {
 				toast.error(res.message);
 			}
@@ -82,7 +87,7 @@ export default function TermsForm({
 								</FormControl>
 								<div className="space-y-1 leading-none">
 									<FormLabel>
-										Acepto lo términos y condiciones para participar en el
+										Acepto los términos y condiciones para participar en el
 										festival.
 									</FormLabel>
 									<FormDescription>
@@ -110,7 +115,7 @@ export default function TermsForm({
 						) : profile.category === "gastronomy" ? (
 							<span>Postularme al festival</span>
 						) : (
-							<span>Inscribrirme al festival</span>
+							<span>Inscribirme al festival</span>
 						)}
 					</Button>
 					<Button variant="outline" className="flex-1" asChild>

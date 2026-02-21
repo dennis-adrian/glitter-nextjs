@@ -166,8 +166,8 @@ export default function StandSpecificationsSectorCard({
 						<DialogHeader>
 							<DialogTitle>{sector.name}</DialogTitle>
 							<DialogDescription>
-								Esta imagen es solo una representación visual del sector. Las
-								reservas no están disponibles permitidas.
+								Esta imagen es solo una representación visual del sector. No
+								permite la reserva de espacios en este momento.
 							</DialogDescription>
 						</DialogHeader>
 
