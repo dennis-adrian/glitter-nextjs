@@ -43,9 +43,13 @@ export default async function SectorSelectionPage(
 		);
 	}
 
+	const subcategoryIds = forProfile.profileSubcategories.map(
+		(ps) => ps.subcategoryId,
+	);
 	const sectors = await fetchFestivalSectorsByUserCategory(
 		festival.id,
 		forProfile.category,
+		subcategoryIds,
 	);
 
 	return (
@@ -55,6 +59,7 @@ export default async function SectorSelectionPage(
 			sectors={sectors}
 			generalMapUrl={festival.generalMapUrl}
 			profileCategory={forProfile.category}
+			subcategoryIds={subcategoryIds}
 		/>
 	);
 }

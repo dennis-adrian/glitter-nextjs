@@ -31,9 +31,10 @@ import {
 	reservationParticipants,
 	standReservations,
 	stands,
+	standSubcategories,
 	users,
 } from "@/db/schema";
-import { and, count, eq, inArray } from "drizzle-orm";
+import { and, count, eq, exists, inArray, notExists, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
 	fetchBaseFestival,
@@ -63,6 +64,9 @@ export async function fetchFestivalSectors(
 									},
 								},
 							},
+						},
+						standSubcategories: {
+							with: { subcategory: true },
 						},
 					},
 				},
@@ -129,9 +133,36 @@ export async function updateSectorMapBounds(
 export async function fetchFestivalSectorsByUserCategory(
 	festivalId: number,
 	category: UserCategory,
+	subcategoryIds: number[] = [],
 ): Promise<FestivalSectorWithStandsWithReservationsWithParticipants[]> {
 	try {
 		return await db.transaction(async (tx) => {
+			// A stand is visible if it has no subcategory restrictions, OR has a
+			// restriction that matches one of the user's subcategories.
+			const noRestrictions = notExists(
+				db
+					.select()
+					.from(standSubcategories)
+					.where(eq(standSubcategories.standId, stands.id)),
+			);
+			const subcategoryFilter =
+				subcategoryIds.length > 0
+					? or(
+							noRestrictions,
+							exists(
+								db
+									.select()
+									.from(standSubcategories)
+									.where(
+										and(
+											eq(standSubcategories.standId, stands.id),
+											inArray(standSubcategories.subcategoryId, subcategoryIds),
+										),
+									),
+							),
+						)
+					: noRestrictions;
+
 			const sectorIds = await tx
 				.selectDistinctOn([festivalSectors.id], {
 					id: festivalSectors.id,
@@ -140,8 +171,14 @@ export async function fetchFestivalSectorsByUserCategory(
 				.leftJoin(festivals, eq(festivals.id, festivalSectors.festivalId))
 				.leftJoin(stands, eq(stands.festivalSectorId, festivalSectors.id))
 				.where(
-					and(eq(festivals.id, festivalId), eq(stands.standCategory, category)),
+					and(
+						eq(festivals.id, festivalId),
+						eq(stands.standCategory, category),
+						subcategoryFilter,
+					),
 				);
+
+			if (sectorIds.length === 0) return [];
 
 			return await db.query.festivalSectors.findMany({
 				where: inArray(
@@ -163,6 +200,9 @@ export async function fetchFestivalSectorsByUserCategory(
 										},
 									},
 								},
+							},
+							standSubcategories: {
+								with: { subcategory: true },
 							},
 						},
 					},

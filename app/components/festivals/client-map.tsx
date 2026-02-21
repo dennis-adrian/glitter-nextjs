@@ -22,6 +22,7 @@ export default function ClientMap({
 	mapElements,
 	mapBounds,
 	activeHold: initialActiveHold,
+	subcategoryIds = [],
 }: {
 	festival: FestivalBase;
 	profile: ProfileType | null;
@@ -31,6 +32,7 @@ export default function ClientMap({
 	mapElements?: MapElementBase[];
 	mapBounds?: { minX: number; minY: number; width: number; height: number };
 	activeHold?: ActiveHold;
+	subcategoryIds?: number[];
 }) {
 	const [stands, setStands] = useState(initialStands);
 	const [selectedStandId, setSelectedStandId] = useState<number | null>(null);
@@ -95,6 +97,7 @@ export default function ClientMap({
 				mapBounds={mapBounds}
 				profile={profile}
 				selectedStandId={selectedStandId}
+				subcategoryIds={subcategoryIds}
 				onStandClick={handleStandSelect}
 				onStandTouchTap={handleStandSelect}
 			/>

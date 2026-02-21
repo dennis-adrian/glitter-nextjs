@@ -12,6 +12,7 @@ type SectorCardProps = {
 	isSelected: boolean;
 	onSelect: () => void;
 	profileCategory: UserCategory;
+	subcategoryIds: number[];
 };
 
 export default function SectorCard({
@@ -19,9 +20,15 @@ export default function SectorCard({
 	isSelected,
 	onSelect,
 	profileCategory,
+	subcategoryIds,
 }: SectorCardProps) {
 	const categoryStands = sector.stands.filter(
-		(s) => s.standCategory === profileCategory,
+		(s) =>
+			s.standCategory === profileCategory &&
+			(s.standSubcategories.length === 0 ||
+				s.standSubcategories.some((sc) =>
+					subcategoryIds.includes(sc.subcategoryId),
+				)),
 	);
 	const price = categoryStands[0]?.price ?? 0;
 	const availableStands = categoryStands.filter(

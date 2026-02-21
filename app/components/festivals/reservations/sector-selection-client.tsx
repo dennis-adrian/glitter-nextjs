@@ -18,6 +18,7 @@ type SectorSelectionClientProps = {
 	sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
 	generalMapUrl: FestivalBase["generalMapUrl"];
 	profileCategory: UserCategory;
+	subcategoryIds: number[];
 };
 
 export default function SectorSelectionClient({
@@ -26,17 +27,21 @@ export default function SectorSelectionClient({
 	sectors,
 	generalMapUrl,
 	profileCategory,
+	subcategoryIds,
 }: SectorSelectionClientProps) {
 	const router = useRouter();
 	const [selectedSectorId, setSelectedSectorId] = useState<number | null>(null);
 
 	const orderedSectors = [...sectors].sort((a, b) => {
-		const aAvailable = a.stands.filter(
-			(s) => s.standCategory === profileCategory && s.status === "available",
-		).length;
-		const bAvailable = b.stands.filter(
-			(s) => s.standCategory === profileCategory && s.status === "available",
-		).length;
+		const isVisible = (s: (typeof a.stands)[0]) =>
+			s.standCategory === profileCategory &&
+			s.status === "available" &&
+			(s.standSubcategories.length === 0 ||
+				s.standSubcategories.some((sc) =>
+					subcategoryIds.includes(sc.subcategoryId),
+				));
+		const aAvailable = a.stands.filter(isVisible).length;
+		const bAvailable = b.stands.filter(isVisible).length;
 		if (aAvailable > 0 && bAvailable === 0) return -1;
 		if (aAvailable === 0 && bAvailable > 0) return 1;
 		return a.orderInFestival - b.orderInFestival;
@@ -87,6 +92,7 @@ export default function SectorSelectionClient({
 									isSelected={selectedSectorId === sector.id}
 									onSelect={() => setSelectedSectorId(sector.id)}
 									profileCategory={profileCategory}
+									subcategoryIds={subcategoryIds}
 								/>
 							))}
 						</div>

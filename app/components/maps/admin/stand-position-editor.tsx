@@ -484,7 +484,7 @@ export default function StandPositionEditor({
 
 		// Add new stands to local state
 		const newStands: StandWithReservationsWithParticipants[] =
-			result.stands.map((s) => ({ ...s, reservations: [] }));
+			result.stands.map((s) => ({ ...s, reservations: [], standSubcategories: [] }));
 
 		setStandsPerSector((prev) => {
 			const next = new Map(prev);

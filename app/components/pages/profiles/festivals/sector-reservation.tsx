@@ -49,9 +49,13 @@ export default async function SectorReservationPage(
 		);
 	}
 
+	const subcategoryIds = forProfile.profileSubcategories.map(
+		(ps) => ps.subcategoryId,
+	);
 	const sectors = await fetchFestivalSectorsByUserCategory(
 		festival.id,
 		forProfile.category,
+		subcategoryIds,
 	);
 
 	const sector = sectors.find((s) => s.id === props.sectorId);
@@ -90,6 +94,7 @@ export default async function SectorReservationPage(
 							stands={sector.stands}
 							mapElements={sector.mapElements ?? []}
 							activeHold={activeHold}
+							subcategoryIds={subcategoryIds}
 							mapBounds={
 								sector.mapOriginX != null &&
 								sector.mapOriginY != null &&

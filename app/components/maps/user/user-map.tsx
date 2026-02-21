@@ -21,6 +21,7 @@ type UserMapProps = {
 	mapBounds?: { minX: number; minY: number; width: number; height: number };
 	profile?: ProfileType | BaseProfile | null;
 	selectedStandId?: number | null;
+	subcategoryIds?: number[];
 	onStandClick?: (stand: StandWithReservationsWithParticipants) => void;
 	onStandTouchTap?: (stand: StandWithReservationsWithParticipants) => void;
 };
@@ -31,6 +32,7 @@ export default function UserMap({
 	mapBounds,
 	profile,
 	selectedStandId,
+	subcategoryIds = [],
 	onStandClick,
 	onStandTouchTap,
 }: UserMapProps) {
@@ -67,7 +69,8 @@ export default function UserMap({
 							))}
 							{stands.map((stand) => {
 								const standCanBeReserved =
-									!!profile && canStandBeReserved(stand, profile);
+									!!profile &&
+									canStandBeReserved(stand, profile, subcategoryIds);
 
 								return (
 									<MapStand
