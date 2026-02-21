@@ -127,6 +127,7 @@ export const subcategories = pgTable("subcategories", {
 });
 export const subcategoriesRelations = relations(subcategories, ({ many }) => ({
 	profileSubcategories: many(profileSubcategories),
+	standSubcategories: many(standSubcategories),
 }));
 
 export const profileSubcategories = pgTable("profile_subcategories", {
@@ -410,7 +411,32 @@ export const standRelations = relations(stands, ({ many, one }) => ({
 	}),
 	festivalActivityVotes: many(festivalActivityVotes),
 	holds: many(standHolds),
+	standSubcategories: many(standSubcategories),
 }));
+
+export const standSubcategories = pgTable("stand_subcategories", {
+	id: serial("id").primaryKey(),
+	standId: integer("stand_id")
+		.notNull()
+		.references(() => stands.id, { onDelete: "cascade" }),
+	subcategoryId: integer("subcategory_id")
+		.notNull()
+		.references(() => subcategories.id, { onDelete: "cascade" }),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const standSubcategoriesRelations = relations(
+	standSubcategories,
+	({ one }) => ({
+		stand: one(stands, {
+			fields: [standSubcategories.standId],
+			references: [stands.id],
+		}),
+		subcategory: one(subcategories, {
+			fields: [standSubcategories.subcategoryId],
+			references: [subcategories.id],
+		}),
+	}),
+);
 
 export const standHolds = pgTable(
 	"stand_holds",

@@ -16,6 +16,7 @@ const DropdownMenuTrigger: React.FC<
   const variants = variant ? buttonVariants({ variant, size }) : "";
   return (
     <DropdownMenuPrimitive.Trigger
+      suppressHydrationWarning
       className={cn(variants, className)}
       {...props}
     />

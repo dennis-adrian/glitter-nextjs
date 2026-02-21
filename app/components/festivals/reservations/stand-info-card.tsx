@@ -69,6 +69,15 @@ function getEligibilityMessage(
 		stand.standCategory !== "illustration"
 	)
 		return "No puedes reservar en este espacio";
+	if (stand.standSubcategories.length > 0) {
+		const userSubcategoryIds = profile.profileSubcategories.map(
+			(ps) => ps.subcategoryId,
+		);
+		const hasMatch = userSubcategoryIds.some((id) =>
+			stand.standSubcategories.some((sc) => sc.subcategoryId === id),
+		);
+		if (!hasMatch) return "No puedes reservar en este espacio";
+	}
 	if (profileHasReservation(profile, festivalId))
 		return "Ya tienes una reserva en este festival";
 	return null;
@@ -94,11 +103,14 @@ export function StandInfoCard({
 		stand.status === "confirmed" ||
 		(stand.status === "held" && !isOwnHold);
 
+	const userSubcategoryIds = profile.profileSubcategories.map(
+		(ps) => ps.subcategoryId,
+	);
 	const canReserve =
 		!isStandTaken &&
 		!isOwnHold &&
 		(profile.role === "admin" ||
-			(canStandBeReserved(stand, profile) &&
+			(canStandBeReserved(stand, profile, userSubcategoryIds) &&
 				isProfileInFestival(festival.id, profile) &&
 				!profileHasReservation(profile, festival.id)));
 
