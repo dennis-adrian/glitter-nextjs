@@ -19,6 +19,7 @@ import { sendEmail } from "@/app/vendors/resend";
 import { and, eq, not, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { BaseProfile } from "@/app/api/users/definitions";
+import FestivalParticipationApprovedEmailTemplate from "@/app/emails/festival-participation-approved";
 import TermsAcceptanceEmailTemplate from "@/app/emails/terms-acceptance";
 import {
 	FestivalBase,
@@ -67,6 +68,18 @@ export async function updateUserRequest(id: number, data: UserRequest) {
 	} catch (error) {
 		console.error("Error updating user request", error);
 		return { message: "Error updating user request" };
+	}
+
+	if (status === "accepted" && type === "festival_participation" && data.festival) {
+		await sendEmail({
+			to: [data.user.email],
+			from: "Inscripciones Glitter <inscripciones@productoraglitter.com>",
+			subject: `Tu postulación para ${data.festival.name} fue aprobada`,
+			react: FestivalParticipationApprovedEmailTemplate({
+				profile: data.user,
+				festival: data.festival,
+			}) as React.ReactElement,
+		});
 	}
 
 	revalidatePath("/dashboard", "layout");
