@@ -2,7 +2,7 @@
 
 import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
 import { BaseProfile } from "@/app/api/users/definitions";
-import Title from "@/app/components/atoms/title";
+import Heading from "@/app/components/atoms/heading";
 import ParticipantsModal from "@/app/components/organisms/festival_activity_voting/participants-modal";
 import {
 	getValidParticipantsForVariant,
@@ -71,12 +71,12 @@ export default function BestStandActivityVoting({
 							/>
 						)}
 						<div className="flex flex-col gap-2">
-							<Title level="h4" className="leading-tight">
+							<Heading level={4} className="leading-tight">
 								Iconic Stand -{" "}
 								{variant.category
 									? getCategoryLabel(variant.category)
 									: "Sin categoría"}
-							</Title>
+							</Heading>
 							{getValidParticipantsForVariant(variant).length === 0 ? (
 								<div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800">
 									<CircleAlertIcon className="w-5 h-5 text-amber-500 shrink-0" />

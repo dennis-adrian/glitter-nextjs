@@ -365,35 +365,29 @@ export async function updateReservation(id: number, data: ReservationUpdate) {
 	revalidatePath("/dashboard/reservations");
 	return { success: true, message: "Reserva actualizada" };
 }
-type FormState = {
-	success: boolean;
-	message: string;
-};
-type NewUserRequest = typeof userRequests.$inferInsert;
-export async function createUserRequest(
-	request: NewUserRequest,
-	prevState: FormState,
-) {
-	try {
-		await db.insert(userRequests).values(request);
-	} catch (error) {
-		console.error(error);
-		return { message: "No se pudo crear la solicitud", success: false };
-	}
 
-	revalidatePath("/my_profile");
-	return { success: true, message: "Solicitud enviada correctamente" };
-}
+export async function createUserEnrollment(params: {
+	profileId: BaseProfile["id"];
+	profileCategory: BaseProfile["category"];
+	profileDisplayName: BaseProfile["displayName"];
+	festivalId: FestivalBase["id"];
+	festivalName: FestivalBase["name"];
+	festivalReservationsStartDate: FestivalBase["reservationsStartDate"];
+}) {
+	const {
+		profileId,
+		profileCategory,
+		profileDisplayName,
+		festivalId,
+		festivalName,
+		festivalReservationsStartDate,
+	} = params;
 
-export async function addUserToFestival(
-	profile: BaseProfile,
-	festival: FestivalBase,
-) {
 	try {
 		await db.insert(userRequests).values({
-			userId: profile.id,
-			festivalId: festival.id,
-			status: "accepted",
+			userId: profileId,
+			festivalId: festivalId,
+			status: profileCategory === "gastronomy" ? "pending" : "accepted",
 			type: "festival_participation",
 		});
 
@@ -403,10 +397,18 @@ export async function addUserToFestival(
 			await sendEmail({
 				to: [...adminEmails],
 				from: "Inscripciones Glitter <inscripciones@productoraglitter.com>",
-				subject: `${profile.displayName} se ha inscrito a ${festival.name}`,
+				subject: `${profileDisplayName} se ha inscrito a ${festivalName}`,
 				react: TermsAcceptanceEmailTemplate({
-					profile: profile,
-					festival: festival,
+					profile: {
+						id: profileId,
+						displayName: profileDisplayName || "Usuario",
+						category: profileCategory,
+					},
+					festival: {
+						id: festivalId,
+						name: festivalName,
+						reservationsStartDate: festivalReservationsStartDate,
+					},
 				}) as React.ReactElement,
 			});
 		}

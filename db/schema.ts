@@ -205,6 +205,9 @@ export const festivals = pgTable(
 		entrepreneurshipStandUrl: text("entrepreneurship_stand_url"),
 		festivalCode: text("festival_code"),
 		festivalBannerUrl: text("festival_banner_url"),
+		termsAndConditionsUrl: text("terms_and_conditions_url"),
+		thumbnailUrl: text("thumbnail_url"),
+		posterUrl: text("poster_url"),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
@@ -1226,12 +1229,10 @@ export const mapElementTypeEnum = pgEnum("map_element_type", [
 	"custom",
 	"stairs",
 ]);
-export const mapElementLabelPositionEnum = pgEnum("map_element_label_position", [
-	"left",
-	"right",
-	"top",
-	"bottom",
-]);
+export const mapElementLabelPositionEnum = pgEnum(
+	"map_element_label_position",
+	["left", "right", "top", "bottom"],
+);
 export const mapElements = pgTable(
 	"map_elements",
 	{

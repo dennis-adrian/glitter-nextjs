@@ -9,7 +9,7 @@ import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { ArrowRightIcon } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Title from "@/app/components/atoms/title";
+import Heading from "@/app/components/atoms/heading";
 import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
 
 type SectorSelectionClientProps = {
@@ -61,7 +61,7 @@ export default function SectorSelectionClient({
 			{/* Content */}
 			<div className="flex-1 px-4 py-4 md:py-6">
 				<div className="mx-auto max-w-3xl">
-					<Title level="h1">Elige tu sector</Title>
+					<Heading>Elige tu sector</Heading>
 					<p className="mt-1 text-sm text-muted-foreground">
 						Selecciona el sector del festival donde deseas ubicar tu stand.
 					</p>
@@ -73,12 +73,12 @@ export default function SectorSelectionClient({
 
 					{/* Sector cards */}
 					<div className="mt-3 md:mt-5">
-						<Title level="h2">
+						<Heading level={2}>
 							Sectores
 							<span className="ml-2 text-muted-foreground font-normal text-sm md:text-base">
 								{orderedSectors.length} habilitados para tu categoría
 							</span>
-						</Title>
+						</Heading>
 						<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 							{orderedSectors.map((sector) => (
 								<SectorCard

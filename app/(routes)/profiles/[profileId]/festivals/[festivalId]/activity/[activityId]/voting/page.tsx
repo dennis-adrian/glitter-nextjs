@@ -1,4 +1,4 @@
-import Title from "@/app/components/atoms/title";
+import Title from "@/app/components/atoms/heading";
 import BestStandActivityVoting from "@/app/components/organisms/festival_activity_voting/best-stand-activity-voting";
 import FestivalStickerVoting from "@/app/components/organisms/festival_activity_voting/festival-sticker-voting";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
@@ -35,7 +35,7 @@ export default async function VotingPage({ params }: VotingPageProps) {
 
 	return (
 		<div className="container p-3 md:p-6">
-			<Title level="h1">Votación para {activity.name}</Title>
+			<Title>Votación para {activity.name}</Title>
 			{activity.type === "best_stand" && (
 				<BestStandActivityVoting
 					activity={activity}

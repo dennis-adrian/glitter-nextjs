@@ -1,6 +1,6 @@
 import { BaseProfile } from "@/app/api/users/definitions";
 import DateSpan from "@/app/components/atoms/date-span";
-import Title from "@/app/components/atoms/title";
+import Heading from "@/app/components/atoms/heading";
 import UploadStickerDesignModal from "@/app/components/festivals/festival_activities/upload-sticker-design-modal";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Card, CardContent } from "@/app/components/ui/card";
@@ -40,7 +40,7 @@ export default function FestivalActivityCard({
 				)}
 				<div className="flex flex-col gap-3 md:gap-4 w-full">
 					<div>
-						<Title level="h4">{activity.name}</Title>
+						<Heading level={4}>{activity.name}</Heading>
 						<p className="text-sm mt-2 leading-tight">{activity.description}</p>
 					</div>
 					{isUserInActivity &&

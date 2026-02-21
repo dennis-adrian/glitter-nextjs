@@ -8,7 +8,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { EdgeStoreProvider } from "@/app/lib/edgestore";
 
 import { Toaster } from "@/components/ui/sonner";
-import { inter, isidora } from "@/ui/fonts";
+import { inter, spaceGrotesk } from "@/ui/fonts";
 
 import Navbar from "@/app/components/navbar/navbar";
 import Footer from "@/app/components/footer";
@@ -39,7 +39,7 @@ export default function RootLayout({
 }) {
 	return (
 		<html lang="es">
-			<body className={`${inter.variable} ${isidora.variable} font-sans`}>
+			<body className={`${inter.variable} ${spaceGrotesk.variable} font-sans`}>
 				<Suspense fallback={<div className="min-h-screen" />}>
 					<ClerkProvider localization={esES}>
 						<EdgeStoreProvider>

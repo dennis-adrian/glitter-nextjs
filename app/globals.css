@@ -6,7 +6,7 @@
 
 @theme inline {
 	--font-sans: var(--font-inter);
-	--font-isidora: var(--font-isidora), sans-serif;
+	--font-space-grotesk: var(--font-space-grotesk), sans-serif;
 }
 
 @theme {
@@ -278,10 +278,14 @@
 		--chart-4: 280 65% 60%;
 		--chart-5: 340 75% 55%;
 	}
+}
 
-	.container {
-		margin-inline: auto;
-		padding-inline: 2rem;
+@utility container {
+	margin-inline: auto;
+	min-width: 320px;
+	max-width: 100%;
+
+	@media (min-width: 768px) {
 		max-width: 1400px;
 	}
 }

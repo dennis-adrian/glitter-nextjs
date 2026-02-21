@@ -5,8 +5,7 @@ import {
 	ProfileType,
 	UserCategory,
 } from "@/app/api/users/definitions";
-import DetailedMap from "@/app/components/festivals/detailed-map";
-import GeneralInfoDetails from "@/app/components/festivals/general-info-details";
+import Heading from "@/app/components/atoms/heading";
 import StandSpecificationsCards from "@/app/components/festivals/stand-specifications-cards";
 import TermsForm from "@/app/components/festivals/terms-form";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
@@ -20,12 +19,11 @@ import {
 	SelectValue,
 } from "@/app/components/ui/select";
 import {
-	FestivalSectorBase,
 	FestivalSectorWithStands,
+	FestivalSectorWithStandsWithReservationsWithParticipants,
 } from "@/app/lib/festival_sectors/definitions";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
-import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import {
 	Accordion,
 	AccordionContent,
@@ -33,6 +31,7 @@ import {
 	AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Separator } from "@/components/ui/separator";
+import { ArrowRightIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import Image from "next/image";
 import { useState } from "react";
@@ -42,7 +41,7 @@ type TermsAndConditionsProps = {
 	forProfile: ProfileType;
 	currentUser: BaseProfile;
 	category: Exclude<UserCategory, "none">;
-	festivalSectors: FestivalSectorBase[];
+	festivalSectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
 	festivalSectorsWithAllowedCategoriesPromise: Promise<
 		(FestivalSectorWithStands & {
 			allowedCategories: UserCategory[];
@@ -62,7 +61,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 
 	return (
 		<div className="container mx-auto py-8 px-4 md:px-6">
-			<div className="max-w-screen-lg mx-auto">
+			<div className="max-w-5xl mx-auto">
 				{props.currentUser.role === "admin" && (
 					<div className="flex flex-col gap-2 mb-4 max-w-fit">
 						<Label>Categoría de los términos y condiciones</Label>
@@ -83,69 +82,41 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						</Select>
 					</div>
 				)}
+
 				<div className="space-y-4 text-left md:text-center mb-4">
-					<h1 className="text-3xl font-bold tracking-tight">
-						Términos y Condiciones para Expositores
-					</h1>
-					<p className="text-muted-foreground">
-						Por favor, lee estos términos y condiciones cuidadosamente antes de
-						participar en el festival.
-					</p>
+					<Heading level={1}>Términos y Condiciones para Expositores</Heading>
 					<p className="text-sm text-muted-foreground">
-						Última actualización: 07 de julio de 2025
+						Última actualización: 18 de febrero de 2026
+					</p>
+					<p className="text-muted-foreground">
+						Por favor, leé estos términos y condiciones cuidadosamente para
+						habilitar tu participación en el festival.
 					</p>
 				</div>
 
-				<div>
-					<h2 className="text-xl md:text-2xl font-semibold text-left md:text-center">
-						Información para {getCategoryOccupationLabel(mapCategory)}
-					</h2>
+				{props.festival.termsAndConditionsUrl && (
+					<Image
+						className="mx-auto"
+						src={props.festival.termsAndConditionsUrl}
+						alt="Términos y condiciones"
+						width={320}
+						height={320}
+					/>
+				)}
 
-					<GeneralInfoDetails festival={props.festival} />
-				</div>
+				<div className="flex flex-col">
+					<Heading level={2}>Sectores habilitados para tu categoría</Heading>
 
-				<div className="flex flex-col gap-4 md:gap-6">
-					<h2 className="text-xl md:text-2xl font-semibold text-left md:text-center">
-						Mapa del Evento y Precios de Espacios
-					</h2>
-
-					<div className="lg:col-span-2 border rounded-lg p-2 md:p-4">
-						{props.festival.generalMapUrl ? (
-							<Image
-								src={props.festival.generalMapUrl}
-								alt="Mapa del recinto"
-								width={800}
-								height={504}
-								className="mx-auto"
-							/>
-						) : (
-							<div className="text-muted-foreground text-center p-4">
-								<span>
-									El mapa general no está disponible en este momento. Pero
-									puedes ver los sectores a detalle haciendo clic en la opción
-									de abajo
-								</span>
-							</div>
-						)}
-						<div />
-						<DetailedMap festivalSectors={props.festivalSectors} />
-					</div>
-
-					<div>
-						<h3 className="text-lg md:text-xl font-medium mb-3 md:mb-4 text-left md:text-center leading-tight">
-							Sectores habilitados para{" "}
-							{getCategoryOccupationLabel(mapCategory).toLowerCase()}
-						</h3>
-						<StandSpecificationsCards
-							profileCategory={mapCategory}
-							festivalSectorsWithAllowedCategoriesPromise={
-								props.festivalSectorsWithAllowedCategoriesPromise
-							}
-						/>
-					</div>
+					<StandSpecificationsCards
+						profileCategory={mapCategory}
+						festivalSectorsWithAllowedCategoriesPromise={
+							props.festivalSectorsWithAllowedCategoriesPromise
+						}
+						fullSectors={props.festivalSectors}
+					/>
 
 					{mapCategory === "illustration" && (
-						<p className="text-sm text-muted-foreground text-left md:text-center">
+						<p className="text-sm text-muted-foreground mt-2">
 							* En el caso de ilustradores que comparten espacio, si en el
 							transcurso de tiempo entre confirmada la reserva y el día del
 							evento una de las partes no puede participar, el otro ilustrador
@@ -161,18 +132,21 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 							1. Aceptación de Términos
 						</h2>
 						<p className="text-muted-foreground">
-							Al registrarte y participar en el festival como expositor, aceptas
-							estar sujeto a estos Términos y Condiciones. Cualquier
-							incumplimiento y según la gravedad podría resultar en la expulsión
-							del evento sin reembolso y/o la prohibición temporal o permanente
-							de participar en futuros festivales.
+							Al hacer clic en &quot;Acepto los términos y condiciones&quot;
+							estás suscribiendo un acuerdo vinculante con la organización. Al
+							registrarte y participar en el festival como expositor, aceptas
+							estar sujeto a estos Términos y Condiciones. El incumplimiento de
+							cualquiera de estas condiciones puede derivar en consecuencias
+							según la gravedad de la infracción: desde una advertencia formal,
+							hasta la restricción temporal o permanente de participar en
+							futuros festivales de la productora.
 						</p>
 					</section>
 
 					<Separator />
 
 					<section>
-						<h2 className="text-lg md:text-xl font-semibold mb-4">
+						<h2 className="text-lg md:text-xl font-semibold mb-4 flex items-center flex-wrap gap-2">
 							2. Participación en el Festival
 						</h2>
 						<p className="text-muted-foreground mb-4">
@@ -181,19 +155,27 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						</p>
 						<ul className="list-disc pl-6 space-y-2 text-muted-foreground">
 							<li>
-								Los expositores deben tener al menos 16 años de edad o estar
-								presentes con un adulto responsable durante la totalidad del
-								evento.
+								Los expositores deben tener al menos 16 años de edad. Los
+								expositores menores de 18 años deben estar presentes con un
+								padre, madre o tutor legal durante la totalidad del evento.
 							</li>
 							<li>
 								Todos los participantes deben tener un perfil aprobado en
-								nuestro sitio web y una reserva confirmada y pagada para su
-								espacio.
+								nuestro sitio web, es decir, una cuenta que haya pasado por
+								revisión y esté habilitada por la organización, y una reserva
+								confirmada y pagada para su espacio.
 							</li>
 							<li>
-								Los organizadores del festival se reservan el derecho de
-								rechazar la participación de cualquier expositor sin
-								proporcionar una razón.
+								La participación en el festival no constituye un derecho
+								adquirido por haber participado en ediciones anteriores. Cada
+								edición es evaluada de manera independiente y está sujeta a un
+								proceso de curaduría interna.
+							</li>
+							<li>
+								La organización podrá evaluar el historial de cumplimiento de
+								normas, la alineación con la identidad del evento, la calidad de
+								la propuesta y otros criterios internos antes de aprobar una
+								participación.
 							</li>
 							<li>
 								Todos los participantes deben cuidar la estética de su stand
@@ -226,8 +208,59 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 								verificar que los expositores cumplen con las reglas del
 								festival.
 							</li>
+							<li>
+								El expositor es responsable de su mercadería y objetos
+								personales. La organización no se responsabiliza por robos,
+								daños o pérdidas ocurridas durante el festival
+							</li>
 						</ul>
 					</section>
+
+					{mapCategory === "gastronomy" && (
+						<section className="ml-4">
+							<h3 className="font-semibold">2.1. Sector de gastronomía</h3>
+							<p className="mt-2 text-muted-foreground">
+								El sector gastronómico constituye una categoría especial dentro
+								del festival y está sujeto a un proceso de evaluación previo a
+								la confirmación de participación. Esta evaluación busca mantener
+								una oferta equilibrada y coherente con la identidad del evento.
+							</p>
+							<p className="mt-2 text-muted-foreground">
+								La aceptación de los presentes Términos y Condiciones en la
+								categoría de gastronomía constituye una postulación formal y no
+								otorga derecho adquirido de participación. Únicamente los
+								perfiles que sean expresamente aprobados por la organización
+								podrán acceder a la reserva de un espacio dentro del festival.
+							</p>
+							<ul className="list-disc pl-6 space-y-2 text-muted-foreground mt-4">
+								<li>
+									La organización podrá solicitar fotografías actualizadas del
+									stand y una descripción detallada del menú como parte del
+									proceso de evaluación.
+								</li>
+								<li>
+									La selección considerará criterios como variedad de la oferta,
+									calidad de presentación y antecedentes de cumplimiento de las
+									normas en ediciones anteriores.
+								</li>
+								<li>
+									La aprobación final dentro del sector gastronómico queda a
+									criterio exclusivo de la organización y es de carácter
+									discrecional.
+								</li>
+							</ul>
+							<p className="mt-4 text-muted-foreground">
+								<b>Presentación y estética del stand:</b> Todos los stands
+								deberán cumplir con un estándar mínimo de presentación visual y
+								estética acorde a la identidad del evento. No se permitirán
+								montajes improvisados, envases de uso doméstico, carteles
+								manuscritos o materiales que no formen parte de una propuesta
+								visual cuidada y coherente. La organización se reserva el
+								derecho de solicitar ajustes o rechazar stands que no cumplan
+								con estos lineamientos.
+							</p>
+						</section>
+					)}
 
 					<Separator />
 
@@ -238,7 +271,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 							</AccordionTrigger>
 							<AccordionContent className="text-muted-foreground">
 								<ul className="list-disc pl-6 space-y-2">
-									{mapCategory === "illustration" && (
+									{mapCategory === "illustration" ? (
 										<li>
 											Los ilustradores que quieran compartir espacio deben
 											agregar a su compañero al momento de hacer la reserva.
@@ -246,6 +279,12 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 											aceptado los términos y condiciones para poder ser
 											agregado como compañero. No se aceptarán cambios una vez
 											hecha la reserva.
+										</li>
+									) : (
+										<li>
+											Las reservas son individuales y no se permiten a ningún
+											otro expositor más que el propio que hizo la reserva. No
+											se permiten reservas compartidas.
 										</li>
 									)}
 									{mapCategory === "entrepreneurship" &&
@@ -257,16 +296,18 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 											</li>
 										)}
 									<li>
-										La reserva se confirma al realizar el pago correspondiente.
-										El estado de la reserva puede tomar hasta 48hrs en
-										actualizarse en el sitio web.
-									</li>
-									<li>
 										Toda reserva debe ser pagada en su totalidad hasta 5 días o
 										120 horas después de creada la reserva. En caso de no
 										hacerlo, la reserva será cancelada automáticamente, el
 										espacio será liberado y el participante no podrá participar
 										en el festival.
+									</li>
+									<li>
+										La reserva se confirma al realizar el pago correspondiente.
+										El estado de la reserva puede tomar hasta 48 horas en
+										actualizarse en el sitio web, contadas a partir del momento
+										en que el participante haya subido el comprobante de pago en
+										el sitio web.
 									</li>
 									<li>
 										Las reservas confirmadas que sean canceladas a más de 30
@@ -292,6 +333,15 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 										Las reservas de stands no son transferibles a menos que sea
 										explícitamente permitido por los organizadores del festival.
 									</li>
+									<li>
+										En caso de no presentarse al evento sin haber cancelado la
+										reserva previamente, se registrará una infracción formal en
+										el sistema, lo que puede derivar en restricciones para la
+										reserva de espacios en futuros festivales. Se considera
+										aviso previo cualquier comunicación enviada a la
+										organización con al menos 48 horas de anticipación al inicio
+										del evento.
+									</li>
 								</ul>
 								<p className="mt-4">
 									Cancelar una reserva puede resultar en penalizaciones para
@@ -300,15 +350,14 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 								<p className="mt-4">
 									<b>Evaluación de materiales:</b> Los expositores que no hayan
 									participado previamente en otros festivales de la productora,
-									estarán obligados a subir imágenes de los productos que
-									comercializarán en su espacio. Estas imágenes se subirán a la
-									plataforma designada por la organización y hasta la fecha
-									comunicada luego de hecha la reserva, para su evaluación
-									interna. En caso de incumplimiento o en caso de que el
-									material subido vaya en contra de alguno de los términos y
-									condiciones, la reserva será cancelada automáticamente, el
-									espacio será liberado y el participante no podrá participar en
-									el festival.
+									deberán subir imágenes de los productos que comercializarán en
+									su espacio. Estas imágenes se subirán a la plataforma
+									designada por la organización y hasta la fecha comunicada
+									luego de hecha la reserva, para su evaluación interna. En caso
+									de incumplimiento o en caso de que el material subido vaya en
+									contra de alguno de los términos y condiciones, la reserva
+									será cancelada automáticamente, el espacio será liberado y el
+									participante no podrá participar en el festival.
 								</p>
 							</AccordionContent>
 						</AccordionItem>
@@ -355,6 +404,14 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 									indicada puede resultar en penalizaciones para participaciones
 									futuras.
 								</p>
+								<p className="mt-4">
+									<b>Uso de electricidad:</b> El acceso a puntos eléctricos en
+									el recinto depende de la disponibilidad del establecimiento.
+									Los expositores que requieran electricidad para su stand deben
+									comunicarlo a la organización con al menos 20 días de
+									anticipación al evento. La organización hará lo posible por
+									gestionar la solicitud, pero no garantiza su disponibilidad.
+								</p>
 							</AccordionContent>
 						</AccordionItem>
 						<AccordionItem value="item-3">
@@ -373,8 +430,9 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 										los límites del stand.
 									</li>
 									<li>
-										Tengan todo contenido +18 censurado y comercializado con
-										solicitud previa.
+										Mantengan todo contenido para adultos (explícito, erótico o
+										con violencia gráfica) debidamente cubierto y disponible
+										únicamente bajo solicitud directa del cliente.
 									</li>
 									<li>
 										Se abstengan de cualquier comportamiento que pueda causar
@@ -382,8 +440,9 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 									</li>
 									<li>
 										No participen en ninguna forma de acoso, discriminación o
-										comportamiento amenazante tanto dentro como fuera de los
-										festivales.
+										comportamiento amenazante, ya sea en persona, en redes
+										sociales o en cualquier plataforma digital, hacia otros
+										expositores, asistentes, staff o la organización.
 									</li>
 									<li>
 										No posean ni usen sustancias ilegales. Ni se encuentren en
@@ -393,6 +452,16 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 									<li>
 										Mantengan un área de stand limpia y segura durante todo el
 										festival.
+									</li>
+									<li>
+										No publiquen, compartan ni reproduzcan el trabajo, los
+										productos o la imagen de otros expositores en redes sociales
+										sin su consentimiento explícito.
+									</li>
+									<li>
+										Cuiden la imagen del festival en sus publicaciones: eviten
+										compartir contenido que pueda afectar negativamente su
+										reputación o la de la organización.
 									</li>
 								</ul>
 								{mapCategory === "illustration" && (
@@ -474,6 +543,10 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 										vecinos
 									</li>
 									<li>
+										El uso de luces parpadeantes o estroboscópicas de cualquier
+										tipo en el stand.
+									</li>
+									<li>
 										Distribución de materiales de marketing fuera del área de
 										stand asignada
 									</li>
@@ -504,6 +577,11 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 									<li>
 										Cualquier actividad que viole las leyes o regulaciones
 										locales
+									</li>
+									<li>
+										La presencia de animales o mascotas de cualquier tipo en el
+										stand o en el recinto del festival sin autorización previa
+										de la organización.
 									</li>
 								</ul>
 								<p className="mt-4">
@@ -547,15 +625,25 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 												Por motivos de patrocinio, exclusividad y alineación con
 												la temática del evento, no se permite la venta de los
 												siguientes productos.
-												<ol className="ps-5 mt-2 space-y-1 list-disc list-inside">
+												<ol className="ps-5 mt-2 space-y-1 list-item list-inside">
 													<li>Bebidas alcohólicas o que contengan alcohol</li>
-													<li>
-														Productos que generen olores fuertes o desagradables
-													</li>
-													<li>Gaseosas</li>
-													<li>Panchitos o &quot;hot dogs&quot; en general</li>
 													<li>Sopas de ramen</li>
-													<li>Pipocas</li>
+													<li>
+														Productos o alimentos que generen olores fuertes o
+														desagradables
+													</li>
+													<li>Pipocas*</li>
+													<li>Gaseosas*</li>
+													<li>
+														Panchitos o <span className="italic">hot dogs</span>{" "}
+														en general*
+													</li>
+													<span className="text-xs text-muted-foreground">
+														* Estos productos están designados para el stand de
+														comida de la productora del festival, el cual nos
+														ayuda a generar ingresos para seguir creando futuros
+														festivales.
+													</span>
 												</ol>
 											</li>
 											<li>
@@ -569,11 +657,8 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 												asignado a su stand
 											</li>
 											<li>
-												Tener algún tipo de luces parpadeantes en el stand.
-											</li>
-											<li>
-												Cada expositor se compromete a mantener la estética de
-												su stand.
+												La manipulación de alimentos debe realizarse con las
+												medidas de higiene adecuadas.
 											</li>
 										</ul>
 										<p className="mt-4">
@@ -584,9 +669,49 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 								)}
 							</AccordionContent>
 						</AccordionItem>
+
 						<AccordionItem value="item-6">
 							<AccordionTrigger className="text-lg md:text-xl font-semibold">
-								8. Información de Contacto
+								8. Resolución de Conflictos
+							</AccordionTrigger>
+							<AccordionContent className="text-muted-foreground">
+								<ul className="list-disc pl-6 space-y-2">
+									<li>
+										Los conflictos entre expositores durante el evento serán
+										mediados por el staff del festival, cuya resolución es
+										definitiva en el contexto del evento.
+									</li>
+									<li>
+										Las disputas con la organización deben comunicarse por
+										escrito al correo expositores@productoraglitter.com dentro
+										de los 15 días posteriores a la fecha del evento. La
+										organización responderá dentro de los 10 días hábiles
+										siguientes.
+									</li>
+								</ul>
+							</AccordionContent>
+						</AccordionItem>
+
+						<AccordionItem value="item-7">
+							<AccordionTrigger className="text-lg md:text-xl font-semibold">
+								9. Modificaciones a los Términos
+							</AccordionTrigger>
+							<AccordionContent className="text-muted-foreground">
+								<p className="mb-4">
+									La organización se reserva el derecho de actualizar o
+									modificar estos Términos y Condiciones en cualquier momento.
+									Los cambios serán comunicados con al menos 15 días de
+									anticipación a través de la plataforma y/o por correo
+									electrónico. La participación continuada en festivales de la
+									productora tras la entrada en vigencia de los nuevos términos
+									implica la aceptación de los mismos.
+								</p>
+							</AccordionContent>
+						</AccordionItem>
+
+						<AccordionItem value="item-8">
+							<AccordionTrigger className="text-lg md:text-xl font-semibold">
+								10. Información de Contacto
 							</AccordionTrigger>
 							<AccordionContent className="text-muted-foreground">
 								<p>
@@ -603,17 +728,60 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 					</Accordion>
 				</div>
 
+				<div className="rounded-lg border bg-muted/40 p-6 my-4 md:my-6">
+					<h2 className="text-lg font-semibold mb-2">
+						¡Forma parte de nuestra comunidad!
+					</h2>
+					<p className="text-muted-foreground text-sm">
+						Formás parte de nuestra comunidad y podés ayudarnos a llegar a más
+						personas — lo que también significa más público en el festival y más
+						ojos en tu stand. La forma más efectiva de lograrlo es interactuando
+						con nuestro contenido: dale like a nuestras publicaciones e
+						historias en{" "}
+						<a
+							href="https://www.instagram.com/glitter.bo"
+							target="_blank"
+							rel="noopener noreferrer"
+							className="font-medium underline underline-offset-4 hover:text-foreground transition-colors"
+						>
+							Instagram
+						</a>
+						, comentá lo que se te ocurra en nuestros videos de{" "}
+						<a
+							href="https://www.tiktok.com/@glitter.bo"
+							target="_blank"
+							rel="noopener noreferrer"
+							className="font-medium underline underline-offset-4 hover:text-foreground transition-colors"
+						>
+							TikTok
+						</a>
+						, y compartí lo que te guste. Eso es lo que realmente hace que la
+						comunidad crezca.
+					</p>
+				</div>
+
 				{isProfileInFestival(props.festival.id, props.forProfile) ? (
 					<>
-						<div className="rounded-md border p-4">
-							Gracias por aceptar los términos y condiciones. Para hacer tu
-							reserva haz clic en el botón de abajo.
+						<div className="text-sm w-full text-muted-foreground text-pretty">
+							{mapCategory === "gastronomy" ? (
+								<>
+									Gracias por aceptar los términos y condiciones. La
+									organización evaluará tu participación en el sector
+									gastronómico y te notificará si has sido aprobado.
+								</>
+							) : (
+								<>
+									Gracias por aceptar los términos y condiciones. Para continuar
+									con tu reserva hacé clic en el botón de abajo.
+								</>
+							)}
 						</div>
 						<div className="flex justify-end mt-4">
 							<RedirectButton
 								href={`/profiles/${props.forProfile.id}/festivals/${props.festival.id}/reservations/new`}
 							>
-								Completar mi reserva
+								Continuar
+								<ArrowRightIcon className="ml-2 w-4 h-4" />
 							</RedirectButton>
 						</div>
 					</>

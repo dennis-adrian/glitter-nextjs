@@ -2,7 +2,7 @@
 
 import { ProfileType } from "@/app/api/users/definitions";
 import ReservationStatusBadge from "@/app/components/atoms/reservation-status-badge";
-import Title from "@/app/components/atoms/title";
+import Heading from "@/app/components/atoms/heading";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
@@ -87,9 +87,9 @@ export default function ParticipationsHistory({
 							/>
 						</div>
 						<div className="flex flex-col gap-2 grow">
-							<Title level="h4" className="my-0">
+							<Heading level={4} className="my-0">
 								{activeFestival.name}
-							</Title>
+							</Heading>
 							<ReservationStatusBadge
 								status={currentParticipation.reservation.status}
 							/>

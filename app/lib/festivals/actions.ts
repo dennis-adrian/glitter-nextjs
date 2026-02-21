@@ -21,7 +21,7 @@ import {
 	userRequests,
 	users,
 } from "@/db/schema";
-import { and, desc, eq, getTableColumns, inArray, not, SQL } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, not, or } from "drizzle-orm";
 import { cacheLife, cacheTag, revalidatePath, updateTag } from "next/cache";
 import {
 	FestivalBase,
@@ -31,6 +31,7 @@ import {
 	FullFestival,
 } from "./definitions";
 import { groupVisitorEmails } from "./utils";
+import { UserRequest } from "@/app/api/user_requests/definitions";
 
 export async function createFestival(
 	festivalData: Omit<typeof festivals.$inferInsert, "id"> & {
@@ -118,7 +119,7 @@ export async function createFestival(
 		});
 
 		revalidatePath("/dashboard/festivals");
-	updateTag("active-festival");
+		updateTag("active-festival");
 		return {
 			success: true,
 			message: "Festival creado exitosamente!",
@@ -298,7 +299,7 @@ export async function updateFestival(
 		});
 
 		revalidatePath("/dashboard/festivals");
-	updateTag("active-festival");
+		updateTag("active-festival");
 		return {
 			success: true,
 			message: "Festival updated successfully",
@@ -339,6 +340,26 @@ export async function fetchFestivalActivityForReview(
 	} catch (error) {
 		console.error("Error fetching festival activity for review:", error);
 		return null;
+	}
+}
+
+export async function fetchCarouselFestivals(): Promise<FestivalWithDates[]> {
+	"use cache";
+	cacheLife("minutes");
+	cacheTag("active-festival");
+
+	try {
+		return (await db.query.festivals.findMany({
+			where: or(
+				eq(festivals.status, "active"),
+				eq(festivals.status, "published"),
+			),
+			with: { festivalDates: true },
+			orderBy: desc(festivals.id),
+		})) as FestivalWithDates[];
+	} catch (error) {
+		console.error("Error fetching carousel festivals", error);
+		return [];
 	}
 }
 
@@ -833,6 +854,11 @@ export async function fetchFestivalParticipants(
 	}
 }
 
+/**
+ * Fetch all participants that have enrolled in a festival
+ * @param festivalId - The id of the festival
+ * @returns An array of profiles
+ */
 export async function fetchEnrolledParticipants(
 	festivalId: number,
 ): Promise<BaseProfile[]> {
@@ -877,5 +903,23 @@ export async function fetchEnrolledParticipants(
 	} catch (error) {
 		console.error(error);
 		return [];
+	}
+}
+
+export async function fetchProfileEnrollmentInFestival(
+	profileId: number,
+	festivalId: number,
+) {
+	try {
+		return await db.query.userRequests.findFirst({
+			where: and(
+				eq(userRequests.userId, profileId),
+				eq(userRequests.festivalId, festivalId),
+				eq(userRequests.type, "festival_participation"),
+			),
+		});
+	} catch (error) {
+		console.error("Error fetching profile enrollment in festival", error);
+		return null;
 	}
 }
