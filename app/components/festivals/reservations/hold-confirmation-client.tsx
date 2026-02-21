@@ -203,8 +203,6 @@ export default function HoldConfirmationClient({
 	// Auto-expire: when timer hits 0, cancel hold and redirect
 	useEffect(() => {
 		if (remainingSeconds === 0 && !isSubmitting) {
-			if (remainingSeconds !== 0) return;
-
 			let cancelled = false;
 			(async () => {
 				try {
@@ -320,7 +318,7 @@ export default function HoldConfirmationClient({
 						}`}
 					>
 						<p className="text-sm text-muted-foreground">
-							Confirma tu reservá antes de que expire el tiempo
+							Confirmá tu reserva antes de que expire el tiempo
 						</p>
 						<div className="flex items-center gap-1">
 							<TimerIcon

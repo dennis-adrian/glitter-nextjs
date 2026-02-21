@@ -104,7 +104,10 @@ export async function fetchOrCreateProfile(
 ): Promise<ProfileType | undefined | null> {
 	try {
 		if (!user) throw new Error("No logged in user provided");
-		const userEmail = user.emailAddresses[0].emailAddress;
+		const userEmail = user?.emailAddresses[0]?.emailAddress;
+
+		if (!userEmail) throw new Error("Use has no email address");
+
 		return await db.transaction(async (tx) => {
 			const profile = await tx.query.users.findFirst({
 				with: {
@@ -278,14 +281,17 @@ type FormState = {
 };
 export async function deleteProfile(profileId: number, prevState: FormState) {
 	try {
-		const deletedUsers = await db
-			.delete(users)
-			.where(eq(users.id, profileId))
-			.returning();
+		const [userToDelete] = await db
+			.select({ clerkId: users.clerkId })
+			.from(users)
+			.where(eq(users.id, profileId));
 
-		await Promise.all(
-			deletedUsers.map((user) => deleteClerkUser(user.clerkId)),
-		);
+		if (!userToDelete) {
+			return { success: false, message: "Error al eliminar el perfil" };
+		}
+
+		await deleteClerkUser(userToDelete.clerkId);
+		await db.delete(users).where(eq(users.id, profileId));
 	} catch (error) {
 		console.error(error);
 		return { success: false, message: "Error al eliminar el perfil" };
@@ -307,6 +313,10 @@ export async function verifyProfile(profileId: number, category: UserCategory) {
 			})
 			.where(eq(users.id, profileId))
 			.returning();
+
+		if (!updatedUser) {
+			return { success: false, message: "Perfil no encontrado" };
+		}
 
 		const activeFestival = await fetchFestival({
 			acceptedUsersOnly: true,
