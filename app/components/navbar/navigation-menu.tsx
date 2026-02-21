@@ -153,6 +153,12 @@ const NavbarNavigationMenu = ({
 								>
 									Etiquetas para los usuarios
 								</NavigationMenuListItem>
+								<NavigationMenuListItem
+									title="Códigos de descuento"
+									href="/dashboard/discount_codes"
+								>
+									Códigos de descuento para reservas
+								</NavigationMenuListItem>
 							</ul>
 						</NavigationMenuContent>
 					</NavigationMenuItem>
