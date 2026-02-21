@@ -6,6 +6,7 @@ import {
   columns as enrolledColumns,
   columnTitles as enrolledColumnTitles,
 } from "@/app/components/festivals/participants/enrolledColumns";
+import FestivalRequestsTable from "@/app/components/festivals/requests/table";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { fetchEnrolledParticipants, fetchFestivalParticipants } from "@/app/lib/festivals/actions";
 import { fetchInfractionTypes } from "@/app/lib/infractions/actions";
@@ -25,6 +26,7 @@ export default async function ParticipantsTable({
 			<TabsList>
 				<TabsTrigger value="participating">Con Reserva</TabsTrigger>
 				<TabsTrigger value="enrolled">Sin Reserva</TabsTrigger>
+				<TabsTrigger value="requests">Solicitudes</TabsTrigger>
 			</TabsList>
 			<TabsContent value="participating">
 				<DataTable
@@ -42,6 +44,9 @@ export default async function ParticipantsTable({
 					columns={enrolledColumns}
 					data={enrolledUsers}
 				/>
+			</TabsContent>
+			<TabsContent value="requests">
+				<FestivalRequestsTable festivalId={festivalId} />
 			</TabsContent>
 		</Tabs>
 	);

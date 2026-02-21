@@ -19,6 +19,8 @@ import { sendEmail } from "@/app/vendors/resend";
 import { and, eq, not, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { BaseProfile } from "@/app/api/users/definitions";
+import FestivalParticipationApprovedEmailTemplate from "@/app/emails/festival-participation-approved";
+import FestivalParticipationRejectedEmailTemplate from "@/app/emails/festival-participation-rejected";
 import TermsAcceptanceEmailTemplate from "@/app/emails/terms-acceptance";
 import {
 	FestivalBase,
@@ -69,8 +71,55 @@ export async function updateUserRequest(id: number, data: UserRequest) {
 		return { message: "Error updating user request" };
 	}
 
+	if (status === "accepted" && type === "festival_participation" && data.festival) {
+		await sendEmail({
+			to: [data.user.email],
+			from: "Inscripciones Glitter <inscripciones@productoraglitter.com>",
+			subject: `Tu postulación para ${data.festival.name} fue aprobada`,
+			react: FestivalParticipationApprovedEmailTemplate({
+				profile: data.user,
+				festival: data.festival,
+			}) as React.ReactElement,
+		});
+	}
+
+	if (status === "rejected" && type === "festival_participation" && data.festival) {
+		await sendEmail({
+			to: [data.user.email],
+			from: "Inscripciones Glitter <inscripciones@productoraglitter.com>",
+			subject: `Tu postulación para ${data.festival.name}`,
+			react: FestivalParticipationRejectedEmailTemplate({
+				profile: data.user,
+				festival: data.festival,
+			}) as React.ReactElement,
+		});
+	}
+
 	revalidatePath("/dashboard", "layout");
 	return { success: true };
+}
+
+export async function fetchFestivalParticipationRequests(
+	festivalId: number,
+): Promise<UserRequest[]> {
+	try {
+		const requests = await db.query.userRequests.findMany({
+			where: and(
+				eq(userRequests.festivalId, festivalId),
+				eq(userRequests.type, "festival_participation"),
+			),
+			with: {
+				user: true,
+				festival: true,
+			},
+			orderBy: (userRequests, { desc }) => [desc(userRequests.createdAt)],
+		});
+
+		return requests;
+	} catch (error) {
+		console.error("Error fetching festival participation requests", error);
+		return [];
+	}
 }
 
 export async function fetchRequests(): Promise<UserRequest[]> {
