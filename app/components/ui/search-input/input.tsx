@@ -31,7 +31,12 @@ const SearchInput = ({
       return option.label.toLowerCase().includes(term.toLocaleLowerCase());
     });
 
-    setSearchedOptions(filtered || []);
+    const sorted = [...(filtered || [])].sort((a, b) => {
+      if (a.disabled === b.disabled) return 0;
+      return a.disabled ? 1 : -1;
+    });
+
+    setSearchedOptions(sorted.slice(0, 10));
   }, 300);
 
   useEffect(() => {

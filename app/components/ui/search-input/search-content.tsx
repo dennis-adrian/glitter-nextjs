@@ -5,6 +5,8 @@ export type SearchOption = {
   value: string | number;
   label: string;
   imageUrl?: string | null;
+  disabled?: boolean;
+  disabledReason?: string;
 };
 
 type Props = {
@@ -22,23 +24,46 @@ const SearchInputContent = (props: Props) => {
       </li>
     );
   } else {
-    items = props.options!.map((option) => (
-      <li
-        className="hover:bg-secondary hover:text-secondary-foreground rounded-lg p-2 cursor-pointer"
-        key={option.value}
-        value={option.value}
-        onClick={props.onSelect}
-      >
-        <div className="flex justify-between items-center">
-          <span>{option.label}</span>
-          {option.imageUrl && (
-            <Avatar className="w-6 h-6">
-              <AvatarImage alt="avatar" src={option.imageUrl} />
-            </Avatar>
-          )}
-        </div>
-      </li>
-    ));
+    items = props.options!.map((option) =>
+      option.disabled ? (
+        <li
+          className="rounded-lg p-2 cursor-not-allowed opacity-50"
+          key={option.value}
+        >
+          <div className="flex justify-between items-center">
+            <div className="flex flex-col">
+              <span>{option.label}</span>
+              {option.disabledReason && (
+                <span className="text-xs text-muted-foreground">
+                  {option.disabledReason}
+                </span>
+              )}
+            </div>
+            {option.imageUrl && (
+              <Avatar className="w-6 h-6">
+                <AvatarImage alt="avatar" src={option.imageUrl} />
+              </Avatar>
+            )}
+          </div>
+        </li>
+      ) : (
+        <li
+          className="hover:bg-secondary hover:text-secondary-foreground rounded-lg p-2 cursor-pointer"
+          key={option.value}
+          value={option.value}
+          onClick={props.onSelect}
+        >
+          <div className="flex justify-between items-center">
+            <span>{option.label}</span>
+            {option.imageUrl && (
+              <Avatar className="w-6 h-6">
+                <AvatarImage alt="avatar" src={option.imageUrl} />
+              </Avatar>
+            )}
+          </div>
+        </li>
+      ),
+    );
   }
 
   return (

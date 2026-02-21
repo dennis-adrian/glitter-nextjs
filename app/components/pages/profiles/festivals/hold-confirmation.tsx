@@ -1,10 +1,11 @@
 import { fetchUserProfileById } from "@/app/api/users/actions";
-import { getParticipantsOptions } from "@/app/api/reservations/helpers";
 import HoldConfirmationClient from "@/app/components/festivals/reservations/hold-confirmation-client";
 import { computeCanvasBounds } from "@/app/components/maps/map-utils";
 import { fetchSectorWithStandsAndReservations } from "@/app/lib/festival_sectors/actions";
-import { fetchBaseFestival } from "@/app/lib/festivals/actions";
-import { fetchFestivalParticipants } from "@/app/lib/festivals/actions";
+import {
+	fetchBaseFestival,
+	fetchPotentialPartnersForFestival,
+} from "@/app/lib/festivals/actions";
 import { fetchHoldWithStand } from "@/app/lib/stands/hold-actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound, redirect } from "next/navigation";
@@ -93,28 +94,27 @@ export default async function HoldConfirmationPage(
 		label: string;
 		value: string;
 		imageUrl?: string | null;
+		disabled?: boolean;
+		disabledReason?: string;
 	}[] = [];
 	if (
 		forProfile.category === "illustration" ||
 		forProfile.category === "new_artist"
 	) {
-		const participants = await fetchFestivalParticipants(props.festivalId);
-		const eligiblePartners = participants
-			.filter((p) => {
-				const user = p.user;
-				// A participant with a non-rejected reservation already has a stand
-				const hasReservation =
-					p.reservation && p.reservation.status !== "rejected";
-				return (
-					user.id !== forProfile.id &&
-					(user.category === "illustration" ||
-						user.category === "new_artist") &&
-					!hasReservation
-				);
-			})
-			.map((p) => p.user);
+		const potentialPartners = await fetchPotentialPartnersForFestival(
+			props.festivalId,
+			forProfile.id,
+		);
 
-		partnerOptions = getParticipantsOptions(eligiblePartners);
+		partnerOptions = potentialPartners.map((p) => ({
+			label: p.displayName || "Sin nombre",
+			value: String(p.id),
+			imageUrl: p.imageUrl,
+			disabled: !p.isEligible,
+			disabledReason: !p.isEligible
+				? "No ha aceptado los términos y condiciones del festival"
+				: undefined,
+		}));
 	}
 
 	return (

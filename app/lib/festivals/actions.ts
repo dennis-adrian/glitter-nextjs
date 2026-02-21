@@ -808,6 +808,67 @@ export async function fetchAvailableArtistsInFestival(
 	}
 }
 
+export async function fetchPotentialPartnersForFestival(
+	festivalId: number,
+	excludeUserId: number,
+): Promise<(BaseProfile & { isEligible: boolean })[]> {
+	try {
+		const usersTableColumns = getTableColumns(users);
+		return await db.transaction(async (tx) => {
+			// Users who have any reservation for this festival (excluded entirely)
+			const usersWithReservations = await tx
+				.select({ userId: reservationParticipants.userId })
+				.from(reservationParticipants)
+				.leftJoin(
+					standReservations,
+					eq(standReservations.id, reservationParticipants.reservationId),
+				)
+				.where(eq(standReservations.festivalId, festivalId));
+
+			const reservedUserIds = usersWithReservations
+				.map((r) => r.userId)
+				.filter((id): id is number => id !== null);
+
+			// Users who have accepted T&C (enrolled in festival)
+			const enrolledUsers = await tx
+				.select({ userId: userRequests.userId })
+				.from(userRequests)
+				.where(
+					and(
+						eq(userRequests.festivalId, festivalId),
+						eq(userRequests.status, "accepted"),
+					),
+				);
+
+			const enrolledUserIds = new Set(enrolledUsers.map((e) => e.userId));
+
+			const whereConditions: Parameters<typeof and>[0][] = [
+				eq(users.status, "verified"),
+				inArray(users.category, ["illustration", "new_artist"]),
+				not(eq(users.role, "admin")),
+				not(eq(users.id, excludeUserId)),
+			];
+
+			if (reservedUserIds.length > 0) {
+				whereConditions.push(not(inArray(users.id, reservedUserIds)));
+			}
+
+			const allUsers = await tx
+				.selectDistinctOn([users.id], usersTableColumns)
+				.from(users)
+				.where(and(...whereConditions));
+
+			return allUsers.map((user) => ({
+				...user,
+				isEligible: enrolledUserIds.has(user.id),
+			}));
+		});
+	} catch (error) {
+		console.error("Error fetching potential partners for festival", error);
+		return [];
+	}
+}
+
 export async function fetchFestivalParticipants(
 	festivalId: number,
 	confirmedOnly = false,

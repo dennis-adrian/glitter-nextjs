@@ -75,6 +75,8 @@ type HoldConfirmationClientProps = {
 		label: string;
 		value: string;
 		imageUrl?: string | null;
+		disabled?: boolean;
+		disabledReason?: string;
 	}[];
 };
 
