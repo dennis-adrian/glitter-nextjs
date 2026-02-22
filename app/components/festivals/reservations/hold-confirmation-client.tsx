@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
 import { toast } from "sonner";
-import { ArrowRight, TimerIcon, X } from "lucide-react";
+import { ArrowRight, TimerIcon, Trash2Icon } from "lucide-react";
 
 import { Button } from "@/app/components/ui/button";
+import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import SearchInput from "@/app/components/ui/search-input/input";
 import { Label } from "@/app/components/ui/label";
 import MapCanvas from "@/app/components/maps/map-canvas";
@@ -384,30 +385,47 @@ export default function HoldConfirmationClient({
 									<Label htmlFor="partner-search">
 										Elige a tu compañero de espacio
 									</Label>
-									<SearchInput
-										id="partner-search"
-										options={partnerOptions}
-										placeholder="Ingresa el nombre..."
-										onSelect={(id) => {
-											const parsed = typeof id === "string" ? Number(id) : id;
-											setSelectedPartnerId(
-												Number.isFinite(parsed) ? parsed : undefined,
+									{selectedPartnerId ? (
+										(() => {
+											const partner = partnerOptions.find(
+												(o) => o.value === String(selectedPartnerId),
 											);
-										}}
-									/>
-									{selectedPartnerId && (
-										<Button
-											variant="ghost"
-											size="sm"
-											className="self-start"
-											onClick={() => {
-												setSelectedPartnerId(undefined);
-												setAddPartner(false);
+											return (
+												<div className="flex items-center justify-between">
+													<div className="flex items-center gap-3">
+														<Avatar>
+															<AvatarImage
+																src={partner?.imageUrl ?? undefined}
+																alt="avatar"
+															/>
+														</Avatar>
+														<span className="font-medium">
+															{partner?.label}
+														</span>
+													</div>
+													<Button
+														size="icon"
+														onClick={() => setSelectedPartnerId(undefined)}
+														aria-label="Quitar compañero"
+														className="text-destructive bg-card hover:bg-destructive hover:text-destructive-foreground transition-colors"
+													>
+														<Trash2Icon className="h-4 w-4" />
+													</Button>
+												</div>
+											);
+										})()
+									) : (
+										<SearchInput
+											id="partner-search"
+											options={partnerOptions}
+											placeholder="Ingresa el nombre..."
+											onSelect={(id) => {
+												const parsed = typeof id === "string" ? Number(id) : id;
+												setSelectedPartnerId(
+													Number.isFinite(parsed) ? parsed : undefined,
+												);
 											}}
-										>
-											<X className="h-4 w-4 mr-1" />
-											Quitar compañero
-										</Button>
+										/>
 									)}
 								</div>
 							) : (
