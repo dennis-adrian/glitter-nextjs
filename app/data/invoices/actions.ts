@@ -125,6 +125,62 @@ export async function createPayment(data: {
 	return { success: true, message: successMessage };
 }
 
+export async function confirmFreeInvoice(data: {
+	invoiceId: number;
+	reservationId: number;
+	standId: number;
+}): Promise<{ success: boolean; message: string }> {
+	const { invoiceId, reservationId, standId } = data;
+	try {
+		const invoice = await fetchInvoice(invoiceId);
+		if (!invoice || invoice.amount !== 0) {
+			return {
+				success: false,
+				message: "El monto de la factura no es cero. Recarga la página.",
+			};
+		}
+
+		await db.transaction(async (tx) => {
+			await tx
+				.update(invoices)
+				.set({ status: "paid" })
+				.where(eq(invoices.id, invoiceId));
+		});
+
+		await sendEmail({
+			to: [invoice.user.email],
+			from: "Reservas Glitter <reservas@productoraglitter.com>",
+			subject: "Tu reserva ha sido confirmada",
+			react: PaymentConfirmationForUserEmailTemplate({ invoice }),
+		});
+
+		const admins = await fetchAdminUsers();
+		const adminEmails = admins.map((admin) => admin.email);
+		if (adminEmails.length > 0) {
+			await sendEmail({
+				to: [...adminEmails],
+				from: "Reservas Glitter <reservas@productoraglitter.com>",
+				subject: `${invoice.user.displayName} confirmó su reserva gratuita`,
+				react: PaymentConfirmationForAdminsEmailTemplate({ invoice }),
+			});
+		}
+
+		await updateReservationStatus({
+			standId,
+			reservationId,
+			status: "verification_payment",
+		});
+	} catch (error) {
+		console.error("Error confirming free invoice", error);
+		return {
+			success: false,
+			message: "No se pudo confirmar la reserva. Intenta nuevamente.",
+		};
+	}
+
+	return { success: true, message: "Reserva confirmada" };
+}
+
 export async function fetchInvoices(): Promise<
 	InvoiceWithParticipants[]
 > {

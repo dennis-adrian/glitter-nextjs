@@ -5,6 +5,7 @@ import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import QRCodeDetails from "@/app/components/payments/qrcode-details";
+import FreeReservationDetails from "@/app/components/payments/free-reservation-details";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
 
@@ -67,17 +68,23 @@ export default async function Page(props: {
 				if (invoice && invoice.status === "pending") {
 					return (
 						<div key={invoice.id} className="container p-4 md:p-6">
-							<h1 className="text-3xl font-bold mb-8">Completa tu Pago</h1>
+							<h1 className="text-3xl font-bold mb-8">
+								{invoice.amount === 0 ? "Confirma tu Reserva" : "Completa tu Pago"}
+							</h1>
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 								<div className="flex flex-col gap-6">
 									<ProductDetails festival={festival} invoice={invoice} />
 									<PaymentSummary
-									invoice={invoice}
-									festivalId={validatedParams.data.festivalId}
-								/>
+										invoice={invoice}
+										festivalId={validatedParams.data.festivalId}
+									/>
 								</div>
 
-								<QRCodeDetails invoice={invoice} />
+								{invoice.amount === 0 ? (
+									<FreeReservationDetails invoice={invoice} />
+								) : (
+									<QRCodeDetails invoice={invoice} />
+								)}
 							</div>
 						</div>
 					);
