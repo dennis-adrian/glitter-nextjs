@@ -848,6 +848,7 @@ export async function searchPotentialPartners(
 					and(
 						eq(userRequests.festivalId, festivalId),
 						eq(userRequests.status, "accepted"),
+						eq(userRequests.type, "festival_participation"),
 					),
 				);
 

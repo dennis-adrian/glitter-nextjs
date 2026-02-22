@@ -218,9 +218,13 @@ export default function HoldConfirmationClient({
 		startRefreshTransition(() => {
 			router.refresh();
 		});
-		if (lastSearchTermRef.current.trim()) {
-			handlePartnerSearch(lastSearchTermRef.current);
-		}
+		// Re-search after a short delay to allow refresh to propagate
+		// or consider moving the search inside the transition
+		setTimeout(() => {
+			if (lastSearchTermRef.current.trim()) {
+				handlePartnerSearch(lastSearchTermRef.current);
+			}
+		}, 100);
 	};
 
 	// Countdown timer
@@ -480,7 +484,7 @@ export default function HoldConfirmationClient({
 											options={dynamicPartnerOptions}
 											placeholder="Ingresa el nombre..."
 											onSearch={handlePartnerSearch}
-										isLoading={isSearching}
+											isLoading={isSearching}
 											onSelect={(id) => {
 												const parsed = typeof id === "string" ? Number(id) : id;
 												setSelectedPartnerId(
