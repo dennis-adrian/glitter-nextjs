@@ -241,6 +241,15 @@ export default function ReservationCard({
 		activeParticipation?.reservation,
 	);
 
+	const actionHref =
+		cardStatus === "pending_payment"
+			? activeParticipation?.reservation?.id != null
+				? `/profiles/${profile.id}/festivals/${activeFestival.id}/reservations/${activeParticipation.reservation.id}/payments`
+				: `/my_participations`
+			: hasReservationCardStatuses.includes(cardStatus)
+				? `/my_participations`
+				: `/profiles/${profile.id}/festivals/${activeFestival.id}/reservations/new`;
+
 	return (
 		<Card className="overflow-hidden">
 			<div className="aspect-3/1 relative overflow-hidden bg-muted">
@@ -285,17 +294,13 @@ export default function ReservationCard({
 				{!nonActionsCardStatuses.includes(cardStatus) && (
 					<div className="flex flex-col items-center gap-1 w-full mt-2">
 						<Button asChild variant="default" size="sm" className="w-full">
-							<Link
-								href={
-									hasReservationCardStatuses.includes(cardStatus)
-										? `/my_participations`
-										: `/profiles/${profile.id}/festivals/${activeFestival.id}/reservations/new`
-								}
-							>
-								{hasReservationCardStatuses.includes(cardStatus)
-									? "Ver mi reserva"
-									: "Ir a página de reservas"}
-								<ArrowRightIcon className="w-3.5 h-3.5 shrink-0" />
+							<Link href={actionHref}>
+								{cardStatus === "pending_payment"
+									? "Completar el pago"
+									: hasReservationCardStatuses.includes(cardStatus)
+										? "Ver mi reserva"
+										: "Ir a página de reservas"}
+								<ArrowRightIcon className="w-3.5 h-3.5 shrink-0 ml-1" />
 							</Link>
 						</Button>
 						<Button
