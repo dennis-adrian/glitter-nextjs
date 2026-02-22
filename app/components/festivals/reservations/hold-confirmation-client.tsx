@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
 import { toast } from "sonner";
@@ -27,6 +27,8 @@ import {
 	confirmStandHold,
 	cancelStandHold,
 } from "@/app/lib/stands/hold-actions";
+import { searchPotentialPartners } from "@/app/lib/festivals/actions";
+import { type SearchOption } from "@/app/components/ui/search-input/search-content";
 import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
 import {
 	AlertDialog,
@@ -73,13 +75,6 @@ type HoldConfirmationClientProps = {
 		imageUrl: string | null;
 	};
 	sectorId: number;
-	partnerOptions: {
-		label: string;
-		value: string;
-		imageUrl?: string | null;
-		disabled?: boolean;
-		disabledReason?: string;
-	}[];
 };
 
 const CORNER_RADIUS = 0.8;
@@ -170,7 +165,6 @@ export default function HoldConfirmationClient({
 	festival,
 	profile,
 	sectorId,
-	partnerOptions,
 }: HoldConfirmationClientProps) {
 	const router = useRouter();
 	const [isSubmitting, setIsSubmitting] = useState(false);
@@ -180,13 +174,53 @@ export default function HoldConfirmationClient({
 	const [addPartner, setAddPartner] = useState(false);
 	const [showExitDialog, setShowExitDialog] = useState(false);
 	const [isRefreshing, startRefreshTransition] = useTransition();
+	const [dynamicPartnerOptions, setDynamicPartnerOptions] = useState<
+		SearchOption[]
+	>([]);
+	const [isSearching, setIsSearching] = useState(false);
+	const lastSearchTermRef = useRef("");
 
 	const mapUrl = `/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${sectorId}`;
+
+	const handlePartnerSearch = useCallback(
+		async (term: string) => {
+			lastSearchTermRef.current = term;
+			if (!term.trim()) {
+				setDynamicPartnerOptions([]);
+				return;
+			}
+			setIsSearching(true);
+			try {
+				const results = await searchPotentialPartners(
+					festival.id,
+					profile.id,
+					term,
+				);
+				setDynamicPartnerOptions(
+					results.map((p) => ({
+						label: p.displayName || "Sin nombre",
+						value: String(p.id),
+						imageUrl: p.imageUrl,
+						disabled: !p.isEligible,
+						disabledReason: !p.isEligible
+							? "No ha aceptado los términos y condiciones del festival"
+							: undefined,
+					})),
+				);
+			} finally {
+				setIsSearching(false);
+			}
+		},
+		[festival.id, profile.id],
+	);
 
 	const handleRefreshPartners = () => {
 		startRefreshTransition(() => {
 			router.refresh();
 		});
+		if (lastSearchTermRef.current.trim()) {
+			handlePartnerSearch(lastSearchTermRef.current);
+		}
 	};
 
 	// Countdown timer
@@ -413,7 +447,7 @@ export default function HoldConfirmationClient({
 									</div>
 									{selectedPartnerId ? (
 										(() => {
-											const partner = partnerOptions.find(
+											const partner = dynamicPartnerOptions.find(
 												(o) => o.value === String(selectedPartnerId),
 											);
 											return (
@@ -443,8 +477,10 @@ export default function HoldConfirmationClient({
 									) : (
 										<SearchInput
 											id="partner-search"
-											options={partnerOptions}
+											options={dynamicPartnerOptions}
 											placeholder="Ingresa el nombre..."
+											onSearch={handlePartnerSearch}
+										isLoading={isSearching}
 											onSelect={(id) => {
 												const parsed = typeof id === "string" ? Number(id) : id;
 												setSelectedPartnerId(

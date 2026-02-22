@@ -21,7 +21,17 @@ import {
 	userRequests,
 	users,
 } from "@/db/schema";
-import { and, desc, eq, getTableColumns, inArray, not, or } from "drizzle-orm";
+import {
+	and,
+	desc,
+	eq,
+	getTableColumns,
+	ilike,
+	inArray,
+	isNotNull,
+	not,
+	or,
+} from "drizzle-orm";
 import { cacheLife, cacheTag, revalidatePath, updateTag } from "next/cache";
 import {
 	FestivalBase,
@@ -31,7 +41,6 @@ import {
 	FullFestival,
 } from "./definitions";
 import { groupVisitorEmails } from "./utils";
-import { UserRequest } from "@/app/api/user_requests/definitions";
 
 export async function createFestival(
 	festivalData: Omit<typeof festivals.$inferInsert, "id"> & {
@@ -808,10 +817,12 @@ export async function fetchAvailableArtistsInFestival(
 	}
 }
 
-export async function fetchPotentialPartnersForFestival(
+export async function searchPotentialPartners(
 	festivalId: number,
 	excludeUserId: number,
+	query: string,
 ): Promise<(BaseProfile & { isEligible: boolean })[]> {
+	if (!query.trim()) return [];
 	try {
 		const usersTableColumns = getTableColumns(users);
 		return await db.transaction(async (tx) => {
@@ -847,24 +858,27 @@ export async function fetchPotentialPartnersForFestival(
 				inArray(users.category, ["illustration", "new_artist"]),
 				not(eq(users.role, "admin")),
 				not(eq(users.id, excludeUserId)),
+				isNotNull(users.displayName),
+				ilike(users.displayName, `%${query}%`),
 			];
 
 			if (reservedUserIds.length > 0) {
 				whereConditions.push(not(inArray(users.id, reservedUserIds)));
 			}
 
-			const allUsers = await tx
+			const matchedUsers = await tx
 				.selectDistinctOn([users.id], usersTableColumns)
 				.from(users)
-				.where(and(...whereConditions));
+				.where(and(...whereConditions))
+				.limit(10);
 
-			return allUsers.map((user) => ({
+			return matchedUsers.map((user) => ({
 				...user,
 				isEligible: enrolledUserIds.has(user.id),
 			}));
 		});
 	} catch (error) {
-		console.error("Error fetching potential partners for festival", error);
+		console.error("Error searching potential partners for festival", error);
 		return [];
 	}
 }

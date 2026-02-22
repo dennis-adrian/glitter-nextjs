@@ -2,10 +2,7 @@ import { fetchUserProfileById } from "@/app/api/users/actions";
 import HoldConfirmationClient from "@/app/components/festivals/reservations/hold-confirmation-client";
 import { computeCanvasBounds } from "@/app/components/maps/map-utils";
 import { fetchSectorWithStandsAndReservations } from "@/app/lib/festival_sectors/actions";
-import {
-	fetchBaseFestival,
-	fetchPotentialPartnersForFestival,
-} from "@/app/lib/festivals/actions";
+import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { fetchHoldWithStand } from "@/app/lib/stands/hold-actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound, redirect } from "next/navigation";
@@ -89,34 +86,6 @@ export default async function HoldConfirmationPage(
 				}
 			: computeCanvasBounds(sector.stands);
 
-	// Fetch potential partners for illustration/new_artist categories
-	let partnerOptions: {
-		label: string;
-		value: string;
-		imageUrl?: string | null;
-		disabled?: boolean;
-		disabledReason?: string;
-	}[] = [];
-	if (
-		forProfile.category === "illustration" ||
-		forProfile.category === "new_artist"
-	) {
-		const potentialPartners = await fetchPotentialPartnersForFestival(
-			props.festivalId,
-			forProfile.id,
-		);
-
-		partnerOptions = potentialPartners.map((p) => ({
-			label: p.displayName || "Sin nombre",
-			value: String(p.id),
-			imageUrl: p.imageUrl,
-			disabled: !p.isEligible,
-			disabledReason: !p.isEligible
-				? "No ha aceptado los términos y condiciones del festival"
-				: undefined,
-		}));
-	}
-
 	return (
 		<HoldConfirmationClient
 			hold={{
@@ -144,7 +113,6 @@ export default async function HoldConfirmationPage(
 				imageUrl: forProfile.imageUrl,
 			}}
 			sectorId={props.sectorId}
-			partnerOptions={partnerOptions}
 		/>
 	);
 }
