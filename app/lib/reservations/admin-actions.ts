@@ -34,9 +34,6 @@ export async function createAdminReservation(params: {
 	if (!stand) {
 		return { success: false, message: "El espacio no existe" };
 	}
-	if (stand.status === "reserved") {
-		return { success: false, message: "El espacio ya está reservado" };
-	}
 
 	const forUser = await fetchBaseProfileById(userId);
 	if (!forUser) {
@@ -66,7 +63,25 @@ export async function createAdminReservation(params: {
 	}
 
 	try {
-		const reservationId = await db.transaction(async (tx) => {
+		const result = await db.transaction(async (tx) => {
+			// Lock stand row and re-check status inside transaction to avoid race
+			const [lockedStand] = await tx
+				.select()
+				.from(stands)
+				.where(eq(stands.id, standId))
+				.limit(1)
+				.for("update");
+
+			if (!lockedStand) {
+				return { success: false, message: "El espacio no existe" };
+			}
+			if (lockedStand.status === "reserved") {
+				return {
+					success: false,
+					message: "El espacio ya está reservado",
+				};
+			}
+
 			const [reservation] = await tx
 				.insert(standReservations)
 				.values({ festivalId, standId })
@@ -106,12 +121,31 @@ export async function createAdminReservation(params: {
 			return reservation.id;
 		});
 
+		if (typeof result === "object" && result && result.success === false) {
+			return result;
+		}
+
+		const reservationId = result as number;
 		revalidatePath("/dashboard/festivals");
 		revalidatePath("/dashboard/reservations");
 
 		return { success: true, message: "Reserva creada", reservationId };
-	} catch (error) {
+	} catch (error: unknown) {
 		console.error("Error creating admin reservation", error);
+		// Concurrent reservation or unique constraint: treat as already reserved
+		const code =
+			error &&
+			typeof error === "object" &&
+			"code" in error &&
+			typeof (error as { code: string }).code === "string"
+				? (error as { code: string }).code
+				: "";
+		if (code === "23505" || code === "40001") {
+			return {
+				success: false,
+				message: "El espacio ya está reservado",
+			};
+		}
 		return { success: false, message: "Ups! No pudimos crear la reserva" };
 	}
 }
