@@ -12,7 +12,7 @@ export default async function NewReservationPage({
 }: {
   params: Promise<z.infer<typeof ParamsSchema>>;
 }) {
-  const { id } = await params;
+  const { id } = ParamsSchema.parse(await params);
   const [enrolledUsers, sectors] = await Promise.all([
     fetchAllFestivalEnrolledUsers(id),
     fetchFestivalSectors(id),

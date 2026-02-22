@@ -34,6 +34,12 @@ export async function createAdminReservation(params: {
 	if (!stand) {
 		return { success: false, message: "El espacio no existe" };
 	}
+	if (stand.festivalId !== festivalId) {
+		return {
+			success: false,
+			message: "El espacio no pertenece a este festival",
+		};
+	}
 
 	const forUser = await fetchBaseProfileById(userId);
 	if (!forUser) {
@@ -75,6 +81,12 @@ export async function createAdminReservation(params: {
 			if (!lockedStand) {
 				return { success: false, message: "El espacio no existe" };
 			}
+			if (lockedStand.festivalId !== festivalId) {
+				return {
+					success: false,
+					message: "El espacio no pertenece a este festival",
+				};
+			}
 			if (lockedStand.status === "reserved") {
 				return {
 					success: false,
@@ -106,8 +118,8 @@ export async function createAdminReservation(params: {
 				date: new Date(),
 				userId,
 				reservationId: reservation.id,
-				originalAmount: stand.price ?? 0,
-				amount: stand.price ?? 0,
+				originalAmount: lockedStand.price ?? 0,
+				amount: lockedStand.price ?? 0,
 			});
 
 			await tx.insert(scheduledTasks).values({
