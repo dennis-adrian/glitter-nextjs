@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
 import { toast } from "sonner";
-import { ArrowRight, TimerIcon, Trash2Icon } from "lucide-react";
+import { ArrowRight, RefreshCw, TimerIcon, Trash2Icon } from "lucide-react";
 
 import { Button } from "@/app/components/ui/button";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
@@ -22,6 +22,7 @@ import {
 	SELECTED_RING,
 } from "@/app/components/maps/map-utils";
 import { UserCategory } from "@/app/api/users/definitions";
+import { cn } from "@/app/lib/utils";
 import {
 	confirmStandHold,
 	cancelStandHold,
@@ -178,8 +179,15 @@ export default function HoldConfirmationClient({
 	>();
 	const [addPartner, setAddPartner] = useState(false);
 	const [showExitDialog, setShowExitDialog] = useState(false);
+	const [isRefreshing, startRefreshTransition] = useTransition();
 
 	const mapUrl = `/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${sectorId}`;
+
+	const handleRefreshPartners = () => {
+		startRefreshTransition(() => {
+			router.refresh();
+		});
+	};
 
 	// Countdown timer
 	const [remainingSeconds, setRemainingSeconds] = useState(() => {
@@ -382,9 +390,27 @@ export default function HoldConfirmationClient({
 						<div className="rounded-xl border bg-card shadow-sm p-6 mb-6">
 							{addPartner ? (
 								<div className="grid gap-2">
-									<Label htmlFor="partner-search">
-										Elige a tu compañero de espacio
-									</Label>
+									<div className="flex items-center justify-between">
+										<Label htmlFor="partner-search">
+											Elige a tu compañero de espacio
+										</Label>
+										{!selectedPartnerId && (
+											<Button
+												variant="ghost"
+												size="icon"
+												onClick={handleRefreshPartners}
+												disabled={isRefreshing}
+												aria-label="Actualizar lista"
+											>
+												<RefreshCw
+													className={cn(
+														"h-4 w-4",
+														isRefreshing && "animate-spin",
+													)}
+												/>
+											</Button>
+										)}
+									</div>
 									{selectedPartnerId ? (
 										(() => {
 											const partner = partnerOptions.find(

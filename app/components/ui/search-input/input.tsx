@@ -1,4 +1,4 @@
-import { SyntheticEvent, useEffect, useState } from "react";
+import { SyntheticEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import SearchContent, { SearchOption } from "./search-content";
 import { Input } from "@/app/components/ui/input";
@@ -26,22 +26,34 @@ const SearchInput = ({
   const [searchedOptions, setSearchedOptions] =
     useState<SearchOption[]>(options);
 
-  const handleSearch = useDebouncedCallback((term) => {
-    const filtered = options?.filter((option) => {
-      return option.label.toLowerCase().includes(term.toLocaleLowerCase());
-    });
+  const inputTextRef = useRef(inputText);
+  inputTextRef.current = inputText;
 
-    const sorted = [...(filtered || [])].sort((a, b) => {
-      if (a.disabled === b.disabled) return 0;
-      return a.disabled ? 1 : -1;
-    });
+  const applyFilter = useCallback(
+    (term: string) => {
+      const filtered = (options ?? []).filter((option) =>
+        option.label.toLowerCase().includes(term.toLocaleLowerCase()),
+      );
+      const sorted = [...filtered].sort((a, b) => {
+        if (a.disabled === b.disabled) return 0;
+        return a.disabled ? 1 : -1;
+      });
+      setSearchedOptions(sorted.slice(0, 10));
+    },
+    [options],
+  );
 
-    setSearchedOptions(sorted.slice(0, 10));
-  }, 300);
+  const handleSearch = useDebouncedCallback(applyFilter, 300);
 
+  // Re-filter on typing (debounced)
   useEffect(() => {
     handleSearch(inputText);
   }, [inputText, handleSearch]);
+
+  // Re-filter immediately when options are refreshed
+  useEffect(() => {
+    applyFilter(inputTextRef.current);
+  }, [applyFilter]);
 
   const handleSelect = (e: SyntheticEvent<HTMLLIElement>) => {
     setInputText("");
