@@ -995,6 +995,13 @@
       "when": 1771800000000,
       "tag": "0141_backfill_invoice_original_amount",
       "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1771900000000,
+      "tag": "0142_enable_pg_trgm",
+      "breakpoints": true
     }
   ]
 }

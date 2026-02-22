@@ -31,6 +31,7 @@ import {
 	isNotNull,
 	not,
 	or,
+	sql,
 } from "drizzle-orm";
 import { cacheLife, cacheTag, revalidatePath, updateTag } from "next/cache";
 import {
@@ -854,13 +855,18 @@ export async function searchPotentialPartners(
 
 			const enrolledUserIds = new Set(enrolledUsers.map((e) => e.userId));
 
+			const normalizedQuery = query.replace(/\s+/g, "").toLowerCase();
+
 			const whereConditions: Parameters<typeof and>[0][] = [
 				eq(users.status, "verified"),
 				inArray(users.category, ["illustration", "new_artist"]),
 				not(eq(users.role, "admin")),
 				not(eq(users.id, excludeUserId)),
 				isNotNull(users.displayName),
-				ilike(users.displayName, `%${query}%`),
+				sql`similarity(
+					replace(lower(${users.displayName}), ' ', ''),
+					${normalizedQuery}
+				) > 0.1`,
 			];
 
 			if (reservedUserIds.length > 0) {
@@ -868,9 +874,20 @@ export async function searchPotentialPartners(
 			}
 
 			const matchedUsers = await tx
-				.selectDistinctOn([users.id], usersTableColumns)
+				.select(usersTableColumns)
 				.from(users)
 				.where(and(...whereConditions))
+				.orderBy(
+					// Tier 1: names containing the query as a substring come first
+					sql`CASE WHEN replace(lower(${users.displayName}), ' ', '')
+						LIKE '%' || ${normalizedQuery} || '%'
+					THEN 0 ELSE 1 END`,
+					// Tier 2: within each tier, best trigram similarity first
+					sql`similarity(
+						replace(lower(${users.displayName}), ' ', ''),
+						${normalizedQuery}
+					) DESC`,
+				)
 				.limit(10);
 
 			return matchedUsers.map((user) => ({
