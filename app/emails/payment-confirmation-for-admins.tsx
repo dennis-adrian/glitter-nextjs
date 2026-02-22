@@ -48,11 +48,13 @@ export default function PaymentConfirmationForAdminsEmailTemplate(
               </strong>{" "}
               en el festival {props.invoice.reservation.festival.name}.
             </Text>
-            <Img
-              style={{ margin: "0.5rem auto" }}
-              src={payment.voucherUrl}
-              width={280}
-            />
+            {payment?.voucherUrl && (
+              <Img
+                style={{ margin: "0.5rem auto" }}
+                src={payment.voucherUrl}
+                width={280}
+              />
+            )}
             <Text style={styles.text}>
               Para confirmar la reserva ve al panel de pagos haciendo clic en el
               botón y busca el ID #{props.invoice.id}

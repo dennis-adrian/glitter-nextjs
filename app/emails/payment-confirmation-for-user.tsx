@@ -36,15 +36,28 @@ export default function PaymentConfirmationForUserEmailTemplate(
           <EmailHeader />
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.text}>¡Hola {userName}!</Text>
-            <Text style={styles.text}>
-              Hemos recibido el comprobante de pago que subiste para el espacio{" "}
-              <strong>
-                {props.invoice.reservation.stand.label}
-                {props.invoice.reservation.stand.standNumber}
-              </strong>{" "}
-              en el festival{" "}
-              <strong>{props.invoice.reservation.festival.name}</strong>
-            </Text>
+            {props.invoice.amount === 0 ? (
+              <Text style={styles.text}>
+                Hemos registrado tu reserva gratuita para el espacio{" "}
+                <strong>
+                  {props.invoice.reservation.stand.label}
+                  {props.invoice.reservation.stand.standNumber}
+                </strong>{" "}
+                en el festival{" "}
+                <strong>{props.invoice.reservation.festival.name}</strong>.
+                Tu código de descuento cubrió el costo total.
+              </Text>
+            ) : (
+              <Text style={styles.text}>
+                Hemos recibido el comprobante de pago que subiste para el espacio{" "}
+                <strong>
+                  {props.invoice.reservation.stand.label}
+                  {props.invoice.reservation.stand.standNumber}
+                </strong>{" "}
+                en el festival{" "}
+                <strong>{props.invoice.reservation.festival.name}</strong>
+              </Text>
+            )}
             <Text style={styles.text}>
               El equipo Glitter confirmará tu reserva en el transcurso del día.
               Recibirás un correo cuando tu reserva sea confirmada.
