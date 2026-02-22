@@ -287,15 +287,19 @@ export default function ReservationCard({
 						<Button asChild variant="default" size="sm" className="w-full">
 							<Link
 								href={
-									hasReservationCardStatuses.includes(cardStatus)
-										? `/my_participations`
-										: `/profiles/${profile.id}/festivals/${activeFestival.id}/reservations/new`
+									cardStatus === "pending_payment"
+										? `/profiles/${profile.id}/festivals/${activeFestival.id}/reservations/${activeParticipation?.reservation?.id}/payments`
+										: hasReservationCardStatuses.includes(cardStatus)
+											? `/my_participations`
+											: `/profiles/${profile.id}/festivals/${activeFestival.id}/reservations/new`
 								}
 							>
-								{hasReservationCardStatuses.includes(cardStatus)
-									? "Ver mi reserva"
-									: "Ir a página de reservas"}
-								<ArrowRightIcon className="w-3.5 h-3.5 shrink-0" />
+								{cardStatus === "pending_payment"
+									? "Completar el pago"
+									: hasReservationCardStatuses.includes(cardStatus)
+										? "Ver mi reserva"
+										: "Ir a página de reservas"}
+								<ArrowRightIcon className="w-3.5 h-3.5 shrink-0 ml-1" />
 							</Link>
 						</Button>
 						<Button
