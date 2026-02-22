@@ -122,7 +122,7 @@ export async function validateAndApplyDiscountCode({
 				return { success: false, message: "Factura no encontrada." };
 			}
 
-			if (invoice.userId !== currentUser.id) {
+			if (invoice.userId !== currentUser.id && currentUser.role !== "admin") {
 				return { success: false, message: "No autorizado para esta factura." };
 			}
 			if (invoice.festivalId !== festivalId) {
@@ -198,7 +198,8 @@ export async function validateAndApplyDiscountCode({
 			// Check user scope
 			if (
 				discountCode.userId !== null &&
-				discountCode.userId !== currentUser.id
+				discountCode.userId !== currentUser.id &&
+				currentUser.role !== "admin"
 			) {
 				return {
 					success: false,
