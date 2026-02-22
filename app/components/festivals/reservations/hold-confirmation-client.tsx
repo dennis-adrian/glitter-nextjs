@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
 import { toast } from "sonner";
-import { ArrowRight, TimerIcon, X } from "lucide-react";
+import { ArrowRight, RefreshCw, TimerIcon, Trash2Icon } from "lucide-react";
 
 import { Button } from "@/app/components/ui/button";
+import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import SearchInput from "@/app/components/ui/search-input/input";
 import { Label } from "@/app/components/ui/label";
 import MapCanvas from "@/app/components/maps/map-canvas";
@@ -21,10 +22,13 @@ import {
 	SELECTED_RING,
 } from "@/app/components/maps/map-utils";
 import { UserCategory } from "@/app/api/users/definitions";
+import { cn } from "@/app/lib/utils";
 import {
 	confirmStandHold,
 	cancelStandHold,
 } from "@/app/lib/stands/hold-actions";
+import { searchPotentialPartners } from "@/app/lib/festivals/actions";
+import { type SearchOption } from "@/app/components/ui/search-input/search-content";
 import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
 import {
 	AlertDialog,
@@ -71,11 +75,6 @@ type HoldConfirmationClientProps = {
 		imageUrl: string | null;
 	};
 	sectorId: number;
-	partnerOptions: {
-		label: string;
-		value: string;
-		imageUrl?: string | null;
-	}[];
 };
 
 const CORNER_RADIUS = 0.8;
@@ -166,7 +165,6 @@ export default function HoldConfirmationClient({
 	festival,
 	profile,
 	sectorId,
-	partnerOptions,
 }: HoldConfirmationClientProps) {
 	const router = useRouter();
 	const [isSubmitting, setIsSubmitting] = useState(false);
@@ -175,8 +173,59 @@ export default function HoldConfirmationClient({
 	>();
 	const [addPartner, setAddPartner] = useState(false);
 	const [showExitDialog, setShowExitDialog] = useState(false);
+	const [isRefreshing, startRefreshTransition] = useTransition();
+	const [dynamicPartnerOptions, setDynamicPartnerOptions] = useState<
+		SearchOption[]
+	>([]);
+	const [isSearching, setIsSearching] = useState(false);
+	const lastSearchTermRef = useRef("");
 
 	const mapUrl = `/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${sectorId}`;
+
+	const handlePartnerSearch = useCallback(
+		async (term: string) => {
+			lastSearchTermRef.current = term;
+			if (!term.trim()) {
+				setDynamicPartnerOptions([]);
+				return;
+			}
+			setIsSearching(true);
+			try {
+				const results = await searchPotentialPartners(
+					festival.id,
+					profile.id,
+					term,
+				);
+				setDynamicPartnerOptions(
+					results.map((p) => ({
+						label: p.displayName || "Sin nombre",
+						value: String(p.id),
+						imageUrl: p.imageUrl,
+						disabled: !p.isEligible,
+						disabledReason: !p.isEligible
+							? "No ha aceptado los términos y condiciones del festival"
+							: undefined,
+					})),
+				);
+			} finally {
+				setIsSearching(false);
+			}
+		},
+		[festival.id, profile.id],
+	);
+
+	const handleRefreshPartners = () => {
+		startRefreshTransition(() => {
+			router.refresh();
+		});
+		// Re-search after a short delay to allow refresh to propagate
+		// or consider moving the search inside the transition
+		setTimeout(() => {
+			if (lastSearchTermRef.current.trim()) {
+				handlePartnerSearch(lastSearchTermRef.current);
+			}
+		}, 100);
+	};
 
 	// Countdown timer
 	const [remainingSeconds, setRemainingSeconds] = useState(() => {
@@ -302,8 +351,8 @@ export default function HoldConfirmationClient({
 	return (
 		<div className="flex min-h-[calc(100dvh-4rem)] flex-col">
 			<StepIndicator
-				step={3}
-				totalSteps={4}
+				step={2}
+				totalSteps={3}
 				backLabel="Volver al mapa"
 				onBack={() => setShowExitDialog(true)}
 			/>
@@ -379,33 +428,70 @@ export default function HoldConfirmationClient({
 						<div className="rounded-xl border bg-card shadow-sm p-6 mb-6">
 							{addPartner ? (
 								<div className="grid gap-2">
-									<Label htmlFor="partner-search">
-										Elige a tu compañero de espacio
-									</Label>
-									<SearchInput
-										id="partner-search"
-										options={partnerOptions}
-										placeholder="Ingresa el nombre..."
-										onSelect={(id) => {
-											const parsed = typeof id === "string" ? Number(id) : id;
-											setSelectedPartnerId(
-												Number.isFinite(parsed) ? parsed : undefined,
+									<div className="flex items-center justify-between">
+										<Label htmlFor="partner-search">
+											Elige a tu compañero de espacio
+										</Label>
+										{!selectedPartnerId && (
+											<Button
+												variant="ghost"
+												size="icon"
+												onClick={handleRefreshPartners}
+												disabled={isRefreshing}
+												aria-label="Actualizar lista"
+											>
+												<RefreshCw
+													className={cn(
+														"h-4 w-4",
+														isRefreshing && "animate-spin",
+													)}
+												/>
+											</Button>
+										)}
+									</div>
+									{selectedPartnerId ? (
+										(() => {
+											const partner = dynamicPartnerOptions.find(
+												(o) => o.value === String(selectedPartnerId),
 											);
-										}}
-									/>
-									{selectedPartnerId && (
-										<Button
-											variant="ghost"
-											size="sm"
-											className="self-start"
-											onClick={() => {
-												setSelectedPartnerId(undefined);
-												setAddPartner(false);
+											return (
+												<div className="flex items-center justify-between">
+													<div className="flex items-center gap-3">
+														<Avatar>
+															<AvatarImage
+																src={partner?.imageUrl ?? undefined}
+																alt="avatar"
+															/>
+														</Avatar>
+														<span className="font-medium">
+															{partner?.label}
+														</span>
+													</div>
+													<Button
+														size="icon"
+														onClick={() => setSelectedPartnerId(undefined)}
+														aria-label="Quitar compañero"
+														className="text-destructive bg-card hover:bg-destructive hover:text-destructive-foreground transition-colors"
+													>
+														<Trash2Icon className="h-4 w-4" />
+													</Button>
+												</div>
+											);
+										})()
+									) : (
+										<SearchInput
+											id="partner-search"
+											options={dynamicPartnerOptions}
+											placeholder="Ingresa el nombre..."
+											onSearch={handlePartnerSearch}
+											isLoading={isSearching}
+											onSelect={(id) => {
+												const parsed = typeof id === "string" ? Number(id) : id;
+												setSelectedPartnerId(
+													Number.isFinite(parsed) ? parsed : undefined,
+												);
 											}}
-										>
-											<X className="h-4 w-4 mr-1" />
-											Quitar compañero
-										</Button>
+										/>
 									)}
 								</div>
 							) : (

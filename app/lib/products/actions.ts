@@ -15,3 +15,18 @@ export async function fetchProducts() {
 		return [];
 	}
 }
+
+export async function fetchFeaturedProducts() {
+	try {
+		return await db.query.products.findMany({
+			where: (products, { eq }) => eq(products.isFeatured, true),
+			with: {
+				images: true,
+			},
+			orderBy: (products, { desc }) => [desc(products.createdAt)],
+		});
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
+}

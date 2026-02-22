@@ -23,7 +23,7 @@ import { Input } from "../ui/input";
 import SubmitProductOrderButton from "@/app/components/molecules/submit-product-order-button";
 
 const FormSchema = z.object({
-	itemQuantity: z
+	itemQuantity: z.coerce
 		.number()
 		.min(1, {
 			error: "La cantidad mínima es 1",
@@ -43,7 +43,11 @@ export default function StoreItemQuantityInput({
 	user,
 }: StoreItemQuantityInputProps) {
 	const router = useRouter();
-	const form = useForm({
+	const form = useForm<
+		z.input<typeof FormSchema>,
+		unknown,
+		z.output<typeof FormSchema>
+	>({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
 			itemQuantity: 1,
@@ -52,14 +56,14 @@ export default function StoreItemQuantityInput({
 
 	const handleAddItem = (e: React.MouseEvent<HTMLButtonElement>) => {
 		e.preventDefault();
-		const currentValue = form.getValues("itemQuantity");
+		const currentValue = form.getValues("itemQuantity") as number;
 		form.setValue("itemQuantity", currentValue + 1);
 	};
 
 	const handleRemoveItem = (e: React.MouseEvent<HTMLButtonElement>) => {
 		e.preventDefault();
-		const value = form.getValues("itemQuantity");
-		if (value == 0) return 0;
+		const value = form.getValues("itemQuantity") as number;
+		if (value <= 1) return;
 		form.setValue("itemQuantity", value - 1);
 	};
 
@@ -110,7 +114,13 @@ export default function StoreItemQuantityInput({
 										<MinusIcon className="w-4 h-4" />
 									</Button>
 									<FormControl>
-										<Input className="w-10 md:w-16" type="number" {...field} />
+										<Input
+											className="w-16 md:w-16"
+											type="number"
+											value={field.value as string}
+											onChange={(e) => field.onChange(Number(e.target.value))}
+											onBlur={field.onBlur}
+										/>
 									</FormControl>
 									<Button variant="outline" size="icon" onClick={handleAddItem}>
 										<PlusIcon className="w-4 h-4" />
@@ -119,7 +129,7 @@ export default function StoreItemQuantityInput({
 								<FormMessage />
 								<span className="text-sm">
 									Subtotal Bs
-									{getProductPriceAtPurchase(product) * field.value}
+									{getProductPriceAtPurchase(product) * (field.value as number)}
 								</span>
 							</FormItem>
 						)}

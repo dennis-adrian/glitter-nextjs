@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ProfileType } from "@/app/api/users/definitions";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
@@ -23,6 +23,7 @@ export default function ClientMap({
 	mapBounds,
 	activeHold: initialActiveHold,
 	subcategoryIds = [],
+	onStandsChange,
 }: {
 	festival: FestivalBase;
 	profile: ProfileType | null;
@@ -33,8 +34,15 @@ export default function ClientMap({
 	mapBounds?: { minX: number; minY: number; width: number; height: number };
 	activeHold?: ActiveHold;
 	subcategoryIds?: number[];
+	onStandsChange?: (stands: StandWithReservationsWithParticipants[]) => void;
 }) {
 	const [stands, setStands] = useState(initialStands);
+	const onStandsChangeRef = useRef(onStandsChange);
+	onStandsChangeRef.current = onStandsChange;
+
+	useEffect(() => {
+		onStandsChangeRef.current?.(stands);
+	}, [stands]);
 	const [selectedStandId, setSelectedStandId] = useState<number | null>(null);
 	const selectedStand =
 		selectedStandId != null
@@ -85,9 +93,12 @@ export default function ClientMap({
 		});
 	});
 
-	function handleStandSelect(stand: StandWithReservationsWithParticipants) {
-		setSelectedStandId(stand.id);
-	}
+	const handleStandSelect = useCallback(
+		(stand: StandWithReservationsWithParticipants) => {
+			setSelectedStandId(stand.id);
+		},
+		[],
+	);
 
 	return (
 		<>
