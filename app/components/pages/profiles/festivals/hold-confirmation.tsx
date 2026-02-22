@@ -35,14 +35,14 @@ export default async function HoldConfirmationPage(
 
 	if (!hold) {
 		redirect(
-			`/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new/sectors/${props.sectorId}`,
+			`/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new`,
 		);
 	}
 
 	// Check if hold is expired
 	if (new Date() >= hold.expiresAt) {
 		redirect(
-			`/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new/sectors/${props.sectorId}`,
+			`/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new`,
 		);
 	}
 
@@ -60,7 +60,7 @@ export default async function HoldConfirmationPage(
 	const sector = await fetchSectorWithStandsAndReservations(props.sectorId);
 	if (!sector) {
 		redirect(
-			`/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new/sectors/${props.sectorId}`,
+			`/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new`,
 		);
 	}
 
