@@ -1016,3 +1016,28 @@ export async function fetchProfileEnrollmentInFestival(
 		return null;
 	}
 }
+
+export async function fetchAllFestivalEnrolledUsers(
+	festivalId: number,
+): Promise<BaseProfile[]> {
+	try {
+		const result = await db
+			.selectDistinctOn([userRequests.userId], { user: users })
+			.from(userRequests)
+			.leftJoin(users, eq(users.id, userRequests.userId))
+			.where(
+				and(
+					eq(userRequests.type, "festival_participation"),
+					eq(userRequests.festivalId, festivalId),
+					eq(userRequests.status, "accepted"),
+				),
+			);
+
+		return result
+			.map((row) => row.user)
+			.filter((user): user is NonNullable<typeof user> => user !== null);
+	} catch (error) {
+		console.error("Error fetching all festival enrolled users", error);
+		return [];
+	}
+}
