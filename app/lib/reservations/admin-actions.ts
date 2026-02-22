@@ -24,12 +24,18 @@ export async function createAdminReservation(params: {
 
 	const currentProfile = await getCurrentUserProfile();
 	if (!currentProfile || currentProfile.role !== "admin") {
-		return { success: false, message: "No tienes permisos para realizar esta acción" };
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción",
+		};
 	}
 
 	const stand = await fetchStandById(standId);
 	if (!stand) {
 		return { success: false, message: "El espacio no existe" };
+	}
+	if (stand.status === "reserved") {
+		return { success: false, message: "El espacio ya está reservado" };
 	}
 
 	const forUser = await fetchBaseProfileById(userId);
@@ -38,6 +44,25 @@ export async function createAdminReservation(params: {
 	}
 	if (forUser.status !== "verified") {
 		return { success: false, message: "El usuario no está verificado" };
+	}
+
+	if (partnerId != null) {
+		if (partnerId === userId) {
+			return {
+				success: false,
+				message: "El compañero no puede ser el mismo que el usuario principal",
+			};
+		}
+		const partner = await fetchBaseProfileById(partnerId);
+		if (!partner) {
+			return { success: false, message: "El usuario compañero no existe" };
+		}
+		if (partner.status !== "verified") {
+			return {
+				success: false,
+				message: "El usuario compañero no está verificado",
+			};
+		}
 	}
 
 	try {
@@ -51,7 +76,10 @@ export async function createAdminReservation(params: {
 			if (partnerId && partnerId !== userId) participantIds.push(partnerId);
 
 			await tx.insert(reservationParticipants).values(
-				participantIds.map((uid) => ({ userId: uid, reservationId: reservation.id })),
+				participantIds.map((uid) => ({
+					userId: uid,
+					reservationId: reservation.id,
+				})),
 			);
 
 			await tx
