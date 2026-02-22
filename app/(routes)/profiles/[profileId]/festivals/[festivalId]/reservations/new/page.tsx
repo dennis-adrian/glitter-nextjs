@@ -1,5 +1,5 @@
-import SectorSelectionSkeleton from "@/app/components/festivals/reservations/sector-selection-skeleton";
-import SectorSelectionPage from "@/app/components/pages/profiles/festivals/sector-selection";
+import SectorReservationSkeleton from "@/app/components/festivals/reservations/sector-reservation-skeleton";
+import MapReservationPage from "@/app/components/pages/profiles/festivals/map-reservation";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { z } from "zod";
@@ -19,8 +19,8 @@ export default async function Page(
   if (!validatedParams.success) notFound();
 
   return (
-    <Suspense fallback={<SectorSelectionSkeleton />}>
-      <SectorSelectionPage
+    <Suspense fallback={<SectorReservationSkeleton />}>
+      <MapReservationPage
         profileId={validatedParams.data.profileId}
         festivalId={validatedParams.data.festivalId}
       />

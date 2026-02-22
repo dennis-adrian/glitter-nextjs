@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useRef, useState } from "react";
+import { forwardRef, memo, useRef, useState } from "react";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import {
 	STAND_SIZE,
@@ -33,7 +33,18 @@ const RING_PADDING = 0.8;
 const CORNER_RADIUS = 0.8;
 
 const MapStand = forwardRef<SVGGElement, MapStandProps>(
-	({ stand, canBeReserved, selected, colors, onClick, onTouchTap, onHoverChange }, ref) => {
+	(
+		{
+			stand,
+			canBeReserved,
+			selected,
+			colors,
+			onClick,
+			onTouchTap,
+			onHoverChange,
+		},
+		ref,
+	) => {
 		const [hovered, setHovered] = useState(false);
 		const gRef = useRef<SVGGElement>(null);
 		const { left, top } = getStandPosition(stand);
@@ -42,16 +53,24 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
 		const fillColor = selected
 			? SELECTED_FILL
 			: colors
-				? (hovered ? colors.hoverFill : colors.fill)
-				: (hovered
+				? hovered
+					? colors.hoverFill
+					: colors.fill
+				: hovered
 					? getStandHoverFillColor(status, canBeReserved)
-					: getStandFillColor(status, canBeReserved));
+					: getStandFillColor(status, canBeReserved);
 		const strokeColor = selected
 			? SELECTED_STROKE
 			: (colors?.stroke ?? getStandStrokeColor(status, canBeReserved));
 		const textColor = selected
 			? SELECTED_TEXT
 			: (colors?.text ?? getStandTextColor(status, canBeReserved));
+
+		const handlePointerDown = (e: React.PointerEvent) => {
+			if (e.pointerType === "touch" || e.pointerType === "pen") {
+				onTouchTap?.(stand);
+			}
+		};
 
 		const handlePointerUp = (e: React.PointerEvent) => {
 			if (e.pointerType === "touch" || e.pointerType === "pen") {
@@ -70,6 +89,7 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
 						(ref as React.MutableRefObject<SVGGElement | null>).current = node;
 				}}
 				transform={`translate(${left}, ${top})`}
+				onPointerDown={handlePointerDown}
 				onPointerUp={handlePointerUp}
 				onMouseEnter={() => {
 					setHovered(true);
@@ -81,7 +101,10 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
 					setHovered(false);
 					onHoverChange?.(null, null);
 				}}
-				style={{ cursor: onClick ? "pointer" : "default" }}
+				style={{
+					cursor: onClick ? "pointer" : "default",
+					touchAction: "manipulation",
+				}}
 				role={onClick ? "button" : undefined}
 				aria-label={`Espacio ${stand.label || ""}${standNumber} - ${status}`}
 				tabIndex={onClick ? 0 : undefined}
@@ -132,4 +155,4 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
 );
 
 MapStand.displayName = "MapStand";
-export default MapStand;
+export default memo(MapStand);

@@ -351,8 +351,8 @@ export default function HoldConfirmationClient({
 	return (
 		<div className="flex min-h-[calc(100dvh-4rem)] flex-col">
 			<StepIndicator
-				step={3}
-				totalSteps={4}
+				step={2}
+				totalSteps={3}
 				backLabel="Volver al mapa"
 				onBack={() => setShowExitDialog(true)}
 			/>

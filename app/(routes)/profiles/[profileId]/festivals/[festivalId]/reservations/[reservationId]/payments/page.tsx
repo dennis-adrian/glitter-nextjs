@@ -41,8 +41,8 @@ export default async function Page(props: {
 		return (
 			<>
 				<StepIndicator
-					step={4}
-					totalSteps={4}
+					step={3}
+					totalSteps={3}
 					backLabel="Ver mi reserva"
 					backHref="/my_profile"
 				/>
@@ -58,8 +58,8 @@ export default async function Page(props: {
 	return (
 		<>
 			<StepIndicator
-				step={4}
-				totalSteps={4}
+				step={3}
+				totalSteps={3}
 				backLabel="Ver mi reserva"
 				backHref="/my_profile"
 			/>
