@@ -1,22 +1,22 @@
-'use client';
+"use client";
 import { cn } from "@/app/lib/utils";
 import Image, { ImageProps } from "next/image";
-import { HTMLAttributes, useState } from "react";
+import { HTMLAttributes } from "react";
 
 export function Avatar({
-  children,
-  className,
+	children,
+	className,
 }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn(
-        "relative flex h-16 w-16 shrink-0 overflow-hidden rounded-full border-2 border-white",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
+	return (
+		<div
+			className={cn(
+				"relative flex h-16 w-16 shrink-0 overflow-hidden rounded-full border-2 border-white",
+				className,
+			)}
+		>
+			{children}
+		</div>
+	);
 }
 
 export function AvatarImage({

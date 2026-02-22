@@ -21,7 +21,18 @@ import {
 	userRequests,
 	users,
 } from "@/db/schema";
-import { and, desc, eq, getTableColumns, inArray, not, or } from "drizzle-orm";
+import {
+	and,
+	desc,
+	eq,
+	getTableColumns,
+	ilike,
+	inArray,
+	isNotNull,
+	not,
+	or,
+	sql,
+} from "drizzle-orm";
 import { cacheLife, cacheTag, revalidatePath, updateTag } from "next/cache";
 import {
 	FestivalBase,
@@ -31,7 +42,6 @@ import {
 	FullFestival,
 } from "./definitions";
 import { groupVisitorEmails } from "./utils";
-import { UserRequest } from "@/app/api/user_requests/definitions";
 
 export async function createFestival(
 	festivalData: Omit<typeof festivals.$inferInsert, "id"> & {
@@ -804,6 +814,89 @@ export async function fetchAvailableArtistsInFestival(
 		});
 	} catch (error) {
 		console.error("Error fetching profiles in festival", error);
+		return [];
+	}
+}
+
+export async function searchPotentialPartners(
+	festivalId: number,
+	excludeUserId: number,
+	query: string,
+): Promise<(BaseProfile & { isEligible: boolean })[]> {
+	if (!query.trim()) return [];
+	try {
+		const usersTableColumns = getTableColumns(users);
+		return await db.transaction(async (tx) => {
+			// Users who have any reservation for this festival (excluded entirely)
+			const usersWithReservations = await tx
+				.select({ userId: reservationParticipants.userId })
+				.from(reservationParticipants)
+				.leftJoin(
+					standReservations,
+					eq(standReservations.id, reservationParticipants.reservationId),
+				)
+				.where(eq(standReservations.festivalId, festivalId));
+
+			const reservedUserIds = usersWithReservations
+				.map((r) => r.userId)
+				.filter((id): id is number => id !== null);
+
+			// Users who have accepted T&C (enrolled in festival)
+			const enrolledUsers = await tx
+				.select({ userId: userRequests.userId })
+				.from(userRequests)
+				.where(
+					and(
+						eq(userRequests.festivalId, festivalId),
+						eq(userRequests.status, "accepted"),
+						eq(userRequests.type, "festival_participation"),
+					),
+				);
+
+			const enrolledUserIds = new Set(enrolledUsers.map((e) => e.userId));
+
+			const normalizedQuery = query.replace(/\s+/g, "").toLowerCase();
+
+			const whereConditions: Parameters<typeof and>[0][] = [
+				eq(users.status, "verified"),
+				inArray(users.category, ["illustration", "new_artist"]),
+				not(eq(users.role, "admin")),
+				not(eq(users.id, excludeUserId)),
+				isNotNull(users.displayName),
+				sql`similarity(
+					replace(lower(${users.displayName}), ' ', ''),
+					${normalizedQuery}
+				) > 0.1`,
+			];
+
+			if (reservedUserIds.length > 0) {
+				whereConditions.push(not(inArray(users.id, reservedUserIds)));
+			}
+
+			const matchedUsers = await tx
+				.select(usersTableColumns)
+				.from(users)
+				.where(and(...whereConditions))
+				.orderBy(
+					// Tier 1: names containing the query as a substring come first
+					sql`CASE WHEN replace(lower(${users.displayName}), ' ', '')
+						LIKE '%' || ${normalizedQuery} || '%'
+					THEN 0 ELSE 1 END`,
+					// Tier 2: within each tier, best trigram similarity first
+					sql`similarity(
+						replace(lower(${users.displayName}), ' ', ''),
+						${normalizedQuery}
+					) DESC`,
+				)
+				.limit(10);
+
+			return matchedUsers.map((user) => ({
+				...user,
+				isEligible: enrolledUserIds.has(user.id),
+			}));
+		});
+	} catch (error) {
+		console.error("Error searching potential partners for festival", error);
 		return [];
 	}
 }
