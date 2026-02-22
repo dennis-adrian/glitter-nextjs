@@ -1023,6 +1023,7 @@ export const products = pgTable("products", {
 	stock: integer("stock").default(0),
 	imageUrl: text("image_url"),
 	isNew: boolean("is_new").default(true).notNull(),
+	isFeatured: boolean("is_featured").default(false).notNull(),
 	isPreOrder: boolean("is_pre_order").default(false).notNull(),
 	availableDate: timestamp("available_date"),
 	discount: real("discount").default(0),

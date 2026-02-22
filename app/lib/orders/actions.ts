@@ -1,11 +1,7 @@
 "use server";
 
-import { orderItems, orders, users } from "@/db/schema";
-import {
-	NewOrderItem,
-	OrderStatus,
-	OrderWithRelations,
-} from "@/app/lib/orders/definitions";
+import { orderItems, orders } from "@/db/schema";
+import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
 import { db } from "@/db";
 import { eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -21,7 +17,14 @@ async function sendOrderEmails(emailData: {
 	orderId: number;
 	customerEmail: string;
 	customerName: string;
-	products: any[];
+	products: {
+		id: number;
+		name: string;
+		quantity: number;
+		price: number;
+		isPreOrder: boolean;
+		availableDate: Date | null;
+	}[];
 	total: number;
 }) {
 	// 1. Send to user
@@ -215,7 +218,11 @@ export async function fetchOrder(
 				},
 				orderItems: {
 					with: {
-						product: true,
+						product: {
+							with: {
+								images: true,
+							},
+						},
 					},
 				},
 			},
@@ -249,7 +256,11 @@ export async function fetchOrdersByUserId(userId: number) {
 				},
 				orderItems: {
 					with: {
-						product: true,
+						product: {
+							with: {
+								images: true,
+							},
+						},
 					},
 				},
 			},
@@ -275,7 +286,11 @@ export async function fetchOrders() {
 				},
 				orderItems: {
 					with: {
-						product: true,
+						product: {
+							with: {
+								images: true,
+							},
+						},
 					},
 				},
 			},

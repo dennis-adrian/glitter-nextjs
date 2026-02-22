@@ -1,6 +1,6 @@
 import InvoicePaymentSuccess from "@/app/components/organisms/payments/invoice-payment-success";
 import { fetchInvoice } from "@/app/data/invoices/actions";
-import { fetchProducts } from "@/app/lib/products/actions";
+import { fetchFeaturedProducts } from "@/app/lib/products/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { CheckCircleIcon } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -25,7 +25,7 @@ export default async function UserInvoicesPage(props: {
 	await protectRoute(currentUser || undefined, validatedParams.data.profileId);
 
 	const invoicePromise = fetchInvoice(params.invoiceId);
-	const productsPromise = fetchProducts();
+	const productsPromise = fetchFeaturedProducts();
 
 	return (
 		<div className="container p-3 md:p-6">
