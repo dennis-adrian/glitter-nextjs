@@ -5,7 +5,7 @@ import { OrderItemWithRelations } from "@/app/lib/orders/definitions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { BoxIcon, CreditCardIcon, TruckIcon } from "lucide-react";
 import Image from "next/image";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { z } from "zod";
 
 const ParamsSchema = z.object({
@@ -59,7 +59,9 @@ export default async function UserOrderPage(props: {
 								<div key={item.id} className="py-4 flex gap-4">
 									<div className="h-20 w-20 rounded-md overflow-hidden bg-gray-100 shrink-0">
 										<Image
-											src={item.product.imageUrl || "/placeholder.svg"}
+											src={
+												item.product.images[0]?.imageUrl || "/placeholder.svg"
+											}
 											alt={item.product.name}
 											width={80}
 											height={80}
