@@ -6,7 +6,10 @@ import { MapPin } from "lucide-react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { MapElementBase } from "@/app/lib/map_elements/definitions";
-import { computeCanvasBounds, getPublicStandColors } from "@/app/components/maps/map-utils";
+import {
+	computeCanvasBounds,
+	getPublicStandColors,
+} from "@/app/components/maps/map-utils";
 
 import MapCanvas from "@/app/components/maps/map-canvas";
 import MapStand from "@/app/components/maps/map-stand";
@@ -14,25 +17,31 @@ import MapElement from "@/app/components/maps/map-element";
 import MapToolbar from "@/app/components/maps/map-toolbar";
 import PublicMapLegend from "@/app/components/maps/public/public-map-legend";
 import PublicMapTooltip from "@/app/components/maps/public/public-map-tooltip";
-import PublicMapDrawer from "@/app/components/maps/public/public-map-drawer";
+import PublicMapStandCard from "@/app/components/maps/public/public-map-drawer";
 
 type PublicMapProps = {
 	stands: StandWithReservationsWithParticipants[];
 	mapElements?: MapElementBase[];
 	mapBounds?: { minX: number; minY: number; width: number; height: number };
+	sectorName?: string;
 };
+
+function isOccupied(stand: StandWithReservationsWithParticipants): boolean {
+	return stand.status === "reserved" || stand.status === "confirmed";
+}
 
 export default function PublicMap({
 	stands,
 	mapElements,
 	mapBounds,
+	sectorName,
 }: PublicMapProps) {
 	const [hoveredStand, setHoveredStand] =
 		useState<StandWithReservationsWithParticipants | null>(null);
 	const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
-	const [tappedStand, setTappedStand] =
+	const [selectedStand, setSelectedStand] =
 		useState<StandWithReservationsWithParticipants | null>(null);
-	const [drawerOpen, setDrawerOpen] = useState(false);
+	const [cardOpen, setCardOpen] = useState(false);
 
 	const visibleStands = stands.filter((s) => s.status !== "disabled");
 
@@ -41,21 +50,24 @@ export default function PublicMap({
 			stand: StandWithReservationsWithParticipants | null,
 			rect: DOMRect | null,
 		) => {
+			if (stand && !isOccupied(stand)) return;
 			setHoveredStand(stand);
 			setHoveredRect(rect);
 		},
 		[],
 	);
 
-	const handleTouchTap = useCallback(
+	const handleStandSelect = useCallback(
 		(stand: StandWithReservationsWithParticipants) => {
-			setTappedStand(stand);
-			setDrawerOpen(true);
+			if (!isOccupied(stand)) return;
+			setSelectedStand(stand);
+			setCardOpen(true);
 		},
 		[],
 	);
 
-	const canvasBounds = mapBounds ?? computeCanvasBounds(visibleStands, mapElements);
+	const canvasBounds =
+		mapBounds ?? computeCanvasBounds(visibleStands, mapElements);
 
 	return (
 		<div className="flex flex-col items-center w-full">
@@ -93,7 +105,8 @@ export default function PublicMap({
 									canBeReserved={false}
 									colors={getPublicStandColors(stand.status)}
 									onHoverChange={handleHoverChange}
-									onTouchTap={handleTouchTap}
+									onTouchTap={handleStandSelect}
+									onClick={handleStandSelect}
 								/>
 							))}
 						</MapCanvas>
@@ -106,15 +119,14 @@ export default function PublicMap({
 					</div>
 				</div>
 				{hoveredStand && hoveredRect && (
-					<PublicMapTooltip
-						stand={hoveredStand}
-						anchorRect={hoveredRect}
-					/>
+					<PublicMapTooltip stand={hoveredStand} anchorRect={hoveredRect} />
 				)}
-				<PublicMapDrawer
-					stand={tappedStand}
-					open={drawerOpen}
-					onOpenChange={setDrawerOpen}
+				<PublicMapStandCard
+					key={selectedStand?.id ?? "closed"}
+					stand={selectedStand}
+					open={cardOpen}
+					sectorName={sectorName}
+					onOpenChange={setCardOpen}
 				/>
 			</TransformWrapper>
 		</div>
