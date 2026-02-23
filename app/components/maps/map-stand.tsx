@@ -47,6 +47,7 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
 	) => {
 		const [hovered, setHovered] = useState(false);
 		const gRef = useRef<SVGGElement>(null);
+		const touchStartPos = useRef<{ x: number; y: number } | null>(null);
 		const { left, top } = getStandPosition(stand);
 		const { standNumber, status } = stand;
 
@@ -68,13 +69,21 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
 
 		const handlePointerDown = (e: React.PointerEvent) => {
 			if (e.pointerType === "touch" || e.pointerType === "pen") {
-				onTouchTap?.(stand);
+				touchStartPos.current = { x: e.clientX, y: e.clientY };
 			}
 		};
 
 		const handlePointerUp = (e: React.PointerEvent) => {
 			if (e.pointerType === "touch" || e.pointerType === "pen") {
-				onTouchTap?.(stand);
+				const start = touchStartPos.current;
+				touchStartPos.current = null;
+				if (start) {
+					const dx = Math.abs(e.clientX - start.x);
+					const dy = Math.abs(e.clientY - start.y);
+					if (dx < 10 && dy < 10) {
+						onTouchTap?.(stand);
+					}
+				}
 			} else {
 				onClick?.(stand);
 			}
