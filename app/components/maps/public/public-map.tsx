@@ -10,6 +10,7 @@ import {
 	computeCanvasBounds,
 	getPublicStandColors,
 } from "@/app/components/maps/map-utils";
+import { usePublicMapCard } from "@/app/components/maps/public/public-map-card-provider";
 
 import MapCanvas from "@/app/components/maps/map-canvas";
 import MapStand from "@/app/components/maps/map-stand";
@@ -17,7 +18,6 @@ import MapElement from "@/app/components/maps/map-element";
 import MapToolbar from "@/app/components/maps/map-toolbar";
 import PublicMapLegend from "@/app/components/maps/public/public-map-legend";
 import PublicMapTooltip from "@/app/components/maps/public/public-map-tooltip";
-import PublicMapStandCard from "@/app/components/maps/public/public-map-drawer";
 
 type PublicMapProps = {
 	stands: StandWithReservationsWithParticipants[];
@@ -36,12 +36,10 @@ export default function PublicMap({
 	mapBounds,
 	sectorName,
 }: PublicMapProps) {
+	const { openCard } = usePublicMapCard();
 	const [hoveredStand, setHoveredStand] =
 		useState<StandWithReservationsWithParticipants | null>(null);
 	const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
-	const [selectedStand, setSelectedStand] =
-		useState<StandWithReservationsWithParticipants | null>(null);
-	const [cardOpen, setCardOpen] = useState(false);
 
 	const visibleStands = stands.filter((s) => s.status !== "disabled");
 
@@ -60,10 +58,9 @@ export default function PublicMap({
 	const handleStandSelect = useCallback(
 		(stand: StandWithReservationsWithParticipants) => {
 			if (!isOccupied(stand)) return;
-			setSelectedStand(stand);
-			setCardOpen(true);
+			openCard(stand, sectorName);
 		},
-		[],
+		[openCard, sectorName],
 	);
 
 	const canvasBounds =
@@ -121,13 +118,6 @@ export default function PublicMap({
 				{hoveredStand && hoveredRect && (
 					<PublicMapTooltip stand={hoveredStand} anchorRect={hoveredRect} />
 				)}
-				<PublicMapStandCard
-					key={selectedStand?.id ?? "closed"}
-					stand={selectedStand}
-					open={cardOpen}
-					sectorName={sectorName}
-					onOpenChange={setCardOpen}
-				/>
 			</TransformWrapper>
 		</div>
 	);

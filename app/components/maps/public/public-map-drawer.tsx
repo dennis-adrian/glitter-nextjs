@@ -40,7 +40,7 @@ export default function PublicMapStandCard({
 
 	if (!stand || !open) return null;
 
-	const participants = stand.reservations
+	const participants = (stand.reservations ?? [])
 		.filter((r) => r.status !== "rejected")
 		.flatMap((r) => r.participants);
 
