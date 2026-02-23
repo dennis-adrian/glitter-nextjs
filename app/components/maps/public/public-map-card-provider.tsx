@@ -51,6 +51,7 @@ export function PublicMapCardProvider({
 		<PublicMapCardContext.Provider value={{ openCard, closeCard }}>
 			{children}
 			<PublicMapStandCard
+				key={`${selectedStand?.id ?? "closed"}-${cardOpen}`}
 				stand={selectedStand}
 				open={cardOpen}
 				sectorName={cardSectorName}

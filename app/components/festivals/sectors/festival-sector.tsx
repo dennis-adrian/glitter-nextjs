@@ -16,7 +16,7 @@ type FestivalSectorProps = {
 
 export default function FestivalSector(props: FestivalSectorProps) {
 	return (
-		<div key={props.sector.id}>
+		<div className="mt-4" key={props.sector.id}>
 			<FestivalSectorTitle sector={props.sector} />
 			{props.sector.stands.length > 0 ? (
 				<div className="flex flex-wrap gap-4 justify-center">
