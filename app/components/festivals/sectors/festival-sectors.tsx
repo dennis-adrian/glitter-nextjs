@@ -1,5 +1,6 @@
 import FestivalSector from "@/app/components/festivals/sectors/festival-sector";
 import FestivalSkeleton from "@/app/components/festivals/festival-skeleton";
+import { PublicMapCardProvider } from "@/app/components/maps/public/public-map-card-provider";
 import { Suspense } from "react";
 import {
   fetchConfirmedProfilesByFestivalId,
@@ -29,21 +30,23 @@ export default async function FestivalSectors(props: FestivalSectorsProps) {
 
   return (
     sectors.length > 0 && (
-      <div className="flex flex-col gap-4">
-        {sectors.map((sector) => {
-          const sectorProfiles = confirmedProfiles.filter((profile) =>
-            profile.stands.some(
-              (stand) => stand.festivalSectorId === sector.id,
-            ),
-          );
+      <PublicMapCardProvider>
+        <div className="flex flex-col gap-4">
+          {sectors.map((sector) => {
+            const sectorProfiles = confirmedProfiles.filter((profile) =>
+              profile.stands.some(
+                (stand) => stand.festivalSectorId === sector.id,
+              ),
+            );
 
-          return (
-            <Suspense key={sector.id} fallback={<FestivalSkeleton />}>
-              <FestivalSector sector={sector} profiles={sectorProfiles} />
-            </Suspense>
-          );
-        })}
-      </div>
+            return (
+              <Suspense key={sector.id} fallback={<FestivalSkeleton />}>
+                <FestivalSector sector={sector} profiles={sectorProfiles} />
+              </Suspense>
+            );
+          })}
+        </div>
+      </PublicMapCardProvider>
     )
   );
 }

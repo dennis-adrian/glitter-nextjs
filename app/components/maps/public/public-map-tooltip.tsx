@@ -1,8 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { createPortal } from "react-dom";
+
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
+import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import { Badge } from "@/app/components/ui/badge";
+import CategoryBadge from "@/app/components/category-badge";
 
 type PublicMapTooltipProps = {
 	stand: StandWithReservationsWithParticipants;
@@ -11,31 +21,30 @@ type PublicMapTooltipProps = {
 
 const GAP = 8;
 
-function getParticipantNames(
-	stand: StandWithReservationsWithParticipants,
-): string[] {
-	return stand.reservations
-		?.filter((r) => r.status !== "rejected")
-		.flatMap((r) =>
-			r.participants.map(
-				(p) => p.user.displayName || "Participante",
-			),
-		) ?? [];
+function getParticipants(stand: StandWithReservationsWithParticipants) {
+	return (
+		stand.reservations
+			?.filter((r) => r.status !== "rejected")
+			.flatMap((r) => r.participants) ?? []
+	);
 }
 
 export default function PublicMapTooltip({
 	stand,
 	anchorRect,
 }: PublicMapTooltipProps) {
-	const { label, standNumber, status } = stand;
 	const tooltipRef = useRef<HTMLDivElement>(null);
 	const [pos, setPos] = useState<{ top: number; left: number }>({
 		top: 0,
 		left: 0,
 	});
 
-	const isOccupied = status === "reserved" || status === "confirmed";
-	const participantNames = isOccupied ? getParticipantNames(stand) : [];
+	const participants = getParticipants(stand);
+	const standLabel = `${stand.label}${stand.standNumber}`;
+	const countLabel =
+		participants.length === 1
+			? "1 participante"
+			: `${participants.length} participantes`;
 
 	const recomputePosition = useCallback(() => {
 		const el = tooltipRef.current;
@@ -78,25 +87,44 @@ export default function PublicMapTooltip({
 	const tooltip = (
 		<div
 			ref={tooltipRef}
-			className="fixed z-50 rounded-md border bg-popover px-3 py-2 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
+			className="fixed z-50 rounded-xl border bg-popover text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 min-w-[180px]"
 			style={{
 				top: pos.top,
 				left: pos.left,
 				pointerEvents: "none",
 			}}
 		>
-			<p className="text-sm font-semibold">
-				Espacio {label}
-				{standNumber}
-			</p>
-			<p className="text-xs text-muted-foreground">
-				{isOccupied ? "Ocupado" : "Disponible"}
-			</p>
-			{participantNames.length > 0 && (
-				<p className="text-xs text-muted-foreground mt-1">
-					{participantNames.join(", ")}
-				</p>
-			)}
+			<div className="p-3">
+				<div className="flex items-center gap-2 mb-2">
+					<Badge className="font-bold rounded-full text-xs px-2 py-0.5">
+						{standLabel}
+					</Badge>
+					<span className="text-xs text-muted-foreground">{countLabel}</span>
+				</div>
+				{participants.length > 0 && (
+					<div className="space-y-2">
+						{participants.map((p, i) => (
+							<div key={i} className="flex items-center gap-2">
+								<Avatar className="w-8 h-8 shrink-0">
+									<AvatarImage
+										src={p.user.imageUrl ?? undefined}
+										alt={p.user.displayName ?? "Participante"}
+									/>
+								</Avatar>
+								<div>
+									<p className="text-sm font-semibold leading-tight">
+										{p.user.displayName ?? "Participante"}
+									</p>
+									<CategoryBadge
+										category={p.user.category}
+										className="text-[10px]"
+									/>
+								</div>
+							</div>
+						))}
+					</div>
+				)}
+			</div>
 		</div>
 	);
 

@@ -91,13 +91,15 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
 				transform={`translate(${left}, ${top})`}
 				onPointerDown={handlePointerDown}
 				onPointerUp={handlePointerUp}
-				onMouseEnter={() => {
+				onPointerEnter={(e) => {
+					if (e.pointerType !== "mouse") return;
 					setHovered(true);
 					if (onHoverChange && gRef.current) {
 						onHoverChange(stand, gRef.current.getBoundingClientRect());
 					}
 				}}
-				onMouseLeave={() => {
+				onPointerLeave={(e) => {
+					if (e.pointerType !== "mouse") return;
 					setHovered(false);
 					onHoverChange?.(null, null);
 				}}
