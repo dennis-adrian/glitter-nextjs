@@ -48,9 +48,6 @@ export default function PublicMapStandCard({
 		activeTab,
 		Math.max(0, participants.length - 1)
 	);
-	if (participants.length > 0 && activeTab !== clampedTab) {
-		setActiveTab(clampedTab);
-	}
 
 	if (!stand || !open) return null;
 	if (participants.length === 0) return null;
