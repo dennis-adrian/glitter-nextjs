@@ -129,6 +129,7 @@ export default function PublicMapTooltip({
 	);
 
 	if (typeof document === "undefined") return null;
+	if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return null;
 
 	return createPortal(tooltip, document.body);
 }
