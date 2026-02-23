@@ -38,15 +38,21 @@ export default function PublicMapStandCard({
 }: PublicMapStandCardProps) {
 	const [activeTab, setActiveTab] = useState(0);
 
+	const participants = stand
+		? (stand.reservations ?? [])
+				.filter((r) => r.status !== "rejected")
+				.flatMap((r) => r.participants)
+		: [];
+
+	const clampedTab = Math.min(
+		activeTab,
+		Math.max(0, participants.length - 1)
+	);
+
 	if (!stand || !open) return null;
-
-	const participants = stand.reservations
-		.filter((r) => r.status !== "rejected")
-		.flatMap((r) => r.participants);
-
 	if (participants.length === 0) return null;
 
-	const currentParticipant = participants[activeTab] ?? participants[0];
+	const currentParticipant = participants[clampedTab] ?? participants[0];
 	const { user } = currentParticipant;
 	const standLabel = `${stand.label}${stand.standNumber}`;
 	const categoryLabel = getCategoryLabel(stand.standCategory);
@@ -88,7 +94,7 @@ export default function PublicMapStandCard({
 									key={p.id}
 									onClick={() => setActiveTab(index)}
 									className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all shrink-0 ${
-										index === activeTab
+										index === clampedTab
 											? "bg-white shadow-sm border-primary"
 											: "bg-gray-50 hover:bg-gray-100 border-border"
 									}`}

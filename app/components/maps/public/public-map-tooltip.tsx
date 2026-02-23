@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
+import CategoryBadge from "@/app/components/category-badge";
 
 type PublicMapTooltipProps = {
 	stand: StandWithReservationsWithParticipants;
@@ -114,13 +115,10 @@ export default function PublicMapTooltip({
 									<p className="text-sm font-semibold leading-tight">
 										{p.user.displayName ?? "Participante"}
 									</p>
-									{(p.user.firstName || p.user.lastName) && (
-										<p className="text-xs text-muted-foreground leading-tight">
-											{[p.user.firstName, p.user.lastName]
-												.filter(Boolean)
-												.join(" ")}
-										</p>
-									)}
+									<CategoryBadge
+										category={p.user.category}
+										className="text-[10px]"
+									/>
 								</div>
 							</div>
 						))}

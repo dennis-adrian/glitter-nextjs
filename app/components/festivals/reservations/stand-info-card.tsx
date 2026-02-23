@@ -9,6 +9,7 @@ import { createStandHold } from "@/app/lib/stands/hold-actions";
 import { ProfileType } from "@/app/api/users/definitions";
 import CategoryBadge from "@/app/components/category-badge";
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
+import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { profileHasReservation } from "@/app/helpers/next_event";
@@ -95,8 +96,7 @@ export function StandInfoCard({
 	const router = useRouter();
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
-	const isOwnHold =
-		stand.status === "held" && stand.id === activeHold?.standId;
+	const isOwnHold = stand.status === "held" && stand.id === activeHold?.standId;
 
 	const isStandTaken =
 		stand.status === "reserved" ||
@@ -139,11 +139,7 @@ export function StandInfoCard({
 		setIsSubmitting(true);
 
 		try {
-			const res = await createStandHold(
-				stand.id,
-				profile.id,
-				festival.id,
-			);
+			const res = await createStandHold(stand.id, profile.id, festival.id);
 			if (res.success && res.holdId) {
 				onHoldChange?.({ id: res.holdId, standId: stand.id });
 				onClose();
@@ -199,9 +195,7 @@ export function StandInfoCard({
 												: "bg-red-50 text-red-600"
 										}`}
 									>
-										{stand.status === "held"
-											? "EN ESPERA"
-											: "OCUPADO"}
+										{stand.status === "held" ? "EN ESPERA" : "OCUPADO"}
 									</span>
 								)}
 							</div>
@@ -240,8 +234,8 @@ export function StandInfoCard({
 					{isOwnHold && (
 						<div className="rounded-r-lg border-l-4 border-amber-500 bg-amber-50 p-4">
 							<p className="text-sm text-amber-800">
-								Tienes este espacio reservado temporalmente. Confirma
-								tu reserva antes de que expire.
+								Tienes este espacio reservado temporalmente. Confirma tu reserva
+								antes de que expire.
 							</p>
 						</div>
 					)}
@@ -250,8 +244,8 @@ export function StandInfoCard({
 					{stand.status === "held" && !isOwnHold && (
 						<div className="rounded-r-lg border-l-4 border-amber-500 bg-amber-50 p-4">
 							<p className="text-sm text-amber-800">
-								Otro participante está considerando este espacio.
-								Volverá a estar disponible en breve.
+								Otro participante está considerando este espacio. Volverá a
+								estar disponible en breve.
 							</p>
 						</div>
 					)}
@@ -259,23 +253,25 @@ export function StandInfoCard({
 					{/* Stand taken - show reserver info */}
 					{isStandTaken && stand.status !== "held" && standReservation && (
 						<div className="rounded-r-lg border-l-4 border-red-500 bg-red-50 p-4">
-							<div className="mb-3 flex items-center gap-3">
-								<div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-100">
-									<span className="text-lg font-bold text-red-700">
-										{standReservation.participants[0]?.user?.displayName?.charAt(
-											0,
-										) || "P"}
-									</span>
-								</div>
-								<div className="flex-1">
-									<p className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-red-600">
-										Reservado por
-									</p>
-									<p className="text-base font-bold text-gray-900">
-										{standReservation.participants[0]?.user?.displayName ||
-											"Participante"}
-									</p>
-								</div>
+							<div className="mb-3 space-y-2">
+								{standReservation.participants.map((participant) => (
+									<div key={participant.id} className="flex items-center gap-3">
+										<Avatar className="h-12 w-12 border-red-200">
+											<AvatarImage
+												src={participant.user?.imageUrl}
+												alt={participant.user?.displayName || "Participante"}
+											/>
+										</Avatar>
+										<div className="flex-1">
+											<p className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-red-600">
+												Reservado por
+											</p>
+											<p className="text-base font-bold text-gray-900">
+												{participant.user?.displayName || "Participante"}
+											</p>
+										</div>
+									</div>
+								))}
 							</div>
 							<div className="space-y-1.5 text-sm">
 								<div className="flex items-center justify-between">
