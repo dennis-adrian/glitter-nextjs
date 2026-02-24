@@ -37,6 +37,7 @@ type AdminOverviewStandDrawerProps = {
 
 const STAND_STATUS_OPTIONS = [
 	{ value: "available", label: "Disponible" },
+	{ value: "held", label: "En espera" },
 	{ value: "reserved", label: "Reservado" },
 	{ value: "confirmed", label: "Confirmado" },
 	{ value: "disabled", label: "Deshabilitado" },

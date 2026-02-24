@@ -71,7 +71,7 @@ export default function AdminOverviewMap({
 		sectors.find((s) => String(s.id) === activeSectorId) ?? sectors[0];
 
 	const visibleStands =
-		activeSector?.stands.filter((s) => s.status !== "disabled" || true) ?? [];
+		activeSector?.stands.filter((s) => s.status !== "disabled") ?? [];
 
 	const canvasBounds = computeCanvasBounds(
 		activeSector?.stands ?? [],

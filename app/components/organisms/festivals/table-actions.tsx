@@ -16,6 +16,7 @@ import {
 	BookUserIcon,
 	CreditCardIcon,
 	HandshakeIcon,
+	MapIcon,
 	MoreHorizontalIcon,
 	PencilIcon,
 	TrashIcon,
@@ -82,6 +83,12 @@ export default function TableActions({ festival }: TableActionsProps) {
 						<Link href={`/dashboard/festivals/${festival.id}/payments`}>
 							<CreditCardIcon className="h-4 w-4 mr-2" />
 							Pagos
+						</Link>
+					</DropdownMenuItem>
+					<DropdownMenuItem asChild>
+						<Link href={`/dashboard/festivals/${festival.id}/map`}>
+							<MapIcon className="h-4 w-4 mr-2" />
+							Mapa
 						</Link>
 					</DropdownMenuItem>
 					<DropdownMenuItem asChild>
