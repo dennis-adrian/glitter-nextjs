@@ -70,6 +70,12 @@ export default function AdminOverviewMap({
 	const activeSector =
 		sectors.find((s) => String(s.id) === activeSectorId) ?? sectors[0];
 
+	const handleSectorChange = useCallback((value: string) => {
+		setActiveSectorId(value);
+		setSelectedStand(null);
+		setDrawerOpen(false);
+	}, []);
+
 	const visibleStands =
 		activeSector?.stands.filter((s) => s.status !== "disabled") ?? [];
 
@@ -111,7 +117,7 @@ export default function AdminOverviewMap({
 		<div className="space-y-4">
 			{/* Sector tabs */}
 			{sectors.length > 1 && (
-				<Tabs value={activeSectorId} onValueChange={setActiveSectorId}>
+				<Tabs value={activeSectorId} onValueChange={handleSectorChange}>
 					<TabsList>
 						{sectors.map((sector) => (
 							<TabsTrigger key={sector.id} value={String(sector.id)}>

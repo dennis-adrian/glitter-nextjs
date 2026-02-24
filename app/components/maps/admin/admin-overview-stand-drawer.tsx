@@ -104,9 +104,11 @@ export default function AdminOverviewStandDrawer({
 				router.refresh();
 			} else {
 				toast.error(res.message);
+				setSelectedStatus(stand.status);
 			}
 		} catch {
 			toast.error("Error al actualizar el estado");
+			setSelectedStatus(stand.status);
 		} finally {
 			setIsSavingStatus(false);
 		}

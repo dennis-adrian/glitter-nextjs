@@ -113,6 +113,7 @@ export default function ConfirmReservationModal(
 												src={voucherUrl}
 												alt="Comprobante de pago"
 												fill
+												sizes="(max-width: 640px) 100vw, 500px"
 												className="object-contain"
 												onError={() => setFailedVoucherUrl(voucherUrl)}
 											/>
