@@ -75,7 +75,7 @@ export default function AdminOverviewStandDrawer({
 
 	useEffect(() => {
 		if (stand?.status) setSelectedStatus(stand.status);
-	}, [stand?.status]);
+	}, [stand?.id, stand?.status]);
 
 	if (!stand) return null;
 
