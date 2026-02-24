@@ -164,6 +164,68 @@ export const SELECTED_STROKE = "#ffffff"; // white border
 export const SELECTED_TEXT = "#ffffff"; // white text
 export const SELECTED_RING = "hsl(262, 76%, 90%)"; // primary-100
 
+export function getAdminOverviewColors(
+	standStatus: string,
+	reservationStatus?: string | null,
+): StandColors {
+	if (standStatus === "disabled") {
+		return {
+			fill: "rgba(229, 231, 235, 0.35)",
+			hoverFill: "rgba(229, 231, 235, 0.5)",
+			stroke: "rgba(209, 213, 219, 0.4)",
+			text: "#9CA3AF",
+		};
+	}
+	if (standStatus === "available") {
+		return {
+			fill: "rgba(255, 255, 255, 0.9)",
+			hoverFill: "rgba(249, 250, 251, 1)",
+			stroke: "rgba(209, 213, 219, 0.6)",
+			text: "#6B7280",
+		};
+	}
+	if (standStatus === "held") {
+		return {
+			fill: "rgba(251, 191, 36, 0.6)",
+			hoverFill: "rgba(245, 158, 11, 0.7)",
+			stroke: "rgba(217, 119, 6, 0.8)",
+			text: "#92400E",
+		};
+	}
+	// For all other stand states, color is driven by reservation status
+	if (reservationStatus === "verification_payment") {
+		return {
+			fill: "rgba(96, 165, 250, 0.7)",
+			hoverFill: "rgba(59, 130, 246, 0.8)",
+			stroke: "rgba(37, 99, 235, 0.9)",
+			text: "#1E3A8A",
+		};
+	}
+	if (reservationStatus === "accepted") {
+		return {
+			fill: "hsl(262, 77%, 49%)",
+			hoverFill: "hsl(262, 77%, 44%)",
+			stroke: "hsl(262, 77%, 35%)",
+			text: "#ffffff",
+		};
+	}
+	if (reservationStatus === "pending") {
+		return {
+			fill: "rgba(134, 239, 172, 0.7)",
+			hoverFill: "rgba(74, 222, 128, 0.8)",
+			stroke: "rgba(34, 197, 94, 0.9)",
+			text: "#14532D",
+		};
+	}
+	// Fallback: no reservation found
+	return {
+		fill: "rgba(255, 255, 255, 0.9)",
+		hoverFill: "rgba(249, 250, 251, 1)",
+		stroke: "rgba(209, 213, 219, 0.6)",
+		text: "#6B7280",
+	};
+}
+
 export function getPublicStandColors(status: string): StandColors {
 	if (status === "available") {
 		return {

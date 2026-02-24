@@ -38,7 +38,10 @@ export default function ClientMap({
 }) {
 	const [stands, setStands] = useState(initialStands);
 	const onStandsChangeRef = useRef(onStandsChange);
-	onStandsChangeRef.current = onStandsChange;
+
+	useEffect(() => {
+		onStandsChangeRef.current = onStandsChange;
+	}, [onStandsChange]);
 
 	useEffect(() => {
 		onStandsChangeRef.current?.(stands);
