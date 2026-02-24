@@ -47,11 +47,11 @@ export default function UserMap({
 				centerOnInit
 				wheel={{ step: 0.1 }}
 			>
-				<div className="flex w-full md:max-w-2xl items-center justify-between pb-2">
+				<div className="flex w-full max-w-[500px] items-center justify-between pb-2">
 					<MapLegend />
 					<MapToolbar />
 				</div>
-				<div className="relative w-full md:max-w-2xl rounded-lg border bg-background shadow-sm overflow-hidden pb-8 md:pb-0">
+				<div className="relative w-full max-w-[500px] rounded-lg border bg-background shadow-sm overflow-hidden pb-8 md:pb-0">
 					<TransformComponent
 						wrapperStyle={{ width: "100%" }}
 						contentStyle={{ width: "100%" }}

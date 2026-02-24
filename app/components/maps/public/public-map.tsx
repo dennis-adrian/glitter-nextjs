@@ -65,10 +65,10 @@ export default function PublicMap({
 
 	return (
 		<div className="flex flex-col items-center w-full">
-			<div className="flex w-full md:max-w-2xl items-center pb-2">
+			<div className="flex w-full max-w-[500px] items-center pb-2">
 				<PublicMapLegend />
 			</div>
-			<div className="w-full md:max-w-2xl rounded-lg border bg-background shadow-sm overflow-hidden">
+			<div className="w-full max-w-[500px] rounded-lg border bg-background shadow-sm overflow-hidden">
 				<div className="w-full">
 					<MapCanvas
 						config={{
