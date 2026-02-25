@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	TransformComponent,
-	TransformWrapper,
-	type ReactZoomPanPinchContentRef,
+	type ReactZoomPanPinchRef,
 } from "react-zoom-pan-pinch";
+import MapTransformWrapper from "@/app/components/maps/map-transform-wrapper";
 import {
 	AlignEndHorizontal,
 	AlignEndVertical,
@@ -240,9 +240,7 @@ export default function StandPositionEditor({
 	const [showGuides, setShowGuides] = useState(true);
 	const [focusedStandId, setFocusedStandId] = useState<number | null>(null);
 	const arrowUndoPushedRef = useRef(false);
-	const transformRefsMap = useRef<Map<number, ReactZoomPanPinchContentRef>>(
-		new Map(),
-	);
+	const transformRefsMap = useRef<Map<number, ReactZoomPanPinchRef>>(new Map());
 
 	// Local stands per sector (allows add/delete without full page reload)
 	const [standsPerSector, setStandsPerSector] = useState<
@@ -484,7 +482,11 @@ export default function StandPositionEditor({
 
 		// Add new stands to local state
 		const newStands: StandWithReservationsWithParticipants[] =
-			result.stands.map((s) => ({ ...s, reservations: [], standSubcategories: [] }));
+			result.stands.map((s) => ({
+				...s,
+				reservations: [],
+				standSubcategories: [],
+			}));
 
 		setStandsPerSector((prev) => {
 			const next = new Map(prev);
@@ -1640,7 +1642,7 @@ export default function StandPositionEditor({
 
 				{sectors.map((sector) => (
 					<TabsContent key={sector.id} value={String(sector.id)}>
-						<TransformWrapper
+						<MapTransformWrapper
 							ref={(handle) => {
 								if (handle) {
 									transformRefsMap.current.set(sector.id, handle);
@@ -1651,8 +1653,7 @@ export default function StandPositionEditor({
 							initialScale={1}
 							minScale={0.1}
 							maxScale={6}
-							wheel={{ step: 0.1 }}
-							panning={{ disabled: panDisabled }}
+							panningDisabled={panDisabled}
 						>
 							<div
 								className="relative w-full rounded-lg border bg-background shadow-sm overflow-hidden resize-y"
@@ -1745,7 +1746,7 @@ export default function StandPositionEditor({
 									</Button>
 								</div>
 							</div>
-						</TransformWrapper>
+						</MapTransformWrapper>
 					</TabsContent>
 				))}
 			</Tabs>

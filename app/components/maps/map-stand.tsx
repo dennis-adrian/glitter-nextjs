@@ -22,7 +22,10 @@ type MapStandProps = {
 	selected?: boolean;
 	colors?: StandColors;
 	onClick?: (stand: StandWithReservationsWithParticipants) => void;
-	onTouchTap?: (stand: StandWithReservationsWithParticipants) => void;
+	onTouchTap?: (
+		stand: StandWithReservationsWithParticipants,
+		rect?: DOMRect,
+	) => void;
 	onHoverChange?: (
 		stand: StandWithReservationsWithParticipants | null,
 		rect: DOMRect | null,
@@ -81,7 +84,7 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
 					const dx = Math.abs(e.clientX - start.x);
 					const dy = Math.abs(e.clientY - start.y);
 					if (dx < 10 && dy < 10) {
-						onTouchTap?.(stand);
+						onTouchTap?.(stand, gRef.current?.getBoundingClientRect());
 					}
 				}
 			} else {
@@ -115,6 +118,7 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
 				style={{
 					cursor: onClick ? "pointer" : "default",
 					touchAction: "manipulation",
+					outline: "none",
 				}}
 				role={onClick ? "button" : undefined}
 				aria-label={`Espacio ${stand.label || ""}${standNumber} - ${status}`}

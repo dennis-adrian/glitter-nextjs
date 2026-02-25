@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
+import { useCallback, useEffect, useState } from "react";
+import { TransformComponent } from "react-zoom-pan-pinch";
 import { MapPin } from "lucide-react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
@@ -15,8 +15,12 @@ import MapCanvas from "@/app/components/maps/map-canvas";
 import MapStand from "@/app/components/maps/map-stand";
 import MapElement from "@/app/components/maps/map-element";
 import MapToolbar from "@/app/components/maps/map-toolbar";
+import MapTransformWrapper from "@/app/components/maps/map-transform-wrapper";
 import AdminOverviewStandDrawer from "@/app/components/maps/admin/admin-overview-stand-drawer";
+import AdminOverviewMapTooltip from "@/app/components/maps/admin/admin-overview-map-tooltip";
 import { Tabs, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
+import { Switch } from "@/app/components/ui/switch";
+import { useMediaQuery } from "@/app/hooks/use-media-query";
 
 type AdminOverviewMapProps = {
 	sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
@@ -67,6 +71,14 @@ export default function AdminOverviewMap({
 		useState<StandWithReservationsWithParticipants | null>(null);
 	const [drawerOpen, setDrawerOpen] = useState(false);
 
+	const isTouchDevice = useMediaQuery("(pointer: coarse)");
+	const [isSimplifiedMode, setIsSimplifiedMode] = useState(true);
+	const [tooltipStand, setTooltipStand] =
+		useState<StandWithReservationsWithParticipants | null>(null);
+	const [tooltipAnchorRect, setTooltipAnchorRect] = useState<DOMRect | null>(
+		null,
+	);
+
 	const activeSector =
 		sectors.find((s) => String(s.id) === activeSectorId) ?? sectors[0];
 
@@ -74,6 +86,8 @@ export default function AdminOverviewMap({
 		setActiveSectorId(value);
 		setSelectedStand(null);
 		setDrawerOpen(false);
+		setTooltipStand(null);
+		setTooltipAnchorRect(null);
 	}, []);
 
 	const visibleStands =
@@ -109,8 +123,50 @@ export default function AdminOverviewMap({
 		[],
 	);
 
+	const handleTouchTap = useCallback(
+		(stand: StandWithReservationsWithParticipants, rect?: DOMRect) => {
+			if (isSimplifiedMode) {
+				// Drawer is completely disabled in simplified mode
+				if (rect && findInvoiceForStand(stand.id)) {
+					setTooltipStand(stand);
+					setTooltipAnchorRect(rect);
+				}
+			} else {
+				setSelectedStand(stand);
+				setDrawerOpen(true);
+			}
+		},
+		[isSimplifiedMode, findInvoiceForStand],
+	);
+
+	const handleHoverChange = useCallback(
+		(
+			stand: StandWithReservationsWithParticipants | null,
+			rect: DOMRect | null,
+		) => {
+			setTooltipStand(stand);
+			setTooltipAnchorRect(rect);
+		},
+		[],
+	);
+
+	// Dismiss tooltip on next pointerdown outside (touch or mouse)
+	useEffect(() => {
+		if (!tooltipStand) return;
+		const handler = () => {
+			setTooltipStand(null);
+			setTooltipAnchorRect(null);
+		};
+		document.addEventListener("pointerdown", handler, { once: true });
+		return () => document.removeEventListener("pointerdown", handler);
+	}, [tooltipStand]);
+
 	const selectedInvoice = selectedStand
 		? findInvoiceForStand(selectedStand.id)
+		: null;
+
+	const tooltipInvoice = tooltipStand
+		? findInvoiceForStand(tooltipStand.id)
 		: null;
 
 	return (
@@ -126,6 +182,31 @@ export default function AdminOverviewMap({
 						))}
 					</TabsList>
 				</Tabs>
+			)}
+
+			{/* Simplified mode toggle (touch devices only) */}
+			{isTouchDevice && (
+				<div className="flex items-center gap-2">
+					<Switch
+						id="simplified-mode"
+						checked={isSimplifiedMode}
+						onCheckedChange={(checked) => {
+							setIsSimplifiedMode(checked);
+							setTooltipStand(null);
+							setTooltipAnchorRect(null);
+							if (checked) {
+								setSelectedStand(null);
+								setDrawerOpen(false);
+							}
+						}}
+					/>
+					<label
+						htmlFor="simplified-mode"
+						className="text-sm text-muted-foreground cursor-pointer"
+					>
+						Modo simplificado
+					</label>
+				</div>
 			)}
 
 			{/* Legend */}
@@ -146,12 +227,11 @@ export default function AdminOverviewMap({
 
 			{/* Map */}
 			<div className="flex flex-col items-center w-full">
-				<TransformWrapper
+				<MapTransformWrapper
 					initialScale={1}
 					minScale={1}
 					maxScale={4}
 					centerOnInit
-					wheel={{ step: 0.1 }}
 				>
 					<div className="flex w-full max-w-[500px] items-center justify-between pb-2">
 						<p className="text-sm text-muted-foreground font-medium">
@@ -185,7 +265,8 @@ export default function AdminOverviewMap({
 											getReservationStatus(stand.id),
 										)}
 										onClick={handleStandClick}
-										onTouchTap={handleStandClick}
+										onTouchTap={handleTouchTap}
+										onHoverChange={handleHoverChange}
 									/>
 								))}
 							</MapCanvas>
@@ -199,8 +280,17 @@ export default function AdminOverviewMap({
 							</div>
 						</div>
 					</div>
-				</TransformWrapper>
+				</MapTransformWrapper>
 			</div>
+
+			{/* Tooltip (hover for mouse, tap for simplified touch mode) */}
+			{tooltipStand && tooltipAnchorRect && tooltipInvoice && (
+				<AdminOverviewMapTooltip
+					stand={tooltipStand}
+					invoice={tooltipInvoice}
+					anchorRect={tooltipAnchorRect}
+				/>
+			)}
 
 			{/* Stand detail drawer */}
 			<AdminOverviewStandDrawer

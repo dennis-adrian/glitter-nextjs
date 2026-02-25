@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
@@ -13,7 +12,7 @@ type PublicMapStandCardProps = {
 	stand: StandWithReservationsWithParticipants | null;
 	open: boolean;
 	sectorName?: string;
-	onOpenChange: (open: boolean) => void;
+	cardRef?: React.RefObject<HTMLDivElement | null>;
 };
 
 function getCategoryLabel(category: string): string {
@@ -34,7 +33,7 @@ export default function PublicMapStandCard({
 	stand,
 	open,
 	sectorName,
-	onOpenChange,
+	cardRef,
 }: PublicMapStandCardProps) {
 	const [activeTab, setActiveTab] = useState(0);
 
@@ -44,10 +43,7 @@ export default function PublicMapStandCard({
 				.flatMap((r) => r.participants)
 		: [];
 
-	const clampedTab = Math.min(
-		activeTab,
-		Math.max(0, participants.length - 1)
-	);
+	const clampedTab = Math.min(activeTab, Math.max(0, participants.length - 1));
 
 	if (!stand || !open) return null;
 	if (participants.length === 0) return null;
@@ -59,31 +55,25 @@ export default function PublicMapStandCard({
 	const products = stand.standSubcategories.map((sc) => sc.subcategory.label);
 
 	return (
-		<div className="fixed bottom-6 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50">
+		<div
+			ref={cardRef}
+			className="fixed bottom-6 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50 animate-in slide-in-from-bottom-4 fade-in-0 duration-150"
+		>
 			<div className="bg-white rounded-lg shadow-2xl border-t-4 border-primary overflow-hidden">
 				{/* Header */}
 				<div className="p-4 pb-3 border-b border-border">
-					<div className="flex items-start justify-between mb-3">
-						<div className="flex items-center gap-2 flex-wrap">
-							<Badge className="font-bold px-3 py-1 rounded-full">
-								{standLabel}
+					<div className="flex items-center gap-2 flex-wrap mb-3">
+						<Badge className="font-bold px-3 py-1 rounded-full">
+							{standLabel}
+						</Badge>
+						{categoryLabel && (
+							<Badge
+								variant="outline"
+								className="text-xs font-semibold uppercase rounded-full border-primary text-primary"
+							>
+								{categoryLabel}
 							</Badge>
-							{categoryLabel && (
-								<Badge
-									variant="outline"
-									className="text-xs font-semibold uppercase rounded-full border-primary text-primary"
-								>
-									{categoryLabel}
-								</Badge>
-							)}
-						</div>
-						<button
-							onClick={() => onOpenChange(false)}
-							className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 text-sm shrink-0 ml-2"
-						>
-							<X className="w-4 h-4" />
-							Cerrar
-						</button>
+						)}
 					</div>
 
 					{/* Participant tabs */}
