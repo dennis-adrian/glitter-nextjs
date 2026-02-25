@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
+import { TransformComponent } from "react-zoom-pan-pinch";
 import { MapPin } from "lucide-react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
@@ -15,6 +15,7 @@ import MapCanvas from "@/app/components/maps/map-canvas";
 import MapStand from "@/app/components/maps/map-stand";
 import MapElement from "@/app/components/maps/map-element";
 import MapToolbar from "@/app/components/maps/map-toolbar";
+import MapTransformWrapper from "@/app/components/maps/map-transform-wrapper";
 import AdminOverviewStandDrawer from "@/app/components/maps/admin/admin-overview-stand-drawer";
 import { Tabs, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
 
@@ -146,13 +147,7 @@ export default function AdminOverviewMap({
 
 			{/* Map */}
 			<div className="flex flex-col items-center w-full">
-				<TransformWrapper
-					initialScale={1}
-					minScale={1}
-					maxScale={4}
-					centerOnInit
-					wheel={{ step: 0.1 }}
-				>
+				<MapTransformWrapper initialScale={1} minScale={1} maxScale={4} centerOnInit>
 					<div className="flex w-full max-w-[500px] items-center justify-between pb-2">
 						<p className="text-sm text-muted-foreground font-medium">
 							{activeSector?.name}
@@ -199,7 +194,7 @@ export default function AdminOverviewMap({
 							</div>
 						</div>
 					</div>
-				</TransformWrapper>
+				</MapTransformWrapper>
 			</div>
 
 			{/* Stand detail drawer */}
