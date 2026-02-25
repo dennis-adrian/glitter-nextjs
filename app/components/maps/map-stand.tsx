@@ -118,6 +118,7 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
 				style={{
 					cursor: onClick ? "pointer" : "default",
 					touchAction: "manipulation",
+					outline: "none",
 				}}
 				role={onClick ? "button" : undefined}
 				aria-label={`Espacio ${stand.label || ""}${standNumber} - ${status}`}

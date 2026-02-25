@@ -11,11 +11,13 @@ type PublicMapCardContextValue = {
 		sectorName?: string,
 	) => void;
 	closeCard: () => void;
+	selectedStandId: number | null;
 };
 
 export const PublicMapCardContext = createContext<PublicMapCardContextValue>({
 	openCard: () => {},
 	closeCard: () => {},
+	selectedStandId: null,
 });
 
 export function usePublicMapCard() {
@@ -48,7 +50,13 @@ export function PublicMapCardProvider({
 	}, []);
 
 	return (
-		<PublicMapCardContext.Provider value={{ openCard, closeCard }}>
+		<PublicMapCardContext.Provider
+			value={{
+				openCard,
+				closeCard,
+				selectedStandId: cardOpen ? (selectedStand?.id ?? null) : null,
+			}}
+		>
 			{children}
 			<PublicMapStandCard
 				key={`${selectedStand?.id ?? "closed"}-${cardOpen}`}

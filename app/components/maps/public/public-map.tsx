@@ -33,7 +33,7 @@ export default function PublicMap({
 	mapBounds,
 	sectorName,
 }: PublicMapProps) {
-	const { openCard } = usePublicMapCard();
+	const { openCard, selectedStandId } = usePublicMapCard();
 	const [hoveredStand, setHoveredStand] =
 		useState<StandWithReservationsWithParticipants | null>(null);
 	const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
@@ -86,6 +86,7 @@ export default function PublicMap({
 								key={stand.id}
 								stand={stand}
 								canBeReserved={false}
+								selected={stand.id === selectedStandId}
 								colors={getPublicStandColors(stand.status)}
 								onHoverChange={handleHoverChange}
 								onTouchTap={handleStandSelect}
