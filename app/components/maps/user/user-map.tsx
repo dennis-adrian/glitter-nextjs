@@ -1,6 +1,6 @@
 "use client";
 
-import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
+import { TransformComponent } from "react-zoom-pan-pinch";
 import { MapPin } from "lucide-react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
@@ -13,6 +13,7 @@ import MapStand from "@/app/components/maps/map-stand";
 import MapElement from "@/app/components/maps/map-element";
 import MapToolbar from "@/app/components/maps/map-toolbar";
 import MapLegend from "@/app/components/maps/map-legend";
+import MapTransformWrapper from "@/app/components/maps/map-transform-wrapper";
 import { computeCanvasBounds } from "@/app/components/maps/map-utils";
 
 type UserMapProps = {
@@ -40,13 +41,7 @@ export default function UserMap({
 
 	return (
 		<div className="flex flex-col items-center w-full">
-			<TransformWrapper
-				initialScale={1}
-				minScale={1}
-				maxScale={4}
-				centerOnInit
-				wheel={{ step: 0.1 }}
-			>
+			<MapTransformWrapper initialScale={1} minScale={1} maxScale={4} centerOnInit>
 				<div className="flex w-full max-w-[500px] items-center justify-between pb-2">
 					<MapLegend />
 					<MapToolbar />
@@ -92,7 +87,7 @@ export default function UserMap({
 						</div>
 					</div>
 				</div>
-			</TransformWrapper>
+			</MapTransformWrapper>
 		</div>
 	);
 }
