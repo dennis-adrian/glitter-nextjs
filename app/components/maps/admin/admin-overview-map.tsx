@@ -190,7 +190,15 @@ export default function AdminOverviewMap({
 					<Switch
 						id="simplified-mode"
 						checked={isSimplifiedMode}
-						onCheckedChange={setIsSimplifiedMode}
+						onCheckedChange={(checked) => {
+							setIsSimplifiedMode(checked);
+							setTooltipStand(null);
+							setTooltipAnchorRect(null);
+							if (checked) {
+								setSelectedStand(null);
+								setDrawerOpen(false);
+							}
+						}}
 					/>
 					<label
 						htmlFor="simplified-mode"
