@@ -66,6 +66,7 @@ export default function AdminOverviewMap({
 	const [selectedStand, setSelectedStand] =
 		useState<StandWithReservationsWithParticipants | null>(null);
 	const [drawerOpen, setDrawerOpen] = useState(false);
+	const [isAtMinScale, setIsAtMinScale] = useState(true);
 
 	const activeSector =
 		sectors.find((s) => String(s.id) === activeSectorId) ?? sectors[0];
@@ -105,6 +106,16 @@ export default function AdminOverviewMap({
 		(stand: StandWithReservationsWithParticipants) => {
 			setSelectedStand(stand);
 			setDrawerOpen(true);
+		},
+		[],
+	);
+
+	const handleTransformed = useCallback(
+		(
+			_ref: unknown,
+			state: { scale: number; positionX: number; positionY: number },
+		) => {
+			setIsAtMinScale(state.scale <= 1);
 		},
 		[],
 	);
@@ -151,7 +162,15 @@ export default function AdminOverviewMap({
 					minScale={1}
 					maxScale={4}
 					centerOnInit
-					wheel={{ step: 0.1 }}
+					wheel={{
+						step: 0.1,
+						activationKeys: ["Control"],
+					}}
+					panning={{
+						disabled: isAtMinScale,
+						velocityDisabled: true,
+					}}
+					onTransformed={handleTransformed}
 				>
 					<div className="flex w-full max-w-[500px] items-center justify-between pb-2">
 						<p className="text-sm text-muted-foreground font-medium">
