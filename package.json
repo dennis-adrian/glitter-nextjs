@@ -77,7 +77,7 @@
 		"react-tooltip": "^5.29.1",
 		"react-zoom-pan-pinch": "^3.7.0",
 		"recharts": "^2.15.0",
-		"resend": "^4.1.1",
+		"resend": "^4.2.0",
 		"sonner": "^1.7.2",
 		"tailwind-merge": "^2.2.2",
 		"uploadthing": "^7.7.4",
