@@ -11,7 +11,6 @@ import {
 	DialogTitle,
 } from "@/app/components/ui/dialog";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
-import { cn } from "@/app/lib/utils";
 import { FC } from "react";
 
 export const BaseModal: FC<{
@@ -41,11 +40,9 @@ export const BaseModal: FC<{
 
 					{description && <DialogDescription>{description}</DialogDescription>}
 				</DialogHeader>
-				<div className={cn(isDesktop ? "" : "px-4", contentClassName)}>
-					{children}
-				</div>
+				<div className={contentClassName}>{children}</div>
 				{isDesktop ? null : (
-					<DialogFooter className="pt-2">
+					<DialogFooter>
 						<DialogClose asChild>
 							<Button className="w-full" variant="outline">
 								Cerrar

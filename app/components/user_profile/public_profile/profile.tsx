@@ -1,3 +1,5 @@
+"use client";
+
 import { FilePenLineIcon, FrownIcon } from "lucide-react";
 
 import { ProfileType } from "@/app/api/users/definitions";
@@ -13,12 +15,13 @@ import ProfileCategoryBadge from "@/app/components/user_profile/category-badge";
 import ProfilePicField from "@/app/components/user_profile/profile_pic/field";
 import VerificationStatusBadge from "@/app/components/user_profile/verification-status-badge";
 import { Button } from "@/components/ui/button";
-import Modal from "@/components/user_profile/modal";
 import Form from "./form";
 import TagBadge from "@/app/components/tags/tag-badge";
 import { Badge } from "@/app/components/ui/badge";
 import SocialMediaBadge from "@/app/components/social-media-badge";
 import AddUserSocialModal from "@/app/components/user_profile/public_profile/add-user-social-modal";
+import { useState } from "react";
+import BaseModal from "@/app/components/modals/base-modal";
 
 export default function PublicProfile({
 	profile,
@@ -27,6 +30,7 @@ export default function PublicProfile({
 	profile: ProfileType;
 	title?: string;
 }) {
+	const [open, setOpen] = useState(false);
 	const socials = profile.userSocials.filter((social) => social.username);
 	// The first subcategory is the main category that's why we slice it
 	const subcategories = profile.profileSubcategories
@@ -40,21 +44,14 @@ export default function PublicProfile({
 					<CardTitle className="flex justify-between items-center">
 						<span className="text-lg md:text-2xl font-bold">{title}</span>
 						<div className="flex gap-2">
-							<div>
-								<Modal
-									profile={profile}
-									title="Editar Perfil"
-									FormComponent={Form}
-								>
-									<Button
-										variant="outline"
-										disabled={profile.status === "banned"}
-									>
-										<FilePenLineIcon className="mr-1 h-4 w-4" />
-										Editar
-									</Button>
-								</Modal>
-							</div>
+							<Button
+								variant="outline"
+								disabled={profile.status === "banned"}
+								onClick={() => setOpen(true)}
+							>
+								<FilePenLineIcon className="mr-1 h-4 w-4" />
+								Editar
+							</Button>
 						</div>
 					</CardTitle>
 					<CardDescription>
@@ -134,6 +131,9 @@ export default function PublicProfile({
 					</div>
 				</CardContent>
 			</Card>
+			<BaseModal show={open} onOpenChange={setOpen} title="Editar Perfil">
+				<Form profile={profile} onSuccess={() => setOpen(false)} />
+			</BaseModal>
 		</>
 	);
 }

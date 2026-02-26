@@ -75,7 +75,7 @@ export default async function ParticipantDashboardPage() {
 					<Button variant="outline" size="sm" className="flex shrink-0" asChild>
 						<Link href="/my_profile">
 							<CogIcon className="size-4 mr-1" />
-							Editar perfil
+							Configuración
 						</Link>
 					</Button>
 				</div>
