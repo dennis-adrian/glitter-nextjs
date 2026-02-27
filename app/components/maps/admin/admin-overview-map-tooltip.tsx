@@ -13,11 +13,13 @@ import { StandWithReservationsWithParticipants } from "@/app/api/stands/definiti
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import { ClockIcon } from "lucide-react";
 
 type AdminOverviewMapTooltipProps = {
 	stand: StandWithReservationsWithParticipants;
 	invoice: InvoiceWithParticipants;
 	anchorRect: DOMRect;
+	dueDate?: Date | null;
 };
 
 const GAP = 8;
@@ -26,6 +28,7 @@ export default function AdminOverviewMapTooltip({
 	stand,
 	invoice,
 	anchorRect,
+	dueDate,
 }: AdminOverviewMapTooltipProps) {
 	const tooltipRef = useRef<HTMLDivElement>(null);
 	const [pos, setPos] = useState<{ top: number; left: number }>({
@@ -123,6 +126,21 @@ export default function AdminOverviewMapTooltip({
 						</div>
 					))}
 				</div>
+
+				{dueDate && (
+					<div className="flex items-center gap-1.5 pt-1.5 border-t text-xs text-muted-foreground">
+						<ClockIcon className="h-3 w-3 shrink-0" />
+						<span>
+							Vence:{" "}
+							<span className="font-medium text-foreground">
+								{new Intl.DateTimeFormat("es-BO", {
+									day: "numeric",
+									month: "short",
+								}).format(dueDate)}
+							</span>
+						</span>
+					</div>
+				)}
 			</div>
 		</div>
 	);

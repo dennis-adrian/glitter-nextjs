@@ -167,6 +167,7 @@ export const SELECTED_RING = "hsl(262, 76%, 90%)"; // primary-100
 export function getAdminOverviewColors(
 	standStatus: string,
 	reservationStatus?: string | null,
+	isOverdue?: boolean,
 ): StandColors {
 	if (standStatus === "disabled") {
 		return {
@@ -207,6 +208,14 @@ export function getAdminOverviewColors(
 			hoverFill: "hsl(262, 77%, 44%)",
 			stroke: "hsl(262, 77%, 35%)",
 			text: "#ffffff",
+		};
+	}
+	if (isOverdue) {
+		return {
+			fill: "rgba(252, 165, 165, 0.7)",
+			hoverFill: "rgba(248, 113, 113, 0.8)",
+			stroke: "rgba(220, 38, 38, 0.9)",
+			text: "#7F1D1D",
 		};
 	}
 	if (reservationStatus === "pending") {
