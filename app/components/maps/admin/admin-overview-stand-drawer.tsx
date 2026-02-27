@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ExternalLinkIcon } from "lucide-react";
+import { ClockIcon, ExternalLinkIcon } from "lucide-react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
@@ -26,6 +26,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/app/components/ui/select";
+import { cn } from "@/app/lib/utils";
 
 type AdminOverviewStandDrawerProps = {
 	stand: StandWithReservationsWithParticipants | null;
@@ -33,6 +34,8 @@ type AdminOverviewStandDrawerProps = {
 	sectorName: string;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	dueDate?: Date | null;
+	isOverdue?: boolean;
 };
 
 const STAND_STATUS_OPTIONS = [
@@ -65,6 +68,8 @@ export default function AdminOverviewStandDrawer({
 	sectorName,
 	open,
 	onOpenChange,
+	dueDate,
+	isOverdue,
 }: AdminOverviewStandDrawerProps) {
 	const router = useRouter();
 	const [selectedStatus, setSelectedStatus] = useState<string>(
@@ -183,7 +188,12 @@ export default function AdminOverviewStandDrawer({
 						{invoice ? (
 							<div className="rounded-lg border p-4 space-y-3">
 								<div className="flex items-center justify-between">
-									<span className="text-sm font-medium">Reserva</span>
+									<span className="text-sm font-medium">
+										Reserva{" "}
+										<span className="text-muted-foreground font-normal">
+											#{invoice.reservation.id}
+										</span>
+									</span>
 									<ReservationStatus reservation={invoice.reservation} />
 								</div>
 
@@ -226,6 +236,27 @@ export default function AdminOverviewStandDrawer({
 										{formatPrice(invoice.amount)}
 									</span>
 								</div>
+
+								{/* Payment due date */}
+								{dueDate && (
+									<div className="flex items-center justify-between text-sm pt-2 border-t">
+										<span className="text-muted-foreground flex items-center gap-1.5">
+											<ClockIcon className="h-3.5 w-3.5" />
+											Fecha límite de pago
+										</span>
+										<span
+											className={cn("", isOverdue ? "text-destructive" : "")}
+										>
+											{new Intl.DateTimeFormat("es-BO", {
+												day: "numeric",
+												month: "long",
+												year: "numeric",
+												hour: "2-digit",
+												minute: "2-digit",
+											}).format(dueDate)}
+										</span>
+									</div>
+								)}
 
 								{/* Payment voucher */}
 								{paymentVoucher && (

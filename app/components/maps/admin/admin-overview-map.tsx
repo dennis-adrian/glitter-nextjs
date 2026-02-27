@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { DateTime } from "luxon";
 import { TransformComponent } from "react-zoom-pan-pinch";
 import { MapPin } from "lucide-react";
 
@@ -47,6 +48,11 @@ const LEGEND_ITEMS = [
 		color: "rgba(134, 239, 172, 0.7)",
 		border: "rgba(34, 197, 94, 0.9)",
 		label: "Pago pendiente",
+	},
+	{
+		color: "rgba(252, 165, 165, 0.7)",
+		border: "rgba(220, 38, 38, 0.9)",
+		label: "Atrasado",
 	},
 	{
 		color: "rgba(96, 165, 250, 0.7)",
@@ -111,6 +117,39 @@ export default function AdminOverviewMap({
 		(standId: number): string | null => {
 			const inv = findInvoiceForStand(standId);
 			return inv?.reservation.status ?? null;
+		},
+		[findInvoiceForStand],
+	);
+
+	const getIsOverdue = useCallback(
+		(standId: number): boolean => {
+			const inv = findInvoiceForStand(standId);
+			if (!inv) return false;
+			const reservationStatus = inv.reservation.status;
+			const daysDiff = DateTime.now().diff(
+				DateTime.fromJSDate(inv.createdAt),
+				"days",
+			).days;
+			return (
+				daysDiff > 5 &&
+				inv.status === "pending" &&
+				!["accepted", "verification_payment"].includes(reservationStatus)
+			);
+		},
+		[findInvoiceForStand],
+	);
+
+	const getDueDate = useCallback(
+		(standId: number): Date | null => {
+			const inv = findInvoiceForStand(standId);
+			if (
+				!inv ||
+				inv.reservation.status === "accepted" ||
+				inv.status !== "pending"
+			)
+				return null;
+			const dueDate = DateTime.fromJSDate(inv.createdAt).plus({ days: 5 });
+			return dueDate.toJSDate();
 		},
 		[findInvoiceForStand],
 	);
@@ -263,6 +302,7 @@ export default function AdminOverviewMap({
 										colors={getAdminOverviewColors(
 											stand.status,
 											getReservationStatus(stand.id),
+											getIsOverdue(stand.id),
 										)}
 										onClick={handleStandClick}
 										onTouchTap={handleTouchTap}
@@ -289,6 +329,8 @@ export default function AdminOverviewMap({
 					stand={tooltipStand}
 					invoice={tooltipInvoice}
 					anchorRect={tooltipAnchorRect}
+					dueDate={getDueDate(tooltipStand.id)}
+					isOverdue={getIsOverdue(tooltipStand.id)}
 				/>
 			)}
 
@@ -299,6 +341,8 @@ export default function AdminOverviewMap({
 				sectorName={activeSector?.name ?? ""}
 				open={drawerOpen}
 				onOpenChange={setDrawerOpen}
+				dueDate={selectedStand ? getDueDate(selectedStand.id) : null}
+				isOverdue={selectedStand ? getIsOverdue(selectedStand.id) : false}
 			/>
 		</div>
 	);
