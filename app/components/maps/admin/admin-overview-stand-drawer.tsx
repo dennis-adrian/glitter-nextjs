@@ -26,6 +26,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/app/components/ui/select";
+import { cn } from "@/app/lib/utils";
 
 type AdminOverviewStandDrawerProps = {
 	stand: StandWithReservationsWithParticipants | null;
@@ -34,6 +35,7 @@ type AdminOverviewStandDrawerProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	dueDate?: Date | null;
+	isOverdue?: boolean;
 };
 
 const STAND_STATUS_OPTIONS = [
@@ -67,6 +69,7 @@ export default function AdminOverviewStandDrawer({
 	open,
 	onOpenChange,
 	dueDate,
+	isOverdue,
 }: AdminOverviewStandDrawerProps) {
 	const router = useRouter();
 	const [selectedStatus, setSelectedStatus] = useState<string>(
@@ -185,7 +188,12 @@ export default function AdminOverviewStandDrawer({
 						{invoice ? (
 							<div className="rounded-lg border p-4 space-y-3">
 								<div className="flex items-center justify-between">
-									<span className="text-sm font-medium">Reserva</span>
+									<span className="text-sm font-medium">
+										Reserva{" "}
+										<span className="text-muted-foreground font-normal">
+											#{invoice.reservation.id}
+										</span>
+									</span>
 									<ReservationStatus reservation={invoice.reservation} />
 								</div>
 
@@ -236,11 +244,15 @@ export default function AdminOverviewStandDrawer({
 											<ClockIcon className="h-3.5 w-3.5" />
 											Fecha límite de pago
 										</span>
-										<span className="font-semibold text-destructive">
+										<span
+											className={cn("", isOverdue ? "text-destructive" : "")}
+										>
 											{new Intl.DateTimeFormat("es-BO", {
 												day: "numeric",
 												month: "long",
 												year: "numeric",
+												hour: "2-digit",
+												minute: "2-digit",
 											}).format(dueDate)}
 										</span>
 									</div>

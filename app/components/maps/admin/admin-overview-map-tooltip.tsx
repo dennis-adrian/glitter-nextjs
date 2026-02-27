@@ -20,6 +20,7 @@ type AdminOverviewMapTooltipProps = {
 	invoice: InvoiceWithParticipants;
 	anchorRect: DOMRect;
 	dueDate?: Date | null;
+	isOverdue?: boolean;
 };
 
 const GAP = 8;
@@ -29,6 +30,7 @@ export default function AdminOverviewMapTooltip({
 	invoice,
 	anchorRect,
 	dueDate,
+	isOverdue,
 }: AdminOverviewMapTooltipProps) {
 	const tooltipRef = useRef<HTMLDivElement>(null);
 	const [pos, setPos] = useState<{ top: number; left: number }>({
@@ -92,10 +94,15 @@ export default function AdminOverviewMapTooltip({
 		>
 			<div className="flex flex-col gap-2 min-w-[180px]">
 				<div className="flex items-center justify-between gap-3">
-					<p className="text-sm font-semibold">
-						Espacio {stand.label}
-						{stand.standNumber}
-					</p>
+					<div>
+						<p className="text-sm font-semibold">
+							Espacio {stand.label}
+							{stand.standNumber}
+						</p>
+						<p className="text-xs text-muted-foreground">
+							Reserva #{invoice.reservation.id}
+						</p>
+					</div>
 					<ReservationStatus reservation={invoice.reservation} />
 				</div>
 
@@ -131,11 +138,13 @@ export default function AdminOverviewMapTooltip({
 					<div className="flex items-center gap-1.5 pt-1.5 border-t text-xs text-muted-foreground">
 						<ClockIcon className="h-3 w-3 shrink-0" />
 						<span>
-							Vence:{" "}
+							{isOverdue ? "Venció el " : "Vence el "}
 							<span className="font-medium text-foreground">
 								{new Intl.DateTimeFormat("es-BO", {
 									day: "numeric",
 									month: "short",
+									hour: "2-digit",
+									minute: "2-digit",
 								}).format(dueDate)}
 							</span>
 						</span>

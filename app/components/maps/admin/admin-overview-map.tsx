@@ -125,6 +125,7 @@ export default function AdminOverviewMap({
 		(standId: number): boolean => {
 			const inv = findInvoiceForStand(standId);
 			if (!inv) return false;
+			const reservationStatus = inv.reservation.status;
 			const daysDiff = DateTime.now().diff(
 				DateTime.fromJSDate(inv.createdAt),
 				"days",
@@ -132,7 +133,7 @@ export default function AdminOverviewMap({
 			return (
 				daysDiff > 5 &&
 				inv.status === "pending" &&
-				inv.reservation.status !== "accepted"
+				!["accepted", "verification_payment"].includes(reservationStatus)
 			);
 		},
 		[findInvoiceForStand],
@@ -147,7 +148,8 @@ export default function AdminOverviewMap({
 				inv.status !== "pending"
 			)
 				return null;
-			return new Date(inv.createdAt.getTime() + 5 * 24 * 60 * 60 * 1000);
+			const dueDate = DateTime.fromJSDate(inv.createdAt).plus({ days: 5 });
+			return dueDate.toJSDate();
 		},
 		[findInvoiceForStand],
 	);
@@ -328,6 +330,7 @@ export default function AdminOverviewMap({
 					invoice={tooltipInvoice}
 					anchorRect={tooltipAnchorRect}
 					dueDate={getDueDate(tooltipStand.id)}
+					isOverdue={getIsOverdue(tooltipStand.id)}
 				/>
 			)}
 
@@ -339,6 +342,7 @@ export default function AdminOverviewMap({
 				open={drawerOpen}
 				onOpenChange={setDrawerOpen}
 				dueDate={selectedStand ? getDueDate(selectedStand.id) : null}
+				isOverdue={selectedStand ? getIsOverdue(selectedStand.id) : false}
 			/>
 		</div>
 	);
