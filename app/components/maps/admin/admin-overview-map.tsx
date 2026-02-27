@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DateTime } from "luxon";
 import { TransformComponent } from "react-zoom-pan-pinch";
 import { MapPin } from "lucide-react";
@@ -33,36 +33,43 @@ const LEGEND_ITEMS = [
 		color: "rgba(255, 255, 255, 0.9)",
 		border: "rgba(209, 213, 219, 0.6)",
 		label: "Disponible",
+		countKey: "disponible" as const,
 	},
 	{
 		color: "rgba(229, 231, 235, 0.35)",
 		border: "rgba(209, 213, 219, 0.4)",
 		label: "Deshabilitado",
+		countKey: "deshabilitado" as const,
 	},
 	{
 		color: "rgba(251, 191, 36, 0.6)",
 		border: "rgba(217, 119, 6, 0.8)",
 		label: "En espera",
+		countKey: "enEspera" as const,
 	},
 	{
 		color: "rgba(134, 239, 172, 0.7)",
 		border: "rgba(34, 197, 94, 0.9)",
 		label: "Pago pendiente",
+		countKey: "pagoPendiente" as const,
 	},
 	{
 		color: "rgba(252, 165, 165, 0.7)",
 		border: "rgba(220, 38, 38, 0.9)",
 		label: "Atrasado",
+		countKey: "atrasado" as const,
 	},
 	{
 		color: "rgba(96, 165, 250, 0.7)",
 		border: "rgba(37, 99, 235, 0.9)",
 		label: "Pagado por confirmar",
+		countKey: "pagadoPorConfirmar" as const,
 	},
 	{
 		color: "hsl(262, 77%, 49%)",
 		border: "hsl(262, 77%, 35%)",
 		label: "Confirmado",
+		countKey: "confirmado" as const,
 	},
 ];
 
@@ -153,6 +160,53 @@ export default function AdminOverviewMap({
 		},
 		[findInvoiceForStand],
 	);
+
+	const sectorStatusCounts = useMemo(() => {
+		const sector =
+			sectors.find((s) => String(s.id) === activeSectorId) ?? sectors[0];
+		const counts = {
+			disponible: 0,
+			deshabilitado: 0,
+			enEspera: 0,
+			pagoPendiente: 0,
+			atrasado: 0,
+			pagadoPorConfirmar: 0,
+			confirmado: 0,
+		};
+		for (const stand of sector?.stands ?? []) {
+			if (stand.status === "disabled") {
+				counts.deshabilitado++;
+				continue;
+			}
+			if (stand.status === "available") {
+				counts.disponible++;
+				continue;
+			}
+			if (stand.status === "held") {
+				counts.enEspera++;
+				continue;
+			}
+			if (getIsOverdue(stand.id)) {
+				counts.atrasado++;
+				continue;
+			}
+			const res = getReservationStatus(stand.id);
+			if (res === "pending") {
+				counts.pagoPendiente++;
+				continue;
+			}
+			if (res === "verification_payment") {
+				counts.pagadoPorConfirmar++;
+				continue;
+			}
+			if (res === "accepted") {
+				counts.confirmado++;
+				continue;
+			}
+			counts.disponible++;
+		}
+		return counts;
+	}, [activeSectorId, sectors, getIsOverdue, getReservationStatus]);
 
 	const handleStandClick = useCallback(
 		(stand: StandWithReservationsWithParticipants) => {
@@ -260,6 +314,11 @@ export default function AdminOverviewMap({
 							}}
 						/>
 						<span className="text-xs text-muted-foreground">{item.label}</span>
+						{sectorStatusCounts[item.countKey] > 0 && (
+							<span className="text-xs font-semibold tabular-nums text-foreground">
+								{sectorStatusCounts[item.countKey]}
+							</span>
+						)}
 					</div>
 				))}
 			</div>
