@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ExternalLinkIcon } from "lucide-react";
+import { ClockIcon, ExternalLinkIcon } from "lucide-react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
@@ -33,6 +33,7 @@ type AdminOverviewStandDrawerProps = {
 	sectorName: string;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	dueDate?: Date | null;
 };
 
 const STAND_STATUS_OPTIONS = [
@@ -65,6 +66,7 @@ export default function AdminOverviewStandDrawer({
 	sectorName,
 	open,
 	onOpenChange,
+	dueDate,
 }: AdminOverviewStandDrawerProps) {
 	const router = useRouter();
 	const [selectedStatus, setSelectedStatus] = useState<string>(
@@ -226,6 +228,23 @@ export default function AdminOverviewStandDrawer({
 										{formatPrice(invoice.amount)}
 									</span>
 								</div>
+
+								{/* Payment due date */}
+								{dueDate && (
+									<div className="flex items-center justify-between text-sm pt-2 border-t">
+										<span className="text-muted-foreground flex items-center gap-1.5">
+											<ClockIcon className="h-3.5 w-3.5" />
+											Fecha límite de pago
+										</span>
+										<span className="font-semibold text-destructive">
+											{new Intl.DateTimeFormat("es-BO", {
+												day: "numeric",
+												month: "long",
+												year: "numeric",
+											}).format(dueDate)}
+										</span>
+									</div>
+								)}
 
 								{/* Payment voucher */}
 								{paymentVoucher && (
