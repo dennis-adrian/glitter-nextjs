@@ -19,7 +19,7 @@
 		"@clerk/localizations": "^3.35.2",
 		"@clerk/nextjs": "^6.36.10",
 		"@edgestore/react": "^0.2.2",
-		"@edgestore/server": "^0.2.2",
+		"@edgestore/server": "^0.5.7",
 		"@fortawesome/fontawesome-svg-core": "^6.5.2",
 		"@fortawesome/free-brands-svg-icons": "^6.5.2",
 		"@fortawesome/free-regular-svg-icons": "^6.5.2",
