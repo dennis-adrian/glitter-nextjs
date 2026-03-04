@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import Heading from "../atoms/heading";
 import { Button } from "../ui/button";
+import Link from "next/link";
+import { BaseProfile } from "@/app/api/users/definitions";
 
 const ACTIVITY_ICONS: Record<FestivalActivity["type"], typeof Stamp> = {
 	stamp_passport: Stamp,
@@ -59,10 +61,12 @@ function getActivityTheme(index: number) {
 
 interface FestivalActivityCardsProps {
 	activities: FestivalActivity[];
+	forProfile: BaseProfile;
 }
 
 export default function FestivalActivityCards({
 	activities,
+	forProfile,
 }: FestivalActivityCardsProps) {
 	if (activities.length === 0) return null;
 
@@ -78,9 +82,6 @@ export default function FestivalActivityCards({
 						className="relative transition-transform duration-300 ease-out"
 						style={{
 							transformOrigin: "center center",
-						}}
-						onMouseEnter={(e) => {
-							e.currentTarget.style.transform = "rotate(0deg)";
 						}}
 					>
 						<div
@@ -195,9 +196,14 @@ export default function FestivalActivityCards({
 												"polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))",
 										}}
 										size="lg"
+										asChild
 									>
-										Participar Ahora
-										<ChevronRight className="w-5 h-5 ml-1" />
+										<Link
+											href={`/profiles/${forProfile.id}/festivals/${activity.festivalId}/activity/${activity.id}`}
+										>
+											Participar
+											<ChevronRight className="w-5 h-5 ml-1" />
+										</Link>
 									</Button>
 								</div>
 							</div>

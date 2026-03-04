@@ -109,7 +109,10 @@ export default async function ParticipantDashboardPage() {
 							</div>
 						</div>
 
-						<FestivalActivitites festivalId={activeFestival.id} />
+						<FestivalActivitites
+							festivalId={activeFestival.id}
+							forProfile={currentProfile}
+						/>
 					</>
 				)}
 

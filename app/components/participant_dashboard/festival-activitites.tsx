@@ -1,14 +1,17 @@
 import Heading from "@/app/components/atoms/heading";
 import { fetchFestivalActivitiesByFestivalId } from "@/app/lib/festivals/actions";
 import FestivalActivityCards from "./festival-activity-cards";
+import { BaseProfile } from "@/app/api/users/definitions";
 
-type FestivalActivititesProps = {
+type FestivalActivitiesProps = {
 	festivalId: number;
+	forProfile: BaseProfile;
 };
 
 export default async function FestivalActivitites({
 	festivalId,
-}: FestivalActivititesProps) {
+	forProfile,
+}: FestivalActivitiesProps) {
 	const activities = await fetchFestivalActivitiesByFestivalId(festivalId);
 
 	if (activities.length === 0) return null;
@@ -17,7 +20,10 @@ export default async function FestivalActivitites({
 		<section className="w-full">
 			<Heading level={2}>Actividades del festival</Heading>
 			<div className="mt-4 grid">
-				<FestivalActivityCards activities={activities} />
+				<FestivalActivityCards
+					activities={activities}
+					forProfile={forProfile}
+				/>
 			</div>
 		</section>
 	);
