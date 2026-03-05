@@ -24,9 +24,9 @@ export default function ActivityTypeBadge({
 		>
 			<Icon
 				className="w-4 h-4"
+				strokeWidth={2.5}
 				style={{
 					color: theme.accentText,
-					strokeWidth: 2.5,
 				}}
 			/>
 			<span
