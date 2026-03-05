@@ -103,8 +103,7 @@ export default function AdminOverviewMap({
 		setTooltipAnchorRect(null);
 	}, []);
 
-	const visibleStands =
-		activeSector?.stands.filter((s) => s.status !== "disabled") ?? [];
+	const visibleStands = activeSector?.stands ?? [];
 
 	const canvasBounds = computeCanvasBounds(
 		activeSector?.stands ?? [],
