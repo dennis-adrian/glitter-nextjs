@@ -1,32 +1,39 @@
 "use client";
 
+import Image from "next/image";
+import { useState } from "react";
+
+import { cn } from "@/app/lib/utils";
+import { CheckCircleIcon, Loader2Icon, UploadCloudIcon } from "lucide-react";
+import { toast } from "sonner";
+
 import TryAgainForm from "@/app/components/festivals/festival_activities/try-again-form";
 import { Dropzone } from "@/app/components/organisms/dropzone";
 import { Button } from "@/app/components/ui/button";
 import {
-  DrawerDialog,
-  DrawerDialogClose,
-  DrawerDialogContent,
-  DrawerDialogFooter,
-  DrawerDialogHeader,
-  DrawerDialogTitle,
-  DrawerDialogTrigger,
+	DrawerDialog,
+	DrawerDialogClose,
+	DrawerDialogContent,
+	DrawerDialogFooter,
+	DrawerDialogHeader,
+	DrawerDialogTitle,
+	DrawerDialogTrigger,
 } from "@/app/components/ui/drawer-dialog";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { addFestivalActivityParticipantProof } from "@/app/lib/festival_sectors/actions";
-import { CheckCircleIcon, Loader2Icon, UploadCloudIcon } from "lucide-react";
-import Image from "next/image";
-import { useState } from "react";
-import { toast } from "sonner";
 
 type UploadStickerDesignModalProps = {
 	participationId: number;
 	maxFiles?: number;
+	triggerLabel?: string;
+	triggerClassName?: string;
 };
 
 export default function UploadStickerDesignModal({
 	participationId,
 	maxFiles: rawMaxFiles = 5,
+	triggerLabel = "Subir imagen",
+	triggerClassName,
 }: UploadStickerDesignModalProps) {
 	const maxFiles = Math.min(Math.max(rawMaxFiles, 1), 10); // guard [1,10]
 	const isDesktop = useMediaQuery("(min-width: 768px)");
@@ -144,9 +151,12 @@ export default function UploadStickerDesignModal({
 			<DrawerDialogTrigger>
 				<Button
 					variant="outline"
-					className="hover:text-white hover:bg-amber-700 w-full md:max-w-[280px]"
+					className={cn(
+						"hover:text-white hover:bg-amber-700 w-full md:max-w-[280px]",
+						triggerClassName,
+					)}
 				>
-					<span>Subir imagen</span>
+					<span>{triggerLabel}</span>
 					<UploadCloudIcon className="w-4 h-4 ml-2" />
 				</Button>
 			</DrawerDialogTrigger>

@@ -35,6 +35,7 @@ import {
 } from "drizzle-orm";
 import { cacheLife, cacheTag, revalidatePath, updateTag } from "next/cache";
 import {
+	FestivalActivityWithDetailsAndParticipants,
 	FestivalBase,
 	FestivalWithDates,
 	FestivalWithDatesAndSectors,
@@ -373,11 +374,26 @@ export async function fetchCarouselFestivals(): Promise<FestivalWithDates[]> {
 	}
 }
 
-export async function fetchFestivalActivitiesByFestivalId(festivalId: number) {
+export async function fetchFestivalActivitiesByFestivalId(
+	festivalId: number,
+): Promise<FestivalActivityWithDetailsAndParticipants[]> {
 	try {
-		return await db.query.festivalActivities.findMany({
+		return (await db.query.festivalActivities.findMany({
 			where: eq(festivalActivities.festivalId, festivalId),
-		});
+			with: {
+				details: {
+					with: {
+						participants: {
+							with: {
+								proofs: true,
+								user: true,
+							},
+						},
+						votes: true,
+					},
+				},
+			},
+		})) as FestivalActivityWithDetailsAndParticipants[];
 	} catch (error) {
 		console.error("Error fetching festival activities by festival id", error);
 		return [];
