@@ -1,6 +1,7 @@
 import { ClockIcon } from "lucide-react";
 
 import { EnrolledConfig } from "@/app/components/participant_dashboard/activity-card/types";
+import { formatDate } from "@/app/lib/formatters";
 
 type PendingActionNoticeProps = {
 	enrolledConfig: EnrolledConfig;
@@ -19,13 +20,10 @@ export default function PendingActionNotice({
 					<div className="inline-flex items-center gap-1 text-amber-600 shrink-0">
 						<ClockIcon className="w-3.5 h-3.5" />
 						<span className="text-xs font-semibold">
-							{new Date(enrolledConfig.deadlineDate).toLocaleDateString(
-								"es-ES",
-								{
-									day: "numeric",
-									month: "short",
-								},
-							)}
+							{formatDate(enrolledConfig.deadlineDate).toLocaleString({
+								month: "short",
+								day: "numeric",
+							})}
 						</span>
 					</div>
 				)}

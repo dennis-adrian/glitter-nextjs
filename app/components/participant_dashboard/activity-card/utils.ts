@@ -31,7 +31,7 @@ export function getEnrolledConfig(
 			"Sube el diseño de tu sello personalizado para confirmar tu participación",
 		ctaLabel: "Subir Diseño",
 		ctaType: "upload",
-		deadlineDate: activity.registrationEndDate,
+		deadlineDate: activity.proofUploadLimitDate,
 		isPending: !hasUploadedProof,
 	};
 }
