@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 import Heading from "@/app/components/atoms/heading";
 import VerificationStatusLabel from "@/app/components/atoms/verification-status-label";
-import FestivalActivitites from "@/app/components/participant_dashboard/festival-activitites";
+import FestivalActivities from "@/app/components/participant_dashboard/festival-activities";
 import FestivalCarousel from "@/app/components/participant_dashboard/festival-carousel";
 import ParticipationHistoryPreview from "@/app/components/participant_dashboard/participation-history-preview";
 import ReservationCard from "@/app/components/participant_dashboard/reservation-card";
@@ -109,7 +109,7 @@ export default async function ParticipantDashboardPage() {
 							</div>
 						</div>
 
-						<FestivalActivitites
+						<FestivalActivities
 							festivalId={activeFestival.id}
 							forProfile={currentProfile}
 						/>

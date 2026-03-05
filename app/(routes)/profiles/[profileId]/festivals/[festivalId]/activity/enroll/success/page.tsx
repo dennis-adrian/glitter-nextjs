@@ -26,7 +26,7 @@ export default function Page() {
 	useEffect(() => {
 		if (validatedParams.success) {
 			const timeoutId = setTimeout(() => {
-				router.push("/my_participations");
+				router.push("/");
 			}, 3000);
 
 			return () => clearTimeout(timeoutId);
@@ -56,10 +56,10 @@ export default function Page() {
 					Inscripción exitosa
 				</h1>
 				<p className="text-muted-foreground text-sm md:text-base">
-					En breve serás redirigido a la página &quot;Mis Participaciones&quot;
+					En breve serás redirigido a la página principal
 				</p>
 				<p className="text-muted-foreground text-sm md:text-base">o</p>
-				<Link href="/my_participations">
+				<Link href="/">
 					<span className="text-blue-500 hover:underline text-sm md:text-base">
 						haz clic aquí
 					</span>
