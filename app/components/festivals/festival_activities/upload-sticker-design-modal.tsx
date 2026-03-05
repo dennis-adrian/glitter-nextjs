@@ -152,7 +152,7 @@ export default function UploadStickerDesignModal({
 				<Button
 					variant="outline"
 					className={cn(
-						"hover:text-white hover:bg-amber-700 w-full md:max-w-[280px]",
+						"hover:text-white hover:bg-amber-700 w-full md:max-w-[280px] mx-auto",
 						triggerClassName,
 					)}
 				>

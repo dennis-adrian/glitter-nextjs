@@ -32,14 +32,14 @@ export default function EnrolledUsersCta({
 	theme,
 }: EnrolledUsersCtaProps) {
 	return (
-		<div className="pt-2 space-y-3">
+		<div className="pt-2 flex flex-col gap-3">
 			{enrolledConfig.isPending &&
 				(enrolledConfig.ctaType === "upload" ? (
 					<UploadStickerDesignModal
 						participationId={participationId}
 						maxFiles={1}
 						triggerLabel={enrolledConfig.ctaLabel}
-						triggerClassName="bg-amber-500 border-0 text-white hover:bg-amber-600"
+						triggerClassName="md:max-w-full bg-amber-500 border-0 text-white hover:bg-amber-600"
 					/>
 				) : (
 					<Button
