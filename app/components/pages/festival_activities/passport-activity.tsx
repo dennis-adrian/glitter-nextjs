@@ -24,7 +24,10 @@ export default function PassportActivityPage({
 	forProfile,
 	festivalId,
 }: PassportActivityPageProps) {
-	const formattedRegistrationEndDate = formatDate(activity.registrationEndDate);
+	const proofUploadLimitDate = activity.proofUploadLimitDate
+		? formatDate(activity.proofUploadLimitDate)
+		: null;
+
 	return (
 		<div className="flex flex-col gap-4">
 			<Heading>{activity.name}</Heading>
@@ -94,15 +97,25 @@ export default function PassportActivityPage({
 						deberán tener consigo sin excepción ambos días del festival. Un
 						sello de una edición pasada también es válido.
 					</li>
-					<li>
-						Subir el diseño del sello al sitio web hasta el{" "}
-						<strong>
-							{formattedRegistrationEndDate
-								.plus({ days: 5 })
-								.toLocaleString(DateTime.DATE_FULL)}
-						</strong>
-						, para ayudar con el control a quienes completen la actividad.
-					</li>
+					{proofUploadLimitDate && (
+						<li>
+							Subir el diseño del sello al sitio web hasta el{" "}
+							<strong>
+								{proofUploadLimitDate.toLocaleString({
+									month: "long",
+									day: "numeric",
+								})}
+							</strong>{" "}
+							a las{" "}
+							<strong>
+								{proofUploadLimitDate.toLocaleString({
+									hour: "numeric",
+									minute: "numeric",
+								})}
+							</strong>
+							.
+						</li>
+					)}
 					<li>
 						Tratar con respeto a todos los expositores y público asistente
 						participantes de la actividad. Ante cualquier incoveniente,
