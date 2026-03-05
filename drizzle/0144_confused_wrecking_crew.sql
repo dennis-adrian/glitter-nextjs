@@ -1,0 +1,1 @@
+ALTER TABLE "festival_activity_participants" ADD CONSTRAINT "festival_activity_participants_details_id_user_id_unique" UNIQUE("details_id","user_id");

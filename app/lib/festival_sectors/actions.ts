@@ -355,10 +355,42 @@ export async function enrollInActivity(
 			};
 		}
 
+		const existingEnrollment = await db
+			.select({ id: festivalActivityParticipants.id })
+			.from(festivalActivityParticipants)
+			.where(
+				and(
+					eq(festivalActivityParticipants.detailsId, detailsId),
+					eq(festivalActivityParticipants.userId, forProfile.id),
+				),
+			);
+
+		if (existingEnrollment.length > 0) {
+			return {
+				success: false,
+				message: "Ya estás inscrito en esta actividad",
+			};
+		}
+
 		if (participationLimit && participationLimit > 0) {
-			// Use a transaction to ensure atomicity
 			const result = await db.transaction(async (tx) => {
-				// Check if there's space available
+				const [existingInTx] = await tx
+					.select({ id: festivalActivityParticipants.id })
+					.from(festivalActivityParticipants)
+					.where(
+						and(
+							eq(festivalActivityParticipants.detailsId, detailsId),
+							eq(festivalActivityParticipants.userId, forProfile.id),
+						),
+					);
+
+				if (existingInTx) {
+					return {
+						success: false,
+						message: "Ya estás inscrito en esta actividad",
+					};
+				}
+
 				const currentParticipantsCount = await tx
 					.select({ count: count() })
 					.from(festivalActivityParticipants)
@@ -368,7 +400,6 @@ export async function enrollInActivity(
 					return { success: false, message: "Ya no hay cupo disponible" };
 				}
 
-				// If there's space, insert the new participant
 				await tx.insert(festivalActivityParticipants).values({
 					userId: forProfile.id,
 					detailsId,

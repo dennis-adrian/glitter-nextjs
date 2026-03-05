@@ -788,6 +788,7 @@ export const festivalActivityParticipants = pgTable(
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
+	(table) => [unique().on(table.detailsId, table.userId)],
 );
 export const festivalActivityParticipantsRelations = relations(
 	festivalActivityParticipants,
