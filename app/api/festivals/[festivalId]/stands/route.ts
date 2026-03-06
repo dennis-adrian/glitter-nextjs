@@ -11,16 +11,19 @@ const ALLOWED_ORIGINS = [
 
 function getCorsHeaders(request: NextRequest) {
 	const origin = request.headers.get("origin") ?? "";
-	const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : "";
+	const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : null;
 	return {
-		"Access-Control-Allow-Origin": allowed,
+		...(allowed != null && { "Access-Control-Allow-Origin": allowed }),
 		"Access-Control-Allow-Methods": "GET, OPTIONS",
 		"Access-Control-Allow-Headers": "Content-Type",
 	};
 }
 
 export function OPTIONS(request: NextRequest) {
-	return new NextResponse(null, { status: 204, headers: getCorsHeaders(request) });
+	return new NextResponse(null, {
+		status: 204,
+		headers: getCorsHeaders(request),
+	});
 }
 
 type FestivalStand = {
@@ -64,32 +67,44 @@ export async function GET(
 
 	const { festivalId } = parsed.data;
 
-	const festivalStands = await db.query.stands.findMany({
-		where: eq(stands.festivalId, festivalId),
-		with: {
-			reservations: {
-				where: eq(standReservations.status, "accepted"),
-				with: {
-					participants: {
-						with: {
-							user: {
-								with: {
-									userSocials: true,
+	let festivalStands;
+	try {
+		festivalStands = await db.query.stands.findMany({
+			where: eq(stands.festivalId, festivalId),
+			with: {
+				reservations: {
+					where: eq(standReservations.status, "accepted"),
+					with: {
+						participants: {
+							with: {
+								user: {
+									with: {
+										userSocials: true,
+									},
 								},
 							},
 						},
 					},
 				},
 			},
-		},
-	});
+		});
+	} catch (err) {
+		console.error("Failed to fetch festival stands", {
+			festivalId,
+			error: err,
+		});
+		return NextResponse.json(
+			{ error: "Failed to load stands", stands: [] },
+			{ status: 500, headers: getCorsHeaders(request) },
+		);
+	}
 
 	const result = festivalStands.map((stand) => ({
 		standId: stand.id,
 		standLabel: stand.label,
 		standNumber: stand.standNumber,
 		standDisplayLabel:
-			stand.label && stand.standNumber
+			stand.label != null && stand.standNumber != null
 				? `${stand.label}${stand.standNumber}`
 				: "",
 		participants: stand.reservations.flatMap((reservation) =>
@@ -106,5 +121,8 @@ export async function GET(
 		),
 	}));
 
-	return NextResponse.json({ stands: result }, { headers: getCorsHeaders(request) });
+	return NextResponse.json(
+		{ stands: result },
+		{ headers: getCorsHeaders(request) },
+	);
 }
