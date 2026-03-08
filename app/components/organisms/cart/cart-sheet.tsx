@@ -7,17 +7,15 @@ import {
 	SheetTitle,
 } from "@/app/components/ui/sheet";
 import { useCart } from "@/app/components/providers/cart-provider";
-import { checkoutCart, fetchCartWithItems } from "@/app/lib/cart/actions";
+import { fetchCartWithItems } from "@/app/lib/cart/actions";
 import { getCartItemWarnings } from "@/app/lib/cart/utils";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { CartWithItems } from "@/app/lib/cart/definitions";
 import { BaseProfile } from "@/app/api/users/definitions";
 import CartItemRow from "@/app/components/organisms/cart/cart-item-row";
 import { Button } from "@/app/components/ui/button";
-import { Loader2Icon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { ShoppingCartIcon } from "lucide-react";
 
 type CartSheetProps = {
@@ -30,7 +28,6 @@ export default function CartSheet({ user }: CartSheetProps) {
 	const [cartData, setCartData] = useState<CartWithItems | null>(null);
 	const [loading, setLoading] = useState(false);
 	const [refreshing, setRefreshing] = useState(false);
-	const [checkingOut, setCheckingOut] = useState(false);
 	const fetchGenerationRef = useRef(0);
 
 	const loadCart = useCallback(
@@ -69,25 +66,6 @@ export default function CartSheet({ user }: CartSheetProps) {
 		cartData?.items.reduce((sum, item) => {
 			return sum + getProductPriceAtPurchase(item.product) * item.quantity;
 		}, 0) ?? 0;
-
-	async function handleCheckout() {
-		setCheckingOut(true);
-		const result = await checkoutCart(
-			user.id,
-			user.email,
-			user.displayName ?? "",
-		);
-
-		if (result.success && result.orderId) {
-			setItemCount(0);
-			setCartData(null);
-			closeCart();
-			router.push(`/profiles/${user.id}/orders/${result.orderId}`);
-		} else {
-			toast.error(result.message);
-		}
-		setCheckingOut(false);
-	}
 
 	return (
 		<Sheet open={isOpen} onOpenChange={(open) => !open && closeCart()}>
@@ -145,18 +123,14 @@ export default function CartSheet({ user }: CartSheetProps) {
 							<span>Bs {total.toFixed(2)}</span>
 						</div>
 						<Button
-							disabled={!!hasWarnings || checkingOut || refreshing}
+							disabled={!!hasWarnings || refreshing}
 							className="w-full bg-purple-600 hover:bg-purple-700"
-							onClick={handleCheckout}
+							onClick={() => {
+								closeCart();
+								router.push("/checkout");
+							}}
 						>
-							{checkingOut ? (
-								<span className="flex gap-2 items-center">
-									<Loader2Icon className="w-4 h-4 animate-spin" />
-									Procesando...
-								</span>
-							) : (
-								"Realizar pedido"
-							)}
+							Proceder al pago
 						</Button>
 					</div>
 				)}

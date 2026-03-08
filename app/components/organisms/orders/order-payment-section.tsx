@@ -28,12 +28,20 @@ export default function OrderPaymentSection({
 	const [isUploading, setIsUploading] = useState(false);
 
 	async function handleUploadComplete(imageUrl: string) {
-		const result = await submitOrderPaymentVoucher(orderId, imageUrl);
-		if (result.success) {
-			setVoucherUrl(imageUrl);
-			toast.success("Comprobante enviado — revisaremos tu pago pronto");
-		} else {
-			toast.error(result.message);
+		try {
+			const result = await submitOrderPaymentVoucher(orderId, imageUrl);
+			if (result.success) {
+				setVoucherUrl(imageUrl);
+				toast.success("Comprobante enviado — revisaremos tu pago pronto");
+			} else {
+				toast.error(result.message);
+			}
+		} catch (error) {
+			console.error(
+				"[order-payment-section] handleUploadComplete / submitOrderPaymentVoucher error:",
+				error,
+			);
+			toast.error("No se pudo enviar el comprobante. Intentá de nuevo.");
 		}
 	}
 

@@ -1,3 +1,4 @@
+import { cn } from "@/app/lib/utils";
 import React, { JSX } from "react";
 
 type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
@@ -29,8 +30,12 @@ export default function Heading({
 	return React.createElement(
 		Tag,
 		{
-			className: `${baseStyles} text-foreground ${className}`,
-			style: { fontFamily: "var(--font-space-grotesk)", ...style },
+			className: cn(
+				baseStyles,
+				"text-foreground font-space-grotesk",
+				className,
+			),
+			style,
 		},
 		children,
 	);

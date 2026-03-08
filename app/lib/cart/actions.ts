@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/db";
-import { cartItems, carts } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { cartItems, carts, products } from "@/db/schema";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { createOrder } from "@/app/lib/orders/actions";
 import { BaseCart, CartWithItems } from "@/app/lib/cart/definitions";
@@ -63,27 +63,22 @@ export async function addToCart(
 ): Promise<{ success: boolean; newCount: number }> {
 	try {
 		const cart = await getOrCreateCart(userId);
+		const cappedQuantity = Math.min(quantity, 5);
 
-		const existing = await db.query.cartItems.findFirst({
-			where: and(
-				eq(cartItems.cartId, cart.id),
-				eq(cartItems.productId, productId),
-			),
-		});
-
-		if (existing) {
-			const newQty = Math.min(existing.quantity + quantity, 5);
-			await db
-				.update(cartItems)
-				.set({ quantity: newQty, updatedAt: new Date() })
-				.where(eq(cartItems.id, existing.id));
-		} else {
-			await db.insert(cartItems).values({
+		await db
+			.insert(cartItems)
+			.values({
 				cartId: cart.id,
 				productId,
-				quantity: Math.min(quantity, 5),
+				quantity: cappedQuantity,
+			})
+			.onConflictDoUpdate({
+				target: [cartItems.cartId, cartItems.productId],
+				set: {
+					quantity: sql`least(${cartItems.quantity} + excluded.quantity, 5)`,
+					updatedAt: new Date(),
+				},
 			});
-		}
 
 		revalidatePath("/store");
 		const newCount = await fetchCartItemCount(userId);

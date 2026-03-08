@@ -254,7 +254,10 @@ export default function EnrollRedirectButton({
 												)}
 											/>
 											<SubmitButton
-												disabled={form.formState.isSubmitting}
+												disabled={
+													form.formState.isSubmitting ||
+													form.formState.isSubmitSuccessful
+												}
 												loading={form.formState.isSubmitting}
 												loadingLabel="Inscribiendo..."
 												label={
