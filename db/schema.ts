@@ -1038,6 +1038,7 @@ export const products = pgTable("products", {
 export const productsRelations = relations(products, ({ many }) => ({
 	orderItems: many(orderItems),
 	images: many(productImages),
+	cartItems: many(cartItems),
 }));
 
 export const orderStatusEnum = pgEnum("order_status", [
@@ -1098,6 +1099,48 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
 	}),
 	product: one(products, {
 		fields: [orderItems.productId],
+		references: [products.id],
+	}),
+}));
+
+export const carts = pgTable("carts", {
+	id: serial("id").primaryKey(),
+	userId: integer("user_id")
+		.notNull()
+		.unique()
+		.references(() => users.id, { onDelete: "cascade" }),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export const cartsRelations = relations(carts, ({ one, many }) => ({
+	user: one(users, { fields: [carts.userId], references: [users.id] }),
+	items: many(cartItems),
+}));
+
+export const cartItems = pgTable(
+	"cart_items",
+	{
+		id: serial("id").primaryKey(),
+		cartId: integer("cart_id")
+			.notNull()
+			.references(() => carts.id, { onDelete: "cascade" }),
+		productId: integer("product_id")
+			.notNull()
+			.references(() => products.id, { onDelete: "cascade" }),
+		quantity: integer("quantity").notNull().default(1),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(t) => [
+		index("cart_items_cart_id_idx").on(t.cartId),
+		index("cart_items_product_id_idx").on(t.productId),
+		unique("cart_items_cart_product_unique").on(t.cartId, t.productId),
+	],
+);
+export const cartItemsRelations = relations(cartItems, ({ one }) => ({
+	cart: one(carts, { fields: [cartItems.cartId], references: [carts.id] }),
+	product: one(products, {
+		fields: [cartItems.productId],
 		references: [products.id],
 	}),
 }));

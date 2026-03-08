@@ -10,7 +10,7 @@ export default async function Navbar() {
 	const profile = await getCurrentNavbarProfile();
 
 	return (
-		<header>
+		<header className="sticky top-0 z-50 bg-background border-b">
 			<nav className="w-full h-16 md:h-20 container m-auto py-3 md:py-4 px-4 md:px-6 flex items-center">
 				<ul className="grid grid-cols-2 md:grid-cols-3 items-center w-full">
 					<li className="flex items-center gap-2">

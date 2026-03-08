@@ -1,12 +1,12 @@
 "use client";
 
 import { BaseProfile } from "@/app/api/users/definitions";
-import { createOrder } from "@/app/lib/orders/actions";
+import { addToCart } from "@/app/lib/cart/actions";
+import { useCart } from "@/app/components/providers/cart-provider";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { BaseProduct } from "@/app/lib/products/definitions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { MinusIcon, PlusIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -42,7 +42,7 @@ export default function StoreItemQuantityInput({
 	product,
 	user,
 }: StoreItemQuantityInputProps) {
-	const router = useRouter();
+	const { setItemCount } = useCart();
 	const form = useForm<
 		z.input<typeof FormSchema>,
 		unknown,
@@ -73,23 +73,17 @@ export default function StoreItemQuantityInput({
 			return;
 		}
 
-		const orderItemsIdsQuantityMap: Map<number, number> = new Map([
-			[product.id, data.itemQuantity],
-		]);
-
-		const { details, message, success } = await createOrder(
-			orderItemsIdsQuantityMap,
+		const { success, newCount } = await addToCart(
 			user.id,
-			user.email,
-			user.displayName || "",
+			product.id,
+			data.itemQuantity,
 		);
 
-		if (success && details?.orderId) {
-			toast.success(message);
-			router.push(`/profiles/${user.id}/orders/${details.orderId}`);
+		if (success) {
+			setItemCount(newCount);
+			toast.success("Producto agregado al carrito");
 		} else {
-			form.setError("root", { message });
-			toast.error(message);
+			toast.error("No se pudo agregar al carrito");
 		}
 
 		form.reset();
