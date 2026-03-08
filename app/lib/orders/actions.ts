@@ -358,6 +358,34 @@ export async function updateOrderStatus(orderId: number, status: OrderStatus) {
 	};
 }
 
+export async function submitOrderPaymentVoucher(
+	orderId: number,
+	voucherUrl: string,
+) {
+	try {
+		const [order] = await db
+			.update(orders)
+			.set({ paymentVoucherUrl: voucherUrl, status: "processing" })
+			.where(eq(orders.id, orderId))
+			.returning();
+
+		if (!order) {
+			return {
+				success: false,
+				message: "Orden no encontrada.",
+			};
+		}
+
+		revalidatePath(`/profiles/${order.userId}/orders/${orderId}`);
+		revalidatePath("/dashboard/orders");
+
+		return { success: true, message: "Comprobante enviado correctamente." };
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "No se pudo enviar el comprobante." };
+	}
+}
+
 export async function fetchOrdersTotalsByProduct() {
 	try {
 		const result = await db.transaction(async (tx) => {

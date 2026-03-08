@@ -1,16 +1,15 @@
 "use client";
 
 import { CartItemWithProduct } from "@/app/lib/cart/definitions";
-import {
-	removeFromCart,
-	updateCartItemQuantity,
-} from "@/app/lib/cart/actions";
+import { removeFromCart, updateCartItemQuantity } from "@/app/lib/cart/actions";
 import { getCartItemWarnings } from "@/app/lib/cart/utils";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { Button } from "@/app/components/ui/button";
 import { MinusIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
+import { toast } from "sonner";
 
 type CartItemRowProps = {
 	item: CartItemWithProduct;
@@ -24,49 +23,81 @@ export default function CartItemRow({
 	onCartUpdate,
 }: CartItemRowProps) {
 	const [pending, setPending] = useState(false);
+	const [localQty, setLocalQty] = useState(item.quantity);
+	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	useEffect(() => {
+		setLocalQty(item.quantity);
+	}, [item.quantity]);
+
+	useEffect(() => {
+		return () => {
+			if (debounceRef.current) {
+				clearTimeout(debounceRef.current);
+				debounceRef.current = null;
+			}
+		};
+	}, []);
+
 	const warnings = getCartItemWarnings(item);
 	const unitPrice = getProductPriceAtPurchase(item.product);
-	const subtotal = unitPrice * item.quantity;
+	const subtotal = unitPrice * localQty;
 
 	const mainImage = item.product.images.find((img) => img.isMain);
-	const imageUrl = mainImage?.imageUrl ?? item.product.imageUrl;
+	const imageUrl = mainImage?.imageUrl
+		? mainImage.imageUrl
+		: PLACEHOLDER_IMAGE_URLS["300"];
 
-	async function handleQuantityChange(delta: number) {
-		const newQty = item.quantity + delta;
-		setPending(true);
-		await updateCartItemQuantity(userId, item.productId, newQty);
-		await onCartUpdate();
-		setPending(false);
+	function handleQuantityChange(delta: number) {
+		const newQty = localQty + delta;
+		if (newQty < 0) return;
+		setLocalQty(newQty);
+
+		if (debounceRef.current) clearTimeout(debounceRef.current);
+		debounceRef.current = setTimeout(async () => {
+			setPending(true);
+			try {
+				await updateCartItemQuantity(userId, item.productId, newQty);
+				await onCartUpdate();
+			} catch (err) {
+				console.error("handleQuantityChange:", err);
+			} finally {
+				setPending(false);
+			}
+		}, 600);
 	}
 
 	async function handleRemove() {
 		setPending(true);
-		await removeFromCart(userId, item.productId);
-		await onCartUpdate();
-		setPending(false);
+		try {
+			await removeFromCart(userId, item.productId);
+			await onCartUpdate();
+		} catch (err) {
+			toast.error("No se pudo eliminar el producto del carrito");
+		} finally {
+			setPending(false);
+		}
 	}
 
 	return (
 		<div className="flex gap-3 py-4 border-b last:border-b-0">
 			{/* Product image */}
 			<div className="shrink-0 w-16 h-16 rounded-md overflow-hidden bg-muted">
-				{imageUrl ? (
-					<Image
-						src={imageUrl}
-						alt={item.product.name}
-						width={64}
-						height={64}
-						className="w-full h-full object-cover"
-					/>
-				) : (
-					<div className="w-full h-full bg-muted" />
-				)}
+				<Image
+					src={imageUrl}
+					alt={item.product.name}
+					width={64}
+					height={64}
+					className="w-full h-full object-cover"
+				/>
 			</div>
 
 			{/* Details */}
 			<div className="flex-1 min-w-0">
 				<p className="font-medium text-sm truncate">{item.product.name}</p>
-				<p className="text-sm text-muted-foreground">Bs {unitPrice.toFixed(2)}</p>
+				<p className="text-sm text-muted-foreground">
+					Bs {unitPrice.toFixed(2)}
+				</p>
 
 				{/* Stock warnings */}
 				{warnings.isOutOfStock && (
@@ -86,17 +117,19 @@ export default function CartItemRow({
 						variant="outline"
 						size="icon"
 						className="h-7 w-7"
-						disabled={pending || item.quantity <= 1}
+						disabled={pending || localQty <= 0}
 						onClick={() => handleQuantityChange(-1)}
 					>
 						<MinusIcon className="w-3 h-3" />
 					</Button>
-					<span className="text-sm w-5 text-center">{item.quantity}</span>
+					<span className="text-sm w-5 text-center">{localQty}</span>
 					<Button
 						variant="outline"
 						size="icon"
 						className="h-7 w-7"
-						disabled={pending || item.quantity >= Math.min(5, item.product.stock ?? 0)}
+						disabled={
+							pending || localQty >= Math.min(5, item.product.stock ?? 0)
+						}
 						onClick={() => handleQuantityChange(1)}
 					>
 						<PlusIcon className="w-3 h-3" />

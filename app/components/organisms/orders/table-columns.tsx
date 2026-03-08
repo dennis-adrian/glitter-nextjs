@@ -1,5 +1,6 @@
 import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
 import { OrdersActionsCell } from "@/app/components/organisms/orders/table-actions-cell";
+import OrderVoucherDialog from "@/app/components/organisms/orders/order-voucher-dialog";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
 import { formatDate } from "@/app/lib/formatters";
@@ -75,7 +76,15 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
 			<DataTableColumnHeader column={column} title={columnTitles.status} />
 		),
 		cell: ({ row }) => {
-			return <OrderStatusBadge status={row.original.status} />;
+			const { status, paymentVoucherUrl, id } = row.original;
+			return (
+				<div className="flex items-center gap-2">
+					<OrderStatusBadge status={status} />
+					{paymentVoucherUrl && (
+						<OrderVoucherDialog voucherUrl={paymentVoucherUrl} orderId={id} />
+					)}
+				</div>
+			);
 		},
 		filterFn: (row, columnId, filterStatus) => {
 			if (filterStatus.length === 0) return true;

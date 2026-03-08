@@ -15,7 +15,7 @@ import { BaseProfile } from "@/app/api/users/definitions";
 import CartItemRow from "@/app/components/organisms/cart/cart-item-row";
 import { Button } from "@/app/components/ui/button";
 import { Loader2Icon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ShoppingCartIcon } from "lucide-react";
@@ -29,15 +29,30 @@ export default function CartSheet({ user }: CartSheetProps) {
 	const router = useRouter();
 	const [cartData, setCartData] = useState<CartWithItems | null>(null);
 	const [loading, setLoading] = useState(false);
+	const [refreshing, setRefreshing] = useState(false);
 	const [checkingOut, setCheckingOut] = useState(false);
+	const fetchGenerationRef = useRef(0);
 
-	const loadCart = useCallback(async () => {
-		setLoading(true);
-		const data = await fetchCartWithItems(user.id);
-		setCartData(data);
-		setItemCount(data?.items.length ?? 0);
-		setLoading(false);
-	}, [user.id, setItemCount]);
+	const loadCart = useCallback(
+		async (silent = false) => {
+			if (!silent) setLoading(true);
+			else setRefreshing(true);
+
+			const generation = ++fetchGenerationRef.current;
+			const data = await fetchCartWithItems(user.id);
+
+			if (generation === fetchGenerationRef.current) {
+				setCartData(data);
+				setItemCount(
+					data?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
+				);
+			}
+
+			if (!silent) setLoading(false);
+			else if (generation === fetchGenerationRef.current) setRefreshing(false);
+		},
+		[user.id, setItemCount],
+	);
 
 	useEffect(() => {
 		if (isOpen) {
@@ -63,11 +78,11 @@ export default function CartSheet({ user }: CartSheetProps) {
 			user.displayName ?? "",
 		);
 
-		if (result.success && result.details?.orderId) {
+		if (result.success && result.orderId) {
 			setItemCount(0);
 			setCartData(null);
 			closeCart();
-			router.push(`/profiles/${user.id}/orders/${result.details.orderId}`);
+			router.push(`/profiles/${user.id}/orders/${result.orderId}`);
 		} else {
 			toast.error(result.message);
 		}
@@ -76,7 +91,10 @@ export default function CartSheet({ user }: CartSheetProps) {
 
 	return (
 		<Sheet open={isOpen} onOpenChange={(open) => !open && closeCart()}>
-			<SheetContent side="right" className="flex flex-col w-full sm:max-w-md p-0">
+			<SheetContent
+				side="right"
+				className="flex flex-col w-full sm:max-w-md p-0"
+			>
 				<SheetHeader className="px-6 py-4 border-b">
 					<SheetTitle className="flex items-center gap-2">
 						<ShoppingCartIcon className="w-5 h-5" />
@@ -106,7 +124,7 @@ export default function CartSheet({ user }: CartSheetProps) {
 									key={item.id}
 									item={item}
 									userId={user.id}
-									onCartUpdate={loadCart}
+									onCartUpdate={() => loadCart(true)}
 								/>
 							))}
 						</div>
@@ -118,7 +136,8 @@ export default function CartSheet({ user }: CartSheetProps) {
 					<div className="px-6 py-4 border-t space-y-4">
 						{hasWarnings && (
 							<p className="text-xs text-amber-600">
-								Revisá tu carrito — algunos productos cambiaron de disponibilidad.
+								Revisá tu carrito, algunos productos cambiaron de
+								disponibilidad.
 							</p>
 						)}
 						<div className="flex items-center justify-between font-semibold">
@@ -126,7 +145,7 @@ export default function CartSheet({ user }: CartSheetProps) {
 							<span>Bs {total.toFixed(2)}</span>
 						</div>
 						<Button
-							disabled={!!hasWarnings || checkingOut}
+							disabled={!!hasWarnings || checkingOut || refreshing}
 							className="w-full bg-purple-600 hover:bg-purple-700"
 							onClick={handleCheckout}
 						>

@@ -10,10 +10,12 @@ export default function PaymentProofUpload({
   voucherImageUrl,
   onUploadComplete,
   onUploading,
+  endpoint = "reservationPayment",
 }: {
   voucherImageUrl?: string;
   onUploadComplete: (imageUrl: string) => void;
   onUploading: (isUploading: boolean) => void;
+  endpoint?: "reservationPayment" | "storeOrderPayment";
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -33,7 +35,7 @@ export default function PaymentProofUpload({
         </div>
       )}
       <UploadButton
-        endpoint="reservationPayment"
+        endpoint={endpoint}
         onUploadBegin={() => {
           onUploading(true);
         }}

@@ -27,6 +27,7 @@ export async function fetchCartWithItems(
 			where: eq(carts.userId, userId),
 			with: {
 				items: {
+					orderBy: (cartItems, { asc }) => [asc(cartItems.id)],
 					with: {
 						product: {
 							with: { images: true },
@@ -48,7 +49,7 @@ export async function fetchCartItemCount(userId: number): Promise<number> {
 			where: eq(carts.userId, userId),
 			with: { items: true },
 		});
-		return cart?.items.length ?? 0;
+		return cart?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
 	} catch (error) {
 		console.error(error);
 		return 0;
@@ -104,7 +105,9 @@ export async function updateCartItemQuantity(
 		});
 		if (!cart) return;
 
-		if (quantity <= 0) {
+		const capped = Math.min(quantity, 5);
+
+		if (capped <= 0) {
 			await db
 				.delete(cartItems)
 				.where(
@@ -116,7 +119,7 @@ export async function updateCartItemQuantity(
 		} else {
 			await db
 				.update(cartItems)
-				.set({ quantity, updatedAt: new Date() })
+				.set({ quantity: capped, updatedAt: new Date() })
 				.where(
 					and(
 						eq(cartItems.cartId, cart.id),
@@ -171,14 +174,17 @@ export async function checkoutCart(
 	userId: number,
 	customerEmail: string,
 	customerName: string,
-) {
+): Promise<{
+	success: boolean;
+	message: string;
+	orderId?: number | null;
+}> {
 	const cart = await fetchCartWithItems(userId);
 
 	if (!cart || cart.items.length === 0) {
 		return {
 			success: false,
 			message: "El carrito está vacío.",
-			details: null,
 		};
 	}
 
@@ -198,14 +204,16 @@ export async function checkoutCart(
 			await clearCart(userId);
 		}
 
-		return result;
+		return {
+			success: result.success,
+			message: result.message,
+			orderId: result.details?.orderId ?? null,
+		};
 	} catch (err) {
-		const details = err instanceof Error ? err.message : String(err);
 		console.error("checkoutCart error:", err);
 		return {
 			success: false,
 			message: "Error al procesar el pedido.",
-			details,
 		};
 	}
 }

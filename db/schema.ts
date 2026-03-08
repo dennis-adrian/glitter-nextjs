@@ -1061,6 +1061,7 @@ export const orders = pgTable("orders", {
 	orderDate: timestamp("order_date").defaultNow(),
 	status: orderStatusEnum("status").default("pending").notNull(),
 	totalAmount: real("total_amount").notNull(),
+	paymentVoucherUrl: text("payment_voucher_url"),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
