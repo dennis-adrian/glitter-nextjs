@@ -128,7 +128,11 @@ export default function CartItemRow({
 						size="icon"
 						className="h-7 w-7"
 						disabled={
-							pending || localQty >= Math.min(5, item.product.stock ?? 0)
+							pending ||
+							localQty >=
+								(item.product.stock == null
+									? 5
+									: Math.min(5, item.product.stock))
 						}
 						onClick={() => handleQuantityChange(1)}
 					>

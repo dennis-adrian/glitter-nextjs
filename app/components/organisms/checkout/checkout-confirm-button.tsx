@@ -22,7 +22,7 @@ export default function CheckoutConfirmButton({ userId, email, name }: Props) {
 		try {
 			const result = await checkoutCart(userId, email, name);
 			if (result.success && result.orderId) {
-				router.push(`/profiles/${userId}/orders/${result.orderId}`);
+				router.push(`/profiles/${userId}/orders/${result.orderId}/pay`);
 			} else {
 				toast.error(result.message);
 				setLoading(false);

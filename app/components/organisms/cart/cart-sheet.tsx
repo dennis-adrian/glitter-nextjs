@@ -46,7 +46,7 @@ export default function CartSheet({ user }: CartSheetProps) {
 			}
 
 			if (!silent) setLoading(false);
-			else if (generation === fetchGenerationRef.current) setRefreshing(false);
+			else setRefreshing(false);
 		},
 		[user.id, setItemCount],
 	);

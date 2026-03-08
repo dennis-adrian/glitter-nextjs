@@ -3,7 +3,7 @@
 import { orderItems, orders } from "@/db/schema";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
 import { db } from "@/db";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { products } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
@@ -12,6 +12,7 @@ import OrderConfirmationForAdminsEmailTemplate from "@/app/emails/order-confirma
 import OrderConfirmationForUsersEmailTemplate from "@/app/emails/order-confirmation-for-user";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { BaseProduct } from "@/app/lib/products/definitions";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 async function sendOrderEmails(emailData: {
 	orderId: number;
@@ -362,17 +363,27 @@ export async function submitOrderPaymentVoucher(
 	orderId: number,
 	voucherUrl: string,
 ) {
+	const currentUser = await getCurrentUserProfile();
+	if (!currentUser) {
+		return {
+			success: false,
+			message: "Debes iniciar sesión para enviar el comprobante.",
+		};
+	}
+
 	try {
 		const [order] = await db
 			.update(orders)
 			.set({ paymentVoucherUrl: voucherUrl, status: "processing" })
-			.where(eq(orders.id, orderId))
+			.where(
+				and(eq(orders.id, orderId), eq(orders.userId, currentUser.id)),
+			)
 			.returning();
 
 		if (!order) {
 			return {
 				success: false,
-				message: "Orden no encontrada.",
+				message: "Orden no encontrada o no tienes permiso para actualizarla.",
 			};
 		}
 

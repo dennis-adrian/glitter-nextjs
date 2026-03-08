@@ -1,15 +1,17 @@
-import { CardContent } from "@/app/components/ui/card";
-import { Card } from "@/app/components/ui/card";
+import { BoxIcon, TruckIcon } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { z } from "zod";
+
+import Heading from "@/app/components/atoms/heading";
+import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
+import { Button } from "@/app/components/ui/button";
+import { Card, CardContent } from "@/app/components/ui/card";
+import { formatDate } from "@/app/lib/formatters";
 import { fetchOrder } from "@/app/lib/orders/actions";
 import { OrderItemWithRelations } from "@/app/lib/orders/definitions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
-import OrderPaymentSection from "@/app/components/organisms/orders/order-payment-section";
-import { BoxIcon, TruckIcon } from "lucide-react";
-import Image from "next/image";
-import { notFound } from "next/navigation";
-import { z } from "zod";
-import Heading from "@/app/components/atoms/heading";
-import { formatDate } from "@/app/lib/formatters";
 
 const ParamsSchema = z.object({
 	profileId: z.coerce.number(),
@@ -35,6 +37,9 @@ export default async function UserOrderPage(props: {
 		return notFound();
 	}
 
+	const { profileId, orderId } = validatedParams.data;
+	const canPay = order.status === "pending" || order.status === "processing";
+
 	return (
 		<div className="container p-3 md:p-6">
 			<div className="mb-4">
@@ -49,7 +54,7 @@ export default async function UserOrderPage(props: {
 				</p>
 			</div>
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-6">
-				<div className="lg:col-span-2 space-y-8">
+				<div className="lg:col-span-2 space-y-6">
 					{/* Order Items */}
 					<div className="bg-white rounded-xl shadow-xs border p-6">
 						<h2 className="text-lg font-semibold mb-4 flex items-center">
@@ -91,57 +96,48 @@ export default async function UserOrderPage(props: {
 							))}
 						</div>
 
-						<div className="mt-4 space-y-2">
-							{/* <div className="flex justify-between text-sm">
-								<span className="text-gray-500">Subtotal</span>
-								<span>
-									$
-									{order.orderItems
-										.reduce(
-											(acc: number, item: any) =>
-												acc + item.product.price * item.quantity,
-											0,
-										)
-										.toFixed(2)}
-								</span>
-							</div>
-							<div className="flex justify-between text-sm">
-								<span className="text-gray-500">Shipping</span>
-								<span>$0.00</span>
-							</div>
-							<div className="flex justify-between text-sm">
-								<span className="text-gray-500">Tax</span>
-								<span>$10.40</span>
-							</div> */}
-							<div className="flex justify-between font-medium text-lg pt-2 border-t mt-2">
-								<span>Total</span>
-								<span>Bs{order.totalAmount.toFixed(2)}</span>
-							</div>
+						<div className="flex justify-between font-medium text-lg pt-4 border-t mt-2">
+							<span>Total</span>
+							<span>Bs{order.totalAmount.toFixed(2)}</span>
 						</div>
 					</div>
 				</div>
 
-				{/* Payment Information */}
-				<OrderPaymentSection
-					orderId={order.id}
-					totalAmount={order.totalAmount}
-					status={order.status}
-					paymentVoucherUrl={order.paymentVoucherUrl ?? null}
-				/>
+				<div className="flex flex-col gap-3 md:gap-6">
+					{/* Status + Pay */}
+					<Card>
+						<CardContent className="p-6 space-y-4">
+							<div>
+								<p className="text-sm text-muted-foreground mb-2">Estado</p>
+								<OrderStatusBadge status={order.status} />
+							</div>
+							{canPay && (
+								<Button
+									asChild
+									className="w-full bg-purple-600 hover:bg-purple-700"
+								>
+									<Link href={`/profiles/${profileId}/orders/${orderId}/pay`}>
+										Pagar pedido
+									</Link>
+								</Button>
+							)}
+						</CardContent>
+					</Card>
 
-				{/* Shipping Information */}
-				<Card>
-					<CardContent className="p-6">
-						<h2 className="text-lg font-semibold mb-4 flex items-center">
-							<TruckIcon className="h-5 w-5 mr-2" />
-							Información de Entrega
-						</h2>
-						<p className="text-sm text-muted-foreground">
-							La entrega del pedido se realizará durante la entrega de
-							credenciales o en el próximo festival.
-						</p>
-					</CardContent>
-				</Card>
+					{/* Delivery info */}
+					<Card>
+						<CardContent className="p-6 space-y-2">
+							<h2 className="text-base font-semibold flex items-center gap-2">
+								<TruckIcon className="h-4 w-4" />
+								Entrega
+							</h2>
+							<p className="text-sm text-muted-foreground">
+								La entrega del pedido se realizará durante la entrega de
+								credenciales o en el próximo festival.
+							</p>
+						</CardContent>
+					</Card>
+				</div>
 			</div>
 		</div>
 	);
