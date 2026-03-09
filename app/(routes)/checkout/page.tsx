@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Image from "next/image";
-import { BoxIcon, TruckIcon, TriangleAlertIcon } from "lucide-react";
+import { BoxIcon, TriangleAlertIcon } from "lucide-react";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { fetchCartWithItems } from "@/app/lib/cart/actions";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
@@ -8,6 +8,7 @@ import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { Card, CardContent } from "@/app/components/ui/card";
 import Heading from "@/app/components/atoms/heading";
 import CheckoutConfirmButton from "@/app/components/organisms/checkout/checkout-confirm-button";
+import OrderDeliveryInfo from "@/app/components/molecules/order-delivery-info";
 import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 
@@ -121,41 +122,10 @@ export default async function CheckoutPage() {
 					)}
 
 					{/* Delivery info */}
-					<Card>
-						<CardContent className="p-6 space-y-4">
-							<Heading level={4} className="flex items-center gap-2">
-								<TruckIcon className="h-4 w-4" />
-								Información de entrega
-							</Heading>
-
-							{availableItems.length > 0 && (
-								<div className={presaleItems.length > 0 ? "pb-4 border-b" : ""}>
-									<p className="text-sm font-medium mb-1">
-										Productos disponibles
-									</p>
-									<p className="text-sm text-muted-foreground">
-										Podés pasar a recoger tu pedido, o coordinamos el envío a
-										través de una app de delivery (con costo adicional). Te
-										contactaremos una vez que el pago sea confirmado.
-									</p>
-								</div>
-							)}
-
-							{presaleItems.length > 0 && (
-								<div>
-									<p className="text-sm font-medium mb-1">
-										Productos en pre-venta
-									</p>
-									<p className="text-sm text-muted-foreground">
-										La entrega se realizará el día del festival en el stand de
-										Productora Glitter. O durante la entrega de credenciales si
-										tenés un stand reservado, siempre que el pago esté
-										confirmado antes de esa fecha.
-									</p>
-								</div>
-							)}
-						</CardContent>
-					</Card>
+					<OrderDeliveryInfo
+						hasAvailableItems={availableItems.length > 0}
+						hasPresaleItems={presaleItems.length > 0}
+					/>
 
 					{/* Confirm — desktop only */}
 					<div className="hidden md:block">

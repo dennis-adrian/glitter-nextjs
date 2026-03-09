@@ -1,4 +1,4 @@
-import { BoxIcon, TruckIcon } from "lucide-react";
+import { BoxIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -9,6 +9,7 @@ import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate } from "@/app/lib/formatters";
+import OrderDeliveryInfo from "@/app/components/molecules/order-delivery-info";
 import { fetchOrder } from "@/app/lib/orders/actions";
 import { OrderItemWithRelations } from "@/app/lib/orders/definitions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
@@ -39,6 +40,12 @@ export default async function UserOrderPage(props: {
 
 	const { profileId, orderId } = validatedParams.data;
 	const canPay = order.status === "pending";
+	const hasAvailableItems = order.orderItems.some(
+		(item: OrderItemWithRelations) => !item.product.isPreOrder,
+	);
+	const hasPresaleItems = order.orderItems.some(
+		(item: OrderItemWithRelations) => item.product.isPreOrder,
+	);
 
 	return (
 		<div className="container p-3 md:p-6">
@@ -125,18 +132,10 @@ export default async function UserOrderPage(props: {
 					</Card>
 
 					{/* Delivery info */}
-					<Card>
-						<CardContent className="p-6 space-y-2">
-							<h2 className="text-base font-semibold flex items-center gap-2">
-								<TruckIcon className="h-4 w-4" />
-								Entrega
-							</h2>
-							<p className="text-sm text-muted-foreground">
-								La entrega del pedido se realizará durante la entrega de
-								credenciales o en el próximo festival.
-							</p>
-						</CardContent>
-					</Card>
+					<OrderDeliveryInfo
+						hasAvailableItems={hasAvailableItems}
+						hasPresaleItems={hasPresaleItems}
+					/>
 				</div>
 			</div>
 		</div>
