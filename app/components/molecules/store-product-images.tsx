@@ -26,13 +26,15 @@ type StoreProductImagesProps = {
 	productName: string;
 	stock: number;
 	images: BaseProductImage[];
-	isHovered: boolean;
+	interactive?: boolean;
+	autoPlay?: boolean;
 };
 export default function StoreProductImages({
 	productName,
 	stock,
 	images,
-	isHovered,
+	interactive = true,
+	autoPlay = false,
 }: StoreProductImagesProps) {
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [isZoomed, setIsZoomed] = useState(false);
@@ -49,6 +51,9 @@ export default function StoreProductImages({
 
 	const [api, setApi] = useState<CarouselApi>();
 	const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+	const containerRef = useRef<HTMLDivElement>(null);
+	const [isInView, setIsInView] = useState(false);
 
 	useEffect(() => {
 		if (!api) {
@@ -83,6 +88,19 @@ export default function StoreProductImages({
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [isModalOpen]);
 
+	// IntersectionObserver — track when card enters the viewport
+	useEffect(() => {
+		if (!autoPlay) return;
+		const el = containerRef.current;
+		if (!el) return;
+		const observer = new IntersectionObserver(
+			([entry]) => setIsInView(entry.isIntersecting),
+			{ threshold: 0.5 },
+		);
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, [autoPlay]);
+
 	const mainImage = images.find((img) => img.isMain);
 	const secondaryImages = images.filter((img) => !img.isMain);
 	const imageUrls: string[] = [];
@@ -95,6 +113,15 @@ export default function StoreProductImages({
 		imageUrls.push(mainImage.imageUrl);
 		imageUrls.push(...secondaryImages.map((img) => img.imageUrl));
 	}
+
+	// Auto-scroll interval — cycle images when in view
+	useEffect(() => {
+		if (!autoPlay || !isInView || !api || imageUrls.length <= 1) return;
+		const id = setInterval(() => {
+			api.scrollTo((api.selectedScrollSnap() + 1) % imageUrls.length);
+		}, 2000);
+		return () => clearInterval(id);
+	}, [autoPlay, isInView, api, imageUrls.length]);
 
 	const nextImage = (e?: React.MouseEvent) => {
 		if (e) {
@@ -229,16 +256,17 @@ export default function StoreProductImages({
 		}
 	};
 
+	const canOpenModal =
+		interactive &&
+		stock > 0 &&
+		imageUrls?.[0] !== PLACEHOLDER_IMAGE_URLS["1200"];
+
 	return (
-		<>
+		<div ref={containerRef}>
 			<Carousel setApi={setApi}>
 				<CarouselContent
 					className="aspect-square"
-					onClick={(e) => {
-						// Prevent opening the modal if image is placeholder or out of stock
-						if (stock > 0 && imageUrls?.[0] !== PLACEHOLDER_IMAGE_URLS["1200"])
-							openModal(e);
-					}}
+					onClick={canOpenModal ? openModal : undefined}
 				>
 					{imageUrls.map((imgUrl, idx) => (
 						<CarouselItem key={idx}>
@@ -253,7 +281,7 @@ export default function StoreProductImages({
 						</CarouselItem>
 					))}
 				</CarouselContent>
-				{stock > 0 && imageUrls?.[0] !== PLACEHOLDER_IMAGE_URLS["1200"] && (
+				{canOpenModal && (
 					<div className="absolute top-2 right-2">
 						<div
 							onClick={openModal}
@@ -293,7 +321,7 @@ export default function StoreProductImages({
 			</Carousel>
 
 			{/* Lightbox Modal */}
-			{isModalOpen && (
+			{interactive && isModalOpen && (
 				<div
 					className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-sm animate-in fade-in duration-200"
 					onClick={closeModal}
@@ -301,7 +329,7 @@ export default function StoreProductImages({
 					<Button
 						variant="ghost"
 						size="icon"
-						className="absolute top-4 right-4 text-white hover:bg-white/20 z-50 rounded-full h-12 w-12 hover:-translate-y-0 hover:text-white"
+						className="absolute top-4 right-4 text-white hover:bg-white/20 z-50 rounded-full h-12 w-12 hover:translate-y-0 hover:text-white"
 						onClick={closeModal}
 					>
 						<XIcon className="h-6 w-6" />
@@ -389,6 +417,6 @@ export default function StoreProductImages({
 					</div>
 				</div>
 			)}
-		</>
+		</div>
 	);
 }

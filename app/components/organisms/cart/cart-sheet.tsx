@@ -36,13 +36,15 @@ export default function CartSheet({ user }: CartSheetProps) {
 			else setRefreshing(true);
 
 			const generation = ++fetchGenerationRef.current;
-			const data = await fetchCartWithItems(user.id);
-
-			if (generation === fetchGenerationRef.current) {
-				setCartData(data);
-				setItemCount(
-					data?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
-				);
+			try {
+				const data = await fetchCartWithItems(user.id);
+				if (generation === fetchGenerationRef.current) {
+					setCartData(data);
+					setItemCount(
+						data?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
+					);
+				}
+			} finally {
 				if (!silent) setLoading(false);
 				else setRefreshing(false);
 			}

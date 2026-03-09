@@ -1,11 +1,21 @@
 "use server";
 
 import { db } from "@/db";
-import { cartItems, carts, products } from "@/db/schema";
+import { cartItems, carts } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { createOrder } from "@/app/lib/orders/actions";
+import {
+	createOrderInTx,
+	sendOrderEmails,
+} from "@/app/lib/orders/actions";
 import { BaseCart, CartWithItems } from "@/app/lib/cart/definitions";
+
+type CartTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export type CartCheckoutSnapshot = {
+	cartId: number;
+	items: { productId: number; quantity: number }[];
+};
 
 async function getOrCreateCart(userId: number): Promise<BaseCart> {
 	const [cart] = await db
@@ -169,6 +179,38 @@ export async function clearCart(userId: number): Promise<void> {
 	}
 }
 
+/** Locks the user's cart and cart_items in the current transaction. Returns null if no cart. */
+export async function fetchCartWithItemsForCheckout(
+	tx: CartTx,
+	userId: number,
+): Promise<CartCheckoutSnapshot | null> {
+	const [cart] = await tx
+		.select()
+		.from(carts)
+		.where(eq(carts.userId, userId))
+		.for("update");
+	if (!cart) return null;
+
+	const rows = await tx
+		.select({ productId: cartItems.productId, quantity: cartItems.quantity })
+		.from(cartItems)
+		.where(eq(cartItems.cartId, cart.id))
+		.for("update");
+
+	return {
+		cartId: cart.id,
+		items: rows.map((r) => ({ productId: r.productId, quantity: r.quantity })),
+	};
+}
+
+/** Deletes all items for the given cart inside the current transaction. */
+export async function clearCartInTx(
+	tx: CartTx,
+	cartId: number,
+): Promise<void> {
+	await tx.delete(cartItems).where(eq(cartItems.cartId, cartId));
+}
+
 export async function checkoutCart(
 	userId: number,
 	customerEmail: string,
@@ -178,41 +220,69 @@ export async function checkoutCart(
 	message: string;
 	orderId?: number | null;
 }> {
-	const cart = await fetchCartWithItems(userId);
-
-	if (!cart || cart.items.length === 0) {
-		return {
-			success: false,
-			message: "El carrito está vacío.",
-		};
-	}
-
-	const orderItemsMap = new Map<number, number>(
-		cart.items.map((item) => [item.productId, item.quantity]),
-	);
-
 	try {
-		const result = await createOrder(
-			orderItemsMap,
-			userId,
-			customerEmail,
-			customerName,
-		);
+		const orderResult = await db.transaction(async (tx) => {
+			const snapshot = await fetchCartWithItemsForCheckout(tx, userId);
+			if (!snapshot || snapshot.items.length === 0) {
+				throw new Error("empty_cart");
+			}
 
-		if (result.success) {
-			await clearCart(userId);
+			const orderItemsMap = new Map<number, number>(
+				snapshot.items.map((item) => [item.productId, item.quantity]),
+			);
+
+			const result = await createOrderInTx(
+				tx,
+				orderItemsMap,
+				userId,
+				customerEmail,
+				customerName,
+			);
+
+			await clearCartInTx(tx, snapshot.cartId);
+			return result;
+		});
+
+		try {
+			await sendOrderEmails({
+				orderId: orderResult.orderId,
+				customerEmail,
+				customerName,
+				products: orderResult.mappedProducts,
+				total: orderResult.totalAmount,
+			});
+		} catch (emailError) {
+			console.error("Failed to send order emails", emailError);
 		}
 
+		revalidatePath("/store");
 		return {
-			success: result.success,
-			message: result.message,
-			orderId: result.details?.orderId ?? null,
+			success: true,
+			message: "Orden creada correctamente.",
+			orderId: orderResult.orderId,
 		};
 	} catch (err) {
 		console.error("checkoutCart error:", err);
+		if (err instanceof Error) {
+			if (err.message === "empty_cart") {
+				return {
+					success: false,
+					message: "El carrito está vacío.",
+					orderId: null,
+				};
+			}
+			if (err.cause === "stock_insufficient") {
+				return {
+					success: false,
+					message: err.message,
+					orderId: null,
+				};
+			}
+		}
 		return {
 			success: false,
 			message: "Error al procesar el pedido.",
+			orderId: null,
 		};
 	}
 }

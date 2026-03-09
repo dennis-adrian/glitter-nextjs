@@ -16,6 +16,20 @@ export async function fetchProducts() {
 	}
 }
 
+export async function fetchProduct(id: number) {
+	try {
+		return await db.query.products.findFirst({
+			where: (products, { eq }) => eq(products.id, id),
+			with: {
+				images: true,
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return null;
+	}
+}
+
 export async function fetchFeaturedProducts() {
 	try {
 		return await db.query.products.findMany({
