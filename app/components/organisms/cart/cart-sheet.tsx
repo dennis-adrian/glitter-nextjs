@@ -43,10 +43,9 @@ export default function CartSheet({ user }: CartSheetProps) {
 				setItemCount(
 					data?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
 				);
+				if (!silent) setLoading(false);
+				else setRefreshing(false);
 			}
-
-			if (!silent) setLoading(false);
-			else setRefreshing(false);
 		},
 		[user.id, setItemCount],
 	);

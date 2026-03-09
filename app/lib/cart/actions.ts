@@ -62,6 +62,10 @@ export async function addToCart(
 	quantity: number,
 ): Promise<{ success: boolean; newCount: number }> {
 	try {
+		if (quantity <= 0) {
+			return { success: false, newCount: 0 };
+		}
+
 		const cart = await getOrCreateCart(userId);
 		const cappedQuantity = Math.min(quantity, 5);
 

@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CheckCircle2Icon, ClockIcon, XCircleIcon } from "lucide-react";
 import { Card, CardContent } from "@/app/components/ui/card";
 import PaymentProofUpload from "@/app/components/payments/payment-proof-upload";
 import { submitOrderPaymentVoucher } from "@/app/lib/orders/actions";
 import { OrderStatus } from "@/app/lib/orders/definitions";
+import Heading from "@/app/components/atoms/heading";
 
 type Props = {
 	orderId: number;
@@ -22,17 +24,15 @@ export default function OrderPaymentSection({
 	status,
 	paymentVoucherUrl: initialVoucherUrl,
 }: Props) {
-	const [voucherUrl, setVoucherUrl] = useState<string | null>(
-		initialVoucherUrl,
-	);
-	const [isUploading, setIsUploading] = useState(false);
+	const [voucherUrl] = useState<string | null>(initialVoucherUrl);
+	const router = useRouter();
 
 	async function handleUploadComplete(imageUrl: string) {
 		try {
 			const result = await submitOrderPaymentVoucher(orderId, imageUrl);
 			if (result.success) {
-				setVoucherUrl(imageUrl);
 				toast.success("Comprobante enviado — revisaremos tu pago pronto");
+				router.push("/my_orders");
 			} else {
 				toast.error(result.message);
 			}
@@ -82,7 +82,7 @@ export default function OrderPaymentSection({
 		return (
 			<StatusCard
 				icon={<ClockIcon className="h-5 w-5 text-blue-500" />}
-				title="Comprobante enviado — en revisión"
+				title="Pago realizado — en revisión"
 				description="Recibimos tu comprobante de pago. Verificaremos y confirmaremos tu pedido a la brevedad."
 				color="blue"
 			>
@@ -99,46 +99,53 @@ export default function OrderPaymentSection({
 		);
 	}
 
-	// pending + no voucher — show QR + upload
+	// pending + no voucher — show QR + step-by-step upload
 	return (
-		<Card>
-			<CardContent className="p-6 space-y-5">
-				<div className="text-center space-y-1">
+		<div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+			<div className="bg-card border rounded-lg p-4">
+				<div className="text-center mb-3">
 					<p className="text-sm text-muted-foreground">Total a pagar</p>
-					<p className="text-3xl font-bold">Bs {totalAmount.toFixed(2)}</p>
+					<p className="text-3xl text-primary font-bold">
+						Bs {totalAmount.toFixed(2)}
+					</p>
 				</div>
 
 				<div className="flex justify-center">
 					<Image
 						src="/img/glitter-store-qr-code.png"
 						alt="QR de pago Glitter"
-						width={200}
-						height={200}
-						className="rounded-md border"
+						width={280}
+						height={280}
+						className="rounded-md border p-2"
 					/>
 				</div>
+			</div>
 
-				<p className="text-sm text-center text-muted-foreground">
-					Escaneá el QR, ingresá el monto exacto de{" "}
-					<span className="font-semibold text-foreground">
-						Bs {totalAmount.toFixed(2)}
-					</span>{" "}
-					y realizá el pago. Luego subí tu comprobante acá.
-				</p>
-
-				<PaymentProofUpload
-					endpoint="storeOrderPayment"
-					onUploadComplete={handleUploadComplete}
-					onUploading={setIsUploading}
-				/>
-
-				{isUploading && (
-					<p className="text-xs text-center text-muted-foreground">
-						Subiendo comprobante...
-					</p>
-				)}
-			</CardContent>
-		</Card>
+			<div className="flex flex-col gap-4">
+				<div className="bg-primary-50 border border-primary-400 rounded-lg p-4">
+					<Heading className="text-primary mb-2" level={4}>
+						Instrucciones de pago
+					</Heading>
+					<ol className="list-decimal list-inside text-primary-900 text-sm">
+						<li>Escaneá el código QR con la app de tu banco</li>
+						<li>
+							Ingresá el monto exacto de{" "}
+							<span className="font-bold">Bs {totalAmount.toFixed(2)}</span>
+						</li>
+						<li>Confirmá la transacción y guardá el comprobante</li>
+						<li>Subí el comprobante y presioná "Confirmar pago"</li>
+					</ol>
+				</div>
+				<div className="hidden md:flex flex-col gap-3 bg-card border rounded-lg p-4">
+					<Heading level={4}>Comprobante de pago</Heading>
+					<PaymentProofUpload
+						endpoint="storeOrderPayment"
+						onUploadComplete={handleUploadComplete}
+						onUploading={() => {}}
+					/>
+				</div>
+			</div>
+		</div>
 	);
 }
 

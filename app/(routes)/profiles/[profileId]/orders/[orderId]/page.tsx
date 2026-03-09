@@ -38,7 +38,7 @@ export default async function UserOrderPage(props: {
 	}
 
 	const { profileId, orderId } = validatedParams.data;
-	const canPay = order.status === "pending" || order.status === "processing";
+	const canPay = order.status === "pending";
 
 	return (
 		<div className="container p-3 md:p-6">

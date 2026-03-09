@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 
 import Heading from "@/app/components/atoms/heading";
+import MobilePaymentBar from "@/app/components/organisms/orders/mobile-payment-bar";
 import OrderPaymentSection from "@/app/components/organisms/orders/order-payment-section";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { fetchOrder } from "@/app/lib/orders/actions";
@@ -37,8 +38,8 @@ export default async function OrderPayPage(props: {
 	const { profileId, orderId } = validatedParams.data;
 
 	return (
-		<div className="container p-3 md:p-6 max-w-lg mx-auto">
-			<div className="mb-6">
+		<div className="container p-3 pb-28 md:p-6 md:pb-6">
+			<div className="mb-4">
 				<Link
 					href={`/profiles/${profileId}/orders/${orderId}`}
 					className="text-sm text-muted-foreground flex items-center gap-1 mb-3 hover:text-foreground transition-colors"
@@ -47,7 +48,6 @@ export default async function OrderPayPage(props: {
 					Ver detalles del pedido
 				</Link>
 				<Heading level={2}>Pagar pedido</Heading>
-				<p className="text-muted-foreground text-sm mt-1">Orden #{order.id}</p>
 			</div>
 
 			<div className="space-y-4">
@@ -84,6 +84,10 @@ export default async function OrderPayPage(props: {
 					</CardContent>
 				</Card>
 			</div>
+
+			{order.status === "pending" && (
+				<MobilePaymentBar orderId={order.id} endpoint="storeOrderPayment" />
+			)}
 		</div>
 	);
 }
