@@ -11,7 +11,7 @@ export default async function StorePage() {
 
   return (
 		<div className="container px-3 py-6">
-			<StoreProducts user={currentProfile} />
+			<StoreProducts />
 		</div>
 	);
 }

@@ -105,7 +105,7 @@ export default async function ProductDetailPage(props: {
 						</p>
 					)}
 
-					<StoreItemQuantityInput product={product} user={currentProfile} />
+					<StoreItemQuantityInput product={product} />
 				</div>
 			</div>
 		</div>

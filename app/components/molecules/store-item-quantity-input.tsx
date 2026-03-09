@@ -1,6 +1,5 @@
 "use client";
 
-import { BaseProfile } from "@/app/api/users/definitions";
 import { addToCart } from "@/app/lib/cart/actions";
 import { useCart } from "@/app/components/providers/cart-provider";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
@@ -35,12 +34,10 @@ const FormSchema = z.object({
 
 type StoreItemQuantityInputProps = {
 	product: BaseProduct;
-	user?: BaseProfile;
 };
 
 export default function StoreItemQuantityInput({
 	product,
-	user,
 }: StoreItemQuantityInputProps) {
 	const { setItemCount } = useCart();
 	const form = useForm<
@@ -68,13 +65,7 @@ export default function StoreItemQuantityInput({
 	};
 
 	const action: () => void = form.handleSubmit(async (data) => {
-		if (!user) {
-			toast.error("Usuario no válido");
-			return;
-		}
-
 		const { success, newCount } = await addToCart(
-			user.id,
 			product.id,
 			data.itemQuantity,
 		);

@@ -127,25 +127,17 @@ export default async function CheckoutPage() {
 						hasPresaleItems={presaleItems.length > 0}
 					/>
 
-					{/* Confirm — desktop only */}
-					<div className="hidden md:block">
-						<CheckoutConfirmButton
-							userId={user.id}
-							email={user.email}
-							name={user.displayName ?? user.firstName ?? ""}
-						/>
-					</div>
+				{/* Confirm — desktop only */}
+				<div className="hidden md:block">
+					<CheckoutConfirmButton />
+				</div>
 				</div>
 			</div>
 
-			{/* Confirm — mobile sticky bar */}
-			<div className="fixed bottom-0 left-0 right-0 bg-background border-t px-4 py-4 md:hidden z-40">
-				<CheckoutConfirmButton
-					userId={user.id}
-					email={user.email}
-					name={user.displayName ?? user.firstName ?? ""}
-				/>
-			</div>
+		{/* Confirm — mobile sticky bar */}
+		<div className="fixed bottom-0 left-0 right-0 bg-background border-t px-4 py-4 md:hidden z-40">
+			<CheckoutConfirmButton />
+		</div>
 		</div>
 	);
 }

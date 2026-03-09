@@ -40,6 +40,7 @@ export default function SubmitProductOrderButton({
 			disabled={disabled}
 			loading={loading}
 			label="Agregar al carrito"
+			loadingLabel="Agregando..."
 		/>
 	);
 }

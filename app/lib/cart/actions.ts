@@ -6,6 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { createOrderInTx, sendOrderEmails } from "@/app/lib/orders/actions";
 import { BaseCart, CartWithItems } from "@/app/lib/cart/definitions";
+import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 
 type CartTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -64,17 +65,19 @@ export async function fetchCartItemCount(userId: number): Promise<number> {
 }
 
 export async function addToCart(
-	userId: number,
 	productId: number,
 	quantity: number,
 ): Promise<{ success: boolean; newCount: number }> {
 	try {
+		const user = await getCurrentBaseProfile();
+		if (!user) return { success: false, newCount: 0 };
+
 		if (quantity <= 0) {
-			const currentCount = await fetchCartItemCount(userId);
+			const currentCount = await fetchCartItemCount(user.id);
 			return { success: false, newCount: currentCount };
 		}
 
-		const cart = await getOrCreateCart(userId);
+		const cart = await getOrCreateCart(user.id);
 		const cappedQuantity = Math.min(quantity, 5);
 
 		await db
@@ -93,7 +96,7 @@ export async function addToCart(
 			});
 
 		revalidatePath("/store");
-		const newCount = await fetchCartItemCount(userId);
+		const newCount = await fetchCartItemCount(user.id);
 		return { success: true, newCount };
 	} catch (error) {
 		console.error(error);
@@ -102,13 +105,15 @@ export async function addToCart(
 }
 
 export async function updateCartItemQuantity(
-	userId: number,
 	productId: number,
 	quantity: number,
 ): Promise<void> {
 	try {
+		const user = await getCurrentBaseProfile();
+		if (!user) return;
+
 		const cart = await db.query.carts.findFirst({
-			where: eq(carts.userId, userId),
+			where: eq(carts.userId, user.id),
 		});
 		if (!cart) return;
 
@@ -142,12 +147,14 @@ export async function updateCartItemQuantity(
 }
 
 export async function removeFromCart(
-	userId: number,
 	productId: number,
 ): Promise<void> {
 	try {
+		const user = await getCurrentBaseProfile();
+		if (!user) return;
+
 		const cart = await db.query.carts.findFirst({
-			where: eq(carts.userId, userId),
+			where: eq(carts.userId, user.id),
 		});
 		if (!cart) return;
 
@@ -206,16 +213,27 @@ export async function clearCartInTx(tx: CartTx, cartId: number): Promise<void> {
 	await tx.delete(cartItems).where(eq(cartItems.cartId, cartId));
 }
 
-export async function checkoutCart(
-	userId: number,
-	customerEmail: string,
-	customerName: string,
-): Promise<{
+export async function checkoutCart(): Promise<{
 	success: boolean;
 	message: string;
 	orderId?: number | null;
+	profileId?: number | null;
 }> {
 	try {
+		const user = await getCurrentBaseProfile();
+		if (!user) {
+			return {
+				success: false,
+				message: "Usuario no autenticado.",
+				orderId: null,
+				profileId: null,
+			};
+		}
+
+		const userId = user.id;
+		const customerEmail = user.email;
+		const customerName = user.displayName ?? user.firstName ?? "";
+
 		const orderResult = await db.transaction(async (tx) => {
 			const snapshot = await fetchCartWithItemsForCheckout(tx, userId);
 			if (!snapshot || snapshot.items.length === 0) {
@@ -255,6 +273,7 @@ export async function checkoutCart(
 			success: true,
 			message: "Orden creada correctamente.",
 			orderId: orderResult.orderId,
+			profileId: userId,
 		};
 	} catch (err) {
 		console.error("checkoutCart error:", err);
@@ -264,6 +283,7 @@ export async function checkoutCart(
 					success: false,
 					message: "El carrito está vacío.",
 					orderId: null,
+					profileId: null,
 				};
 			}
 			if (err.cause === "stock_insufficient") {
@@ -271,6 +291,7 @@ export async function checkoutCart(
 					success: false,
 					message: err.message,
 					orderId: null,
+					profileId: null,
 				};
 			}
 		}
@@ -278,6 +299,7 @@ export async function checkoutCart(
 			success: false,
 			message: "Error al procesar el pedido.",
 			orderId: null,
+			profileId: null,
 		};
 	}
 }

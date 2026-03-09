@@ -1,6 +1,5 @@
 "use client";
 
-import { BaseProfile } from "@/app/api/users/definitions";
 import StoreProductImages from "@/app/components/molecules/store-product-images";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { useCart } from "@/app/components/providers/cart-provider";
@@ -17,10 +16,9 @@ import { Button } from "@/app/components/ui/button";
 
 type StoreItemCardProps = {
 	product: BaseProductWithImages;
-	user: BaseProfile;
 };
 
-export default function StoreItemCard({ product, user }: StoreItemCardProps) {
+export default function StoreItemCard({ product }: StoreItemCardProps) {
 	const [isAdding, setIsAdding] = useState(false);
 	const { setItemCount } = useCart();
 
@@ -52,7 +50,7 @@ export default function StoreItemCard({ product, user }: StoreItemCardProps) {
 
 		setIsAdding(true);
 		try {
-			const { success, newCount } = await addToCart(user.id, product.id, 1);
+			const { success, newCount } = await addToCart(product.id, 1);
 			if (success) {
 				setItemCount(newCount);
 				toast.success("Producto agregado al carrito");

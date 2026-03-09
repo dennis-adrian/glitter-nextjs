@@ -102,12 +102,11 @@ export default function CartSheet({ user }: CartSheetProps) {
 					{!loading && cartData && cartData.items.length > 0 && (
 						<div>
 							{cartData.items.map((item) => (
-								<CartItemRow
-									key={item.id}
-									item={item}
-									userId={user.id}
-									onCartUpdate={() => loadCart(true)}
-								/>
+							<CartItemRow
+								key={item.id}
+								item={item}
+								onCartUpdate={() => loadCart(true)}
+							/>
 							))}
 						</div>
 					)}

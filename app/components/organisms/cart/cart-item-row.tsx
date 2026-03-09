@@ -13,13 +13,11 @@ import { toast } from "sonner";
 
 type CartItemRowProps = {
 	item: CartItemWithProduct;
-	userId: number;
 	onCartUpdate: () => Promise<void>;
 };
 
 export default function CartItemRow({
 	item,
-	userId,
 	onCartUpdate,
 }: CartItemRowProps) {
 	const [pending, setPending] = useState(false);
@@ -58,7 +56,7 @@ export default function CartItemRow({
 		debounceRef.current = setTimeout(async () => {
 			setPending(true);
 			try {
-				await updateCartItemQuantity(userId, item.productId, newQty);
+				await updateCartItemQuantity(item.productId, newQty);
 				await onCartUpdate();
 			} catch (err) {
 				console.error("handleQuantityChange:", err);
@@ -73,7 +71,7 @@ export default function CartItemRow({
 	async function handleRemove() {
 		setPending(true);
 		try {
-			await removeFromCart(userId, item.productId);
+			await removeFromCart(item.productId);
 			await onCartUpdate();
 		} catch (err) {
 			console.error("handleRemove:", err);

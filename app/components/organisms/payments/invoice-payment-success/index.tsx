@@ -1,6 +1,5 @@
 "use client";
 
-import { BaseProfile } from "@/app/api/users/definitions";
 import StoreItemCard from "@/app/components/molecules/store-item-card";
 import InvoiceSummaryCard from "@/app/components/organisms/payments/invoice-payment-success/invoice-summary-card";
 import { RedirectButton } from "@/app/components/redirect-button";
@@ -12,13 +11,12 @@ import { use } from "react";
 type InvoicePaymentSuccessProps = {
 	invoicePromise: Promise<InvoiceWithPaymentsAndStand | null | undefined>;
 	productsPromise: Promise<BaseProductWithImages[]>;
-	profile: BaseProfile;
 };
 
 export default function InvoicePaymentSuccess(
 	props: InvoicePaymentSuccessProps,
 ) {
-	const { profile, invoicePromise, productsPromise } = props;
+	const { invoicePromise, productsPromise } = props;
 	const invoice = use(invoicePromise);
 	const products = use(productsPromise);
 
@@ -41,12 +39,11 @@ export default function InvoicePaymentSuccess(
 					</div>
 					<div className="max-w-xs mx-auto">
 						{products.map((product) => (
-							<StoreItemCard
-								key={product.id}
-								product={product}
-								user={profile}
-							/>
-						))}
+						<StoreItemCard
+							key={product.id}
+							product={product}
+						/>
+					))}
 					</div>
 				</div>
 			)}

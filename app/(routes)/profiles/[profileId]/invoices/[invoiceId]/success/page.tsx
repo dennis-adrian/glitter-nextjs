@@ -41,12 +41,11 @@ export default async function UserInvoicesPage(props: {
 					</p>
 				</div>
 				<Suspense fallback={<div>Loading...</div>}>
-					<InvoicePaymentSuccess
-						profile={currentUser!}
-						invoicePromise={invoicePromise}
-						productsPromise={productsPromise}
-					/>
-				</Suspense>
+				<InvoicePaymentSuccess
+					invoicePromise={invoicePromise}
+					productsPromise={productsPromise}
+				/>
+			</Suspense>
 			</div>
 		</div>
 	);

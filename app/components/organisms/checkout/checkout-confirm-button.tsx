@@ -7,22 +7,18 @@ import { toast } from "sonner";
 import { Button } from "@/app/components/ui/button";
 import { checkoutCart } from "@/app/lib/cart/actions";
 
-type Props = {
-	userId: number;
-	email: string;
-	name: string;
-};
-
-export default function CheckoutConfirmButton({ userId, email, name }: Props) {
+export default function CheckoutConfirmButton() {
 	const [loading, setLoading] = useState(false);
 	const router = useRouter();
 
 	async function handleConfirm() {
 		setLoading(true);
 		try {
-			const result = await checkoutCart(userId, email, name);
-			if (result.success && result.orderId) {
-				router.push(`/profiles/${userId}/orders/${result.orderId}/pay`);
+			const result = await checkoutCart();
+			if (result.success && result.orderId && result.profileId) {
+				router.push(
+					`/profiles/${result.profileId}/orders/${result.orderId}/pay`,
+				);
 			} else {
 				toast.error(result.message);
 				setLoading(false);
