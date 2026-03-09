@@ -3,7 +3,7 @@
 import { orderItems, orders } from "@/db/schema";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
 import { db } from "@/db";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { products } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
@@ -11,7 +11,6 @@ import { fetchAdminUsers } from "@/app/api/users/actions";
 import OrderConfirmationForAdminsEmailTemplate from "@/app/emails/order-confirmation-for-admins";
 import OrderConfirmationForUsersEmailTemplate from "@/app/emails/order-confirmation-for-user";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
-import { BaseProduct } from "@/app/lib/products/definitions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export async function sendOrderEmails(emailData: {
@@ -115,10 +114,9 @@ export async function createOrderInTx(
 	}
 
 	if (stockValidationErrors.length > 0) {
-		throw new Error(
-			`Stock insuficiente: ${stockValidationErrors.join(", ")}`,
-			{ cause: "stock_insufficient" },
-		);
+		throw new Error(`Stock insuficiente: ${stockValidationErrors.join(", ")}`, {
+			cause: "stock_insufficient",
+		});
 	}
 
 	const totalAmount = productsInOrder.reduce(
@@ -270,6 +268,7 @@ export async function fetchOrdersByUserId(userId: number) {
 	try {
 		return await db.query.orders.findMany({
 			where: eq(orders.userId, userId),
+			orderBy: [desc(orders.createdAt)],
 			with: {
 				customer: {
 					with: {
@@ -400,9 +399,7 @@ export async function submitOrderPaymentVoucher(
 		const [order] = await db
 			.update(orders)
 			.set({ paymentVoucherUrl: voucherUrl, status: "payment_verification" })
-			.where(
-				and(eq(orders.id, orderId), eq(orders.userId, currentUser.id)),
-			)
+			.where(and(eq(orders.id, orderId), eq(orders.userId, currentUser.id)))
 			.returning();
 
 		if (!order) {

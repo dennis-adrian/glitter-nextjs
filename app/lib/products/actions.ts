@@ -8,7 +8,7 @@ export async function fetchProducts() {
 			with: {
 				images: true,
 			},
-			orderBy: (products, { desc }) => [desc(products.createdAt)],
+			orderBy: (products, { desc }) => [desc(products.isFeatured), desc(products.createdAt)],
 		});
 	} catch (error) {
 		console.error(error);

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2Icon, ShoppingBagIcon } from "lucide-react";
+import { CircleCheckIcon, Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/app/components/ui/button";
 import { checkoutCart } from "@/app/lib/cart/actions";
@@ -37,7 +37,7 @@ export default function CheckoutConfirmButton({ userId, email, name }: Props) {
 		<Button
 			onClick={handleConfirm}
 			disabled={loading}
-			className="w-full bg-purple-600 hover:bg-purple-700"
+			className="w-full bg-primary hover:bg-primary/90"
 			size="lg"
 		>
 			{loading ? (
@@ -47,7 +47,7 @@ export default function CheckoutConfirmButton({ userId, email, name }: Props) {
 				</span>
 			) : (
 				<span className="flex items-center gap-2">
-					<ShoppingBagIcon className="w-4 h-4" />
+					<CircleCheckIcon className="w-4 h-4" />
 					Confirmar pedido
 				</span>
 			)}
