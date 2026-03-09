@@ -28,6 +28,7 @@ export default function OrderVoucherDialog({ voucherUrl, orderId }: Props) {
 					size="icon"
 					className="h-8 w-8"
 					title="Ver comprobante de pago"
+					aria-label={`Ver comprobante de pago de la orden #${orderId}`}
 				>
 					<ReceiptIcon className="h-4 w-4" />
 				</Button>

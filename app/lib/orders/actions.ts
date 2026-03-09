@@ -101,7 +101,6 @@ export async function createOrderInTx(
 		throw new Error(`Products not found: ${missingIds.join(", ")}`);
 	}
 
-	// Validate stock availability for non-pre-order products
 	const stockValidationErrors: string[] = [];
 	for (const product of productsInOrder) {
 		const requestedQuantity = orderItemsIdsQuantityMap.get(product.id) || 0;
