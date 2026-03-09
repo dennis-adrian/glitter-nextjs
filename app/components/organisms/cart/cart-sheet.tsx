@@ -17,6 +17,7 @@ import { Button } from "@/app/components/ui/button";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShoppingCartIcon } from "lucide-react";
+import CartItemSkeleton from "./cart-item-skeleton";
 
 type CartSheetProps = {
 	user: BaseProfile;
@@ -84,9 +85,11 @@ export default function CartSheet({ user }: CartSheetProps) {
 				{/* Cart items */}
 				<div className="flex-1 overflow-y-auto px-6">
 					{loading && (
-						<p className="text-sm text-muted-foreground py-8 text-center">
-							Cargando...
-						</p>
+						<div>
+							<CartItemSkeleton />
+							<CartItemSkeleton />
+							<CartItemSkeleton />
+						</div>
 					)}
 
 					{!loading && (!cartData || cartData.items.length === 0) && (
@@ -125,7 +128,7 @@ export default function CartSheet({ user }: CartSheetProps) {
 						</div>
 						<Button
 							disabled={!!hasWarnings || refreshing}
-							className="w-full bg-purple-600 hover:bg-purple-700"
+							className="w-full bg-primary hover:bg-primary/90"
 							onClick={() => {
 								closeCart();
 								router.push("/checkout");

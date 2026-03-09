@@ -73,6 +73,7 @@ export default function CartItemRow({
 			await removeFromCart(userId, item.productId);
 			await onCartUpdate();
 		} catch (err) {
+			console.error("handleRemove:", err);
 			toast.error("No se pudo eliminar el producto del carrito");
 		} finally {
 			setPending(false);
