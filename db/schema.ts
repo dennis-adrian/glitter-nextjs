@@ -1044,7 +1044,9 @@ export const productsRelations = relations(products, ({ many }) => ({
 export const orderStatusEnum = pgEnum("order_status", [
 	/** Initial state when an order is first created but not yet processed/accepted */
 	"pending",
-	/** Order is currently being processed (e.g., being prepared for shipping) */
+	/** User has uploaded payment voucher; waiting for admin confirmation */
+	"payment_verification",
+	/** Order is currently being processed (legacy value, kept for backwards compat) */
 	"processing",
 	/** Order has been successfully paid for */
 	"paid",
@@ -1062,6 +1064,12 @@ export const orders = pgTable("orders", {
 	status: orderStatusEnum("status").default("pending").notNull(),
 	totalAmount: real("total_amount").notNull(),
 	paymentVoucherUrl: text("payment_voucher_url"),
+	paymentDueDate: timestamp("payment_due_date")
+		.notNull()
+		.default(sql`now() + interval '10 days'`),
+	paymentReminder1SentAt: timestamp("payment_reminder1_sent_at"),
+	paymentReminder2SentAt: timestamp("payment_reminder2_sent_at"),
+	paymentReminder3SentAt: timestamp("payment_reminder3_sent_at"),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });

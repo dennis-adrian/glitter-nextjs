@@ -41,6 +41,7 @@ export default function MobilePaymentBar({ orderId, endpoint }: Props) {
 
 	const handleFileChange = useCallback(
 		(file: File) => {
+			setUploadedUrl(null);
 			if (previewUrl) URL.revokeObjectURL(previewUrl);
 			setSelectedFile(file);
 			setPreviewUrl(URL.createObjectURL(file));

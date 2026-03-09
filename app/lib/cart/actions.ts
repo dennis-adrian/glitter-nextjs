@@ -4,10 +4,7 @@ import { db } from "@/db";
 import { cartItems, carts } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import {
-	createOrderInTx,
-	sendOrderEmails,
-} from "@/app/lib/orders/actions";
+import { createOrderInTx, sendOrderEmails } from "@/app/lib/orders/actions";
 import { BaseCart, CartWithItems } from "@/app/lib/cart/definitions";
 
 type CartTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -73,7 +70,8 @@ export async function addToCart(
 ): Promise<{ success: boolean; newCount: number }> {
 	try {
 		if (quantity <= 0) {
-			return { success: false, newCount: 0 };
+			const currentCount = await fetchCartItemCount(userId);
+			return { success: false, newCount: currentCount };
 		}
 
 		const cart = await getOrCreateCart(userId);
@@ -204,10 +202,7 @@ export async function fetchCartWithItemsForCheckout(
 }
 
 /** Deletes all items for the given cart inside the current transaction. */
-export async function clearCartInTx(
-	tx: CartTx,
-	cartId: number,
-): Promise<void> {
+export async function clearCartInTx(tx: CartTx, cartId: number): Promise<void> {
 	await tx.delete(cartItems).where(eq(cartItems.cartId, cartId));
 }
 

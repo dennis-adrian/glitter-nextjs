@@ -78,7 +78,7 @@ export default function OrderPaymentSection({
 		);
 	}
 
-	if (status === "processing" || voucherUrl) {
+	if (status === "payment_verification" || status === "processing" || voucherUrl) {
 		return (
 			<StatusCard
 				icon={<ClockIcon className="h-5 w-5 text-blue-500" />}

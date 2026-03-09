@@ -51,6 +51,7 @@ export default function CartItemRow({
 	function handleQuantityChange(delta: number) {
 		const newQty = localQty + delta;
 		if (newQty < 0) return;
+		const previousQty = localQty;
 		setLocalQty(newQty);
 
 		if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -61,6 +62,8 @@ export default function CartItemRow({
 				await onCartUpdate();
 			} catch (err) {
 				console.error("handleQuantityChange:", err);
+				toast.error("No se pudo actualizar la cantidad");
+				setLocalQty(previousQty);
 			} finally {
 				setPending(false);
 			}

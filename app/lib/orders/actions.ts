@@ -134,6 +134,7 @@ export async function createOrderInTx(
 		.values({
 			userId,
 			totalAmount,
+			paymentDueDate: sql`now() + interval '10 days'`,
 		})
 		.returning();
 
@@ -330,7 +331,7 @@ export async function acceptOrder(orderId: number) {
 	try {
 		await db
 			.update(orders)
-			.set({ status: "processing" })
+			.set({ status: "paid" })
 			.where(eq(orders.id, orderId));
 	} catch (error) {
 		console.error(error);
@@ -398,7 +399,7 @@ export async function submitOrderPaymentVoucher(
 	try {
 		const [order] = await db
 			.update(orders)
-			.set({ paymentVoucherUrl: voucherUrl, status: "processing" })
+			.set({ paymentVoucherUrl: voucherUrl, status: "payment_verification" })
 			.where(
 				and(eq(orders.id, orderId), eq(orders.userId, currentUser.id)),
 			)

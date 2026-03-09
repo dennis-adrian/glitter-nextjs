@@ -1,3 +1,4 @@
+import { CalendarClockIcon } from "lucide-react";
 import Link from "next/link";
 
 import Heading from "@/app/components/atoms/heading";
@@ -10,7 +11,6 @@ import {
 	CardDescription,
 	CardFooter,
 	CardHeader,
-	CardTitle,
 } from "@/app/components/ui/card";
 import { formatDate } from "@/app/lib/formatters";
 import { OrderWithRelations } from "@/app/lib/orders/definitions";
@@ -62,7 +62,18 @@ export default function OrderCard({ order }: { order: OrderWithRelations }) {
 				</div>
 			</CardContent>
 			{order.status === "pending" && (
-				<CardFooter className="pt-0">
+				<CardFooter className="pt-0 flex flex-col gap-2">
+					{order.paymentDueDate && (
+						<p className="text-xs text-amber-700 flex items-center gap-1 w-full">
+							<CalendarClockIcon className="h-3 w-3 shrink-0" />
+							Vence el{" "}
+							{formatDate(order.paymentDueDate).toLocaleString({
+								day: "numeric",
+								month: "short",
+								year: "numeric",
+							})}
+						</p>
+					)}
 					<Button asChild className="w-full bg-purple-600 hover:bg-purple-700">
 						<Link href={`/profiles/${order.userId}/orders/${order.id}/pay`}>
 							Pagar pedido
