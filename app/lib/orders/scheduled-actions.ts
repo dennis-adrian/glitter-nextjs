@@ -7,7 +7,17 @@ import { queueEmails } from "@/app/lib/emails/helpers";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import { orders, products, orderItems } from "@/db/schema";
-import { and, eq, gt, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import {
+	and,
+	eq,
+	gt,
+	inArray,
+	isNotNull,
+	isNull,
+	lte,
+	or,
+	sql,
+} from "drizzle-orm";
 
 type OrderCustomer = {
 	email: string;
@@ -43,7 +53,7 @@ export async function handleOrderPaymentReminders(): Promise<{
 
 	try {
 		await db.transaction(async (tx) => {
-			// Atomically claim reminder 1 rows
+			// Atomically claim reminder 1 rows (also re-claims stale claims older than 1 hour)
 			const claimed1 = await tx
 				.update(orders)
 				.set({ paymentReminder1ClaimedAt: sql`now()` })
@@ -51,7 +61,13 @@ export async function handleOrderPaymentReminders(): Promise<{
 					and(
 						eq(orders.status, "pending"),
 						isNull(orders.paymentReminder1SentAt),
-						isNull(orders.paymentReminder1ClaimedAt),
+						or(
+							isNull(orders.paymentReminder1ClaimedAt),
+							lte(
+								orders.paymentReminder1ClaimedAt,
+								sql`now() - interval '1 hour'`,
+							),
+						),
 						lte(orders.paymentDueDate, sql`now() + interval '8 days'`),
 						gt(orders.paymentDueDate, sql`now()`),
 					),
@@ -67,7 +83,7 @@ export async function handleOrderPaymentReminders(): Promise<{
 				})) as OrderWithUser[];
 			}
 
-			// Atomically claim reminder 2 rows
+			// Atomically claim reminder 2 rows (also re-claims stale claims older than 1 hour)
 			const claimed2 = await tx
 				.update(orders)
 				.set({ paymentReminder2ClaimedAt: sql`now()` })
@@ -76,7 +92,13 @@ export async function handleOrderPaymentReminders(): Promise<{
 						eq(orders.status, "pending"),
 						isNotNull(orders.paymentReminder1SentAt),
 						isNull(orders.paymentReminder2SentAt),
-						isNull(orders.paymentReminder2ClaimedAt),
+						or(
+							isNull(orders.paymentReminder2ClaimedAt),
+							lte(
+								orders.paymentReminder2ClaimedAt,
+								sql`now() - interval '1 hour'`,
+							),
+						),
 						lte(orders.paymentDueDate, sql`now() + interval '5 days'`),
 						gt(orders.paymentDueDate, sql`now()`),
 					),
@@ -92,7 +114,7 @@ export async function handleOrderPaymentReminders(): Promise<{
 				})) as OrderWithUser[];
 			}
 
-			// Atomically claim reminder 3 rows
+			// Atomically claim reminder 3 rows (also re-claims stale claims older than 1 hour)
 			const claimed3 = await tx
 				.update(orders)
 				.set({ paymentReminder3ClaimedAt: sql`now()` })
@@ -101,7 +123,13 @@ export async function handleOrderPaymentReminders(): Promise<{
 						eq(orders.status, "pending"),
 						isNotNull(orders.paymentReminder2SentAt),
 						isNull(orders.paymentReminder3SentAt),
-						isNull(orders.paymentReminder3ClaimedAt),
+						or(
+							isNull(orders.paymentReminder3ClaimedAt),
+							lte(
+								orders.paymentReminder3ClaimedAt,
+								sql`now() - interval '1 hour'`,
+							),
+						),
 						lte(orders.paymentDueDate, sql`now() + interval '1 day'`),
 						gt(orders.paymentDueDate, sql`now()`),
 					),
@@ -119,7 +147,7 @@ export async function handleOrderPaymentReminders(): Promise<{
 		});
 	} catch (error) {
 		console.error("[handleOrderPaymentReminders] query error:", error);
-		return counts;
+		throw error;
 	}
 
 	// Reminder 1: 8 days before due date (day 2 of 10-day window)
@@ -140,12 +168,21 @@ export async function handleOrderPaymentReminders(): Promise<{
 				});
 				if (data) {
 					options?.referenceEntity?.push(order.id);
+				} else {
+					await db
+						.update(orders)
+						.set({ paymentReminder1ClaimedAt: null })
+						.where(eq(orders.id, order.id));
 				}
 			} catch (err) {
 				console.error(
 					`[handleOrderPaymentReminders] sendEmail threw for order ${order.id} (reminder 1):`,
 					err,
 				);
+				await db
+					.update(orders)
+					.set({ paymentReminder1ClaimedAt: null })
+					.where(eq(orders.id, order.id));
 			}
 		},
 		{ referenceEntity: sent1 },
@@ -176,12 +213,21 @@ export async function handleOrderPaymentReminders(): Promise<{
 				});
 				if (data) {
 					options?.referenceEntity?.push(order.id);
+				} else {
+					await db
+						.update(orders)
+						.set({ paymentReminder2ClaimedAt: null })
+						.where(eq(orders.id, order.id));
 				}
 			} catch (err) {
 				console.error(
 					`[handleOrderPaymentReminders] sendEmail threw for order ${order.id} (reminder 2):`,
 					err,
 				);
+				await db
+					.update(orders)
+					.set({ paymentReminder2ClaimedAt: null })
+					.where(eq(orders.id, order.id));
 			}
 		},
 		{ referenceEntity: sent2 },
@@ -212,12 +258,21 @@ export async function handleOrderPaymentReminders(): Promise<{
 				});
 				if (data) {
 					options?.referenceEntity?.push(order.id);
+				} else {
+					await db
+						.update(orders)
+						.set({ paymentReminder3ClaimedAt: null })
+						.where(eq(orders.id, order.id));
 				}
 			} catch (err) {
 				console.error(
 					`[handleOrderPaymentReminders] sendEmail threw for order ${order.id} (reminder 3):`,
 					err,
 				);
+				await db
+					.update(orders)
+					.set({ paymentReminder3ClaimedAt: null })
+					.where(eq(orders.id, order.id));
 			}
 		},
 		{ referenceEntity: sent3 },
@@ -282,7 +337,7 @@ export async function handleOrderCancellations(): Promise<number> {
 		});
 	} catch (error) {
 		console.error("[handleOrderCancellations] error:", error);
-		return 0;
+		throw error;
 	}
 
 	// Send cancellation emails after the transaction commits — email failures

@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
 	boolean,
+	check,
 	index,
 	integer,
 	jsonb,
@@ -1147,6 +1148,7 @@ export const cartItems = pgTable(
 		index("cart_items_cart_id_idx").on(t.cartId),
 		index("cart_items_product_id_idx").on(t.productId),
 		unique("cart_items_cart_product_unique").on(t.cartId, t.productId),
+		check("cart_items_quantity_positive", sql`${t.quantity} > 0`),
 	],
 );
 export const cartItemsRelations = relations(cartItems, ({ one }) => ({
