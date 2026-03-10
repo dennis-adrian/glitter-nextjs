@@ -198,11 +198,17 @@ export async function removeFromCart(
 		return { success: true };
 	} catch (error) {
 		console.error(error);
-		return { success: false, error: "No se pudo eliminar el producto del carrito" };
+		return {
+			success: false,
+			error: "No se pudo eliminar el producto del carrito",
+		};
 	}
 }
 
-export async function clearCart(): Promise<{ success: boolean; error?: string }> {
+export async function clearCart(): Promise<{
+	success: boolean;
+	error?: string;
+}> {
 	try {
 		const user = await getCurrentBaseProfile();
 		if (!user) return { success: true };
@@ -221,17 +227,15 @@ export async function clearCart(): Promise<{ success: boolean; error?: string }>
 	}
 }
 
-/** Locks the user's cart and cart_items in the current transaction. Returns null if no cart. */
+/** Locks the user's cart and cart_items in the current transaction. Returns null if no cart. DB-only; no auth/profile I/O. */
 export async function fetchCartWithItemsForCheckout(
 	tx: CartTx,
+	userId: number,
 ): Promise<CartCheckoutSnapshot | null> {
-	const user = await getCurrentBaseProfile();
-	if (!user) return null;
-
 	const [cart] = await tx
 		.select()
 		.from(carts)
-		.where(eq(carts.userId, user.id))
+		.where(eq(carts.userId, userId))
 		.for("update");
 	if (!cart) return null;
 
@@ -274,7 +278,7 @@ export async function checkoutCart(): Promise<{
 		const customerName = user.displayName ?? user.firstName ?? "";
 
 		const orderResult = await db.transaction(async (tx) => {
-			const snapshot = await fetchCartWithItemsForCheckout(tx);
+			const snapshot = await fetchCartWithItemsForCheckout(tx, userId);
 			if (!snapshot || snapshot.items.length === 0) {
 				throw new Error("empty_cart");
 			}

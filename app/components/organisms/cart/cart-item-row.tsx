@@ -35,7 +35,8 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
 	}, [item.quantity]);
 
 	const warnings = getCartItemWarnings(item);
-	const maxQty = Math.max(1, Math.min(5, item.product.stock ?? 5));
+	const stockCap = Math.max(1, Math.min(5, item.product.stock ?? 5));
+	const maxQty = Math.max(stockCap, localQty);
 	const unitPrice = getProductPriceAtPurchase(item.product);
 	const subtotal = unitPrice * localQty;
 
@@ -133,7 +134,10 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
 							onValueChange={handleQuantitySelect}
 							disabled={pending}
 						>
-							<SelectTrigger className="h-7 w-16 text-sm">
+							<SelectTrigger
+								className="h-7 w-16 text-sm"
+								aria-label={`Cantidad de ${item.product.name}`}
+							>
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
