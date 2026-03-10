@@ -6,7 +6,7 @@ import { products } from "@/db/schema";
 
 /**
  * Product fetchers use safe fallbacks on error: they do not throw.
- * - fetchProduct returns null on error or when not found.
+ * - fetchProduct returns undefined when not found, null on error.
  * - fetchProducts and fetchFeaturedProducts return [] on error.
  * Callers can rely on these defaults without try/catch.
  */

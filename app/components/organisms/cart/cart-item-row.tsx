@@ -35,7 +35,7 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
 	}, [item.quantity]);
 
 	const warnings = getCartItemWarnings(item);
-	const maxQty = Math.min(5, item.product.stock ?? 5);
+	const maxQty = Math.max(1, Math.min(5, item.product.stock ?? 5));
 	const unitPrice = getProductPriceAtPurchase(item.product);
 	const subtotal = unitPrice * localQty;
 
@@ -123,22 +123,28 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
 
 				{/* Quantity controls */}
 				<div className="mt-2">
-					<Select
-						value={String(localQty)}
-						onValueChange={handleQuantitySelect}
-						disabled={pending}
-					>
-						<SelectTrigger className="h-7 w-16 text-sm">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{Array.from({ length: maxQty }, (_, i) => i + 1).map((n) => (
-								<SelectItem key={n} value={String(n)}>
-									{n}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+					{item.product.stock === 0 ? (
+						<span className="text-xs text-muted-foreground">
+							Cantidad: {localQty}
+						</span>
+					) : (
+						<Select
+							value={String(localQty)}
+							onValueChange={handleQuantitySelect}
+							disabled={pending}
+						>
+							<SelectTrigger className="h-7 w-16 text-sm">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{Array.from({ length: maxQty }, (_, i) => i + 1).map((n) => (
+									<SelectItem key={n} value={String(n)}>
+										{n}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					)}
 				</div>
 			</div>
 

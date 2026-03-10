@@ -130,16 +130,11 @@ export default async function CheckoutPage() {
 						hasPresaleItems={presaleItems.length > 0}
 					/>
 
-					{/* Confirm — desktop only */}
-					<div className="hidden md:block">
+					{/* Confirm — single instance: fixed bar on mobile, in-flow on desktop */}
+					<div className="fixed bottom-0 left-0 right-0 bg-background border-t px-4 py-4 z-40 md:static md:border-0 md:px-0 md:py-0 md:bg-transparent">
 						<CheckoutConfirmButton />
 					</div>
 				</div>
-			</div>
-
-			{/* Confirm — mobile sticky bar */}
-			<div className="fixed bottom-0 left-0 right-0 bg-background border-t px-4 py-4 md:hidden z-40">
-				<CheckoutConfirmButton />
 			</div>
 		</div>
 	);
