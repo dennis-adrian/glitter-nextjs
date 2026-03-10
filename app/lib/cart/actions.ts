@@ -139,6 +139,14 @@ export async function updateCartItemQuantity(
 
 		const capped = Math.min(quantity, 5);
 
+		if (capped > 0) {
+			const product = await fetchProduct(productId);
+			const availableStock = product?.stock ?? 0;
+			if (capped > availableStock) {
+				return { success: false, error: "stock_insufficient" };
+			}
+		}
+
 		if (capped <= 0) {
 			await db
 				.delete(cartItems)

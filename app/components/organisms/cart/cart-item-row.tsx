@@ -5,7 +5,14 @@ import { removeFromCart, updateCartItemQuantity } from "@/app/lib/cart/actions";
 import { getCartItemWarnings } from "@/app/lib/cart/utils";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { Button } from "@/app/components/ui/button";
-import { MinusIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/app/components/ui/select";
+import { Trash2Icon } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
@@ -19,22 +26,16 @@ type CartItemRowProps = {
 export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
 	const [pending, setPending] = useState(false);
 	const [localQty, setLocalQty] = useState(item.quantity);
-	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const updateGenerationRef = useRef(0);
+	const previousCommittedQtyRef = useRef(item.quantity);
 
 	useEffect(() => {
 		setLocalQty(item.quantity);
+		previousCommittedQtyRef.current = item.quantity;
 	}, [item.quantity]);
 
-	useEffect(() => {
-		return () => {
-			if (debounceRef.current) {
-				clearTimeout(debounceRef.current);
-				debounceRef.current = null;
-			}
-		};
-	}, []);
-
 	const warnings = getCartItemWarnings(item);
+	const maxQty = Math.min(5, item.product.stock ?? 5);
 	const unitPrice = getProductPriceAtPurchase(item.product);
 	const subtotal = unitPrice * localQty;
 
@@ -43,31 +44,30 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
 		? mainImage.imageUrl
 		: PLACEHOLDER_IMAGE_URLS["300"];
 
-	function handleQuantityChange(delta: number) {
-		const newQty = localQty + delta;
-		if (newQty < 0) return;
-		const previousQty = localQty;
+	async function handleQuantitySelect(value: string) {
+		const newQty = Number(value);
 		setLocalQty(newQty);
 
-		if (debounceRef.current) clearTimeout(debounceRef.current);
-		debounceRef.current = setTimeout(async () => {
-			setPending(true);
-			try {
-				const result = await updateCartItemQuantity(item.productId, newQty);
-				if (result.success) {
-					await onCartUpdate();
-				} else {
-					toast.error(result.error ?? "No se pudo actualizar la cantidad");
-					setLocalQty(previousQty);
-				}
-			} catch (err) {
-				console.error("handleQuantityChange:", err);
-				toast.error("No se pudo actualizar la cantidad");
-				setLocalQty(previousQty);
-			} finally {
-				setPending(false);
+		const generation = ++updateGenerationRef.current;
+		setPending(true);
+		try {
+			const result = await updateCartItemQuantity(item.productId, newQty);
+			if (generation !== updateGenerationRef.current) return;
+			if (result.success) {
+				previousCommittedQtyRef.current = newQty;
+				await onCartUpdate();
+			} else {
+				toast.error(result.error ?? "No se pudo actualizar la cantidad");
+				setLocalQty(previousCommittedQtyRef.current);
 			}
-		}, 600);
+		} catch (err) {
+			if (generation !== updateGenerationRef.current) return;
+			console.error("handleQuantitySelect:", err);
+			toast.error("No se pudo actualizar la cantidad");
+			setLocalQty(previousCommittedQtyRef.current);
+		} finally {
+			if (generation === updateGenerationRef.current) setPending(false);
+		}
 	}
 
 	async function handleRemove() {
@@ -122,34 +122,23 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
 				)}
 
 				{/* Quantity controls */}
-				<div className="flex items-center gap-2 mt-2">
-					<Button
-						variant="outline"
-						size="icon"
-						className="h-7 w-7"
-						disabled={pending || localQty <= 0}
-						aria-label="Disminuir cantidad del producto"
-						onClick={() => handleQuantityChange(-1)}
+				<div className="mt-2">
+					<Select
+						value={String(localQty)}
+						onValueChange={handleQuantitySelect}
+						disabled={pending}
 					>
-						<MinusIcon className="w-3 h-3" />
-					</Button>
-					<span className="text-sm w-5 text-center">{localQty}</span>
-					<Button
-						variant="outline"
-						size="icon"
-						className="h-7 w-7"
-						disabled={
-							pending ||
-							localQty >=
-								(item.product.stock == null
-									? 5
-									: Math.min(5, item.product.stock))
-						}
-						aria-label="Aumentar cantidad del producto"
-						onClick={() => handleQuantityChange(1)}
-					>
-						<PlusIcon className="w-3 h-3" />
-					</Button>
+						<SelectTrigger className="h-7 w-16 text-sm">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{Array.from({ length: maxQty }, (_, i) => i + 1).map((n) => (
+								<SelectItem key={n} value={String(n)}>
+									{n}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 				</div>
 			</div>
 
