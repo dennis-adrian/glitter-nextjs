@@ -1,3 +1,6 @@
+/** Canonical app locale for date/number formatting (stable month abbreviations, etc.). */
+export const APP_LOCALE = "es";
+
 export const GLITTER_EMAIL_LOGO_URL =
 	"https://ja4q35y666.ufs.sh/f/WpsJq20QkpNgUNwAtQc0euIzkCdrXyN91qS6cOjvapWi280J";
 export const GLITTER_ISOTYPE_LIGHT_50X50_URL =

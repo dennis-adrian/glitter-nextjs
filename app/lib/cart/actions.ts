@@ -311,7 +311,7 @@ export async function checkoutCart(): Promise<{
 			console.error("Failed to send order emails", emailError);
 		}
 
-		revalidatePath("/store");
+		revalidatePath("/store", "layout");
 		return {
 			success: true,
 			message: "Orden creada correctamente.",

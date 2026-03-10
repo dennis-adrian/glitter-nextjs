@@ -5,10 +5,12 @@ export function getCartItemWarnings(item: CartItemWithProduct): {
 	quantityExceedsStock: boolean;
 	availableStock: number;
 } {
-	const stock = item.product.stock ?? 0;
+	const stock = item.product.stock;
+	// Only treat explicit stock === 0 as out-of-stock; null/undefined = unknown = allow checkout (consistent with cart-item-row)
 	return {
 		isOutOfStock: stock === 0,
-		quantityExceedsStock: item.quantity > stock && stock > 0,
-		availableStock: stock,
+		quantityExceedsStock:
+			typeof stock === "number" && stock > 0 && item.quantity > stock,
+		availableStock: stock ?? 0,
 	};
 }

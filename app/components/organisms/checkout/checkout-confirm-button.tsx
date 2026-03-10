@@ -25,7 +25,8 @@ export default function CheckoutConfirmButton() {
 				router.push(
 					`/profiles/${result.profileId}/orders/${result.orderId}/pay`,
 				);
-				// Leave loading true and ref set so button stays disabled during navigation
+				setLoading(false);
+				isSubmittingRef.current = false;
 			} else {
 				toast.error(result.message);
 				setLoading(false);

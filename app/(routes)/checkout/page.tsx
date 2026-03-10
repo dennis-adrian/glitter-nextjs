@@ -18,7 +18,9 @@ export default async function CheckoutPage() {
 
 	const { success, data: cart } = await fetchCartWithItems();
 	if (!success) {
-		throw new Error("No se pudo cargar el carrito. Intentá de nuevo más tarde.");
+		throw new Error(
+			"No se pudo cargar el carrito. Intentá de nuevo más tarde.",
+		);
 	}
 	if (!cart || cart.items.length === 0) redirect("/store");
 
