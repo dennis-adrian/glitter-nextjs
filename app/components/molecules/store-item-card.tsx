@@ -44,10 +44,7 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
 		price = product.price - validDiscount;
 	}
 
-	async function handleQuickAdd(e: React.MouseEvent<HTMLButtonElement>) {
-		e.preventDefault();
-		e.stopPropagation();
-
+	async function handleQuickAdd() {
 		setIsAdding(true);
 		try {
 			const { success, newCount } = await addToCart(product.id, 1);
@@ -63,8 +60,8 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
 	}
 
 	return (
-		<Link href={`/store/products/${product.id}`} className="block">
-			<Card className="group relative bg-card rounded-lg border border-border overflow-hidden hover:shadow-lg transition-shadow h-full">
+		<Card className="group relative bg-card rounded-lg border border-border overflow-hidden hover:shadow-lg transition-shadow h-full flex flex-col">
+			<Link href={`/store/products/${product.id}`} className="flex-1 block">
 				<div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
 					<ProductStatusBadge
 						status={product.status}
@@ -107,27 +104,30 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
 							})}
 						</p>
 					)}
-
-					<Button
-						size="sm"
-						className={
-							inStock
-								? product.isPreOrder
-									? "w-full bg-amber-600 hover:bg-amber-700 mt-1"
-									: "w-full bg-purple-600 hover:bg-purple-700 mt-1"
-								: "w-full bg-muted text-muted-foreground hover:bg-muted mt-1"
-						}
-						disabled={!inStock || isAdding}
-						onClick={handleQuickAdd}
-					>
-						{!inStock ? (
-							<span className="text-xs md:text-sm">Agotado</span>
-						) : (
-							<span className="text-xs md:text-sm">Agregar al carrito</span>
-						)}
-					</Button>
 				</CardContent>
-			</Card>
-		</Link>
+			</Link>
+
+			<div className="px-3 pb-3">
+				<Button
+					size="sm"
+					className={
+						inStock
+							? product.isPreOrder
+								? "w-full bg-amber-600 hover:bg-amber-700"
+								: "w-full bg-purple-600 hover:bg-purple-700"
+							: "w-full bg-muted text-muted-foreground hover:bg-muted"
+					}
+					disabled={!inStock || isAdding}
+					onClick={handleQuickAdd}
+					aria-label={`Agregar ${product.name} al carrito`}
+				>
+					{!inStock ? (
+						<span className="text-xs md:text-sm">Agotado</span>
+					) : (
+						<span className="text-xs md:text-sm">Agregar al carrito</span>
+					)}
+				</Button>
+			</div>
+		</Card>
 	);
 }

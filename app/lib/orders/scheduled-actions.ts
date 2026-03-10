@@ -169,20 +169,34 @@ export async function handleOrderPaymentReminders(): Promise<{
 				if (data) {
 					options?.referenceEntity?.push(order.id);
 				} else {
-					await db
-						.update(orders)
-						.set({ paymentReminder1ClaimedAt: null })
-						.where(eq(orders.id, order.id));
+					try {
+						await db
+							.update(orders)
+							.set({ paymentReminder1ClaimedAt: null })
+							.where(eq(orders.id, order.id));
+					} catch (resetErr) {
+						console.error(
+							`[handleOrderPaymentReminders] failed to reset claim for order ${order.id} (reminder 1):`,
+							resetErr,
+						);
+					}
 				}
 			} catch (err) {
 				console.error(
 					`[handleOrderPaymentReminders] sendEmail threw for order ${order.id} (reminder 1):`,
 					err,
 				);
-				await db
-					.update(orders)
-					.set({ paymentReminder1ClaimedAt: null })
-					.where(eq(orders.id, order.id));
+				try {
+					await db
+						.update(orders)
+						.set({ paymentReminder1ClaimedAt: null })
+						.where(eq(orders.id, order.id));
+				} catch (resetErr) {
+					console.error(
+						`[handleOrderPaymentReminders] failed to reset claim for order ${order.id} (reminder 1):`,
+						resetErr,
+					);
+				}
 			}
 		},
 		{ referenceEntity: sent1 },
@@ -214,20 +228,34 @@ export async function handleOrderPaymentReminders(): Promise<{
 				if (data) {
 					options?.referenceEntity?.push(order.id);
 				} else {
-					await db
-						.update(orders)
-						.set({ paymentReminder2ClaimedAt: null })
-						.where(eq(orders.id, order.id));
+					try {
+						await db
+							.update(orders)
+							.set({ paymentReminder2ClaimedAt: null })
+							.where(eq(orders.id, order.id));
+					} catch (resetErr) {
+						console.error(
+							`[handleOrderPaymentReminders] failed to reset claim for order ${order.id} (reminder 2):`,
+							resetErr,
+						);
+					}
 				}
 			} catch (err) {
 				console.error(
 					`[handleOrderPaymentReminders] sendEmail threw for order ${order.id} (reminder 2):`,
 					err,
 				);
-				await db
-					.update(orders)
-					.set({ paymentReminder2ClaimedAt: null })
-					.where(eq(orders.id, order.id));
+				try {
+					await db
+						.update(orders)
+						.set({ paymentReminder2ClaimedAt: null })
+						.where(eq(orders.id, order.id));
+				} catch (resetErr) {
+					console.error(
+						`[handleOrderPaymentReminders] failed to reset claim for order ${order.id} (reminder 2):`,
+						resetErr,
+					);
+				}
 			}
 		},
 		{ referenceEntity: sent2 },
@@ -259,20 +287,34 @@ export async function handleOrderPaymentReminders(): Promise<{
 				if (data) {
 					options?.referenceEntity?.push(order.id);
 				} else {
-					await db
-						.update(orders)
-						.set({ paymentReminder3ClaimedAt: null })
-						.where(eq(orders.id, order.id));
+					try {
+						await db
+							.update(orders)
+							.set({ paymentReminder3ClaimedAt: null })
+							.where(eq(orders.id, order.id));
+					} catch (resetErr) {
+						console.error(
+							`[handleOrderPaymentReminders] failed to reset claim for order ${order.id} (reminder 3):`,
+							resetErr,
+						);
+					}
 				}
 			} catch (err) {
 				console.error(
 					`[handleOrderPaymentReminders] sendEmail threw for order ${order.id} (reminder 3):`,
 					err,
 				);
-				await db
-					.update(orders)
-					.set({ paymentReminder3ClaimedAt: null })
-					.where(eq(orders.id, order.id));
+				try {
+					await db
+						.update(orders)
+						.set({ paymentReminder3ClaimedAt: null })
+						.where(eq(orders.id, order.id));
+				} catch (resetErr) {
+					console.error(
+						`[handleOrderPaymentReminders] failed to reset claim for order ${order.id} (reminder 3):`,
+						resetErr,
+					);
+				}
 			}
 		},
 		{ referenceEntity: sent3 },
@@ -297,11 +339,26 @@ export async function handleOrderCancellations(): Promise<number> {
 
 	try {
 		cancelledOrders = await db.transaction(async (tx) => {
-			// Find overdue pending orders with their items and user
-			const overdueOrders = (await tx.query.orders.findMany({
-				where: and(
-					eq(orders.status, "pending"),
-					lte(orders.paymentDueDate, sql`now()`),
+			// Atomically cancel all overdue pending orders; only rows this UPDATE claims
+			// are processed — prevents double stock restores under overlapping runs
+			const claimed = await tx
+				.update(orders)
+				.set({ status: "cancelled", updatedAt: sql`now()` })
+				.where(
+					and(
+						eq(orders.status, "pending"),
+						lte(orders.paymentDueDate, sql`now()`),
+					),
+				)
+				.returning({ id: orders.id });
+
+			if (claimed.length === 0) return [];
+
+			// Load full order data only for the rows we atomically claimed
+			const cancelledOrders = (await tx.query.orders.findMany({
+				where: inArray(
+					orders.id,
+					claimed.map((r) => r.id),
 				),
 				with: {
 					customer: true,
@@ -311,18 +368,8 @@ export async function handleOrderCancellations(): Promise<number> {
 				},
 			})) as CancelledOrder[];
 
-			if (overdueOrders.length === 0) return [];
-
-			const overdueOrderIds = overdueOrders.map((o) => o.id);
-
-			// Cancel the orders
-			await tx
-				.update(orders)
-				.set({ status: "cancelled", updatedAt: sql`now()` })
-				.where(inArray(orders.id, overdueOrderIds));
-
 			// Restore stock for each cancelled order's items
-			for (const order of overdueOrders) {
+			for (const order of cancelledOrders) {
 				for (const item of order.orderItems) {
 					await tx
 						.update(products)
@@ -333,7 +380,7 @@ export async function handleOrderCancellations(): Promise<number> {
 				}
 			}
 
-			return overdueOrders;
+			return cancelledOrders;
 		});
 	} catch (error) {
 		console.error("[handleOrderCancellations] error:", error);

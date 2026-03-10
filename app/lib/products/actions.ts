@@ -2,6 +2,13 @@
 
 import { db } from "@/db";
 
+/**
+ * Product fetchers use safe fallbacks on error: they do not throw.
+ * - fetchProduct returns null on error or when not found.
+ * - fetchProducts and fetchFeaturedProducts return [] on error.
+ * Callers can rely on these defaults without try/catch.
+ */
+
 export async function fetchProducts() {
 	try {
 		return await db.query.products.findMany({
