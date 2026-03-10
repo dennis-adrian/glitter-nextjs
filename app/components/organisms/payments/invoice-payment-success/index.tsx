@@ -2,6 +2,7 @@
 
 import StoreItemCard from "@/app/components/molecules/store-item-card";
 import InvoiceSummaryCard from "@/app/components/organisms/payments/invoice-payment-success/invoice-summary-card";
+import { CartProvider } from "@/app/components/providers/cart-provider";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
@@ -28,24 +29,26 @@ export default function InvoicePaymentSuccess(
 		<>
 			<InvoiceSummaryCard invoice={invoice} />
 			{products.length > 0 && (
-				<div className="space-y-4">
-					<div>
-						<h2 className="text-lg font-semibold">
-							También podría interesarte
-						</h2>
-						<p className="text-sm text-muted-foreground">
-							Productos del festival disponibles
-						</p>
+				<CartProvider initialItemCount={0}>
+					<div className="space-y-4">
+						<div>
+							<h2 className="text-lg font-semibold">
+								También podría interesarte
+							</h2>
+							<p className="text-sm text-muted-foreground">
+								Productos del festival disponibles
+							</p>
+						</div>
+						<div className="max-w-xs mx-auto">
+							{products.map((product) => (
+								<StoreItemCard
+									key={product.id}
+									product={product}
+								/>
+							))}
+						</div>
 					</div>
-					<div className="max-w-xs mx-auto">
-						{products.map((product) => (
-						<StoreItemCard
-							key={product.id}
-							product={product}
-						/>
-					))}
-					</div>
-				</div>
+				</CartProvider>
 			)}
 			<div className="flex justify-center">
 				<RedirectButton href="/my_profile" className="gap-2" variant="outline">

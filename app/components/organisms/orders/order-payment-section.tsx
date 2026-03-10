@@ -78,11 +78,8 @@ export default function OrderPaymentSection({
 		);
 	}
 
-	if (
-		status === "payment_verification" ||
-		status === "processing" ||
-		voucherUrl
-	) {
+	// "In review" is driven only by status; voucher image is shown when available.
+	if (status === "payment_verification" || status === "processing") {
 		return (
 			<StatusCard
 				icon={<ClockIcon className="h-5 w-5 text-blue-500" />}
