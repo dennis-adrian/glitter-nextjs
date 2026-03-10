@@ -1070,6 +1070,9 @@ export const orders = pgTable("orders", {
 	paymentReminder1SentAt: timestamp("payment_reminder1_sent_at"),
 	paymentReminder2SentAt: timestamp("payment_reminder2_sent_at"),
 	paymentReminder3SentAt: timestamp("payment_reminder3_sent_at"),
+	paymentReminder1ClaimedAt: timestamp("payment_reminder1_claimed_at"),
+	paymentReminder2ClaimedAt: timestamp("payment_reminder2_claimed_at"),
+	paymentReminder3ClaimedAt: timestamp("payment_reminder3_claimed_at"),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });

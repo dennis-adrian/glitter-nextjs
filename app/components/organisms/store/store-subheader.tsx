@@ -23,6 +23,7 @@ export default function StoreSubheader() {
 					variant="outline"
 					size="sm"
 					className="relative flex items-center gap-2"
+					aria-label="Abrir carrito"
 					onClick={openCart}
 				>
 					<ShoppingCartIcon className="w-4 h-4" />

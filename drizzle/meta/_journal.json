@@ -1037,6 +1037,13 @@
       "when": 1773081008641,
       "tag": "0147_silky_meltdown",
       "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1773103241867,
+      "tag": "0148_aspiring_silver_samurai",
+      "breakpoints": true
     }
   ]
 }

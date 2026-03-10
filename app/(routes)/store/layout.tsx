@@ -10,7 +10,7 @@ export default async function StoreLayout({
 	children: React.ReactNode;
 }) {
 	const user = await getCurrentUserProfile();
-	const initialItemCount = user ? await fetchCartItemCount(user.id) : 0;
+	const initialItemCount = await fetchCartItemCount();
 
 	return (
 		<CartProvider initialItemCount={initialItemCount}>

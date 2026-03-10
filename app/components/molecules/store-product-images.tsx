@@ -143,8 +143,8 @@ export default function StoreProductImages({
 		}
 	};
 
-	const openModal = (e: React.MouseEvent) => {
-		e.preventDefault();
+	const openModal = (e?: React.MouseEvent) => {
+		e?.preventDefault();
 		setIsModalOpen(true);
 		setIsZoomed(false);
 	};
@@ -261,10 +261,30 @@ export default function StoreProductImages({
 		stock > 0 &&
 		imageUrls?.[0] !== PLACEHOLDER_IMAGE_URLS["1200"];
 
+	const handleLightboxKeyDown = (
+		e: React.KeyboardEvent,
+		allowed: boolean,
+	) => {
+		if (!allowed) return;
+		if (e.key === "Enter" || e.key === " ") {
+			e.preventDefault();
+			openModal();
+		}
+	};
+
 	return (
 		<div ref={containerRef}>
 			<Carousel setApi={setApi}>
 				<CarouselContent
+					{...(canOpenModal
+						? {
+								tabIndex: 0,
+								role: "button" as const,
+								"aria-label": "Open gallery",
+								onKeyDown: (e: React.KeyboardEvent) =>
+									handleLightboxKeyDown(e, true),
+							}
+						: {})}
 					className="aspect-square"
 					onClick={canOpenModal ? openModal : undefined}
 				>
@@ -284,7 +304,13 @@ export default function StoreProductImages({
 				{canOpenModal && (
 					<div className="absolute top-2 right-2">
 						<div
+							role="button"
+							tabIndex={0}
+							aria-label="Open gallery"
 							onClick={openModal}
+							onKeyDown={(e: React.KeyboardEvent) =>
+								handleLightboxKeyDown(e, true)
+							}
 							className="bg-black/50 text-white p-1.5 rounded-full backdrop-blur-sm hover:bg-black/70"
 						>
 							<Maximize2Icon className="h-4 w-4" />

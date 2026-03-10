@@ -31,7 +31,7 @@ export default function OrderPaymentSection({
 		try {
 			const result = await submitOrderPaymentVoucher(orderId, imageUrl);
 			if (result.success) {
-				toast.success("Comprobante enviado — revisaremos tu pago pronto");
+				toast.success("Comprobante enviado. Revisaremos tu pago pronto");
 				router.push("/my_orders");
 			} else {
 				toast.error(result.message);
@@ -78,7 +78,11 @@ export default function OrderPaymentSection({
 		);
 	}
 
-	if (status === "payment_verification" || status === "processing" || voucherUrl) {
+	if (
+		status === "payment_verification" ||
+		status === "processing" ||
+		voucherUrl
+	) {
 		return (
 			<StatusCard
 				icon={<ClockIcon className="h-5 w-5 text-blue-500" />}
@@ -101,7 +105,7 @@ export default function OrderPaymentSection({
 
 	// pending + no voucher — show QR + step-by-step upload
 	return (
-		<div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+		<div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 items-start">
 			<div className="bg-card border rounded-lg p-4">
 				<div className="text-center mb-3">
 					<p className="text-sm text-muted-foreground">Total a pagar</p>

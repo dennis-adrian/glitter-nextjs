@@ -16,10 +16,7 @@ type CartItemRowProps = {
 	onCartUpdate: () => Promise<void>;
 };
 
-export default function CartItemRow({
-	item,
-	onCartUpdate,
-}: CartItemRowProps) {
+export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
 	const [pending, setPending] = useState(false);
 	const [localQty, setLocalQty] = useState(item.quantity);
 	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -120,6 +117,7 @@ export default function CartItemRow({
 						size="icon"
 						className="h-7 w-7"
 						disabled={pending || localQty <= 0}
+						aria-label="Disminuir cantidad del producto"
 						onClick={() => handleQuantityChange(-1)}
 					>
 						<MinusIcon className="w-3 h-3" />
@@ -136,6 +134,7 @@ export default function CartItemRow({
 									? 5
 									: Math.min(5, item.product.stock))
 						}
+						aria-label="Aumentar cantidad del producto"
 						onClick={() => handleQuantityChange(1)}
 					>
 						<PlusIcon className="w-3 h-3" />
@@ -150,6 +149,7 @@ export default function CartItemRow({
 					variant="ghost"
 					size="icon"
 					className="h-7 w-7 text-muted-foreground hover:text-destructive"
+					aria-label="Eliminar producto del carrito"
 					disabled={pending}
 					onClick={handleRemove}
 				>

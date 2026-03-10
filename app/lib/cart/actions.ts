@@ -27,12 +27,13 @@ async function getOrCreateCart(userId: number): Promise<BaseCart> {
 	return cart;
 }
 
-export async function fetchCartWithItems(
-	userId: number,
-): Promise<CartWithItems | null> {
+export async function fetchCartWithItems(): Promise<CartWithItems | null> {
 	try {
+		const user = await getCurrentBaseProfile();
+		if (!user) return null;
+
 		const cart = await db.query.carts.findFirst({
-			where: eq(carts.userId, userId),
+			where: eq(carts.userId, user.id),
 			with: {
 				items: {
 					orderBy: (cartItems, { asc }) => [asc(cartItems.id)],
@@ -51,10 +52,13 @@ export async function fetchCartWithItems(
 	}
 }
 
-export async function fetchCartItemCount(userId: number): Promise<number> {
+export async function fetchCartItemCount(): Promise<number> {
 	try {
+		const user = await getCurrentBaseProfile();
+		if (!user) return 0;
+
 		const cart = await db.query.carts.findFirst({
-			where: eq(carts.userId, userId),
+			where: eq(carts.userId, user.id),
 			with: { items: true },
 		});
 		return cart?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
@@ -73,7 +77,7 @@ export async function addToCart(
 		if (!user) return { success: false, newCount: 0 };
 
 		if (quantity <= 0) {
-			const currentCount = await fetchCartItemCount(user.id);
+			const currentCount = await fetchCartItemCount();
 			return { success: false, newCount: currentCount };
 		}
 
@@ -96,7 +100,7 @@ export async function addToCart(
 			});
 
 		revalidatePath("/store");
-		const newCount = await fetchCartItemCount(user.id);
+		const newCount = await fetchCartItemCount();
 		return { success: true, newCount };
 	} catch (error) {
 		console.error(error);
@@ -146,9 +150,7 @@ export async function updateCartItemQuantity(
 	}
 }
 
-export async function removeFromCart(
-	productId: number,
-): Promise<void> {
+export async function removeFromCart(productId: number): Promise<void> {
 	try {
 		const user = await getCurrentBaseProfile();
 		if (!user) return;
@@ -170,10 +172,13 @@ export async function removeFromCart(
 	}
 }
 
-export async function clearCart(userId: number): Promise<void> {
+export async function clearCart(): Promise<void> {
 	try {
+		const user = await getCurrentBaseProfile();
+		if (!user) return;
+
 		const cart = await db.query.carts.findFirst({
-			where: eq(carts.userId, userId),
+			where: eq(carts.userId, user.id),
 		});
 		if (!cart) return;
 
@@ -187,12 +192,14 @@ export async function clearCart(userId: number): Promise<void> {
 /** Locks the user's cart and cart_items in the current transaction. Returns null if no cart. */
 export async function fetchCartWithItemsForCheckout(
 	tx: CartTx,
-	userId: number,
 ): Promise<CartCheckoutSnapshot | null> {
+	const user = await getCurrentBaseProfile();
+	if (!user) return null;
+
 	const [cart] = await tx
 		.select()
 		.from(carts)
-		.where(eq(carts.userId, userId))
+		.where(eq(carts.userId, user.id))
 		.for("update");
 	if (!cart) return null;
 
@@ -235,7 +242,7 @@ export async function checkoutCart(): Promise<{
 		const customerName = user.displayName ?? user.firstName ?? "";
 
 		const orderResult = await db.transaction(async (tx) => {
-			const snapshot = await fetchCartWithItemsForCheckout(tx, userId);
+			const snapshot = await fetchCartWithItemsForCheckout(tx);
 			if (!snapshot || snapshot.items.length === 0) {
 				throw new Error("empty_cart");
 			}

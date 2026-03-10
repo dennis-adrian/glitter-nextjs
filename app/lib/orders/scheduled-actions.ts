@@ -7,7 +7,7 @@ import { queueEmails } from "@/app/lib/emails/helpers";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import { orders, products, orderItems } from "@/db/schema";
-import { and, eq, gt, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 
 type OrderCustomer = {
 	email: string;
@@ -43,35 +43,79 @@ export async function handleOrderPaymentReminders(): Promise<{
 
 	try {
 		await db.transaction(async (tx) => {
-			pendingReminder1 = (await tx.query.orders.findMany({
-				where: and(
-					eq(orders.status, "pending"),
-					isNull(orders.paymentReminder1SentAt),
-					lte(orders.paymentDueDate, sql`now() + interval '8 days'`),
-					gt(orders.paymentDueDate, sql`now()`),
-				),
-				with: { customer: true },
-			})) as OrderWithUser[];
+			// Atomically claim reminder 1 rows
+			const claimed1 = await tx
+				.update(orders)
+				.set({ paymentReminder1ClaimedAt: sql`now()` })
+				.where(
+					and(
+						eq(orders.status, "pending"),
+						isNull(orders.paymentReminder1SentAt),
+						isNull(orders.paymentReminder1ClaimedAt),
+						lte(orders.paymentDueDate, sql`now() + interval '8 days'`),
+						gt(orders.paymentDueDate, sql`now()`),
+					),
+				)
+				.returning({ id: orders.id });
+			if (claimed1.length > 0) {
+				pendingReminder1 = (await tx.query.orders.findMany({
+					where: inArray(
+						orders.id,
+						claimed1.map((r) => r.id),
+					),
+					with: { customer: true },
+				})) as OrderWithUser[];
+			}
 
-			pendingReminder2 = (await tx.query.orders.findMany({
-				where: and(
-					eq(orders.status, "pending"),
-					isNull(orders.paymentReminder2SentAt),
-					lte(orders.paymentDueDate, sql`now() + interval '5 days'`),
-					gt(orders.paymentDueDate, sql`now()`),
-				),
-				with: { customer: true },
-			})) as OrderWithUser[];
+			// Atomically claim reminder 2 rows
+			const claimed2 = await tx
+				.update(orders)
+				.set({ paymentReminder2ClaimedAt: sql`now()` })
+				.where(
+					and(
+						eq(orders.status, "pending"),
+						isNotNull(orders.paymentReminder1SentAt),
+						isNull(orders.paymentReminder2SentAt),
+						isNull(orders.paymentReminder2ClaimedAt),
+						lte(orders.paymentDueDate, sql`now() + interval '5 days'`),
+						gt(orders.paymentDueDate, sql`now()`),
+					),
+				)
+				.returning({ id: orders.id });
+			if (claimed2.length > 0) {
+				pendingReminder2 = (await tx.query.orders.findMany({
+					where: inArray(
+						orders.id,
+						claimed2.map((r) => r.id),
+					),
+					with: { customer: true },
+				})) as OrderWithUser[];
+			}
 
-			pendingReminder3 = (await tx.query.orders.findMany({
-				where: and(
-					eq(orders.status, "pending"),
-					isNull(orders.paymentReminder3SentAt),
-					lte(orders.paymentDueDate, sql`now() + interval '1 day'`),
-					gt(orders.paymentDueDate, sql`now()`),
-				),
-				with: { customer: true },
-			})) as OrderWithUser[];
+			// Atomically claim reminder 3 rows
+			const claimed3 = await tx
+				.update(orders)
+				.set({ paymentReminder3ClaimedAt: sql`now()` })
+				.where(
+					and(
+						eq(orders.status, "pending"),
+						isNotNull(orders.paymentReminder2SentAt),
+						isNull(orders.paymentReminder3SentAt),
+						isNull(orders.paymentReminder3ClaimedAt),
+						lte(orders.paymentDueDate, sql`now() + interval '1 day'`),
+						gt(orders.paymentDueDate, sql`now()`),
+					),
+				)
+				.returning({ id: orders.id });
+			if (claimed3.length > 0) {
+				pendingReminder3 = (await tx.query.orders.findMany({
+					where: inArray(
+						orders.id,
+						claimed3.map((r) => r.id),
+					),
+					with: { customer: true },
+				})) as OrderWithUser[];
+			}
 		});
 	} catch (error) {
 		console.error("[handleOrderPaymentReminders] query error:", error);

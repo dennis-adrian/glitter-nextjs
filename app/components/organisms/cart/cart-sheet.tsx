@@ -38,7 +38,7 @@ export default function CartSheet({ user }: CartSheetProps) {
 
 			const generation = ++fetchGenerationRef.current;
 			try {
-				const data = await fetchCartWithItems(user.id);
+				const data = await fetchCartWithItems();
 				if (generation === fetchGenerationRef.current) {
 					setCartData(data);
 					setItemCount(
@@ -50,7 +50,7 @@ export default function CartSheet({ user }: CartSheetProps) {
 				else setRefreshing(false);
 			}
 		},
-		[user.id, setItemCount],
+		[setItemCount],
 	);
 
 	useEffect(() => {

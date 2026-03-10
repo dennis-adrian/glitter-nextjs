@@ -382,6 +382,22 @@ export async function updateOrderStatus(orderId: number, status: OrderStatus) {
 	};
 }
 
+function isAllowedVoucherUrl(urlString: string): boolean {
+	try {
+		const url = new URL(urlString);
+		if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+		const hostname = url.hostname.toLowerCase();
+		return (
+			hostname === "utfs.io" ||
+			hostname === "ufs.sh" ||
+			hostname.endsWith(".ufs.sh")
+		);
+	} catch {
+		console.error("URL de comprobante de pago inválida", urlString);
+		return false;
+	}
+}
+
 export async function submitOrderPaymentVoucher(
 	orderId: number,
 	voucherUrl: string,
@@ -391,6 +407,13 @@ export async function submitOrderPaymentVoucher(
 		return {
 			success: false,
 			message: "Debes iniciar sesión para enviar el comprobante.",
+		};
+	}
+
+	if (!isAllowedVoucherUrl(voucherUrl)) {
+		return {
+			success: false,
+			message: "Invalid voucher URL source",
 		};
 	}
 
