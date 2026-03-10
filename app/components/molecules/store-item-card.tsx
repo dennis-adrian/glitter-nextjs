@@ -54,6 +54,10 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
 			} else {
 				toast.error("No se pudo agregar al carrito");
 			}
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "Error desconocido";
+			toast.error(`No se pudo agregar al carrito. ${message}`);
 		} finally {
 			setIsAdding(false);
 		}

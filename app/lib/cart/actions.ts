@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { createOrderInTx, sendOrderEmails } from "@/app/lib/orders/actions";
 import { BaseCart, CartWithItems } from "@/app/lib/cart/definitions";
 import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
+import { fetchProduct } from "@/app/lib/products/actions";
 
 type CartTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -84,8 +85,19 @@ export async function addToCart(
 			return { success: false, newCount: currentCount };
 		}
 
+		const product = await fetchProduct(productId);
+		const availableStock = product?.stock ?? 0;
+		if (availableStock <= 0) {
+			const currentCount = await fetchCartItemCount();
+			return { success: false, newCount: currentCount };
+		}
+
 		const cart = await getOrCreateCart(user.id);
-		const cappedQuantity = Math.min(quantity, 5);
+		const cappedQuantity = Math.min(quantity, 5, availableStock);
+		if (cappedQuantity <= 0) {
+			const currentCount = await fetchCartItemCount();
+			return { success: false, newCount: currentCount };
+		}
 
 		await db
 			.insert(cartItems)
@@ -97,7 +109,7 @@ export async function addToCart(
 			.onConflictDoUpdate({
 				target: [cartItems.cartId, cartItems.productId],
 				set: {
-					quantity: sql`least(${cartItems.quantity} + excluded.quantity, 5)`,
+					quantity: sql`least(${cartItems.quantity} + excluded.quantity, ${availableStock}, 5)`,
 					updatedAt: new Date(),
 				},
 			});
@@ -107,7 +119,8 @@ export async function addToCart(
 		return { success: true, newCount };
 	} catch (error) {
 		console.error(error);
-		return { success: false, newCount: 0 };
+		const currentCount = await fetchCartItemCount();
+		return { success: false, newCount: currentCount };
 	}
 }
 

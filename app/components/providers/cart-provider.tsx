@@ -10,16 +10,14 @@ type CartContextValue = {
 	closeCart: () => void;
 };
 
-const CartContext = createContext<CartContextValue>({
-	itemCount: 0,
-	setItemCount: () => {},
-	isOpen: false,
-	openCart: () => {},
-	closeCart: () => {},
-});
+const CartContext = createContext<CartContextValue | null>(null);
 
 export function useCart() {
-	return useContext(CartContext);
+	const context = useContext(CartContext);
+	if (!context) {
+		throw new Error("useCart must be used within CartProvider");
+	}
+	return context;
 }
 
 export function CartProvider({

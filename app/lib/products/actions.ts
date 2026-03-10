@@ -1,6 +1,8 @@
 "use server";
 
 import { db } from "@/db";
+import { desc, sql } from "drizzle-orm";
+import { products } from "@/db/schema";
 
 /**
  * Product fetchers use safe fallbacks on error: they do not throw.
@@ -15,7 +17,11 @@ export async function fetchProducts() {
 			with: {
 				images: true,
 			},
-			orderBy: (products, { desc }) => [desc(products.isFeatured), desc(products.createdAt)],
+			orderBy: [
+				desc(products.isFeatured),
+				sql`CASE WHEN ${products.stock} > 0 THEN 0 ELSE 1 END`,
+				desc(products.createdAt),
+			],
 		});
 	} catch (error) {
 		console.error(error);

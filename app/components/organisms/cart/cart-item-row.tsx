@@ -77,7 +77,9 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
 			if (result.success) {
 				await onCartUpdate();
 			} else {
-				toast.error(result.error ?? "No se pudo eliminar el producto del carrito");
+				toast.error(
+					result.error ?? "No se pudo eliminar el producto del carrito",
+				);
 			}
 		} catch (err) {
 			console.error("handleRemove:", err);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CircleCheckIcon, Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
@@ -10,10 +10,13 @@ import { checkoutCart } from "@/app/lib/cart/actions";
 
 export default function CheckoutConfirmButton() {
 	const [loading, setLoading] = useState(false);
+	const isSubmittingRef = useRef(false);
 	const router = useRouter();
 	const { setItemCount } = useCart();
 
 	async function handleConfirm() {
+		if (isSubmittingRef.current) return;
+		isSubmittingRef.current = true;
 		setLoading(true);
 		try {
 			const result = await checkoutCart();
@@ -22,13 +25,16 @@ export default function CheckoutConfirmButton() {
 				router.push(
 					`/profiles/${result.profileId}/orders/${result.orderId}/pay`,
 				);
+				// Leave loading true and ref set so button stays disabled during navigation
 			} else {
 				toast.error(result.message);
+				setLoading(false);
+				isSubmittingRef.current = false;
 			}
 		} catch (error) {
 			toast.error("Error al procesar el pedido. Intenta de nuevo.");
-		} finally {
 			setLoading(false);
+			isSubmittingRef.current = false;
 		}
 	}
 
