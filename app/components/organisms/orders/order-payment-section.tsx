@@ -137,6 +137,7 @@ export default function OrderPaymentSection({
 						<li>Subí el comprobante y presioná "Confirmar pago"</li>
 					</ol>
 				</div>
+				{/* The payment upload dropzone is hidden on mobile because there is a dedicated sticky button for smaller screens */}
 				<div className="hidden md:flex flex-col gap-3 bg-card border rounded-lg p-4">
 					<Heading level={4}>Comprobante de pago</Heading>
 					<PaymentProofUpload

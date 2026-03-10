@@ -20,11 +20,7 @@ import { useRouter } from "next/navigation";
 import { ShoppingCartIcon } from "lucide-react";
 import CartItemSkeleton from "./cart-item-skeleton";
 
-type CartSheetProps = {
-	user: BaseProfile;
-};
-
-export default function CartSheet({ user }: CartSheetProps) {
+export default function CartSheet() {
 	const { isOpen, closeCart, setItemCount } = useCart();
 	const router = useRouter();
 	const [cartData, setCartData] = useState<CartWithItems | null>(null);
@@ -44,7 +40,10 @@ export default function CartSheet({ user }: CartSheetProps) {
 					if (result.success) {
 						setCartData(result.data);
 						setItemCount(
-							result.data?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
+							result.data?.items.reduce(
+								(sum, item) => sum + item.quantity,
+								0,
+							) ?? 0,
 						);
 					} else {
 						toast.error("No se pudo cargar el carrito");
@@ -107,11 +106,11 @@ export default function CartSheet({ user }: CartSheetProps) {
 					{!loading && cartData && cartData.items.length > 0 && (
 						<div>
 							{cartData.items.map((item) => (
-							<CartItemRow
-								key={item.id}
-								item={item}
-								onCartUpdate={() => loadCart(true)}
-							/>
+								<CartItemRow
+									key={item.id}
+									item={item}
+									onCartUpdate={() => loadCart(true)}
+								/>
 							))}
 						</div>
 					)}

@@ -15,7 +15,7 @@ export default async function StoreLayout({
 	return (
 		<CartProvider initialItemCount={initialItemCount}>
 			<StoreSubheader />
-			{user && <CartSheet user={user} />}
+			{user && <CartSheet />}
 			{children}
 		</CartProvider>
 	);
