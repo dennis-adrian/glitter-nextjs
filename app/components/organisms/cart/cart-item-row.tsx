@@ -53,8 +53,13 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
 		debounceRef.current = setTimeout(async () => {
 			setPending(true);
 			try {
-				await updateCartItemQuantity(item.productId, newQty);
-				await onCartUpdate();
+				const result = await updateCartItemQuantity(item.productId, newQty);
+				if (result.success) {
+					await onCartUpdate();
+				} else {
+					toast.error(result.error ?? "No se pudo actualizar la cantidad");
+					setLocalQty(previousQty);
+				}
 			} catch (err) {
 				console.error("handleQuantityChange:", err);
 				toast.error("No se pudo actualizar la cantidad");
@@ -68,8 +73,12 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
 	async function handleRemove() {
 		setPending(true);
 		try {
-			await removeFromCart(item.productId);
-			await onCartUpdate();
+			const result = await removeFromCart(item.productId);
+			if (result.success) {
+				await onCartUpdate();
+			} else {
+				toast.error(result.error ?? "No se pudo eliminar el producto del carrito");
+			}
 		} catch (err) {
 			console.error("handleRemove:", err);
 			toast.error("No se pudo eliminar el producto del carrito");

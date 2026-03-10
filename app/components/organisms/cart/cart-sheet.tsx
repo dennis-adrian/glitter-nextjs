@@ -15,6 +15,7 @@ import { BaseProfile } from "@/app/api/users/definitions";
 import CartItemRow from "@/app/components/organisms/cart/cart-item-row";
 import { Button } from "@/app/components/ui/button";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { ShoppingCartIcon } from "lucide-react";
 import CartItemSkeleton from "./cart-item-skeleton";
@@ -38,12 +39,16 @@ export default function CartSheet({ user }: CartSheetProps) {
 
 			const generation = ++fetchGenerationRef.current;
 			try {
-				const data = await fetchCartWithItems();
+				const result = await fetchCartWithItems();
 				if (generation === fetchGenerationRef.current) {
-					setCartData(data);
-					setItemCount(
-						data?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
-					);
+					if (result.success) {
+						setCartData(result.data);
+						setItemCount(
+							result.data?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
+						);
+					} else {
+						toast.error("No se pudo cargar el carrito");
+					}
 				}
 			} finally {
 				if (!silent) setLoading(false);

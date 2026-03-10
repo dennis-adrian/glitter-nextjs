@@ -88,6 +88,12 @@ export async function createOrderInTx(
 		throw new Error("No order items provided");
 	}
 
+	for (const [itemId, qty] of orderItemsIdsQuantityMap.entries()) {
+		if (qty <= 0) {
+			throw new Error(`Invalid quantity for itemId ${itemId}`);
+		}
+	}
+
 	const itemsIds = Array.from(orderItemsIdsQuantityMap.keys());
 	const productsInOrder = await tx
 		.select()
@@ -103,7 +109,7 @@ export async function createOrderInTx(
 
 	const stockValidationErrors: string[] = [];
 	for (const product of productsInOrder) {
-		const requestedQuantity = orderItemsIdsQuantityMap.get(product.id) || 0;
+		const requestedQuantity = orderItemsIdsQuantityMap.get(product.id)!;
 		const currentStock = product.stock ?? 0;
 		if (currentStock < requestedQuantity) {
 			stockValidationErrors.push(
@@ -122,7 +128,7 @@ export async function createOrderInTx(
 		(acc, product) =>
 			acc +
 			getProductPriceAtPurchase(product) *
-				(orderItemsIdsQuantityMap.get(product.id) || 0),
+				orderItemsIdsQuantityMap.get(product.id)!,
 		0,
 	);
 
@@ -138,7 +144,7 @@ export async function createOrderInTx(
 	for (const item of productsInOrder) {
 		await tx.insert(orderItems).values({
 			productId: item.id,
-			quantity: orderItemsIdsQuantityMap.get(item.id) || 0,
+			quantity: orderItemsIdsQuantityMap.get(item.id)!,
 			priceAtPurchase: getProductPriceAtPurchase(item),
 			orderId: order.id,
 		});
@@ -146,7 +152,7 @@ export async function createOrderInTx(
 
 	// Decrease product stock
 	for (const item of productsInOrder) {
-		const orderedQuantity = orderItemsIdsQuantityMap.get(item.id) || 0;
+		const orderedQuantity = orderItemsIdsQuantityMap.get(item.id)!;
 		await tx
 			.update(products)
 			.set({
@@ -158,7 +164,7 @@ export async function createOrderInTx(
 	const mappedProducts = productsInOrder.map((product) => ({
 		id: product.id,
 		name: product.name,
-		quantity: orderItemsIdsQuantityMap.get(product.id) || 0,
+		quantity: orderItemsIdsQuantityMap.get(product.id)!,
 		price: getProductPriceAtPurchase(product),
 		isPreOrder: !!product.isPreOrder,
 		availableDate: product.availableDate || null,
@@ -421,7 +427,7 @@ export async function submitOrderPaymentVoucher(
 		const [order] = await db
 			.update(orders)
 			.set({ paymentVoucherUrl: voucherUrl, status: "payment_verification" })
-			.where(and(eq(orders.id, orderId), eq(orders.userId, currentUser.id)))
+			.where(and(eq(orders.id, orderId), eq(orders.userId, currentUser.id), eq(orders.status, "pending")))
 			.returning();
 
 		if (!order) {

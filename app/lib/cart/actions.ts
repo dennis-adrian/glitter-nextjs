@@ -27,10 +27,13 @@ async function getOrCreateCart(userId: number): Promise<BaseCart> {
 	return cart;
 }
 
-export async function fetchCartWithItems(): Promise<CartWithItems | null> {
+export async function fetchCartWithItems(): Promise<{
+	success: boolean;
+	data: CartWithItems | null;
+}> {
 	try {
 		const user = await getCurrentBaseProfile();
-		if (!user) return null;
+		if (!user) return { success: true, data: null };
 
 		const cart = await db.query.carts.findFirst({
 			where: eq(carts.userId, user.id),
@@ -45,10 +48,10 @@ export async function fetchCartWithItems(): Promise<CartWithItems | null> {
 				},
 			},
 		});
-		return cart ?? null;
+		return { success: true, data: cart ?? null };
 	} catch (error) {
 		console.error(error);
-		return null;
+		return { success: false, data: null };
 	}
 }
 
@@ -111,15 +114,15 @@ export async function addToCart(
 export async function updateCartItemQuantity(
 	productId: number,
 	quantity: number,
-): Promise<void> {
+): Promise<{ success: boolean; error?: string }> {
 	try {
 		const user = await getCurrentBaseProfile();
-		if (!user) return;
+		if (!user) return { success: true };
 
 		const cart = await db.query.carts.findFirst({
 			where: eq(carts.userId, user.id),
 		});
-		if (!cart) return;
+		if (!cart) return { success: true };
 
 		const capped = Math.min(quantity, 5);
 
@@ -145,20 +148,24 @@ export async function updateCartItemQuantity(
 		}
 
 		revalidatePath("/store");
+		return { success: true };
 	} catch (error) {
 		console.error(error);
+		return { success: false, error: "No se pudo actualizar la cantidad" };
 	}
 }
 
-export async function removeFromCart(productId: number): Promise<void> {
+export async function removeFromCart(
+	productId: number,
+): Promise<{ success: boolean; error?: string }> {
 	try {
 		const user = await getCurrentBaseProfile();
-		if (!user) return;
+		if (!user) return { success: true };
 
 		const cart = await db.query.carts.findFirst({
 			where: eq(carts.userId, user.id),
 		});
-		if (!cart) return;
+		if (!cart) return { success: true };
 
 		await db
 			.delete(cartItems)
@@ -167,25 +174,29 @@ export async function removeFromCart(productId: number): Promise<void> {
 			);
 
 		revalidatePath("/store");
+		return { success: true };
 	} catch (error) {
 		console.error(error);
+		return { success: false, error: "No se pudo eliminar el producto del carrito" };
 	}
 }
 
-export async function clearCart(): Promise<void> {
+export async function clearCart(): Promise<{ success: boolean; error?: string }> {
 	try {
 		const user = await getCurrentBaseProfile();
-		if (!user) return;
+		if (!user) return { success: true };
 
 		const cart = await db.query.carts.findFirst({
 			where: eq(carts.userId, user.id),
 		});
-		if (!cart) return;
+		if (!cart) return { success: true };
 
 		await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));
 		revalidatePath("/store");
+		return { success: true };
 	} catch (error) {
 		console.error(error);
+		return { success: false, error: "No se pudo vaciar el carrito" };
 	}
 }
 

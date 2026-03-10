@@ -23,7 +23,7 @@ export default function StoreSubheader() {
 					variant="outline"
 					size="sm"
 					className="relative flex items-center gap-2"
-					aria-label="Abrir carrito"
+					aria-label={itemCount > 0 ? `Abrir carrito, ${itemCount > 9 ? "9+" : itemCount}` : "Abrir carrito"}
 					onClick={openCart}
 				>
 					<ShoppingCartIcon className="w-4 h-4" />

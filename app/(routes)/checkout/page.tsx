@@ -16,7 +16,7 @@ export default async function CheckoutPage() {
 	const user = await getCurrentUserProfile();
 	if (!user) redirect("/");
 
-	const cart = await fetchCartWithItems();
+	const { data: cart } = await fetchCartWithItems();
 	if (!cart || cart.items.length === 0) redirect("/store");
 
 	const presaleItems = cart.items.filter((i) => i.product.isPreOrder);
