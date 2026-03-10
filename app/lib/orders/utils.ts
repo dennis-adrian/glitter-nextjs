@@ -17,6 +17,8 @@ export function getOrderStatusLabel(status: OrderStatus): string {
 	switch (status) {
 		case "pending":
 			return "Por confirmar";
+		case "payment_verification":
+			return "Pago en verificación";
 		case "processing":
 			return "En proceso";
 		case "delivered":

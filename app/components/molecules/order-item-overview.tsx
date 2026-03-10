@@ -1,4 +1,5 @@
 import { Badge } from "@/app/components/ui/badge";
+import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { formatDate } from "@/app/lib/formatters";
 import { OrderItemWithRelations } from "@/app/lib/orders/definitions";
 import Image from "next/image";
@@ -8,25 +9,21 @@ export default function OrderItemOverview({
 }: {
 	item: OrderItemWithRelations;
 }) {
+	const mainImage = item.product.images.find((img) => img.isMain);
+	const imageUrl = mainImage?.imageUrl
+		? mainImage.imageUrl
+		: PLACEHOLDER_IMAGE_URLS["300"];
+
 	return (
 		<div className="flex gap-3">
 			<div className="relative">
-				{!item.product.imageUrl ? (
-					<Image
-						src="/img/placeholers/placeholder-300x300.png"
-						alt="imagen por defecto"
-						width={60}
-						height={70}
-					/>
-				) : (
-					<Image
-						className="rounded-md"
-						src={item.product.imageUrl}
-						alt="imagen del producto"
-						width={60}
-						height={60}
-					/>
-				)}
+				<Image
+					className="rounded-md"
+					src={imageUrl}
+					alt="imagen del producto"
+					width={60}
+					height={60}
+				/>
 				<Badge
 					variant="outline"
 					className="text-xs absolute -bottom-[2px] -right-[4px] bg-white rounded-full"

@@ -1,12 +1,18 @@
-import { CardContent } from "@/app/components/ui/card";
-import { Card } from "@/app/components/ui/card";
+import { BoxIcon } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { z } from "zod";
+
+import Heading from "@/app/components/atoms/heading";
+import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
+import { Button } from "@/app/components/ui/button";
+import { Card, CardContent } from "@/app/components/ui/card";
+import { formatDate } from "@/app/lib/formatters";
+import OrderDeliveryInfo from "@/app/components/molecules/order-delivery-info";
 import { fetchOrder } from "@/app/lib/orders/actions";
 import { OrderItemWithRelations } from "@/app/lib/orders/definitions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
-import { BoxIcon, CreditCardIcon, TruckIcon } from "lucide-react";
-import Image from "next/image";
-import { notFound } from "next/navigation";
-import { z } from "zod";
 
 const ParamsSchema = z.object({
 	profileId: z.coerce.number(),
@@ -32,21 +38,30 @@ export default async function UserOrderPage(props: {
 		return notFound();
 	}
 
+	const { profileId, orderId } = validatedParams.data;
+	const canPay = order.status === "pending";
+	const hasAvailableItems = order.orderItems.some(
+		(item: OrderItemWithRelations) => !item.product.isPreOrder,
+	);
+	const hasPresaleItems = order.orderItems.some(
+		(item: OrderItemWithRelations) => item.product.isPreOrder,
+	);
+
 	return (
 		<div className="container p-3 md:p-6">
-			<div className="bg-white rounded-xl shadow-xs border p-6 mb-8">
-				<div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-					<div>
-						<h1 className="text-2xl font-bold">Detalles del Pedido</h1>
-						<p className="text-gray-500">
-							Orden #{order.id} • Pedido realizado el{" "}
-							{order.orderDate?.toLocaleDateString()}
-						</p>
-					</div>
-				</div>
+			<div className="mb-4">
+				<Heading>Detalles del Pedido</Heading>
+				<p className="text-gray-500">
+					Orden #{order.id} • Pedido realizado el{" "}
+					{formatDate(order.createdAt).toLocaleString({
+						month: "long",
+						day: "numeric",
+						year: "numeric",
+					})}
+				</p>
 			</div>
-			<div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-				<div className="lg:col-span-2 space-y-8">
+			<div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-6">
+				<div className="lg:col-span-2 space-y-6">
 					{/* Order Items */}
 					<div className="bg-white rounded-xl shadow-xs border p-6">
 						<h2 className="text-lg font-semibold mb-4 flex items-center">
@@ -88,76 +103,39 @@ export default async function UserOrderPage(props: {
 							))}
 						</div>
 
-						<div className="mt-4 space-y-2">
-							{/* <div className="flex justify-between text-sm">
-								<span className="text-gray-500">Subtotal</span>
-								<span>
-									$
-									{order.orderItems
-										.reduce(
-											(acc: number, item: any) =>
-												acc + item.product.price * item.quantity,
-											0,
-										)
-										.toFixed(2)}
-								</span>
-							</div>
-							<div className="flex justify-between text-sm">
-								<span className="text-gray-500">Shipping</span>
-								<span>$0.00</span>
-							</div>
-							<div className="flex justify-between text-sm">
-								<span className="text-gray-500">Tax</span>
-								<span>$10.40</span>
-							</div> */}
-							<div className="flex justify-between font-medium text-lg pt-2 border-t mt-2">
-								<span>Total</span>
-								<span>Bs{order.totalAmount.toFixed(2)}</span>
-							</div>
+						<div className="flex justify-between font-medium text-lg pt-4 border-t mt-2">
+							<span>Total</span>
+							<span>Bs{order.totalAmount.toFixed(2)}</span>
 						</div>
 					</div>
 				</div>
 
-				<div className="space-y-8">
-					{/* Shipping Information */}
+				<div className="flex flex-col gap-3 md:gap-6">
+					{/* Status + Pay */}
 					<Card>
-						<CardContent className="p-6">
-							<h2 className="text-lg font-semibold mb-4 flex items-center">
-								<TruckIcon className="h-5 w-5 mr-2" />
-								Información de Entrega
-							</h2>
-							<p className="text-sm text-muted-foreground">
-								La entrega del pedido se realizará durante la entrega de
-								credenciales o en el próximo festival.
-							</p>
+						<CardContent className="p-6 space-y-4">
+							<div>
+								<p className="text-sm text-muted-foreground mb-2">Estado</p>
+								<OrderStatusBadge status={order.status} />
+							</div>
+							{canPay && (
+								<Button
+									asChild
+									className="w-full bg-purple-600 hover:bg-purple-700"
+								>
+									<Link href={`/profiles/${profileId}/orders/${orderId}/pay`}>
+										Pagar pedido
+									</Link>
+								</Button>
+							)}
 						</CardContent>
 					</Card>
 
-					{/* Payment Information */}
-					<Card>
-						<CardContent className="p-6">
-							<h2 className="text-lg font-semibold mb-4 flex items-center">
-								<CreditCardIcon className="h-5 w-5 mr-2" />
-								Información de Pago
-							</h2>
-							<div className="space-y-1">
-								{/* <p className="text-sm">
-									<span className="text-gray-500">Payment Method:</span>
-								</p> */}
-								{/* <p>{order.payment.method}</p> */}
-								<p className="text-sm text-muted-foreground">
-									Nos comunicaremos por WhatsApp para coordinar el pago del
-									pedido.
-								</p>
-							</div>
-							{/* <div className="mt-4 pt-4 border-t">
-								<div className="flex justify-between font-medium">
-									<span>Total Paid</span>
-									<span>${order.payment.total.toFixed(2)}</span>
-								</div>
-							</div> */}
-						</CardContent>
-					</Card>
+					{/* Delivery info */}
+					<OrderDeliveryInfo
+						hasAvailableItems={hasAvailableItems}
+						hasPresaleItems={hasPresaleItems}
+					/>
 				</div>
 			</div>
 		</div>
