@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
 	boolean,
+	check,
 	index,
 	integer,
 	jsonb,
@@ -1038,12 +1039,15 @@ export const products = pgTable("products", {
 export const productsRelations = relations(products, ({ many }) => ({
 	orderItems: many(orderItems),
 	images: many(productImages),
+	cartItems: many(cartItems),
 }));
 
 export const orderStatusEnum = pgEnum("order_status", [
 	/** Initial state when an order is first created but not yet processed/accepted */
 	"pending",
-	/** Order is currently being processed (e.g., being prepared for shipping) */
+	/** User has uploaded payment voucher; waiting for admin confirmation */
+	"payment_verification",
+	/** Order is currently being processed (legacy value, kept for backwards compat) */
 	"processing",
 	/** Order has been successfully paid for */
 	"paid",
@@ -1060,6 +1064,16 @@ export const orders = pgTable("orders", {
 	orderDate: timestamp("order_date").defaultNow(),
 	status: orderStatusEnum("status").default("pending").notNull(),
 	totalAmount: real("total_amount").notNull(),
+	paymentVoucherUrl: text("payment_voucher_url"),
+	paymentDueDate: timestamp("payment_due_date")
+		.notNull()
+		.default(sql`now() + interval '10 days'`),
+	paymentReminder1SentAt: timestamp("payment_reminder1_sent_at"),
+	paymentReminder2SentAt: timestamp("payment_reminder2_sent_at"),
+	paymentReminder3SentAt: timestamp("payment_reminder3_sent_at"),
+	paymentReminder1ClaimedAt: timestamp("payment_reminder1_claimed_at"),
+	paymentReminder2ClaimedAt: timestamp("payment_reminder2_claimed_at"),
+	paymentReminder3ClaimedAt: timestamp("payment_reminder3_claimed_at"),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -1098,6 +1112,49 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
 	}),
 	product: one(products, {
 		fields: [orderItems.productId],
+		references: [products.id],
+	}),
+}));
+
+export const carts = pgTable("carts", {
+	id: serial("id").primaryKey(),
+	userId: integer("user_id")
+		.notNull()
+		.unique()
+		.references(() => users.id, { onDelete: "cascade" }),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export const cartsRelations = relations(carts, ({ one, many }) => ({
+	user: one(users, { fields: [carts.userId], references: [users.id] }),
+	items: many(cartItems),
+}));
+
+export const cartItems = pgTable(
+	"cart_items",
+	{
+		id: serial("id").primaryKey(),
+		cartId: integer("cart_id")
+			.notNull()
+			.references(() => carts.id, { onDelete: "cascade" }),
+		productId: integer("product_id")
+			.notNull()
+			.references(() => products.id, { onDelete: "cascade" }),
+		quantity: integer("quantity").notNull().default(1),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(t) => [
+		index("cart_items_cart_id_idx").on(t.cartId),
+		index("cart_items_product_id_idx").on(t.productId),
+		unique("cart_items_cart_product_unique").on(t.cartId, t.productId),
+		check("cart_items_quantity_positive", sql`${t.quantity} > 0`),
+	],
+);
+export const cartItemsRelations = relations(cartItems, ({ one }) => ({
+	cart: one(carts, { fields: [cartItems.cartId], references: [carts.id] }),
+	product: one(products, {
+		fields: [cartItems.productId],
 		references: [products.id],
 	}),
 }));

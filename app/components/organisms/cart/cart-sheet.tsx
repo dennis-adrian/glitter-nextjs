@@ -1,0 +1,178 @@
+"use client";
+
+import {
+	Sheet,
+	SheetContent,
+	SheetHeader,
+	SheetTitle,
+} from "@/app/components/ui/sheet";
+import { useCart } from "@/app/components/providers/cart-provider";
+import { fetchCartWithItems, fetchCartItemCount } from "@/app/lib/cart/actions";
+import { getCartItemWarnings } from "@/app/lib/cart/utils";
+import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import { CartWithItems } from "@/app/lib/cart/definitions";
+import { BaseProfile } from "@/app/api/users/definitions";
+import CartItemRow from "@/app/components/organisms/cart/cart-item-row";
+import { Button } from "@/app/components/ui/button";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
+import { ShoppingCartIcon } from "lucide-react";
+import CartItemSkeleton from "./cart-item-skeleton";
+
+export default function CartSheet() {
+	const { isOpen, closeCart, setItemCount } = useCart();
+	const router = useRouter();
+	const [cartData, setCartData] = useState<CartWithItems | null>(null);
+	const [loading, setLoading] = useState(false);
+	const [refreshing, setRefreshing] = useState(false);
+	const [fetchError, setFetchError] = useState(false);
+	const fetchGenerationRef = useRef(0);
+
+	const loadCart = useCallback(
+		async (silent = false) => {
+			if (!silent) setLoading(true);
+			else setRefreshing(true);
+			setFetchError(false);
+
+			const generation = ++fetchGenerationRef.current;
+			try {
+				const result = await fetchCartWithItems();
+				if (generation === fetchGenerationRef.current) {
+					if (result.success) {
+						setCartData(result.data);
+						setFetchError(false);
+						setItemCount(
+							result.data?.items.reduce(
+								(sum, item) => sum + item.quantity,
+								0,
+							) ?? 0,
+						);
+					} else {
+						setFetchError(true);
+						toast.error("No se pudo cargar el carrito");
+					}
+				}
+			} catch {
+				if (generation === fetchGenerationRef.current) {
+					setFetchError(true);
+					toast.error("No se pudo cargar el carrito");
+				}
+			} finally {
+				if (!silent) setLoading(false);
+				else setRefreshing(false);
+			}
+		},
+		[setItemCount],
+	);
+
+	useEffect(() => {
+		if (isOpen) {
+			loadCart();
+		}
+	}, [isOpen, loadCart]);
+
+	// Sync count from server on mount to handle stale router cache
+	useEffect(() => {
+		fetchCartItemCount()
+			.then(setItemCount)
+			.catch(() => {
+				// Silently ignore – loadCart will surface errors when sheet opens
+				toast.error("No se pudo cargar el carrito");
+			});
+	}, [setItemCount]);
+
+	const hasWarnings = cartData?.items.some((item) => {
+		const w = getCartItemWarnings(item);
+		return w.isOutOfStock || w.quantityExceedsStock;
+	});
+
+	const total =
+		cartData?.items.reduce((sum, item) => {
+			return sum + getProductPriceAtPurchase(item.product) * item.quantity;
+		}, 0) ?? 0;
+
+	return (
+		<Sheet open={isOpen} onOpenChange={(open) => !open && closeCart()}>
+			<SheetContent
+				side="right"
+				className="flex flex-col w-full sm:max-w-md p-0"
+			>
+				<SheetHeader className="px-6 py-4 border-b">
+					<SheetTitle className="flex items-center gap-2">
+						<ShoppingCartIcon className="w-5 h-5" />
+						Tu carrito
+					</SheetTitle>
+				</SheetHeader>
+
+				{/* Cart items */}
+				<div className="flex-1 overflow-y-auto px-6">
+					{loading && (
+						<div>
+							<CartItemSkeleton />
+							<CartItemSkeleton />
+							<CartItemSkeleton />
+						</div>
+					)}
+
+					{!loading && fetchError && (
+						<div className="flex flex-col items-center justify-center h-full py-16 gap-3 text-muted-foreground">
+							<p className="text-sm">No se pudo cargar el carrito.</p>
+							<Button variant="outline" size="sm" onClick={() => loadCart()}>
+								Reintentar
+							</Button>
+						</div>
+					)}
+
+					{!loading &&
+						!fetchError &&
+						cartData &&
+						cartData.items.length === 0 && (
+							<div className="flex flex-col items-center justify-center h-full py-16 gap-3 text-muted-foreground">
+								<ShoppingCartIcon className="w-12 h-12 opacity-30" />
+								<p className="text-sm">Tu carrito está vacío</p>
+							</div>
+						)}
+
+					{!loading && !fetchError && cartData && cartData.items.length > 0 && (
+						<div>
+							{cartData.items.map((item) => (
+								<CartItemRow
+									key={item.id}
+									item={item}
+									onCartUpdate={() => loadCart(true)}
+								/>
+							))}
+						</div>
+					)}
+				</div>
+
+				{/* Footer */}
+				{!loading && !fetchError && cartData && cartData.items.length > 0 && (
+					<div className="px-6 py-4 border-t space-y-4">
+						{hasWarnings && (
+							<p className="text-xs text-amber-600">
+								Revisá tu carrito, algunos productos cambiaron de
+								disponibilidad.
+							</p>
+						)}
+						<div className="flex items-center justify-between font-semibold">
+							<span>Total</span>
+							<span>Bs {total.toFixed(2)}</span>
+						</div>
+						<Button
+							disabled={!!hasWarnings || refreshing}
+							className="w-full bg-primary hover:bg-primary/90"
+							onClick={() => {
+								closeCart();
+								router.push("/checkout");
+							}}
+						>
+							Proceder al pago
+						</Button>
+					</div>
+				)}
+			</SheetContent>
+		</Sheet>
+	);
+}

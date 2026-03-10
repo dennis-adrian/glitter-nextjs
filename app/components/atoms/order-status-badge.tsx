@@ -26,6 +26,16 @@ export default function OrderStatusBadge({ status }: OrderStatusBadgeProps) {
 					{statusLabel}
 				</Badge>
 			);
+		case "payment_verification":
+			return (
+				<Badge
+					variant="outline"
+					className="text-blue-600 border-blue-200 bg-blue-50 gap-1"
+				>
+					<CogIcon className="h-3 w-3" />
+					{statusLabel}
+				</Badge>
+			);
 		case "processing":
 			return (
 				<Badge

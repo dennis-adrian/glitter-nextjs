@@ -39,7 +39,8 @@ export default function SubmitProductOrderButton({
 			)}
 			disabled={disabled}
 			loading={loading}
-			label={`${product.isPreOrder ? "Quiero reservar" : "Hacer pedido"}`}
+			label="Agregar al carrito"
+			loadingLabel="Agregando..."
 		/>
 	);
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "orders" ADD COLUMN "payment_voucher_url" text;

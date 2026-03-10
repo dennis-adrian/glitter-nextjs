@@ -102,6 +102,30 @@ export const ourFileRouter = {
 			// !!! Whatever is returned here is sent to the clientside `onClientUploadComplete` callback
 			return { uploadedBy: metadata.userId };
 		}),
+	storeOrderPayment: f({ image: { maxFileSize: "4MB" } })
+		.middleware(async ({ req }) => {
+			const user = await currentUser();
+
+			if (!user) {
+				throw new UploadThingError("Debes iniciar sesión");
+			}
+
+			const profile = await fetchUserProfile(user.id);
+
+			if (!profile) {
+				throw new UploadThingError("Perfil no encontrado");
+			}
+
+			return { profile };
+		})
+		.onUploadComplete(({ metadata, file }) => {
+			return {
+				results: {
+					profileId: metadata.profile.id,
+					imageUrl: (file as { url: string }).url,
+				},
+			};
+		}),
 	festivalActivityParticipantProof: f({
 		image: { maxFileSize: "4MB", maxFileCount: 5, minFileCount: 1 },
 	})

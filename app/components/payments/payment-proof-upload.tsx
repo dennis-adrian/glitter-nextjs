@@ -1,81 +1,142 @@
 "use client";
 
-import { toast } from "sonner";
-import { UploadButton } from "@/app/vendors/uploadthing";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Loader2Icon } from "lucide-react";
-import "./styles.css";
+import { Loader2Icon, UploadIcon } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/app/components/ui/button";
+import { useUploadThing } from "@/app/vendors/uploadthing";
 
 export default function PaymentProofUpload({
-  voucherImageUrl,
-  onUploadComplete,
-  onUploading,
+	voucherImageUrl,
+	onUploadComplete,
+	onUploading,
+	endpoint = "reservationPayment",
 }: {
-  voucherImageUrl?: string;
-  onUploadComplete: (imageUrl: string) => void;
-  onUploading: (isUploading: boolean) => void;
+	voucherImageUrl?: string;
+	onUploadComplete: (imageUrl: string) => Promise<void> | void;
+	onUploading: (isUploading: boolean) => void;
+	endpoint?: "reservationPayment" | "storeOrderPayment";
 }) {
-  return (
-    <div className="flex flex-col gap-4">
-      {voucherImageUrl ? (
-        <Image
-          className="mx-auto"
-          src={voucherImageUrl}
-          alt="comprobante de pago"
-          width={300}
-          height={400}
-        />
-      ) : (
-        <div className="h-[200px] w-[200px] p-4 border border-dashed mx-auto flex justify-center items-center">
-          <p className="text-xs text-muted-foreground text-center">
-            Haz clic en el botón para subir el comprobante
-          </p>
-        </div>
-      )}
-      <UploadButton
-        endpoint="reservationPayment"
-        onUploadBegin={() => {
-          onUploading(true);
-        }}
-        onClientUploadComplete={async (res) => {
-          onUploading(false);
-          const { results } = res[0].serverData;
-          if (!results.imageUrl) {
-            toast.error("Error al subir el comprobante");
-            return;
-          }
+	const [selectedFile, setSelectedFile] = useState<File | null>(null);
+	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+	const [isUploading, setIsUploading] = useState(false);
+	const fileInputRef = useRef<HTMLInputElement>(null);
 
-          onUploadComplete(results.imageUrl);
-        }}
-        content={{
-          button({ ready, isUploading, uploadProgress }) {
-            if (isUploading && uploadProgress === 100) {
-              return (
-                <Loader2Icon className="w-4 h-4 text-primary-500 animate-spin" />
-              );
-            }
-            if (isUploading) return <div>{uploadProgress}%</div>;
-            if (ready) return <div>Elige una imagen</div>;
-            return "Cargando...";
-          },
-          allowedContent({ ready, isUploading }) {
-            if (!ready) return null;
-            if (isUploading) return "Subiendo imagen...";
-            return "Imagen hasta 4MB";
-          },
-        }}
-        appearance={{
-          button: ({ ready, isUploading }) => {
-            if (!ready) {
-              return "bg-transparent text-xs text-muted-foreground border";
-            }
-            if (isUploading) {
-              return "bg-transparent text-xs text-muted-foreground border after:bg-primary-400/60";
-            }
-            return "ut-button bg-transparent text-xs text-purple-700 border border-primary-500 hover:text-primary-500 hover:bg-primary-200/20 hover:border-primary-500";
-          },
-        }}
-      />
-    </div>
-  );
+	const { startUpload } = useUploadThing(endpoint);
+
+	useEffect(() => {
+		return () => {
+			if (previewUrl) URL.revokeObjectURL(previewUrl);
+		};
+	}, [previewUrl]);
+
+	const handleFileChange = useCallback(
+		(file: File) => {
+			if (previewUrl) URL.revokeObjectURL(previewUrl);
+			setSelectedFile(file);
+			setPreviewUrl(URL.createObjectURL(file));
+		},
+		[previewUrl],
+	);
+
+	async function handleConfirm() {
+		if (!selectedFile) return;
+		setIsUploading(true);
+		onUploading(true);
+		try {
+			const res = await startUpload([selectedFile]);
+			if (!res || !res[0]) {
+				toast.error("Error al subir el comprobante. Intentá de nuevo.");
+				return;
+			}
+			const imageUrl = res[0].serverData?.results?.imageUrl;
+			if (!imageUrl) {
+				toast.error("Error al subir el comprobante. Intentá de nuevo.");
+				return;
+			}
+			await onUploadComplete(imageUrl);
+		} catch {
+			toast.error("Error al subir el comprobante. Intentá de nuevo.");
+		} finally {
+			setIsUploading(false);
+			onUploading(false);
+		}
+	}
+
+	if (voucherImageUrl) {
+		return (
+			<Image
+				className="mx-auto rounded-md border"
+				src={voucherImageUrl}
+				alt="Comprobante de pago"
+				width={300}
+				height={400}
+			/>
+		);
+	}
+
+	return (
+		<div className="flex flex-col gap-3">
+			<input
+				ref={fileInputRef}
+				type="file"
+				accept="image/*"
+				className="hidden"
+				onChange={(e) => {
+					const file = e.target.files?.[0];
+					if (file) handleFileChange(file);
+				}}
+			/>
+
+			{previewUrl ? (
+				<div className="flex flex-col gap-3">
+					<Image
+						src={previewUrl}
+						alt="Vista previa del comprobante"
+						width={260}
+						height={340}
+						className="mx-auto rounded-md border object-cover"
+					/>
+					<button
+						type="button"
+						onClick={() => fileInputRef.current?.click()}
+						disabled={isUploading}
+						className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors text-center disabled:pointer-events-none"
+					>
+						Cambiar imagen
+					</button>
+				</div>
+			) : (
+				<button
+					type="button"
+					onClick={() => fileInputRef.current?.click()}
+					className="flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg p-8 text-center border-primary-300 hover:bg-primary-50/50 transition-colors cursor-pointer"
+				>
+					<UploadIcon className="h-8 w-8 text-muted-foreground/50" />
+					<span className="text-sm font-medium text-muted-foreground">
+						Presioná o haz clic para elegir una imagen
+					</span>
+					<span className="text-xs text-muted-foreground/70">
+						JPG, PNG o HEIC — hasta 4MB
+					</span>
+				</button>
+			)}
+
+			<Button
+				onClick={handleConfirm}
+				disabled={!selectedFile || isUploading}
+				className="w-full bg-primary hover:bg-primary/90"
+			>
+				{isUploading ? (
+					<span className="flex items-center gap-2">
+						<Loader2Icon className="h-4 w-4 animate-spin" />
+						Subiendo...
+					</span>
+				) : (
+					"Confirmar pago"
+				)}
+			</Button>
+		</div>
+	);
 }

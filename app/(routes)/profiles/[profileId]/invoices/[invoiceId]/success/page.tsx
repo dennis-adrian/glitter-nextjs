@@ -40,9 +40,8 @@ export default async function UserInvoicesPage(props: {
 						horas.
 					</p>
 				</div>
-				<Suspense fallback={<div>Loading...</div>}>
+				<Suspense fallback={<div>Cargando...</div>}>
 					<InvoicePaymentSuccess
-						profile={currentUser!}
 						invoicePromise={invoicePromise}
 						productsPromise={productsPromise}
 					/>

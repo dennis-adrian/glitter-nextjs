@@ -255,13 +255,16 @@ export default function EnrollRedirectButton({
 											/>
 											<SubmitButton
 												disabled={
-													(!isEnabled && currentProfile.role !== "admin") ||
 													form.formState.isSubmitting ||
 													form.formState.isSubmitSuccessful
 												}
 												loading={form.formState.isSubmitting}
 												loadingLabel="Inscribiendo..."
-												label="Inscribirme"
+												label={
+													form.formState.isSubmitting
+														? "Inscribiendo..."
+														: "Inscribirme"
+												}
 											/>
 										</form>
 									</Form>

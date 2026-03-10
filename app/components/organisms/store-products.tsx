@@ -1,8 +1,7 @@
-import { BaseProfile } from "@/app/api/users/definitions";
 import StoreItemCard from "@/app/components/molecules/store-item-card";
 import { fetchProducts } from "@/app/lib/products/actions";
 
-export default async function StoreProducts({ user }: { user?: BaseProfile }) {
+export default async function StoreProducts() {
 	const products = await fetchProducts();
 
 	if (products.length === 0) {
@@ -19,9 +18,9 @@ export default async function StoreProducts({ user }: { user?: BaseProfile }) {
 	}
 
 	return (
-		<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+		<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-start">
 			{products.map((product) => (
-				<StoreItemCard key={product.id} product={product} user={user} />
+				<StoreItemCard key={product.id} product={product} />
 			))}
 		</div>
 	);
