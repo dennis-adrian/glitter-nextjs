@@ -5,13 +5,16 @@ import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-hea
 import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
 import { formatDate } from "@/app/lib/formatters";
 import { OrderWithRelations } from "@/app/lib/orders/definitions";
+import { cn } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
+import { AlertTriangleIcon } from "lucide-react";
 import { DateTime } from "luxon";
 
 export const columnTitles = {
 	id: "ID",
 	customer: "Cliente",
 	createdAt: "Fecha de creación",
+	paymentDueDate: "Fecha límite de pago",
 	items: "Artículos",
 	status: "Estado",
 	total: "Total",
@@ -102,6 +105,34 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
 					{formatDate(row.original.createdAt).toLocaleString(
 						DateTime.DATETIME_MED_WITH_WEEKDAY,
 					)}
+				</span>
+			);
+		},
+	},
+	{
+		accessorKey: "paymentDueDate",
+		header: ({ column }) => (
+			<DataTableColumnHeader
+				column={column}
+				title={columnTitles.paymentDueDate}
+			/>
+		),
+		cell: ({ row }) => {
+			const { paymentDueDate, status } = row.original;
+			const isOverdue =
+				new Date(paymentDueDate) < new Date() &&
+				(status === "pending" || status === "payment_verification");
+			return (
+				<span
+					className={cn(
+						"flex items-center gap-1 capitalize",
+						isOverdue && "font-medium text-red-600",
+					)}
+				>
+					{isOverdue && (
+						<AlertTriangleIcon className="h-3 w-3 shrink-0" />
+					)}
+					{formatDate(paymentDueDate).toLocaleString(DateTime.DATE_MED)}
 				</span>
 			);
 		},

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function OrdersPage() {
+export default function StorePage() {
 	redirect("/dashboard/store/orders");
 }

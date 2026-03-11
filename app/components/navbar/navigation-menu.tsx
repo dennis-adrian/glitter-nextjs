@@ -18,6 +18,7 @@ import {
   CalendarCheck2Icon,
   HomeIcon,
   LayoutDashboardIcon,
+  PackageIcon,
   StoreIcon,
 } from "lucide-react";
 import { NavbarProfile } from "../../api/users/definitions";
@@ -136,10 +137,10 @@ const NavbarNavigationMenu = ({
 									Festivales que han sido organizados por Glitter
 								</NavigationMenuListItem>
 								<NavigationMenuListItem
-									title="Pedidos"
-									href="/dashboard/orders"
+									title="Tienda"
+									href="/dashboard/store/orders"
 								>
-									Reservas de lanyards
+									Gestiona pedidos y productos de la tienda
 								</NavigationMenuListItem>
 								<NavigationMenuListItem
 									title="Subcategorías"

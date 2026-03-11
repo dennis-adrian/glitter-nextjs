@@ -1,8 +1,99 @@
 "use server";
 
 import { db } from "@/db";
-import { desc, sql } from "drizzle-orm";
-import { products } from "@/db/schema";
+import { asc, desc, eq, lte, sql } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { productImages, products } from "@/db/schema";
+
+type NewProductData = {
+	name: string;
+	description?: string | null;
+	price: number;
+	stock?: number | null;
+	status?: "available" | "presale" | "sale";
+	discount?: number | null;
+	discountUnit?: "percentage" | "amount";
+	isPreOrder?: boolean;
+	availableDate?: Date | null;
+	isFeatured?: boolean;
+	isNew?: boolean;
+	imageUrls?: string[];
+	mainImageUrl?: string | null;
+};
+
+export async function createProduct(data: NewProductData) {
+	const { imageUrls, mainImageUrl, ...productData } = data;
+	try {
+		const [product] = await db
+			.insert(products)
+			.values(productData)
+			.returning();
+
+		if (imageUrls && imageUrls.length > 0) {
+			await db.insert(productImages).values(
+				imageUrls.map((url) => ({
+					productId: product.id,
+					imageUrl: url,
+					isMain: url === mainImageUrl,
+				})),
+			);
+		}
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "No se pudo crear el producto." };
+	}
+
+	revalidatePath("/dashboard/store/products");
+	revalidatePath("/store");
+	return { success: true, message: "Producto creado correctamente." };
+}
+
+export async function updateProduct(id: number, data: NewProductData) {
+	const { imageUrls, mainImageUrl, ...productData } = data;
+	try {
+		await db
+			.update(products)
+			.set({ ...productData, updatedAt: new Date() })
+			.where(eq(products.id, id));
+
+		if (imageUrls !== undefined) {
+			await db
+				.delete(productImages)
+				.where(eq(productImages.productId, id));
+
+			if (imageUrls.length > 0) {
+				await db.insert(productImages).values(
+					imageUrls.map((url) => ({
+						productId: id,
+						imageUrl: url,
+						isMain: url === mainImageUrl,
+					})),
+				);
+			}
+		}
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "No se pudo actualizar el producto." };
+	}
+
+	revalidatePath("/dashboard/store/products");
+	revalidatePath(`/store/products/${id}`);
+	revalidatePath("/store");
+	return { success: true, message: "Producto actualizado correctamente." };
+}
+
+export async function deleteProduct(id: number) {
+	try {
+		await db.delete(products).where(eq(products.id, id));
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "No se pudo eliminar el producto." };
+	}
+
+	revalidatePath("/dashboard/store/products");
+	revalidatePath("/store");
+	return { success: true, message: "Producto eliminado correctamente." };
+}
 
 /**
  * Product fetchers use safe fallbacks on error: they do not throw.
@@ -40,6 +131,19 @@ export async function fetchProduct(id: number) {
 	} catch (error) {
 		console.error(error);
 		return null;
+	}
+}
+
+export async function fetchLowStockProducts(threshold = 5) {
+	try {
+		return await db
+			.select()
+			.from(products)
+			.where(lte(products.stock, threshold))
+			.orderBy(asc(products.stock));
+	} catch (error) {
+		console.error(error);
+		return [];
 	}
 }
 

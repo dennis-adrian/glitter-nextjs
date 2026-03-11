@@ -345,7 +345,7 @@ export async function acceptOrder(orderId: number) {
 		};
 	}
 
-	revalidatePath("/dashboard/orders");
+	revalidatePath("/dashboard/store/orders");
 	return {
 		success: true,
 		message: "Orden aceptada correctamente.",
@@ -363,7 +363,7 @@ export async function deleteOrder(orderId: number) {
 		};
 	}
 
-	revalidatePath("/dashboard/orders");
+	revalidatePath("/dashboard/store/orders");
 	return {
 		success: true,
 		message: "Orden eliminada correctamente.",
@@ -381,7 +381,7 @@ export async function updateOrderStatus(orderId: number, status: OrderStatus) {
 		};
 	}
 
-	revalidatePath("/dashboard/orders");
+	revalidatePath("/dashboard/store/orders");
 	return {
 		success: true,
 		message: "Pedido actualizado correctamente.",
@@ -438,12 +438,55 @@ export async function submitOrderPaymentVoucher(
 		}
 
 		revalidatePath(`/profiles/${order.userId}/orders/${orderId}`);
-		revalidatePath("/dashboard/orders");
+		revalidatePath("/dashboard/store/orders");
 
 		return { success: true, message: "Comprobante enviado correctamente." };
 	} catch (error) {
 		console.error(error);
 		return { success: false, message: "No se pudo enviar el comprobante." };
+	}
+}
+
+export type OrdersStats = {
+	totalOrders: number;
+	totalRevenue: number;
+	needsAttention: number;
+	inProgress: number;
+	delivered: number;
+	cancelled: number;
+};
+
+export async function fetchOrdersStats(): Promise<OrdersStats> {
+	try {
+		const [result] = await db
+			.select({
+				totalOrders: sql<number>`cast(count(*) as integer)`,
+				totalRevenue: sql<number>`cast(coalesce(sum(${orders.totalAmount}) filter (where ${orders.status} in ('paid', 'delivered')), 0) as real)`,
+				needsAttention: sql<number>`cast(count(*) filter (where ${orders.status} in ('pending', 'payment_verification')) as integer)`,
+				inProgress: sql<number>`cast(count(*) filter (where ${orders.status} = 'processing') as integer)`,
+				delivered: sql<number>`cast(count(*) filter (where ${orders.status} = 'delivered') as integer)`,
+				cancelled: sql<number>`cast(count(*) filter (where ${orders.status} = 'cancelled') as integer)`,
+			})
+			.from(orders);
+
+		return {
+			totalOrders: result.totalOrders ?? 0,
+			totalRevenue: result.totalRevenue ?? 0,
+			needsAttention: result.needsAttention ?? 0,
+			inProgress: result.inProgress ?? 0,
+			delivered: result.delivered ?? 0,
+			cancelled: result.cancelled ?? 0,
+		};
+	} catch (error) {
+		console.error(error);
+		return {
+			totalOrders: 0,
+			totalRevenue: 0,
+			needsAttention: 0,
+			inProgress: 0,
+			delivered: 0,
+			cancelled: 0,
+		};
 	}
 }
 

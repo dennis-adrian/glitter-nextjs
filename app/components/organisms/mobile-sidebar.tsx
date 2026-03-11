@@ -24,6 +24,7 @@ import {
 	CreditCardIcon,
 	HomeIcon,
 	LogOutIcon,
+	PackageIcon,
 	ShirtIcon,
 	StickerIcon,
 	StoreIcon,
@@ -132,10 +133,20 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 									<CreditCardIcon className="mr-2 h-6 w-6" />
 									Pagos
 								</MobileSidebarItem>
-								<MobileSidebarItem href="/dashboard/orders">
-									<ShirtIcon className="mr-2 h-6 w-6" />
-									Pedidos
+								<MobileSidebarItem href="/dashboard/store/orders">
+									<StoreIcon className="mr-2 h-6 w-6" />
+									Tienda
 								</MobileSidebarItem>
+								<div className="ml-4">
+									<MobileSidebarItem href="/dashboard/store/orders">
+										<ShirtIcon className="mr-2 h-6 w-6" />
+										Pedidos
+									</MobileSidebarItem>
+									<MobileSidebarItem href="/dashboard/store/products">
+										<PackageIcon className="mr-2 h-6 w-6" />
+										Productos
+									</MobileSidebarItem>
+								</div>
 								<MobileSidebarItem href="/dashboard/festivals">
 									<CalendarIcon className="mr-2 h-6 w-6" />
 									Festivales
