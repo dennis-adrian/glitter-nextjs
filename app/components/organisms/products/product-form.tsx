@@ -82,7 +82,8 @@ export default function ProductForm({ product }: ProductFormProps) {
 			price: String(product?.price ?? 0),
 			stock: String(product?.stock ?? 0),
 			status: product?.status ?? "available",
-			discount: product?.discount !== undefined ? String(product.discount) : "0",
+			discount:
+				product?.discount !== undefined ? String(product.discount) : "0",
 			discountUnit: product?.discountUnit ?? "percentage",
 			isPreOrder: product?.isPreOrder ?? false,
 			availableDate: product?.availableDate
@@ -120,6 +121,18 @@ export default function ProductForm({ product }: ProductFormProps) {
 
 		if (validFiles.length === 0) return;
 
+		const remainingSlots = MAX_IMAGE_COUNT - images.length;
+		if (remainingSlots <= 0) {
+			toast.error(`Ya tienes el máximo de ${MAX_IMAGE_COUNT} imágenes.`);
+			return;
+		}
+		if (validFiles.length > remainingSlots) {
+			toast.warning(
+				`Solo se agregarán ${remainingSlots} imagen(es). Límite: ${MAX_IMAGE_COUNT}.`,
+			);
+			validFiles.splice(remainingSlots);
+		}
+
 		const newImages: ImageItem[] = validFiles.map((file, i) => ({
 			url: URL.createObjectURL(file),
 			isMain: images.length === 0 && i === 0,
@@ -134,7 +147,9 @@ export default function ProductForm({ product }: ProductFormProps) {
 	}
 
 	function setMain(url: string) {
-		setImages((prev) => prev.map((img) => ({ ...img, isMain: img.url === url })));
+		setImages((prev) =>
+			prev.map((img) => ({ ...img, isMain: img.url === url })),
+		);
 		setHasImageChanges(true);
 	}
 
@@ -175,7 +190,10 @@ export default function ProductForm({ product }: ProductFormProps) {
 			resolvedImages = [...resolvedImages, ...uploadedImages];
 		}
 
-		if (resolvedImages.length > 0 && !resolvedImages.some((img) => img.isMain)) {
+		if (
+			resolvedImages.length > 0 &&
+			!resolvedImages.some((img) => img.isMain)
+		) {
 			resolvedImages[0].isMain = true;
 		}
 
@@ -375,7 +393,12 @@ export default function ProductForm({ product }: ProductFormProps) {
 							<span>Sin imágenes</span>
 						</div>
 					)}
-					<label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-fit")}>
+					<label
+						className={cn(
+							buttonVariants({ variant: "outline" }),
+							"cursor-pointer w-fit",
+						)}
+					>
 						<ImagePlusIcon className="h-4 w-4 mr-2" />
 						Seleccionar imágenes
 						<input
@@ -387,12 +410,13 @@ export default function ProductForm({ product }: ProductFormProps) {
 						/>
 					</label>
 					<p className="text-xs text-muted-foreground">
-						Máximo {MAX_IMAGE_SIZE_MB}MB por imagen · hasta {MAX_IMAGE_COUNT} imágenes
+						Máximo {MAX_IMAGE_SIZE_MB}MB por imagen · hasta {MAX_IMAGE_COUNT}{" "}
+						imágenes
 					</p>
 				</div>
 
 				<div className="fixed bottom-0 left-0 right-0 border-t bg-background p-4 md:static md:border-0 md:bg-transparent md:p-0">
-					<div className="flex gap-2 max-w-screen-xl mx-auto">
+					<div className="flex gap-2 max-w-7xl mx-auto">
 						<Button
 							type="button"
 							variant="outline"

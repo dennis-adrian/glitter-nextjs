@@ -38,17 +38,19 @@ export async function createProduct(data: NewProductData) {
 		);
 	}
 	try {
-		const [product] = await db.insert(products).values(productData).returning();
+		await db.transaction(async (tx) => {
+			const [product] = await tx.insert(products).values(productData).returning();
 
-		if (imageUrls && imageUrls.length > 0) {
-			await db.insert(productImages).values(
-				imageUrls.map((url) => ({
-					productId: product.id,
-					imageUrl: url,
-					isMain: url === mainImageUrl,
-				})),
-			);
-		}
+			if (imageUrls && imageUrls.length > 0) {
+				await tx.insert(productImages).values(
+					imageUrls.map((url) => ({
+						productId: product.id,
+						imageUrl: url,
+						isMain: url === mainImageUrl,
+					})),
+				);
+			}
+		});
 	} catch (error) {
 		console.error(error);
 		return { success: false, message: "No se pudo crear el producto." };
@@ -67,24 +69,26 @@ export async function updateProduct(id: number, data: NewProductData) {
 		);
 	}
 	try {
-		await db
-			.update(products)
-			.set({ ...productData, updatedAt: new Date() })
-			.where(eq(products.id, id));
+		await db.transaction(async (tx) => {
+			await tx
+				.update(products)
+				.set({ ...productData, updatedAt: new Date() })
+				.where(eq(products.id, id));
 
-		if (imageUrls !== undefined) {
-			await db.delete(productImages).where(eq(productImages.productId, id));
+			if (imageUrls !== undefined) {
+				await tx.delete(productImages).where(eq(productImages.productId, id));
 
-			if (imageUrls.length > 0) {
-				await db.insert(productImages).values(
-					imageUrls.map((url) => ({
-						productId: id,
-						imageUrl: url,
-						isMain: url === mainImageUrl,
-					})),
-				);
+				if (imageUrls.length > 0) {
+					await tx.insert(productImages).values(
+						imageUrls.map((url) => ({
+							productId: id,
+							imageUrl: url,
+							isMain: url === mainImageUrl,
+						})),
+					);
+				}
 			}
-		}
+		});
 	} catch (error) {
 		console.error(error);
 		return { success: false, message: "No se pudo actualizar el producto." };
