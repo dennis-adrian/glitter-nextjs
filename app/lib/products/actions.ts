@@ -21,13 +21,24 @@ type NewProductData = {
 	mainImageUrl?: string | null;
 };
 
+function normalizeAvailableDate(
+	date: Date | null | undefined,
+): Date | null | undefined {
+	if (!date) return date;
+	const d = new Date(date);
+	d.setUTCHours(12, 0, 0, 0);
+	return d;
+}
+
 export async function createProduct(data: NewProductData) {
 	const { imageUrls, mainImageUrl, ...productData } = data;
+	if (productData.availableDate) {
+		productData.availableDate = normalizeAvailableDate(
+			productData.availableDate,
+		);
+	}
 	try {
-		const [product] = await db
-			.insert(products)
-			.values(productData)
-			.returning();
+		const [product] = await db.insert(products).values(productData).returning();
 
 		if (imageUrls && imageUrls.length > 0) {
 			await db.insert(productImages).values(
@@ -50,6 +61,11 @@ export async function createProduct(data: NewProductData) {
 
 export async function updateProduct(id: number, data: NewProductData) {
 	const { imageUrls, mainImageUrl, ...productData } = data;
+	if (productData.availableDate) {
+		productData.availableDate = normalizeAvailableDate(
+			productData.availableDate,
+		);
+	}
 	try {
 		await db
 			.update(products)
@@ -57,9 +73,7 @@ export async function updateProduct(id: number, data: NewProductData) {
 			.where(eq(products.id, id));
 
 		if (imageUrls !== undefined) {
-			await db
-				.delete(productImages)
-				.where(eq(productImages.productId, id));
+			await db.delete(productImages).where(eq(productImages.productId, id));
 
 			if (imageUrls.length > 0) {
 				await db.insert(productImages).values(

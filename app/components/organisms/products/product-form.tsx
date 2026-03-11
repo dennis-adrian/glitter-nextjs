@@ -5,14 +5,15 @@ import SelectInput from "@/app/components/form/fields/select";
 import TextInput from "@/app/components/form/fields/text";
 import TextareaInput from "@/app/components/form/fields/textarea";
 import SubmitButton from "@/app/components/simple-submit-button";
-import { Button } from "@/app/components/ui/button";
+import { Button, buttonVariants } from "@/app/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Form, FormLabel } from "@/app/components/ui/form";
 import { Switch } from "@/app/components/ui/switch";
-import { UploadButton } from "@/app/vendors/uploadthing";
+import { useUploadThing } from "@/app/vendors/uploadthing";
 import { createProduct, updateProduct } from "@/app/lib/products/actions";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ImageIcon, StarIcon, Trash2Icon, XIcon } from "lucide-react";
+import { ImageIcon, ImagePlusIcon, StarIcon, XIcon } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -40,9 +41,14 @@ const FormSchema = z.object({
 	isNew: z.boolean(),
 });
 
+const MAX_IMAGE_SIZE_MB = 4;
+const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
+const MAX_IMAGE_COUNT = 10;
+
 type ImageItem = {
-	url: string;
+	url: string; // CDN URL for uploaded images, blob URL for pending
 	isMain: boolean;
+	file?: File; // present only for locally-selected (not yet uploaded) images
 };
 
 type ProductFormProps = {
@@ -60,7 +66,9 @@ export default function ProductForm({ product }: ProductFormProps) {
 		})) ?? [];
 
 	const [images, setImages] = useState<ImageItem[]>(initialImages);
-	const [isUploading, setIsUploading] = useState(false);
+	const [hasImageChanges, setHasImageChanges] = useState(false);
+
+	const { startUpload } = useUploadThing("productImage");
 
 	const form = useForm<
 		z.input<typeof FormSchema>,
@@ -87,33 +95,98 @@ export default function ProductForm({ product }: ProductFormProps) {
 
 	const isPreOrder = form.watch("isPreOrder");
 
+	function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+		const files = Array.from(e.target.files ?? []);
+		if (files.length === 0) return;
+
+		const validFiles: File[] = [];
+		const oversizedNames: string[] = [];
+
+		for (const file of files) {
+			if (file.size > MAX_IMAGE_SIZE_BYTES) {
+				oversizedNames.push(file.name);
+			} else {
+				validFiles.push(file);
+			}
+		}
+
+		if (oversizedNames.length > 0) {
+			toast.error(
+				`${oversizedNames.length === 1 ? "La imagen" : "Las imágenes"} ${oversizedNames.join(", ")} ${oversizedNames.length === 1 ? "supera" : "superan"} el límite de ${MAX_IMAGE_SIZE_MB}MB.`,
+			);
+		}
+
+		e.target.value = "";
+
+		if (validFiles.length === 0) return;
+
+		const newImages: ImageItem[] = validFiles.map((file, i) => ({
+			url: URL.createObjectURL(file),
+			isMain: images.length === 0 && i === 0,
+			file,
+		}));
+		setImages((prev) => {
+			const combined = [...prev, ...newImages];
+			if (!combined.some((img) => img.isMain)) combined[0].isMain = true;
+			return combined;
+		});
+		setHasImageChanges(true);
+	}
+
 	function setMain(url: string) {
-		setImages((prev) =>
-			prev.map((img) => ({ ...img, isMain: img.url === url })),
-		);
+		setImages((prev) => prev.map((img) => ({ ...img, isMain: img.url === url })));
+		setHasImageChanges(true);
 	}
 
 	function removeImage(url: string) {
 		setImages((prev) => {
+			const target = prev.find((img) => img.url === url);
+			if (target?.file) URL.revokeObjectURL(target.url);
 			const next = prev.filter((img) => img.url !== url);
-			// if we removed the main image, set first as main
 			if (next.length > 0 && !next.some((img) => img.isMain)) {
 				next[0].isMain = true;
 			}
 			return next;
 		});
+		setHasImageChanges(true);
 	}
 
 	const action = form.handleSubmit(async (data) => {
-		const imageUrls = images.map((img) => img.url);
-		const mainImageUrl =
-			images.find((img) => img.isMain)?.url ?? imageUrls[0] ?? null;
+		// 1. Upload any locally-selected (pending) images
+		const pendingImages = images.filter((img) => !!img.file);
+		let resolvedImages = images.filter((img) => !img.file);
 
+		if (pendingImages.length > 0) {
+			const uploadResult = await startUpload(
+				pendingImages.map((img) => img.file!),
+			);
+
+			if (!uploadResult) {
+				toast.error("Error al subir las imágenes");
+				return;
+			}
+
+			const uploadedImages = uploadResult.map((res, i) => ({
+				url: res.serverData.imageUrl,
+				isMain: pendingImages[i].isMain,
+			}));
+
+			pendingImages.forEach((img) => URL.revokeObjectURL(img.url));
+			resolvedImages = [...resolvedImages, ...uploadedImages];
+		}
+
+		if (resolvedImages.length > 0 && !resolvedImages.some((img) => img.isMain)) {
+			resolvedImages[0].isMain = true;
+		}
+
+		const imageUrls = resolvedImages.map((img) => img.url);
+		const mainImageUrl =
+			resolvedImages.find((img) => img.isMain)?.url ?? imageUrls[0] ?? null;
+
+		// 2. Save product
 		const payload = {
 			...data,
-			availableDate: data.availableDate
-				? new Date(data.availableDate)
-				: null,
+			availableDate: data.availableDate ? new Date(data.availableDate) : null,
 			imageUrls,
 			mainImageUrl,
 		};
@@ -208,9 +281,7 @@ export default function ProductForm({ product }: ProductFormProps) {
 							checked={isPreOrder}
 							onCheckedChange={(v) => form.setValue("isPreOrder", v)}
 						/>
-						<FormLabel htmlFor="isPreOrder">
-							Es pre-venta
-						</FormLabel>
+						<FormLabel htmlFor="isPreOrder">Es pre-venta</FormLabel>
 					</div>
 					{isPreOrder && (
 						<DateInput
@@ -225,9 +296,7 @@ export default function ProductForm({ product }: ProductFormProps) {
 							checked={form.watch("isFeatured")}
 							onCheckedChange={(v) => form.setValue("isFeatured", v)}
 						/>
-						<FormLabel htmlFor="isFeatured">
-							Producto destacado
-						</FormLabel>
+						<FormLabel htmlFor="isFeatured">Producto destacado</FormLabel>
 					</div>
 					<div className="flex items-center gap-3">
 						<Switch
@@ -235,9 +304,7 @@ export default function ProductForm({ product }: ProductFormProps) {
 							checked={form.watch("isNew")}
 							onCheckedChange={(v) => form.setValue("isNew", v)}
 						/>
-						<FormLabel htmlFor="isNew">
-							Producto nuevo
-						</FormLabel>
+						<FormLabel htmlFor="isNew">Producto nuevo</FormLabel>
 					</div>
 				</div>
 
@@ -250,14 +317,23 @@ export default function ProductForm({ product }: ProductFormProps) {
 									<div
 										className={`relative aspect-square rounded-md overflow-hidden border-2 ${img.isMain ? "border-primary" : "border-transparent"}`}
 									>
-										<Image
-											src={img.url}
-											alt="Imagen del producto"
-											fill
-											className="object-cover"
-										/>
+										{img.file ? (
+											// eslint-disable-next-line @next/next/no-img-element
+											<img
+												src={img.url}
+												alt="Imagen del producto"
+												className="object-cover w-full h-full"
+											/>
+										) : (
+											<Image
+												src={img.url}
+												alt="Imagen del producto"
+												fill
+												className="object-cover"
+											/>
+										)}
 									</div>
-									<div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+									<div className="absolute top-1 right-1 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
 										{!img.isMain && (
 											<button
 												type="button"
@@ -277,11 +353,18 @@ export default function ProductForm({ product }: ProductFormProps) {
 											<XIcon className="h-3 w-3 text-red-500" />
 										</button>
 									</div>
-									{img.isMain && (
-										<span className="absolute bottom-1 left-1 rounded bg-primary px-1 py-0.5 text-xs text-primary-foreground">
-											Principal
-										</span>
-									)}
+									<div className="absolute bottom-1 left-1 flex flex-col items-start gap-0.5">
+										{img.isMain && (
+											<span className="rounded bg-primary px-1 py-0.5 text-xs text-primary-foreground">
+												Principal
+											</span>
+										)}
+										{img.file && (
+											<span className="rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
+												Pendiente
+											</span>
+										)}
+									</div>
 								</div>
 							))}
 						</div>
@@ -292,34 +375,20 @@ export default function ProductForm({ product }: ProductFormProps) {
 							<span>Sin imágenes</span>
 						</div>
 					)}
-					<UploadButton
-						endpoint="productImage"
-						onBeforeUploadBegin={(files) => {
-							setIsUploading(true);
-							return files;
-						}}
-						onClientUploadComplete={(res) => {
-							setIsUploading(false);
-							const newImages = res.map((f, i) => ({
-								url: f.url,
-								isMain: images.length === 0 && i === 0,
-							}));
-							setImages((prev) => {
-								const combined = [...prev, ...newImages];
-								if (!combined.some((img) => img.isMain)) {
-									combined[0].isMain = true;
-								}
-								return combined;
-							});
-							toast.success(
-								`${res.length} imagen${res.length > 1 ? "es" : ""} subida${res.length > 1 ? "s" : ""} correctamente`,
-							);
-						}}
-						onUploadError={() => {
-							setIsUploading(false);
-							toast.error("Error al subir las imágenes");
-						}}
-					/>
+					<label className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer w-fit")}>
+						<ImagePlusIcon className="h-4 w-4 mr-2" />
+						Seleccionar imágenes
+						<input
+							type="file"
+							accept="image/*"
+							multiple
+							className="sr-only"
+							onChange={handleFileSelect}
+						/>
+					</label>
+					<p className="text-xs text-muted-foreground">
+						Máximo {MAX_IMAGE_SIZE_MB}MB por imagen · hasta {MAX_IMAGE_COUNT} imágenes
+					</p>
 				</div>
 
 				<div className="fixed bottom-0 left-0 right-0 border-t bg-background p-4 md:static md:border-0 md:bg-transparent md:p-0">
@@ -336,8 +405,7 @@ export default function ProductForm({ product }: ProductFormProps) {
 							className="flex-1 md:flex-none"
 							disabled={
 								form.formState.isSubmitting ||
-								isUploading ||
-								!form.formState.isDirty
+								(!form.formState.isDirty && !hasImageChanges)
 							}
 							loading={form.formState.isSubmitting}
 							loadingLabel="Guardando..."

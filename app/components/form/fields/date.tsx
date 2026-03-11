@@ -38,6 +38,9 @@ export default function DateInput({
             "yyyy-MM-dd",
           );
         }
+        if (value == null) {
+          value = "";
+        }
 
         return (
           <FormItem className="w-full grid gap-2">

@@ -133,10 +133,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 									<CreditCardIcon className="mr-2 h-6 w-6" />
 									Pagos
 								</MobileSidebarItem>
-								<MobileSidebarItem href="/dashboard/store/orders">
+								<h4 className="flex items-center p-2 text-lg">
 									<StoreIcon className="mr-2 h-6 w-6" />
 									Tienda
-								</MobileSidebarItem>
+								</h4>
 								<div className="ml-4">
 									<MobileSidebarItem href="/dashboard/store/orders">
 										<ShirtIcon className="mr-2 h-6 w-6" />

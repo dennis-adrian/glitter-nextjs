@@ -13,30 +13,29 @@ import {
 	navigationMenuTriggerStyle,
 } from "@/app/components/ui/navigation-menu";
 import {
-  BookImageIcon,
-  BoxesIcon,
-  CalendarCheck2Icon,
-  HomeIcon,
-  LayoutDashboardIcon,
-  PackageIcon,
-  StoreIcon,
+	BookImageIcon,
+	BoxesIcon,
+	CalendarCheck2Icon,
+	HomeIcon,
+	LayoutDashboardIcon,
+	StoreIcon,
 } from "lucide-react";
 import { NavbarProfile } from "../../api/users/definitions";
 import { usePathname } from "next/navigation";
 import { isNoNavigationPage } from "@/app/lib/utils";
 
 const NavbarNavigationMenu = ({
-  profile,
+	profile,
 }: {
-  profile?: NavbarProfile | null;
+	profile?: NavbarProfile | null;
 }) => {
-  const pathname = usePathname();
+	const pathname = usePathname();
 
-  if (isNoNavigationPage(pathname)) {
-    return null;
-  }
+	if (isNoNavigationPage(pathname)) {
+		return null;
+	}
 
-  return (
+	return (
 		<NavigationMenu>
 			<NavigationMenuList>
 				<NavigationMenuItem>
