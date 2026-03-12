@@ -14,11 +14,13 @@ export default function UpdateOrderStatusModal({
 	open,
 	newStatus,
 	setOpen,
+	onSuccess,
 }: {
 	order: BaseOrder;
 	open: boolean;
 	newStatus: OrderStatus | null;
 	setOpen: (open: boolean) => void;
+	onSuccess?: () => void;
 }) {
 	const form = useForm();
 
@@ -44,6 +46,7 @@ export default function UpdateOrderStatusModal({
 		if (result.success) {
 			toast.success(result.message);
 			setOpen(false);
+			onSuccess?.();
 		} else {
 			toast.error(result.message);
 		}

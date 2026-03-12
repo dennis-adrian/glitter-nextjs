@@ -1,121 +1,83 @@
 "use client";
 
-import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
-import OrderVoucherDialog from "@/app/components/organisms/orders/order-voucher-dialog";
-import UpdateOrderStatusModal from "@/app/components/organisms/orders/update-order-status-modal";
-import { Button } from "@/app/components/ui/button";
+import OrderVoucherReviewDialog from "@/app/components/organisms/orders/order-voucher-review-dialog";
 import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "@/app/components/ui/card";
-import { formatDate } from "@/app/lib/formatters";
-import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
-import { CheckCheckIcon, ClipboardCheckIcon, XCircleIcon } from "lucide-react";
-import { DateTime } from "luxon";
-import { use, useState } from "react";
+	voucherColumns,
+	voucherColumnTitles,
+} from "@/app/components/organisms/orders/voucher-table-columns";
+import { Card, CardContent } from "@/app/components/ui/card";
+import { DataTable } from "@/app/components/ui/data_table/data-table";
+import { OrderWithRelations } from "@/app/lib/orders/definitions";
+import { ClipboardCheckIcon } from "lucide-react";
+import { use } from "react";
+import Heading from "@/app/components/atoms/heading";
+import { Badge } from "@/app/components/ui/badge";
 
 type VoucherQueueProps = {
 	ordersPromise: Promise<OrderWithRelations[]>;
 };
 
-function VoucherCard({ order }: { order: OrderWithRelations }) {
-	const [actionStatus, setActionStatus] = useState<OrderStatus | null>(null);
-	const [openModal, setOpenModal] = useState(false);
-
-	return (
-		<>
-			<Card>
-				<CardHeader className="p-4 pb-2">
-					<div className="flex items-start justify-between gap-2">
-						<div>
-							<p className="text-sm font-semibold">
-								Pedido #{order.id}
-							</p>
-							<p className="text-sm text-muted-foreground">
-								{order.customer.displayName}
-							</p>
-						</div>
-						<OrderStatusBadge status={order.status} />
-					</div>
-				</CardHeader>
-				<CardContent className="p-4 pt-0 flex flex-col gap-3">
-					<div className="flex items-center justify-between">
-						<span className="font-medium">
-							Bs {order.totalAmount.toFixed(2)}
-						</span>
-						<span className="text-xs text-muted-foreground capitalize">
-							{formatDate(order.createdAt).toLocaleString(
-								DateTime.DATE_MED,
-							)}
-						</span>
-					</div>
-					{order.paymentVoucherUrl && (
-						<OrderVoucherDialog
-							voucherUrl={order.paymentVoucherUrl}
-							orderId={order.id}
-						/>
-					)}
-					<div className="flex gap-2">
-						<Button
-							className="w-full"
-							variant="outline"
-							size="sm"
-							onClick={() => {
-								setActionStatus("paid");
-								setOpenModal(true);
-							}}
-						>
-							<CheckCheckIcon className="h-4 w-4 mr-1" />
-							Aprobar pago
-						</Button>
-						<Button
-							className="w-full"
-							variant="destructive"
-							size="sm"
-							onClick={() => {
-								setActionStatus("cancelled");
-								setOpenModal(true);
-							}}
-						>
-							<XCircleIcon className="h-4 w-4 mr-1" />
-							Rechazar
-						</Button>
-					</div>
-				</CardContent>
-			</Card>
-			<UpdateOrderStatusModal
-				order={order}
-				open={openModal}
-				newStatus={actionStatus}
-				setOpen={setOpenModal}
-			/>
-		</>
-	);
-}
-
 export default function VoucherQueue({ ordersPromise }: VoucherQueueProps) {
 	const orders = use(ordersPromise);
-	const pendingVouchers = orders.filter(
-		(o) => o.status === "payment_verification",
-	);
-
-	if (pendingVouchers.length === 0) return null;
+	const pendingVouchers = orders
+		.filter((o) => o.status === "payment_verification")
+		.sort((a, b) => {
+			return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+		});
 
 	return (
-		<div className="flex flex-col gap-3">
-			<div className="flex items-center gap-2">
-				<ClipboardCheckIcon className="h-5 w-5 text-amber-600" />
-				<h2 className="text-lg font-semibold">
-					Comprobantes pendientes ({pendingVouchers.length})
-				</h2>
+		<div className="flex flex-col gap-6">
+			<div className="space-y-1">
+				<div className="flex justify-between items-center flex-wrap-reverse gap-2">
+					<Heading level={3}>Comprobantes de pago</Heading>
+					<Badge
+						variant="outline"
+						className="text-primary border-primary px-2.5 py-1 text-xs md:text-sm"
+					>
+						{pendingVouchers.length}{" "}
+						{pendingVouchers.length === 1 ? "pendiente" : "pendientes"}
+					</Badge>
+				</div>
+				<p className="max-w-2xl text-sm text-muted-foreground md:text-base">
+					Revisa los comprobantes subidos por clientes, valida el resumen de
+					cada pedido y aprueba o rechaza el pago desde un solo lugar.
+				</p>
 			</div>
-			<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-				{pendingVouchers.map((order) => (
-					<VoucherCard key={order.id} order={order} />
-				))}
-			</div>
+
+			{pendingVouchers.length === 0 ? (
+				<Card className="border-dashed border-border/70">
+					<CardContent className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+						<div className="rounded-full bg-primary/10 p-3 text-primary">
+							<ClipboardCheckIcon className="h-6 w-6" />
+						</div>
+						<div className="space-y-1">
+							<p className="text-lg font-semibold">
+								No hay comprobantes por revisar
+							</p>
+							<p className="max-w-md text-sm text-muted-foreground">
+								Cuando un cliente suba un comprobante, aparecera aqui para que
+								puedas validar el pago.
+							</p>
+						</div>
+					</CardContent>
+				</Card>
+			) : (
+				<>
+					<div className="space-y-3 md:hidden">
+						{pendingVouchers.map((order) => (
+							<OrderVoucherReviewDialog key={order.id} order={order} />
+						))}
+					</div>
+
+					<div className="hidden md:block">
+						<DataTable
+							columns={voucherColumns}
+							data={pendingVouchers}
+							columnTitles={voucherColumnTitles}
+						/>
+					</div>
+				</>
+			)}
 		</div>
 	);
 }

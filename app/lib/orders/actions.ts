@@ -13,6 +13,12 @@ import OrderConfirmationForUsersEmailTemplate from "@/app/emails/order-confirmat
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
+function revalidateStoreOrderViews() {
+	revalidatePath("/dashboard/store");
+	revalidatePath("/dashboard/store/orders");
+	revalidatePath("/dashboard/store/payments");
+}
+
 export async function sendOrderEmails(emailData: {
 	orderId: number;
 	customerEmail: string;
@@ -345,7 +351,7 @@ export async function acceptOrder(orderId: number) {
 		};
 	}
 
-	revalidatePath("/dashboard/store/orders");
+	revalidateStoreOrderViews();
 	return {
 		success: true,
 		message: "Orden aceptada correctamente.",
@@ -363,7 +369,7 @@ export async function deleteOrder(orderId: number) {
 		};
 	}
 
-	revalidatePath("/dashboard/store/orders");
+	revalidateStoreOrderViews();
 	return {
 		success: true,
 		message: "Orden eliminada correctamente.",
@@ -381,7 +387,7 @@ export async function updateOrderStatus(orderId: number, status: OrderStatus) {
 		};
 	}
 
-	revalidatePath("/dashboard/store/orders");
+	revalidateStoreOrderViews();
 	return {
 		success: true,
 		message: "Pedido actualizado correctamente.",
@@ -438,7 +444,7 @@ export async function submitOrderPaymentVoucher(
 		}
 
 		revalidatePath(`/profiles/${order.userId}/orders/${orderId}`);
-		revalidatePath("/dashboard/store/orders");
+		revalidateStoreOrderViews();
 
 		return { success: true, message: "Comprobante enviado correctamente." };
 	} catch (error) {

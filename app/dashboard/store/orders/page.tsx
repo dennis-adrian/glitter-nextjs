@@ -4,7 +4,6 @@ import OrdersTotals from "@/app/components/organisms/orders/order_totals_card/to
 import OrdersSalesChart from "@/app/components/organisms/orders/sales-chart";
 import OrdersStatsCards from "@/app/components/organisms/orders/stats-cards";
 import OrdersTable from "@/app/components/organisms/orders/table";
-import VoucherQueue from "@/app/components/organisms/orders/voucher-queue";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import TableSkeleton from "@/app/components/users/skeletons/table";
 import {
@@ -42,10 +41,6 @@ export default function StoreOrdersPage() {
 					<OrdersSalesChart ordersPromise={ordersPromise} />
 				</Suspense>
 			</div>
-
-			<Suspense>
-				<VoucherQueue ordersPromise={ordersPromise} />
-			</Suspense>
 
 			<Suspense>
 				<LowStockAlert lowStockPromise={lowStockPromise} />

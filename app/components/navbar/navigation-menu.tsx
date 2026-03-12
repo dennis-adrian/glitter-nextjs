@@ -137,9 +137,9 @@ const NavbarNavigationMenu = ({
 								</NavigationMenuListItem>
 								<NavigationMenuListItem
 									title="Tienda"
-									href="/dashboard/store/orders"
+									href="/dashboard/store/payments"
 								>
-									Gestiona pedidos y productos de la tienda
+									Gestiona pagos, pedidos y productos de la tienda
 								</NavigationMenuListItem>
 								<NavigationMenuListItem
 									title="Subcategorías"

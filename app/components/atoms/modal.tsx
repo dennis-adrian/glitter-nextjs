@@ -50,14 +50,14 @@ export const Modal = ({ isOpen, onClose, children, title }: ModalProps) => {
 
 	return createPortal(
 		<div
-			className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-300 ${
+			className={`pointer-events-auto fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-300 ${
 				isVisible ? "bg-black/50" : "bg-transparent"
 			}`}
 			onClick={onClose}
 		>
 			<div
 				ref={modalRef}
-				className={`relative w-full max-w-lg transform rounded-lg bg-white p-6 shadow-xl transition-all duration-300 ${
+				className={`pointer-events-auto relative w-full max-w-lg transform rounded-lg bg-white p-6 shadow-xl transition-all duration-300 ${
 					isVisible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
 				}`}
 				onClick={(e) => e.stopPropagation()}
