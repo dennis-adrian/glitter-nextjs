@@ -17,8 +17,7 @@ type NewProductData = {
 	availableDate?: Date | null;
 	isFeatured?: boolean;
 	isNew?: boolean;
-	imageUrls?: string[];
-	mainImageUrl?: string | null;
+	imagePayloads?: { id: number; isMain: boolean }[];
 };
 
 function normalizeAvailableDate(
@@ -31,7 +30,7 @@ function normalizeAvailableDate(
 }
 
 export async function createProduct(data: NewProductData) {
-	const { imageUrls, mainImageUrl, ...productData } = data;
+	const { imagePayloads = [], ...productData } = data;
 	if (productData.availableDate) {
 		productData.availableDate = normalizeAvailableDate(
 			productData.availableDate,
@@ -41,14 +40,16 @@ export async function createProduct(data: NewProductData) {
 		await db.transaction(async (tx) => {
 			const [product] = await tx.insert(products).values(productData).returning();
 
-			if (imageUrls && imageUrls.length > 0) {
-				await tx.insert(productImages).values(
-					imageUrls.map((url) => ({
+			for (const img of imagePayloads) {
+				await tx
+					.update(productImages)
+					.set({
 						productId: product.id,
-						imageUrl: url,
-						isMain: url === mainImageUrl,
-					})),
-				);
+						uploadStatus: "active",
+						isMain: img.isMain,
+						updatedAt: new Date(),
+					})
+					.where(eq(productImages.id, img.id));
 			}
 		});
 	} catch (error) {
@@ -62,7 +63,7 @@ export async function createProduct(data: NewProductData) {
 }
 
 export async function updateProduct(id: number, data: NewProductData) {
-	const { imageUrls, mainImageUrl, ...productData } = data;
+	const { imagePayloads = [], ...productData } = data;
 	if (productData.availableDate) {
 		productData.availableDate = normalizeAvailableDate(
 			productData.availableDate,
@@ -75,18 +76,16 @@ export async function updateProduct(id: number, data: NewProductData) {
 				.set({ ...productData, updatedAt: new Date() })
 				.where(eq(products.id, id));
 
-			if (imageUrls !== undefined) {
-				await tx.delete(productImages).where(eq(productImages.productId, id));
-
-				if (imageUrls.length > 0) {
-					await tx.insert(productImages).values(
-						imageUrls.map((url) => ({
-							productId: id,
-							imageUrl: url,
-							isMain: url === mainImageUrl,
-						})),
-					);
-				}
+			for (const img of imagePayloads) {
+				await tx
+					.update(productImages)
+					.set({
+						productId: id,
+						uploadStatus: "active",
+						isMain: img.isMain,
+						updatedAt: new Date(),
+					})
+					.where(eq(productImages.id, img.id));
 			}
 		});
 	} catch (error) {
@@ -120,17 +119,20 @@ export async function deleteProduct(id: number) {
  * Callers can rely on these defaults without try/catch.
  */
 
-export async function fetchProducts() {
+export async function fetchProducts(sort: "default" | "updatedAt" = "default") {
 	try {
 		return await db.query.products.findMany({
 			with: {
 				images: true,
 			},
-			orderBy: [
-				desc(products.isFeatured),
-				sql`CASE WHEN ${products.stock} > 0 THEN 0 ELSE 1 END`,
-				desc(products.createdAt),
-			],
+			orderBy:
+				sort === "updatedAt"
+					? [desc(products.updatedAt)]
+					: [
+							desc(products.isFeatured),
+							sql`CASE WHEN ${products.stock} > 0 THEN 0 ELSE 1 END`,
+							desc(products.createdAt),
+						],
 		});
 	} catch (error) {
 		console.error(error);

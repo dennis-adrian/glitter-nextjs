@@ -5,18 +5,19 @@ import SelectInput from "@/app/components/form/fields/select";
 import TextInput from "@/app/components/form/fields/text";
 import TextareaInput from "@/app/components/form/fields/textarea";
 import SubmitButton from "@/app/components/simple-submit-button";
-import { Button, buttonVariants } from "@/app/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Button } from "@/app/components/ui/button";
 import { Form, FormLabel } from "@/app/components/ui/form";
+import { Progress } from "@/app/components/ui/progress";
 import { Switch } from "@/app/components/ui/switch";
 import { useUploadThing } from "@/app/vendors/uploadthing";
 import { createProduct, updateProduct } from "@/app/lib/products/actions";
+import { deleteProductImage } from "@/app/lib/products/image-actions";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ImageIcon, ImagePlusIcon, StarIcon, XIcon } from "lucide-react";
+import { PlusIcon, StarIcon, XIcon } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -46,9 +47,15 @@ const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
 const MAX_IMAGE_COUNT = 10;
 
 type ImageItem = {
-	url: string; // CDN URL for uploaded images, blob URL for pending
+	id: number;
+	url: string;
 	isMain: boolean;
-	file?: File; // present only for locally-selected (not yet uploaded) images
+};
+
+type UploadingItem = {
+	tempId: string;
+	fileName: string;
+	progress: number;
 };
 
 type ProductFormProps = {
@@ -60,15 +67,61 @@ export default function ProductForm({ product }: ProductFormProps) {
 	const isEditing = !!product;
 
 	const initialImages: ImageItem[] =
-		product?.images.map((img) => ({
-			url: img.imageUrl,
-			isMain: img.isMain,
-		})) ?? [];
+		product?.images
+			.filter((img) => img.uploadStatus === "active")
+			.map((img) => ({ id: img.id, url: img.imageUrl, isMain: img.isMain })) ??
+		[];
 
 	const [images, setImages] = useState<ImageItem[]>(initialImages);
 	const [hasImageChanges, setHasImageChanges] = useState(false);
+	const [uploadQueue, setUploadQueue] = useState<File[]>([]);
+	const [currentlyUploading, setCurrentlyUploading] =
+		useState<UploadingItem | null>(null);
+	const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
 
-	const { startUpload } = useUploadThing("productImage");
+	const startUploadRef = useRef<
+		((files: File[]) => Promise<unknown> | void) | null
+	>(null);
+
+	const { startUpload } = useUploadThing("productImage", {
+		onUploadProgress: (p) => {
+			setCurrentlyUploading((prev) => (prev ? { ...prev, progress: p } : null));
+		},
+		onClientUploadComplete: (res) => {
+			const serverData = res?.[0]?.serverData as
+				| { imageUrl: string; imageId: number }
+				| undefined;
+			if (!serverData) return;
+			const { imageUrl, imageId } = serverData;
+			setImages((prev) => [
+				...prev,
+				{ id: imageId, url: imageUrl, isMain: prev.length === 0 },
+			]);
+			setHasImageChanges(true);
+			setCurrentlyUploading(null);
+		},
+		onUploadError: (err) => {
+			toast.error(`Error al subir imagen: ${err.message}`);
+			setCurrentlyUploading(null);
+		},
+	});
+
+	useEffect(() => {
+		startUploadRef.current = startUpload;
+	}, [startUpload]);
+
+	// Process upload queue sequentially for per-file progress tracking
+	useEffect(() => {
+		if (currentlyUploading !== null || uploadQueue.length === 0) return;
+		const [next, ...rest] = uploadQueue;
+		setUploadQueue(rest);
+		setCurrentlyUploading({
+			tempId: crypto.randomUUID(),
+			fileName: next.name,
+			progress: 0,
+		});
+		startUploadRef.current?.([next]);
+	}, [currentlyUploading, uploadQueue]);
 
 	const form = useForm<
 		z.input<typeof FormSchema>,
@@ -100,10 +153,16 @@ export default function ProductForm({ product }: ProductFormProps) {
 		const files = Array.from(e.target.files ?? []);
 		if (files.length === 0) return;
 
+		const availableSlots =
+			MAX_IMAGE_COUNT -
+			images.length -
+			(currentlyUploading ? 1 : 0) -
+			uploadQueue.length;
+
 		const validFiles: File[] = [];
 		const oversizedNames: string[] = [];
 
-		for (const file of files) {
+		for (const file of files.slice(0, availableSlots)) {
 			if (file.size > MAX_IMAGE_SIZE_BYTES) {
 				oversizedNames.push(file.name);
 			} else {
@@ -118,95 +177,55 @@ export default function ProductForm({ product }: ProductFormProps) {
 		}
 
 		e.target.value = "";
-
 		if (validFiles.length === 0) return;
 
-		const remainingSlots = MAX_IMAGE_COUNT - images.length;
-		if (remainingSlots <= 0) {
-			toast.error(`Ya tienes el máximo de ${MAX_IMAGE_COUNT} imágenes.`);
-			return;
-		}
-		if (validFiles.length > remainingSlots) {
-			toast.warning(
-				`Solo se agregarán ${remainingSlots} imagen(es). Límite: ${MAX_IMAGE_COUNT}.`,
-			);
-			validFiles.splice(remainingSlots);
-		}
+		setUploadQueue((prev) => [...prev, ...validFiles]);
+	}
 
-		const newImages: ImageItem[] = validFiles.map((file, i) => ({
-			url: URL.createObjectURL(file),
-			isMain: images.length === 0 && i === 0,
-			file,
-		}));
-		setImages((prev) => {
-			const combined = [...prev, ...newImages];
-			if (!combined.some((img) => img.isMain)) combined[0].isMain = true;
-			return combined;
+	function setMain(id: number) {
+		setImages((prev) => prev.map((img) => ({ ...img, isMain: img.id === id })));
+		setHasImageChanges(true);
+	}
+
+	async function handleDelete(imageId: number) {
+		setDeletingIds((prev) => new Set(prev).add(imageId));
+		const res = await deleteProductImage(imageId);
+		setDeletingIds((prev) => {
+			const s = new Set(prev);
+			s.delete(imageId);
+			return s;
 		});
-		setHasImageChanges(true);
+		if (res.success) {
+			setImages((prev) => {
+				const next = prev.filter((img) => img.id !== imageId);
+				if (next.length > 0 && !next.some((img) => img.isMain)) {
+					next[0].isMain = true;
+				}
+				return next;
+			});
+			setHasImageChanges(true);
+		} else {
+			toast.error(res.message);
+		}
 	}
 
-	function setMain(url: string) {
-		setImages((prev) =>
-			prev.map((img) => ({ ...img, isMain: img.url === url })),
-		);
-		setHasImageChanges(true);
-	}
-
-	function removeImage(url: string) {
-		setImages((prev) => {
-			const target = prev.find((img) => img.url === url);
-			if (target?.file) URL.revokeObjectURL(target.url);
-			const next = prev.filter((img) => img.url !== url);
-			if (next.length > 0 && !next.some((img) => img.isMain)) {
-				next[0].isMain = true;
-			}
-			return next;
-		});
-		setHasImageChanges(true);
-	}
+	const totalImageCount =
+		images.length + (currentlyUploading ? 1 : 0) + uploadQueue.length;
+	const canAddMore = totalImageCount < MAX_IMAGE_COUNT;
 
 	const action = form.handleSubmit(async (data) => {
-		// 1. Upload any locally-selected (pending) images
-		const pendingImages = images.filter((img) => !!img.file);
-		let resolvedImages = images.filter((img) => !img.file);
-
-		if (pendingImages.length > 0) {
-			const uploadResult = await startUpload(
-				pendingImages.map((img) => img.file!),
-			);
-
-			if (!uploadResult) {
-				toast.error("Error al subir las imágenes");
-				return;
-			}
-
-			const uploadedImages = uploadResult.map((res, i) => ({
-				url: res.serverData.imageUrl,
-				isMain: pendingImages[i].isMain,
-			}));
-
-			pendingImages.forEach((img) => URL.revokeObjectURL(img.url));
-			resolvedImages = [...resolvedImages, ...uploadedImages];
+		const imagePayloads = images.map((img) => ({
+			id: img.id,
+			isMain: img.isMain,
+		}));
+		if (imagePayloads.length > 0 && !imagePayloads.some((img) => img.isMain)) {
+			imagePayloads[0].isMain = true;
 		}
 
-		if (
-			resolvedImages.length > 0 &&
-			!resolvedImages.some((img) => img.isMain)
-		) {
-			resolvedImages[0].isMain = true;
-		}
-
-		const imageUrls = resolvedImages.map((img) => img.url);
-		const mainImageUrl =
-			resolvedImages.find((img) => img.isMain)?.url ?? imageUrls[0] ?? null;
-
-		// 2. Save product
 		const payload = {
 			...data,
 			availableDate: data.availableDate ? new Date(data.availableDate) : null,
-			imageUrls,
-			mainImageUrl,
+			imagePayloads,
 		};
 
 		const res = isEditing
@@ -224,6 +243,112 @@ export default function ProductForm({ product }: ProductFormProps) {
 	return (
 		<Form {...form}>
 			<form onSubmit={action} className="flex flex-col gap-6 pb-24 md:pb-0">
+				{/* Images — at the top */}
+				<div className="flex flex-col gap-3">
+					<FormLabel>Imágenes del producto</FormLabel>
+					<div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+						{/* Uploaded images */}
+						{images.map((img) => {
+							const isDeleting = deletingIds.has(img.id);
+							return (
+								<div key={img.id} className="relative group">
+									<div
+										className={`relative aspect-square rounded-md overflow-hidden border-2 ${
+											img.isMain ? "border-primary" : "border-transparent"
+										} ${isDeleting ? "opacity-50" : ""}`}
+									>
+										<Image
+											src={img.url}
+											alt="Imagen del producto"
+											fill
+											className="object-cover"
+										/>
+									</div>
+									{!isDeleting && (
+										<div className="absolute top-1 right-1 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+											{!img.isMain && (
+												<button
+													type="button"
+													onClick={() => setMain(img.id)}
+													className="rounded bg-white/90 p-1 shadow"
+													title="Establecer como imagen principal"
+												>
+													<StarIcon className="h-3 w-3 text-amber-500" />
+												</button>
+											)}
+											<button
+												type="button"
+												onClick={() => handleDelete(img.id)}
+												className="rounded bg-white/90 p-1 shadow"
+												title="Eliminar imagen"
+											>
+												<XIcon className="h-3 w-3 text-red-500" />
+											</button>
+										</div>
+									)}
+									{img.isMain && (
+										<div className="absolute bottom-1 left-1">
+											<span className="rounded bg-primary px-1 py-0.5 text-xs text-primary-foreground">
+												Principal
+											</span>
+										</div>
+									)}
+								</div>
+							);
+						})}
+
+						{/* Currently uploading */}
+						{currentlyUploading && (
+							<div
+								key={currentlyUploading.tempId}
+								className="aspect-square rounded-md border bg-muted flex flex-col items-center justify-center gap-2 p-3"
+							>
+								<p className="text-xs text-center text-muted-foreground truncate w-full">
+									{currentlyUploading.fileName}
+								</p>
+								<Progress
+									value={currentlyUploading.progress}
+									className="h-1.5"
+								/>
+								<span className="text-xs text-muted-foreground">
+									{currentlyUploading.progress}%
+								</span>
+							</div>
+						)}
+
+						{/* Queued (waiting to upload) */}
+						{uploadQueue.map((file, i) => (
+							<div
+								key={i}
+								className="aspect-square rounded-md border bg-muted flex flex-col items-center justify-center gap-2 p-3"
+							>
+								<p className="text-xs text-center text-muted-foreground truncate w-full">
+									{file.name}
+								</p>
+								<Progress value={0} className="h-1.5" />
+							</div>
+						))}
+
+						{/* Add button */}
+						{canAddMore && (
+							<label className="aspect-square rounded-md border-2 border-dashed flex items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors">
+								<PlusIcon className="h-6 w-6 text-muted-foreground" />
+								<input
+									type="file"
+									accept="image/*"
+									multiple
+									className="sr-only"
+									onChange={handleFileSelect}
+								/>
+							</label>
+						)}
+					</div>
+					<p className="text-xs text-muted-foreground">
+						Máximo {MAX_IMAGE_SIZE_MB}MB por imagen · hasta {MAX_IMAGE_COUNT}{" "}
+						imágenes
+					</p>
+				</div>
+
 				<div className="grid gap-4">
 					<TextInput
 						formControl={form.control}
@@ -326,95 +451,6 @@ export default function ProductForm({ product }: ProductFormProps) {
 					</div>
 				</div>
 
-				<div className="flex flex-col gap-3">
-					<FormLabel>Imágenes del producto</FormLabel>
-					{images.length > 0 && (
-						<div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-							{images.map((img) => (
-								<div key={img.url} className="relative group">
-									<div
-										className={`relative aspect-square rounded-md overflow-hidden border-2 ${img.isMain ? "border-primary" : "border-transparent"}`}
-									>
-										{img.file ? (
-											// eslint-disable-next-line @next/next/no-img-element
-											<img
-												src={img.url}
-												alt="Imagen del producto"
-												className="object-cover w-full h-full"
-											/>
-										) : (
-											<Image
-												src={img.url}
-												alt="Imagen del producto"
-												fill
-												className="object-cover"
-											/>
-										)}
-									</div>
-									<div className="absolute top-1 right-1 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-										{!img.isMain && (
-											<button
-												type="button"
-												onClick={() => setMain(img.url)}
-												className="rounded bg-white/90 p-1 shadow"
-												title="Establecer como imagen principal"
-											>
-												<StarIcon className="h-3 w-3 text-amber-500" />
-											</button>
-										)}
-										<button
-											type="button"
-											onClick={() => removeImage(img.url)}
-											className="rounded bg-white/90 p-1 shadow"
-											title="Eliminar imagen"
-										>
-											<XIcon className="h-3 w-3 text-red-500" />
-										</button>
-									</div>
-									<div className="absolute bottom-1 left-1 flex flex-col items-start gap-0.5">
-										{img.isMain && (
-											<span className="rounded bg-primary px-1 py-0.5 text-xs text-primary-foreground">
-												Principal
-											</span>
-										)}
-										{img.file && (
-											<span className="rounded bg-muted px-1 py-0.5 text-xs text-muted-foreground">
-												Pendiente
-											</span>
-										)}
-									</div>
-								</div>
-							))}
-						</div>
-					)}
-					{images.length === 0 && (
-						<div className="flex items-center justify-center gap-2 rounded-md border border-dashed p-6 text-sm text-muted-foreground">
-							<ImageIcon className="h-5 w-5" />
-							<span>Sin imágenes</span>
-						</div>
-					)}
-					<label
-						className={cn(
-							buttonVariants({ variant: "outline" }),
-							"cursor-pointer w-fit",
-						)}
-					>
-						<ImagePlusIcon className="h-4 w-4 mr-2" />
-						Seleccionar imágenes
-						<input
-							type="file"
-							accept="image/*"
-							multiple
-							className="sr-only"
-							onChange={handleFileSelect}
-						/>
-					</label>
-					<p className="text-xs text-muted-foreground">
-						Máximo {MAX_IMAGE_SIZE_MB}MB por imagen · hasta {MAX_IMAGE_COUNT}{" "}
-						imágenes
-					</p>
-				</div>
-
 				<div className="fixed bottom-0 left-0 right-0 border-t bg-background p-4 md:static md:border-0 md:bg-transparent md:p-0">
 					<div className="flex gap-2 max-w-7xl mx-auto">
 						<Button
@@ -429,6 +465,8 @@ export default function ProductForm({ product }: ProductFormProps) {
 							className="flex-1 md:flex-none"
 							disabled={
 								form.formState.isSubmitting ||
+								currentlyUploading !== null ||
+								uploadQueue.length > 0 ||
 								(!form.formState.isDirty && !hasImageChanges)
 							}
 							loading={form.formState.isSubmitting}

@@ -1051,6 +1051,13 @@
       "when": 1773104397427,
       "tag": "0149_magical_morlun",
       "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "7",
+      "when": 1773276494709,
+      "tag": "0150_gifted_firelord",
+      "breakpoints": true
     }
   ]
 }

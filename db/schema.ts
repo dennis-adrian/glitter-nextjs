@@ -1300,13 +1300,21 @@ export const participantProductsRelations = relations(
 	}),
 );
 
+export const productImageUploadStatusEnum = pgEnum(
+	"product_image_upload_status",
+	["pending", "active"],
+);
+
 export const productImages = pgTable(
 	"product_images",
 	{
 		id: serial("id").primaryKey(),
-		productId: integer("product_id")
-			.notNull()
-			.references(() => products.id, { onDelete: "cascade" }),
+		productId: integer("product_id").references(() => products.id, {
+			onDelete: "cascade",
+		}),
+		uploadStatus: productImageUploadStatusEnum("upload_status")
+			.default("pending")
+			.notNull(),
 		imageUrl: text("image_url").notNull(),
 		description: text("description"),
 		isMain: boolean("is_main").default(false).notNull(),

@@ -1,4 +1,6 @@
 import { fetchUserProfile } from "@/app/api/users/actions";
+import { db } from "@/db";
+import { productImages } from "@/db/schema";
 import { currentUser } from "@clerk/nextjs/server";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { UploadThingError } from "uploadthing/server";
@@ -165,11 +167,13 @@ export const ourFileRouter = {
 
 			return { userId: user.id };
 		})
-		.onUploadComplete(({ metadata, file }) => {
-			return {
-				uploadedBy: metadata.userId,
-				imageUrl: (file as { url: string }).url,
-			};
+		.onUploadComplete(async ({ metadata, file }) => {
+			const imageUrl = (file as { url: string }).url;
+			const [record] = await db
+				.insert(productImages)
+				.values({ imageUrl })
+				.returning();
+			return { imageUrl, imageId: record.id };
 		}),
 } satisfies FileRouter;
 

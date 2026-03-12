@@ -8,7 +8,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 export default function StoreProductsPage() {
-	const productsPromise = fetchProducts();
+	const productsPromise = fetchProducts("updatedAt");
 
 	return (
 		<div className="space-y-4">
