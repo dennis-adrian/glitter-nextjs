@@ -55,7 +55,7 @@ export default function VoucherQueue({ ordersPromise }: VoucherQueueProps) {
 								No hay comprobantes por revisar
 							</p>
 							<p className="max-w-md text-sm text-muted-foreground">
-								Cuando un cliente suba un comprobante, aparecera aqui para que
+								Cuando un cliente suba un comprobante, aparecerá aquí para que
 								puedas validar el pago.
 							</p>
 						</div>

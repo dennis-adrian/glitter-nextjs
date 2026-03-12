@@ -19,22 +19,33 @@ export async function handleOrphanedProductImages(): Promise<number> {
 
 		if (orphaned.length === 0) return 0;
 
-		const keys = orphaned
-			.map((img) => img.imageUrl.split("/f/")[1])
-			.filter(Boolean) as string[];
+		const keyIdPairs = orphaned
+			.map((img) => {
+				const key = img.imageUrl.split("/f/")[1];
+				return key ? { key, id: img.id } : null;
+			})
+			.filter((p): p is { key: string; id: number } => p !== null);
 
-		if (keys.length > 0) {
-			await utapi.deleteFiles(keys);
+		const successfulIds: number[] = [];
+		for (const { key, id } of keyIdPairs) {
+			try {
+				await utapi.deleteFiles(key);
+				successfulIds.push(id);
+			} catch (err) {
+				console.warn(
+					`[handleOrphanedProductImages] Storage delete failed for key: ${key}`,
+					err,
+				);
+			}
 		}
 
-		await db.delete(productImages).where(
-			inArray(
-				productImages.id,
-				orphaned.map((img) => img.id),
-			),
-		);
+		if (successfulIds.length > 0) {
+			await db.delete(productImages).where(
+				inArray(productImages.id, successfulIds),
+			);
+		}
 
-		return orphaned.length;
+		return successfulIds.length;
 	} catch (error) {
 		console.error("[handleOrphanedProductImages] error:", error);
 		throw error;

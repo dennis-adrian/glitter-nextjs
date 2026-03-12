@@ -29,7 +29,7 @@ export const voucherColumns: ColumnDef<OrderWithRelations>[] = [
 		),
 		cell: ({ row }) => (
 			<span className="font-medium">
-				#{String(row.original.id).padStart(4, "00")}
+				#{String(row.original.id).padStart(3, "0")}
 			</span>
 		),
 	},

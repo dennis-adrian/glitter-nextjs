@@ -119,6 +119,9 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
 		),
 		cell: ({ row }) => {
 			const { paymentDueDate, status } = row.original;
+			if (!paymentDueDate) {
+				return <span className="text-muted-foreground">—</span>;
+			}
 			const isOverdue =
 				new Date(paymentDueDate) < new Date() &&
 				(status === "pending" || status === "payment_verification");
@@ -129,9 +132,7 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
 						isOverdue && "font-medium text-red-600",
 					)}
 				>
-					{isOverdue && (
-						<AlertTriangleIcon className="h-3 w-3 shrink-0" />
-					)}
+					{isOverdue && <AlertTriangleIcon className="h-3 w-3 shrink-0" />}
 					{formatDate(paymentDueDate).toLocaleString(DateTime.DATE_MED)}
 				</span>
 			);

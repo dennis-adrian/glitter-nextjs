@@ -64,7 +64,7 @@ export default function StoreLayout({
 				<div className="flex flex-col gap-3">
 					<div className="md:hidden">
 						<p className="mb-2 text-sm font-medium text-muted-foreground">
-							Seccion
+							Sección
 						</p>
 						<Select
 							value={active}
