@@ -13,7 +13,7 @@ export const voucherColumnTitles = {
 	customer: "Cliente",
 	items: "Productos",
 	total: "Total",
-	createdAt: "Subido",
+	voucherSubmittedAt: "Subido",
 	actions: "Acciones",
 };
 
@@ -89,17 +89,19 @@ export const voucherColumns: ColumnDef<OrderWithRelations>[] = [
 		),
 	},
 	{
-		id: "createdAt",
-		accessorFn: (row) => row.createdAt,
+		id: "voucherSubmittedAt",
+		accessorFn: (row) => row.voucherSubmittedAt,
 		header: ({ column }) => (
 			<DataTableColumnHeader
 				column={column}
-				title={voucherColumnTitles.createdAt}
+				title={voucherColumnTitles.voucherSubmittedAt}
 			/>
 		),
 		cell: ({ row }) => (
 			<span className="text-sm text-muted-foreground">
-				{formatDateWithTime(row.original.createdAt)}
+				{row.original.voucherSubmittedAt
+					? formatDateWithTime(row.original.voucherSubmittedAt)
+					: "—"}
 			</span>
 		),
 	},

@@ -1065,6 +1065,7 @@ export const orders = pgTable("orders", {
 	status: orderStatusEnum("status").default("pending").notNull(),
 	totalAmount: real("total_amount").notNull(),
 	paymentVoucherUrl: text("payment_voucher_url"),
+	voucherSubmittedAt: timestamp("voucher_submitted_at"),
 	paymentDueDate: timestamp("payment_due_date")
 		.notNull()
 		.default(sql`now() + interval '10 days'`),

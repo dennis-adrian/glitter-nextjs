@@ -22,7 +22,10 @@ export default function VoucherQueue({ ordersPromise }: VoucherQueueProps) {
 	const pendingVouchers = orders
 		.filter((o) => o.status === "payment_verification")
 		.sort((a, b) => {
-			return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+			return (
+				new Date(b.voucherSubmittedAt ?? b.createdAt).getTime() -
+				new Date(a.voucherSubmittedAt ?? a.createdAt).getTime()
+			);
 		});
 
 	return (

@@ -86,7 +86,12 @@ export default function OrderVoucherReviewDialog({
 										<p className="font-medium text-primary">
 											Total: {formatCurrency(order.totalAmount)}
 										</p>
-										<p>Subido: {formatDateWithTime(order.createdAt)}</p>
+										<p>
+											Subido:{" "}
+											{order.voucherSubmittedAt
+												? formatDateWithTime(order.voucherSubmittedAt)
+												: "—"}
+										</p>
 									</div>
 								</div>
 

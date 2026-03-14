@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { productImages } from "@/db/schema";
 import { utapi } from "@/app/server/uploadthing";
-import { and, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 
 export async function handleOrphanedProductImages(): Promise<number> {
 	try {
@@ -13,6 +13,7 @@ export async function handleOrphanedProductImages(): Promise<number> {
 			.where(
 				and(
 					eq(productImages.uploadStatus, "pending"),
+					isNull(productImages.productId),
 					lt(productImages.createdAt, sql`now() - interval '24 hours'`),
 				),
 			);
@@ -40,9 +41,9 @@ export async function handleOrphanedProductImages(): Promise<number> {
 		}
 
 		if (successfulIds.length > 0) {
-			await db.delete(productImages).where(
-				inArray(productImages.id, successfulIds),
-			);
+			await db
+				.delete(productImages)
+				.where(inArray(productImages.id, successfulIds));
 		}
 
 		return successfulIds.length;

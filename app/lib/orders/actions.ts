@@ -432,7 +432,11 @@ export async function submitOrderPaymentVoucher(
 	try {
 		const [order] = await db
 			.update(orders)
-			.set({ paymentVoucherUrl: voucherUrl, status: "payment_verification" })
+			.set({
+				paymentVoucherUrl: voucherUrl,
+				status: "payment_verification",
+				voucherSubmittedAt: new Date(),
+			})
 			.where(and(eq(orders.id, orderId), eq(orders.userId, currentUser.id), eq(orders.status, "pending")))
 			.returning();
 
