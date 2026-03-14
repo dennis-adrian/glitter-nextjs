@@ -1,5 +1,6 @@
 "use server";
 
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { productImages } from "@/db/schema";
 import { utapi } from "@/app/server/uploadthing";
@@ -8,6 +9,14 @@ import { eq } from "drizzle-orm";
 export async function deleteProductImage(
 	imageId: number,
 ): Promise<{ success: boolean; message: string }> {
+	const currentProfile = await getCurrentUserProfile();
+	if (!currentProfile || currentProfile.role !== "admin") {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción.",
+		};
+	}
+
 	const image = await db.query.productImages.findFirst({
 		where: (t, { eq }) => eq(t.id, imageId),
 	});
@@ -18,13 +27,25 @@ export async function deleteProductImage(
 
 	try {
 		const key = image.imageUrl.split("/f/")[1];
-		if (key) {
+		let storageDeleted = true;
+		if (!key) {
+			console.warn(
+				`[deleteProductImage] Could not extract storage key from URL: ${image.imageUrl}`,
+			);
+		} else {
 			const result = await utapi.deleteFiles(key);
 			if (!result.success) {
 				console.warn(
 					`[deleteProductImage] Storage delete failed for key: ${key}`,
 				);
+				storageDeleted = false;
 			}
+		}
+		if (!storageDeleted) {
+			return {
+				success: false,
+				message: "No se pudo eliminar la imagen. Intenta de nuevo.",
+			};
 		}
 		await db.delete(productImages).where(eq(productImages.id, imageId));
 		return { success: true, message: "Imagen eliminada correctamente." };
