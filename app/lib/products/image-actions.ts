@@ -17,15 +17,15 @@ export async function deleteProductImage(
 		};
 	}
 
-	const image = await db.query.productImages.findFirst({
-		where: (t, { eq }) => eq(t.id, imageId),
-	});
-
-	if (!image) {
-		return { success: false, message: "Imagen no encontrada." };
-	}
-
 	try {
+		const image = await db.query.productImages.findFirst({
+			where: (t, { eq }) => eq(t.id, imageId),
+		});
+
+		if (!image) {
+			return { success: false, message: "Imagen no encontrada." };
+		}
+
 		const key = image.imageUrl.split("/f/")[1];
 		let storageDeleted = true;
 		if (!key) {

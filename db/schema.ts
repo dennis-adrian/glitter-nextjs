@@ -1064,7 +1064,11 @@ export const orders = pgTable("orders", {
 		.references(() => users.id, { onDelete: "cascade" }),
 	orderDate: timestamp("order_date").defaultNow(),
 	status: orderStatusEnum("status").default("pending").notNull(),
-	totalAmount: numeric("total_amount", { precision: 10, scale: 2 }).notNull(),
+	totalAmount: numeric("total_amount", {
+		precision: 10,
+		scale: 2,
+		mode: "number",
+	}).notNull(),
 	paymentVoucherUrl: text("payment_voucher_url"),
 	voucherSubmittedAt: timestamp("voucher_submitted_at"),
 	paymentDueDate: timestamp("payment_due_date")

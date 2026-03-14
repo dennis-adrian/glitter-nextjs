@@ -1,9 +1,12 @@
 import { DateTime } from "luxon";
 
+/** Store timezone used for display and overdue logic (e.g. orders table). */
+export const STORE_TIMEZONE = "America/La_Paz";
+
 export function formatDate(date: Date | string): DateTime {
   const isoDate = date instanceof Date ? date.toISOString() : date;
   return DateTime.fromISO(isoDate, {
-    zone: "America/La_Paz",
+    zone: STORE_TIMEZONE,
   }).setLocale("es");
 }
 

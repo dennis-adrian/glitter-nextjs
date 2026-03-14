@@ -13,7 +13,7 @@ import Heading from "@/app/components/atoms/heading";
 
 type Props = {
 	orderId: number;
-	totalAmount: number | string;
+	totalAmount: number;
 	status: OrderStatus;
 	paymentVoucherUrl: string | null;
 };
@@ -107,7 +107,7 @@ export default function OrderPaymentSection({
 				<div className="text-center mb-3">
 					<p className="text-sm text-muted-foreground">Total a pagar</p>
 					<p className="text-3xl text-primary font-bold">
-						Bs {Number(totalAmount).toFixed(2)}
+						Bs {totalAmount.toFixed(2)}
 					</p>
 				</div>
 
@@ -131,7 +131,7 @@ export default function OrderPaymentSection({
 						<li>Escaneá el código QR con la app de tu banco</li>
 						<li>
 							Ingresá el monto exacto de{" "}
-							<span className="font-bold">Bs {Number(totalAmount).toFixed(2)}</span>
+							<span className="font-bold">Bs {totalAmount.toFixed(2)}</span>
 						</li>
 						<li>Confirmá la transacción y guardá el comprobante</li>
 						<li>Subí el comprobante y presioná "Confirmar pago"</li>

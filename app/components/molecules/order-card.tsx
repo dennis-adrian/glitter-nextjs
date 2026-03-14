@@ -52,7 +52,7 @@ export default function OrderCard({ order }: { order: OrderWithRelations }) {
 					<div>
 						<p className="text-sm">
 							{getOrderItemCount(order)} artículos, Bs
-							{Number(order.totalAmount).toFixed(2)}
+							{order.totalAmount.toFixed(2)}
 						</p>
 					</div>
 					<div className="flex flex-col gap-1">

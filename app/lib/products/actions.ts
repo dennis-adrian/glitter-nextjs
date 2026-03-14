@@ -1,7 +1,8 @@
 "use server";
 
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
-import { asc, desc, eq, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { productImages, products } from "@/db/schema";
 
@@ -33,6 +34,13 @@ function normalizeAvailableDate(
 }
 
 export async function createProduct(data: NewProductData) {
+	const currentProfile = await getCurrentUserProfile();
+	if (!currentProfile || currentProfile.role !== "admin") {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción.",
+		};
+	}
 	const { imagePayloads = [], ...productData } = data;
 	if (productData.availableDate) {
 		productData.availableDate = normalizeAvailableDate(
@@ -54,7 +62,7 @@ export async function createProduct(data: NewProductData) {
 				.returning();
 
 			for (const img of imagePayloads) {
-				await tx
+				const updated = await tx
 					.update(productImages)
 					.set({
 						productId: product.id,
@@ -62,7 +70,17 @@ export async function createProduct(data: NewProductData) {
 						isMain: img.isMain,
 						updatedAt: new Date(),
 					})
-					.where(eq(productImages.id, img.id));
+					.where(
+						and(
+							eq(productImages.id, img.id),
+							isNull(productImages.productId),
+							eq(productImages.uploadStatus, "pending"),
+						),
+					)
+					.returning({ id: productImages.id });
+				if (updated.length === 0) {
+					throw new Error("Image payload not found or already assigned");
+				}
 			}
 		});
 	} catch (error) {
@@ -76,6 +94,13 @@ export async function createProduct(data: NewProductData) {
 }
 
 export async function updateProduct(id: number, data: NewProductData) {
+	const currentProfile = await getCurrentUserProfile();
+	if (!currentProfile || currentProfile.role !== "admin") {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción.",
+		};
+	}
 	const { imagePayloads = [], ...productData } = data;
 	if (productData.availableDate) {
 		productData.availableDate = normalizeAvailableDate(
@@ -98,7 +123,7 @@ export async function updateProduct(id: number, data: NewProductData) {
 			await tx.update(products).set(updateData).where(eq(products.id, id));
 
 			for (const img of imagePayloads) {
-				await tx
+				const updated = await tx
 					.update(productImages)
 					.set({
 						productId: id,
@@ -106,7 +131,22 @@ export async function updateProduct(id: number, data: NewProductData) {
 						isMain: img.isMain,
 						updatedAt: new Date(),
 					})
-					.where(eq(productImages.id, img.id));
+					.where(
+						and(
+							eq(productImages.id, img.id),
+							or(
+								isNull(productImages.productId),
+								eq(productImages.productId, id),
+							),
+							inArray(productImages.uploadStatus, ["pending", "active"]),
+						),
+					)
+					.returning({ id: productImages.id });
+				if (updated.length === 0) {
+					throw new Error(
+						"Image payload not found or not claimable for this product",
+					);
+				}
 			}
 		});
 	} catch (error) {
@@ -121,6 +161,13 @@ export async function updateProduct(id: number, data: NewProductData) {
 }
 
 export async function deleteProduct(id: number) {
+	const currentProfile = await getCurrentUserProfile();
+	if (!currentProfile || currentProfile.role !== "admin") {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción.",
+		};
+	}
 	try {
 		await db.delete(products).where(eq(products.id, id));
 	} catch (error) {

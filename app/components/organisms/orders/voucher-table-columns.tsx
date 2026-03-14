@@ -75,7 +75,7 @@ export const voucherColumns: ColumnDef<OrderWithRelations>[] = [
 	},
 	{
 		id: "total",
-		accessorFn: (row) => Number(row.totalAmount),
+		accessorFn: (row) => row.totalAmount,
 		header: ({ column }) => (
 			<DataTableColumnHeader
 				column={column}
@@ -84,7 +84,7 @@ export const voucherColumns: ColumnDef<OrderWithRelations>[] = [
 		),
 		cell: ({ row }) => (
 			<span className="font-semibold">
-				Bs. {Number(row.original.totalAmount).toFixed(2)}
+				Bs. {row.original.totalAmount.toFixed(2)}
 			</span>
 		),
 	},

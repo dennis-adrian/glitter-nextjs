@@ -144,7 +144,7 @@ export async function createOrderInTx(
 		.insert(orders)
 		.values({
 			userId,
-			totalAmount: String(totalAmount),
+			totalAmount,
 			paymentDueDate: sql`now() + interval '10 days'`,
 		})
 		.returning();
@@ -435,7 +435,7 @@ export async function updateOrderStatus(orderId: number, status: OrderStatus) {
 						orderBefore.customer.firstName ??
 						"",
 					orderId: String(orderId),
-					total: Number(orderBefore.totalAmount),
+					total: orderBefore.totalAmount,
 				}) as React.ReactElement,
 			});
 		} catch (emailError) {

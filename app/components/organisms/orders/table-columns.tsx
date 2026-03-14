@@ -3,7 +3,7 @@ import { OrdersActionsCell } from "@/app/components/organisms/orders/table-actio
 import OrderVoucherDialog from "@/app/components/organisms/orders/order-voucher-dialog";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
 import { OrderWithRelations } from "@/app/lib/orders/definitions";
 import { cn } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
@@ -49,7 +49,7 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
 			<DataTableColumnHeader column={column} title={columnTitles.total} />
 		),
 		cell: ({ row }) => {
-			return <div>Bs{Number(row.original.totalAmount).toFixed(2)}</div>;
+			return <div>Bs{row.original.totalAmount.toFixed(2)}</div>;
 		},
 	},
 	{
@@ -122,8 +122,10 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
 			if (!paymentDueDate) {
 				return <span className="text-muted-foreground">—</span>;
 			}
+			const dueInStore = formatDate(paymentDueDate);
+			const nowInStore = DateTime.now().setZone(STORE_TIMEZONE);
 			const isOverdue =
-				new Date(paymentDueDate) < new Date() &&
+				dueInStore < nowInStore &&
 				(status === "pending" || status === "payment_verification");
 			return (
 				<span

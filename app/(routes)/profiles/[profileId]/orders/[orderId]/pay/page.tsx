@@ -95,7 +95,7 @@ export default async function OrderPayPage(props: {
 							))}
 							<div className="flex justify-between font-semibold pt-2 border-t">
 								<span>Total</span>
-								<span>Bs {Number(order.totalAmount).toFixed(2)}</span>
+								<span>Bs {order.totalAmount.toFixed(2)}</span>
 							</div>
 						</div>
 					</CardContent>
