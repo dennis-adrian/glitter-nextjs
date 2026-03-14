@@ -1,8 +1,184 @@
 "use server";
 
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
-import { desc, sql } from "drizzle-orm";
-import { products } from "@/db/schema";
+import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { productImages, products } from "@/db/schema";
+
+type NewProductData = {
+	name: string;
+	description?: string | null;
+	price: number;
+	stock?: number | null;
+	status?: "available" | "presale" | "sale";
+	discount?: number | null;
+	discountUnit?: "percentage" | "amount";
+	isPreOrder?: boolean;
+	availableDate?: Date | string | null;
+	isFeatured?: boolean;
+	isNew?: boolean;
+	imagePayloads?: { id: number; isMain: boolean }[];
+};
+
+function normalizeAvailableDate(
+	date: Date | string | null | undefined,
+): Date | null | undefined {
+	if (date === null || date === undefined) return date;
+	const d =
+		typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
+			? new Date(`${date}T12:00:00.000Z`)
+			: new Date(date);
+	d.setUTCHours(12, 0, 0, 0);
+	return d;
+}
+
+export async function createProduct(data: NewProductData) {
+	const currentProfile = await getCurrentUserProfile();
+	if (!currentProfile || currentProfile.role !== "admin") {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción.",
+		};
+	}
+	const { imagePayloads = [], ...productData } = data;
+	if (productData.availableDate) {
+		productData.availableDate = normalizeAvailableDate(
+			productData.availableDate,
+		);
+	}
+	try {
+		await db.transaction(async (tx) => {
+			const insertData = {
+				...productData,
+				availableDate:
+					productData.availableDate != null
+						? normalizeAvailableDate(productData.availableDate)
+						: productData.availableDate,
+			} as typeof productData & { availableDate?: Date | null };
+			const [product] = await tx
+				.insert(products)
+				.values(insertData)
+				.returning();
+
+			for (const img of imagePayloads) {
+				const updated = await tx
+					.update(productImages)
+					.set({
+						productId: product.id,
+						uploadStatus: "active",
+						isMain: img.isMain,
+						updatedAt: new Date(),
+					})
+					.where(
+						and(
+							eq(productImages.id, img.id),
+							isNull(productImages.productId),
+							eq(productImages.uploadStatus, "pending"),
+						),
+					)
+					.returning({ id: productImages.id });
+				if (updated.length === 0) {
+					throw new Error("Image payload not found or already assigned");
+				}
+			}
+		});
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "No se pudo crear el producto." };
+	}
+
+	revalidatePath("/dashboard/store/products");
+	revalidatePath("/store");
+	return { success: true, message: "Producto creado correctamente." };
+}
+
+export async function updateProduct(id: number, data: NewProductData) {
+	const currentProfile = await getCurrentUserProfile();
+	if (!currentProfile || currentProfile.role !== "admin") {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción.",
+		};
+	}
+	const { imagePayloads = [], ...productData } = data;
+	if (productData.availableDate) {
+		productData.availableDate = normalizeAvailableDate(
+			productData.availableDate,
+		);
+	}
+	try {
+		await db.transaction(async (tx) => {
+			const updateData = {
+				...productData,
+				availableDate:
+					productData.availableDate != null
+						? normalizeAvailableDate(productData.availableDate)
+						: productData.availableDate,
+				updatedAt: new Date(),
+			} as typeof productData & {
+				availableDate?: Date | null;
+				updatedAt: Date;
+			};
+			await tx.update(products).set(updateData).where(eq(products.id, id));
+
+			for (const img of imagePayloads) {
+				const updated = await tx
+					.update(productImages)
+					.set({
+						productId: id,
+						uploadStatus: "active",
+						isMain: img.isMain,
+						updatedAt: new Date(),
+					})
+					.where(
+						and(
+							eq(productImages.id, img.id),
+							or(
+								isNull(productImages.productId),
+								eq(productImages.productId, id),
+							),
+							inArray(productImages.uploadStatus, ["pending", "active"]),
+						),
+					)
+					.returning({ id: productImages.id });
+				if (updated.length === 0) {
+					throw new Error(
+						"Image payload not found or not claimable for this product",
+					);
+				}
+			}
+		});
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "No se pudo actualizar el producto." };
+	}
+
+	revalidatePath("/dashboard/store/products");
+	revalidatePath(`/store/products/${id}`);
+	revalidatePath("/store");
+	return { success: true, message: "Producto actualizado correctamente." };
+}
+
+export async function deleteProduct(id: number) {
+	const currentProfile = await getCurrentUserProfile();
+	if (!currentProfile || currentProfile.role !== "admin") {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción.",
+		};
+	}
+	try {
+		await db.delete(products).where(eq(products.id, id));
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "No se pudo eliminar el producto." };
+	}
+
+	revalidatePath("/dashboard/store/products");
+	revalidatePath("/store");
+	return { success: true, message: "Producto eliminado correctamente." };
+}
 
 /**
  * Product fetchers use safe fallbacks on error: they do not throw.
@@ -11,17 +187,20 @@ import { products } from "@/db/schema";
  * Callers can rely on these defaults without try/catch.
  */
 
-export async function fetchProducts() {
+export async function fetchProducts(sort: "default" | "updatedAt" = "default") {
 	try {
 		return await db.query.products.findMany({
 			with: {
 				images: true,
 			},
-			orderBy: [
-				desc(products.isFeatured),
-				sql`CASE WHEN ${products.stock} > 0 THEN 0 ELSE 1 END`,
-				desc(products.createdAt),
-			],
+			orderBy:
+				sort === "updatedAt"
+					? [desc(products.updatedAt)]
+					: [
+							desc(products.isFeatured),
+							sql`CASE WHEN ${products.stock} > 0 THEN 0 ELSE 1 END`,
+							desc(products.createdAt),
+						],
 		});
 	} catch (error) {
 		console.error(error);
@@ -40,6 +219,19 @@ export async function fetchProduct(id: number) {
 	} catch (error) {
 		console.error(error);
 		return null;
+	}
+}
+
+export async function fetchLowStockProducts(threshold = 5) {
+	try {
+		return await db
+			.select()
+			.from(products)
+			.where(lte(products.stock, threshold))
+			.orderBy(asc(products.stock));
+	} catch (error) {
+		console.error(error);
+		return [];
 	}
 }
 

@@ -137,7 +137,7 @@ export default function OrderConfirmationForAdminsEmailTemplate(
 							Revisa los detalles completos en el panel de administración.
 						</Text>
 
-						<Button href={`${baseUrl}/dashboard/orders`} style={styles.button}>
+						<Button href={`${baseUrl}/dashboard/store/orders`} style={styles.button}>
 							Ver en Dashboard
 						</Button>
 					</Section>

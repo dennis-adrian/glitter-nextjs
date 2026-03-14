@@ -48,7 +48,14 @@ export default function OrdersTotals(props: OrdersTotalsProps) {
 		[ordersTotals],
 	);
 
-	return Object.entries(groupedProducts).map(([productId, product]) => (
-		<OrderTotalsCard key={productId} product={product} />
-	));
+	return (
+		<div className="space-y-3">
+			<h2 className="text-lg font-semibold">Totales por producto</h2>
+			<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+				{Object.entries(groupedProducts).map(([productId, product]) => (
+					<OrderTotalsCard key={productId} product={product} />
+				))}
+			</div>
+		</div>
+	);
 }

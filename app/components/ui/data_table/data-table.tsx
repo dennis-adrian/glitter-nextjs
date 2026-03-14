@@ -1,10 +1,11 @@
 "use client";
 "use no memo";
 
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { SearchIcon } from "lucide-react";
 
+import type { Table as TableInstance } from "@tanstack/react-table";
 import {
 	ColumnDef,
 	ColumnFiltersState,
@@ -43,6 +44,7 @@ interface DataTableProps<TData, TValue> {
 	columnTitles: Record<string, string>;
 	filters?: DataTableFiltersProps[];
 	initialState?: DataTableInitialState;
+	actions?: ReactNode | ((table: TableInstance<TData>) => ReactNode);
 }
 
 export function DataTable<TData, TValue>({
@@ -51,6 +53,7 @@ export function DataTable<TData, TValue>({
 	data,
 	filters = [],
 	initialState,
+	actions,
 }: DataTableProps<TData, TValue>) {
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [searchFilter, setSearchFilter] = useState<string>("");
@@ -113,7 +116,10 @@ export function DataTable<TData, TValue>({
 						</DataTableFilters>
 					)}
 				</div>
-				<DataTableViewOptions table={table} columnTitles={columnTitles} />
+				<div className="flex items-center gap-2">
+					{typeof actions === "function" ? actions(table) : actions}
+					<DataTableViewOptions table={table} columnTitles={columnTitles} />
+				</div>
 			</div>
 			<div className="mb-4 rounded-md border">
 				<Table wrapperClassName="max-h-[calc(100dvh-16rem)]">

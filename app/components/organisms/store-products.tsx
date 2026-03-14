@@ -18,7 +18,7 @@ export default async function StoreProducts() {
 	}
 
 	return (
-		<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-start">
+		<div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 items-start">
 			{products.map((product) => (
 				<StoreItemCard key={product.id} product={product} />
 			))}

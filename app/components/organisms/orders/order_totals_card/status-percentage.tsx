@@ -1,4 +1,4 @@
-import { getStatusColor } from "@/app/components/organisms/orders/order_totals_card/utils";
+import { getProgressColor, getStatusColor } from "@/app/components/organisms/orders/order_totals_card/utils";
 
 import { Badge } from "@/app/components/ui/badge";
 import { Progress } from "@/app/components/ui/progress";
@@ -10,6 +10,7 @@ import {
 	ClockIcon,
 	CogIcon,
 	CreditCardIcon,
+	ScanIcon,
 } from "lucide-react";
 
 type StatusPercentageProps = {
@@ -32,6 +33,8 @@ export default function StatusPercentage({
 				return <CogIcon className="h-4 w-4 text-blue-600" />;
 			case "delivered":
 				return <CheckCircleIcon className="h-4 w-4 text-green-600" />;
+			case "payment_verification":
+				return <ScanIcon className="h-4 w-4 text-purple-600" />;
 			case "cancelled":
 				return <AlertCircleIcon className="h-4 w-4 text-red-600" />;
 			default:
@@ -62,7 +65,7 @@ export default function StatusPercentage({
 			<Progress
 				value={percentage}
 				className="h-2"
-				indicatorClassName="bg-gray-400"
+				indicatorClassName={getProgressColor(status)}
 			/>
 		</div>
 	);

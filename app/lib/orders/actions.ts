@@ -10,8 +10,16 @@ import { sendEmail } from "@/app/vendors/resend";
 import { fetchAdminUsers } from "@/app/api/users/actions";
 import OrderConfirmationForAdminsEmailTemplate from "@/app/emails/order-confirmation-for-admins";
 import OrderConfirmationForUsersEmailTemplate from "@/app/emails/order-confirmation-for-user";
+import OrderPaymentConfirmationForUserEmailTemplate from "@/app/emails/order-payment-confirmation-for-user";
+import OrderVoucherSubmittedForAdminsEmailTemplate from "@/app/emails/order-voucher-submitted-for-admins";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+
+function revalidateStoreOrderViews() {
+	revalidatePath("/dashboard/store");
+	revalidatePath("/dashboard/store/orders");
+	revalidatePath("/dashboard/store/payments");
+}
 
 export async function sendOrderEmails(emailData: {
 	orderId: number;
@@ -331,6 +339,38 @@ export async function fetchOrders() {
 	}
 }
 
+export async function fetchPendingVoucherReviewOrders() {
+	try {
+		return await db.query.orders.findMany({
+			where: eq(orders.status, "payment_verification"),
+			orderBy: [desc(orders.voucherSubmittedAt)],
+			with: {
+				customer: {
+					with: {
+						profileSubcategories: {
+							with: {
+								subcategory: true,
+							},
+						},
+					},
+				},
+				orderItems: {
+					with: {
+						product: {
+							with: {
+								images: true,
+							},
+						},
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
+}
+
 export async function acceptOrder(orderId: number) {
 	try {
 		await db
@@ -345,7 +385,7 @@ export async function acceptOrder(orderId: number) {
 		};
 	}
 
-	revalidatePath("/dashboard/orders");
+	revalidateStoreOrderViews();
 	return {
 		success: true,
 		message: "Orden aceptada correctamente.",
@@ -363,7 +403,7 @@ export async function deleteOrder(orderId: number) {
 		};
 	}
 
-	revalidatePath("/dashboard/orders");
+	revalidateStoreOrderViews();
 	return {
 		success: true,
 		message: "Orden eliminada correctamente.",
@@ -371,6 +411,8 @@ export async function deleteOrder(orderId: number) {
 }
 
 export async function updateOrderStatus(orderId: number, status: OrderStatus) {
+	const orderBefore = await fetchOrder(orderId);
+
 	try {
 		await db.update(orders).set({ status }).where(eq(orders.id, orderId));
 	} catch (error) {
@@ -381,7 +423,27 @@ export async function updateOrderStatus(orderId: number, status: OrderStatus) {
 		};
 	}
 
-	revalidatePath("/dashboard/orders");
+	if (status === "paid" && orderBefore && orderBefore.status !== "paid") {
+		try {
+			await sendEmail({
+				to: [orderBefore.customer.email],
+				from: "Glitter Store <reservas@productoraglitter.com>",
+				subject: `Tu pago de la orden #${orderId} fue confirmado`,
+				react: OrderPaymentConfirmationForUserEmailTemplate({
+					customerName:
+						orderBefore.customer.displayName ??
+						orderBefore.customer.firstName ??
+						"",
+					orderId: String(orderId),
+					total: orderBefore.totalAmount,
+				}) as React.ReactElement,
+			});
+		} catch (emailError) {
+			console.error("Failed to send payment confirmation email", emailError);
+		}
+	}
+
+	revalidateStoreOrderViews();
 	return {
 		success: true,
 		message: "Pedido actualizado correctamente.",
@@ -426,8 +488,18 @@ export async function submitOrderPaymentVoucher(
 	try {
 		const [order] = await db
 			.update(orders)
-			.set({ paymentVoucherUrl: voucherUrl, status: "payment_verification" })
-			.where(and(eq(orders.id, orderId), eq(orders.userId, currentUser.id), eq(orders.status, "pending")))
+			.set({
+				paymentVoucherUrl: voucherUrl,
+				status: "payment_verification",
+				voucherSubmittedAt: new Date(),
+			})
+			.where(
+				and(
+					eq(orders.id, orderId),
+					eq(orders.userId, currentUser.id),
+					eq(orders.status, "pending"),
+				),
+			)
 			.returning();
 
 		if (!order) {
@@ -438,12 +510,121 @@ export async function submitOrderPaymentVoucher(
 		}
 
 		revalidatePath(`/profiles/${order.userId}/orders/${orderId}`);
-		revalidatePath("/dashboard/orders");
+		revalidateStoreOrderViews();
+
+		try {
+			const admins = await fetchAdminUsers();
+			const adminEmails = admins.map((a) => a.email).filter(Boolean);
+			if (adminEmails.length > 0) {
+				await sendEmail({
+					to: adminEmails,
+					from: "Glitter Store <store@productoraglitter.com>",
+					subject: `Nuevo comprobante de pago — orden #${orderId}`,
+					react: OrderVoucherSubmittedForAdminsEmailTemplate({
+						customerName:
+							currentUser.displayName ?? currentUser.firstName ?? "Cliente",
+						orderId: String(orderId),
+					}) as React.ReactElement,
+				});
+			}
+		} catch (adminEmailError) {
+			console.error("[submitOrderVoucher] Admin notification email failed", {
+				orderId,
+				error: adminEmailError,
+			});
+		}
 
 		return { success: true, message: "Comprobante enviado correctamente." };
 	} catch (error) {
 		console.error(error);
 		return { success: false, message: "No se pudo enviar el comprobante." };
+	}
+}
+
+export async function adminAttachOrderVoucher(
+	orderId: number,
+	voucherUrl: string,
+) {
+	const currentUser = await getCurrentUserProfile();
+	if (!currentUser || currentUser.role !== "admin") {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción.",
+		};
+	}
+
+	if (!isAllowedVoucherUrl(voucherUrl)) {
+		return { success: false, message: "URL de comprobante inválida." };
+	}
+
+	try {
+		const [order] = await db
+			.update(orders)
+			.set({
+				paymentVoucherUrl: voucherUrl,
+				voucherSubmittedAt: new Date(),
+				status: "payment_verification",
+			})
+			.where(
+				and(
+					eq(orders.id, orderId),
+					inArray(orders.status, ["pending", "payment_verification"]),
+				),
+			)
+			.returning();
+
+		if (!order) {
+			return { success: false, message: "Orden no encontrada o ya procesada." };
+		}
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "No se pudo guardar el comprobante." };
+	}
+
+	revalidateStoreOrderViews();
+	return { success: true, message: "Comprobante guardado correctamente." };
+}
+
+export type OrdersStats = {
+	totalOrders: number;
+	totalRevenue: number;
+	needsAttention: number;
+	inProgress: number;
+	delivered: number;
+	cancelled: number;
+};
+
+export async function fetchOrdersStats(): Promise<OrdersStats> {
+	try {
+		const [result] = await db
+			.select({
+				totalOrders: sql<number>`cast(count(*) as integer)`,
+				totalRevenue: sql<number>`cast(coalesce(sum(${orders.totalAmount}) filter (where ${orders.status} in ('paid', 'delivered')), 0) as numeric(10,2))`,
+				needsAttention: sql<number>`cast(count(*) filter (where ${orders.status} in ('pending', 'payment_verification')) as integer)`,
+				inProgress: sql<number>`cast(count(*) filter (where ${orders.status} = 'processing') as integer)`,
+				delivered: sql<number>`cast(count(*) filter (where ${orders.status} = 'delivered') as integer)`,
+				cancelled: sql<number>`cast(count(*) filter (where ${orders.status} = 'cancelled') as integer)`,
+			})
+			.from(orders);
+
+		return {
+			totalOrders: result.totalOrders ?? 0,
+			totalRevenue: Number(result.totalRevenue ?? 0),
+			needsAttention: result.needsAttention ?? 0,
+			inProgress: result.inProgress ?? 0,
+			delivered: result.delivered ?? 0,
+			cancelled: result.cancelled ?? 0,
+		};
+	} catch (error) {
+		console.error(error);
+		return {
+			totalOrders: 0,
+			totalRevenue: 0,
+			needsAttention: 0,
+			inProgress: 0,
+			delivered: 0,
+			cancelled: 0,
+		};
 	}
 }
 

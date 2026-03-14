@@ -25,29 +25,8 @@ type OrderTotalsCardProps = {
 export default function OrderTotalsCard({ product }: OrderTotalsCardProps) {
 	const [isExpanded, setIsExpanded] = useState(false);
 
-	const paidPercentage = calculatePercentage(
-		product.totals.paid,
-		product.allTotalsSum,
-	);
-	const pendingPercentage = calculatePercentage(
-		product.totals.pending,
-		product.allTotalsSum,
-	);
-	const processingPercentage = calculatePercentage(
-		product.totals.processing,
-		product.allTotalsSum,
-	);
-	const deliveredPercentage = calculatePercentage(
-		product.totals.delivered,
-		product.allTotalsSum,
-	);
-	const cancelledPercentage = calculatePercentage(
-		product.totals.cancelled,
-		product.allTotalsSum,
-	);
-
 	return (
-		<Card className="w-full max-w-md transition-all duration-300 hover:shadow-md my-2">
+		<Card className="w-full transition-all duration-300 hover:shadow-md">
 			<CardHeader className="pb-4">
 				<div className="flex items-start gap-3">
 					<PackageIcon className="h-6 w-6 text-muted-foreground mt-1 shrink-0" />
@@ -78,7 +57,7 @@ export default function OrderTotalsCard({ product }: OrderTotalsCardProps) {
 				{/* Expanded Details */}
 				<div
 					className={`transition-all duration-300 overflow-hidden ${
-						isExpanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+						isExpanded ? "max-h-[32rem] opacity-100" : "max-h-0 opacity-0"
 					}`}
 				>
 					<div className="space-y-4 pt-2">
@@ -96,47 +75,50 @@ export default function OrderTotalsCard({ product }: OrderTotalsCardProps) {
 							</Button>
 						</div>
 
-						{/* Por confirmar */}
 						{product.totals.pending && product.totals.pending > 0 && (
 							<StatusPercentage
 								status="pending"
-								percentage={pendingPercentage}
+								percentage={calculatePercentage(product.totals.pending, product.allTotalsSum)}
 								total={product.totals.pending}
 							/>
 						)}
 
-						{/* En proceso */}
+						{product.totals.payment_verification && product.totals.payment_verification > 0 && (
+							<StatusPercentage
+								status="payment_verification"
+								percentage={calculatePercentage(product.totals.payment_verification, product.allTotalsSum)}
+								total={product.totals.payment_verification}
+							/>
+						)}
+
 						{product.totals.processing && product.totals.processing > 0 && (
 							<StatusPercentage
 								status="processing"
-								percentage={processingPercentage}
+								percentage={calculatePercentage(product.totals.processing, product.allTotalsSum)}
 								total={product.totals.processing}
 							/>
 						)}
 
-						{/* Pagado */}
 						{product.totals.paid && product.totals.paid > 0 && (
 							<StatusPercentage
 								status="paid"
-								percentage={paidPercentage}
+								percentage={calculatePercentage(product.totals.paid, product.allTotalsSum)}
 								total={product.totals.paid}
 							/>
 						)}
 
-						{/* Entregado */}
 						{product.totals.delivered && product.totals.delivered > 0 && (
 							<StatusPercentage
 								status="delivered"
-								percentage={deliveredPercentage}
+								percentage={calculatePercentage(product.totals.delivered, product.allTotalsSum)}
 								total={product.totals.delivered}
 							/>
 						)}
 
-						{/* Cancelado */}
 						{product.totals.cancelled && product.totals.cancelled > 0 && (
 							<StatusPercentage
 								status="cancelled"
-								percentage={cancelledPercentage}
+								percentage={calculatePercentage(product.totals.cancelled, product.allTotalsSum)}
 								total={product.totals.cancelled}
 							/>
 						)}

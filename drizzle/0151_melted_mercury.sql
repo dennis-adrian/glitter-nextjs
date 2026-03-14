@@ -1,0 +1,1 @@
+ALTER TABLE "orders" ADD COLUMN "voucher_submitted_at" timestamp;

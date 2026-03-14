@@ -5,6 +5,7 @@ import {
 	index,
 	integer,
 	jsonb,
+	numeric,
 	pgEnum,
 	pgTable,
 	real,
@@ -1063,8 +1064,13 @@ export const orders = pgTable("orders", {
 		.references(() => users.id, { onDelete: "cascade" }),
 	orderDate: timestamp("order_date").defaultNow(),
 	status: orderStatusEnum("status").default("pending").notNull(),
-	totalAmount: real("total_amount").notNull(),
+	totalAmount: numeric("total_amount", {
+		precision: 10,
+		scale: 2,
+		mode: "number",
+	}).notNull(),
 	paymentVoucherUrl: text("payment_voucher_url"),
+	voucherSubmittedAt: timestamp("voucher_submitted_at"),
 	paymentDueDate: timestamp("payment_due_date")
 		.notNull()
 		.default(sql`now() + interval '10 days'`),
@@ -1300,13 +1306,21 @@ export const participantProductsRelations = relations(
 	}),
 );
 
+export const productImageUploadStatusEnum = pgEnum(
+	"product_image_upload_status",
+	["pending", "active"],
+);
+
 export const productImages = pgTable(
 	"product_images",
 	{
 		id: serial("id").primaryKey(),
-		productId: integer("product_id")
-			.notNull()
-			.references(() => products.id, { onDelete: "cascade" }),
+		productId: integer("product_id").references(() => products.id, {
+			onDelete: "cascade",
+		}),
+		uploadStatus: productImageUploadStatusEnum("upload_status")
+			.default("pending")
+			.notNull(),
 		imageUrl: text("image_url").notNull(),
 		description: text("description"),
 		isMain: boolean("is_main").default(false).notNull(),
