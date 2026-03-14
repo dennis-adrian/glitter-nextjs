@@ -241,7 +241,7 @@ export default function StoreProductImages({
 		}
 	};
 
-	const carrouselPlugins = useMemo(() => {
+	const carouselPlugins = useMemo(() => {
 		return autoPlay
 			? [
 					Autoplay({
@@ -253,7 +253,7 @@ export default function StoreProductImages({
 
 	return (
 		<div ref={containerRef}>
-			<Carousel setApi={setApi} plugins={carrouselPlugins}>
+			<Carousel setApi={setApi} plugins={carouselPlugins}>
 				<CarouselContent
 					{...(canOpenModal
 						? {

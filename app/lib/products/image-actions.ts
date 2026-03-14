@@ -32,6 +32,7 @@ export async function deleteProductImage(
 			console.warn(
 				`[deleteProductImage] Could not extract storage key from URL: ${image.imageUrl}`,
 			);
+			storageDeleted = false;
 		} else {
 			const result = await utapi.deleteFiles(key);
 			if (!result.success) {

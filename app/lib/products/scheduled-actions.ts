@@ -30,7 +30,13 @@ export async function handleOrphanedProductImages(): Promise<number> {
 		const successfulIds: number[] = [];
 		for (const { key, id } of keyIdPairs) {
 			try {
-				await utapi.deleteFiles(key);
+				const result = await utapi.deleteFiles(key);
+				if (!result.success) {
+					console.warn(
+						`[handleOrphanedProductImages] Storage delete failed for key: ${key}`,
+					);
+					continue;
+				}
 				successfulIds.push(id);
 			} catch (err) {
 				console.warn(

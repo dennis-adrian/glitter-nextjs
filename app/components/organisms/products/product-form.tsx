@@ -78,6 +78,20 @@ export default function ProductForm({ product }: ProductFormProps) {
 
 	const [images, setImages] = useState<ImageItem[]>(initialImages);
 	const [hasImageChanges, setHasImageChanges] = useState(false);
+
+	// Sync images when product identity changes (e.g. navigation to different product without remount)
+	useEffect(() => {
+		const nextImages: ImageItem[] =
+			product?.images
+				?.filter((img) => img.uploadStatus === "active")
+				.map((img) => ({
+					id: img.id,
+					url: img.imageUrl,
+					isMain: img.isMain,
+				})) ?? [];
+		setImages(nextImages);
+	}, [product?.id]);
+
 	const [uploadQueue, setUploadQueue] = useState<File[]>([]);
 	const [currentlyUploading, setCurrentlyUploading] =
 		useState<UploadingItem | null>(null);
@@ -193,23 +207,28 @@ export default function ProductForm({ product }: ProductFormProps) {
 
 	async function handleDelete(imageId: number) {
 		setDeletingIds((prev) => new Set(prev).add(imageId));
-		const res = await deleteProductImage(imageId);
-		setDeletingIds((prev) => {
-			const s = new Set(prev);
-			s.delete(imageId);
-			return s;
-		});
-		if (res.success) {
-			setImages((prev) => {
-				const next = prev.filter((img) => img.id !== imageId);
-				if (next.length > 0 && !next.some((img) => img.isMain)) {
-					next[0].isMain = true;
-				}
-				return next;
+		try {
+			const res = await deleteProductImage(imageId);
+			if (res.success) {
+				setImages((prev) => {
+					const next = prev.filter((img) => img.id !== imageId);
+					if (next.length > 0 && !next.some((img) => img.isMain)) {
+						next[0].isMain = true;
+					}
+					return next;
+				});
+				setHasImageChanges(true);
+			} else {
+				toast.error(res.message);
+			}
+		} catch {
+			toast.error("No se pudo eliminar la imagen.");
+		} finally {
+			setDeletingIds((prev) => {
+				const s = new Set(prev);
+				s.delete(imageId);
+				return s;
 			});
-			setHasImageChanges(true);
-		} else {
-			toast.error(res.message);
 		}
 	}
 

@@ -42,7 +42,7 @@ function OrdersExportButton({ orders }: { orders: OrderWithRelations[] }) {
 		const url = URL.createObjectURL(blob);
 		const link = document.createElement("a");
 		link.href = url;
-		link.download = `pedidos-${new Date().toISOString().slice(0, 10)}.csv`;
+		link.download = `pedidos-${DateTime.now().toISODate()}}.csv`;
 		link.click();
 		URL.revokeObjectURL(url);
 	}

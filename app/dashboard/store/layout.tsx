@@ -79,7 +79,7 @@ export default function StoreLayout({
 							}}
 						>
 							<SelectTrigger className="h-11 rounded-xl border-border/70 bg-muted/30">
-								<SelectValue placeholder="Selecciona una seccion" />
+								<SelectValue placeholder="Selecciona una sección" />
 							</SelectTrigger>
 							<SelectContent>
 								{storeSections.map(({ value, label, icon: Icon }) => (
