@@ -10,6 +10,8 @@ import { sendEmail } from "@/app/vendors/resend";
 import { fetchAdminUsers } from "@/app/api/users/actions";
 import OrderConfirmationForAdminsEmailTemplate from "@/app/emails/order-confirmation-for-admins";
 import OrderConfirmationForUsersEmailTemplate from "@/app/emails/order-confirmation-for-user";
+import OrderPaymentConfirmationForUserEmailTemplate from "@/app/emails/order-payment-confirmation-for-user";
+import OrderVoucherSubmittedForAdminsEmailTemplate from "@/app/emails/order-voucher-submitted-for-admins";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
@@ -419,6 +421,25 @@ export async function updateOrderStatus(orderId: number, status: OrderStatus) {
 		};
 	}
 
+	if (status === "paid") {
+		const order = await fetchOrder(orderId);
+		if (order) {
+			await sendEmail({
+				to: [order.customer.email],
+				from: "Glitter Store <reservas@productoraglitter.com>",
+				subject: `Tu pago de la orden #${orderId} fue confirmado`,
+				react: OrderPaymentConfirmationForUserEmailTemplate({
+					customerName:
+						order.customer.displayName ??
+						order.customer.firstName ??
+						"",
+					orderId: String(orderId),
+					total: order.totalAmount,
+				}) as React.ReactElement,
+			});
+		}
+	}
+
 	revalidateStoreOrderViews();
 	return {
 		success: true,
@@ -487,6 +508,21 @@ export async function submitOrderPaymentVoucher(
 
 		revalidatePath(`/profiles/${order.userId}/orders/${orderId}`);
 		revalidateStoreOrderViews();
+
+		const admins = await fetchAdminUsers();
+		const adminEmails = admins.map((a) => a.email).filter(Boolean);
+		if (adminEmails.length > 0) {
+			await sendEmail({
+				to: adminEmails,
+				from: "Glitter Store <store@productoraglitter.com>",
+				subject: `Nuevo comprobante de pago — orden #${orderId}`,
+				react: OrderVoucherSubmittedForAdminsEmailTemplate({
+					customerName:
+						currentUser.displayName ?? currentUser.firstName ?? "Cliente",
+					orderId: String(orderId),
+				}) as React.ReactElement,
+			});
+		}
 
 		return { success: true, message: "Comprobante enviado correctamente." };
 	} catch (error) {
