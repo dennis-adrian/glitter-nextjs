@@ -24,6 +24,35 @@ function StatsCardsSkeleton() {
 	);
 }
 
+function LowStockSkeleton() {
+	return (
+		<div className="rounded-lg border border-amber-200/50 bg-card p-4">
+			<div className="flex items-center gap-2 pb-2">
+				<Skeleton className="h-5 w-5 shrink-0" />
+				<Skeleton className="h-5 w-24" />
+			</div>
+			<div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+				{Array.from({ length: 4 }).map((_, i) => (
+					<Skeleton key={i} className="h-10 w-full" />
+				))}
+			</div>
+		</div>
+	);
+}
+
+function OrdersTotalsSkeleton() {
+	return (
+		<div className="space-y-3">
+			<Skeleton className="h-7 w-48" />
+			<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+				{Array.from({ length: 6 }).map((_, i) => (
+					<Skeleton key={i} className="h-28 w-full" />
+				))}
+			</div>
+		</div>
+	);
+}
+
 export default function StoreOrdersPage() {
 	const ordersPromise = fetchOrders();
 	const ordersTotalsPromise = fetchOrdersTotalsByProduct();
@@ -42,11 +71,11 @@ export default function StoreOrdersPage() {
 				</Suspense>
 			</div>
 
-			<Suspense>
+			<Suspense fallback={<LowStockSkeleton />}>
 				<LowStockAlert lowStockPromise={lowStockPromise} />
 			</Suspense>
 
-			<Suspense>
+			<Suspense fallback={<OrdersTotalsSkeleton />}>
 				<OrdersTotals ordersTotalsPromise={ordersTotalsPromise} />
 			</Suspense>
 

@@ -173,6 +173,11 @@ export const ourFileRouter = {
 				.insert(productImages)
 				.values({ imageUrl })
 				.returning();
+			if (!record) {
+				throw new UploadThingError(
+					"No se pudo guardar la imagen en la base de datos",
+				);
+			}
 			return { imageUrl, imageId: record.id };
 		}),
 } satisfies FileRouter;

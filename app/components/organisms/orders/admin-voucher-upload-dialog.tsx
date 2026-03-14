@@ -28,6 +28,7 @@ export default function AdminVoucherUploadDialog({
 
 	async function handleUploadComplete(imageUrl: string) {
 		const result = await adminAttachOrderVoucher(order.id, imageUrl);
+		setIsUploading(false);
 		if (result.success) {
 			toast.success(result.message);
 			setOpen(false);

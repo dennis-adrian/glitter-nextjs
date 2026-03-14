@@ -32,9 +32,7 @@ export default function OrdersCardList({ ordersPromise }: OrdersCardListProps) {
 
 	const filtered = useMemo(
 		() =>
-			statusFilter
-				? orders.filter((o) => o.status === statusFilter)
-				: orders,
+			statusFilter ? orders.filter((o) => o.status === statusFilter) : orders,
 		[orders, statusFilter],
 	);
 
@@ -43,9 +41,8 @@ export default function OrdersCardList({ ordersPromise }: OrdersCardListProps) {
 			<select
 				className="rounded-md border border-input bg-background px-3 py-2 text-sm w-full"
 				value={statusFilter}
-				onChange={(e) =>
-					setStatusFilter(e.target.value as "" | OrderStatus)
-				}
+				aria-label="Filtrar por estado"
+				onChange={(e) => setStatusFilter(e.target.value as "" | OrderStatus)}
 			>
 				{STATUS_OPTIONS.map((opt) => (
 					<option key={opt.value} value={opt.value}>
@@ -64,9 +61,7 @@ export default function OrdersCardList({ ordersPromise }: OrdersCardListProps) {
 						<div className="flex items-start justify-between gap-2">
 							<div className="flex flex-col gap-1 min-w-0">
 								<div className="flex items-center gap-2 flex-wrap">
-									<span className="text-sm font-semibold">
-										#{order.id}
-									</span>
+									<span className="text-sm font-semibold">#{order.id}</span>
 									<OrderStatusBadge status={order.status} />
 								</div>
 								<p className="text-sm text-muted-foreground truncate">

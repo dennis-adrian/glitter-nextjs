@@ -21,7 +21,7 @@ export default function DeleteProductModal({
 }) {
 	const form = useForm();
 
-	const action: () => void = form.handleSubmit(async () => {
+	const action = form.handleSubmit(async () => {
 		const result = await deleteProduct(product.id);
 		if (result.success) {
 			toast.success(result.message);
@@ -37,8 +37,7 @@ export default function DeleteProductModal({
 				<AlertCircleIcon size={48} className="text-red-500" />
 				<div className="flex flex-col gap-2">
 					<p>
-						¿Estás seguro que deseas eliminar{" "}
-						<strong>{product.name}</strong>?
+						¿Estás seguro que deseas eliminar <strong>{product.name}</strong>?
 					</p>
 					<p className="text-sm text-muted-foreground">
 						La acción no se puede deshacer.
