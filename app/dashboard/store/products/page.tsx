@@ -1,5 +1,4 @@
-import ProductsCardGrid from "@/app/components/organisms/products/products-card-grid";
-import ProductsTable from "@/app/components/organisms/products/products-table";
+import ResponsiveProductsView from "@/app/components/organisms/products/responsive-products-view";
 import TableSkeleton from "@/app/components/users/skeletons/table";
 import { Button } from "@/app/components/ui/button";
 import { fetchProducts } from "@/app/lib/products/actions";
@@ -21,28 +20,9 @@ export default function StoreProductsPage() {
 				</Button>
 			</div>
 
-			<div className="block md:hidden">
-				<Suspense
-					fallback={
-						<div className="grid grid-cols-2 gap-3">
-							{Array.from({ length: 4 }).map((_, i) => (
-								<div
-									key={i}
-									className="rounded-lg border bg-muted animate-pulse aspect-square"
-								/>
-							))}
-						</div>
-					}
-				>
-					<ProductsCardGrid productsPromise={productsPromise} />
-				</Suspense>
-			</div>
-
-			<div className="hidden md:block">
-				<Suspense fallback={<TableSkeleton />}>
-					<ProductsTable productsPromise={productsPromise} />
-				</Suspense>
-			</div>
+			<Suspense fallback={<TableSkeleton />}>
+				<ResponsiveProductsView productsPromise={productsPromise} />
+			</Suspense>
 		</div>
 	);
 }

@@ -86,6 +86,7 @@ function ProductCard({ product }: { product: BaseProductWithImages }) {
 							variant="outline"
 							size="sm"
 							className="min-h-10 text-destructive border-destructive/30 hover:bg-destructive/10"
+							aria-label={`Eliminar producto ${product.name}`}
 							onClick={() => setOpenDelete(true)}
 						>
 							<Trash2Icon className="h-4 w-4" />

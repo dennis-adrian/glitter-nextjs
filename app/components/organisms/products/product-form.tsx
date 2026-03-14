@@ -27,10 +27,14 @@ const FormSchema = z.object({
 	description: z.string().trim().optional(),
 	price: z
 		.string()
+		.trim()
+		.min(1, "El precio es requerido")
 		.transform(Number)
 		.pipe(z.number().min(0, "El precio debe ser mayor o igual a 0")),
 	stock: z
 		.string()
+		.trim()
+		.min(1, "El stock es requerido")
 		.transform(Number)
 		.pipe(z.number().int().min(0, "El stock debe ser mayor o igual a 0")),
 	status: z.enum(["available", "presale", "sale"]),
@@ -224,7 +228,10 @@ export default function ProductForm({ product }: ProductFormProps) {
 
 		const payload = {
 			...data,
-			availableDate: data.availableDate ? new Date(data.availableDate) : null,
+			availableDate:
+				data.isPreOrder && data.availableDate
+					? new Date(data.availableDate)
+					: null,
 			imagePayloads,
 		};
 
@@ -422,7 +429,12 @@ export default function ProductForm({ product }: ProductFormProps) {
 						<Switch
 							id="isPreOrder"
 							checked={isPreOrder}
-							onCheckedChange={(v) => form.setValue("isPreOrder", v)}
+							onCheckedChange={(v) =>
+								form.setValue("isPreOrder", v, {
+									shouldDirty: true,
+									shouldValidate: true,
+								})
+							}
 						/>
 						<FormLabel htmlFor="isPreOrder">Es pre-venta</FormLabel>
 					</div>
@@ -437,7 +449,12 @@ export default function ProductForm({ product }: ProductFormProps) {
 						<Switch
 							id="isFeatured"
 							checked={form.watch("isFeatured")}
-							onCheckedChange={(v) => form.setValue("isFeatured", v)}
+							onCheckedChange={(v) =>
+								form.setValue("isFeatured", v, {
+									shouldDirty: true,
+									shouldValidate: true,
+								})
+							}
 						/>
 						<FormLabel htmlFor="isFeatured">Producto destacado</FormLabel>
 					</div>
@@ -445,7 +462,12 @@ export default function ProductForm({ product }: ProductFormProps) {
 						<Switch
 							id="isNew"
 							checked={form.watch("isNew")}
-							onCheckedChange={(v) => form.setValue("isNew", v)}
+							onCheckedChange={(v) =>
+								form.setValue("isNew", v, {
+									shouldDirty: true,
+									shouldValidate: true,
+								})
+							}
 						/>
 						<FormLabel htmlFor="isNew">Producto nuevo</FormLabel>
 					</div>

@@ -34,7 +34,10 @@ function ActionsCell({ product }: { product: BaseProductWithImages }) {
 	return (
 		<div className="flex items-center gap-1">
 			<Button asChild variant="ghost" size="icon" className="h-8 w-8">
-				<Link href={`/dashboard/store/products/${product.id}/edit`}>
+				<Link
+					href={`/dashboard/store/products/${product.id}/edit`}
+					aria-label={`Editar ${product.name}`}
+				>
 					<EditIcon className="h-4 w-4" />
 				</Link>
 			</Button>
@@ -42,6 +45,7 @@ function ActionsCell({ product }: { product: BaseProductWithImages }) {
 				variant="ghost"
 				size="icon"
 				className="h-8 w-8 text-destructive hover:text-destructive"
+				aria-label={`Eliminar ${product.name}`}
 				onClick={() => setOpenDelete(true)}
 			>
 				<Trash2Icon className="h-4 w-4" />
@@ -135,10 +139,7 @@ export const columns: ColumnDef<BaseProductWithImages>[] = [
 	{
 		accessorKey: "isFeatured",
 		header: ({ column }) => (
-			<DataTableColumnHeader
-				column={column}
-				title={columnTitles.isFeatured}
-			/>
+			<DataTableColumnHeader column={column} title={columnTitles.isFeatured} />
 		),
 		cell: ({ row }) =>
 			row.original.isFeatured ? (
