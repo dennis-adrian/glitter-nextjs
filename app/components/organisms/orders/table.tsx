@@ -31,7 +31,7 @@ function OrdersExportButton({
 		const rows = visibleOrders.map((o) => [
 			o.id,
 			o.customer.displayName ?? "",
-			o.totalAmount.toFixed(2),
+			Number(o.totalAmount).toFixed(2),
 			getOrderStatusLabel(o.status),
 			formatDate(o.createdAt).toLocaleString(DateTime.DATETIME_MED),
 		]);

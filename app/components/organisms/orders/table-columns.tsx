@@ -49,7 +49,7 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
 			<DataTableColumnHeader column={column} title={columnTitles.total} />
 		),
 		cell: ({ row }) => {
-			return <div>Bs{row.original.totalAmount.toFixed(2)}</div>;
+			return <div>Bs{Number(row.original.totalAmount).toFixed(2)}</div>;
 		},
 	},
 	{

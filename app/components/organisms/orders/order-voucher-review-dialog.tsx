@@ -82,7 +82,7 @@ export default function OrderVoucherReviewDialog({
 									<div className="space-y-1 text-sm text-muted-foreground">
 										<p>{productCountLabel}</p>
 										<p className="font-medium text-primary">
-											Total: {formatCurrency(order.totalAmount)}
+											Total: {formatCurrency(Number(order.totalAmount))}
 										</p>
 										<p>
 											Subido:{" "}
@@ -142,7 +142,7 @@ export default function OrderVoucherReviewDialog({
 									<div className="flex items-center justify-between border-t pt-2 text-sm md:text-base font-semibold">
 										<p>Total</p>
 										<p className="text-primary">
-											{formatCurrency(order.totalAmount)}
+											{formatCurrency(Number(order.totalAmount))}
 										</p>
 									</div>
 								</CardContent>

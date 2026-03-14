@@ -1,0 +1,1 @@
+ALTER TABLE "orders" ALTER COLUMN "total_amount" SET DATA TYPE numeric(10, 2);

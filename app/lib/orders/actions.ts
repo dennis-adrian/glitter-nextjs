@@ -144,7 +144,7 @@ export async function createOrderInTx(
 		.insert(orders)
 		.values({
 			userId,
-			totalAmount,
+			totalAmount: String(totalAmount),
 			paymentDueDate: sql`now() + interval '10 days'`,
 		})
 		.returning();
@@ -435,7 +435,7 @@ export async function updateOrderStatus(orderId: number, status: OrderStatus) {
 						orderBefore.customer.firstName ??
 						"",
 					orderId: String(orderId),
-					total: orderBefore.totalAmount,
+					total: Number(orderBefore.totalAmount),
 				}) as React.ReactElement,
 			});
 		} catch (emailError) {
@@ -594,7 +594,7 @@ export async function fetchOrdersStats(): Promise<OrdersStats> {
 		const [result] = await db
 			.select({
 				totalOrders: sql<number>`cast(count(*) as integer)`,
-				totalRevenue: sql<number>`cast(coalesce(sum(${orders.totalAmount}) filter (where ${orders.status} in ('paid', 'delivered')), 0) as real)`,
+				totalRevenue: sql<number>`cast(coalesce(sum(${orders.totalAmount}) filter (where ${orders.status} in ('paid', 'delivered')), 0) as numeric(10,2))`,
 				needsAttention: sql<number>`cast(count(*) filter (where ${orders.status} in ('pending', 'payment_verification')) as integer)`,
 				inProgress: sql<number>`cast(count(*) filter (where ${orders.status} = 'processing') as integer)`,
 				delivered: sql<number>`cast(count(*) filter (where ${orders.status} = 'delivered') as integer)`,
@@ -604,7 +604,7 @@ export async function fetchOrdersStats(): Promise<OrdersStats> {
 
 		return {
 			totalOrders: result.totalOrders ?? 0,
-			totalRevenue: result.totalRevenue ?? 0,
+			totalRevenue: Number(result.totalRevenue ?? 0),
 			needsAttention: result.needsAttention ?? 0,
 			inProgress: result.inProgress ?? 0,
 			delivered: result.delivered ?? 0,

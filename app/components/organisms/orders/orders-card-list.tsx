@@ -75,7 +75,7 @@ export default function OrdersCardList({ ordersPromise }: OrdersCardListProps) {
 							</div>
 							<div className="flex flex-col items-end gap-2 shrink-0">
 								<span className="font-semibold text-sm">
-									Bs {order.totalAmount.toFixed(2)}
+									Bs {Number(order.totalAmount).toFixed(2)}
 								</span>
 								<OrdersActionsCell order={order} />
 							</div>

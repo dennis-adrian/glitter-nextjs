@@ -105,7 +105,7 @@ export default async function UserOrderPage(props: {
 
 						<div className="flex justify-between font-medium text-lg pt-4 border-t mt-2">
 							<span>Total</span>
-							<span>Bs{order.totalAmount.toFixed(2)}</span>
+							<span>Bs{Number(order.totalAmount).toFixed(2)}</span>
 						</div>
 					</div>
 				</div>

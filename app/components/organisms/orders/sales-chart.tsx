@@ -57,7 +57,7 @@ export default function OrdersSalesChart({ ordersPromise }: SalesChartProps) {
 				mode === "revenue"
 					? dayOrders
 							.filter((o) => o.status === "paid" || o.status === "delivered")
-							.reduce((sum, o) => sum + o.totalAmount, 0)
+							.reduce((sum, o) => sum + Number(o.totalAmount), 0)
 					: dayOrders.length;
 
 			days.push({ date: label, value });
