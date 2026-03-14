@@ -337,6 +337,38 @@ export async function fetchOrders() {
 	}
 }
 
+export async function fetchPendingVoucherReviewOrders() {
+	try {
+		return await db.query.orders.findMany({
+			where: eq(orders.status, "payment_verification"),
+			orderBy: [desc(orders.voucherSubmittedAt)],
+			with: {
+				customer: {
+					with: {
+						profileSubcategories: {
+							with: {
+								subcategory: true,
+							},
+						},
+					},
+				},
+				orderItems: {
+					with: {
+						product: {
+							with: {
+								images: true,
+							},
+						},
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
+}
+
 export async function acceptOrder(orderId: number) {
 	try {
 		await db
@@ -437,7 +469,13 @@ export async function submitOrderPaymentVoucher(
 				status: "payment_verification",
 				voucherSubmittedAt: new Date(),
 			})
-			.where(and(eq(orders.id, orderId), eq(orders.userId, currentUser.id), eq(orders.status, "pending")))
+			.where(
+				and(
+					eq(orders.id, orderId),
+					eq(orders.userId, currentUser.id),
+					eq(orders.status, "pending"),
+				),
+			)
 			.returning();
 
 		if (!order) {

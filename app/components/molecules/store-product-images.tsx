@@ -11,6 +11,7 @@ import {
 } from "@/app/components/ui/carousel";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { BaseProductImage } from "@/app/lib/products/definitions";
+import Autoplay from "embla-carousel-autoplay";
 import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
@@ -18,7 +19,7 @@ import {
 	XIcon,
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const MIN_SWIPE_DISTANCE = 50;
 
@@ -113,35 +114,6 @@ export default function StoreProductImages({
 		imageUrls.push(mainImage.imageUrl);
 		imageUrls.push(...secondaryImages.map((img) => img.imageUrl));
 	}
-
-	// Auto-scroll interval — cycle images when in view
-	useEffect(() => {
-		if (!autoPlay || !isInView || !api || imageUrls.length <= 1) return;
-		const id = setInterval(() => {
-			api.scrollTo((api.selectedScrollSnap() + 1) % imageUrls.length);
-		}, 2000);
-		return () => clearInterval(id);
-	}, [autoPlay, isInView, api, imageUrls.length]);
-
-	const nextImage = (e?: React.MouseEvent) => {
-		if (e) {
-			e.preventDefault();
-			e.stopPropagation();
-		}
-		if (currentImageIndex < imageUrls.length - 1) {
-			setCurrentImageIndex((prev) => prev + 1);
-		}
-	};
-
-	const prevImage = (e?: React.MouseEvent) => {
-		if (e) {
-			e.preventDefault();
-			e.stopPropagation();
-		}
-		if (currentImageIndex > 0) {
-			setCurrentImageIndex((prev) => prev - 1);
-		}
-	};
 
 	const openModal = (e?: React.MouseEvent) => {
 		e?.preventDefault();
@@ -261,10 +233,7 @@ export default function StoreProductImages({
 		stock > 0 &&
 		imageUrls?.[0] !== PLACEHOLDER_IMAGE_URLS["1200"];
 
-	const handleLightboxKeyDown = (
-		e: React.KeyboardEvent,
-		allowed: boolean,
-	) => {
+	const handleLightboxKeyDown = (e: React.KeyboardEvent, allowed: boolean) => {
 		if (!allowed) return;
 		if (e.key === "Enter" || e.key === " ") {
 			e.preventDefault();
@@ -272,9 +241,19 @@ export default function StoreProductImages({
 		}
 	};
 
+	const carrouselPlugins = useMemo(() => {
+		return autoPlay
+			? [
+					Autoplay({
+						delay: 7000,
+					}),
+				]
+			: [];
+	}, [autoPlay]);
+
 	return (
 		<div ref={containerRef}>
-			<Carousel setApi={setApi}>
+			<Carousel setApi={setApi} plugins={carrouselPlugins}>
 				<CarouselContent
 					{...(canOpenModal
 						? {

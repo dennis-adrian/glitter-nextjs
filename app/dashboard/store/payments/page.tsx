@@ -1,6 +1,6 @@
 import VoucherQueue from "@/app/components/organisms/orders/voucher-queue";
 import { Skeleton } from "@/app/components/ui/skeleton";
-import { fetchOrders } from "@/app/lib/orders/actions";
+import { fetchPendingVoucherReviewOrders } from "@/app/lib/orders/actions";
 import { Suspense } from "react";
 
 function PaymentsPageSkeleton() {
@@ -17,7 +17,7 @@ function PaymentsPageSkeleton() {
 }
 
 export default function StorePaymentsPage() {
-	const ordersPromise = fetchOrders();
+	const ordersPromise = fetchPendingVoucherReviewOrders();
 
 	return (
 		<Suspense fallback={<PaymentsPageSkeleton />}>
