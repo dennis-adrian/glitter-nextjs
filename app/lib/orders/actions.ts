@@ -565,11 +565,16 @@ export async function adminAttachOrderVoucher(
 				voucherSubmittedAt: new Date(),
 				status: "payment_verification",
 			})
-			.where(eq(orders.id, orderId))
+			.where(
+				and(
+					eq(orders.id, orderId),
+					inArray(orders.status, ["pending", "payment_verification"]),
+				),
+			)
 			.returning();
 
 		if (!order) {
-			return { success: false, message: "Orden no encontrada." };
+			return { success: false, message: "Orden no encontrada o ya procesada." };
 		}
 	} catch (error) {
 		console.error(error);

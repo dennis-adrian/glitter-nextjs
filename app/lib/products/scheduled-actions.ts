@@ -27,32 +27,28 @@ export async function handleOrphanedProductImages(): Promise<number> {
 			})
 			.filter((p): p is { key: string; id: number } => p !== null);
 
-		const successfulIds: number[] = [];
-		for (const { key, id } of keyIdPairs) {
-			try {
+		if (keyIdPairs.length === 0) return 0;
+
+		const idsToDelete = keyIdPairs.map((p) => p.id);
+
+		await db.transaction(async (tx) => {
+			// Delete DB rows first so we can rollback if storage deletion fails
+			await tx
+				.delete(productImages)
+				.where(inArray(productImages.id, idsToDelete));
+
+			// Storage deletes: any failure throws and rolls back the DB delete
+			for (const { key, id } of keyIdPairs) {
 				const result = await utapi.deleteFiles(key);
 				if (!result.success) {
-					console.warn(
-						`[handleOrphanedProductImages] Storage delete failed for key: ${key}`,
+					throw new Error(
+						`[handleOrphanedProductImages] Storage delete failed for key: ${key} (id: ${id})`,
 					);
-					continue;
 				}
-				successfulIds.push(id);
-			} catch (err) {
-				console.warn(
-					`[handleOrphanedProductImages] Storage delete failed for key: ${key}`,
-					err,
-				);
 			}
-		}
+		});
 
-		if (successfulIds.length > 0) {
-			await db
-				.delete(productImages)
-				.where(inArray(productImages.id, successfulIds));
-		}
-
-		return successfulIds.length;
+		return keyIdPairs.length;
 	} catch (error) {
 		console.error("[handleOrphanedProductImages] error:", error);
 		throw error;

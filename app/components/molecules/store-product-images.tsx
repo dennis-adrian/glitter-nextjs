@@ -256,9 +256,14 @@ export default function StoreProductImages({
 	);
 
 	useEffect(() => {
-		if (!autoPlay) return;
+		if (!autoPlay) {
+			autoplayPlugin.stop();
+			return;
+		}
 		if (isInView && !isModalOpen) autoplayPlugin.play();
 		else autoplayPlugin.stop();
+
+		return () => autoplayPlugin.stop();
 	}, [autoPlay, isInView, isModalOpen, autoplayPlugin]);
 
 	return (

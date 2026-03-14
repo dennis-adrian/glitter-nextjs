@@ -6,9 +6,16 @@ import { productImages } from "@/db/schema";
 import { utapi } from "@/app/server/uploadthing";
 import { eq } from "drizzle-orm";
 
+export type DeleteProductImageResult = {
+	success: boolean;
+	message: string;
+	partial?: boolean;
+	error?: string;
+};
+
 export async function deleteProductImage(
 	imageId: number,
-): Promise<{ success: boolean; message: string }> {
+): Promise<DeleteProductImageResult> {
 	const currentProfile = await getCurrentUserProfile();
 	if (!currentProfile || currentProfile.role !== "admin") {
 		return {
@@ -52,12 +59,19 @@ export async function deleteProductImage(
 			await db.delete(productImages).where(eq(productImages.id, imageId));
 			return { success: true, message: "Imagen eliminada correctamente." };
 		} catch (dbError) {
+			const errorMessage =
+				dbError instanceof Error ? dbError.message : String(dbError);
 			console.error(
 				`[deleteProductImage] Storage deleted but DB deletion failed for imageId: ${imageId}`,
-				dbError,
+				{ error: errorMessage, dbError },
 			);
-			// Storage already deleted - return success but log for monitoring
-			return { success: true, message: "Imagen eliminada correctamente." };
+			return {
+				success: false,
+				partial: true,
+				message:
+					"La imagen se eliminó del almacenamiento pero falló la actualización en la base de datos. El equipo puede investigar usando los logs.",
+				error: errorMessage,
+			};
 		}
 	} catch (error) {
 		console.error(error);
