@@ -50,6 +50,18 @@ const MAX_IMAGE_SIZE_MB = 4;
 const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
 const MAX_IMAGE_COUNT = 10;
 
+/** Returns a local YYYY-MM-DD string from a Date or passes through an existing YYYY-MM-DD string. */
+function toLocalDateString(value: Date | string | null | undefined): string | null {
+	if (value == null) return null;
+	if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+	const d = new Date(value);
+	if (Number.isNaN(d.getTime())) return null;
+	const y = d.getFullYear();
+	const m = String(d.getMonth() + 1).padStart(2, "0");
+	const day = String(d.getDate()).padStart(2, "0");
+	return `${y}-${m}-${day}`;
+}
+
 type ImageItem = {
 	id: number;
 	url: string;
@@ -157,13 +169,29 @@ export default function ProductForm({ product }: ProductFormProps) {
 				product?.discount !== undefined ? String(product.discount) : "0",
 			discountUnit: product?.discountUnit ?? "percentage",
 			isPreOrder: product?.isPreOrder ?? false,
-			availableDate: product?.availableDate
-				? new Date(product.availableDate).toISOString().slice(0, 10)
-				: null,
+			availableDate: toLocalDateString(product?.availableDate ?? null),
 			isFeatured: product?.isFeatured ?? false,
 			isNew: product?.isNew ?? true,
 		},
 	});
+
+	// Reset form to new product values when product identity changes (e.g. switching products without remount)
+	useEffect(() => {
+		form.reset({
+			name: product?.name ?? "",
+			description: product?.description ?? "",
+			price: String(product?.price ?? 0),
+			stock: String(product?.stock ?? 0),
+			status: product?.status ?? "available",
+			discount:
+				product?.discount !== undefined ? String(product.discount) : "0",
+			discountUnit: product?.discountUnit ?? "percentage",
+			isPreOrder: product?.isPreOrder ?? false,
+			availableDate: toLocalDateString(product?.availableDate ?? null),
+			isFeatured: product?.isFeatured ?? false,
+			isNew: product?.isNew ?? true,
+		});
+	}, [product?.id]);
 
 	const isPreOrder = form.watch("isPreOrder");
 
@@ -248,9 +276,7 @@ export default function ProductForm({ product }: ProductFormProps) {
 		const payload = {
 			...data,
 			availableDate:
-				data.isPreOrder && data.availableDate
-					? new Date(data.availableDate)
-					: null,
+				data.isPreOrder && data.availableDate ? data.availableDate : null,
 			imagePayloads,
 		};
 

@@ -3,11 +3,9 @@
 import Image from "next/image";
 import { useState } from "react";
 import {
-	CheckIcon,
 	ChevronRightIcon,
 	CircleCheckIcon,
 	ExternalLinkIcon,
-	XIcon,
 } from "lucide-react";
 
 import UpdateOrderStatusModal from "@/app/components/organisms/orders/update-order-status-modal";

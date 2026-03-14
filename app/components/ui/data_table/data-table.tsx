@@ -5,6 +5,7 @@ import { type ReactNode, useState } from "react";
 
 import { SearchIcon } from "lucide-react";
 
+import type { Table as TableInstance } from "@tanstack/react-table";
 import {
 	ColumnDef,
 	ColumnFiltersState,
@@ -43,7 +44,7 @@ interface DataTableProps<TData, TValue> {
 	columnTitles: Record<string, string>;
 	filters?: DataTableFiltersProps[];
 	initialState?: DataTableInitialState;
-	actions?: ReactNode;
+	actions?: ReactNode | ((table: TableInstance<TData>) => ReactNode);
 }
 
 export function DataTable<TData, TValue>({
@@ -116,7 +117,7 @@ export function DataTable<TData, TValue>({
 					)}
 				</div>
 				<div className="flex items-center gap-2">
-					{actions}
+					{typeof actions === "function" ? actions(table) : actions}
 					<DataTableViewOptions table={table} columnTitles={columnTitles} />
 				</div>
 			</div>

@@ -14,17 +14,20 @@ type NewProductData = {
 	discount?: number | null;
 	discountUnit?: "percentage" | "amount";
 	isPreOrder?: boolean;
-	availableDate?: Date | null;
+	availableDate?: Date | string | null;
 	isFeatured?: boolean;
 	isNew?: boolean;
 	imagePayloads?: { id: number; isMain: boolean }[];
 };
 
 function normalizeAvailableDate(
-	date: Date | null | undefined,
+	date: Date | string | null | undefined,
 ): Date | null | undefined {
-	if (!date) return date;
-	const d = new Date(date);
+	if (date === null || date === undefined) return date;
+	const d =
+		typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
+			? new Date(`${date}T12:00:00.000Z`)
+			: new Date(date);
 	d.setUTCHours(12, 0, 0, 0);
 	return d;
 }
@@ -38,7 +41,17 @@ export async function createProduct(data: NewProductData) {
 	}
 	try {
 		await db.transaction(async (tx) => {
-			const [product] = await tx.insert(products).values(productData).returning();
+			const insertData = {
+				...productData,
+				availableDate:
+					productData.availableDate != null
+						? normalizeAvailableDate(productData.availableDate)
+						: productData.availableDate,
+			} as typeof productData & { availableDate?: Date | null };
+			const [product] = await tx
+				.insert(products)
+				.values(insertData)
+				.returning();
 
 			for (const img of imagePayloads) {
 				await tx
@@ -71,10 +84,18 @@ export async function updateProduct(id: number, data: NewProductData) {
 	}
 	try {
 		await db.transaction(async (tx) => {
-			await tx
-				.update(products)
-				.set({ ...productData, updatedAt: new Date() })
-				.where(eq(products.id, id));
+			const updateData = {
+				...productData,
+				availableDate:
+					productData.availableDate != null
+						? normalizeAvailableDate(productData.availableDate)
+						: productData.availableDate,
+				updatedAt: new Date(),
+			} as typeof productData & {
+				availableDate?: Date | null;
+				updatedAt: Date;
+			};
+			await tx.update(products).set(updateData).where(eq(products.id, id));
 
 			for (const img of imagePayloads) {
 				await tx

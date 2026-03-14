@@ -241,15 +241,25 @@ export default function StoreProductImages({
 		}
 	};
 
-	const carouselPlugins = useMemo(() => {
-		return autoPlay
-			? [
-					Autoplay({
-						delay: 7000,
-					}),
-				]
-			: [];
-	}, [autoPlay]);
+	const autoplayPlugin = useMemo(
+		() =>
+			Autoplay({
+				delay: 7000,
+				playOnInit: false,
+			}),
+		[],
+	);
+
+	const carouselPlugins = useMemo(
+		() => (autoPlay ? [autoplayPlugin] : []),
+		[autoPlay, autoplayPlugin],
+	);
+
+	useEffect(() => {
+		if (!autoPlay) return;
+		if (isInView && !isModalOpen) autoplayPlugin.play();
+		else autoplayPlugin.stop();
+	}, [autoPlay, isInView, isModalOpen, autoplayPlugin]);
 
 	return (
 		<div ref={containerRef}>

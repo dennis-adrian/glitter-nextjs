@@ -24,6 +24,8 @@ type SalesChartProps = {
 
 type ChartMode = "revenue" | "orders";
 
+const STORE_ZONE = "America/La_Paz";
+
 const chartConfig = {
 	value: {
 		label: "Valor",
@@ -36,7 +38,7 @@ export default function OrdersSalesChart({ ordersPromise }: SalesChartProps) {
 	const [mode, setMode] = useState<ChartMode>("revenue");
 
 	const chartData = useMemo(() => {
-		const now = DateTime.now();
+		const now = DateTime.now().setZone(STORE_ZONE);
 		const days: { date: string; value: number }[] = [];
 
 		for (let i = 29; i >= 0; i--) {
@@ -45,17 +47,16 @@ export default function OrdersSalesChart({ ordersPromise }: SalesChartProps) {
 			const label = day.toFormat("d MMM", { locale: "es" });
 
 			const dayOrders = orders.filter((o) => {
-				const orderDate = DateTime.fromJSDate(new Date(o.createdAt));
+				const orderDate = DateTime.fromJSDate(new Date(o.createdAt)).setZone(
+					STORE_ZONE,
+				);
 				return orderDate.toFormat("yyyy-MM-dd") === dateKey;
 			});
 
 			const value =
 				mode === "revenue"
 					? dayOrders
-							.filter(
-								(o) =>
-									o.status === "paid" || o.status === "delivered",
-							)
+							.filter((o) => o.status === "paid" || o.status === "delivered")
 							.reduce((sum, o) => sum + o.totalAmount, 0)
 					: dayOrders.length;
 
@@ -69,9 +70,7 @@ export default function OrdersSalesChart({ ordersPromise }: SalesChartProps) {
 		<Card>
 			<CardHeader className="p-4 pb-2">
 				<div className="flex items-center justify-between">
-					<CardTitle className="text-base">
-						Últimos 30 días
-					</CardTitle>
+					<CardTitle className="text-base">Últimos 30 días</CardTitle>
 					<div className="flex gap-1">
 						<Button
 							size="sm"
@@ -105,9 +104,7 @@ export default function OrdersSalesChart({ ordersPromise }: SalesChartProps) {
 							tickLine={false}
 							axisLine={false}
 							tickMargin={8}
-							tickFormatter={(v) =>
-								mode === "revenue" ? `Bs${v}` : String(v)
-							}
+							tickFormatter={(v) => (mode === "revenue" ? `Bs${v}` : String(v))}
 						/>
 						<ChartTooltip
 							content={

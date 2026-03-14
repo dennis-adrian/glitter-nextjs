@@ -411,6 +411,8 @@ export async function deleteOrder(orderId: number) {
 }
 
 export async function updateOrderStatus(orderId: number, status: OrderStatus) {
+	const orderBefore = await fetchOrder(orderId);
+
 	try {
 		await db.update(orders).set({ status }).where(eq(orders.id, orderId));
 	} catch (error) {
@@ -421,24 +423,23 @@ export async function updateOrderStatus(orderId: number, status: OrderStatus) {
 		};
 	}
 
-	if (status === "paid") {
-		const order = await fetchOrder(orderId);
-		if (order) {
-			try {
-				await sendEmail({
-					to: [order.customer.email],
-					from: "Glitter Store <reservas@productoraglitter.com>",
-					subject: `Tu pago de la orden #${orderId} fue confirmado`,
-					react: OrderPaymentConfirmationForUserEmailTemplate({
-						customerName:
-							order.customer.displayName ?? order.customer.firstName ?? "",
-						orderId: String(orderId),
-						total: order.totalAmount,
-					}) as React.ReactElement,
-				});
-			} catch (emailError) {
-				console.error("Failed to send payment confirmation email", emailError);
-			}
+	if (status === "paid" && orderBefore && orderBefore.status !== "paid") {
+		try {
+			await sendEmail({
+				to: [orderBefore.customer.email],
+				from: "Glitter Store <reservas@productoraglitter.com>",
+				subject: `Tu pago de la orden #${orderId} fue confirmado`,
+				react: OrderPaymentConfirmationForUserEmailTemplate({
+					customerName:
+						orderBefore.customer.displayName ??
+						orderBefore.customer.firstName ??
+						"",
+					orderId: String(orderId),
+					total: orderBefore.totalAmount,
+				}) as React.ReactElement,
+			});
+		} catch (emailError) {
+			console.error("Failed to send payment confirmation email", emailError);
 		}
 	}
 
@@ -559,7 +560,11 @@ export async function adminAttachOrderVoucher(
 	try {
 		const [order] = await db
 			.update(orders)
-			.set({ paymentVoucherUrl: voucherUrl, voucherSubmittedAt: new Date() })
+			.set({
+				paymentVoucherUrl: voucherUrl,
+				voucherSubmittedAt: new Date(),
+				status: "payment_verification",
+			})
 			.where(eq(orders.id, orderId))
 			.returning();
 

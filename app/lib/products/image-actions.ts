@@ -48,8 +48,17 @@ export async function deleteProductImage(
 				message: "No se pudo eliminar la imagen. Intenta de nuevo.",
 			};
 		}
-		await db.delete(productImages).where(eq(productImages.id, imageId));
-		return { success: true, message: "Imagen eliminada correctamente." };
+		try {
+			await db.delete(productImages).where(eq(productImages.id, imageId));
+			return { success: true, message: "Imagen eliminada correctamente." };
+		} catch (dbError) {
+			console.error(
+				`[deleteProductImage] Storage deleted but DB deletion failed for imageId: ${imageId}`,
+				dbError,
+			);
+			// Storage already deleted - return success but log for monitoring
+			return { success: true, message: "Imagen eliminada correctamente." };
+		}
 	} catch (error) {
 		console.error(error);
 		return { success: false, message: "No se pudo eliminar la imagen." };

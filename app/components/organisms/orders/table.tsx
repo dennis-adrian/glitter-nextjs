@@ -9,6 +9,7 @@ import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { formatDate } from "@/app/lib/formatters";
 import { OrderWithRelations } from "@/app/lib/orders/definitions";
 import { getOrderStatusLabel } from "@/app/lib/orders/utils";
+import type { Table } from "@tanstack/react-table";
 import { DownloadIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import { use, useMemo, useState } from "react";
@@ -19,10 +20,15 @@ type OrdersTableProps = {
 	ordersPromise: Promise<OrderWithRelations[]>;
 };
 
-function OrdersExportButton({ orders }: { orders: OrderWithRelations[] }) {
+function OrdersExportButton({
+	table,
+}: {
+	table: Table<OrderWithRelations>;
+}) {
 	function handleExport() {
+		const visibleOrders = table.getRowModel().rows.map((row) => row.original);
 		const headers = ["ID", "Cliente", "Total (Bs)", "Estado", "Fecha"];
-		const rows = orders.map((o) => [
+		const rows = visibleOrders.map((o) => [
 			o.id,
 			o.customer.displayName ?? "",
 			o.totalAmount.toFixed(2),
@@ -130,11 +136,11 @@ export default function OrdersTable(props: OrdersTableProps) {
 						],
 					},
 				]}
-				actions={
+				actions={(table) => (
 					<div className="hidden md:flex">
-						<OrdersExportButton orders={filteredOrders} />
+						<OrdersExportButton table={table} />
 					</div>
-				}
+				)}
 			/>
 		</div>
 	);

@@ -27,13 +27,18 @@ export default function AdminVoucherUploadDialog({
 	const orderLabel = `Orden #${String(order.id).padStart(3, "0")}`;
 
 	async function handleUploadComplete(imageUrl: string) {
-		const result = await adminAttachOrderVoucher(order.id, imageUrl);
-		setIsUploading(false);
-		if (result.success) {
-			toast.success(result.message);
-			setOpen(false);
-		} else {
-			toast.error(result.message);
+		try {
+			const result = await adminAttachOrderVoucher(order.id, imageUrl);
+			if (result.success) {
+				toast.success(result.message);
+				setOpen(false);
+			} else {
+				toast.error(result.message);
+			}
+		} catch {
+			toast.error("No se pudo guardar el comprobante.");
+		} finally {
+			setIsUploading(false);
 		}
 	}
 
