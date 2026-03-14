@@ -12,11 +12,13 @@ export default function PaymentProofUpload({
 	onUploadComplete,
 	onUploading,
 	endpoint = "reservationPayment",
+	submitLabel = "Confirmar pago",
 }: {
 	voucherImageUrl?: string;
 	onUploadComplete: (imageUrl: string) => Promise<void> | void;
 	onUploading: (isUploading: boolean) => void;
 	endpoint?: "reservationPayment" | "storeOrderPayment";
+	submitLabel?: string;
 }) {
 	const [selectedFile, setSelectedFile] = useState<File | null>(null);
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -134,7 +136,7 @@ export default function PaymentProofUpload({
 						Subiendo...
 					</span>
 				) : (
-					"Confirmar pago"
+					submitLabel
 				)}
 			</Button>
 		</div>

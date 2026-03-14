@@ -7,8 +7,10 @@ import {
 	MoreHorizontalIcon,
 	Trash2Icon,
 	TruckIcon,
+	UploadIcon,
 } from "lucide-react";
 
+import AdminVoucherUploadDialog from "@/app/components/organisms/orders/admin-voucher-upload-dialog";
 import DeleteOrderModal from "@/app/components/organisms/orders/delete-order-modal";
 import { Button } from "@/app/components/ui/button";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
@@ -27,6 +29,8 @@ export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
 	const [openDeleteModal, setOpenDeleteModal] = useState(false);
 	const [actionStatus, setActionStatus] = useState<OrderStatus | null>(null);
 	const [openUpdateOrderStatusModal, setOpenUpdateOrderStatusModal] =
+		useState(false);
+	const [openVoucherUploadDialog, setOpenVoucherUploadDialog] =
 		useState(false);
 
 	return (
@@ -63,6 +67,17 @@ export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
 							Confirmar pago
 						</DropdownMenuItem>
 					)}
+					{["pending", "payment_verification"].includes(order.status) && (
+						<DropdownMenuItem
+							onClick={() => {
+								setActionStatus("paid");
+								setOpenUpdateOrderStatusModal(true);
+							}}
+						>
+							<CheckCheckIcon className="h-4 w-4 mr-1" />
+							Marcar como pagado
+						</DropdownMenuItem>
+					)}
 					{order.status === "paid" && (
 						<DropdownMenuItem
 							onClick={() => {
@@ -72,6 +87,14 @@ export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
 						>
 							<TruckIcon className="h-4 w-4 mr-1" />
 							Marcar como entregado
+						</DropdownMenuItem>
+					)}
+					{!["cancelled", "delivered"].includes(order.status) && (
+						<DropdownMenuItem
+							onClick={() => setOpenVoucherUploadDialog(true)}
+						>
+							<UploadIcon className="h-4 w-4 mr-1" />
+							Subir comprobante
 						</DropdownMenuItem>
 					)}
 					{!["cancelled", "delivered"].includes(order.status) && (
@@ -101,6 +124,11 @@ export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
 				open={openUpdateOrderStatusModal}
 				newStatus={actionStatus}
 				setOpen={setOpenUpdateOrderStatusModal}
+			/>
+			<AdminVoucherUploadDialog
+				order={order}
+				open={openVoucherUploadDialog}
+				setOpen={setOpenVoucherUploadDialog}
 			/>
 		</>
 	);

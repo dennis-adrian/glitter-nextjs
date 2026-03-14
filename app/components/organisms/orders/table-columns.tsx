@@ -133,7 +133,7 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
 					)}
 				>
 					{isOverdue && <AlertTriangleIcon className="h-3 w-3 shrink-0" />}
-					{formatDate(paymentDueDate).toLocaleString(DateTime.DATE_MED)}
+					{formatDate(paymentDueDate).toLocaleString(DateTime.DATETIME_MED)}
 				</span>
 			);
 		},

@@ -42,7 +42,7 @@ function OrdersExportButton({ orders }: { orders: OrderWithRelations[] }) {
 		const url = URL.createObjectURL(blob);
 		const link = document.createElement("a");
 		link.href = url;
-		link.download = `pedidos-${DateTime.now().toISODate()}}.csv`;
+		link.download = `pedidos-${DateTime.now().toISODate()}.csv`;
 		link.click();
 		URL.revokeObjectURL(url);
 	}
@@ -61,28 +61,16 @@ export default function OrdersTable(props: OrdersTableProps) {
 
 	const filteredOrders = useMemo(() => {
 		if (period === "all") return orders;
-		const now = new Date();
-		const startOf = (unit: "day" | "week" | "month") => {
-			const d = new Date(now);
-			if (unit === "day") {
-				d.setHours(0, 0, 0, 0);
-			} else if (unit === "week") {
-				const day = d.getDay();
-				d.setDate(d.getDate() - day);
-				d.setHours(0, 0, 0, 0);
-			} else {
-				d.setDate(1);
-				d.setHours(0, 0, 0, 0);
-			}
-			return d;
-		};
+		const now = DateTime.now().setZone("America/La_Paz");
 		const cutoff =
 			period === "today"
-				? startOf("day")
+				? now.startOf("day")
 				: period === "week"
-					? startOf("week")
-					: startOf("month");
-		return orders.filter((o) => new Date(o.createdAt) >= cutoff);
+					? now.startOf("week")
+					: now.startOf("month");
+		return orders.filter(
+			(o) => formatDate(o.createdAt).toMillis() >= cutoff.toMillis(),
+		);
 	}, [orders, period]);
 
 	const periodOptions: { value: DatePeriod; label: string }[] = [

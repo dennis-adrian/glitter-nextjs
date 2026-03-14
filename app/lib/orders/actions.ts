@@ -495,6 +495,41 @@ export async function submitOrderPaymentVoucher(
 	}
 }
 
+export async function adminAttachOrderVoucher(
+	orderId: number,
+	voucherUrl: string,
+) {
+	const currentUser = await getCurrentUserProfile();
+	if (!currentUser || currentUser.role !== "admin") {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción.",
+		};
+	}
+
+	if (!isAllowedVoucherUrl(voucherUrl)) {
+		return { success: false, message: "URL de comprobante inválida." };
+	}
+
+	try {
+		const [order] = await db
+			.update(orders)
+			.set({ paymentVoucherUrl: voucherUrl, voucherSubmittedAt: new Date() })
+			.where(eq(orders.id, orderId))
+			.returning();
+
+		if (!order) {
+			return { success: false, message: "Orden no encontrada." };
+		}
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "No se pudo guardar el comprobante." };
+	}
+
+	revalidateStoreOrderViews();
+	return { success: true, message: "Comprobante guardado correctamente." };
+}
+
 export type OrdersStats = {
 	totalOrders: number;
 	totalRevenue: number;
