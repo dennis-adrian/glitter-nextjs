@@ -164,166 +164,166 @@ export async function fetchReservation(
 }
 
 export async function updateReservation(
-  id: number,
-  data: ReservationWithParticipantsAndUsersAndStand,
+	id: number,
+	data: ReservationWithParticipantsAndUsersAndStand,
 ): Promise<{ success: boolean; message: string }> {
-  try {
-    const { status, standId } = data;
-    await db.transaction(async (tx) => {
-      await tx
-        .update(standReservations)
-        .set({ status })
-        .where(eq(standReservations.id, id));
+	try {
+		const { status, standId } = data;
+		await db.transaction(async (tx) => {
+			await tx
+				.update(standReservations)
+				.set({ status })
+				.where(eq(standReservations.id, id));
 
-      const standStatus = status === "accepted" ? "confirmed" : "available";
-      await tx
-        .update(stands)
-        .set({ status: standStatus })
-        .where(eq(stands.id, standId));
-    });
-  } catch (error) {
-    console.error(error);
-    return { success: false, message: "Error al actualizar la reserva" };
-  }
+			const standStatus = status === "accepted" ? "confirmed" : "available";
+			await tx
+				.update(stands)
+				.set({ status: standStatus })
+				.where(eq(stands.id, standId));
+		});
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "Error al actualizar la reserva" };
+	}
 
-  revalidatePath("/dashboard/reservations");
-  return { success: true, message: "Reserva actualizada" };
+	revalidatePath("/dashboard/reservations");
+	return { success: true, message: "Reserva actualizada" };
 }
 
 export async function deleteReservation(
-  reservationId: number,
-  standId: number,
+	reservationId: number,
+	standId: number,
 ) {
-  try {
-    await db.transaction(async (tx) => {
-      await tx
-        .delete(scheduledTasks)
-        .where(eq(scheduledTasks.reservationId, reservationId));
+	try {
+		await db.transaction(async (tx) => {
+			await tx
+				.delete(scheduledTasks)
+				.where(eq(scheduledTasks.reservationId, reservationId));
 
-      await tx
-        .delete(standReservations)
-        .where(eq(standReservations.id, reservationId));
+			await tx
+				.delete(standReservations)
+				.where(eq(standReservations.id, reservationId));
 
-      await tx
-        .update(stands)
-        .set({ status: "available" })
-        .where(eq(stands.id, standId));
-    });
-  } catch (error) {
-    console.error(error);
-    return { success: false, message: "Error al eliminar la reserva" };
-  }
+			await tx
+				.update(stands)
+				.set({ status: "available" })
+				.where(eq(stands.id, standId));
+		});
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "Error al eliminar la reserva" };
+	}
 
-  revalidatePath("/dashboard/reservations");
-  return { success: true, message: "Reserva eliminada" };
+	revalidatePath("/dashboard/reservations");
+	return { success: true, message: "Reserva eliminada" };
 }
 
 export async function confirmReservation(
-  reservationId: number,
-  user: BaseProfile,
-  standId: number,
-  standLabel: string,
-  festival: FestivalWithDates,
-  participants: ReservationParticipantWithUser[]
+	reservationId: number,
+	user: BaseProfile,
+	standId: number,
+	standLabel: string,
+	festival: FestivalWithDates,
+	participants: ReservationParticipantWithUser[],
 ) {
-  try {
-    await db.transaction(async (tx) => {
-      await tx
-        .update(standReservations)
-        .set({ status: "accepted", updatedAt: new Date() })
-        .where(eq(standReservations.id, reservationId));
+	try {
+		await db.transaction(async (tx) => {
+			await tx
+				.update(standReservations)
+				.set({ status: "accepted", updatedAt: new Date() })
+				.where(eq(standReservations.id, reservationId));
 
-      await tx
-        .update(stands)
-        .set({ status: "confirmed" })
-        .where(eq(stands.id, standId));
+			await tx
+				.update(stands)
+				.set({ status: "confirmed" })
+				.where(eq(stands.id, standId));
 
-      await tx
-        .update(scheduledTasks)
-        .set({ completedAt: new Date(), updatedAt: new Date() })
-        .where(
-          and(
-            eq(scheduledTasks.reservationId, reservationId),
-            eq(scheduledTasks.taskType, "stand_reservation"),
-          ),
-        );
-    });
+			await tx
+				.update(scheduledTasks)
+				.set({ completedAt: new Date(), updatedAt: new Date() })
+				.where(
+					and(
+						eq(scheduledTasks.reservationId, reservationId),
+						eq(scheduledTasks.taskType, "stand_reservation"),
+					),
+				);
+		});
 
-    const targets: { to: string; profile: BaseProfile }[] = [];
-    if (user.email?.trim()) targets.push({ to: user.email.trim(), profile: user });
-    for (const p of participants) {
-      const email = p.user?.email?.trim();
-      if (!email) continue;
-      targets.push({ to: email, profile: p.user });
-    }
-    const seen = new Set<string>();
-    const uniqueTargets = targets.filter(({ to }) => {
-      const key = to.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+		const targets: { to: string; profile: BaseProfile }[] = [];
+		if (user.email?.trim())
+			targets.push({ to: user.email.trim(), profile: user });
+		for (const p of participants) {
+			const email = p.user?.email?.trim();
+			if (!email) continue;
+			targets.push({ to: email, profile: p.user });
+		}
+		const seen = new Set<string>();
+		const uniqueTargets = targets.filter(({ to }) => {
+			const key = to.toLowerCase();
+			if (seen.has(key)) return false;
+			seen.add(key);
+			return true;
+		});
 
-    await Promise.allSettled(
-      uniqueTargets.map(({ to, profile }) =>
-        sendEmail({
-          to: [to],
-          from: "Reservas Glitter <reservas@productoraglitter.com>",
-          subject: `Reserva confirmada para el festival ${festival.name}`,
-          react: EmailTemplate({
-            profile,
-            standLabel,
-            festival,
-          }) as React.ReactElement,
-        }),
-      ),
-    );
+		await Promise.allSettled(
+			uniqueTargets.map(({ to, profile }) =>
+				sendEmail({
+					to: [to],
+					from: "Reservas Glitter <reservas@productoraglitter.com>",
+					subject: `Reserva confirmada para el festival ${festival.name}`,
+					react: EmailTemplate({
+						profile,
+						standLabel,
+						festival,
+					}) as React.ReactElement,
+				}),
+			),
+		);
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "Error al confirmar la reserva" };
+	}
 
-  } catch (error) {
-    console.error(error);
-    return { success: false, message: "Error al confirmar la reserva" };
-  }
-
-  revalidatePath("/dashboard/payments");
-  return { success: true, message: "Reserva confirmada" };
+	revalidatePath("/dashboard/payments");
+	return { success: true, message: "Reserva confirmada" };
 }
 
 export async function rejectReservation(
-  reservation: ReservationWithParticipantsAndUsersAndStandAndFestival,
-  reason?: string,
+	reservation: ReservationWithParticipantsAndUsersAndStandAndFestival,
+	reason?: string,
 ) {
-  try {
-    await db.transaction(async (tx) => {
-      await tx
-        .update(standReservations)
-        .set({ status: "rejected", updatedAt: sql`now()` })
-        .where(eq(standReservations.id, reservation.id));
+	try {
+		await db.transaction(async (tx) => {
+			await tx
+				.update(standReservations)
+				.set({ status: "rejected", updatedAt: sql`now()` })
+				.where(eq(standReservations.id, reservation.id));
 
-      await tx
-        .update(stands)
-        .set({ status: "available" })
-        .where(eq(stands.id, reservation.standId));
-    });
+			await tx
+				.update(stands)
+				.set({ status: "available" })
+				.where(eq(stands.id, reservation.standId));
+		});
 
-    reservation.participants.forEach((participant) => {
-      const userName = getUserName(participant.user);
-      sendEmail({
-        to: [participant.user.email],
-        from: "Equipo Glitter <equipo@productoraglitter.com>",
-        subject: `${userName}, tu reserva ha sido eliminada`,
-        react: ReservationRejectionEmailTemplate({
-          festival: reservation.festival,
-          profile: participant.user,
-          stand: reservation.stand,
-          reason,
-        }),
-      });
-    });
-  } catch (error) {
-    console.error(error);
-    return { success: false, message: "Error al rechazar la reserva" };
-  }
+		reservation.participants.forEach((participant) => {
+			const userName = getUserName(participant.user);
+			sendEmail({
+				to: [participant.user.email],
+				from: "Equipo Glitter <equipo@productoraglitter.com>",
+				subject: `${userName}, tu reserva ha sido cancelada`,
+				react: ReservationRejectionEmailTemplate({
+					festival: reservation.festival,
+					profile: participant.user,
+					stand: reservation.stand,
+					reason,
+				}),
+			});
+		});
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "Error al cancelar la reserva" };
+	}
 
-  revalidatePath("/dashboard/reservations");
-  return { success: true, message: "Reserva rechazada correctamente" };
+	revalidatePath("/dashboard/reservations");
+	return { success: true, message: "Reserva cancelada correctamente" };
 }
