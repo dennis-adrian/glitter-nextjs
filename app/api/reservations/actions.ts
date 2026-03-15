@@ -305,10 +305,14 @@ export async function rejectReservation(
 				.where(eq(stands.id, reservation.standId));
 		});
 
-		reservation.participants.forEach((participant) => {
+		const participantsWithEmail = reservation.participants.filter((p) =>
+			p.user?.email?.trim(),
+		);
+		const sendPromises = participantsWithEmail.map((participant) => {
+			const email = participant.user!.email!.trim();
 			const userName = getUserName(participant.user);
-			sendEmail({
-				to: [participant.user.email],
+			return sendEmail({
+				to: [email],
 				from: "Equipo Glitter <equipo@productoraglitter.com>",
 				subject: `${userName}, tu reserva ha sido cancelada`,
 				react: ReservationRejectionEmailTemplate({
@@ -316,8 +320,21 @@ export async function rejectReservation(
 					profile: participant.user,
 					stand: reservation.stand,
 					reason,
-				}),
+				}) as React.ReactElement,
 			});
+		});
+		const results = await Promise.allSettled(sendPromises);
+		results.forEach((result, index) => {
+			if (result.status === "rejected") {
+				const participant = participantsWithEmail[index];
+				const userName = participant
+					? getUserName(participant.user)
+					: "unknown";
+				console.error(
+					`[rejectReservation] Failed to send rejection email to ${userName}:`,
+					result.reason,
+				);
+			}
 		});
 	} catch (error) {
 		console.error(error);
