@@ -295,6 +295,10 @@ export async function rejectReservation(
 	try {
 		await db.transaction(async (tx) => {
 			await tx
+				.delete(scheduledTasks)
+				.where(eq(scheduledTasks.reservationId, reservation.id));
+
+			await tx
 				.update(standReservations)
 				.set({ status: "rejected", updatedAt: sql`now()` })
 				.where(eq(standReservations.id, reservation.id));
