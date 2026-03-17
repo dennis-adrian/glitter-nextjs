@@ -1072,6 +1072,13 @@
       "when": 1773521111245,
       "tag": "0152_mute_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1773711448821,
+      "tag": "0153_stiff_gateway",
+      "breakpoints": true
     }
   ]
 }
