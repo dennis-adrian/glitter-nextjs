@@ -29,8 +29,10 @@ export default function PassportActivityPage({
 
 	// Find the detail matching the user's category, fall back to first detail
 	const matchedDetail =
-		activity.details.find((d) => d.category === forProfile.category) ??
-		activity.details[0];
+		!activity.details || activity.details.length === 0
+			? null
+			: (activity.details.find((d) => d.category === forProfile.category) ??
+				activity.details[0]);
 
 	const resolved = matchedDetail
 		? resolveConditions(matchedDetail, activity)

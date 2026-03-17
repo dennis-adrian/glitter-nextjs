@@ -71,6 +71,7 @@ const ConditionsSchema = z.object({
 });
 
 const DetailSchema = z.object({
+	id: z.number().optional(),
 	description: z.string().optional(),
 	participationLimit: z.coerce
 		.number()
@@ -174,6 +175,7 @@ function buildDefaultValues(
 		details: activity.details.map((d) => {
 			const dc = d.conditions as { requirements: string[] } | null;
 			return {
+				id: d.id,
 				description: d.description ?? "",
 				participationLimit: d.participationLimit ?? undefined,
 				category: d.category && d.category !== "none" ? d.category : null,
@@ -239,6 +241,7 @@ export default function FestivalActivityForm({
 
 			const details = data.details.map(
 				(d: {
+					id?: number;
 					description?: string;
 					participationLimit?: number;
 					category?: string | null;
@@ -247,6 +250,7 @@ export default function FestivalActivityForm({
 						requirements: { text: string }[];
 					};
 				}) => ({
+					id: d.id,
 					description: d.description,
 					participationLimit: d.participationLimit,
 					category: (d.category ?? null) as

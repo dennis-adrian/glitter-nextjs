@@ -6,11 +6,17 @@ import {
 	ActivityUserCategory,
 } from "@/app/lib/festival_activites/types";
 import { db } from "@/db";
-import { festivalActivities, festivalActivityDetails } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import {
+	festivalActivities,
+	festivalActivityDetails,
+	festivalActivityParticipants,
+} from "@/db/schema";
+import { count, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export type FestivalActivityDetailInput = {
+	/** Present for existing details, absent for new ones */
+	id?: number;
 	description?: string;
 	participationLimit?: number;
 	category?: ActivityUserCategory | null;
@@ -160,27 +166,73 @@ export async function updateFestivalActivity(
 				})
 				.where(eq(festivalActivities.id, activityId));
 
-			// Replace all details: delete existing, insert new
-			await tx
-				.delete(festivalActivityDetails)
+			// Diff details: update existing, insert new, delete absent (if no participants)
+			const existing = await tx
+				.select({ id: festivalActivityDetails.id })
+				.from(festivalActivityDetails)
 				.where(eq(festivalActivityDetails.activityId, activityId));
 
-			await tx.insert(festivalActivityDetails).values(
-				data.details.map((detail) => ({
-					activityId,
-					description: detail.description,
-					participationLimit: detail.participationLimit,
-					category: detail.category ?? null,
-					conditions: detail.conditions ?? null,
-				})),
+			const existingIds = new Set(existing.map((d) => d.id));
+			const incomingIds = new Set(
+				data.details.filter((d) => d.id != null).map((d) => d.id as number),
 			);
+
+			// Delete details no longer in the payload — abort if participants exist
+			const toDelete = [...existingIds].filter((id) => !incomingIds.has(id));
+			for (const detailId of toDelete) {
+				const [{ n }] = await tx
+					.select({ n: count() })
+					.from(festivalActivityParticipants)
+					.where(eq(festivalActivityParticipants.detailsId, detailId));
+				if (n > 0) {
+					throw new Error(
+						`La variante tiene ${n} participante(s) inscripto(s) y no puede eliminarse.`,
+					);
+				}
+				await tx
+					.delete(festivalActivityDetails)
+					.where(eq(festivalActivityDetails.id, detailId));
+			}
+
+			// Update existing details
+			for (const detail of data.details.filter(
+				(d) => d.id != null && existingIds.has(d.id),
+			)) {
+				await tx
+					.update(festivalActivityDetails)
+					.set({
+						description: detail.description,
+						participationLimit: detail.participationLimit ?? null,
+						category: detail.category ?? null,
+						conditions: detail.conditions ?? null,
+					})
+					.where(eq(festivalActivityDetails.id, detail.id as number));
+			}
+
+			// Insert new details
+			const newDetails = data.details.filter((d) => d.id == null);
+			if (newDetails.length > 0) {
+				await tx.insert(festivalActivityDetails).values(
+					newDetails.map((detail) => ({
+						activityId,
+						description: detail.description,
+						participationLimit: detail.participationLimit,
+						category: detail.category ?? null,
+						conditions: detail.conditions ?? null,
+					})),
+				);
+			}
 		});
 
 		revalidatePath(`/dashboard/festivals/${festivalId}/festival_activities`);
 
 		return { success: true, message: "Actividad actualizada correctamente" };
 	} catch (error) {
+		const message =
+			error instanceof Error
+				? error.message
+				: "Error al actualizar la actividad";
 		console.error("Error updating festival activity:", error);
-		return { success: false, message: "Error al actualizar la actividad" };
+		return { success: false, message };
 	}
 }
