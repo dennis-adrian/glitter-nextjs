@@ -20,7 +20,7 @@ import {
 	DrawerDialogTrigger,
 } from "@/app/components/ui/drawer-dialog";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
-import { addFestivalActivityParticipantProof } from "@/app/lib/festival_sectors/actions";
+import { addFestivalActivityParticipantProof } from "@/app/lib/festival_activites/actions";
 
 type UploadStickerDesignModalProps = {
 	participationId: number;

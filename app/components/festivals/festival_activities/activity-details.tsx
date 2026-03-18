@@ -9,7 +9,7 @@ import {
 	FestivalActivityWithDetailsAndParticipants,
 	FestivalBase,
 } from "@/app/lib/festivals/definitions";
-import { enrollInActivity } from "@/app/lib/festival_sectors/actions";
+import { enrollInActivity } from "@/app/lib/festival_activites/actions";
 import { ArrowDownToLineIcon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";

@@ -38,7 +38,7 @@ import { Form } from "@/app/components/ui/form";
 import {
 	deleteFestivalActivityParticipantProof,
 	enrollInBestStandActivity,
-} from "@/app/lib/festival_sectors/actions";
+} from "@/app/lib/festival_activites/actions";
 import {
 	ActivityDetailsWithParticipants,
 	FestivalActivityWithDetailsAndParticipants,

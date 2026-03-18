@@ -15,7 +15,7 @@ import {
 } from "@/app/components/ui/drawer-dialog";
 
 type ProofImageModalProps = {
-	imageUrl: string;
+	imageUrl: string | null;
 	participantName: string;
 };
 
@@ -25,6 +25,8 @@ export default function ProofImageModal({
 }: ProofImageModalProps) {
 	const [open, setOpen] = useState(false);
 	const isDesktop = useMediaQuery("(min-width: 768px)");
+
+	if (!imageUrl) return null;
 
 	return (
 		<DrawerDialog open={open} onOpenChange={setOpen} isDesktop={isDesktop}>

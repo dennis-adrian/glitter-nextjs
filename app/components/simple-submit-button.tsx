@@ -26,8 +26,13 @@ export default function SubmitButton({
 	disabled,
 	...props
 }: SubmitButtonProps) {
-	const { formState } = useFormContext();
-	const { isSubmitting, isLoading } = formState;
+	// useFormContext() reads HookFormContext (provided by FormProvider). Outside FormProvider
+	// the context value is null; destructuring would throw—use safe defaults for isSubmitting / isLoading.
+	const formContext = useFormContext() as ReturnType<
+		typeof useFormContext
+	> | null;
+	const isSubmitting = formContext?.formState?.isSubmitting ?? false;
+	const isLoading = formContext?.formState?.isLoading ?? false;
 
 	const Loading = (
 		<>
@@ -44,14 +49,16 @@ export default function SubmitButton({
 			disabled={isSubmitting || isLoading || disabled}
 			{...props}
 		>
-			{(isLoading || loading) && Loading}
-			{isSubmitting && (
+			{isLoading || loading ? (
+				Loading
+			) : isSubmitting ? (
 				<>
 					<Loader2Icon className="w-4 h-4 animate-spin mr-2" />
 					{submittingLabel || "Cargando..."}
 				</>
+			) : (
+				<>{label || children}</>
 			)}
-			{!isLoading && !isSubmitting && <>{label || children}</>}
 		</Button>
 	);
 }

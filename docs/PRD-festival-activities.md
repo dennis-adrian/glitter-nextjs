@@ -9,7 +9,7 @@
 
 ## 1. Resumen
 
-El sistema de actividades de festival permite a los organizadores definir actividades temáticas a las que los participantes del festival pueden inscribirse. Cada actividad puede tener variantes por categoría, límite de cupos, período de inscripción, requerimiento de pruebas (imágenes) y votaciones. La actividad actualmente activa en el festival Glitter es la **Carrera de Sellos** (`stamp_passport`), donde los expositores coleccionan sellos de otros stands para ganar un pin de edición especial.
+El sistema de actividades de festival permite a los organizadores definir actividades temáticas a las que los participantes del festival pueden inscribirse. Cada actividad puede tener variantes por categoría, límite de cupos, período de inscripción, **tipo de prueba de participación** (`proofType`: sin prueba, imagen, texto o ambos) con revisión por admin (`proofStatus`), y votaciones. La actividad actualmente activa en el festival Glitter es la **Carrera de Sellos** (`stamp_passport`), donde los expositores coleccionan sellos de otros stands para ganar un pin de edición especial.
 
 ---
 
@@ -21,6 +21,7 @@ El sistema de actividades de festival permite a los organizadores definir activi
 | `sticker_print` | Impresión de stickers: actividad con diseño y producción de stickers |
 | `best_stand` | Mejor stand: votación para elegir el stand más destacado del festival |
 | `festival_sticker` | Sticker del festival: colección o entrega de stickers temáticos |
+| `coupon_book` | Libro de cupones: participantes coleccionan o canjean cupones |
 
 ---
 
@@ -36,19 +37,43 @@ El sistema de actividades de festival permite a los organizadores definir activi
 | `festivalId` | FK → festivals | |
 | `name` | text | Nombre público de la actividad |
 | `description` | text? | Descripción corta para cards |
-| `type` | enum | `stamp_passport`, `sticker_print`, `best_stand`, `festival_sticker` |
+| `type` | enum | `stamp_passport`, `sticker_print`, `best_stand`, `festival_sticker`, `coupon_book` |
 | `registrationStartDate` | timestamp | Inicio del período de inscripción |
 | `registrationEndDate` | timestamp | Fin del período de inscripción |
 | `promotionalArtUrl` | text? | Imagen promocional |
 | `activityPrizeUrl` | text? | Imagen del premio |
 | `visitorsDescription` | text? | Descripción para visitantes no expositores |
-| `requiresProof` | boolean | Si se requiere subir prueba (ej: diseño del sello) |
-| `proofUploadLimitDate` | timestamp? | Fecha límite para subir la prueba |
+| `proofType` | enum? | **Nulo = sin prueba.** Si está definido, la actividad exige prueba según el valor (ver tabla abajo). |
+| `proofUploadLimitDate` | timestamp? | Fecha límite para cargar o corregir la prueba. **Debe configurarse cuando `proofType` no es nulo** (el formulario admin muestra el campo solo en ese caso). |
 | `allowsVoting` | boolean | Si tiene sistema de votación |
 | `votingStartDate` | timestamp? | Inicio de votación |
 | `votingEndDate` | timestamp? | Fin de votación |
 | `accessLevel` | enum | `public` o `festival_participants_only` |
 | `conditions` | jsonb? | Requisitos de participación globales `{ requirements: string[] }` |
+
+**Semántica de `proofType` (enum `proof_type`; en DB solo hay valores no nulos — el “sin prueba” es `proofType` nulo en la fila de actividad):**
+
+| Valor | Significado | Qué debe aportar el participante |
+|---|---|---|
+| *(nulo)* | Sin prueba | No se crea flujo de prueba; inscripción no exige carga. |
+| `image` | Solo imagen | Una o más imágenes (p. ej. diseño de sello); URL en `festivalActivityParticipantProofs.imageUrl`. |
+| `text` | Solo texto | Descripción/condiciones de promoción (`promoDescription`, `promoConditions`). |
+| `both` | Imagen y texto | Combinación: columnas de imagen y de texto según corresponda. |
+
+**Semántica de `proofStatus` (enum `proof_status` en `festivalActivityParticipantProofs`):**
+
+| Valor | Significado |
+|---|---|
+| `pending_review` | Enviada por el participante; pendiente de decisión del admin (valor por defecto al crear/reenviar). |
+| `approved` | Aprobada por admin; participación confirmada respecto a la prueba. |
+| `rejected_resubmit` | Rechazada con posibilidad de corrección; el participante puede reenviar (vuelve a `pending_review`). Requiere `adminFeedback` obligatorio al rechazar. |
+| `rejected_removed` | Rechazo definitivo: participación dada de baja (`participants.removedAt`). No puede reenviar. Requiere `adminFeedback` al rechazar. |
+
+**Reglas y transiciones:**
+
+- Solo **admin** (acción `reviewActivityParticipantProof`) puede pasar de `pending_review` a `approved`, `rejected_resubmit` o `rejected_removed`. Al rechazar (`rejected_*`), `adminFeedback` es obligatorio.
+- El **participante** puede subir/actualizar prueba mientras la actividad tiene `proofType` definido, no está fuera de plazo según `proofUploadLimitDate`, y el estado no es `rejected_removed`. Cada envío (alta o reenvío tras `rejected_resubmit`) pone `proofStatus` en `pending_review` y limpia feedback previo.
+- Si `proofType` es nulo, no aplica subida ni `proofStatus`.
 
 **`festivalActivityDetails`** — Variante/cupo por categoría
 
@@ -71,13 +96,17 @@ El sistema de actividades de festival permite a los organizadores definir activi
 | `userId` | FK → users | |
 | Unique | (detailsId, userId) | Evita inscripciones duplicadas |
 
-**`festivalActivityParticipantProofs`** — Prueba subida por el participante
+**`festivalActivityParticipantProofs`** — Prueba asociada a la inscripción (una fila típica por participante)
 
 | Campo | Tipo | Descripción |
 |---|---|---|
 | `id` | serial PK | |
 | `participationId` | FK → festivalActivityParticipants | |
-| `imageUrl` | text | URL de la imagen |
+| `imageUrl` | text? | URL de imagen (obligatoria en la práctica si la actividad es `proofType` `image`; puede acompañar a texto si aplica). |
+| `promoDescription` | text? | Texto de promoción (flujos `text` / `both`). |
+| `promoConditions` | text? | Condiciones de la promoción (opcional). |
+| `proofStatus` | enum | `pending_review`, `approved`, `rejected_resubmit`, `rejected_removed`. |
+| `adminFeedback` | text? | Comentario del admin al rechazar; obligatorio en rechazos. |
 
 **`festivalActivityVotes`** — Voto emitido
 
@@ -105,14 +134,14 @@ El sistema de actividades de festival permite a los organizadores definir activi
 | US-04 | Como participante, quiero confirmar que leí y acepto las condiciones antes de inscribirme | Se requiere tildar un checkbox de consentimiento antes de enviar el formulario |
 | US-05 | Como participante inscrito en la Carrera de Sellos, quiero subir el diseño de mi sello para confirmar mi participación | Puedo subir una imagen (máx. 4MB) desde el dashboard o la página de actividad. La imagen queda asociada a mi inscripción |
 | US-06 | Como participante inscrito en una actividad con votación, quiero emitir mi voto para el mejor stand o participante | Puedo votar una sola vez por variante dentro del período de votación habilitado |
-| US-07 | Como participante, quiero saber si ya subí el diseño de mi sello o emití mi voto desde el dashboard | El card de actividad muestra el estado actual: pendiente de prueba, prueba subida, pendiente de voto, voto emitido |
+| US-07 | Como participante, quiero saber el estado de mi prueba o mi voto desde el dashboard | El card/UI muestra: sin prueba, en revisión (`pending_review`), aprobada, corrección solicitada, removido; y estado de voto si aplica |
 
 ### Administrador
 
 | ID | Historia | Criterio de aceptación |
 |---|---|---|
 | US-08 | Como admin, quiero recibir un email cuando un participante se inscribe a una actividad | Se envía email con datos del participante y la actividad al inscribirse |
-| US-09 | Como admin, quiero poder crear y configurar actividades para un festival | Puedo definir tipo, fechas de inscripción, límites de cupo, variantes por categoría, y requerimientos de prueba |
+| US-09 | Como admin, quiero poder crear y configurar actividades para un festival | Puedo definir tipo, fechas de inscripción, límites de cupo, variantes por categoría, tipo de prueba (`proofType`) y fecha límite (`proofUploadLimitDate`) |
 | US-10 | Como admin, quiero poder bypasear las restricciones de fechas para probar la actividad | Los usuarios con rol `admin` pueden inscribirse independientemente del período de inscripción |
 
 ---
@@ -138,8 +167,10 @@ Dashboard del participante
 | No inscrito, registro no abierto | `now < registrationStartDate` | "Registro no disponible" (deshabilitado), fecha de apertura |
 | No inscrito, registro abierto | `registrationStartDate ≤ now ≤ registrationEndDate` | "Participar" → redirige a página de actividad |
 | No inscrito, registro cerrado | `now > registrationEndDate` | "Registro no disponible" (deshabilitado), fecha de cierre |
-| Inscrito, prueba pendiente | `requiresProof && proofs.length === 0` | "Subir Diseño" → abre modal de upload |
-| Inscrito, prueba subida | `requiresProof && proofs.length > 0` | "Participación confirmada" (sin acción) |
+| Inscrito, prueba pendiente / corrección | `proofType` definido y (sin fila de prueba o `proofStatus === rejected_resubmit`) | Según tipo: modal de imagen o de texto/promoción; CTA "Subir diseño" / "Cargar mi promoción" / "Editar y reenviar" |
+| Inscrito, prueba en revisión | `proofStatus === pending_review` | Mensaje "Tu información está en revisión" |
+| Inscrito, prueba aprobada | `proofStatus === approved` | "Participación confirmada" (sin acción de prueba) |
+| Inscrito, removido | `proofStatus === rejected_removed` | Mensaje de baja con feedback del admin |
 | Inscrito, votación pendiente | `allowsVoting && !hasVoted` | "Votar Ahora" → redirige a página de votación |
 | Inscrito, voto emitido | `allowsVoting && hasVoted` | Estado confirmado con fecha límite de votación |
 | Cupos llenos | `participants.count >= participationLimit` | "Límite de inscripciones alcanzado" |
@@ -194,7 +225,7 @@ Dashboard del participante
 | `/dashboard/festivals/[id]/festival_activities` | Listado de actividades del festival (admin) |
 | `/dashboard/festivals/[id]/festival_activities/new` | Crear nueva actividad |
 | `/dashboard/festivals/[id]/festival_activities/[activityId]/edit` | Editar actividad existente |
-| `/dashboard/festivals/[id]/festival_activities/[activityId]/review` | Revisión de pruebas (pendiente) |
+| `/dashboard/festivals/[id]/festival_activities/[activityId]/review` | Revisión y aprobación/rechazo de pruebas (admin) |
 
 ---
 
@@ -204,10 +235,10 @@ Dashboard del participante
 |---|---|---|
 | `fetchFestivalActivity` | `lib/festival_activites/actions.ts` | Obtener actividad por ID |
 | `fetchFestivalActivitiesByFestivalId` | `lib/festivals/actions.ts` | Listar actividades de un festival |
-| `enrollInActivity` | `lib/festival_sectors/actions.ts` | Inscribir participante |
-| `enrollInBestStandActivity` | `lib/festival_sectors/actions.ts` | Inscribir en Mejor Stand |
-| `addFestivalActivityParticipantProof` | `lib/festival_sectors/actions.ts` | Subir prueba |
-| `deleteFestivalActivityParticipantProof` | `lib/festival_sectors/actions.ts` | Eliminar prueba |
+| `enrollInActivity` | `lib/festival_activites/actions.ts` | Inscribir participante |
+| `enrollInBestStandActivity` | `lib/festival_activites/actions.ts` | Inscribir en Mejor Stand |
+| `addFestivalActivityParticipantProof` | `lib/festival_activites/actions.ts` | Subir prueba |
+| `deleteFestivalActivityParticipantProof` | `lib/festival_activites/actions.ts` | Eliminar prueba |
 | `addFestivalActivityVote` | `lib/festival_activites/actions.ts` | Emitir voto |
 | `fetchActivityVariantVotes` | `lib/festival_activites/actions.ts` | Obtener votos de una variante |
 | `createFestivalActivity` | `lib/festival_activites/admin-actions.ts` | Crear actividad con variantes (admin) |
@@ -223,7 +254,7 @@ Dashboard del participante
 
 - Se agregó el campo `conditions: { requirements: string[] }` (jsonb) a `festivalActivities` y `festivalActivityDetails`
 - Los requisitos del nivel de actividad aplican por defecto; los de una variante los sobrescriben si están presentes (cascade via `resolveConditions()` en `lib/festival_activites/helpers.ts`)
-- `passport-activity.tsx` renderiza los requisitos dinámicamente desde la DB. El deadline de prueba se agrega automáticamente como requisito adicional cuando está configurado
+- `passport-activity.tsx` renderiza los requisitos dinámicamente desde la DB. El deadline de prueba (`proofUploadLimitDate`) se agrega como requisito adicional cuando la actividad tiene `proofType` y fecha límite configurados
 - Los campos `description` y `visitorsDescription` también se configuran desde la DB y se renderizan en la página de detalle
 - El panel de administración incluye un formulario completo para crear y editar actividades (`/dashboard/festivals/[id]/festival_activities/new` y `/edit`), con soporte para requisitos globales y por variante
 
@@ -248,11 +279,11 @@ Dashboard del participante
 
 ---
 
-### 9.4 Aprobación de Pruebas por Administrador
+### 9.4 Aprobación de Pruebas por Administrador ✅
 
-**Problema:** Las pruebas (diseños de sello) se suben pero no existe flujo de aprobación/rechazo. No hay manera de que los admins validen que el diseño cumple las condiciones antes de confirmar la participación.
+**Implementado:** Cada fila en `festivalActivityParticipantProofs` tiene `proofStatus` (`pending_review`, `approved`, `rejected_resubmit`, `rejected_removed`) y `adminFeedback`. Los admins usan la ruta `/review` y `reviewActivityParticipantProof`; los rechazos exigen feedback. El participante ve el estado en enroll/dashboard (p. ej. `enroll-redirect-button.tsx`).
 
-**Mejora propuesta:** Agregar un campo `status` a `festivalActivityParticipantProofs` (`pending`, `approved`, `rejected`) y una acción de admin para revisar y aprobar/rechazar pruebas con comentario opcional. El participante debería ver el estado de su prueba en el dashboard.
+**Posible mejora:** Export CSV de participantes/pruebas (ver 9.8).
 
 ---
 
@@ -286,10 +317,10 @@ Dashboard del participante
 
 - Desktop: `DataTable` con columnas de índice, participante (avatar + nombre), categoría, fecha de inscripción, estado de prueba (badge), y botón para ver la imagen de prueba
 - Móvil: tarjetas apiladas con la misma información, sin scroll horizontal
-- Filtro por estado de prueba (subida / pendiente)
+- Filtro por estado de prueba (incl. `proofStatus`: en revisión, aprobada, corrección solicitada, removido)
 - Modal para ver la imagen de prueba (drawer en móvil, dialog en desktop)
 - Componentes: `activity-participants-table.tsx`, `proof-image-modal.tsx` en `app/dashboard/festivals/[id]/festival_activities/`
-- Pendiente: exportación CSV y aprobación/rechazo de pruebas (ver 9.4)
+- Pendiente: exportación CSV (aprobación/rechazo ya soportado; ver 9.4)
 
 ---
 

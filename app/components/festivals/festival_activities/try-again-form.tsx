@@ -1,6 +1,6 @@
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
-import { addFestivalActivityParticipantProof } from "@/app/lib/festival_sectors/actions";
+import { addFestivalActivityParticipantProof } from "@/app/lib/festival_activites/actions";
 import { CloudUploadIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";

@@ -1,16 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useFieldArray, useForm, useWatch } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { z } from "zod";
-import {
-	CalendarIcon,
-	ListChecksIcon,
-	PlusIcon,
-	TrashIcon,
-} from "lucide-react";
+import { CalendarIcon, PlusIcon, TrashIcon } from "lucide-react";
 
 import {
 	createFestivalActivity,
@@ -71,12 +66,6 @@ const CATEGORY_VALUES = [
 	"new_artist",
 ] as const;
 
-// Conditions are always an object in the form state — never null.
-// hasConditionOverride decides whether to include them on submit.
-const ConditionsSchema = z.object({
-	requirements: z.array(z.object({ text: z.string() })),
-});
-
 const DetailSchema = z.object({
 	id: z.number().optional(),
 	description: z.string().optional(),
@@ -87,8 +76,6 @@ const DetailSchema = z.object({
 		.optional()
 		.or(z.literal("").transform(() => undefined)),
 	category: z.enum(CATEGORY_VALUES).nullable().optional(),
-	hasConditionOverride: z.boolean().default(false),
-	conditions: ConditionsSchema,
 });
 
 const FormSchema = z.object({
@@ -112,7 +99,6 @@ const FormSchema = z.object({
 	allowsVoting: z.boolean().default(false),
 	votingStartDate: z.string().optional(),
 	votingEndDate: z.string().optional(),
-	globalConditions: ConditionsSchema,
 	details: z.array(DetailSchema).min(1, "Debe haber al menos una variante"),
 });
 
@@ -123,10 +109,6 @@ function toDatetimeLocal(date: Date | null | undefined): string {
 	const d = new Date(date);
 	const pad = (n: number) => String(n).padStart(2, "0");
 	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function emptyConditions() {
-	return { requirements: [] };
 }
 
 function buildDefaultValues(
@@ -148,19 +130,14 @@ function buildDefaultValues(
 			allowsVoting: false,
 			votingStartDate: "",
 			votingEndDate: "",
-			globalConditions: emptyConditions(),
 			details: [
 				{
 					description: "",
 					participationLimit: undefined,
-					hasConditionOverride: false,
-					conditions: emptyConditions(),
 				},
 			],
 		};
 	}
-
-	const ac = activity.conditions as { requirements: string[] } | null;
 
 	return {
 		name: activity.name,
@@ -177,23 +154,12 @@ function buildDefaultValues(
 		allowsVoting: activity.allowsVoting,
 		votingStartDate: toDatetimeLocal(activity.votingStartDate),
 		votingEndDate: toDatetimeLocal(activity.votingEndDate),
-		globalConditions: {
-			requirements: (ac?.requirements ?? []).map((text) => ({ text })),
-		},
-		details: activity.details.map((d) => {
-			const dc = d.conditions as { requirements: string[] } | null;
-			return {
-				id: d.id,
-				description: d.description ?? "",
-				participationLimit: d.participationLimit ?? undefined,
-				category: d.category && d.category !== "none" ? d.category : null,
-				hasConditionOverride: dc !== null,
-				// Always an object — never null — so useFieldArray always has a path
-				conditions: {
-					requirements: (dc?.requirements ?? []).map((text) => ({ text })),
-				},
-			};
-		}),
+		details: activity.details.map((d) => ({
+			id: d.id,
+			description: d.description ?? "",
+			participationLimit: d.participationLimit ?? undefined,
+			category: d.category && d.category !== "none" ? d.category : null,
+		})),
 	};
 }
 
@@ -215,15 +181,6 @@ export default function FestivalActivityForm({
 	});
 
 	const {
-		fields: requirementFields,
-		append: appendRequirement,
-		remove: removeRequirement,
-	} = useFieldArray({
-		control: form.control,
-		name: "globalConditions.requirements",
-	});
-
-	const {
 		fields: detailFields,
 		append: appendDetail,
 		remove: removeDetail,
@@ -238,25 +195,12 @@ export default function FestivalActivityForm({
 			const toDate = (str: string | undefined) =>
 				str ? new Date(str) : undefined;
 
-			const globalConditions =
-				data.globalConditions.requirements.length > 0
-					? {
-							requirements: data.globalConditions.requirements.map(
-								(r: { text: string }) => r.text,
-							),
-						}
-					: null;
-
 			const details = data.details.map(
 				(d: {
 					id?: number;
 					description?: string;
 					participationLimit?: number;
 					category?: string | null;
-					hasConditionOverride: boolean;
-					conditions: {
-						requirements: { text: string }[];
-					};
 				}) => ({
 					id: d.id,
 					description: d.description,
@@ -267,14 +211,6 @@ export default function FestivalActivityForm({
 						| "entrepreneurship"
 						| "new_artist"
 						| null,
-					// Only persist conditions when the override is active
-					conditions: d.hasConditionOverride
-						? {
-								requirements: d.conditions.requirements.map(
-									(r: { text: string }) => r.text,
-								),
-							}
-						: null,
 				}),
 			);
 
@@ -293,7 +229,6 @@ export default function FestivalActivityForm({
 				allowsVoting: data.allowsVoting,
 				votingStartDate: toDate(data.votingStartDate),
 				votingEndDate: toDate(data.votingEndDate),
-				conditions: globalConditions,
 				details,
 			};
 
@@ -576,77 +511,13 @@ export default function FestivalActivityForm({
 					</CardContent>
 				</Card>
 
-				{/* Global Conditions */}
-				<Card>
-					<CardContent className="pt-6 space-y-4">
-						<h3 className="font-semibold text-lg flex items-center gap-2">
-							<ListChecksIcon className="w-4 h-4" />
-							Condiciones generales
-						</h3>
-						<p className="text-sm text-muted-foreground">
-							Aplican a toda la actividad salvo que una variante las
-							sobrescriba.
-						</p>
-
-						{/* Requirements list */}
-						<div className="space-y-2">
-							<FormLabel>Requisitos de participación</FormLabel>
-							<FormDescription>
-								Escribí cada requisito como texto libre. Se mostrarán como una
-								lista numerada en la página de la actividad.
-							</FormDescription>
-							<div className="space-y-2 pt-1">
-								{requirementFields.map((f, i) => (
-									<div key={f.id} className="flex items-center gap-2">
-										<FormField
-											control={form.control}
-											name={`globalConditions.requirements.${i}.text`}
-											render={({ field }) => (
-												<FormItem className="flex-1">
-													<FormControl>
-														<Input
-															placeholder="Ej: Tener una reserva confirmada para el festival"
-															{...field}
-														/>
-													</FormControl>
-													<FormMessage />
-												</FormItem>
-											)}
-										/>
-										<Button
-											type="button"
-											variant="ghost"
-											size="icon"
-											onClick={() => removeRequirement(i)}
-											className="text-destructive hover:text-destructive shrink-0"
-										>
-											<TrashIcon className="w-4 h-4" />
-										</Button>
-									</div>
-								))}
-							</div>
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() => appendRequirement({ text: "" })}
-							>
-								<PlusIcon className="w-4 h-4 mr-1" />
-								Agregar requisito
-							</Button>
-						</div>
-					</CardContent>
-				</Card>
-
 				{/* Activity Details / Variants */}
 				<Card>
 					<CardContent className="pt-6 space-y-6">
 						<h3 className="font-semibold text-lg">Variantes</h3>
 						<p className="text-sm text-muted-foreground">
-							Cada variante puede tener un límite de cupos y condiciones
-							específicas que sobreescriben las generales. Las condiciones de
-							variante se usan cuando distintas categorías tienen requisitos
-							diferentes (ej: Mejor Stand por categoría).
+							Cada variante puede tener un límite de cupos y una categoría
+							específica (ej: Mejor Stand por categoría).
 						</p>
 
 						{detailFields.map((field, index) => (
@@ -669,8 +540,6 @@ export default function FestivalActivityForm({
 									description: "",
 									participationLimit: undefined,
 									category: null,
-									hasConditionOverride: false,
-									conditions: emptyConditions(),
 								})
 							}
 						>
@@ -720,23 +589,6 @@ function VariantSection({
 	onRemove,
 	canRemove,
 }: VariantSectionProps) {
-	const hasOverride = useWatch({
-		control: form.control,
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		name: `details.${index}.hasConditionOverride` as any,
-	});
-
-	// Safe to call unconditionally because conditions is always an object (never null)
-	const {
-		fields: reqFields,
-		append: appendReq,
-		remove: removeReq,
-	} = useFieldArray({
-		control: form.control,
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		name: `details.${index}.conditions.requirements` as any,
-	});
-
 	return (
 		<div className="border rounded-lg p-4 space-y-4">
 			<div className="flex items-center justify-between">
@@ -826,82 +678,6 @@ function VariantSection({
 					</FormItem>
 				)}
 			/>
-
-			{/* Condition override toggle */}
-			<FormField
-				control={form.control}
-				name={`details.${index}.hasConditionOverride`}
-				render={({ field }: { field: any }) => (
-					<FormItem className="flex items-center gap-3 rounded-md border p-3 bg-muted/30">
-						<FormControl>
-							<Switch checked={field.value} onCheckedChange={field.onChange} />
-						</FormControl>
-						<div>
-							<FormLabel className="cursor-pointer">
-								Requisitos específicos para esta variante
-							</FormLabel>
-							<FormDescription>
-								Activá para definir requisitos distintos a los generales para
-								esta variante.
-							</FormDescription>
-						</div>
-					</FormItem>
-				)}
-			/>
-
-			{hasOverride && (
-				<div className="pl-4 border-l-2 border-primary/20 space-y-4">
-					{/* Override requirements */}
-					<div className="space-y-2">
-						<FormLabel>Requisitos para esta variante</FormLabel>
-						<FormDescription>
-							Estos requisitos reemplazarán a los generales para participantes
-							de esta variante.
-						</FormDescription>
-						<div className="space-y-2 pt-1">
-							{reqFields.map((f, ri) => (
-								<div key={f.id} className="flex items-center gap-2">
-									<FormField
-										control={form.control}
-										name={
-											`details.${index}.conditions.requirements.${ri}.text` as any
-										}
-										render={({ field }: { field: any }) => (
-											<FormItem className="flex-1">
-												<FormControl>
-													<Input
-														placeholder="Ej: Tener un stand confirmado en el festival"
-														{...field}
-													/>
-												</FormControl>
-												<FormMessage />
-											</FormItem>
-										)}
-									/>
-									<Button
-										type="button"
-										variant="ghost"
-										size="icon"
-										onClick={() => removeReq(ri)}
-										className="text-destructive hover:text-destructive shrink-0"
-									>
-										<TrashIcon className="w-4 h-4" />
-									</Button>
-								</div>
-							))}
-						</div>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							onClick={() => appendReq({ text: "" } as any)}
-						>
-							<PlusIcon className="w-4 h-4 mr-1" />
-							Agregar requisito
-						</Button>
-					</div>
-				</div>
-			)}
 		</div>
 	);
 }

@@ -7,7 +7,6 @@ import {
 	FestivalActivityWithDetailsAndParticipants,
 	FestivalBase,
 } from "@/app/lib/festivals/definitions";
-import { resolveConditions } from "@/app/lib/festival_activites/helpers";
 import { formatDate } from "@/app/lib/formatters";
 
 type CouponBookActivityPageProps = {
@@ -26,18 +25,6 @@ export default function CouponBookActivityPage({
 	const proofUploadLimitDate = activity.proofUploadLimitDate
 		? formatDate(activity.proofUploadLimitDate)
 		: null;
-
-	const matchedDetail =
-		!activity.details || activity.details.length === 0
-			? null
-			: (activity.details.find((d) => d.category === forProfile.category) ??
-				activity.details[0]);
-
-	const resolved = matchedDetail
-		? resolveConditions(matchedDetail, activity)
-		: null;
-
-	const requirements = resolved?.requirements ?? [];
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -69,34 +56,29 @@ export default function CouponBookActivityPage({
 				</div>
 			)}
 
-			{(requirements.length > 0 || proofUploadLimitDate) && (
+			{proofUploadLimitDate && (
 				<div className="flex flex-col gap-3">
 					<Heading level={2}>
 						Condiciones para participar de la actividad
 					</Heading>
 					<ol className="ml-2 list-decimal list-inside space-y-2 text-sm md:text-base">
-						{requirements.map((condition, i) => (
-							<li key={i}>{condition}</li>
-						))}
-						{proofUploadLimitDate && (
-							<li>
-								Cargar la promoción al sitio web hasta el{" "}
-								<strong>
-									{proofUploadLimitDate.toLocaleString({
-										month: "long",
-										day: "numeric",
-									})}
-								</strong>{" "}
-								a las{" "}
-								<strong>
-									{proofUploadLimitDate.toLocaleString({
-										hour: "numeric",
-										minute: "numeric",
-									})}
-								</strong>
-								.
-							</li>
-						)}
+						<li>
+							Cargar la promoción al sitio web hasta el{" "}
+							<strong>
+								{proofUploadLimitDate.toLocaleString({
+									month: "long",
+									day: "numeric",
+								})}
+							</strong>{" "}
+							a las{" "}
+							<strong>
+								{proofUploadLimitDate.toLocaleString({
+									hour: "numeric",
+									minute: "numeric",
+								})}
+							</strong>
+							.
+						</li>
 					</ol>
 				</div>
 			)}

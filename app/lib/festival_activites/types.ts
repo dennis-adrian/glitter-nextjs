@@ -5,11 +5,6 @@ export type ActivityUserCategory = Exclude<
 	"none"
 >;
 
-export type ActivityConditionsConfig = {
-	/** Ordered list of requirement strings shown to the user */
-	requirements: string[];
-};
-
 export type ProofType = "image" | "text" | "both";
 
 export type ProofStatus =

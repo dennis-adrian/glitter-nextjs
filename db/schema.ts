@@ -749,9 +749,6 @@ export const festivalActivities = pgTable("festival_activities", {
 	proofType: proofTypeEnum("proof_type"),
 	proofUploadLimitDate: timestamp("proof_upload_limit_date"),
 	accessLevel: accessLevelEnum("access_level").default("public").notNull(),
-	conditions: jsonb("conditions").$type<{
-		requirements: string[];
-	}>(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -775,9 +772,6 @@ export const festivalActivityDetails = pgTable("festival_activity_details", {
 		.notNull()
 		.references(() => festivalActivities.id, { onDelete: "cascade" }),
 	category: userCategoryEnum("category"),
-	conditions: jsonb("conditions").$type<{
-		requirements: string[];
-	}>(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });

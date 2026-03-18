@@ -1,3 +1,5 @@
+"use client";
+
 import {
 	FormField,
 	FormItem,
@@ -32,8 +34,12 @@ export default function ConsentFormField({
 						<div className="flex flex-row items-center gap-1">
 							<FormControl>
 								<Checkbox
-									checked={field.value}
-									onCheckedChange={field.onChange}
+									checked={Boolean(field.value)}
+									onCheckedChange={(checked) =>
+										field.onChange(checked === true)
+									}
+									name={field.name}
+									onBlur={field.onBlur}
 								/>
 							</FormControl>
 							<FormLabel className="text-current">{label}</FormLabel>
