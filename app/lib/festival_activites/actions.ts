@@ -160,23 +160,6 @@ export async function enrollInActivity(
 			};
 		}
 
-		const existingEnrollment = await db
-			.select({ id: festivalActivityParticipants.id })
-			.from(festivalActivityParticipants)
-			.where(
-				and(
-					eq(festivalActivityParticipants.detailsId, detailsId),
-					eq(festivalActivityParticipants.userId, forProfile.id),
-				),
-			);
-
-		if (existingEnrollment.length > 0) {
-			return {
-				success: false,
-				message: "Ya estás inscrito en esta actividad",
-			};
-		}
-
 		if (participationLimit && participationLimit > 0) {
 			const result = await db.transaction(async (tx) => {
 				const [existingInTx] = await tx
@@ -221,6 +204,10 @@ export async function enrollInActivity(
 				};
 			});
 
+			if (!result.success) {
+				return result;
+			}
+
 			/**
 			 * Fetching user and festival here because passing down the whole user and
 			 * festival object is too cumbersome
@@ -247,19 +234,75 @@ export async function enrollInActivity(
 			);
 			return result;
 		} else {
-			// If there's no participation limit, just insert
-			await db.insert(festivalActivityParticipants).values({
-				userId: forProfile.id,
-				detailsId,
+			const result = await db.transaction(async (tx) => {
+				const [existingInTx] = await tx
+					.select({ id: festivalActivityParticipants.id })
+					.from(festivalActivityParticipants)
+					.where(
+						and(
+							eq(festivalActivityParticipants.detailsId, detailsId),
+							eq(festivalActivityParticipants.userId, forProfile.id),
+						),
+					);
+
+				if (existingInTx) {
+					return {
+						success: false,
+						message: "Ya estás inscrito en esta actividad",
+					};
+				}
+
+				await tx.insert(festivalActivityParticipants).values({
+					userId: forProfile.id,
+					detailsId,
+				});
+
+				return {
+					success: true,
+					message: "Inscripción realizada correctamente",
+				};
+			});
+
+			if (!result.success) {
+				return result;
+			}
+
+			const festival = await fetchBaseFestival(festivalId);
+			const admins = await fetchAdminUsers();
+			const adminEmails = admins.map((admin) => admin.email);
+
+			await sendEmail({
+				from: "Actividades del Festival <no-reply@productoraglitter.com>",
+				to: [...adminEmails],
+				subject: "Inscripción a una actividad del festival",
+				react: FestivalActivityRegistrationEmail({
+					festivalActivityName: activity.name,
+					userDisplayName: forProfile.displayName,
+					festivalName: festival?.name,
+					festivalType: festival?.festivalType,
+				}),
 			});
 
 			revalidatePath(
 				`/profiles/${forProfile.id}/festivals/${festivalId}/activity`,
 			);
-			return { success: true, message: "Inscripción realizada correctamente" };
+			return result;
 		}
-	} catch (error) {
+	} catch (error: unknown) {
 		console.error("Error enrolling in activity", error);
+		const code =
+			error &&
+			typeof error === "object" &&
+			"code" in error &&
+			typeof (error as { code: string }).code === "string"
+				? (error as { code: string }).code
+				: "";
+		if (code === "23505") {
+			return {
+				success: false,
+				message: "Ya estás inscrito en esta actividad",
+			};
+		}
 		return { success: false, message: "Error al inscribirse en la actividad" };
 	}
 }
@@ -379,9 +422,52 @@ export async function addFestivalActivityParticipantProof(
 	participationId: number,
 	imageUrls: string[],
 ) {
+	const participation = await db.query.festivalActivityParticipants.findFirst({
+		where: eq(festivalActivityParticipants.id, participationId),
+		with: {
+			activityDetail: {
+				with: { festivalActivity: true },
+			},
+		},
+	});
+
+	if (!participation) {
+		return { success: false, message: "Inscripción no encontrada" };
+	}
+
+	const proofType =
+		participation.activityDetail?.festivalActivity?.proofType ?? null;
+
+	if (proofType === null) {
+		return {
+			success: false,
+			message: "Esta actividad no requiere prueba con imagen.",
+		};
+	}
+
+	if (proofType === "text") {
+		return {
+			success: false,
+			message:
+				"Esta actividad requiere el texto de promoción; usa el formulario de cuponera.",
+		};
+	}
+
+	const urls = imageUrls
+		.map((u) => (typeof u === "string" ? u.trim() : ""))
+		.filter(Boolean);
+	if (proofType === "image" || proofType === "both") {
+		if (urls.length === 0) {
+			return {
+				success: false,
+				message: "Debes subir al menos una imagen para esta actividad.",
+			};
+		}
+	}
+
 	try {
 		await db.insert(festivalActivityParticipantProofs).values(
-			imageUrls.map((url) => ({
+			urls.map((url) => ({
 				participationId,
 				imageUrl: url,
 			})),
@@ -403,9 +489,43 @@ export async function deleteFestivalActivityParticipantProof(
 	festivalId: FestivalBase["id"],
 ) {
 	try {
-		// First, fetch the proof to get the imageUrl
+		const participation =
+			await db.query.festivalActivityParticipants.findFirst({
+				where: and(
+					eq(festivalActivityParticipants.id, activityParticipationId),
+					eq(festivalActivityParticipants.userId, forProfileId),
+				),
+				with: {
+					activityDetail: {
+						with: { festivalActivity: true },
+					},
+				},
+			});
+
+		if (!participation) {
+			return {
+				success: false,
+				message: "No tienes permiso para eliminar este diseño",
+			};
+		}
+
+		const participationFestivalId =
+			participation.activityDetail?.festivalActivity?.festivalId;
+		if (participationFestivalId !== festivalId) {
+			return {
+				success: false,
+				message: "No tienes permiso para eliminar este diseño",
+			};
+		}
+
 		const proof = await db.query.festivalActivityParticipantProofs.findFirst({
-			where: eq(festivalActivityParticipantProofs.id, proofId),
+			where: and(
+				eq(festivalActivityParticipantProofs.id, proofId),
+				eq(
+					festivalActivityParticipantProofs.participationId,
+					activityParticipationId,
+				),
+			),
 		});
 
 		if (!proof) {

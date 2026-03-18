@@ -730,28 +730,37 @@ export const accessLevelEnum = pgEnum("access_level", [
 	"festival_participants_only",
 ]);
 
-export const festivalActivities = pgTable("festival_activities", {
-	id: serial("id").primaryKey(),
-	name: text("name").notNull(),
-	description: text("description"),
-	registrationStartDate: timestamp("registration_start_date").notNull(),
-	registrationEndDate: timestamp("registration_end_date").notNull(),
-	promotionalArtUrl: text("promotional_art_url"),
-	festivalId: integer("festival_id")
-		.references(() => festivals.id, { onDelete: "cascade" })
-		.notNull(),
-	visitorsDescription: text("visitors_description"),
-	type: festivalActivityTypeEnum("type").default("stamp_passport").notNull(),
-	activityPrizeUrl: text("activity_prize_url"),
-	allowsVoting: boolean("allows_voting").default(false).notNull(),
-	votingStartDate: timestamp("voting_start_date"),
-	votingEndDate: timestamp("voting_end_date"),
-	proofType: proofTypeEnum("proof_type"),
-	proofUploadLimitDate: timestamp("proof_upload_limit_date"),
-	accessLevel: accessLevelEnum("access_level").default("public").notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const festivalActivities = pgTable(
+	"festival_activities",
+	{
+		id: serial("id").primaryKey(),
+		name: text("name").notNull(),
+		description: text("description"),
+		registrationStartDate: timestamp("registration_start_date").notNull(),
+		registrationEndDate: timestamp("registration_end_date").notNull(),
+		promotionalArtUrl: text("promotional_art_url"),
+		festivalId: integer("festival_id")
+			.references(() => festivals.id, { onDelete: "cascade" })
+			.notNull(),
+		visitorsDescription: text("visitors_description"),
+		type: festivalActivityTypeEnum("type").default("stamp_passport").notNull(),
+		activityPrizeUrl: text("activity_prize_url"),
+		allowsVoting: boolean("allows_voting").default(false).notNull(),
+		votingStartDate: timestamp("voting_start_date"),
+		votingEndDate: timestamp("voting_end_date"),
+		proofType: proofTypeEnum("proof_type"),
+		proofUploadLimitDate: timestamp("proof_upload_limit_date"),
+		accessLevel: accessLevelEnum("access_level").default("public").notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => [
+		check(
+			"proof_upload_limit_required",
+			sql`(${t.proofType} IS NULL) OR (${t.proofUploadLimitDate} IS NOT NULL)`,
+		),
+	],
+);
 export const festivalActivitiesRelations = relations(
 	festivalActivities,
 	({ one, many }) => ({
