@@ -1,10 +1,27 @@
 "use client";
 
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+	AlertCircleIcon,
+	CircleAlertIcon,
+	Loader2Icon,
+	Trash2Icon,
+} from "lucide-react";
+import { DateTime } from "luxon";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
+
 import {
 	BaseProfile,
 	ParticipationWithParticipantWithInfractionsAndReservations,
 } from "@/app/api/users/definitions";
 import UploadStickerDesignModal from "@/app/components/festivals/festival_activities/upload-sticker-design-modal";
+import ConsentFormField from "@/app/components/molecules/consent-form-field";
 import SubmitButton from "@/app/components/simple-submit-button";
 import {
 	AlertDialog,
@@ -17,16 +34,7 @@ import {
 	AlertDialogTitle,
 } from "@/app/components/ui/alert-dialog";
 import { Button } from "@/app/components/ui/button";
-import { Checkbox } from "@/app/components/ui/checkbox";
-import {
-	Form,
-	FormControl,
-	FormDescription,
-	FormField,
-	FormItem,
-	FormLabel,
-	FormMessage,
-} from "@/app/components/ui/form";
+import { Form } from "@/app/components/ui/form";
 import {
 	deleteFestivalActivityParticipantProof,
 	enrollInBestStandActivity,
@@ -35,25 +43,14 @@ import {
 	ActivityDetailsWithParticipants,
 	FestivalActivityWithDetailsAndParticipants,
 } from "@/app/lib/festivals/definitions";
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-	AlertCircleIcon,
-	CircleAlertIcon,
-	Loader2Icon,
-	Trash2Icon,
-} from "lucide-react";
-import { DateTime } from "luxon";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { z } from "zod";
 
 const FormSchema = z.object({
-	consent: z.boolean().refine((val) => val === true, {
-        error: "Confirma que leíste y aceptaste las condiciones de la actividad."
-    }),
+	consent: z
+		.boolean()
+		.refine(
+			(val) => val === true,
+			"Confirma que leíste y aceptaste las condiciones de la actividad.",
+		),
 });
 
 type EnrollBestStandFormProps = {
@@ -263,7 +260,10 @@ export default function EnrollBestStandForm({
 							>
 								<div className="relative w-full aspect-square rounded-md overflow-hidden">
 									<Image
-										src={proof.imageUrl}
+										src={
+											proof.imageUrl ??
+											"/img/placeholders/placeholder-300x300.png"
+										}
 										alt={`Imagen de stand ${proof.id}`}
 										fill
 										className="object-contain"
@@ -355,34 +355,10 @@ export default function EnrollBestStandForm({
 	return (
 		<Form {...form}>
 			<form className="w-full flex flex-col gap-2" onSubmit={action}>
-				<FormField
-					control={form.control}
+				<ConsentFormField
 					name="consent"
-					render={({ field }) => (
-						<div className="flex flex-col gap-2">
-							<FormItem className=" bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800">
-								<div className="flex flex-row items-start gap-1">
-									<FormControl>
-										<Checkbox
-											checked={field.value}
-											onCheckedChange={field.onChange}
-										/>
-									</FormControl>
-									<div className="space-y-1 leading-none">
-										<FormLabel className="text-current">
-											Confirmo que he leído y acepto las condiciones de la
-											actividad.
-										</FormLabel>
-										<FormDescription className="text-current">
-											Incumplir las condiciones de la actividad, podría
-											excluirte de futuros eventos y/o actividades.
-										</FormDescription>
-									</div>
-								</div>
-							</FormItem>
-							<FormMessage />
-						</div>
-					)}
+					label="Confirmo que leí y estoy de acuerdo con las condiciones de la actividad."
+					description="Entiendo que incumplir las condiciones de la actividad, podría excluirme de futuros eventos o actividades."
 				/>
 				<SubmitButton
 					disabled={

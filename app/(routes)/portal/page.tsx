@@ -109,10 +109,12 @@ export default async function ParticipantDashboardPage() {
 							</div>
 						</div>
 
-						<FestivalActivities
-							festivalId={activeFestival.id}
-							forProfile={currentProfile}
-						/>
+						{activeParticipation?.reservation.status === "accepted" && (
+							<FestivalActivities
+								festivalId={activeFestival.id}
+								forProfile={currentProfile}
+							/>
+						)}
 					</>
 				)}
 

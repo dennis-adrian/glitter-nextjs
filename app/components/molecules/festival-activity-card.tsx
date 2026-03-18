@@ -44,7 +44,7 @@ export default function FestivalActivityCard({
 						<p className="text-sm mt-2 leading-tight">{activity.description}</p>
 					</div>
 					{isUserInActivity &&
-						activity.requiresProof &&
+						activity.proofType &&
 						(!hasUploadedProof ? (
 							<div className="flex flex-col gap-2 md:gap-3 text-sm border border-amber-200 text-amber-900 bg-amber-50 rounded-md p-3">
 								<div className="flex gap-2 md:gap-3">

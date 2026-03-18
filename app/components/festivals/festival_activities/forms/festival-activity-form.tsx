@@ -47,6 +47,13 @@ const ACTIVITY_TYPE_OPTIONS = [
 	{ value: "sticker_print", label: "Impresión de Stickers" },
 	{ value: "best_stand", label: "Mejor Stand" },
 	{ value: "festival_sticker", label: "Sticker del Festival" },
+	{ value: "coupon_book", label: "Cuponera de Descuentos" },
+];
+
+const PROOF_TYPE_OPTIONS = [
+	{ value: "image", label: "Imagen" },
+	{ value: "text", label: "Texto" },
+	{ value: "both", label: "Imagen y texto" },
 ];
 
 const ACCESS_LEVEL_OPTIONS = [
@@ -93,13 +100,14 @@ const FormSchema = z.object({
 		"sticker_print",
 		"best_stand",
 		"festival_sticker",
+		"coupon_book",
 	]),
 	accessLevel: z.enum(["public", "festival_participants_only"]),
 	promotionalArtUrl: z.string().optional(),
 	activityPrizeUrl: z.string().optional(),
 	registrationStartDate: z.string().min(1, "Requerido"),
 	registrationEndDate: z.string().min(1, "Requerido"),
-	requiresProof: z.boolean().default(false),
+	proofType: z.enum(["image", "text", "both"]).nullable().optional(),
 	proofUploadLimitDate: z.string().optional(),
 	allowsVoting: z.boolean().default(false),
 	votingStartDate: z.string().optional(),
@@ -135,7 +143,7 @@ function buildDefaultValues(
 			activityPrizeUrl: "",
 			registrationStartDate: "",
 			registrationEndDate: "",
-			requiresProof: false,
+			proofType: null,
 			proofUploadLimitDate: "",
 			allowsVoting: false,
 			votingStartDate: "",
@@ -164,7 +172,7 @@ function buildDefaultValues(
 		activityPrizeUrl: activity.activityPrizeUrl ?? "",
 		registrationStartDate: toDatetimeLocal(activity.registrationStartDate),
 		registrationEndDate: toDatetimeLocal(activity.registrationEndDate),
-		requiresProof: activity.requiresProof,
+		proofType: activity.proofType ?? null,
 		proofUploadLimitDate: toDatetimeLocal(activity.proofUploadLimitDate),
 		allowsVoting: activity.allowsVoting,
 		votingStartDate: toDatetimeLocal(activity.votingStartDate),
@@ -221,7 +229,7 @@ export default function FestivalActivityForm({
 		remove: removeDetail,
 	} = useFieldArray({ control: form.control, name: "details" });
 
-	const requiresProof = form.watch("requiresProof");
+	const proofType = form.watch("proofType");
 	const allowsVoting = form.watch("allowsVoting");
 	const formErrors = form.formState.errors;
 
@@ -280,7 +288,7 @@ export default function FestivalActivityForm({
 				activityPrizeUrl: data.activityPrizeUrl,
 				registrationStartDate: new Date(data.registrationStartDate),
 				registrationEndDate: new Date(data.registrationEndDate),
-				requiresProof: data.requiresProof,
+				proofType: data.proofType ?? null,
 				proofUploadLimitDate: toDate(data.proofUploadLimitDate),
 				allowsVoting: data.allowsVoting,
 				votingStartDate: toDate(data.votingStartDate),
@@ -468,24 +476,36 @@ export default function FestivalActivityForm({
 				{/* Proof */}
 				<Card>
 					<CardContent className="pt-6 space-y-4">
-						<div className="flex items-center justify-between">
-							<h3 className="font-semibold text-lg">Prueba de participación</h3>
-							<FormField
-								control={form.control}
-								name="requiresProof"
-								render={({ field }) => (
-									<FormItem>
-										<FormControl>
-											<Switch
-												checked={field.value}
-												onCheckedChange={field.onChange}
-											/>
-										</FormControl>
-									</FormItem>
-								)}
-							/>
-						</div>
-						{requiresProof && (
+						<h3 className="font-semibold text-lg">Prueba de participación</h3>
+						<FormField
+							control={form.control}
+							name="proofType"
+							render={({ field }) => (
+								<FormItem>
+									<FormLabel>Tipo de prueba</FormLabel>
+									<FormControl>
+										<select
+											className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+											value={field.value ?? ""}
+											onChange={(e) =>
+												field.onChange(
+													e.target.value === "" ? null : e.target.value,
+												)
+											}
+										>
+											<option value="">Sin prueba</option>
+											{PROOF_TYPE_OPTIONS.map((opt) => (
+												<option key={opt.value} value={opt.value}>
+													{opt.label}
+												</option>
+											))}
+										</select>
+									</FormControl>
+									<FormMessage />
+								</FormItem>
+							)}
+						/>
+						{proofType && (
 							<FormField
 								control={form.control}
 								name="proofUploadLimitDate"

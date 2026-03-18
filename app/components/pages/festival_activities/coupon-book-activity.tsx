@@ -10,24 +10,23 @@ import {
 import { resolveConditions } from "@/app/lib/festival_activites/helpers";
 import { formatDate } from "@/app/lib/formatters";
 
-type PassportActivityPageProps = {
+type CouponBookActivityPageProps = {
 	currentProfile: BaseProfile;
 	forProfile: BaseProfile;
 	activity: FestivalActivityWithDetailsAndParticipants;
 	festivalId: FestivalBase["id"];
 };
 
-export default function PassportActivityPage({
+export default function CouponBookActivityPage({
 	activity,
 	currentProfile,
 	forProfile,
 	festivalId,
-}: PassportActivityPageProps) {
+}: CouponBookActivityPageProps) {
 	const proofUploadLimitDate = activity.proofUploadLimitDate
 		? formatDate(activity.proofUploadLimitDate)
 		: null;
 
-	// Find the detail matching the user's category, fall back to first detail
 	const matchedDetail =
 		!activity.details || activity.details.length === 0
 			? null
@@ -67,21 +66,6 @@ export default function PassportActivityPage({
 				<div className="flex flex-col gap-3">
 					<Heading level={2}>¿En qué consiste la actividad?</Heading>
 					<p className="text-sm md:text-base">{activity.visitorsDescription}</p>
-					{activity.activityPrizeUrl && (
-						<div className="flex flex-col gap-2 w-full items-center my-3">
-							<Heading level={3}>Pin de edición especial</Heading>
-							<div className="relative w-full max-w-[240px] md:max-w-[320px] aspect-square">
-								<Image
-									className="object-cover"
-									src={activity.activityPrizeUrl}
-									alt="pin de edición especial de la actividad"
-									fill
-									placeholder="blur"
-									blurDataURL="/img/placeholders/placeholder-300x300.png"
-								/>
-							</div>
-						</div>
-					)}
 				</div>
 			)}
 
@@ -96,7 +80,7 @@ export default function PassportActivityPage({
 						))}
 						{proofUploadLimitDate && (
 							<li>
-								Subir el diseño del sello al sitio web hasta el{" "}
+								Cargar la promoción al sitio web hasta el{" "}
 								<strong>
 									{proofUploadLimitDate.toLocaleString({
 										month: "long",

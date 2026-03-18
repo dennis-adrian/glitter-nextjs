@@ -713,6 +713,16 @@ export const festivalActivityTypeEnum = pgEnum("festival_activity_type", [
 	"sticker_print",
 	"best_stand",
 	"festival_sticker",
+	"coupon_book",
+]);
+
+export const proofTypeEnum = pgEnum("proof_type", ["image", "text", "both"]);
+
+export const proofStatusEnum = pgEnum("proof_status", [
+	"pending_review",
+	"approved",
+	"rejected_resubmit",
+	"rejected_removed",
 ]);
 
 export const accessLevelEnum = pgEnum("access_level", [
@@ -736,7 +746,7 @@ export const festivalActivities = pgTable("festival_activities", {
 	allowsVoting: boolean("allows_voting").default(false).notNull(),
 	votingStartDate: timestamp("voting_start_date"),
 	votingEndDate: timestamp("voting_end_date"),
-	requiresProof: boolean("requires_proof").default(false).notNull(),
+	proofType: proofTypeEnum("proof_type"),
 	proofUploadLimitDate: timestamp("proof_upload_limit_date"),
 	accessLevel: accessLevelEnum("access_level").default("public").notNull(),
 	conditions: jsonb("conditions").$type<{
@@ -793,6 +803,7 @@ export const festivalActivityParticipants = pgTable(
 		userId: integer("user_id")
 			.notNull()
 			.references(() => users.id, { onDelete: "cascade" }),
+		removedAt: timestamp("removed_at"),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
@@ -819,12 +830,18 @@ export const festivalActivityParticipantProofs = pgTable(
 	"festival_activity_participant_proofs",
 	{
 		id: serial("id").primaryKey(),
-		imageUrl: text("image_url").notNull(),
+		imageUrl: text("image_url"),
 		participationId: integer("participation_id")
 			.notNull()
 			.references(() => festivalActivityParticipants.id, {
 				onDelete: "cascade",
 			}),
+		promoDescription: text("promo_description"),
+		promoConditions: text("promo_conditions"),
+		proofStatus: proofStatusEnum("proof_status")
+			.default("pending_review")
+			.notNull(),
+		adminFeedback: text("admin_feedback"),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
