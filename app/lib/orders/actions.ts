@@ -2,8 +2,12 @@
 
 import { orderItems, orders } from "@/db/schema";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
+import {
+	ORDER_TAB_VALUES,
+	type OrderTabValue,
+} from "@/app/lib/orders/order-tabs";
 import { db } from "@/db";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { products } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
@@ -283,6 +287,75 @@ export async function fetchOrdersByUserId(userId: number) {
 	try {
 		return await db.query.orders.findMany({
 			where: eq(orders.userId, userId),
+			orderBy: [desc(orders.createdAt)],
+			with: {
+				customer: {
+					with: {
+						profileSubcategories: {
+							with: {
+								subcategory: true,
+							},
+						},
+					},
+				},
+				orderItems: {
+					with: {
+						product: {
+							with: {
+								images: true,
+							},
+						},
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
+}
+
+// ─── Order count aggregate ────────────────────────────────────────────────────
+
+const ORDER_TAB_DEFAULT: Record<OrderTabValue, number> =
+	ORDER_TAB_VALUES.reduce(
+		(acc, value) => {
+			acc[value] = 0;
+			return acc;
+		},
+		{} as Record<OrderTabValue, number>,
+	);
+
+export async function fetchOrderCountsByUserId(
+	userId: number,
+): Promise<Record<OrderTabValue, number>> {
+	try {
+		const rows = await db
+			.select({ status: orders.status, count: count() })
+			.from(orders)
+			.where(eq(orders.userId, userId))
+			.groupBy(orders.status);
+
+		const result = { ...ORDER_TAB_DEFAULT };
+		for (const row of rows) {
+			if (row.status in result) {
+				result[row.status as OrderTabValue] = Number(row.count);
+			}
+		}
+		return result;
+	} catch (error) {
+		console.error(error);
+		return { ...ORDER_TAB_DEFAULT };
+	}
+}
+
+export async function fetchOrdersByUserIdAndStatus(
+	userId: number,
+	status: OrderStatus,
+) {
+	try {
+		return await db.query.orders.findMany({
+			where: and(eq(orders.userId, userId), eq(orders.status, status)),
 			orderBy: [desc(orders.createdAt)],
 			with: {
 				customer: {
