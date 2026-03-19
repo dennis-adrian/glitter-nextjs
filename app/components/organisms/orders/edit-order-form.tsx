@@ -319,7 +319,7 @@ export default function EditOrderForm({
 	// ── Render ───────────────────────────────────────────────────────────────
 
 	return (
-		<div className="flex flex-col gap-4 md:gap-6">
+		<div className="flex flex-col gap-4 md:gap-6 pb-32 lg:pb-0">
 			{/* Header */}
 			<div>
 				<Link
@@ -370,8 +370,8 @@ export default function EditOrderForm({
 					</div>
 				</div>
 
-				{/* Summary + actions */}
-				<div>
+				{/* Summary + actions — desktop only; mobile uses sticky bar below */}
+				<div className="hidden lg:block">
 					<Card>
 						<CardContent className="p-6 flex flex-col gap-4">
 							<div>
@@ -404,6 +404,38 @@ export default function EditOrderForm({
 							</Button>
 						</CardContent>
 					</Card>
+				</div>
+			</div>
+
+			{/* Mobile sticky summary bar */}
+			<div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg px-4 py-3 z-10">
+				<div className="flex items-center justify-between mb-2">
+					<div>
+						<p className="text-sm text-muted-foreground">Nuevo total</p>
+						<p className="text-xl font-bold">Bs{newTotal.toFixed(2)}</p>
+						{isDirty && (
+							<p className="text-xs text-muted-foreground">
+								Original: Bs{order.totalAmount.toFixed(2)}
+							</p>
+						)}
+					</div>
+				</div>
+				<div className="flex gap-2">
+					<Button
+						variant="outline"
+						onClick={handleDiscard}
+						disabled={isSubmitting}
+						className="flex-1"
+					>
+						Descartar
+					</Button>
+					<Button
+						onClick={handleSave}
+						disabled={!isDirty || isSubmitting}
+						className="flex-1 bg-purple-600 hover:bg-purple-700"
+					>
+						{isSubmitting ? "Guardando..." : "Guardar cambios"}
+					</Button>
 				</div>
 			</div>
 
