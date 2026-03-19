@@ -80,6 +80,11 @@ export default function OrderCard({ order }: { order: OrderWithRelations }) {
 							Pagar pedido
 						</Link>
 					</Button>
+					<Button asChild variant="outline" className="w-full">
+						<Link href={`/profiles/${order.userId}/orders/${order.id}/edit`}>
+							Editar pedido
+						</Link>
+					</Button>
 				</CardFooter>
 			)}
 		</Card>

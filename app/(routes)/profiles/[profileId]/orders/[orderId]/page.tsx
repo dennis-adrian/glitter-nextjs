@@ -48,7 +48,7 @@ export default async function UserOrderPage(props: {
 	);
 
 	return (
-		<div className="container p-3 md:p-6">
+		<div className={`container p-3 md:p-6${canPay ? " pb-32 lg:pb-0" : ""}`}>
 			<div className="mb-4">
 				<Heading>Detalles del Pedido</Heading>
 				<p className="text-gray-500">
@@ -111,7 +111,7 @@ export default async function UserOrderPage(props: {
 				</div>
 
 				<div className="flex flex-col gap-3 md:gap-6">
-					{/* Status + Pay */}
+					{/* Status + Pay + Edit */}
 					<Card>
 						<CardContent className="p-6 space-y-4">
 							<div>
@@ -119,14 +119,23 @@ export default async function UserOrderPage(props: {
 								<OrderStatusBadge status={order.status} />
 							</div>
 							{canPay && (
-								<Button
-									asChild
-									className="w-full bg-purple-600 hover:bg-purple-700"
-								>
-									<Link href={`/profiles/${profileId}/orders/${orderId}/pay`}>
-										Pagar pedido
-									</Link>
-								</Button>
+								<div className="hidden lg:flex flex-col gap-2">
+									<Button
+										asChild
+										className="w-full bg-purple-600 hover:bg-purple-700"
+									>
+										<Link href={`/profiles/${profileId}/orders/${orderId}/pay`}>
+											Pagar pedido
+										</Link>
+									</Button>
+									<Button asChild variant="outline" className="w-full">
+										<Link
+											href={`/profiles/${profileId}/orders/${orderId}/edit`}
+										>
+											Editar pedido
+										</Link>
+									</Button>
+								</div>
 							)}
 						</CardContent>
 					</Card>
@@ -138,6 +147,26 @@ export default async function UserOrderPage(props: {
 					/>
 				</div>
 			</div>
+			{/* Mobile sticky action bar */}
+			{canPay && (
+				<div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg px-4 py-3 z-10">
+					<div className="flex flex-col gap-2">
+						<Button
+							asChild
+							className="w-full bg-purple-600 hover:bg-purple-700"
+						>
+							<Link href={`/profiles/${profileId}/orders/${orderId}/pay`}>
+								Pagar pedido
+							</Link>
+						</Button>
+						<Button asChild variant="outline" className="w-full">
+							<Link href={`/profiles/${profileId}/orders/${orderId}/edit`}>
+								Editar pedido
+							</Link>
+						</Button>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }
