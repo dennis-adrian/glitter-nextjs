@@ -111,7 +111,7 @@ export default async function UserOrderPage(props: {
 				</div>
 
 				<div className="flex flex-col gap-3 md:gap-6">
-					{/* Status + Pay */}
+					{/* Status + Pay + Edit */}
 					<Card>
 						<CardContent className="p-6 space-y-4">
 							<div>
@@ -119,14 +119,25 @@ export default async function UserOrderPage(props: {
 								<OrderStatusBadge status={order.status} />
 							</div>
 							{canPay && (
-								<Button
-									asChild
-									className="w-full bg-purple-600 hover:bg-purple-700"
-								>
-									<Link href={`/profiles/${profileId}/orders/${orderId}/pay`}>
-										Pagar pedido
-									</Link>
-								</Button>
+								<div className="flex flex-col gap-2">
+									<Button
+										asChild
+										className="w-full bg-purple-600 hover:bg-purple-700"
+									>
+										<Link
+											href={`/profiles/${profileId}/orders/${orderId}/pay`}
+										>
+											Pagar pedido
+										</Link>
+									</Button>
+									<Button asChild variant="outline" className="w-full">
+										<Link
+											href={`/profiles/${profileId}/orders/${orderId}/edit`}
+										>
+											Editar pedido
+										</Link>
+									</Button>
+								</div>
 							)}
 						</CardContent>
 					</Card>

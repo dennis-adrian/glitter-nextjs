@@ -12,6 +12,8 @@ import OrderConfirmationForAdminsEmailTemplate from "@/app/emails/order-confirma
 import OrderConfirmationForUsersEmailTemplate from "@/app/emails/order-confirmation-for-user";
 import OrderPaymentConfirmationForUserEmailTemplate from "@/app/emails/order-payment-confirmation-for-user";
 import OrderVoucherSubmittedForAdminsEmailTemplate from "@/app/emails/order-voucher-submitted-for-admins";
+import OrderUpdatedForUserEmailTemplate from "@/app/emails/order-updated-for-user";
+import OrderUpdatedForAdminsEmailTemplate from "@/app/emails/order-updated-for-admins";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
@@ -626,6 +628,337 @@ export async function fetchOrdersStats(): Promise<OrdersStats> {
 			cancelled: 0,
 		};
 	}
+}
+
+export type UpdateOrderItemInput = {
+	orderItemId: number;
+	quantity: number; // 0 = remove
+};
+
+export type UpdateOrderResult = {
+	success: boolean;
+	message: string;
+	wasCancelled?: boolean;
+	cause?: "conflict" | "stock_insufficient" | "not_found" | "forbidden";
+};
+
+type OrderChange = {
+	productName: string;
+	oldQuantity: number;
+	newQuantity: number;
+};
+
+async function sendOrderUpdatedEmails(data: {
+	orderId: number;
+	customerEmail: string;
+	customerName: string;
+	changes: OrderChange[];
+	newTotal: number;
+}) {
+	const { orderId, customerEmail, customerName, changes, newTotal } = data;
+
+	await sendEmail({
+		to: [customerEmail],
+		from: "Glitter Store <reservas@productoraglitter.com>",
+		subject: `Tu orden #${orderId} fue modificada`,
+		react: OrderUpdatedForUserEmailTemplate({
+			customerName,
+			orderId: String(orderId),
+			changes,
+			newTotal,
+		}) as React.ReactElement,
+	});
+
+	const admins = await fetchAdminUsers();
+	const adminEmails = admins.map((a) => a.email).filter(Boolean);
+
+	if (adminEmails.length > 0) {
+		await sendEmail({
+			to: adminEmails,
+			from: "Glitter Store <store@productoraglitter.com>",
+			replyTo: "soporte@productoraglitter.com",
+			subject: `Orden #${orderId} modificada por ${customerName || "Cliente"}`,
+			react: OrderUpdatedForAdminsEmailTemplate({
+				customerName,
+				orderId: String(orderId),
+				changes,
+				newTotal,
+			}) as React.ReactElement,
+		});
+	}
+}
+
+export async function updateOrder(
+	orderId: number,
+	profileId: number,
+	items: UpdateOrderItemInput[],
+	clientUpdatedAt: string,
+): Promise<UpdateOrderResult> {
+	// 1. Auth
+	const currentUser = await getCurrentUserProfile();
+	if (!currentUser) {
+		return {
+			success: false,
+			message: "Debes iniciar sesión para editar un pedido.",
+			cause: "forbidden",
+		};
+	}
+
+	// 2. Fetch order
+	const order = await fetchOrder(orderId);
+	if (!order) {
+		return {
+			success: false,
+			message: "Orden no encontrada.",
+			cause: "not_found",
+		};
+	}
+
+	// 3. Ownership + status guards
+	if (order.userId !== currentUser.id && currentUser.role !== "admin") {
+		return {
+			success: false,
+			message: "No tienes permiso para editar este pedido.",
+			cause: "forbidden",
+		};
+	}
+
+	if (order.status !== "pending") {
+		return {
+			success: false,
+			message: "Solo puedes editar pedidos pendientes.",
+		};
+	}
+
+	// 4. Optimistic concurrency check
+	if (order.updatedAt.toISOString() !== clientUpdatedAt) {
+		return {
+			success: false,
+			cause: "conflict",
+			message:
+				"El pedido fue modificado en otra sesión. Por favor recargá la página.",
+		};
+	}
+
+	// 5. Build edit map and validate all item IDs belong to this order
+	const editMap = new Map<number, number>(
+		items.map((i) => [i.orderItemId, i.quantity]),
+	);
+	const orderItemIds = new Set(order.orderItems.map((i) => i.id));
+	for (const itemId of editMap.keys()) {
+		if (!orderItemIds.has(itemId)) {
+			return {
+				success: false,
+				message: "Artículo no pertenece a este pedido.",
+				cause: "forbidden",
+			};
+		}
+	}
+
+	// 6. Price-lock guard (server-side mirror of UI restriction)
+	for (const orderItem of order.orderItems) {
+		const newQty = editMap.get(orderItem.id);
+		// Skip items that weren't submitted (unchanged) or aren't being changed
+		if (newQty === undefined || newQty === orderItem.quantity) continue;
+		const currentPrice = getProductPriceAtPurchase(orderItem.product);
+		if (Math.abs(currentPrice - orderItem.priceAtPurchase) > 0.001) {
+			return {
+				success: false,
+				message: `No puedes modificar "${orderItem.product.name}" porque su precio cambió desde que realizaste el pedido.`,
+			};
+		}
+	}
+
+	// 7. Determine if this is a full cancellation
+	const willCancelOrder = items.every((i) => i.quantity === 0);
+
+	// 8. DB Transaction
+	try {
+		await db.transaction(async (tx) => {
+			// Re-fetch order row with lock to prevent races
+			const [freshOrder] = await tx
+				.select()
+				.from(orders)
+				.where(and(eq(orders.id, orderId), eq(orders.status, "pending")))
+				.for("update");
+
+			if (!freshOrder) {
+				throw Object.assign(
+					new Error("Orden no encontrada o ya no está pendiente."),
+					{ cause: "not_found" },
+				);
+			}
+			if (freshOrder.updatedAt.toISOString() !== clientUpdatedAt) {
+				throw Object.assign(
+					new Error(
+						"El pedido fue modificado en otra sesión. Por favor recargá la página.",
+					),
+					{ cause: "conflict" },
+				);
+			}
+
+			if (willCancelOrder) {
+				// Restore all stock and cancel
+				for (const item of order.orderItems) {
+					await tx
+						.update(products)
+						.set({
+							stock: sql`COALESCE(${products.stock}, 0) + ${item.quantity}`,
+						})
+						.where(eq(products.id, item.productId));
+				}
+				await tx
+					.update(orders)
+					.set({ status: "cancelled", updatedAt: sql`now()` })
+					.where(eq(orders.id, orderId));
+			} else {
+				// Restore old quantities to stock for all edited items
+				for (const [itemId] of editMap) {
+					const orderItem = order.orderItems.find((i) => i.id === itemId)!;
+					await tx
+						.update(products)
+						.set({
+							stock: sql`COALESCE(${products.stock}, 0) + ${orderItem.quantity}`,
+						})
+						.where(eq(products.id, orderItem.productId));
+				}
+
+				// Re-fetch affected products FOR UPDATE and validate stock
+				const affectedProductIds = Array.from(editMap.entries())
+					.filter(([, qty]) => qty > 0)
+					.map(
+						([itemId]) =>
+							order.orderItems.find((i) => i.id === itemId)!.productId,
+					);
+
+				const freshProducts =
+					affectedProductIds.length > 0
+						? await tx
+								.select()
+								.from(products)
+								.where(inArray(products.id, affectedProductIds))
+								.for("update")
+						: [];
+
+				const stockErrors: string[] = [];
+				for (const [itemId, newQty] of editMap) {
+					if (newQty <= 0) continue;
+					const orderItem = order.orderItems.find((i) => i.id === itemId)!;
+					const freshProduct = freshProducts.find(
+						(p) => p.id === orderItem.productId,
+					);
+					if (freshProduct && (freshProduct.stock ?? 0) < newQty) {
+						stockErrors.push(
+							`${freshProduct.name} - ${freshProduct.stock ?? 0} disponible(s)`,
+						);
+					}
+				}
+
+				if (stockErrors.length > 0) {
+					throw Object.assign(
+						new Error(`Stock insuficiente: ${stockErrors.join(", ")}`),
+						{ cause: "stock_insufficient" },
+					);
+				}
+
+				// Apply changes: delete removed items, update quantities, deduct new stock
+				for (const [itemId, newQty] of editMap) {
+					if (newQty === 0) {
+						await tx.delete(orderItems).where(eq(orderItems.id, itemId));
+					} else {
+						await tx
+							.update(orderItems)
+							.set({ quantity: newQty, updatedAt: sql`now()` })
+							.where(eq(orderItems.id, itemId));
+
+						const orderItem = order.orderItems.find((i) => i.id === itemId)!;
+						await tx
+							.update(products)
+							.set({
+								stock: sql`GREATEST(0, COALESCE(${products.stock}, 0) - ${newQty})`,
+							})
+							.where(eq(products.id, orderItem.productId));
+					}
+				}
+
+				// Recalculate total using priceAtPurchase
+				const newTotal = order.orderItems.reduce((acc, item) => {
+					const newQty = editMap.get(item.id);
+					if (newQty === 0) return acc; // removed
+					const qty = newQty !== undefined ? newQty : item.quantity; // changed or unchanged
+					return acc + item.priceAtPurchase * qty;
+				}, 0);
+
+				await tx
+					.update(orders)
+					.set({ totalAmount: newTotal, updatedAt: sql`now()` })
+					.where(eq(orders.id, orderId));
+			}
+		});
+	} catch (error) {
+		console.error(error);
+		if (error instanceof Error) {
+			if (error.cause === "conflict") {
+				return { success: false, cause: "conflict", message: error.message };
+			}
+			if (error.cause === "stock_insufficient") {
+				return {
+					success: false,
+					cause: "stock_insufficient",
+					message: error.message,
+				};
+			}
+			if (error.cause === "not_found") {
+				return { success: false, cause: "not_found", message: error.message };
+			}
+		}
+		return { success: false, message: "No se pudo actualizar el pedido." };
+	}
+
+	// 9. Revalidate
+	revalidatePath(`/profiles/${profileId}/orders/${orderId}`);
+	revalidatePath(`/profiles/${profileId}/orders/${orderId}/edit`);
+	revalidatePath("/my_orders");
+	revalidateStoreOrderViews();
+
+	// 10. Build change summary and send emails (outside transaction, non-fatal)
+	const changes: OrderChange[] = order.orderItems
+		.filter((item) => editMap.has(item.id))
+		.map((item) => ({
+			productName: item.product.name,
+			oldQuantity: item.quantity,
+			newQuantity: editMap.get(item.id)!,
+		}));
+
+	const newTotal = willCancelOrder
+		? 0
+		: order.orderItems.reduce((acc, item) => {
+				const newQty = editMap.get(item.id);
+				if (newQty === 0) return acc;
+				const qty = newQty !== undefined ? newQty : item.quantity;
+				return acc + item.priceAtPurchase * qty;
+			}, 0);
+
+	try {
+		await sendOrderUpdatedEmails({
+			orderId,
+			customerEmail: order.customer.email,
+			customerName:
+				order.customer.displayName ?? order.customer.firstName ?? "Cliente",
+			changes,
+			newTotal,
+		});
+	} catch (emailError) {
+		console.error("Failed to send order updated emails", emailError);
+	}
+
+	return {
+		success: true,
+		wasCancelled: willCancelOrder,
+		message: willCancelOrder
+			? "Tu pedido fue cancelado."
+			: "Tu pedido fue actualizado correctamente.",
+	};
 }
 
 export async function fetchOrdersTotalsByProduct() {
