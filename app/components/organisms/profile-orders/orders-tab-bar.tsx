@@ -2,19 +2,28 @@
 
 import { useOptimistic, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import {
+	ORDER_TAB_VALUES,
+	type OrderTabValue,
+} from "@/app/lib/orders/order-tabs";
 import OrdersSkeleton from "./orders-skeleton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-const TABS = [
-	{ value: "pending", label: "Pendientes" },
-	{ value: "payment_verification", label: "En verificación" },
-	{ value: "paid", label: "Pagados" },
-	{ value: "delivered", label: "Entregados" },
-	{ value: "cancelled", label: "Cancelados" },
-] as const;
+const ORDER_TAB_LABELS: Record<OrderTabValue, string> = {
+	pending: "Pendientes",
+	payment_verification: "En verificación",
+	paid: "Pagados",
+	delivered: "Entregados",
+	cancelled: "Cancelados",
+};
 
-export type OrderTabValue = (typeof TABS)[number]["value"];
+// Tabs are derived from the shared source-of-truth (adding/removing tabs
+// should only happen in `app/lib/orders/order-tabs.ts`).
+const TABS = ORDER_TAB_VALUES.map((value) => ({
+	value,
+	label: ORDER_TAB_LABELS[value],
+}));
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -42,7 +51,7 @@ export default function OrdersTabBar({
 		<>
 			{/* Tab bar — dims while pending to block re-clicks */}
 			<div
-				className={`mt-4 flex gap-1 overflow-x-auto border-b no-scrollbar transition-opacity ${
+				className={`sticky top-16 md:top-20 z-40 bg-background mt-4 flex gap-1 overflow-x-auto border-b no-scrollbar transition-opacity ${
 					isPending ? "opacity-60 pointer-events-none" : ""
 				}`}
 			>

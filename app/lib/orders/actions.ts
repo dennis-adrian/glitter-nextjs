@@ -2,6 +2,10 @@
 
 import { orderItems, orders } from "@/db/schema";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
+import {
+	ORDER_TAB_VALUES,
+	type OrderTabValue,
+} from "@/app/lib/orders/order-tabs";
 import { db } from "@/db";
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -313,20 +317,14 @@ export async function fetchOrdersByUserId(userId: number) {
 
 // ─── Order count aggregate ────────────────────────────────────────────────────
 
-type OrderTabValue =
-	| "pending"
-	| "payment_verification"
-	| "paid"
-	| "delivered"
-	| "cancelled";
-
-const ORDER_TAB_DEFAULT: Record<OrderTabValue, number> = {
-	pending: 0,
-	payment_verification: 0,
-	paid: 0,
-	delivered: 0,
-	cancelled: 0,
-};
+const ORDER_TAB_DEFAULT: Record<OrderTabValue, number> =
+	ORDER_TAB_VALUES.reduce(
+		(acc, value) => {
+			acc[value] = 0;
+			return acc;
+		},
+		{} as Record<OrderTabValue, number>,
+	);
 
 export async function fetchOrderCountsByUserId(
 	userId: number,

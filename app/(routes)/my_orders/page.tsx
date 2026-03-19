@@ -4,24 +4,16 @@ import { notFound } from "next/navigation";
 import Heading from "@/app/components/atoms/heading";
 import OrdersList from "@/app/components/organisms/profile-orders/orders-list";
 import OrdersSkeleton from "@/app/components/organisms/profile-orders/orders-skeleton";
-import OrdersTabBar, {
+import OrdersTabBar from "@/app/components/organisms/profile-orders/orders-tab-bar";
+import {
+	ORDER_TAB_VALUES,
 	type OrderTabValue,
-} from "@/app/components/organisms/profile-orders/orders-tab-bar";
+} from "@/app/lib/orders/order-tabs";
 import {
 	fetchOrderCountsByUserId,
 	fetchOrdersByUserIdAndStatus,
 } from "@/app/lib/orders/actions";
 import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const VALID_TABS: OrderTabValue[] = [
-	"pending",
-	"payment_verification",
-	"paid",
-	"delivered",
-	"cancelled",
-];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -34,7 +26,9 @@ export default async function MyOrdersPage(props: {
 	}
 
 	const { tab } = await props.searchParams;
-	const activeTab: OrderTabValue = VALID_TABS.includes(tab as OrderTabValue)
+	const activeTab: OrderTabValue = ORDER_TAB_VALUES.includes(
+		tab as OrderTabValue,
+	)
 		? (tab as OrderTabValue)
 		: "pending";
 
