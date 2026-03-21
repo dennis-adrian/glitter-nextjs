@@ -33,7 +33,7 @@ export default function FestivalActivityCard({
 	const theme = getActivityTheme(index);
 	const enrollment = getEnrollmentInfo(activity, forProfile.id);
 	const enrolledConfig = enrollment.isEnrolled
-		? getEnrolledConfig(activity, forProfile.id, enrollment.hasUploadedProof)
+		? getEnrolledConfig(activity, forProfile.id, enrollment.proofDisplayState)
 		: null;
 
 	return (
@@ -65,7 +65,9 @@ export default function FestivalActivityCard({
 				<div className="p-6 pl-10 space-y-4">
 					<div className="flex items-start justify-between">
 						<ActivityTypeBadge theme={theme} activityType={activity.type} />
-						{enrollment.isEnrolled && <EnrolledBadge theme={theme} />}
+						{enrollment.isEnrolled && !enrollment.isRemoved && (
+							<EnrolledBadge theme={theme} />
+						)}
 					</div>
 
 					{/* Title */}
@@ -90,7 +92,13 @@ export default function FestivalActivityCard({
 						</p>
 					)}
 
-					{enrollment.isEnrolled && enrolledConfig ? (
+					{enrollment.isEnrolled && enrollment.isRemoved ? (
+						<div className="mt-2 border rounded-md p-3 text-destructive bg-destructive-50">
+							<p className="text-sm font-medium text-destructive">
+								Ya no podés participar en esta actividad
+							</p>
+						</div>
+					) : enrollment.isEnrolled && enrolledConfig ? (
 						<>
 							{enrolledConfig.isPending && (
 								<PendingActionNotice enrolledConfig={enrolledConfig} />
@@ -136,6 +144,11 @@ export default function FestivalActivityCard({
 								activityId={activity.id}
 								forProfile={forProfile}
 								theme={theme}
+								proofType={activity.proofType}
+								proofDisplayState={enrollment.proofDisplayState}
+								adminFeedback={enrollment.adminFeedback}
+								existingPromoDescription={enrollment.existingPromoDescription}
+								existingPromoConditions={enrollment.existingPromoConditions}
 							/>
 						</>
 					) : (

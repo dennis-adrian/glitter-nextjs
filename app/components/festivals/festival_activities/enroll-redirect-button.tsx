@@ -2,7 +2,7 @@
 
 import { RedirectButton } from "@/app/components/redirect-button";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
 	Tooltip,
 	TooltipContent,
@@ -12,35 +12,32 @@ import {
 import { DateTime } from "luxon";
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import { useForm } from "react-hook-form";
-import { enrollInActivity } from "@/app/lib/festival_sectors/actions";
+import { enrollInActivity } from "@/app/lib/festival_activites/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import {
-	Form,
-	FormControl,
-	FormDescription,
-	FormField,
-	FormItem,
-	FormLabel,
-	FormMessage,
-} from "@/app/components/ui/form";
+import { Form } from "@/app/components/ui/form";
 import SubmitButton from "@/app/components/simple-submit-button";
 import {
 	isActivityDetailFull,
 	isProfileEnrolledInActivity,
 } from "@/app/lib/festival_sectors/helpers";
 import UploadStickerDesignModal from "@/app/components/festivals/festival_activities/upload-sticker-design-modal";
+import CouponBookProofModal from "@/app/components/festivals/festival_activities/coupon-book-proof-modal";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
-import { Checkbox } from "@/app/components/ui/checkbox";
+import type { ProofDisplayState } from "@/app/lib/festival_activites/types";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/app/components/ui/button";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
+import ConsentFormField from "@/app/components/molecules/consent-form-field";
 
 const FormSchema = z.object({
-	consent: z.boolean().refine((val) => val === true, {
-		error: "Confirma que leíste y aceptaste las condiciones de la actividad.",
-	}),
+	consent: z
+		.boolean()
+		.refine(
+			(val) => val === true,
+			"Confirma que leíste y aceptaste las condiciones de la actividad.",
+		),
 });
 
 type EnrollRedirectButtonProps = {
@@ -60,6 +57,7 @@ export default function EnrollRedirectButton({
 }: EnrollRedirectButtonProps) {
 	const [isEnabled, setIsEnabled] = useState(false);
 	const [statusMessage, setStatusMessage] = useState("");
+	const [isPending, startTransition] = useTransition();
 	const router = useRouter();
 	const form = useForm({
 		resolver: zodResolver(FormSchema),
@@ -120,27 +118,28 @@ export default function EnrollRedirectButton({
 
 	const activityDetail = activity.details[0];
 
-	const action = form.handleSubmit(async () => {
-		try {
-			const result = await enrollInActivity(
-				forProfile,
-				festivalId,
-				activityDetail,
-				activity,
-				acceptedUserCategories,
-			);
-
-			if (result.success) {
-				toast.success(result.message);
-				router.push(
-					`/profiles/${forProfile.id}/festivals/${festivalId}/activity/enroll/success`,
+	const action = form.handleSubmit(async (data) => {
+		startTransition(async () => {
+			try {
+				const result = await enrollInActivity(
+					forProfile,
+					festivalId,
+					activityDetail,
+					activity,
+					acceptedUserCategories,
 				);
-			} else {
-				toast.error(result.message);
+				if (result.success) {
+					toast.success(result.message);
+					router.push(
+						`/profiles/${forProfile.id}/festivals/${festivalId}/activity/enroll/success`,
+					);
+				} else {
+					toast.error(result.message);
+				}
+			} catch (error) {
+				toast.error("Error inesperado al procesar la inscripción");
 			}
-		} catch (error) {
-			toast.error("Error inesperado al procesar la inscripción");
-		}
+		});
 	});
 
 	if (
@@ -165,14 +164,84 @@ export default function EnrollRedirectButton({
 			(participant) => participant.user.id === forProfile.id,
 		);
 
-		const hasUploadedProof = (userParticipation?.proofs?.length ?? 0) > 0;
+		const proof = userParticipation?.proofs?.[0] ?? null;
 
-		if (!hasUploadedProof && userParticipation) {
+		const proofDisplayState: ProofDisplayState = !proof
+			? "pending_proof"
+			: proof.proofStatus;
+
+		// Removed participant — show disabled state
+		if (proofDisplayState === "rejected_removed") {
 			return (
-				<div className="flex gap-2 text-sm flex-col text-center border border-emerald-200 rounded-md p-4 bg-emerald-50 text-emerald-800">
+				<div className="flex flex-col gap-1 border border-red-200 rounded-md p-4 bg-red-50 text-red-800">
+					<p className="text-sm font-medium">Fuiste removido de la actividad</p>
+					{proof?.adminFeedback && (
+						<p className="text-xs text-red-700">{proof.adminFeedback}</p>
+					)}
+				</div>
+			);
+		}
+
+		// Under review
+		if (proofDisplayState === "pending_review") {
+			return (
+				<div className="flex flex-col text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
+					<p className="text-sm">Tu información está en revisión</p>
+				</div>
+			);
+		}
+
+		// Approved
+		if (proofDisplayState === "approved") {
+			return (
+				<div className="flex flex-col text-center border border-emerald-200 rounded-md p-4 bg-emerald-50 text-emerald-800">
+					<p className="text-sm">Participación confirmada</p>
+				</div>
+			);
+		}
+
+		const proofType = activity.proofType;
+
+		// No proof required
+		if (!proofType) {
+			return (
+				<div className="flex flex-col text-center border border-emerald-200 rounded-md p-4 bg-emerald-50 text-emerald-800">
+					<p className="text-sm">Ya estás inscrito en esta actividad</p>
+				</div>
+			);
+		}
+
+		// Pending proof or rejected_resubmit — show upload UI
+		if (userParticipation) {
+			if (proofType === "text" || proofType === "both") {
+				return (
+					<div className="flex gap-2 text-sm flex-col text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
+						<p>
+							{proofDisplayState === "rejected_resubmit"
+								? "Se solicitaron correcciones en los detalles de tu promoción"
+								: "Ya estás inscrito. No te olvidés de cargar los detalles de tu promoción"}
+						</p>
+						<CouponBookProofModal
+							participationId={userParticipation.id}
+							proofDisplayState={proofDisplayState}
+							adminFeedback={proof?.adminFeedback}
+							existingPromoDescription={proof?.promoDescription}
+							existingPromoConditions={proof?.promoConditions}
+							triggerLabel={
+								proofDisplayState === "rejected_resubmit"
+									? "Editar y reenviar"
+									: "Cargar mi promoción"
+							}
+						/>
+					</div>
+				);
+			}
+
+			// image or both — image upload
+			return (
+				<div className="flex gap-2 text-sm flex-col text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
 					<p>
-						Ya estás inscrito en esta actividad. No te olvides de subir el
-						diseño de tu sello.
+						Ya estás inscrito. No te olvides de subir el diseño de tu sello.
 					</p>
 					<UploadStickerDesignModal
 						participationId={userParticipation.id}
@@ -184,10 +253,7 @@ export default function EnrollRedirectButton({
 
 		return (
 			<div className="flex flex-col text-center border border-emerald-200 rounded-md p-4 bg-emerald-50 text-emerald-800">
-				<p className="text-sm">
-					Ya estás inscrito en esta actividad. Y subiste el diseño de tu sello
-					correctamente.
-				</p>
+				<p className="text-sm">Ya estás inscrito en esta actividad</p>
 			</div>
 		);
 	}
@@ -223,48 +289,16 @@ export default function EnrollRedirectButton({
 											className="w-full flex flex-col gap-2"
 											onSubmit={action}
 										>
-											<FormField
-												control={form.control}
+											<ConsentFormField
 												name="consent"
-												render={({ field }) => (
-													<div className="flex flex-col gap-2">
-														<FormItem className=" bg-amber-50 border border-amber-200 rounded-md p-3 text-amber-800">
-															<div className="flex flex-row items-start gap-1">
-																<FormControl>
-																	<Checkbox
-																		checked={field.value}
-																		onCheckedChange={field.onChange}
-																	/>
-																</FormControl>
-																<div className="space-y-1 leading-none">
-																	<FormLabel className="text-current">
-																		Confirmo que he leído y acepto las
-																		condiciones de la actividad.
-																	</FormLabel>
-																	<FormDescription className="text-current">
-																		Incumplir las condiciones de la actividad,
-																		podría excluirte de futuros eventos y/o
-																		actividades.
-																	</FormDescription>
-																</div>
-															</div>
-														</FormItem>
-														<FormMessage />
-													</div>
-												)}
+												label="Confirmo que leí y estoy de acuerdo con las condiciones de la actividad."
+												description="Entiendo que incumplir las condiciones de la actividad, podría excluirme de futuros eventos o actividades."
 											/>
+
 											<SubmitButton
-												disabled={
-													form.formState.isSubmitting ||
-													form.formState.isSubmitSuccessful
-												}
-												loading={form.formState.isSubmitting}
-												loadingLabel="Inscribiendo..."
-												label={
-													form.formState.isSubmitting
-														? "Inscribiendo..."
-														: "Inscribirme"
-												}
+												disabled={isPending}
+												submittingLabel="Inscribiendo"
+												label="Inscribirme"
 											/>
 										</form>
 									</Form>

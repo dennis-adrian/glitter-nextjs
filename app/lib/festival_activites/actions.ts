@@ -37,7 +37,6 @@ export const fetchFestivalActivity = async (
 				details: {
 					with: {
 						participants: {
-							where: isNull(festivalActivityParticipants.removedAt),
 							with: {
 								user: true,
 								proofs: true,
@@ -441,7 +440,7 @@ export async function addFestivalActivityParticipantProof(
 	if (proofType === null) {
 		return {
 			success: false,
-			message: "Esta actividad no requiere prueba con imagen.",
+			message: "No es necesario subir una imagen para esta actividad",
 		};
 	}
 
@@ -489,8 +488,8 @@ export async function deleteFestivalActivityParticipantProof(
 	festivalId: FestivalBase["id"],
 ) {
 	try {
-		const participation =
-			await db.query.festivalActivityParticipants.findFirst({
+		const participation = await db.query.festivalActivityParticipants.findFirst(
+			{
 				where: and(
 					eq(festivalActivityParticipants.id, activityParticipationId),
 					eq(festivalActivityParticipants.userId, forProfileId),
@@ -500,7 +499,8 @@ export async function deleteFestivalActivityParticipantProof(
 						with: { festivalActivity: true },
 					},
 				},
-			});
+			},
+		);
 
 		if (!participation) {
 			return {
