@@ -25,12 +25,8 @@ const FormSchema = z.object({
 		.string()
 		.trim()
 		.min(1, "La promoción es requerida")
-		.max(30, "Máximo 80 caracteres"),
-	promoConditions: z
-		.string()
-		.trim()
-		.max(300, "Máximo 300 caracteres")
-		.optional(),
+		.max(30, "Máximo 30 caracteres"),
+	promoConditions: z.string().trim().max(80, "Máximo 80 caracteres").optional(),
 });
 
 type CouponBookProofFormProps = {

@@ -49,7 +49,6 @@ El sistema de actividades de festival permite a los organizadores definir activi
 | `votingStartDate` | timestamp? | Inicio de votación |
 | `votingEndDate` | timestamp? | Fin de votación |
 | `accessLevel` | enum | `public` o `festival_participants_only` |
-| `conditions` | jsonb? | Requisitos de participación globales `{ requirements: string[] }` |
 
 **Semántica de `proofType` (enum `proof_type`; en DB solo hay valores no nulos — el “sin prueba” es `proofType` nulo en la fila de actividad):**
 
@@ -85,7 +84,8 @@ El sistema de actividades de festival permite a los organizadores definir activi
 | `description` | text? | Descripción de la variante |
 | `imageUrl` | text? | Imagen de la variante |
 | `participationLimit` | int? | Máximo de participantes (null = ilimitado) |
-| `conditions` | jsonb? | Requisitos específicos de la variante (sobrescribe los globales si está presente) |
+
+**Nota — texto de reglas y “condiciones” para el participante:** el esquema no incluye un campo JSON de requisitos. Los textos editables desde admin (`description`, `visitorsDescription`, imágenes, fechas, `proofType` / `proofUploadLimitDate`, etc.) se muestran en los componentes de cada tipo de actividad donde el flujo lo implementa (p. ej. `coupon-book-activity.tsx`, `best-stand-activity.tsx`, `festival-sticker-activity.tsx`). La Carrera de Sellos (`stamp_passport`) usa en `passport-activity.tsx` copy fijo para la narrativa y la lista numerada; el plazo de subida de prueba se puede reflejar ahí cuando existen `proofType` y `proofUploadLimitDate`.
 
 **`festivalActivityParticipants`** — Inscripción de un usuario
 
@@ -248,15 +248,17 @@ Dashboard del participante
 
 ## 9. Mejoras Identificadas
 
-### 9.1 Descripción de Actividad Hardcodeada ✅
+### 9.1 Descripción y lista de condiciones (parcialmente en código)
 
-**Implementado:** Las condiciones de participación son ahora configurables desde la base de datos.
+**Problema:** Para algunos tipos de actividad el participante necesita ver reglas claras; no siempre viven en columnas reutilizables.
 
-- Se agregó el campo `conditions: { requirements: string[] }` (jsonb) a `festivalActivities` y `festivalActivityDetails`
-- Los requisitos del nivel de actividad aplican por defecto; los de una variante los sobrescriben si están presentes (cascade via `resolveConditions()` en `lib/festival_activites/helpers.ts`)
-- `passport-activity.tsx` renderiza los requisitos dinámicamente desde la DB. El deadline de prueba (`proofUploadLimitDate`) se agrega como requisito adicional cuando la actividad tiene `proofType` y fecha límite configurados
-- Los campos `description` y `visitorsDescription` también se configuran desde la DB y se renderizan en la página de detalle
-- El panel de administración incluye un formulario completo para crear y editar actividades (`/dashboard/festivals/[id]/festival_activities/new` y `/edit`), con soporte para requisitos globales y por variante
+**Estado actual (alineado al esquema):** No existe columna `conditions` ni payload `{ requirements: string[] }` en `festivalActivities` / `festivalActivityDetails`, y no hay helper tipo `resolveConditions()` en el código de festival activities.
+
+- **Tipos con copy principalmente desde DB:** p. ej. `description` y `visitorsDescription` (y assets) en flujos como cuponera / mejor stand según el componente de página.
+- **`stamp_passport` (Carrera de Sellos):** la narrativa y la lista numerada de condiciones en `passport-activity.tsx` son mayormente estáticas; si la actividad tiene `proofType` y `proofUploadLimitDate`, se puede mostrar el ítem de fecha límite de subida de prueba derivado de esos campos.
+- **Admin:** el formulario de crear/editar actividad sigue cubriendo metadatos de la tabla (fechas, prueba, votación, variantes con cupo/categoría, textos e imágenes donde aplica), pero no una lista JSON de requisitos por actividad o variante.
+
+**Mejora propuesta:** Si el producto necesita editar bullets de reglas sin deploy, valorar un diseño explícito (p. ej. texto enriquecido o lista en columnas dedicadas) coherente con cada tipo de actividad.
 
 ---
 

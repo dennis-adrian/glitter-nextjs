@@ -17,14 +17,14 @@ export default function RemoveCollaboratorForm({
 	const form = useForm();
 
 	const action = form.handleSubmit(async (data) => {
-		const action = await deleteReservationCollaborator(
+		const result = await deleteReservationCollaborator(
 			reservationId,
 			collaboratorId,
 		);
-		if (action.success) {
-			toast.success(action.message);
+		if (result.success) {
+			toast.success(result.message);
 		} else {
-			toast.error(action.message);
+			toast.error(result.message);
 		}
 	});
 

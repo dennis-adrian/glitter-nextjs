@@ -14,10 +14,7 @@ import {
 	fetchCarouselFestivals,
 	fetchProfileEnrollmentInFestival,
 } from "@/app/lib/festivals/actions";
-import {
-	getCurrentNavbarProfile,
-	getCurrentUserProfile,
-} from "@/app/lib/users/helpers";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 

@@ -32,7 +32,7 @@ export default function PassportActivityPage({
 			<p className="text-sm md:text-base">
 				La Carrera de Sellos es una actividad que incentiva al público del
 				evento a visitar distintos stands y conocer los productos de los
-				expositores mediente la coleccion de sellos.
+				expositores mediante la colección de sellos.
 			</p>
 
 			{activity.promotionalArtUrl && (

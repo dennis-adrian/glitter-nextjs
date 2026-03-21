@@ -1,5 +1,4 @@
 import { fetchFestivalActivityForReview } from "@/app/lib/festivals/actions";
-import type { ActivityDetailsWithParticipants } from "@/app/lib/festivals/definitions";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import ActivityProofsTable from "../../activity-proofs-table";
@@ -28,7 +27,7 @@ export default async function Page({ params }: ReviewPageProps) {
 	const allParticipants = activity.details.flatMap((detail) =>
 		detail.participants.map((p) => ({
 			...p,
-			detail: { ...detail, votes: [] } as ActivityDetailsWithParticipants,
+			detail: { id: detail.id, category: detail.category },
 			removedAt: p.removedAt,
 		})),
 	);

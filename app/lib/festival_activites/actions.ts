@@ -420,9 +420,13 @@ export async function enrollInBestStandActivity(
 export async function addFestivalActivityParticipantProof(
 	participationId: number,
 	imageUrls: string[],
+	forProfileId: number,
 ) {
 	const participation = await db.query.festivalActivityParticipants.findFirst({
-		where: eq(festivalActivityParticipants.id, participationId),
+		where: and(
+			eq(festivalActivityParticipants.id, participationId),
+			eq(festivalActivityParticipants.userId, forProfileId),
+		),
 		with: {
 			activityDetail: {
 				with: { festivalActivity: true },
@@ -431,7 +435,10 @@ export async function addFestivalActivityParticipantProof(
 	});
 
 	if (!participation) {
-		return { success: false, message: "Inscripción no encontrada" };
+		return {
+			success: false,
+			message: "No tienes permiso para subir diseños a esta inscripción",
+		};
 	}
 
 	const proofType =

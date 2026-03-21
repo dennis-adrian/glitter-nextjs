@@ -46,11 +46,39 @@ export default function EnrolledUsersCta({
 	existingPromoDescription,
 	existingPromoConditions,
 }: EnrolledUsersCtaProps) {
+	const uploadTriggerClassName = `md:max-w-full border-0 text-white [clip-path:polygon(0_0,calc(100%-8px)_0,100%_8px,100%_100%,8px_100%,0_calc(100%-8px))] ${enrolledConfig.isDestructive ? "bg-red-600 hover:bg-red-700" : "bg-amber-500 hover:bg-amber-600"}`;
+
 	return (
 		<div className="pt-2 flex flex-col gap-3">
 			{enrolledConfig.isPending &&
 				(enrolledConfig.ctaType === "upload" ? (
-					proofType === "text" || proofType === "both" ? (
+					proofType === "both" ? (
+						<div className="flex flex-col gap-2">
+							<CouponBookProofModal
+								participationId={participationId}
+								proofDisplayState={proofDisplayState}
+								adminFeedback={adminFeedback}
+								existingPromoDescription={existingPromoDescription}
+								existingPromoConditions={existingPromoConditions}
+								triggerLabel={
+									proofDisplayState === "rejected_resubmit"
+										? "Editar y reenviar"
+										: "Cargar promoción"
+								}
+								triggerClassName={uploadTriggerClassName}
+							/>
+							<UploadStickerDesignModal
+								participationId={participationId}
+								maxFiles={1}
+								triggerLabel={
+									proofDisplayState === "rejected_resubmit"
+										? "Reenviar diseño"
+										: "Subir diseño"
+								}
+								triggerClassName={uploadTriggerClassName}
+							/>
+						</div>
+					) : proofType === "text" ? (
 						<CouponBookProofModal
 							participationId={participationId}
 							proofDisplayState={proofDisplayState}
@@ -58,14 +86,14 @@ export default function EnrolledUsersCta({
 							existingPromoDescription={existingPromoDescription}
 							existingPromoConditions={existingPromoConditions}
 							triggerLabel={enrolledConfig.ctaLabel}
-							triggerClassName={`md:max-w-full border-0 text-white [clip-path:polygon(0_0,calc(100%-8px)_0,100%_8px,100%_100%,8px_100%,0_calc(100%-8px))] ${enrolledConfig.isDestructive ? "bg-red-600 hover:bg-red-700" : "bg-amber-500 hover:bg-amber-600"}`}
+							triggerClassName={uploadTriggerClassName}
 						/>
 					) : (
 						<UploadStickerDesignModal
 							participationId={participationId}
 							maxFiles={1}
 							triggerLabel={enrolledConfig.ctaLabel}
-							triggerClassName={`md:max-w-full border-0 text-white [clip-path:polygon(0_0,calc(100%-8px)_0,100%_8px,100%_100%,8px_100%,0_calc(100%-8px))] ${enrolledConfig.isDestructive ? "bg-red-600 hover:bg-red-700" : "bg-amber-500 hover:bg-amber-600"}`}
+							triggerClassName={uploadTriggerClassName}
 						/>
 					)
 				) : (
