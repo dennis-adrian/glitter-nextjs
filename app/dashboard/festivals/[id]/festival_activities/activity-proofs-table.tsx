@@ -1,5 +1,7 @@
 "use client";
 
+import { useRef, useState } from "react";
+import { Loader2Icon } from "lucide-react";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/app/components/ui/badge";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
@@ -13,6 +15,7 @@ import type {
 import type { FestivalActivity } from "@/app/lib/festivals/definitions";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import { reviewActivityParticipantProof } from "@/app/lib/festival_activites/admin-actions";
+import { cn } from "@/app/lib/utils";
 import ProofImageModal from "./proof-image-modal";
 import RejectProofModal from "./reject-proof-modal";
 
@@ -23,6 +26,56 @@ type ParticipantWithDetail = ParticipantWithUserAndProofs & {
 	detail: ProofRowDetail;
 	removedAt: Date | null;
 };
+
+function ApproveProofButton({
+	proofId,
+	className,
+}: {
+	proofId: number;
+	className?: string;
+}) {
+	const [isApproving, setIsApproving] = useState(false);
+	const approvingRef = useRef(false);
+
+	const handleApprove = async () => {
+		if (approvingRef.current) return;
+		approvingRef.current = true;
+		setIsApproving(true);
+		try {
+			const result = await reviewActivityParticipantProof(proofId, "approved");
+			if (result.success) {
+				toast.success(result.message);
+			} else {
+				toast.error(result.message);
+			}
+		} finally {
+			approvingRef.current = false;
+			setIsApproving(false);
+		}
+	};
+
+	return (
+		<Button
+			variant="outline"
+			size="sm"
+			disabled={isApproving}
+			className={cn(
+				"h-7 px-2 text-xs text-emerald-700 border-emerald-300",
+				className,
+			)}
+			onClick={handleApprove}
+		>
+			{isApproving ? (
+				<span className="inline-flex items-center gap-1.5">
+					<Loader2Icon className="h-3 w-3 animate-spin" aria-hidden />
+					Aprobando
+				</span>
+			) : (
+				"Aprobar"
+			)}
+		</Button>
+	);
+}
 
 const PROOF_STATUS_BADGE: Record<string, { label: string; className: string }> =
 	{
@@ -131,6 +184,13 @@ function buildColumns(
 					);
 				}
 				const config = PROOF_STATUS_BADGE[proof.proofStatus];
+				if (!config) {
+					return (
+						<Badge variant="outline" className="text-xs text-muted-foreground">
+							{proof.proofStatus}
+						</Badge>
+					);
+				}
 				return (
 					<Badge variant="outline" className={`text-xs ${config.className}`}>
 						{config.label}
@@ -190,24 +250,10 @@ function buildColumns(
 						)}
 						{proof && proof.proofStatus === "pending_review" && (
 							<>
-								<Button
-									variant="outline"
-									size="sm"
-									className="h-7 px-2 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-									onClick={async () => {
-										const result = await reviewActivityParticipantProof(
-											proof.id,
-											"approved",
-										);
-										if (result.success) {
-											toast.success(result.message);
-										} else {
-											toast.error(result.message);
-										}
-									}}
-								>
-									Aprobar
-								</Button>
+								<ApproveProofButton
+									proofId={proof.id}
+									className="hover:bg-emerald-50"
+								/>
 								<RejectProofModal
 									proofId={proof.id}
 									mode="resubmit"
@@ -287,7 +333,7 @@ export default function ActivityProofsTable({
 					const category = participant.detail.category;
 					const isRemoved = participant.removedAt !== null;
 					const statusConfig = proof
-						? PROOF_STATUS_BADGE[proof.proofStatus]
+						? (PROOF_STATUS_BADGE[proof.proofStatus] ?? null)
 						: null;
 
 					return (
@@ -362,24 +408,7 @@ export default function ActivityProofsTable({
 									)}
 									{proof.proofStatus === "pending_review" && (
 										<>
-											<Button
-												variant="outline"
-												size="sm"
-												className="h-7 px-2 text-xs text-emerald-700 border-emerald-300"
-												onClick={async () => {
-													const result = await reviewActivityParticipantProof(
-														proof.id,
-														"approved",
-													);
-													if (result.success) {
-														toast.success(result.message);
-													} else {
-														toast.error(result.message);
-													}
-												}}
-											>
-												Aprobar
-											</Button>
+											<ApproveProofButton proofId={proof.id} />
 											<RejectProofModal
 												proofId={proof.id}
 												mode="resubmit"

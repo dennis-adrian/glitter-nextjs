@@ -2,17 +2,22 @@
 
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import {
-	ActivityConditionsConfig,
 	ActivityUserCategory,
+	ProofStatus,
+	ProofType,
 } from "@/app/lib/festival_activites/types";
 import { db } from "@/db";
 import {
 	festivalActivities,
 	festivalActivityDetails,
+	festivalActivityParticipantProofs,
 	festivalActivityParticipants,
 } from "@/db/schema";
-import { count, eq } from "drizzle-orm";
+import { and, count, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { sendEmail } from "@/app/vendors/resend";
+import ActivityProofReviewEmail from "@/app/emails/activity-proof-review";
+import React from "react";
 
 export type FestivalActivityDetailInput = {
 	/** Present for existing details, absent for new ones */
@@ -20,25 +25,28 @@ export type FestivalActivityDetailInput = {
 	description?: string;
 	participationLimit?: number;
 	category?: ActivityUserCategory | null;
-	conditions?: ActivityConditionsConfig | null;
 };
 
 export type FestivalActivityInput = {
 	name: string;
 	description?: string;
 	visitorsDescription?: string;
-	type: "stamp_passport" | "sticker_print" | "best_stand" | "festival_sticker";
+	type:
+		| "stamp_passport"
+		| "sticker_print"
+		| "best_stand"
+		| "festival_sticker"
+		| "coupon_book";
 	accessLevel: "public" | "festival_participants_only";
 	promotionalArtUrl?: string;
 	activityPrizeUrl?: string;
 	registrationStartDate: Date;
 	registrationEndDate: Date;
-	requiresProof: boolean;
+	proofType?: ProofType | null;
 	proofUploadLimitDate?: Date;
 	allowsVoting: boolean;
 	votingStartDate?: Date;
 	votingEndDate?: Date;
-	conditions?: ActivityConditionsConfig | null;
 	details: FestivalActivityDetailInput[];
 };
 
@@ -51,6 +59,22 @@ async function getAdminProfile() {
 		return null;
 	}
 	return profile;
+}
+
+const PROOF_LIMIT_REQUIRED_MESSAGE =
+	"Si la actividad exige prueba, debes indicar la fecha límite para cargar la prueba.";
+
+function proofUploadLimitValidationMessage(
+	data: FestivalActivityInput,
+): string | null {
+	if ((data.proofType ?? null) === null) {
+		return null;
+	}
+	const d = data.proofUploadLimitDate;
+	if (d == null || Number.isNaN(d.getTime())) {
+		return PROOF_LIMIT_REQUIRED_MESSAGE;
+	}
+	return null;
 }
 
 export async function createFestivalActivity(
@@ -72,6 +96,11 @@ export async function createFestivalActivity(
 		};
 	}
 
+	const proofLimitMsg = proofUploadLimitValidationMessage(data);
+	if (proofLimitMsg) {
+		return { success: false, message: proofLimitMsg };
+	}
+
 	try {
 		const activityId = await db.transaction(async (tx) => {
 			const [activity] = await tx
@@ -87,12 +116,11 @@ export async function createFestivalActivity(
 					activityPrizeUrl: data.activityPrizeUrl,
 					registrationStartDate: data.registrationStartDate,
 					registrationEndDate: data.registrationEndDate,
-					requiresProof: data.requiresProof,
+					proofType: data.proofType ?? null,
 					proofUploadLimitDate: data.proofUploadLimitDate,
 					allowsVoting: data.allowsVoting,
 					votingStartDate: data.votingStartDate,
 					votingEndDate: data.votingEndDate,
-					conditions: data.conditions ?? null,
 				})
 				.returning({ id: festivalActivities.id });
 
@@ -102,7 +130,6 @@ export async function createFestivalActivity(
 					description: detail.description,
 					participationLimit: detail.participationLimit,
 					category: detail.category ?? null,
-					conditions: detail.conditions ?? null,
 				})),
 			);
 
@@ -142,6 +169,11 @@ export async function updateFestivalActivity(
 		};
 	}
 
+	const proofLimitMsgUpdate = proofUploadLimitValidationMessage(data);
+	if (proofLimitMsgUpdate) {
+		return { success: false, message: proofLimitMsgUpdate };
+	}
+
 	try {
 		await db.transaction(async (tx) => {
 			await tx
@@ -156,12 +188,11 @@ export async function updateFestivalActivity(
 					activityPrizeUrl: data.activityPrizeUrl,
 					registrationStartDate: data.registrationStartDate,
 					registrationEndDate: data.registrationEndDate,
-					requiresProof: data.requiresProof,
+					proofType: data.proofType ?? null,
 					proofUploadLimitDate: data.proofUploadLimitDate,
 					allowsVoting: data.allowsVoting,
 					votingStartDate: data.votingStartDate,
 					votingEndDate: data.votingEndDate,
-					conditions: data.conditions ?? null,
 					updatedAt: new Date(),
 				})
 				.where(eq(festivalActivities.id, activityId));
@@ -177,13 +208,18 @@ export async function updateFestivalActivity(
 				data.details.filter((d) => d.id != null).map((d) => d.id as number),
 			);
 
-			// Delete details no longer in the payload — abort if participants exist
+			// Delete details no longer in the payload — abort if active participants exist
 			const toDelete = [...existingIds].filter((id) => !incomingIds.has(id));
 			for (const detailId of toDelete) {
 				const [{ n }] = await tx
 					.select({ n: count() })
 					.from(festivalActivityParticipants)
-					.where(eq(festivalActivityParticipants.detailsId, detailId));
+					.where(
+						and(
+							eq(festivalActivityParticipants.detailsId, detailId),
+							isNull(festivalActivityParticipants.removedAt),
+						),
+					);
 				if (n > 0) {
 					throw new Error(
 						`La variante tiene ${n} participante(s) inscripto(s) y no puede eliminarse.`,
@@ -204,7 +240,6 @@ export async function updateFestivalActivity(
 						description: detail.description,
 						participationLimit: detail.participationLimit ?? null,
 						category: detail.category ?? null,
-						conditions: detail.conditions ?? null,
 					})
 					.where(eq(festivalActivityDetails.id, detail.id as number));
 			}
@@ -218,7 +253,6 @@ export async function updateFestivalActivity(
 						description: detail.description,
 						participationLimit: detail.participationLimit,
 						category: detail.category ?? null,
-						conditions: detail.conditions ?? null,
 					})),
 				);
 			}
@@ -233,6 +267,237 @@ export async function updateFestivalActivity(
 				? error.message
 				: "Error al actualizar la actividad";
 		console.error("Error updating festival activity:", error);
+		return { success: false, message };
+	}
+}
+
+export async function upsertActivityParticipantProof(
+	participationId: number,
+	data: { promoDescription: string; promoConditions?: string },
+): Promise<{ success: boolean; message: string }> {
+	const profile = await getCurrentUserProfile();
+	if (!profile) {
+		return { success: false, message: "No tienes permisos para esta acción" };
+	}
+
+	if (data.promoConditions && data.promoConditions.length > 300) {
+		return {
+			success: false,
+			message: "Las condiciones no pueden superar los 300 caracteres",
+		};
+	}
+
+	try {
+		// Verify ownership and load activity proofType (PRD: promo text for text/both)
+		const participation = await db.query.festivalActivityParticipants.findFirst(
+			{
+				where: and(
+					eq(festivalActivityParticipants.id, participationId),
+					eq(festivalActivityParticipants.userId, profile.id),
+					isNull(festivalActivityParticipants.removedAt),
+				),
+				with: {
+					activityDetail: {
+						with: { festivalActivity: true },
+					},
+				},
+			},
+		);
+
+		if (!participation) {
+			return {
+				success: false,
+				message: "No se encontró la inscripción o no tienes permisos",
+			};
+		}
+
+		const proofType =
+			participation.activityDetail?.festivalActivity?.proofType ?? null;
+
+		if (proofType === null) {
+			return {
+				success: false,
+				message: "Esta actividad no requiere prueba por texto.",
+			};
+		}
+
+		if (proofType === "image") {
+			return {
+				success: false,
+				message:
+					"Esta actividad solo admite prueba por imagen; sube tu diseño en el formulario de carga de imágenes.",
+			};
+		}
+
+		const promoTrimmed = data.promoDescription.trim();
+		if (
+			(proofType === "text" || proofType === "both") &&
+			promoTrimmed.length === 0
+		) {
+			return {
+				success: false,
+				message: "Debes indicar la descripción de tu promoción.",
+			};
+		}
+
+		if (promoTrimmed.length > 80) {
+			return {
+				success: false,
+				message: "La promoción no puede superar los 80 caracteres",
+			};
+		}
+
+		const existingProof =
+			await db.query.festivalActivityParticipantProofs.findFirst({
+				where: eq(
+					festivalActivityParticipantProofs.participationId,
+					participationId,
+				),
+			});
+
+		if (existingProof?.proofStatus === "rejected_removed") {
+			return {
+				success: false,
+				message: "Tu participación fue removida y no puedes reenviar",
+			};
+		}
+
+		if (existingProof) {
+			await db
+				.update(festivalActivityParticipantProofs)
+				.set({
+					promoDescription: promoTrimmed,
+					promoConditions: data.promoConditions ?? null,
+					proofStatus: "pending_review",
+					adminFeedback: null,
+					updatedAt: new Date(),
+				})
+				.where(eq(festivalActivityParticipantProofs.id, existingProof.id));
+		} else {
+			await db.insert(festivalActivityParticipantProofs).values({
+				participationId,
+				promoDescription: promoTrimmed,
+				promoConditions: data.promoConditions ?? null,
+				proofStatus: "pending_review",
+			});
+		}
+
+		revalidatePath("/my_profile");
+		return { success: true, message: "Promoción enviada correctamente" };
+	} catch (error) {
+		console.error("Error upserting activity participant proof:", error);
+		return { success: false, message: "Error al enviar la promoción" };
+	}
+}
+
+export async function reviewActivityParticipantProof(
+	proofId: number,
+	status: Exclude<ProofStatus, "pending_review">,
+	adminFeedback?: string,
+): Promise<{ success: boolean; message: string }> {
+	const profile = await getAdminProfile();
+	if (!profile) {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción",
+		};
+	}
+
+	// PRD: adminFeedback obligatorio en rechazos (proofStatus rejected_*)
+	if (
+		(status === "rejected_resubmit" || status === "rejected_removed") &&
+		!adminFeedback?.trim()
+	) {
+		return {
+			success: false,
+			message: "El feedback es requerido al rechazar una prueba",
+		};
+	}
+
+	try {
+		await db.transaction(async (tx) => {
+			const proof = await tx.query.festivalActivityParticipantProofs.findFirst({
+				where: eq(festivalActivityParticipantProofs.id, proofId),
+			});
+
+			if (!proof) throw new Error("Prueba no encontrada");
+
+			await tx
+				.update(festivalActivityParticipantProofs)
+				.set({
+					proofStatus: status,
+					adminFeedback: adminFeedback?.trim() ?? null,
+					updatedAt: new Date(),
+				})
+				.where(eq(festivalActivityParticipantProofs.id, proofId));
+
+			if (status === "rejected_removed") {
+				await tx
+					.update(festivalActivityParticipants)
+					.set({ removedAt: new Date(), updatedAt: new Date() })
+					.where(eq(festivalActivityParticipants.id, proof.participationId));
+			}
+		});
+
+		// Send notification email — nested try/catch so failures don't affect the response
+		try {
+			const proofWithData =
+				await db.query.festivalActivityParticipantProofs.findFirst({
+					where: eq(festivalActivityParticipantProofs.id, proofId),
+					with: {
+						participation: {
+							with: {
+								user: true,
+								activityDetail: {
+									with: {
+										festivalActivity: {
+											with: { festival: true },
+										},
+									},
+								},
+							},
+						},
+					},
+				});
+
+			if (proofWithData?.participation?.user?.email) {
+				const { user } = proofWithData.participation;
+				const activity =
+					proofWithData.participation.activityDetail.festivalActivity;
+				const subjects: Record<typeof status, string> = {
+					approved: `Tu material fue aprobado - ${activity.name}`,
+					rejected_resubmit: `Tu material necesita correcciones - ${activity.name}`,
+					rejected_removed: `Fuiste removido de la actividad - ${activity.name}`,
+				};
+				await sendEmail({
+					to: [user.email],
+					from: "Equipo Glitter <equipo@productoraglitter.com>",
+					subject: subjects[status],
+					react: React.createElement(ActivityProofReviewEmail, {
+						profile: user,
+						festivalId: activity.festivalId,
+						activityId: activity.id,
+						activityName: activity.name,
+						festivalName: activity.festival.name,
+						festivalType: activity.festival.festivalType,
+						status,
+						adminFeedback,
+					}),
+				});
+			}
+		} catch (emailError) {
+			console.error(
+				"Error sending proof review notification email:",
+				emailError,
+			);
+		}
+
+		revalidatePath("/dashboard");
+		return { success: true, message: "Prueba revisada correctamente" };
+	} catch (error) {
+		const message =
+			error instanceof Error ? error.message : "Error al revisar la prueba";
+		console.error("Error reviewing activity participant proof:", error);
 		return { success: false, message };
 	}
 }
