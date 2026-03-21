@@ -12,6 +12,7 @@ import {
 	festivalActivityDetails,
 	festivalActivityParticipantProofs,
 	festivalActivityParticipants,
+	festivals,
 } from "@/db/schema";
 import { and, count, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -449,11 +450,7 @@ export async function reviewActivityParticipantProof(
 							with: {
 								user: true,
 								activityDetail: {
-									with: {
-										festivalActivity: {
-											with: { festival: true },
-										},
-									},
+									with: { festivalActivity: true },
 								},
 							},
 						},
@@ -464,26 +461,31 @@ export async function reviewActivityParticipantProof(
 				const { user } = proofWithData.participation;
 				const activity =
 					proofWithData.participation.activityDetail.festivalActivity;
-				const subjects: Record<typeof status, string> = {
-					approved: `Tu material fue aprobado - ${activity.name}`,
-					rejected_resubmit: `Tu material necesita correcciones - ${activity.name}`,
-					rejected_removed: `Fuiste removido de la actividad - ${activity.name}`,
-				};
-				await sendEmail({
-					to: [user.email],
-					from: "Equipo Glitter <equipo@productoraglitter.com>",
-					subject: subjects[status],
-					react: React.createElement(ActivityProofReviewEmail, {
-						profile: user,
-						festivalId: activity.festivalId,
-						activityId: activity.id,
-						activityName: activity.name,
-						festivalName: activity.festival.name,
-						festivalType: activity.festival.festivalType,
-						status,
-						adminFeedback,
-					}),
+				const festival = await db.query.festivals.findFirst({
+					where: eq(festivals.id, activity.festivalId),
 				});
+				if (festival) {
+					const subjects: Record<typeof status, string> = {
+						approved: `Tu material fue aprobado - ${activity.name}`,
+						rejected_resubmit: `Tu material necesita correcciones - ${activity.name}`,
+						rejected_removed: `Fuiste removido de la actividad - ${activity.name}`,
+					};
+					await sendEmail({
+						to: [user.email],
+						from: "Equipo Glitter <equipo@productoraglitter.com>",
+						subject: subjects[status],
+						react: React.createElement(ActivityProofReviewEmail, {
+							profile: user,
+							festivalId: activity.festivalId,
+							activityId: activity.id,
+							activityName: activity.name,
+							festivalName: festival.name,
+							festivalType: festival.festivalType,
+							status,
+							adminFeedback,
+						}),
+					});
+				}
 			}
 		} catch (emailError) {
 			console.error(
