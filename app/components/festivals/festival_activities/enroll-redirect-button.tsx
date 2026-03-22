@@ -207,11 +207,14 @@ export default function EnrollRedirectButton({
 		});
 	};
 
-	const allDetailsFull =
+	const allVariantsFull =
 		activity.type !== "sticker_print" &&
 		activity.details.every((d) => isActivityDetailFull(d));
 
-	if (allDetailsFull && !isProfileEnrolledInActivity(forProfile.id, activity)) {
+	if (
+		allVariantsFull &&
+		!isProfileEnrolledInActivity(forProfile.id, activity)
+	) {
 		const waitlistEntry = getUserWaitlistEntry(forProfile.id, activity);
 		const waitlistEnabled = !!activity.waitlistWindowMinutes;
 
@@ -279,7 +282,8 @@ export default function EnrollRedirectButton({
 					<AlertDescription className="w-full flex flex-col gap-2">
 						<p>
 							La actividad llegó al límite de inscripciones pero podés anotarte
-							a la lista de espera y te llegar
+							a la lista de espera y te llegará un correo cuando se libere un
+							cupo.
 						</p>
 						<Button
 							className="w-full max-w-sm self-center"
