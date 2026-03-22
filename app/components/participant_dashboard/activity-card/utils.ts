@@ -108,6 +108,7 @@ export function getEnrollmentInfo(
 		participationId: participation.id,
 		proofDisplayState,
 		adminFeedback: proof?.adminFeedback ?? null,
+		existingPromoHighlight: proof?.promoHighlight ?? null,
 		existingPromoDescription: proof?.promoDescription ?? null,
 		existingPromoConditions: proof?.promoConditions ?? null,
 	} as const;

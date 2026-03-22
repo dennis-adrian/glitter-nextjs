@@ -29,6 +29,7 @@ type EnrolledUsersCtaProps = {
 	proofType?: ProofType | null;
 	proofDisplayState: ProofDisplayState;
 	adminFeedback?: string | null;
+	existingPromoHighlight?: string | null;
 	existingPromoDescription?: string | null;
 	existingPromoConditions?: string | null;
 };
@@ -43,6 +44,7 @@ export default function EnrolledUsersCta({
 	proofType,
 	proofDisplayState,
 	adminFeedback,
+	existingPromoHighlight,
 	existingPromoDescription,
 	existingPromoConditions,
 }: EnrolledUsersCtaProps) {
@@ -83,6 +85,7 @@ export default function EnrolledUsersCta({
 							participationId={participationId}
 							proofDisplayState={proofDisplayState}
 							adminFeedback={adminFeedback}
+							existingPromoHighlight={existingPromoHighlight}
 							existingPromoDescription={existingPromoDescription}
 							existingPromoConditions={existingPromoConditions}
 							triggerLabel={enrolledConfig.ctaLabel}

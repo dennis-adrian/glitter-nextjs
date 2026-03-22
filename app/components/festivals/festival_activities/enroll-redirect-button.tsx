@@ -225,6 +225,7 @@ export default function EnrollRedirectButton({
 							participationId={userParticipation.id}
 							proofDisplayState={proofDisplayState}
 							adminFeedback={proof?.adminFeedback}
+							existingPromoHighlight={proof?.promoHighlight}
 							existingPromoDescription={proof?.promoDescription}
 							existingPromoConditions={proof?.promoConditions}
 							triggerLabel={

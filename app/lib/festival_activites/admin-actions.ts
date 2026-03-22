@@ -274,11 +274,22 @@ export async function updateFestivalActivity(
 
 export async function upsertActivityParticipantProof(
 	participationId: number,
-	data: { promoDescription: string; promoConditions?: string },
+	data: {
+		promoHighlight?: string;
+		promoDescription: string;
+		promoConditions?: string;
+	},
 ): Promise<{ success: boolean; message: string }> {
 	const profile = await getCurrentUserProfile();
 	if (!profile) {
 		return { success: false, message: "No tienes permisos para esta acción" };
+	}
+
+	if (data.promoHighlight && data.promoHighlight.trim().length > 20) {
+		return {
+			success: false,
+			message: "El destacado no puede superar los 20 caracteres",
+		};
 	}
 
 	if (data.promoConditions && data.promoConditions.length > 300) {
@@ -363,10 +374,13 @@ export async function upsertActivityParticipantProof(
 			};
 		}
 
+		const promoHighlight = data.promoHighlight?.trim() || null;
+
 		if (existingProof) {
 			await db
 				.update(festivalActivityParticipantProofs)
 				.set({
+					promoHighlight,
 					promoDescription: promoTrimmed,
 					promoConditions: data.promoConditions ?? null,
 					proofStatus: "pending_review",
@@ -377,6 +391,7 @@ export async function upsertActivityParticipantProof(
 		} else {
 			await db.insert(festivalActivityParticipantProofs).values({
 				participationId,
+				promoHighlight,
 				promoDescription: promoTrimmed,
 				promoConditions: data.promoConditions ?? null,
 				proofStatus: "pending_review",

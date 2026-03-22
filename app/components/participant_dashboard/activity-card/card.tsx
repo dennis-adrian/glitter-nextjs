@@ -147,6 +147,7 @@ export default function FestivalActivityCard({
 								proofType={activity.proofType}
 								proofDisplayState={enrollment.proofDisplayState}
 								adminFeedback={enrollment.adminFeedback}
+								existingPromoHighlight={enrollment.existingPromoHighlight}
 								existingPromoDescription={enrollment.existingPromoDescription}
 								existingPromoConditions={enrollment.existingPromoConditions}
 							/>

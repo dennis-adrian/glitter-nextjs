@@ -839,6 +839,7 @@ export const festivalActivityParticipantProofs = pgTable(
 			.references(() => festivalActivityParticipants.id, {
 				onDelete: "cascade",
 			}),
+		promoHighlight: text("promo_highlight"),
 		promoDescription: text("promo_description"),
 		promoConditions: text("promo_conditions"),
 		proofStatus: proofStatusEnum("proof_status")

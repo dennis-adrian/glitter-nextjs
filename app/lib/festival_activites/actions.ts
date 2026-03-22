@@ -18,12 +18,19 @@ import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import {
 	festivalActivities,
+	festivalActivityDetails,
 	festivalActivityParticipantProofs,
 	festivalActivityParticipants,
 	festivalActivityVotes,
+	festivals,
+	festivalSectors,
+	reservationParticipants,
+	standReservations,
+	stands,
+	users,
 } from "@/db/schema";
 import { deleteFile } from "@/app/lib/uploadthing/actions";
-import { and, count, eq, isNull } from "drizzle-orm";
+import { and, count, eq, isNull, ne, sql } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { revalidatePath } from "next/cache";
 
@@ -565,4 +572,68 @@ export async function deleteFestivalActivityParticipantProof(
 
 	revalidatePath(`/profiles/${forProfileId}/festivals/${festivalId}/activity`);
 	return { success: true, message: "Diseño eliminado correctamente" };
+}
+
+export async function fetchParticipationPreviewData(participationId: number) {
+	const [row] = await db
+		.select({
+			imageUrl: users.imageUrl,
+			displayName: users.displayName,
+			firstName: users.firstName,
+			lastName: users.lastName,
+			standLabels: sql<string[]>`
+				coalesce(
+					array_agg(
+						concat(${stands.label}, ${stands.standNumber})
+					) filter (where ${stands.label} is not null),
+					'{}'
+				)
+			`,
+			sectorName: sql<string | null>`max(${festivalSectors.name})`,
+		})
+		.from(festivalActivityParticipants)
+		.innerJoin(users, eq(users.id, festivalActivityParticipants.userId))
+		.innerJoin(
+			festivalActivityDetails,
+			eq(festivalActivityDetails.id, festivalActivityParticipants.detailsId),
+		)
+		.innerJoin(
+			festivalActivities,
+			eq(festivalActivities.id, festivalActivityDetails.activityId),
+		)
+		.innerJoin(festivals, eq(festivals.id, festivalActivities.festivalId))
+		.leftJoin(
+			reservationParticipants,
+			eq(reservationParticipants.userId, festivalActivityParticipants.userId),
+		)
+		.leftJoin(
+			standReservations,
+			and(
+				eq(standReservations.id, reservationParticipants.reservationId),
+				eq(standReservations.festivalId, festivalActivities.festivalId),
+				ne(standReservations.status, "rejected"),
+			),
+		)
+		.leftJoin(stands, eq(stands.id, standReservations.standId))
+		.leftJoin(festivalSectors, eq(festivalSectors.id, stands.festivalSectorId))
+		.where(eq(festivalActivityParticipants.id, participationId))
+		.groupBy(
+			users.imageUrl,
+			users.displayName,
+			users.firstName,
+			users.lastName,
+		);
+
+	if (!row) return null;
+
+	const participantName =
+		row.displayName ??
+		(`${row.firstName ?? ""} ${row.lastName ?? ""}`.trim() || null);
+
+	return {
+		imageUrl: row.imageUrl ?? null,
+		participantName,
+		standLabels: row.standLabels,
+		sectorName: row.sectorName ?? null,
+	};
 }

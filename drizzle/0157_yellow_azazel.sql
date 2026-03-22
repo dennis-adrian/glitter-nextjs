@@ -1,0 +1,1 @@
+ALTER TABLE "festival_activity_participant_proofs" ADD COLUMN "promo_highlight" text;

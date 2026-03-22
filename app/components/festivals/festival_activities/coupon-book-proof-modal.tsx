@@ -21,6 +21,7 @@ type CouponBookProofModalProps = {
 	participationId: number;
 	proofDisplayState: ProofDisplayState;
 	adminFeedback?: string | null;
+	existingPromoHighlight?: string | null;
 	existingPromoDescription?: string | null;
 	existingPromoConditions?: string | null;
 	triggerLabel?: string;
@@ -31,6 +32,7 @@ export default function CouponBookProofModal({
 	participationId,
 	proofDisplayState,
 	adminFeedback,
+	existingPromoHighlight,
 	existingPromoDescription,
 	existingPromoConditions,
 	triggerLabel = "Cargar mi promoción",
@@ -65,6 +67,7 @@ export default function CouponBookProofModal({
 						participationId={participationId}
 						proofDisplayState={proofDisplayState}
 						adminFeedback={adminFeedback}
+						existingPromoHighlight={existingPromoHighlight}
 						existingPromoDescription={existingPromoDescription}
 						existingPromoConditions={existingPromoConditions}
 						onSuccess={() => setOpen(false)}
