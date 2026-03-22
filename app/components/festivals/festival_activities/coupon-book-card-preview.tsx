@@ -117,8 +117,8 @@ export default function CouponBookCardPreview({
 					<div className="mt-auto shrink-0 h-8 min-h-0 w-full overflow-hidden">
 						<FitText
 							mode="multi-line"
-							minFontSizePx={7}
-							maxFontSizePx={10}
+							minFontSizePx={9}
+							maxFontSizePx={12}
 							className="text-gray-400 leading-tight"
 							wrapperClassName="h-full"
 						>

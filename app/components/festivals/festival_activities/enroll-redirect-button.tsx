@@ -12,12 +12,18 @@ import {
 import { DateTime } from "luxon";
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import { useForm } from "react-hook-form";
-import { enrollInActivity } from "@/app/lib/festival_activites/actions";
+import {
+	enrollFromWaitlistInvitation,
+	enrollInActivity,
+	joinActivityWaitlist,
+	leaveActivityWaitlist,
+} from "@/app/lib/festival_activites/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Form } from "@/app/components/ui/form";
 import SubmitButton from "@/app/components/simple-submit-button";
 import {
+	getUserWaitlistEntry,
 	isActivityDetailFull,
 	isProfileEnrolledInActivity,
 } from "@/app/lib/festival_sectors/helpers";
@@ -30,6 +36,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/app/components/ui/button";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import ConsentFormField from "@/app/components/molecules/consent-form-field";
+import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert";
+import { InfoIcon } from "lucide-react";
+import { formatDate } from "@/app/lib/formatters";
 
 const FormSchema = z.object({
 	consent: z
@@ -142,10 +151,148 @@ export default function EnrollRedirectButton({
 		});
 	});
 
-	if (
+	const handleWaitlistEnrollment = async () => {
+		startTransition(async () => {
+			try {
+				const result = await joinActivityWaitlist(forProfile, activity.id);
+				if (result.success) {
+					toast.success(result.message);
+					router.refresh();
+				} else {
+					toast.error(result.message);
+				}
+			} catch (error) {
+				toast.error("Error inesperado al unirse a la lista de espera");
+			}
+		});
+	};
+
+	const handleLeaveWaitlist = async () => {
+		startTransition(async () => {
+			try {
+				const result = await leaveActivityWaitlist(forProfile.id, activity.id);
+				if (result.success) {
+					toast.success(result.message);
+					router.refresh();
+				} else {
+					toast.error(result.message);
+				}
+			} catch (error) {
+				toast.error("Error inesperado al salir de la lista de espera");
+			}
+		});
+	};
+
+	const handleAcceptWaitlistInvitation = async (waitlistEntryId: number) => {
+		startTransition(async () => {
+			try {
+				const result = await enrollFromWaitlistInvitation(
+					forProfile.id,
+					waitlistEntryId,
+					festivalId,
+				);
+				if (result.success) {
+					toast.success(result.message);
+					router.push(
+						`/profiles/${forProfile.id}/festivals/${festivalId}/activity/enroll/success`,
+					);
+				} else {
+					toast.error(result.message);
+				}
+			} catch (error) {
+				toast.error(
+					"Error inesperado al aceptar la invitación de la lista de espera",
+				);
+			}
+		});
+	};
+
+	const allDetailsFull =
 		activity.type !== "sticker_print" &&
-		isActivityDetailFull(activityDetail)
-	) {
+		activity.details.every((d) => isActivityDetailFull(d));
+
+	if (allDetailsFull && !isProfileEnrolledInActivity(forProfile.id, activity)) {
+		const waitlistEntry = getUserWaitlistEntry(forProfile.id, activity);
+		const waitlistEnabled = !!activity.waitlistWindowMinutes;
+
+		// Active invitation window
+		if (
+			waitlistEntry?.notifiedAt &&
+			waitlistEntry.expiresAt &&
+			new Date() < new Date(waitlistEntry.expiresAt) &&
+			waitlistEntry.notifiedForDetailId
+		) {
+			const expiresAt = formatDate(waitlistEntry.expiresAt).toLocaleString(
+				DateTime.DATETIME_MED,
+			);
+
+			return (
+				<Alert>
+					<InfoIcon className="w-4 h-4" />
+					<AlertTitle>¡Tenés un cupo disponible!</AlertTitle>
+					<AlertDescription className="w-full flex flex-col gap-2">
+						<p>Inscribite antes del {expiresAt}.</p>
+						<Button
+							onClick={() => handleAcceptWaitlistInvitation(waitlistEntry.id)}
+							disabled={isPending}
+							className="w-full"
+						>
+							{isPending ? "Inscribiendo..." : "Inscribirme ahora"}
+						</Button>
+					</AlertDescription>
+				</Alert>
+			);
+		}
+
+		// On waitlist (waiting)
+		if (waitlistEntry) {
+			return (
+				<Alert>
+					<InfoIcon className="w-4 h-4" />
+					<AlertTitle>Estás en la lista de espera</AlertTitle>
+					<AlertDescription className="w-full flex flex-col gap-2">
+						<p>
+							Sos el número <strong>#{waitlistEntry.position}</strong> en la
+							lista de espera. Cuando se libere un cupo, te notificaremos por
+							correo electrónico.
+						</p>
+						<Button
+							className="w-full max-w-sm self-center"
+							variant="destructive"
+							size="sm"
+							disabled={isPending}
+							onClick={handleLeaveWaitlist}
+						>
+							{isPending ? "Procesando..." : "Salir de la lista"}
+						</Button>
+					</AlertDescription>
+				</Alert>
+			);
+		}
+
+		// Not on waitlist — offer to join (if enabled)
+		if (waitlistEnabled) {
+			return (
+				<Alert>
+					<InfoIcon className="w-4 h-4" />
+					<AlertTitle>Anotate en la lista de espera</AlertTitle>
+					<AlertDescription className="w-full flex flex-col gap-2">
+						<p>
+							La actividad llegó al límite de inscripciones pero podés anotarte
+							a la lista de espera y te llegar
+						</p>
+						<Button
+							className="w-full max-w-sm self-center"
+							disabled={isPending}
+							onClick={handleWaitlistEnrollment}
+						>
+							{isPending ? "Procesando..." : "Unirme a la lista de espera"}
+						</Button>
+					</AlertDescription>
+				</Alert>
+			);
+		}
+
 		return (
 			<div className="flex flex-col text-center border border-gray-200 rounded-md p-4 bg-gray-50 text-gray-800">
 				<p className="text-sm">
