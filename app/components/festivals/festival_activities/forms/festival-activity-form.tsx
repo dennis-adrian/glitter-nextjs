@@ -88,31 +88,46 @@ const WAITLIST_WINDOW_PRESETS = [
 	{ label: "Personalizado", value: -1 },
 ];
 
-const FormSchema = z.object({
-	name: z.string().trim().min(2, "El nombre debe tener al menos 2 caracteres"),
-	description: z.string().trim().optional(),
-	visitorsDescription: z.string().trim().optional(),
-	type: z.enum([
-		"stamp_passport",
-		"sticker_print",
-		"best_stand",
-		"festival_sticker",
-		"coupon_book",
-	]),
-	accessLevel: z.enum(["public", "festival_participants_only"]),
-	promotionalArtUrl: z.string().optional(),
-	activityPrizeUrl: z.string().optional(),
-	registrationStartDate: z.string().min(1, "Requerido"),
-	registrationEndDate: z.string().min(1, "Requerido"),
-	proofType: z.enum(["image", "text", "both"]).nullable().optional(),
-	proofUploadLimitDate: z.string().optional(),
-	allowsVoting: z.boolean().default(false),
-	votingStartDate: z.string().optional(),
-	votingEndDate: z.string().optional(),
-	waitlistEnabled: z.boolean().default(false),
-	waitlistWindowMinutes: z.coerce.number().int().positive().optional(),
-	details: z.array(DetailSchema).min(1, "Debe haber al menos una variante"),
-});
+const FormSchema = z
+	.object({
+		name: z.string().trim().min(2, "El nombre debe tener al menos 2 caracteres"),
+		description: z.string().trim().optional(),
+		visitorsDescription: z.string().trim().optional(),
+		type: z.enum([
+			"stamp_passport",
+			"sticker_print",
+			"best_stand",
+			"festival_sticker",
+			"coupon_book",
+		]),
+		accessLevel: z.enum(["public", "festival_participants_only"]),
+		promotionalArtUrl: z.string().optional(),
+		activityPrizeUrl: z.string().optional(),
+		registrationStartDate: z.string().min(1, "Requerido"),
+		registrationEndDate: z.string().min(1, "Requerido"),
+		proofType: z.enum(["image", "text", "both"]).nullable().optional(),
+		proofUploadLimitDate: z.string().optional(),
+		allowsVoting: z.boolean().default(false),
+		votingStartDate: z.string().optional(),
+		votingEndDate: z.string().optional(),
+		waitlistEnabled: z.boolean().default(false),
+		waitlistWindowMinutes: z.coerce.number().int().positive().optional(),
+		details: z.array(DetailSchema).min(1, "Debe haber al menos una variante"),
+	})
+	.superRefine((data, ctx) => {
+		if (
+			data.waitlistEnabled &&
+			(data.waitlistWindowMinutes === undefined ||
+				data.waitlistWindowMinutes === null)
+		) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ["waitlistWindowMinutes"],
+				message:
+					"Debes indicar una ventana de tiempo positiva cuando la lista de espera está habilitada",
+			});
+		}
+	});
 
 type FormValues = z.infer<typeof FormSchema>;
 

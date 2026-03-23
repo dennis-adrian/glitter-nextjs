@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
@@ -53,6 +54,7 @@ function NotifyWaitlistButton({
 }) {
 	const [isLoading, setIsLoading] = useState(false);
 	const pendingRef = useRef(false);
+	const router = useRouter();
 
 	const handleNotify = async () => {
 		if (pendingRef.current) return;
@@ -62,6 +64,7 @@ function NotifyWaitlistButton({
 			const result = await notifyWaitlistEntry(entry.id, festivalId);
 			if (result.success) {
 				toast.success(result.message);
+				router.refresh();
 			} else {
 				toast.error(result.message);
 			}

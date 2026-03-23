@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { festivalActivityWaitlist } from "@/db/schema";
-import { and, eq, isNotNull, lt } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt } from "drizzle-orm";
 import { promoteFromWaitlist } from "@/app/lib/festival_activites/actions";
 
 export async function processExpiredWaitlistNotifications() {
@@ -13,6 +13,8 @@ export async function processExpiredWaitlistNotifications() {
 			id: festivalActivityWaitlist.id,
 			activityId: festivalActivityWaitlist.activityId,
 			notifiedForDetailId: festivalActivityWaitlist.notifiedForDetailId,
+			notifiedAt: festivalActivityWaitlist.notifiedAt,
+			expiresAt: festivalActivityWaitlist.expiresAt,
 		})
 		.from(festivalActivityWaitlist)
 		.where(
@@ -28,13 +30,25 @@ export async function processExpiredWaitlistNotifications() {
 	for (const entry of expired) {
 		try {
 			await db.transaction(async (tx) => {
+				if (!entry.expiresAt || !entry.notifiedAt) {
+					return;
+				}
+
 				const [updated] = await tx
 					.update(festivalActivityWaitlist)
 					.set({ expiresAt: null, updatedAt: new Date() })
 					.where(
 						and(
 							eq(festivalActivityWaitlist.id, entry.id),
-							isNotNull(festivalActivityWaitlist.expiresAt),
+							eq(festivalActivityWaitlist.activityId, entry.activityId),
+							entry.notifiedForDetailId === null
+								? isNull(festivalActivityWaitlist.notifiedForDetailId)
+								: eq(
+										festivalActivityWaitlist.notifiedForDetailId,
+										entry.notifiedForDetailId,
+									),
+							eq(festivalActivityWaitlist.notifiedAt, entry.notifiedAt),
+							eq(festivalActivityWaitlist.expiresAt, entry.expiresAt),
 						),
 					)
 					.returning({ id: festivalActivityWaitlist.id });

@@ -661,19 +661,26 @@ export async function joinActivityWaitlist(
 		}
 
 		// Check user is not already actively enrolled in any variant
-		const isEnrolled = activity.details.some((detail) =>
-			detail.participants.some((p) => p.userId === forProfile.id),
-		);
+		const isEnrolled = activity.details.some((detail) => {
+			const activeParticipants = detail.participants.filter(
+				(p) => p.removedAt === null,
+			);
+			return activeParticipants.some((p) => p.userId === forProfile.id);
+		});
 		if (isEnrolled) {
 			return { success: false, message: "Ya estás inscrito en esta actividad" };
 		}
 
 		// Check all limited variants are actually full
-		const allFull = activity.details.every(
-			(detail) =>
+		const allFull = activity.details.every((detail) => {
+			const activeParticipants = detail.participants.filter(
+				(p) => p.removedAt === null,
+			);
+			return (
 				!detail.participationLimit ||
-				detail.participants.length >= detail.participationLimit,
-		);
+				activeParticipants.length >= detail.participationLimit
+			);
+		});
 		if (!allFull) {
 			return {
 				success: false,

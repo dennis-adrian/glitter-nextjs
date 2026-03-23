@@ -628,7 +628,7 @@ export async function promoteWaitlistToVariant(
 				continue;
 			}
 
-			await db.transaction(async (tx) => {
+			const promotedInTx = await db.transaction(async (tx) => {
 				// Re-check capacity inside transaction
 				if (detail.participationLimit) {
 					const [{ currentActive }] = await tx
@@ -641,7 +641,7 @@ export async function promoteWaitlistToVariant(
 							),
 						);
 					if (currentActive >= detail.participationLimit) {
-						return; // Skip this entry, variant is now full
+						return false; // Skip this entry, variant is now full
 					}
 				}
 
@@ -661,7 +661,7 @@ export async function promoteWaitlistToVariant(
 
 				if (existing && !existing.removedAt) {
 					// Already actively enrolled — skip
-					return;
+					return false;
 				}
 
 				if (existing && existing.removedAt) {
@@ -679,9 +679,13 @@ export async function promoteWaitlistToVariant(
 				await tx
 					.delete(festivalActivityWaitlist)
 					.where(eq(festivalActivityWaitlist.id, entry.id));
+
+				return true;
 			});
 
-			promoted++;
+			if (promotedInTx) {
+				promoted++;
+			}
 			// TODO: send enrollment confirmation email to entry.userEmail
 		}
 

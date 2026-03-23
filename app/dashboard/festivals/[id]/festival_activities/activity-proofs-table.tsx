@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2Icon } from "lucide-react";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/app/components/ui/badge";
@@ -27,6 +28,20 @@ type ParticipantWithDetail = ParticipantWithUserAndProofs & {
 	removedAt: Date | null;
 };
 
+function selectCanonicalProof(participant: ParticipantWithDetail) {
+	if (!participant.proofs.length) return null;
+
+	const sortedByCreatedAtDesc = [...participant.proofs].sort(
+		(a, b) =>
+			new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+	);
+	return (
+		sortedByCreatedAtDesc.find((proof) => proof.proofStatus === "pending_review") ??
+		sortedByCreatedAtDesc[0] ??
+		null
+	);
+}
+
 function ApproveProofButton({
 	proofId,
 	className,
@@ -36,6 +51,7 @@ function ApproveProofButton({
 }) {
 	const [isApproving, setIsApproving] = useState(false);
 	const approvingRef = useRef(false);
+	const router = useRouter();
 
 	const handleApprove = async () => {
 		if (approvingRef.current) return;
@@ -45,6 +61,7 @@ function ApproveProofButton({
 			const result = await reviewActivityParticipantProof(proofId, "approved");
 			if (result.success) {
 				toast.success(result.message);
+				router.refresh();
 			} else {
 				toast.error(result.message);
 			}
@@ -154,9 +171,9 @@ function buildColumns(
 		{
 			id: "submittedAt",
 			header: "Enviada el",
-			accessorFn: (row) => row.proofs[0]?.createdAt ?? null,
+			accessorFn: (row) => selectCanonicalProof(row)?.createdAt ?? null,
 			cell: ({ row }) => {
-				const date = row.original.proofs[0]?.createdAt;
+				const date = selectCanonicalProof(row.original)?.createdAt;
 				if (!date)
 					return <span className="text-muted-foreground text-sm">—</span>;
 				return (
@@ -173,9 +190,9 @@ function buildColumns(
 		{
 			id: "proofStatus",
 			header: "Estado",
-			accessorFn: (row) => row.proofs[0]?.proofStatus ?? "sin_prueba",
+			accessorFn: (row) => selectCanonicalProof(row)?.proofStatus ?? "sin_prueba",
 			cell: ({ row }) => {
-				const proof = row.original.proofs[0];
+				const proof = selectCanonicalProof(row.original);
 				if (!proof) {
 					return (
 						<Badge variant="outline" className="text-muted-foreground text-xs">
@@ -198,7 +215,8 @@ function buildColumns(
 				);
 			},
 			filterFn: (row, _, filterValue) => {
-				const status = row.original.proofs[0]?.proofStatus ?? "sin_prueba";
+				const status =
+					selectCanonicalProof(row.original)?.proofStatus ?? "sin_prueba";
 				return filterValue === "all" || status === filterValue;
 			},
 		},
@@ -208,17 +226,31 @@ function buildColumns(
 						id: "promo",
 						header: "Promoción",
 						cell: ({ row }: { row: { original: ParticipantWithDetail } }) => {
-							const proof = row.original.proofs[0];
-							if (!proof?.promoDescription)
+							const proof = selectCanonicalProof(row.original);
+							if (
+								!proof?.promoHighlight &&
+								!proof?.promoDescription &&
+								!proof?.promoConditions
+							)
 								return <span className="text-muted-foreground text-sm">—</span>;
 							return (
 								<div className="max-w-[200px] space-y-0.5">
-									<p
-										className="text-sm truncate"
-										title={proof.promoDescription}
-									>
-										{proof.promoDescription}
-									</p>
+									{proof.promoHighlight && (
+										<p
+											className="text-sm font-semibold truncate"
+											title={proof.promoHighlight}
+										>
+											{proof.promoHighlight}
+										</p>
+									)}
+									{proof.promoDescription && (
+										<p
+											className="text-sm truncate"
+											title={proof.promoDescription}
+										>
+											{proof.promoDescription}
+										</p>
+									)}
 									{proof.promoConditions && (
 										<p
 											className="text-xs text-muted-foreground truncate"
@@ -237,7 +269,7 @@ function buildColumns(
 			id: "actions",
 			header: "",
 			cell: ({ row }) => {
-				const proof = row.original.proofs[0];
+				const proof = selectCanonicalProof(row.original);
 				const participantName = row.original.user.displayName ?? "Participante";
 
 				return (
@@ -329,7 +361,7 @@ export default function ActivityProofsTable({
 			{/* Mobile: stacked cards */}
 			<div className="md:hidden space-y-2">
 				{participants.map((participant, index) => {
-					const proof = participant.proofs[0];
+					const proof = selectCanonicalProof(participant);
 					const category = participant.detail.category;
 					const isRemoved = participant.removedAt !== null;
 					const statusConfig = proof
@@ -385,9 +417,17 @@ export default function ActivityProofsTable({
 								)}
 							</div>
 
-							{showText && proof?.promoDescription && (
+							{showText &&
+								(proof?.promoHighlight ||
+									proof?.promoDescription ||
+									proof?.promoConditions) && (
 								<div className="pl-10 space-y-0.5">
-									<p className="text-sm">{proof.promoDescription}</p>
+									{proof.promoHighlight && (
+										<p className="text-sm font-semibold">{proof.promoHighlight}</p>
+									)}
+									{proof.promoDescription && (
+										<p className="text-sm">{proof.promoDescription}</p>
+									)}
 									{proof.promoConditions && (
 										<p className="text-xs text-muted-foreground">
 											{proof.promoConditions}
