@@ -96,17 +96,19 @@ El sistema de actividades de festival permite a los organizadores definir activi
 | `userId`    | FK → users                   |                                |
 | Unique      | (detailsId, userId)          | Evita inscripciones duplicadas |
 
-**`festivalActivityParticipantProofs`** — Prueba asociada a la inscripción (una fila típica por participante)
+**`festivalActivityParticipantProofs`** — Pruebas asociadas a la inscripción (1..5 filas por inscripción; cada fila contiene un `imageUrl` opcional)
 
 | Campo              | Tipo                              | Descripción                                                                                                           |
 | ------------------ | --------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `id`               | serial PK                         |                                                                                                                       |
-| `participationId`  | FK → festivalActivityParticipants |                                                                                                                       |
-| `imageUrl`         | text?                             | URL de imagen (obligatoria en la práctica si la actividad es `proofType` `image`; puede acompañar a texto si aplica). |
+| `participationId`  | FK → festivalActivityParticipants | 1..5 filas por inscripción (múltiples registros pueden compartir el mismo `participationId`; cada fila modela una prueba individual). |
+| `imageUrl`         | text?                             | 1..5 filas por inscripción (cada fila contiene un `imageUrl` opcional; en `proofType = image` se espera imagen). |
 | `promoDescription` | text?                             | Texto de promoción (flujos `text` / `both`).                                                                          |
 | `promoConditions`  | text?                             | Condiciones de la promoción (opcional).                                                                               |
 | `proofStatus`      | enum                              | `pending_review`, `approved`, `rejected_resubmit`, `rejected_removed`.                                                |
 | `adminFeedback`    | text?                             | Comentario del admin al rechazar; obligatorio en rechazos.                                                            |
+
+**Nota de cardinalidad:** El tope operativo es **5 imágenes por `participationId`** en los flujos de carga de prueba (validación de UI por `maxFiles` en el modal de upload). Actualmente no existe una restricción equivalente en base de datos (índice/check) que lo fuerce de forma global.
 
 **`festivalActivityVotes`** — Voto emitido
 
@@ -334,4 +336,4 @@ Dashboard del participante
 - **Tipo `sticker_print`**: Por diseño actual, no tiene límite de cupos y su validación de capacidad se omite en el cliente.
 - **Unicidad de voto**: La restricción de base de datos garantiza un único voto por usuario por variante de actividad; no hay doble voto posible.
 - **Admins sin restricción temporal**: Los administradores pueden inscribirse a cualquier actividad independientemente del período de inscripción, para pruebas.
-- **Pruebas múltiples**: El sistema acepta hasta 5 imágenes por inscripción (configurable entre 1 y 10), aunque el caso de la Carrera de Sellos solo requiere 1.
+- **Pruebas múltiples**: A nivel de producto/flujo activo, se manejan hasta 5 imágenes por inscripción; la Carrera de Sellos usa típicamente 1. No hay constraint global en DB para este tope.
