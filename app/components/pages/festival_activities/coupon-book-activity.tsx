@@ -8,6 +8,7 @@ import {
 	FestivalBase,
 } from "@/app/lib/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
+import VariantImagesDisplay from "@/app/components/pages/festival_activities/variant-images-display";
 
 type CouponBookActivityPageProps = {
 	currentProfile: BaseProfile;
@@ -28,15 +29,16 @@ export default function CouponBookActivityPage({
 
 	return (
 		<div className="flex flex-col gap-4">
-			<Heading>{activity.name}</Heading>
-
-			{activity.description && (
-				<p className="text-sm md:text-base">{activity.description}</p>
-			)}
+			<div className="flex flex-col gap-2">
+				<Heading>{activity.name}</Heading>
+				{activity.description && (
+					<p className="text-sm md:text-base">{activity.description}</p>
+				)}
+			</div>
 
 			{activity.promotionalArtUrl && (
 				<div className="flex flex-col gap-2 w-full items-center">
-					<div className="relative w-full aspect-3/4 max-w-[500px]">
+					<div className="relative w-full aspect-3/4 max-w-52  md:max-w-80">
 						<Image
 							className="object-cover"
 							src={activity.promotionalArtUrl}
@@ -49,12 +51,42 @@ export default function CouponBookActivityPage({
 				</div>
 			)}
 
-			{activity.visitorsDescription && (
-				<div className="flex flex-col gap-3">
-					<Heading level={2}>¿En qué consiste la actividad?</Heading>
-					<p className="text-sm md:text-base">{activity.visitorsDescription}</p>
+			<div className="flex flex-col gap-2">
+				<Heading level={2}>¿En qué consiste la actividad?</Heading>
+				<p className="text-sm md:text-base">
+					La cuponera de descuentos es una actividad voluntaria creada para dar
+					más visibilidad a las ofertas o promociones que tengan los expositores
+					durante el festival.
+				</p>
+				<p className="text-sm md:text-base">
+					La organización del festival imprimirá 1.000 cuponeras que se
+					distribuirán al público asistente durante el ingreso al festival. Se
+					entregarán de manera gratuita a las primeras 500 personas en llegar en
+					cada día del evento.
+				</p>
+				<p className="text-sm md:text-base">
+					Habrán 2 versiones de la cuponera y cada una tendrá espacio para 26
+					participantes. Se imprimirán equitativamente y se repartirán
+					aleatoriamente al público. En total son 500 cuponeras de cada versión.
+				</p>
+				<div>
+					<VariantImagesDisplay details={activity.details} />
+					<p className="text-xs text-muted-foreground italic">
+						* Las imágenes son solo ilustrativas y la versión final puede
+						variar.
+					</p>
 				</div>
-			)}
+				<p className="text-sm md:text-base">
+					El objetivo de la actividad no es forzar a los participantes a crear
+					ofertas o promociones para el festival, si no dar más alcance a
+					quienes ya lo vienen haciendo desde pasadas ediciones o están
+					considerando empezar a hacerlo.
+				</p>
+				<p className="text-sm md:text-base">
+					¡Si tenés una promoción que los visitantes tienen que conocer sí o sí,
+					no podés perderte esta oportunidad!
+				</p>
+			</div>
 
 			{proofUploadLimitDate && (
 				<div className="flex flex-col gap-3">

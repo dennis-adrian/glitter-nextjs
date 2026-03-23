@@ -30,6 +30,7 @@ export type FestivalActivityDetailInput = {
 	description?: string;
 	participationLimit?: number;
 	category?: ActivityUserCategory | null;
+	imageUrl?: string;
 };
 
 export type FestivalActivityInput = {
@@ -137,6 +138,7 @@ export async function createFestivalActivity(
 					description: detail.description,
 					participationLimit: detail.participationLimit,
 					category: detail.category ?? null,
+					imageUrl: detail.imageUrl ?? null,
 				})),
 			);
 
@@ -248,6 +250,7 @@ export async function updateFestivalActivity(
 						description: detail.description,
 						participationLimit: detail.participationLimit ?? null,
 						category: detail.category ?? null,
+						imageUrl: detail.imageUrl ?? null,
 					})
 					.where(eq(festivalActivityDetails.id, detail.id as number));
 			}
@@ -261,6 +264,7 @@ export async function updateFestivalActivity(
 						description: detail.description,
 						participationLimit: detail.participationLimit,
 						category: detail.category ?? null,
+						imageUrl: detail.imageUrl ?? null,
 					})),
 				);
 			}

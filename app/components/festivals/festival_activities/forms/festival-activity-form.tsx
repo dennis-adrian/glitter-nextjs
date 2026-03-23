@@ -76,6 +76,7 @@ const DetailSchema = z.object({
 		.optional()
 		.or(z.literal("").transform(() => undefined)),
 	category: z.enum(CATEGORY_VALUES).nullable().optional(),
+	imageUrl: z.string().optional(),
 });
 
 const WAITLIST_WINDOW_PRESETS = [
@@ -147,6 +148,7 @@ function buildDefaultValues(
 				{
 					description: "",
 					participationLimit: undefined,
+					imageUrl: "",
 				},
 			],
 		};
@@ -167,13 +169,16 @@ function buildDefaultValues(
 		allowsVoting: activity.allowsVoting,
 		votingStartDate: toDatetimeLocal(activity.votingStartDate),
 		votingEndDate: toDatetimeLocal(activity.votingEndDate),
-		waitlistEnabled: activity.waitlistWindowMinutes !== null && activity.waitlistWindowMinutes !== undefined,
+		waitlistEnabled:
+			activity.waitlistWindowMinutes !== null &&
+			activity.waitlistWindowMinutes !== undefined,
 		waitlistWindowMinutes: activity.waitlistWindowMinutes ?? undefined,
 		details: activity.details.map((d) => ({
 			id: d.id,
 			description: d.description ?? "",
 			participationLimit: d.participationLimit ?? undefined,
 			category: d.category && d.category !== "none" ? d.category : null,
+			imageUrl: d.imageUrl ?? "",
 		})),
 	};
 }
@@ -217,6 +222,7 @@ export default function FestivalActivityForm({
 					description?: string;
 					participationLimit?: number;
 					category?: string | null;
+					imageUrl?: string;
 				}) => ({
 					id: d.id,
 					description: d.description,
@@ -227,6 +233,7 @@ export default function FestivalActivityForm({
 						| "entrepreneurship"
 						| "new_artist"
 						| null,
+					imageUrl: d.imageUrl || undefined,
 				}),
 			);
 
@@ -641,6 +648,7 @@ export default function FestivalActivityForm({
 									description: "",
 									participationLimit: undefined,
 									category: null,
+									imageUrl: "",
 								})
 							}
 						>
@@ -706,6 +714,24 @@ function VariantSection({
 					</Button>
 				)}
 			</div>
+
+			<FormField
+				control={form.control}
+				name={`details.${index}.imageUrl`}
+				render={({ field }: { field: any }) => (
+					<FormItem>
+						<FormLabel>Imagen de la variante (opcional)</FormLabel>
+						<FormControl>
+							<SectorImageUpload
+								imageUrl={field.value || null}
+								setImageUrl={(url) => field.onChange(url)}
+								sectorName={`variante-${index + 1}`}
+							/>
+						</FormControl>
+						<FormMessage />
+					</FormItem>
+				)}
+			/>
 
 			<FormField
 				control={form.control}
