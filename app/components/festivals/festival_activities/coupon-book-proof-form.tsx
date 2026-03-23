@@ -99,16 +99,6 @@ export default function CouponBookProofForm({
 
 	return (
 		<div className="space-y-4">
-			<CouponBookCardPreview
-				imageUrl={previewData?.imageUrl}
-				participantName={previewData?.participantName}
-				standLabels={previewData?.standLabels}
-				sectorName={previewData?.sectorName}
-				promoHighlight={promoHighlight}
-				promoDescription={promoDescription}
-				promoConditions={promoConditions}
-			/>
-
 			{proofDisplayState === "rejected_resubmit" && adminFeedback && (
 				<div className="flex gap-2 rounded-md border border-orange-200 bg-orange-50 p-3 text-orange-800 text-sm">
 					<AlertCircleIcon className="w-4 h-4 mt-0.5 shrink-0" />
@@ -198,6 +188,16 @@ export default function CouponBookProofForm({
 								<FormMessage />
 							</FormItem>
 						)}
+					/>
+
+					<CouponBookCardPreview
+						imageUrl={previewData?.imageUrl}
+						participantName={previewData?.participantName}
+						standLabels={previewData?.standLabels}
+						sectorName={previewData?.sectorName}
+						promoHighlight={promoHighlight}
+						promoDescription={promoDescription}
+						promoConditions={promoConditions}
 					/>
 
 					<Button

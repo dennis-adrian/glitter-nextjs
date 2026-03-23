@@ -6,16 +6,16 @@ import { cn } from "@/app/lib/utils";
 
 import CouponBookProofForm from "@/app/components/festivals/festival_activities/coupon-book-proof-form";
 import { Button } from "@/app/components/ui/button";
-import {
-	DrawerDialog,
-	DrawerDialogContent,
-	DrawerDialogHeader,
-	DrawerDialogTitle,
-	DrawerDialogTrigger,
-} from "@/app/components/ui/drawer-dialog";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 import type { ProofDisplayState } from "@/app/lib/festival_activites/types";
 import { NotebookPenIcon } from "lucide-react";
+import {
+	Dialog,
+	DialogTitle,
+	DialogContent,
+	DialogHeader,
+	DialogTrigger,
+} from "@/app/components/ui/dialog";
 
 type CouponBookProofModalProps = {
 	participationId: number;
@@ -42,8 +42,8 @@ export default function CouponBookProofModal({
 	const [open, setOpen] = useState(false);
 
 	return (
-		<DrawerDialog isDesktop={isDesktop} open={open} onOpenChange={setOpen}>
-			<DrawerDialogTrigger>
+		<Dialog open={open} onOpenChange={setOpen}>
+			<DialogTrigger>
 				<Button
 					className={cn(
 						"hover:text-white hover:bg-amber-700 w-full md:max-w-[280px] mx-auto",
@@ -53,15 +53,15 @@ export default function CouponBookProofModal({
 					{triggerLabel}
 					<NotebookPenIcon className="w-4 h-4 ml-2" />
 				</Button>
-			</DrawerDialogTrigger>
-			<DrawerDialogContent isDesktop={isDesktop} className="max-w-md">
-				<DrawerDialogHeader isDesktop={isDesktop}>
-					<DrawerDialogTitle isDesktop={isDesktop}>
+			</DialogTrigger>
+			<DialogContent className="max-w-md">
+				<DialogHeader>
+					<DialogTitle>
 						{proofDisplayState === "rejected_resubmit"
 							? "Editar promoción"
 							: "Cargar promoción"}
-					</DrawerDialogTitle>
-				</DrawerDialogHeader>
+					</DialogTitle>
+				</DialogHeader>
 				<div className={`${isDesktop ? "" : "px-4 pb-4"} pt-2`}>
 					<CouponBookProofForm
 						participationId={participationId}
@@ -73,7 +73,7 @@ export default function CouponBookProofModal({
 						onSuccess={() => setOpen(false)}
 					/>
 				</div>
-			</DrawerDialogContent>
-		</DrawerDialog>
+			</DialogContent>
+		</Dialog>
 	);
 }
