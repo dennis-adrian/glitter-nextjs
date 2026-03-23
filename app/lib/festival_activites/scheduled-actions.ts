@@ -27,14 +27,25 @@ export async function processExpiredWaitlistNotifications() {
 
 	for (const entry of expired) {
 		try {
-			await db
-				.update(festivalActivityWaitlist)
-				.set({ expiresAt: null, updatedAt: new Date() })
-				.where(eq(festivalActivityWaitlist.id, entry.id));
+			await db.transaction(async (tx) => {
+				const [updated] = await tx
+					.update(festivalActivityWaitlist)
+					.set({ expiresAt: null, updatedAt: new Date() })
+					.where(
+						and(
+							eq(festivalActivityWaitlist.id, entry.id),
+							isNotNull(festivalActivityWaitlist.expiresAt),
+						),
+					)
+					.returning({ id: festivalActivityWaitlist.id });
 
-			if (entry.notifiedForDetailId) {
-				await promoteFromWaitlist(entry.activityId, entry.notifiedForDetailId);
-			}
+				if (updated && entry.notifiedForDetailId) {
+					await promoteFromWaitlist(
+						entry.activityId,
+						entry.notifiedForDetailId,
+					);
+				}
+			});
 
 			processed++;
 		} catch (error) {

@@ -552,10 +552,18 @@ export async function reviewActivityParticipantProof(
 export async function promoteWaitlistToVariant(
 	activityId: number,
 	targetDetailId: number,
-): Promise<{ success: boolean; message: string; promoted?: number; skipped?: number }> {
+): Promise<{
+	success: boolean;
+	message: string;
+	promoted?: number;
+	skipped?: number;
+}> {
 	const profile = await getAdminProfile();
 	if (!profile) {
-		return { success: false, message: "No tienes permisos para realizar esta acción" };
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción",
+		};
 	}
 
 	try {
@@ -617,9 +625,28 @@ export async function promoteWaitlistToVariant(
 			}
 
 			await db.transaction(async (tx) => {
+				// Re-check capacity inside transaction
+				if (detail.participationLimit) {
+					const [{ currentActive }] = await tx
+						.select({ currentActive: count() })
+						.from(festivalActivityParticipants)
+						.where(
+							and(
+								eq(festivalActivityParticipants.detailsId, targetDetailId),
+								isNull(festivalActivityParticipants.removedAt),
+							),
+						);
+					if (currentActive >= detail.participationLimit) {
+						return; // Skip this entry, variant is now full
+					}
+				}
+
 				// Check for existing (possibly soft-deleted) participant row
 				const [existing] = await tx
-					.select({ id: festivalActivityParticipants.id, removedAt: festivalActivityParticipants.removedAt })
+					.select({
+						id: festivalActivityParticipants.id,
+						removedAt: festivalActivityParticipants.removedAt,
+					})
 					.from(festivalActivityParticipants)
 					.where(
 						and(
@@ -673,7 +700,10 @@ export async function notifyWaitlistEntry(
 ): Promise<{ success: boolean; message: string }> {
 	const profile = await getAdminProfile();
 	if (!profile) {
-		return { success: false, message: "No tienes permisos para realizar esta acción" };
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción",
+		};
 	}
 
 	try {
@@ -698,7 +728,10 @@ export async function notifyWaitlistEntry(
 		});
 
 		if (!entry) {
-			return { success: false, message: "La entrada en la lista de espera no existe" };
+			return {
+				success: false,
+				message: "La entrada en la lista de espera no existe",
+			};
 		}
 
 		// 2. Guard: already has an active invitation window
@@ -707,13 +740,19 @@ export async function notifyWaitlistEntry(
 			entry.expiresAt &&
 			new Date() < new Date(entry.expiresAt)
 		) {
-			return { success: false, message: "El usuario ya tiene una invitación activa" };
+			return {
+				success: false,
+				message: "El usuario ya tiene una invitación activa",
+			};
 		}
 
 		const activity = entry.activity;
 
 		if (!activity.waitlistWindowMinutes) {
-			return { success: false, message: "La actividad no tiene una lista de espera configurada" };
+			return {
+				success: false,
+				message: "La actividad no tiene una lista de espera configurada",
+			};
 		}
 
 		// 3. Find best matching variant (category-aware, capacity-aware)
