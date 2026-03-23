@@ -349,6 +349,7 @@ export async function fetchFullFestivalById(
 				festivalActivities: {
 					with: {
 						details: {
+							orderBy: (details, { asc }) => [asc(details.id)],
 							with: {
 								participants: {
 									with: {

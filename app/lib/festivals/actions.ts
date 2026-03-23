@@ -337,6 +337,7 @@ export async function fetchFestivalActivityForReview(
 			),
 			with: {
 				details: {
+					orderBy: (details, { asc }) => [asc(details.id)],
 					with: {
 						participants: {
 							with: {

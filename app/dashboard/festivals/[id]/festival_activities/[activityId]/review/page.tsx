@@ -1,4 +1,7 @@
 import { fetchFestivalActivityForReview } from "@/app/lib/festivals/actions";
+import { Button } from "@/app/components/ui/button";
+import Link from "next/link";
+import { BookOpenIcon } from "lucide-react";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import ActivityProofsTable from "../../activity-proofs-table";
@@ -51,10 +54,44 @@ export default async function Page({ params }: ReviewPageProps) {
 				<h1 className="text-lg md:text-xl font-bold">
 					Revisión de pruebas — {activity.name}
 				</h1>
-				{showExport && <ExportProofsButton approvedPromos={approvedPromos} />}
+				{showExport && (
+					<div className="flex gap-2">
+						<ExportProofsButton approvedPromos={approvedPromos} />
+						<Button asChild variant="outline" size="sm">
+							<Link href="./couponbook">
+								<BookOpenIcon className="w-4 h-4 mr-1" />
+								Ver cuponera
+							</Link>
+						</Button>
+					</div>
+				)}
 			</div>
 
-			<ActivityProofsTable participants={allParticipants} activity={activity} />
+			{activity.details.map((detail, index) => {
+				const variantParticipants = detail.participants.map((p) => ({
+					...p,
+					detail: { id: detail.id, category: detail.category },
+					removedAt: p.removedAt,
+				}));
+				const limitLabel = detail.participationLimit
+					? `${variantParticipants.length}/${detail.participationLimit}`
+					: `${variantParticipants.length}`;
+				const showHeader = activity.details.length > 1;
+
+				return (
+					<div key={detail.id} className="flex flex-col gap-2">
+						{showHeader && (
+							<h3 className="text-sm font-semibold text-muted-foreground">
+								Variante {index + 1}
+								{detail.description ? ` — ${detail.description}` : ""}
+								{" "}· {limitLabel} participante
+								{variantParticipants.length !== 1 ? "s" : ""}
+							</h3>
+						)}
+						<ActivityProofsTable participants={variantParticipants} activity={activity} />
+					</div>
+				);
+			})}
 		</div>
 	);
 }

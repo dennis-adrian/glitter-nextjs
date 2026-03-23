@@ -54,6 +54,7 @@ export const fetchFestivalActivity = async (
 			where: eq(festivalActivities.id, activityId),
 			with: {
 				details: {
+					orderBy: (details, { asc }) => [asc(details.id)],
 					with: {
 						participants: {
 							with: {

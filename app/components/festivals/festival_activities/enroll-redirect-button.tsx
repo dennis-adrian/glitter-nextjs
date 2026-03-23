@@ -125,7 +125,8 @@ export default function EnrollRedirectButton({
 		);
 	}
 
-	const activityDetail = activity.details[0];
+	const activityDetail =
+		activity.details.find((d) => !isActivityDetailFull(d)) ?? activity.details[0];
 
 	const action = form.handleSubmit(async (data) => {
 		startTransition(async () => {

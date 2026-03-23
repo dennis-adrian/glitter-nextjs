@@ -12,16 +12,18 @@ type ActivityDetailsProps = {
 };
 
 export default function ActivityDetails({ activity }: ActivityDetailsProps) {
-	const allParticipants = activity.details.flatMap((detail) =>
-		detail.participants.map((p) => ({ ...p, detail })),
+	const totalParticipants = activity.details.reduce(
+		(sum, d) => sum + d.participants.length,
+		0,
 	);
+	const showVariantHeaders = activity.details.length > 1;
 
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="flex items-center justify-between">
 				<h2 className="text-base font-semibold text-muted-foreground">
-					{allParticipants.length} participante
-					{allParticipants.length !== 1 ? "s" : ""}
+					{totalParticipants} participante
+					{totalParticipants !== 1 ? "s" : ""}
 				</h2>
 				<div className="flex gap-2">
 					<Button asChild variant="outline" size="sm">
@@ -42,7 +44,28 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
 				</div>
 			</div>
 
-			<ActivityParticipantsTable participants={allParticipants} />
+			<div className="flex flex-col gap-4">
+				{activity.details.map((detail, index) => {
+					const participants = detail.participants.map((p) => ({ ...p, detail }));
+					const limitLabel = detail.participationLimit
+						? `${participants.length}/${detail.participationLimit}`
+						: `${participants.length}`;
+
+					return (
+						<div key={detail.id} className="flex flex-col gap-2">
+							{showVariantHeaders && (
+								<h3 className="text-sm font-medium text-muted-foreground">
+									Variante {index + 1}
+									{detail.description ? ` — ${detail.description}` : ""}
+									{" "}· {limitLabel} participante
+									{participants.length !== 1 ? "s" : ""}
+								</h3>
+							)}
+							<ActivityParticipantsTable participants={participants} />
+						</div>
+					);
+				})}
+			</div>
 
 			{activity.waitlistWindowMinutes !== null &&
 				activity.waitlistEntries.length > 0 && (
