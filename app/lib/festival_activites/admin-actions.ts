@@ -16,7 +16,7 @@ import {
 	festivals,
 	users,
 } from "@/db/schema";
-import { and, asc, count, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, count, eq, gt, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/app/vendors/resend";
 import ActivityProofReviewEmail from "@/app/emails/activity-proof-review";
@@ -442,12 +442,16 @@ export async function reviewActivityParticipantProof(
 	}
 
 	try {
+		let proofWasReviewed = false;
+		let shouldPromoteFromWaitlist = false;
+
 		await db.transaction(async (tx) => {
 			const proof = await tx.query.festivalActivityParticipantProofs.findFirst({
 				where: eq(festivalActivityParticipantProofs.id, proofId),
 			});
 
 			if (!proof) throw new Error("Prueba no encontrada");
+			if (proof.proofStatus !== "pending_review") return;
 
 			await tx
 				.update(festivalActivityParticipantProofs)
@@ -457,14 +461,23 @@ export async function reviewActivityParticipantProof(
 					updatedAt: new Date(),
 				})
 				.where(eq(festivalActivityParticipantProofs.id, proofId));
+			proofWasReviewed = true;
 
 			if (status === "rejected_removed") {
 				await tx
 					.update(festivalActivityParticipants)
 					.set({ removedAt: new Date(), updatedAt: new Date() })
 					.where(eq(festivalActivityParticipants.id, proof.participationId));
+				shouldPromoteFromWaitlist = true;
 			}
 		});
+
+		if (!proofWasReviewed) {
+			return {
+				success: false,
+				message: "La prueba ya fue revisada anteriormente",
+			};
+		}
 
 		// Send notification email — nested try/catch so failures don't affect the response
 		try {
@@ -521,7 +534,7 @@ export async function reviewActivityParticipantProof(
 		}
 
 		// When a participant is removed, promote the next person from the waitlist
-		if (status === "rejected_removed") {
+		if (shouldPromoteFromWaitlist) {
 			try {
 				const proofForWaitlist =
 					await db.query.festivalActivityParticipantProofs.findFirst({
@@ -715,85 +728,121 @@ export async function notifyWaitlistEntry(
 	}
 
 	try {
-		// 1. Fetch the waitlist entry with user and activity info
-		const entry = await db.query.festivalActivityWaitlist.findFirst({
-			where: eq(festivalActivityWaitlist.id, waitlistEntryId),
-			with: {
-				user: true,
-				activity: {
-					with: {
-						festival: true,
-						details: {
-							with: {
-								participants: {
-									where: isNull(festivalActivityParticipants.removedAt),
-								},
-							},
+		const txResult = await db.transaction(async (tx) => {
+			// 1. Fetch the waitlist entry with user and activity info
+			const entry = await tx.query.festivalActivityWaitlist.findFirst({
+				where: eq(festivalActivityWaitlist.id, waitlistEntryId),
+				with: {
+					user: true,
+					activity: {
+						with: {
+							festival: true,
+							details: true,
 						},
 					},
 				},
-			},
+			});
+
+			if (!entry) {
+				return {
+					ok: false as const,
+					message: "La entrada en la lista de espera no existe",
+				};
+			}
+
+			// 2. Guard: already has an active invitation window
+			const now = new Date();
+			if (
+				entry.notifiedAt &&
+				entry.expiresAt &&
+				now < new Date(entry.expiresAt)
+			) {
+				return {
+					ok: false as const,
+					message: "El usuario ya tiene una invitación activa",
+				};
+			}
+
+			const activity = entry.activity;
+
+			if (!activity.waitlistWindowMinutes) {
+				return {
+					ok: false as const,
+					message: "La actividad no tiene una lista de espera configurada",
+				};
+			}
+
+			// 3. Find best matching variant (category-aware, capacity-aware)
+			let matchedDetail: (typeof activity.details)[number] | null = null;
+			for (const detail of activity.details) {
+				const categoryMatches =
+					!detail.category || detail.category === entry.user.category;
+				if (!categoryMatches) continue;
+
+				if (!detail.participationLimit) {
+					matchedDetail = detail;
+					break;
+				}
+
+				const [{ activeParticipants }] = await tx
+					.select({ activeParticipants: count() })
+					.from(festivalActivityParticipants)
+					.where(
+						and(
+							eq(festivalActivityParticipants.detailsId, detail.id),
+							isNull(festivalActivityParticipants.removedAt),
+						),
+					);
+
+				const [{ activeReservations }] = await tx
+					.select({ activeReservations: count() })
+					.from(festivalActivityWaitlist)
+					.where(
+						and(
+							eq(festivalActivityWaitlist.notifiedForDetailId, detail.id),
+							gt(festivalActivityWaitlist.expiresAt, now),
+						),
+					);
+
+				if (
+					activeParticipants + activeReservations <
+					detail.participationLimit
+				) {
+					matchedDetail = detail;
+					break;
+				}
+			}
+
+			if (!matchedDetail) {
+				return {
+					ok: false as const,
+					message: "No hay cupos disponibles para la categoría de este usuario",
+				};
+			}
+
+			// 4. Update the waitlist entry
+			const expiresAt = new Date(
+				Date.now() + activity.waitlistWindowMinutes * 60 * 1000,
+			);
+
+			await tx
+				.update(festivalActivityWaitlist)
+				.set({
+					notifiedAt: now,
+					expiresAt,
+					notifiedForDetailId: matchedDetail.id,
+					updatedAt: now,
+				})
+				.where(eq(festivalActivityWaitlist.id, waitlistEntryId));
+
+			return { ok: true as const, entry, activity, expiresAt };
 		});
 
-		if (!entry) {
-			return {
-				success: false,
-				message: "La entrada en la lista de espera no existe",
-			};
+		if (!txResult.ok) {
+			return { success: false, message: txResult.message };
 		}
 
-		// 2. Guard: already has an active invitation window
-		if (
-			entry.notifiedAt &&
-			entry.expiresAt &&
-			new Date() < new Date(entry.expiresAt)
-		) {
-			return {
-				success: false,
-				message: "El usuario ya tiene una invitación activa",
-			};
-		}
-
-		const activity = entry.activity;
-
-		if (!activity.waitlistWindowMinutes) {
-			return {
-				success: false,
-				message: "La actividad no tiene una lista de espera configurada",
-			};
-		}
-
-		// 3. Find best matching variant (category-aware, capacity-aware)
-		const matchedDetail = activity.details.find((detail) => {
-			const categoryMatches =
-				!detail.category || detail.category === entry.user.category;
-			const hasCapacity =
-				!detail.participationLimit ||
-				detail.participants.length < detail.participationLimit;
-			return categoryMatches && hasCapacity;
-		});
-
-		if (!matchedDetail) {
-			return {
-				success: false,
-				message: "No hay cupos disponibles para la categoría de este usuario",
-			};
-		}
-
-		// 4. Update the waitlist entry
-		const expiresAt = new Date(
-			Date.now() + activity.waitlistWindowMinutes * 60 * 1000,
-		);
-
-		await db
-			.update(festivalActivityWaitlist)
-			.set({
-				notifiedAt: new Date(),
-				expiresAt,
-				notifiedForDetailId: matchedDetail.id,
-				updatedAt: new Date(),
-			})
-			.where(eq(festivalActivityWaitlist.id, waitlistEntryId));
+		const { entry, activity, expiresAt } = txResult;
 
 		// 5. Send invitation email
 		const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";

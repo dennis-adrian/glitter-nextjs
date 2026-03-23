@@ -164,21 +164,62 @@ export async function enrollInActivity(
 	acceptedCategories: UserCategory[] = [],
 ) {
 	try {
-		const { id: detailsId, participationLimit } = activityDetails;
+		const { id: detailsId } = activityDetails;
 
-		/**
-		 * Users need to have a valid category in case there are accepted categories
-		 * If there are no accepted categories, we can assume all categories are accepted
-		 */
+		// Re-fetch authoritative records from DB — do not trust caller-supplied objects
+		const [[dbActivity], [dbDetails], allVariantDetails] = await Promise.all([
+			db
+				.select()
+				.from(festivalActivities)
+				.where(eq(festivalActivities.id, activity.id))
+				.limit(1),
+			db
+				.select()
+				.from(festivalActivityDetails)
+				.where(eq(festivalActivityDetails.id, detailsId))
+				.limit(1),
+			db
+				.select({ category: festivalActivityDetails.category })
+				.from(festivalActivityDetails)
+				.where(eq(festivalActivityDetails.activityId, activity.id)),
+		]);
+
+		if (!dbActivity) {
+			return { success: false, message: "Actividad no encontrada" };
+		}
+
+		if (!dbDetails || dbDetails.activityId !== dbActivity.id) {
+			return { success: false, message: "Variante de actividad no encontrada" };
+		}
+
+		// Validate registration window
 		if (
-			acceptedCategories.length > 0 &&
-			!acceptedCategories.includes(forProfile.category)
+			DateTime.now() < DateTime.fromJSDate(dbActivity.registrationStartDate) ||
+			DateTime.now() > DateTime.fromJSDate(dbActivity.registrationEndDate)
+		) {
+			return {
+				success: false,
+				message:
+					"El registro para la actividad no está disponible en este momento",
+			};
+		}
+
+		// Re-derive accepted categories from DB variants — ignore acceptedCategories param
+		const derivedAcceptedCategories = allVariantDetails
+			.map((d) => d.category)
+			.filter((c): c is UserCategory => c !== null);
+
+		if (
+			derivedAcceptedCategories.length > 0 &&
+			!derivedAcceptedCategories.includes(forProfile.category)
 		) {
 			return {
 				success: false,
 				message: "No tienes permisos para inscribirte en esta actividad",
 			};
 		}
+
+		const { participationLimit } = dbDetails;
 
 		if (participationLimit && participationLimit > 0) {
 			const result = await db.transaction(async (tx) => {
@@ -229,7 +270,7 @@ export async function enrollInActivity(
 
 				// Secondary guard: for waitlist-enabled activities, freed slots (active < limit
 				// but total >= limit) are reserved for invited waitlist users only.
-				if (activity.waitlistWindowMinutes) {
+				if (dbActivity.waitlistWindowMinutes) {
 					const [{ totalCount }] = await tx
 						.select({ totalCount: count() })
 						.from(festivalActivityParticipants)
@@ -241,7 +282,7 @@ export async function enrollInActivity(
 							.from(festivalActivityWaitlist)
 							.where(
 								and(
-									eq(festivalActivityWaitlist.activityId, activity.id),
+									eq(festivalActivityWaitlist.activityId, dbActivity.id),
 									eq(festivalActivityWaitlist.userId, forProfile.id),
 									isNotNull(festivalActivityWaitlist.notifiedAt),
 								),
@@ -287,7 +328,7 @@ export async function enrollInActivity(
 				to: [...adminEmails],
 				subject: "Inscripción a una actividad del festival",
 				react: FestivalActivityRegistrationEmail({
-					festivalActivityName: activity.name,
+					festivalActivityName: dbActivity.name,
 					userDisplayName: forProfile.displayName,
 					festivalName: festival?.name,
 					festivalType: festival?.festivalType,
@@ -341,7 +382,7 @@ export async function enrollInActivity(
 				to: [...adminEmails],
 				subject: "Inscripción a una actividad del festival",
 				react: FestivalActivityRegistrationEmail({
-					festivalActivityName: activity.name,
+					festivalActivityName: dbActivity.name,
 					userDisplayName: forProfile.displayName,
 					festivalName: festival?.name,
 					festivalType: festival?.festivalType,
