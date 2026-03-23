@@ -69,6 +69,11 @@ export default function CouponBookActivityPage({
 					participantes. Se imprimirán equitativamente y se repartirán
 					aleatoriamente al público. En total son 500 cuponeras de cada versión.
 				</p>
+				<p className="text-sm md:text-base">
+					Aunque tenemos dos versiones de la cuponera, la elección de la versión
+					se hará de manera ordenada según el orden de inscripción, llenado
+					primero una antes de pasar a la otra.
+				</p>
 				<div>
 					<VariantImagesDisplay details={activity.details} />
 					<p className="text-xs text-muted-foreground italic">
@@ -94,8 +99,14 @@ export default function CouponBookActivityPage({
 						Condiciones para participar de la actividad
 					</Heading>
 					<ol className="ml-2 list-decimal list-inside space-y-2 text-sm md:text-base">
+						<li>Tener una reserva confirmada en el festival.</li>
 						<li>
-							Cargar la promoción al sitio web hasta el{" "}
+							Inscribirse a la actividad con el botón de inscripción que se
+							encuentra al final de la página. El límite de inscripciones es de
+							52 participantes con 26 cupos por versión de cuponera.
+						</li>
+						<li>
+							Cargar los detalles de tu promoción al sitio web hasta el{" "}
 							<strong>
 								{proofUploadLimitDate.toLocaleString({
 									month: "long",
@@ -109,7 +120,13 @@ export default function CouponBookActivityPage({
 									minute: "numeric",
 								})}
 							</strong>
-							.
+							. En caso de no cumplir con el plazo, serás removido o removida de
+							la actividad y se dará lugar al primer participante en la lista de
+							espera.
+						</li>
+						<li>
+							Cumplir todas las normas del evento según los términos y
+							condiciones aceptados al inscribirse al festival.
 						</li>
 					</ol>
 				</div>

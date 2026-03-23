@@ -35,22 +35,14 @@ export default function VariantImagesDisplay({
 									className="relative w-full rounded-lg overflow-hidden border"
 									style={{ aspectRatio: "250 / 191" }}
 								>
-									{variant.imageUrl ? (
-										<Image
-											src={variant.imageUrl!}
-											alt={variant.description ?? "Versión de cuponera"}
-											fill
-											className="object-cover"
-											placeholder="blur"
-											blurDataURL="/img/placeholders/placeholder-300x300.png"
-										/>
-									) : (
-										<div className="w-full h-full flex items-center justify-center">
-											<p className="text-xs text-muted-foreground text-center">
-												Sin imagen
-											</p>
-										</div>
-									)}
+									<Image
+										src={variant.imageUrl!}
+										alt={variant.description ?? "Versión de cuponera"}
+										fill
+										className="object-cover"
+										placeholder="blur"
+										blurDataURL="/img/placeholders/placeholder-300x300.png"
+									/>
 								</div>
 								{variant.description && (
 									<p className="text-xs text-muted-foreground text-center mt-1">
@@ -75,29 +67,19 @@ export default function VariantImagesDisplay({
 			>
 				{variants.map((variant) => (
 					<div key={variant.id} className="flex flex-col gap-1">
-						{variant.imageUrl ? (
-							<div
-								className="relative w-full rounded-lg overflow-hidden border"
-								style={{ aspectRatio: "250 / 191" }}
-							>
-								<Image
-									src={variant.imageUrl!}
-									alt={variant.description ?? "Versión de cuponera"}
-									fill
-									className="object-cover"
-									placeholder="blur"
-									blurDataURL="/img/placeholders/placeholder-300x300.png"
-								/>
-							</div>
-						) : (
-							<div className="relative w-full aspect-3/2 rounded-lg overflow-hidden border bg-gray-100">
-								<div className="w-full h-full flex items-center justify-center">
-									<p className="text-xs text-muted-foreground text-center">
-										Sin imagen
-									</p>
-								</div>
-							</div>
-						)}
+						<div
+							className="relative w-full rounded-lg overflow-hidden border"
+							style={{ aspectRatio: "250 / 191" }}
+						>
+							<Image
+								src={variant.imageUrl!}
+								alt={variant.description ?? "Versión de cuponera"}
+								fill
+								className="object-cover"
+								placeholder="blur"
+								blurDataURL="/img/placeholders/placeholder-300x300.png"
+							/>
+						</div>
 
 						{variant.description && (
 							<p className="text-xs text-muted-foreground text-center">
