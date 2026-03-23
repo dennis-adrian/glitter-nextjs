@@ -73,9 +73,12 @@ export default async function Page({ params }: ReviewPageProps) {
 					detail: { id: detail.id, category: detail.category },
 					removedAt: p.removedAt,
 				}));
+				const activeParticipants = variantParticipants.filter(
+					(participant) => !participant.removedAt,
+				);
 				const limitLabel = detail.participationLimit
-					? `${variantParticipants.length}/${detail.participationLimit}`
-					: `${variantParticipants.length}`;
+					? `${activeParticipants.length}/${detail.participationLimit}`
+					: `${activeParticipants.length}`;
 				const showHeader = activity.details.length > 1;
 
 				return (
@@ -85,7 +88,7 @@ export default async function Page({ params }: ReviewPageProps) {
 								Variante {index + 1}
 								{detail.description ? ` — ${detail.description}` : ""}
 								{" "}· {limitLabel} participante
-								{variantParticipants.length !== 1 ? "s" : ""}
+								{activeParticipants.length !== 1 ? "s" : ""}
 							</h3>
 						)}
 						<ActivityProofsTable participants={variantParticipants} activity={activity} />

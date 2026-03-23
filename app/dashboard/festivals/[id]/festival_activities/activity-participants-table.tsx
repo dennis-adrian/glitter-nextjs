@@ -23,7 +23,28 @@ function ParticipantProofViewer({
 	proof: ParticipantWithUserAndProofs["proofs"][number];
 	participantName: string;
 }) {
-	if (proof.imageUrl) {
+	const hasImage = Boolean(proof.imageUrl);
+	const hasText =
+		Boolean(proof.promoDescription && proof.promoDescription.trim()) ||
+		Boolean(proof.promoConditions && proof.promoConditions.trim());
+
+	if (hasImage && hasText) {
+		return (
+			<>
+				<ProofImageModal
+					imageUrl={proof.imageUrl}
+					participantName={participantName}
+				/>
+				<TextProofModal
+					participantName={participantName}
+					promoDescription={proof.promoDescription}
+					promoConditions={proof.promoConditions}
+				/>
+			</>
+		);
+	}
+
+	if (hasImage) {
 		return (
 			<ProofImageModal
 				imageUrl={proof.imageUrl}
@@ -31,6 +52,9 @@ function ParticipantProofViewer({
 			/>
 		);
 	}
+
+	if (!hasText) return null;
+
 	return (
 		<TextProofModal
 			participantName={participantName}
@@ -50,31 +74,29 @@ const COLUMN_TITLES: Record<string, string> = {
 };
 
 /** Synthetic key when the participant has not submitted a proof row yet. */
-const PROOF_STATUS_BADGE: Record<
-	string,
-	{ label: string; className: string }
-> = {
-	sin_prueba: {
-		label: "Pendiente",
-		className: "text-amber-700 border-amber-300 bg-amber-50",
-	},
-	pending_review: {
-		label: "En revisión",
-		className: "bg-amber-50 text-amber-800 border-amber-300",
-	},
-	approved: {
-		label: "Aprobada",
-		className: "bg-emerald-100 text-emerald-800 border-emerald-200",
-	},
-	rejected_resubmit: {
-		label: "Corrección solicitada",
-		className: "bg-orange-100 text-orange-800 border-orange-300",
-	},
-	rejected_removed: {
-		label: "Removido",
-		className: "bg-red-100 text-red-800 border-red-300",
-	},
-};
+const PROOF_STATUS_BADGE: Record<string, { label: string; className: string }> =
+	{
+		sin_prueba: {
+			label: "Pendiente",
+			className: "text-amber-700 border-amber-300 bg-amber-50",
+		},
+		pending_review: {
+			label: "En revisión",
+			className: "bg-amber-50 text-amber-800 border-amber-300",
+		},
+		approved: {
+			label: "Aprobada",
+			className: "bg-emerald-100 text-emerald-800 border-emerald-200",
+		},
+		rejected_resubmit: {
+			label: "Corrección solicitada",
+			className: "bg-orange-100 text-orange-800 border-orange-300",
+		},
+		rejected_removed: {
+			label: "Removido",
+			className: "bg-red-100 text-red-800 border-red-300",
+		},
+	};
 
 function proofStatusKey(
 	proof: ParticipantWithUserAndProofs["proofs"][number] | undefined,

@@ -132,12 +132,13 @@ export default function CouponBookActivityPage({
 					<ol className="ml-2 list-decimal list-inside space-y-2 text-sm md:text-base">
 						<li>Tener una reserva confirmada en el festival.</li>
 						<li>
-							encuentra al final de la página. El límite de inscripciones es de{" "}
-							{totalParticipants} participantes
+							Inscribirte usando el botón que se encuentra al final de la
+							página. El límite de inscripciones es de {totalParticipants}{" "}
+							participantes
 							{hasUniformSlotsPerVersion &&
 								slotsPerVersion[0] > 0 &&
 								` con ${slotsPerVersion[0]} cupos por versión de cuponera`}
-							. .
+							.
 						</li>
 						<li>
 							Cargar los detalles de tu promoción al sitio web hasta el{" "}

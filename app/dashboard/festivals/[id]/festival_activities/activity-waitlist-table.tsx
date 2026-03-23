@@ -37,10 +37,11 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
 function getStatus(
 	entry: WaitlistEntryWithUser,
 ): "waiting" | "invited" | "expired" {
-	if (!entry.notifiedAt) return "waiting";
-	if (entry.expiresAt && new Date() < new Date(entry.expiresAt))
-		return "invited";
-	return "expired";
+	const status = entry.serverStatus ?? entry.status;
+	if (status === "invited" || status === "expired" || status === "waiting") {
+		return status;
+	}
+	return "waiting";
 }
 
 function NotifyWaitlistButton({

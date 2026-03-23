@@ -303,10 +303,10 @@ export async function upsertActivityParticipantProof(
 		};
 	}
 
-	if (data.promoConditions && data.promoConditions.length > 300) {
+	if (data.promoConditions && data.promoConditions.trim().length > 80) {
 		return {
 			success: false,
-			message: "Las condiciones no pueden superar los 300 caracteres",
+			message: "Las condiciones no pueden superar los 80 caracteres",
 		};
 	}
 
@@ -363,10 +363,10 @@ export async function upsertActivityParticipantProof(
 			};
 		}
 
-		if (promoTrimmed.length > 80) {
+		if (promoTrimmed.length > 30) {
 			return {
 				success: false,
-				message: "La promoción no puede superar los 80 caracteres",
+				message: "La promoción no puede superar los 30 caracteres",
 			};
 		}
 

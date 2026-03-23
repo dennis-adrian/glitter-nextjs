@@ -60,6 +60,7 @@ export default function EnrolledUsersCta({
 								participationId={participationId}
 								proofDisplayState={proofDisplayState}
 								adminFeedback={adminFeedback}
+								existingPromoHighlight={existingPromoHighlight}
 								existingPromoDescription={existingPromoDescription}
 								existingPromoConditions={existingPromoConditions}
 								triggerLabel={

@@ -760,6 +760,10 @@ export const festivalActivities = pgTable(
 			"proof_upload_limit_required",
 			sql`(${t.proofType} IS NULL) OR (${t.proofUploadLimitDate} IS NOT NULL)`,
 		),
+		check(
+			"festival_activities_waitlist_window_minutes_positive",
+			sql`${t.waitlistWindowMinutes} IS NULL OR ${t.waitlistWindowMinutes} > 0`,
+		),
 	],
 );
 export const festivalActivitiesRelations = relations(
@@ -939,7 +943,14 @@ export const festivalActivityWaitlist = pgTable(
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
-	(table) => [unique().on(table.activityId, table.userId)],
+	(table) => [
+		unique().on(table.activityId, table.userId),
+		unique().on(table.activityId, table.position),
+		check(
+			"festival_activity_waitlist_position_check",
+			sql`${table.position} > 0`,
+		),
+	],
 );
 export const festivalActivityWaitlistRelations = relations(
 	festivalActivityWaitlist,

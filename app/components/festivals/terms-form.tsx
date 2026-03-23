@@ -81,16 +81,10 @@ export default function TermsForm({
 	return (
 		<Form {...form}>
 			<form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-				<FormField
-					control={form.control}
+				<ConsentFormField
 					name="consent"
-					render={() => (
-						<ConsentFormField
-							name="consent"
-							label="Acepto los términos y condiciones para participar en el festival"
-							description="Si llegaste hasta aquí y estas de acuerdo con todas las normas anteriores, acepta los términos y condiciones y dale clic al botón"
-						/>
-					)}
+					label="Acepto los términos y condiciones para participar en el festival"
+					description="Si llegaste hasta aquí y estas de acuerdo con todas las normas anteriores, acepta los términos y condiciones y dale clic al botón"
 				/>
 				<div className="flex flex-col sm:flex-row gap-4">
 					<Button

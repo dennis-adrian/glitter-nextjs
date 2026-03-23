@@ -116,7 +116,7 @@ export default function ActivityProofReviewEmail({
 }
 
 ActivityProofReviewEmail.PreviewProps = {
-	profile: { displayName: "Pandora" },
+	profile: { id: 1, displayName: "Pandora" },
 	festivalId: 12,
 	activityId: 34,
 	activityName: "Mejor Stand Glitter",
