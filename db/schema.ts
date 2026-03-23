@@ -751,6 +751,7 @@ export const festivalActivities = pgTable(
 		proofType: proofTypeEnum("proof_type"),
 		proofUploadLimitDate: timestamp("proof_upload_limit_date"),
 		accessLevel: accessLevelEnum("access_level").default("public").notNull(),
+		waitlistWindowMinutes: integer("waitlist_window_minutes"),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
@@ -769,6 +770,7 @@ export const festivalActivitiesRelations = relations(
 			references: [festivals.id],
 		}),
 		details: many(festivalActivityDetails),
+		waitlistEntries: many(festivalActivityWaitlist),
 	}),
 );
 
@@ -914,6 +916,45 @@ export const festivalActivityVotesRelations = relations(
 		participant: one(festivalActivityParticipants, {
 			fields: [festivalActivityVotes.participantId],
 			references: [festivalActivityParticipants.id],
+		}),
+	}),
+);
+
+export const festivalActivityWaitlist = pgTable(
+	"festival_activity_waitlist",
+	{
+		id: serial("id").primaryKey(),
+		activityId: integer("activity_id")
+			.notNull()
+			.references(() => festivalActivities.id, { onDelete: "cascade" }),
+		userId: integer("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		position: integer("position").notNull(),
+		notifiedAt: timestamp("notified_at"),
+		expiresAt: timestamp("expires_at"),
+		notifiedForDetailId: integer("notified_for_detail_id").references(
+			() => festivalActivityDetails.id,
+		),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [unique().on(table.activityId, table.userId)],
+);
+export const festivalActivityWaitlistRelations = relations(
+	festivalActivityWaitlist,
+	({ one }) => ({
+		activity: one(festivalActivities, {
+			fields: [festivalActivityWaitlist.activityId],
+			references: [festivalActivities.id],
+		}),
+		user: one(users, {
+			fields: [festivalActivityWaitlist.userId],
+			references: [users.id],
+		}),
+		notifiedForDetail: one(festivalActivityDetails, {
+			fields: [festivalActivityWaitlist.notifiedForDetailId],
+			references: [festivalActivityDetails.id],
 		}),
 	}),
 );

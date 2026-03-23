@@ -247,6 +247,34 @@ export default function EnrollRedirectButton({
 			);
 		}
 
+		// Expired invitation — user can still try if a slot is available
+		if (
+			waitlistEntry?.notifiedAt &&
+			waitlistEntry.notifiedForDetailId &&
+			(!waitlistEntry.expiresAt ||
+				new Date() >= new Date(waitlistEntry.expiresAt))
+		) {
+			return (
+				<Alert>
+					<InfoIcon className="w-4 h-4" />
+					<AlertTitle>Tu invitación venció</AlertTitle>
+					<AlertDescription className="w-full flex flex-col gap-2">
+						<p>
+							El tiempo para inscribirte expiró, pero podés intentarlo si
+							todavía hay un cupo disponible.
+						</p>
+						<Button
+							onClick={() => handleAcceptWaitlistInvitation(waitlistEntry.id)}
+							disabled={isPending}
+							className="w-full max-w-sm self-center"
+						>
+							{isPending ? "Verificando..." : "Intentar inscribirme"}
+						</Button>
+					</AlertDescription>
+				</Alert>
+			);
+		}
+
 		// On waitlist (waiting)
 		if (waitlistEntry) {
 			return (
@@ -397,6 +425,7 @@ export default function EnrollRedirectButton({
 					</p>
 					<UploadStickerDesignModal
 						participationId={userParticipation.id}
+						forProfileId={forProfile.id}
 						maxFiles={1}
 					/>
 				</div>

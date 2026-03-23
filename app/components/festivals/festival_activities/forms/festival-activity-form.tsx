@@ -78,6 +78,15 @@ const DetailSchema = z.object({
 	category: z.enum(CATEGORY_VALUES).nullable().optional(),
 });
 
+const WAITLIST_WINDOW_PRESETS = [
+	{ label: "30 minutos", value: 30 },
+	{ label: "1 hora", value: 60 },
+	{ label: "2 horas", value: 120 },
+	{ label: "6 horas", value: 360 },
+	{ label: "24 horas", value: 1440 },
+	{ label: "Personalizado", value: -1 },
+];
+
 const FormSchema = z.object({
 	name: z.string().trim().min(2, "El nombre debe tener al menos 2 caracteres"),
 	description: z.string().trim().optional(),
@@ -99,6 +108,8 @@ const FormSchema = z.object({
 	allowsVoting: z.boolean().default(false),
 	votingStartDate: z.string().optional(),
 	votingEndDate: z.string().optional(),
+	waitlistEnabled: z.boolean().default(false),
+	waitlistWindowMinutes: z.coerce.number().int().positive().optional(),
 	details: z.array(DetailSchema).min(1, "Debe haber al menos una variante"),
 });
 
@@ -130,6 +141,8 @@ function buildDefaultValues(
 			allowsVoting: false,
 			votingStartDate: "",
 			votingEndDate: "",
+			waitlistEnabled: false,
+			waitlistWindowMinutes: undefined,
 			details: [
 				{
 					description: "",
@@ -154,6 +167,8 @@ function buildDefaultValues(
 		allowsVoting: activity.allowsVoting,
 		votingStartDate: toDatetimeLocal(activity.votingStartDate),
 		votingEndDate: toDatetimeLocal(activity.votingEndDate),
+		waitlistEnabled: activity.waitlistWindowMinutes !== null && activity.waitlistWindowMinutes !== undefined,
+		waitlistWindowMinutes: activity.waitlistWindowMinutes ?? undefined,
 		details: activity.details.map((d) => ({
 			id: d.id,
 			description: d.description ?? "",
@@ -188,6 +203,7 @@ export default function FestivalActivityForm({
 
 	const proofType = form.watch("proofType");
 	const allowsVoting = form.watch("allowsVoting");
+	const waitlistEnabled = form.watch("waitlistEnabled");
 	const formErrors = form.formState.errors;
 
 	const onSubmit = form.handleSubmit(
@@ -229,6 +245,9 @@ export default function FestivalActivityForm({
 				allowsVoting: data.allowsVoting,
 				votingStartDate: toDate(data.votingStartDate),
 				votingEndDate: toDate(data.votingEndDate),
+				waitlistWindowMinutes: data.waitlistEnabled
+					? (data.waitlistWindowMinutes ?? null)
+					: null,
 				details,
 			};
 
@@ -507,6 +526,88 @@ export default function FestivalActivityForm({
 									)}
 								/>
 							</div>
+						)}
+					</CardContent>
+				</Card>
+
+				{/* Waitlist */}
+				<Card>
+					<CardContent className="pt-6 space-y-4">
+						<div className="flex items-center justify-between">
+							<div>
+								<h3 className="font-semibold text-lg">Lista de espera</h3>
+								<p className="text-sm text-muted-foreground">
+									Cuando los cupos se llenen, los usuarios pueden unirse a una
+									lista de espera.
+								</p>
+							</div>
+							<FormField
+								control={form.control}
+								name="waitlistEnabled"
+								render={({ field }) => (
+									<FormItem>
+										<FormControl>
+											<Switch
+												checked={field.value}
+												onCheckedChange={field.onChange}
+											/>
+										</FormControl>
+									</FormItem>
+								)}
+							/>
+						</div>
+						{waitlistEnabled && (
+							<FormField
+								control={form.control}
+								name="waitlistWindowMinutes"
+								render={({ field }) => (
+									<FormItem>
+										<FormLabel>Ventana de tiempo para inscribirse</FormLabel>
+										<FormDescription>
+											Cuánto tiempo tiene el usuario para inscribirse una vez
+											notificado.
+										</FormDescription>
+										<div className="flex flex-wrap gap-2 mb-2">
+											{WAITLIST_WINDOW_PRESETS.filter((p) => p.value > 0).map(
+												(preset) => (
+													<Button
+														key={preset.value}
+														type="button"
+														size="sm"
+														variant={
+															field.value === preset.value
+																? "default"
+																: "outline"
+														}
+														onClick={() => field.onChange(preset.value)}
+													>
+														{preset.label}
+													</Button>
+												),
+											)}
+										</div>
+										<FormControl>
+											<Input
+												type="number"
+												min={1}
+												placeholder="Minutos personalizados"
+												value={(field.value as number | undefined) ?? ""}
+												onChange={(e) =>
+													field.onChange(
+														e.target.value === ""
+															? undefined
+															: Number(e.target.value),
+													)
+												}
+												onBlur={field.onBlur}
+												name={field.name}
+												ref={field.ref}
+											/>
+										</FormControl>
+										<FormMessage />
+									</FormItem>
+								)}
+							/>
 						)}
 					</CardContent>
 				</Card>

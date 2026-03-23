@@ -239,6 +239,7 @@ export default function EnrollBestStandForm({
 					</p>
 					<UploadStickerDesignModal
 						participationId={userParticipation.id}
+						forProfileId={forProfile.id}
 						maxFiles={1}
 					/>
 				</div>

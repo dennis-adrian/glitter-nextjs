@@ -24,15 +24,7 @@ import {
 	standSubcategories,
 	users,
 } from "@/db/schema";
-import {
-	and,
-	eq,
-	exists,
-	inArray,
-	isNull,
-	notExists,
-	or,
-} from "drizzle-orm";
+import { and, eq, exists, inArray, isNull, notExists, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function fetchFestivalSectors(
@@ -367,6 +359,7 @@ export async function fetchFullFestivalById(
 								votes: true,
 							},
 						},
+						waitlistEntries: { with: { user: true } },
 					},
 				},
 			},

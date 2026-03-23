@@ -1,7 +1,10 @@
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
-import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
+import {
+	ActivityDetailsWithParticipants,
+	FestivalActivityWithDetailsAndParticipants,
+	WaitlistEntryWithUser,
+} from "@/app/lib/festivals/definitions";
 import { FestivalSectorWithStands } from "@/app/lib/festival_sectors/definitions";
-import { ActivityDetailsWithParticipants } from "@/app/lib/festivals/definitions";
 
 export function getFestivalSectorAllowedCategories(
 	sector: FestivalSectorWithStands,
@@ -22,6 +25,15 @@ export function isProfileEnrolledInActivity(
 ) {
 	return activity.details.some((detail) =>
 		detail.participants.some((participant) => participant.userId === profileId),
+	);
+}
+
+export function getUserWaitlistEntry(
+	userId: number,
+	activity: FestivalActivityWithDetailsAndParticipants,
+): WaitlistEntryWithUser | null {
+	return (
+		activity.waitlistEntries.find((entry) => entry.userId === userId) ?? null
 	);
 }
 

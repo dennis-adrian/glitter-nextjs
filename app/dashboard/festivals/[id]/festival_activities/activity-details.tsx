@@ -5,6 +5,7 @@ import { RedirectButton } from "@/app/components/redirect-button";
 import { Button } from "@/app/components/ui/button";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import ActivityParticipantsTable from "./activity-participants-table";
+import ActivityWaitlistTable from "./activity-waitlist-table";
 
 type ActivityDetailsProps = {
 	activity: FestivalActivityWithDetailsAndParticipants;
@@ -42,6 +43,16 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
 			</div>
 
 			<ActivityParticipantsTable participants={allParticipants} />
+
+			{activity.waitlistWindowMinutes !== null &&
+				activity.waitlistEntries.length > 0 && (
+					<div className="flex flex-col gap-2">
+						<h2 className="text-base font-semibold text-muted-foreground">
+							Lista de espera ({activity.waitlistEntries.length})
+						</h2>
+						<ActivityWaitlistTable entries={activity.waitlistEntries} festivalId={activity.festivalId} />
+					</div>
+				)}
 		</div>
 	);
 }

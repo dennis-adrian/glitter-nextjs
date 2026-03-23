@@ -191,7 +191,7 @@ export default function CouponBookProofForm({
 										className="resize-none"
 										rows={3}
 										maxLength={80}
-										placeholder="Ej: Válido para productos seleccionados"
+										placeholder="Ej: hasta agotar stock"
 										{...field}
 									/>
 								</FormControl>

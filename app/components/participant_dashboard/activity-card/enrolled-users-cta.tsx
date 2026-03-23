@@ -71,6 +71,7 @@ export default function EnrolledUsersCta({
 							/>
 							<UploadStickerDesignModal
 								participationId={participationId}
+								forProfileId={forProfile.id}
 								maxFiles={1}
 								triggerLabel={
 									proofDisplayState === "rejected_resubmit"
@@ -94,6 +95,7 @@ export default function EnrolledUsersCta({
 					) : (
 						<UploadStickerDesignModal
 							participationId={participationId}
+							forProfileId={forProfile.id}
 							maxFiles={1}
 							triggerLabel={enrolledConfig.ctaLabel}
 							triggerClassName={uploadTriggerClassName}

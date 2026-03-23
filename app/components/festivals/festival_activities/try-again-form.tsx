@@ -8,12 +8,14 @@ import { toast } from "sonner";
 type TryAgainFormProps = {
   imageUrls: string[];
   participationId: number;
+  forProfileId: number;
   onSuccess: () => void;
 };
 
 export default function TryAgainForm({
   imageUrls,
   participationId,
+  forProfileId,
   onSuccess,
 }: TryAgainFormProps) {
   const form = useForm();
@@ -22,6 +24,7 @@ export default function TryAgainForm({
     const { message, success } = await addFestivalActivityParticipantProof(
       participationId,
       imageUrls,
+      forProfileId,
     );
 
     if (success) {

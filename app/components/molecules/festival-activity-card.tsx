@@ -72,6 +72,7 @@ export default function FestivalActivityCard({
 									<UploadStickerDesignModal
 										maxFiles={1}
 										participationId={userParticipation.id}
+										forProfileId={forProfile.id}
 									/>
 								)}
 							</div>

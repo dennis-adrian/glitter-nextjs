@@ -12,6 +12,7 @@ import {
 	festivalActivityParticipantProofs,
 	festivalActivityParticipants,
 	festivalActivityVotes,
+	festivalActivityWaitlist,
 	festivalDates,
 	festivals,
 	festivalSectors,
@@ -31,13 +32,18 @@ export type Festival = FestivalBase & {
 };
 
 export type FullFestival = Festival & {
-  festivalActivities: (FestivalActivity & {
-    details: ActivityDetailsWithParticipants[];
-  })[];
+  festivalActivities: FestivalActivityWithDetailsAndParticipants[];
+};
+
+export type WaitlistEntry = typeof festivalActivityWaitlist.$inferSelect;
+
+export type WaitlistEntryWithUser = WaitlistEntry & {
+  user: BaseProfile;
 };
 
 export type FestivalActivityWithDetailsAndParticipants = FestivalActivity & {
   details: ActivityDetailsWithParticipants[];
+  waitlistEntries: WaitlistEntryWithUser[];
 };
 
 export type ParticipantWithUserAndProofs = FestivalActivityParticipant & {

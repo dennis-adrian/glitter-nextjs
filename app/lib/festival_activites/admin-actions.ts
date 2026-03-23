@@ -12,12 +12,16 @@ import {
 	festivalActivityDetails,
 	festivalActivityParticipantProofs,
 	festivalActivityParticipants,
+	festivalActivityWaitlist,
 	festivals,
+	users,
 } from "@/db/schema";
-import { and, count, eq, isNull } from "drizzle-orm";
+import { and, asc, count, eq, isNotNull, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/app/vendors/resend";
 import ActivityProofReviewEmail from "@/app/emails/activity-proof-review";
+import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
+import { promoteFromWaitlist } from "@/app/lib/festival_activites/actions";
 import React from "react";
 
 export type FestivalActivityDetailInput = {
@@ -48,6 +52,7 @@ export type FestivalActivityInput = {
 	allowsVoting: boolean;
 	votingStartDate?: Date;
 	votingEndDate?: Date;
+	waitlistWindowMinutes?: number | null;
 	details: FestivalActivityDetailInput[];
 };
 
@@ -122,6 +127,7 @@ export async function createFestivalActivity(
 					allowsVoting: data.allowsVoting,
 					votingStartDate: data.votingStartDate,
 					votingEndDate: data.votingEndDate,
+					waitlistWindowMinutes: data.waitlistWindowMinutes ?? null,
 				})
 				.returning({ id: festivalActivities.id });
 
@@ -194,6 +200,7 @@ export async function updateFestivalActivity(
 					allowsVoting: data.allowsVoting,
 					votingStartDate: data.votingStartDate,
 					votingEndDate: data.votingEndDate,
+					waitlistWindowMinutes: data.waitlistWindowMinutes ?? null,
 					updatedAt: new Date(),
 				})
 				.where(eq(festivalActivities.id, activityId));
@@ -509,6 +516,29 @@ export async function reviewActivityParticipantProof(
 			);
 		}
 
+		// When a participant is removed, promote the next person from the waitlist
+		if (status === "rejected_removed") {
+			try {
+				const proofForWaitlist =
+					await db.query.festivalActivityParticipantProofs.findFirst({
+						where: eq(festivalActivityParticipantProofs.id, proofId),
+						with: {
+							participation: {
+								with: {
+									activityDetail: true,
+								},
+							},
+						},
+					});
+				const detail = proofForWaitlist?.participation?.activityDetail;
+				if (detail) {
+					await promoteFromWaitlist(detail.activityId, detail.id);
+				}
+			} catch (waitlistError) {
+				console.error("Error promoting from waitlist:", waitlistError);
+			}
+		}
+
 		revalidatePath("/dashboard");
 		return { success: true, message: "Prueba revisada correctamente" };
 	} catch (error) {
@@ -516,5 +546,236 @@ export async function reviewActivityParticipantProof(
 			error instanceof Error ? error.message : "Error al revisar la prueba";
 		console.error("Error reviewing activity participant proof:", error);
 		return { success: false, message };
+	}
+}
+
+export async function promoteWaitlistToVariant(
+	activityId: number,
+	targetDetailId: number,
+): Promise<{ success: boolean; message: string; promoted?: number; skipped?: number }> {
+	const profile = await getAdminProfile();
+	if (!profile) {
+		return { success: false, message: "No tienes permisos para realizar esta acción" };
+	}
+
+	try {
+		const [detail] = await db
+			.select({
+				participationLimit: festivalActivityDetails.participationLimit,
+				category: festivalActivityDetails.category,
+			})
+			.from(festivalActivityDetails)
+			.where(eq(festivalActivityDetails.id, targetDetailId));
+
+		if (!detail) {
+			return { success: false, message: "La variante de actividad no existe" };
+		}
+
+		// Count active participants already in this variant
+		const [{ activeCount }] = await db
+			.select({ activeCount: count() })
+			.from(festivalActivityParticipants)
+			.where(
+				and(
+					eq(festivalActivityParticipants.detailsId, targetDetailId),
+					isNull(festivalActivityParticipants.removedAt),
+				),
+			);
+
+		const remaining = detail.participationLimit
+			? detail.participationLimit - activeCount
+			: null;
+
+		if (remaining !== null && remaining <= 0) {
+			return { success: false, message: "La variante ya está llena" };
+		}
+
+		// Fetch waitlist entries for this activity ordered by position
+		const waitlistEntries = await db
+			.select({
+				id: festivalActivityWaitlist.id,
+				userId: festivalActivityWaitlist.userId,
+				userCategory: users.category,
+				userEmail: users.email,
+				userDisplayName: users.displayName,
+			})
+			.from(festivalActivityWaitlist)
+			.innerJoin(users, eq(users.id, festivalActivityWaitlist.userId))
+			.where(eq(festivalActivityWaitlist.activityId, activityId))
+			.orderBy(asc(festivalActivityWaitlist.position));
+
+		let promoted = 0;
+		let skipped = 0;
+
+		for (const entry of waitlistEntries) {
+			if (remaining !== null && promoted >= remaining) break;
+
+			// Skip if variant has category restriction and user doesn't match
+			if (detail.category && entry.userCategory !== detail.category) {
+				skipped++;
+				continue;
+			}
+
+			await db.transaction(async (tx) => {
+				// Check for existing (possibly soft-deleted) participant row
+				const [existing] = await tx
+					.select({ id: festivalActivityParticipants.id, removedAt: festivalActivityParticipants.removedAt })
+					.from(festivalActivityParticipants)
+					.where(
+						and(
+							eq(festivalActivityParticipants.detailsId, targetDetailId),
+							eq(festivalActivityParticipants.userId, entry.userId),
+						),
+					);
+
+				if (existing && !existing.removedAt) {
+					// Already actively enrolled — skip
+					return;
+				}
+
+				if (existing && existing.removedAt) {
+					await tx
+						.update(festivalActivityParticipants)
+						.set({ removedAt: null, updatedAt: new Date() })
+						.where(eq(festivalActivityParticipants.id, existing.id));
+				} else {
+					await tx.insert(festivalActivityParticipants).values({
+						userId: entry.userId,
+						detailsId: targetDetailId,
+					});
+				}
+
+				await tx
+					.delete(festivalActivityWaitlist)
+					.where(eq(festivalActivityWaitlist.id, entry.id));
+			});
+
+			promoted++;
+			// TODO: send enrollment confirmation email to entry.userEmail
+		}
+
+		revalidatePath("/dashboard");
+		return {
+			success: true,
+			message: `${promoted} participante(s) inscrito(s)${skipped > 0 ? `, ${skipped} omitido(s) por categoría` : ""}`,
+			promoted,
+			skipped,
+		};
+	} catch (error) {
+		console.error("Error promoting waitlist to variant:", error);
+		return { success: false, message: "Error al promover la lista de espera" };
+	}
+}
+
+export async function notifyWaitlistEntry(
+	waitlistEntryId: number,
+	festivalId: number,
+): Promise<{ success: boolean; message: string }> {
+	const profile = await getAdminProfile();
+	if (!profile) {
+		return { success: false, message: "No tienes permisos para realizar esta acción" };
+	}
+
+	try {
+		// 1. Fetch the waitlist entry with user and activity info
+		const entry = await db.query.festivalActivityWaitlist.findFirst({
+			where: eq(festivalActivityWaitlist.id, waitlistEntryId),
+			with: {
+				user: true,
+				activity: {
+					with: {
+						festival: true,
+						details: {
+							with: {
+								participants: {
+									where: isNull(festivalActivityParticipants.removedAt),
+								},
+							},
+						},
+					},
+				},
+			},
+		});
+
+		if (!entry) {
+			return { success: false, message: "La entrada en la lista de espera no existe" };
+		}
+
+		// 2. Guard: already has an active invitation window
+		if (
+			entry.notifiedAt &&
+			entry.expiresAt &&
+			new Date() < new Date(entry.expiresAt)
+		) {
+			return { success: false, message: "El usuario ya tiene una invitación activa" };
+		}
+
+		const activity = entry.activity;
+
+		if (!activity.waitlistWindowMinutes) {
+			return { success: false, message: "La actividad no tiene una lista de espera configurada" };
+		}
+
+		// 3. Find best matching variant (category-aware, capacity-aware)
+		const matchedDetail = activity.details.find((detail) => {
+			const categoryMatches =
+				!detail.category || detail.category === entry.user.category;
+			const hasCapacity =
+				!detail.participationLimit ||
+				detail.participants.length < detail.participationLimit;
+			return categoryMatches && hasCapacity;
+		});
+
+		if (!matchedDetail) {
+			return {
+				success: false,
+				message: "No hay cupos disponibles para la categoría de este usuario",
+			};
+		}
+
+		// 4. Update the waitlist entry
+		const expiresAt = new Date(
+			Date.now() + activity.waitlistWindowMinutes * 60 * 1000,
+		);
+
+		await db
+			.update(festivalActivityWaitlist)
+			.set({
+				notifiedAt: new Date(),
+				expiresAt,
+				notifiedForDetailId: matchedDetail.id,
+				updatedAt: new Date(),
+			})
+			.where(eq(festivalActivityWaitlist.id, waitlistEntryId));
+
+		// 5. Send invitation email
+		const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+		const activityUrl = `${baseUrl}/profiles/${entry.userId}/festivals/${festivalId}/activity/${activity.id}`;
+
+		try {
+			await sendEmail({
+				from: "Actividades del Festival <no-reply@productoraglitter.com>",
+				to: [entry.user.email],
+				subject: `Tenés un cupo disponible en ${activity.name}`,
+				react: ActivityWaitlistInvitationEmail({
+					userDisplayName: entry.user.displayName,
+					userFirstName: entry.user.firstName,
+					userLastName: entry.user.lastName,
+					activityName: activity.name,
+					festivalName: activity.festival.name,
+					festivalType: activity.festival.festivalType,
+					expiresAt,
+					activityUrl,
+				}),
+			});
+		} catch (emailError) {
+			console.error("Error sending waitlist invitation email:", emailError);
+		}
+
+		revalidatePath(`/dashboard/festivals/${festivalId}/festival_activities`);
+		return { success: true, message: "Notificación enviada correctamente" };
+	} catch (error) {
+		console.error("Error notifying waitlist entry:", error);
+		return { success: false, message: "Error al enviar la notificación" };
 	}
 }

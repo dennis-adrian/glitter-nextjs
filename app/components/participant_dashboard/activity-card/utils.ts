@@ -1,9 +1,13 @@
-import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
+import {
+	FestivalActivityWithDetailsAndParticipants,
+	WaitlistEntryWithUser,
+} from "@/app/lib/festivals/definitions";
 import {
 	ActivityTheme,
 	EnrolledConfig,
 } from "@/app/components/participant_dashboard/activity-card/types";
 import type { ProofDisplayState } from "@/app/lib/festival_activites/types";
+import { getUserWaitlistEntry } from "@/app/lib/festival_sectors/helpers";
 
 export function getEnrolledConfig(
 	activity: FestivalActivityWithDetailsAndParticipants,
@@ -95,7 +99,10 @@ export function getEnrollmentInfo(
 	);
 	const participation = participants.find((p) => p.userId === profileId);
 
-	if (!participation) return { isEnrolled: false } as const;
+	if (!participation) {
+		const waitlistEntry = getUserWaitlistEntry(profileId, activity);
+		return { isEnrolled: false, waitlistEntry } as const;
+	}
 
 	const proof = participation.proofs?.[0] ?? null;
 	const proofDisplayState: ProofDisplayState = !proof
