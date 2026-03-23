@@ -23,19 +23,22 @@ export default function CouponBookActivityPage({
 	forProfile,
 	festivalId,
 }: CouponBookActivityPageProps) {
-	const DEFAULT_SLOTS_PER_VERSION = 26;
 	const details = activity.details ?? [];
 	const versionsCount = details.length;
-	const slotsPerVersion = details.map(
-		(detail) => detail.participationLimit ?? DEFAULT_SLOTS_PER_VERSION,
+	const slotsPerVersion = details.map((detail) => detail.participationLimit);
+	const hasUnlimitedSlots = slotsPerVersion.some((slots) => slots === null);
+	const nonNullSlots = slotsPerVersion.filter(
+		(slots): slots is number => slots !== null,
 	);
 	const hasUniformSlotsPerVersion =
 		slotsPerVersion.length > 0 &&
-		slotsPerVersion.every((slots) => slots === slotsPerVersion[0]);
-	const totalParticipants = slotsPerVersion.reduce(
-		(sum, slots) => sum + slots,
-		0,
-	);
+		((nonNullSlots.length === 0 &&
+			slotsPerVersion.every((slots) => slots === null)) ||
+			(nonNullSlots.length === slotsPerVersion.length &&
+				nonNullSlots.every((slots) => slots === nonNullSlots[0])));
+	const totalParticipants = hasUnlimitedSlots
+		? null
+		: nonNullSlots.reduce((sum, slots) => sum + slots, 0);
 
 	const proofUploadLimitDate = activity.proofUploadLimitDate
 		? formatDate(activity.proofUploadLimitDate)
@@ -84,7 +87,9 @@ export default function CouponBookActivityPage({
 						: `Habrán ${versionsCount} versiones`}{" "}
 					de la cuponera y{" "}
 					{hasUniformSlotsPerVersion
-						? `${versionsCount === 1 ? "tendrá" : "cada una tendrá"} espacio para ${slotsPerVersion[0]} participantes`
+						? slotsPerVersion[0] === null
+							? `${versionsCount === 1 ? "tendrá" : "cada una tendrá"} cupos ilimitados`
+							: `${versionsCount === 1 ? "tendrá" : "cada una tendrá"} espacio para ${slotsPerVersion[0]} participantes`
 						: "cada una tendrá un límite de participantes definido por versión"}
 					. Se imprimirán equitativamente y se repartirán aleatoriamente al
 					público. En total son 500 cuponeras de cada versión.
@@ -133,11 +138,16 @@ export default function CouponBookActivityPage({
 						<li>Tener una reserva confirmada en el festival.</li>
 						<li>
 							Inscribirte usando el botón que se encuentra al final de la
-							página. El límite de inscripciones es de {totalParticipants}{" "}
-							participantes
+							página.{" "}
+							{totalParticipants === null
+								? "No hay límite total de inscripciones"
+								: `El límite de inscripciones es de ${totalParticipants} participantes`}
 							{hasUniformSlotsPerVersion &&
-								slotsPerVersion[0] > 0 &&
-								` con ${slotsPerVersion[0]} cupos por versión de cuponera`}
+								(slotsPerVersion[0] === null
+									? " con cupos ilimitados por versión de cuponera"
+									: slotsPerVersion[0] > 0
+										? ` con ${slotsPerVersion[0]} cupos por versión de cuponera`
+										: "")}
 							.
 						</li>
 						<li>

@@ -40,12 +40,18 @@ export default async function Page({ params }: ReviewPageProps) {
 
 	const approvedPromos = showExport
 		? allParticipants
-				.filter((p) => p.proofs[0]?.proofStatus === "approved")
-				.map((p) => ({
+				.filter((p) => {
+					const firstProof = p.proofs?.[0];
+					return firstProof?.proofStatus === "approved";
+				})
+				.map((p) => {
+					const firstProof = p.proofs?.[0];
+					return {
 					name: p.user.displayName ?? "—",
-					promoDescription: p.proofs[0]?.promoDescription ?? "",
-					promoConditions: p.proofs[0]?.promoConditions ?? null,
-				}))
+					promoDescription: firstProof?.promoDescription ?? "",
+					promoConditions: firstProof?.promoConditions ?? null,
+				};
+				})
 		: [];
 
 	return (

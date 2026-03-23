@@ -16,7 +16,7 @@ import {
 	festivals,
 	users,
 } from "@/db/schema";
-import { and, asc, count, eq, gt, isNull } from "drizzle-orm";
+import { and, asc, count, eq, gt, isNull, lte, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/app/vendors/resend";
 import ActivityProofReviewEmail from "@/app/emails/activity-proof-review";
@@ -205,7 +205,12 @@ export async function updateFestivalActivity(
 					waitlistWindowMinutes: data.waitlistWindowMinutes ?? null,
 					updatedAt: new Date(),
 				})
-				.where(eq(festivalActivities.id, activityId));
+				.where(
+					and(
+						eq(festivalActivities.id, activityId),
+						eq(festivalActivities.festivalId, festivalId),
+					),
+				);
 
 			// Diff details: update existing, insert new, delete absent (if no participants)
 			const existing = await tx
@@ -336,6 +341,16 @@ export async function upsertActivityParticipantProof(
 
 		const proofType =
 			participation.activityDetail?.festivalActivity?.proofType ?? null;
+		const proofUploadLimitDate =
+			participation.activityDetail?.festivalActivity?.proofUploadLimitDate ??
+			null;
+
+		if (proofUploadLimitDate && new Date() > new Date(proofUploadLimitDate)) {
+			return {
+				success: false,
+				message: "El período de subida de pruebas ha finalizado",
+			};
+		}
 
 		if (proofType === null) {
 			return {
@@ -372,9 +387,13 @@ export async function upsertActivityParticipantProof(
 
 		const existingProof =
 			await db.query.festivalActivityParticipantProofs.findFirst({
-				where: eq(
-					festivalActivityParticipantProofs.participationId,
-					participationId,
+				where: and(
+					eq(
+						festivalActivityParticipantProofs.participationId,
+						participationId,
+					),
+					// Text proofs do not have an image URL attached.
+					isNull(festivalActivityParticipantProofs.imageUrl),
 				),
 			});
 
@@ -406,6 +425,9 @@ export async function upsertActivityParticipantProof(
 				promoDescription: promoTrimmed,
 				promoConditions: data.promoConditions ?? null,
 				proofStatus: "pending_review",
+				adminFeedback: null,
+				createdAt: new Date(),
+				updatedAt: new Date(),
 			});
 		}
 
@@ -590,11 +612,18 @@ export async function promoteWaitlistToVariant(
 				category: festivalActivityDetails.category,
 			})
 			.from(festivalActivityDetails)
-			.where(eq(festivalActivityDetails.id, targetDetailId));
+			.where(
+				and(
+					eq(festivalActivityDetails.id, targetDetailId),
+					eq(festivalActivityDetails.activityId, activityId),
+				),
+			);
 
 		if (!detail) {
 			return { success: false, message: "La variante de actividad no existe" };
 		}
+
+		const now = new Date();
 
 		// Count active participants already in this variant
 		const [{ activeCount }] = await db
@@ -607,8 +636,19 @@ export async function promoteWaitlistToVariant(
 				),
 			);
 
+		// Count outstanding reservations created by notifyWaitlistEntry
+		const [{ reservedCount }] = await db
+			.select({ reservedCount: count() })
+			.from(festivalActivityWaitlist)
+			.where(
+				and(
+					eq(festivalActivityWaitlist.notifiedForDetailId, targetDetailId),
+					gt(festivalActivityWaitlist.expiresAt, now),
+				),
+			);
+
 		const remaining = detail.participationLimit
-			? detail.participationLimit - activeCount
+			? detail.participationLimit - (activeCount + reservedCount)
 			: null;
 
 		if (remaining !== null && remaining <= 0) {
@@ -644,6 +684,7 @@ export async function promoteWaitlistToVariant(
 			const promotedInTx = await db.transaction(async (tx) => {
 				// Re-check capacity inside transaction
 				if (detail.participationLimit) {
+					const txNow = new Date();
 					const [{ currentActive }] = await tx
 						.select({ currentActive: count() })
 						.from(festivalActivityParticipants)
@@ -653,7 +694,19 @@ export async function promoteWaitlistToVariant(
 								isNull(festivalActivityParticipants.removedAt),
 							),
 						);
-					if (currentActive >= detail.participationLimit) {
+					const [{ currentReserved }] = await tx
+						.select({ currentReserved: count() })
+						.from(festivalActivityWaitlist)
+						.where(
+							and(
+								eq(
+									festivalActivityWaitlist.notifiedForDetailId,
+									targetDetailId,
+								),
+								gt(festivalActivityWaitlist.expiresAt, txNow),
+							),
+						);
+					if (currentActive + currentReserved >= detail.participationLimit) {
 						return false; // Skip this entry, variant is now full
 					}
 				}
@@ -820,29 +873,19 @@ export async function notifyWaitlistEntry(
 				};
 			}
 
-			// 4. Update the waitlist entry
+			// 4. Prepare invitation window (persist only after email succeeds)
 			const expiresAt = new Date(
 				Date.now() + activity.waitlistWindowMinutes * 60 * 1000,
 			);
 
-			await tx
-				.update(festivalActivityWaitlist)
-				.set({
-					notifiedAt: now,
-					expiresAt,
-					notifiedForDetailId: matchedDetail.id,
-					updatedAt: now,
-				})
-				.where(eq(festivalActivityWaitlist.id, waitlistEntryId));
-
-			return { ok: true as const, entry, activity, expiresAt };
+			return { ok: true as const, entry, activity, expiresAt, now, matchedDetail };
 		});
 
 		if (!txResult.ok) {
 			return { success: false, message: txResult.message };
 		}
 
-		const { entry, activity, expiresAt } = txResult;
+		const { entry, activity, expiresAt, now, matchedDetail } = txResult;
 
 		// 5. Send invitation email
 		const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
@@ -866,6 +909,33 @@ export async function notifyWaitlistEntry(
 			});
 		} catch (emailError) {
 			console.error("Error sending waitlist invitation email:", emailError);
+			return { success: false, message: "Error al enviar la notificación" };
+		}
+
+		const updateResult = await db
+			.update(festivalActivityWaitlist)
+			.set({
+				notifiedAt: now,
+				expiresAt,
+				notifiedForDetailId: matchedDetail.id,
+				updatedAt: new Date(),
+			})
+			.where(
+				and(
+					eq(festivalActivityWaitlist.id, waitlistEntryId),
+					or(
+						isNull(festivalActivityWaitlist.expiresAt),
+						lte(festivalActivityWaitlist.expiresAt, now),
+					),
+				),
+			)
+			.returning({ id: festivalActivityWaitlist.id });
+
+		if (updateResult.length === 0) {
+			return {
+				success: false,
+				message: "No se pudo guardar la notificación; intentá nuevamente",
+			};
 		}
 
 		revalidatePath(`/dashboard/festivals/${festivalId}/festival_activities`);

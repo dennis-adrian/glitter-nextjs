@@ -16,11 +16,27 @@ type ParticipantWithDetail = ParticipantWithUserAndProofs & {
 	detail: ActivityDetailsWithParticipants;
 };
 
+type ParticipantProof = ParticipantWithUserAndProofs["proofs"][number];
+
+function getPrimaryProof(
+	proofs: ParticipantWithUserAndProofs["proofs"],
+): ParticipantProof | undefined {
+	const imageProof = proofs.find((proof) => Boolean(proof.imageUrl));
+	if (imageProof) return imageProof;
+
+	const textProof = proofs.find(
+		(proof) =>
+			Boolean(proof.promoDescription && proof.promoDescription.trim()) ||
+			Boolean(proof.promoConditions && proof.promoConditions.trim()),
+	);
+	return textProof;
+}
+
 function ParticipantProofViewer({
 	proof,
 	participantName,
 }: {
-	proof: ParticipantWithUserAndProofs["proofs"][number];
+	proof: ParticipantProof;
 	participantName: string;
 }) {
 	const hasImage = Boolean(proof.imageUrl);
@@ -99,7 +115,7 @@ const PROOF_STATUS_BADGE: Record<string, { label: string; className: string }> =
 	};
 
 function proofStatusKey(
-	proof: ParticipantWithUserAndProofs["proofs"][number] | undefined,
+	proof: ParticipantProof | undefined,
 ) {
 	return proof?.proofStatus ?? "sin_prueba";
 }
@@ -163,9 +179,9 @@ const columns: ColumnDef<ParticipantWithDetail>[] = [
 	{
 		id: "proof",
 		header: "Prueba",
-		accessorFn: (row) => proofStatusKey(row.proofs[0]),
+		accessorFn: (row) => proofStatusKey(getPrimaryProof(row.proofs)),
 		cell: ({ row }) => {
-			const proof = row.original.proofs[0];
+			const proof = getPrimaryProof(row.original.proofs);
 			const key = proofStatusKey(proof);
 			const config = PROOF_STATUS_BADGE[key] ?? PROOF_STATUS_BADGE.sin_prueba;
 			return (
@@ -177,7 +193,7 @@ const columns: ColumnDef<ParticipantWithDetail>[] = [
 		filterFn: (row, _, filterValue) => {
 			const selected = filterValue as string[] | undefined;
 			if (!selected?.length) return true;
-			const key = proofStatusKey(row.original.proofs[0]);
+			const key = proofStatusKey(getPrimaryProof(row.original.proofs));
 			return selected.includes(key);
 		},
 	},
@@ -185,7 +201,7 @@ const columns: ColumnDef<ParticipantWithDetail>[] = [
 		id: "actions",
 		header: "",
 		cell: ({ row }) => {
-			const proof = row.original.proofs[0];
+			const proof = getPrimaryProof(row.original.proofs);
 			if (!proof) return null;
 			return (
 				<ParticipantProofViewer
@@ -242,7 +258,7 @@ export default function ActivityParticipantsTable({
 			{/* Mobile: stacked cards */}
 			<div className="md:hidden space-y-2">
 				{participants.map((participant, index) => {
-					const proof = participant.proofs[0];
+					const proof = getPrimaryProof(participant.proofs);
 					const statusKey = proofStatusKey(proof);
 					const statusBadge =
 						PROOF_STATUS_BADGE[statusKey] ?? PROOF_STATUS_BADGE.sin_prueba;

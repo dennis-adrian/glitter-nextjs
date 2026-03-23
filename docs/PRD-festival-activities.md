@@ -148,7 +148,7 @@ El sistema de actividades de festival permite a los organizadores definir activi
 
 ## 5. Flujo de Usuario — Carrera de Sellos (stamp_passport)
 
-```
+```text
 Dashboard del participante
   └── Card de actividad "Carrera de Sellos"
         └── [Participar] → Página de detalle de actividad
@@ -265,9 +265,9 @@ Dashboard del participante
 
 ### 9.2 Sistema de Lista de Espera
 
-**Problema:** Cuando una actividad llega al límite de cupos, se muestra un mensaje estático de "límite alcanzado". No hay mecanismo de lista de espera.
+**Implementado:** Cuando una actividad llega al límite de cupos y tiene lista de espera habilitada, se persisten entradas en `festivalActivityWaitlist` con alcance por actividad (`activityId`) y campos de orden/usuario (`userId`, `position`). La tabla también guarda el estado de invitación (`notifiedAt`, `expiresAt`, `notifiedForDetailId`) para reservar temporalmente un cupo cuando se libera una variante compatible.
 
-**Mejora propuesta:** Agregar tabla `festivalActivityWaitlist` con `(detailsId, userId, position)`. Si un participante cancela su inscripción, el primer usuario de la lista de espera recibe una notificación y tiene un tiempo limitado (ej: 24hs) para inscribirse.
+**Flujo actual:** Si se libera un cupo, se notifica al primer usuario de la lista de espera de esa actividad (ordenado por `position`) y se le asigna una ventana de reclamo configurable (`waitlistWindowMinutes`, por ejemplo 24h = 1440 minutos) para confirmar su inscripción antes de expirar.
 
 ---
 

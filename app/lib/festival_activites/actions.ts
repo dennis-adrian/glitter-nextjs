@@ -31,12 +31,14 @@ import {
 	users,
 } from "@/db/schema";
 import { deleteFile } from "@/app/lib/uploadthing/actions";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
 import {
 	and,
 	asc,
 	count,
 	eq,
+	gt,
 	isNotNull,
 	isNull,
 	lt,
@@ -97,6 +99,11 @@ export const fetchActivityVariantVotes = async (variantId: number) => {
 export const addFestivalActivityVote = async (
 	vote: NewFestivalActivityVote,
 ) => {
+	const currentUser = await getCurrentUserProfile();
+	if (!currentUser) {
+		throw new Error("Usuario no autenticado.");
+	}
+
 	if (vote.votableType === "stand" && !vote.standId) {
 		return {
 			success: false,
@@ -116,7 +123,7 @@ export const addFestivalActivityVote = async (
 			const existingVote = await tx.query.festivalActivityVotes.findFirst({
 				where: and(
 					eq(festivalActivityVotes.activityVariantId, vote.activityVariantId),
-					eq(festivalActivityVotes.voterId, vote.voterId),
+					eq(festivalActivityVotes.voterId, currentUser.id),
 				),
 			});
 
@@ -126,11 +133,20 @@ export const addFestivalActivityVote = async (
 				);
 			}
 
-			await tx.insert(festivalActivityVotes).values(vote);
+			await tx.insert(festivalActivityVotes).values({
+				...vote,
+				voterId: currentUser.id,
+			});
 		});
 	} catch (error) {
 		console.error("Error adding festival activity vote", error);
 		if (error instanceof Error) {
+			if (error.message === "Usuario no autenticado.") {
+				return {
+					success: false,
+					message: error.message,
+				};
+			}
 			if (
 				error.message ===
 				"Ya tienes un voto registrado. No puedes votar nuevamente."
@@ -148,7 +164,7 @@ export const addFestivalActivityVote = async (
 		};
 	}
 
-	revalidatePath(`/profiles/${vote.voterId}`);
+	revalidatePath(`/profiles/${currentUser.id}`);
 
 	return {
 		success: true,
@@ -210,8 +226,8 @@ export async function enrollInActivity(
 			.filter((c): c is UserCategory => c !== null);
 
 		if (
-			derivedAcceptedCategories.length > 0 &&
-			!derivedAcceptedCategories.includes(forProfile.category)
+			dbDetails.category !== null &&
+			dbDetails.category !== forProfile.category
 		) {
 			return {
 				success: false,
@@ -243,14 +259,9 @@ export async function enrollInActivity(
 							message: "Ya estás inscrito en esta actividad",
 						};
 					}
-					// Was previously removed (e.g. promoted from waitlist) — reactivate
-					await tx
-						.update(festivalActivityParticipants)
-						.set({ removedAt: null, updatedAt: new Date() })
-						.where(eq(festivalActivityParticipants.id, existingInTx.id));
 					return {
-						success: true,
-						message: "Inscripción realizada correctamente",
+						success: false,
+						message: "No puedes re-inscribirte después de haber sido eliminado",
 					};
 				}
 
@@ -277,6 +288,7 @@ export async function enrollInActivity(
 						.where(eq(festivalActivityParticipants.detailsId, detailsId));
 
 					if (totalCount >= participationLimit) {
+						const now = new Date();
 						const [waitlistEntry] = await tx
 							.select({ id: festivalActivityWaitlist.id })
 							.from(festivalActivityWaitlist)
@@ -285,6 +297,8 @@ export async function enrollInActivity(
 									eq(festivalActivityWaitlist.activityId, dbActivity.id),
 									eq(festivalActivityWaitlist.userId, forProfile.id),
 									isNotNull(festivalActivityWaitlist.notifiedAt),
+									eq(festivalActivityWaitlist.notifiedForDetailId, detailsId),
+									gt(festivalActivityWaitlist.expiresAt, now),
 								),
 							)
 							.limit(1);
@@ -550,6 +564,15 @@ export async function addFestivalActivityParticipantProof(
 
 	const proofType =
 		participation.activityDetail?.festivalActivity?.proofType ?? null;
+	const proofUploadLimitDate =
+		participation.activityDetail?.festivalActivity?.proofUploadLimitDate ?? null;
+
+	if (proofUploadLimitDate && new Date() > new Date(proofUploadLimitDate)) {
+		return {
+			success: false,
+			message: "El período de subida de pruebas ha finalizado",
+		};
+	}
 
 	if (proofType === null) {
 		return {
@@ -718,7 +741,8 @@ export async function joinActivityWaitlist(
 				(p) => p.removedAt === null,
 			);
 			return (
-				!detail.participationLimit ||
+				detail.participationLimit !== null &&
+				detail.participationLimit !== undefined &&
 				activeParticipants.length >= detail.participationLimit
 			);
 		});
@@ -827,65 +851,82 @@ export async function promoteFromWaitlist(
 			.innerJoin(festivals, eq(festivals.id, festivalActivities.festivalId))
 			.where(eq(festivalActivityDetails.id, freedVariantId));
 
-		if (!variant || !variant.waitlistWindowMinutes) return;
+		if (!variant || variant.waitlistWindowMinutes == null) return;
+		const waitlistWindowMinutes = variant.waitlistWindowMinutes;
 
-		// Find first eligible waitlisted user (category-aware, skip those already in active window)
-		const waitlistQuery = db
-			.select({
-				id: festivalActivityWaitlist.id,
-				userId: festivalActivityWaitlist.userId,
-				userEmail: users.email,
-				userDisplayName: users.displayName,
-				userFirstName: users.firstName,
-				userLastName: users.lastName,
-			})
-			.from(festivalActivityWaitlist)
-			.innerJoin(users, eq(users.id, festivalActivityWaitlist.userId))
-			.where(
-				and(
-					eq(festivalActivityWaitlist.activityId, activityId),
-					isNull(festivalActivityWaitlist.notifiedAt),
-					variant.category ? eq(users.category, variant.category) : undefined,
-				),
-			)
-			.orderBy(asc(festivalActivityWaitlist.position))
-			.limit(1);
+		await db.transaction(async (tx) => {
+			const notifiedAt = new Date();
+			const expiresAt = new Date(Date.now() + waitlistWindowMinutes * 60 * 1000);
 
-		const [nextUser] = await waitlistQuery;
+			const claimResult = await tx.execute(
+				sql`
+					WITH next_entry AS (
+						SELECT ${festivalActivityWaitlist.id} AS id
+						FROM ${festivalActivityWaitlist}
+						INNER JOIN ${users}
+							ON ${users.id} = ${festivalActivityWaitlist.userId}
+						WHERE ${festivalActivityWaitlist.activityId} = ${activityId}
+							AND ${festivalActivityWaitlist.notifiedAt} IS NULL
+							${variant.category
+								? sql`AND ${users.category} = ${variant.category}`
+								: sql``}
+						ORDER BY ${festivalActivityWaitlist.position} ASC
+						LIMIT 1
+						FOR UPDATE SKIP LOCKED
+					)
+					UPDATE ${festivalActivityWaitlist}
+					SET
+						${festivalActivityWaitlist.notifiedAt} = ${notifiedAt},
+						${festivalActivityWaitlist.expiresAt} = ${expiresAt},
+						${festivalActivityWaitlist.notifiedForDetailId} = ${freedVariantId},
+						${festivalActivityWaitlist.updatedAt} = ${notifiedAt}
+					FROM next_entry
+					WHERE ${festivalActivityWaitlist.id} = next_entry.id
+					RETURNING
+						${festivalActivityWaitlist.id} AS id,
+						${festivalActivityWaitlist.userId} AS "userId"
+				`,
+			);
 
-		if (!nextUser) return;
+			const claimedEntry = claimResult.rows[0] as
+				| { id: number; userId: number }
+				| undefined;
+			if (!claimedEntry) return;
 
-		const expiresAt = new Date(
-			Date.now() + variant.waitlistWindowMinutes * 60 * 1000,
-		);
+			const [nextUser] = await tx
+				.select({
+					userEmail: users.email,
+					userDisplayName: users.displayName,
+					userFirstName: users.firstName,
+					userLastName: users.lastName,
+				})
+				.from(users)
+				.where(eq(users.id, claimedEntry.userId))
+				.limit(1);
 
-		await db
-			.update(festivalActivityWaitlist)
-			.set({
-				notifiedAt: new Date(),
-				expiresAt,
-				notifiedForDetailId: freedVariantId,
-				updatedAt: new Date(),
-			})
-			.where(eq(festivalActivityWaitlist.id, nextUser.id));
+			if (!nextUser) {
+				throw new Error("Claimed waitlist user not found");
+			}
 
-		const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-		const activityUrl = `${baseUrl}/profiles/${nextUser.userId}/festivals/${variant.festivalId}/activity/${activityId}`;
+			const baseUrl =
+				process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+			const activityUrl = `${baseUrl}/profiles/${claimedEntry.userId}/festivals/${variant.festivalId}/activity/${activityId}`;
 
-		await sendEmail({
-			from: "Actividades del Festival <no-reply@productoraglitter.com>",
-			to: [nextUser.userEmail],
-			subject: `Tenés un cupo disponible en ${variant.activityName}`,
-			react: ActivityWaitlistInvitationEmail({
-				userDisplayName: nextUser.userDisplayName,
-				userFirstName: nextUser.userFirstName,
-				userLastName: nextUser.userLastName,
-				activityName: variant.activityName,
-				festivalName: variant.festivalName,
-				festivalType: variant.festivalType,
-				expiresAt,
-				activityUrl,
-			}),
+			await sendEmail({
+				from: "Actividades del Festival <no-reply@productoraglitter.com>",
+				to: [nextUser.userEmail],
+				subject: `Tenés un cupo disponible en ${variant.activityName}`,
+				react: ActivityWaitlistInvitationEmail({
+					userDisplayName: nextUser.userDisplayName,
+					userFirstName: nextUser.userFirstName,
+					userLastName: nextUser.userLastName,
+					activityName: variant.activityName,
+					festivalName: variant.festivalName,
+					festivalType: variant.festivalType,
+					expiresAt,
+					activityUrl,
+				}),
+			});
 		});
 	} catch (error) {
 		console.error("Error promoting from waitlist", error);
@@ -915,7 +956,11 @@ export async function enrollFromWaitlistInvitation(
 			};
 		}
 
-		if (!entry.notifiedAt || !entry.notifiedForDetailId) {
+		const invitationExpired = entry.expiresAt
+			? new Date(entry.expiresAt).getTime() <= Date.now()
+			: false;
+
+		if (!entry.notifiedAt || !entry.notifiedForDetailId || invitationExpired) {
 			return {
 				success: false,
 				message: "No tenés una invitación activa para inscribirte",
