@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { ChevronRight, Clock } from "lucide-react";
+import { ChevronRight, Clock, Hourglass } from "lucide-react";
 
 import { BaseProfile } from "@/app/api/users/definitions";
 import Heading from "@/app/components/atoms/heading";
@@ -33,7 +33,7 @@ export default function FestivalActivityCard({
 	const theme = getActivityTheme(index);
 	const enrollment = getEnrollmentInfo(activity, forProfile.id);
 	const enrolledConfig = enrollment.isEnrolled
-		? getEnrolledConfig(activity, forProfile.id, enrollment.hasUploadedProof)
+		? getEnrolledConfig(activity, forProfile.id, enrollment.proofDisplayState)
 		: null;
 
 	return (
@@ -65,7 +65,9 @@ export default function FestivalActivityCard({
 				<div className="p-6 pl-10 space-y-4">
 					<div className="flex items-start justify-between">
 						<ActivityTypeBadge theme={theme} activityType={activity.type} />
-						{enrollment.isEnrolled && <EnrolledBadge theme={theme} />}
+						{enrollment.isEnrolled && !enrollment.isRemoved && (
+							<EnrolledBadge theme={theme} />
+						)}
 					</div>
 
 					{/* Title */}
@@ -90,7 +92,13 @@ export default function FestivalActivityCard({
 						</p>
 					)}
 
-					{enrollment.isEnrolled && enrolledConfig ? (
+					{enrollment.isEnrolled && enrollment.isRemoved ? (
+						<div className="mt-2 border rounded-md p-3 text-destructive bg-destructive-50">
+							<p className="text-sm font-medium text-destructive">
+								Ya no podés participar en esta actividad
+							</p>
+						</div>
+					) : enrollment.isEnrolled && enrolledConfig ? (
 						<>
 							{enrolledConfig.isPending && (
 								<PendingActionNotice enrolledConfig={enrolledConfig} />
@@ -136,6 +144,12 @@ export default function FestivalActivityCard({
 								activityId={activity.id}
 								forProfile={forProfile}
 								theme={theme}
+								proofType={activity.proofType}
+								proofDisplayState={enrollment.proofDisplayState}
+								adminFeedback={enrollment.adminFeedback}
+								existingPromoHighlight={enrollment.existingPromoHighlight}
+								existingPromoDescription={enrollment.existingPromoDescription}
+								existingPromoConditions={enrollment.existingPromoConditions}
 							/>
 						</>
 					) : (
@@ -143,6 +157,23 @@ export default function FestivalActivityCard({
 							{/* Registration deadline stamp */}
 							{activity.registrationEndDate && (
 								<RegistrationDeadlineStamp theme={theme} activity={activity} />
+							)}
+
+							{/* Waitlist status badge */}
+							{!enrollment.isEnrolled && enrollment.waitlistEntry && (
+								<div className="flex items-center gap-2 text-sm rounded-md border border-amber-200 bg-amber-50 text-amber-800 px-3 py-2">
+									<Hourglass className="w-3 h-3 shrink-0" />
+									{enrollment.waitlistEntry.notifiedAt &&
+									enrollment.waitlistEntry.expiresAt &&
+									new Date() < new Date(enrollment.waitlistEntry.expiresAt) ? (
+										<p className="font-medium">¡Tenés un cupo disponible!</p>
+									) : (
+										<p>
+											Estás en la lista de espera en la posición{" "}
+											<strong>#{enrollment.waitlistEntry.position}</strong>
+										</p>
+									)}
+								</div>
 							)}
 
 							{/* CTA for unenrolled users */}
@@ -161,7 +192,9 @@ export default function FestivalActivityCard({
 									<Link
 										href={`/profiles/${forProfile.id}/festivals/${activity.festivalId}/activity/${activity.id}`}
 									>
-										Participar
+										{!enrollment.isEnrolled && enrollment.waitlistEntry
+											? "Ver estado"
+											: "Participar"}
 										<ChevronRight className="w-5 h-5 ml-1" />
 									</Link>
 								</Button>

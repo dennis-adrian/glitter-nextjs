@@ -20,12 +20,15 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
+import ConsentFormField from "../molecules/consent-form-field";
 
 const FormSchema = z.object({
-	consent: z.boolean().refine((val) => val === true, {
-		error:
-			"¡Si no leíste toda la información vuelve y léela que es importante!",
-	}),
+	consent: z
+		.boolean()
+		.refine(
+			(val) => val === true,
+			"¡Si no leíste toda la información volvé y leela que es importante!",
+		),
 });
 
 export default function TermsForm({
@@ -81,29 +84,12 @@ export default function TermsForm({
 				<FormField
 					control={form.control}
 					name="consent"
-					render={({ field }) => (
-						<FormItem className="rounded-md border p-4">
-							<div className="flex flex-row items-start space-x-3 space-y-0">
-								<FormControl>
-									<Checkbox
-										checked={field.value}
-										onCheckedChange={field.onChange}
-									/>
-								</FormControl>
-								<div className="space-y-1 leading-none">
-									<FormLabel>
-										Acepto los términos y condiciones para participar en el
-										festival.
-									</FormLabel>
-									<FormDescription>
-										Si llegaste hasta aquí y estas de acuerdo con todas las
-										normas anteriores, acepta los términos y condiciones y dale
-										clic al botón.
-									</FormDescription>
-								</div>
-							</div>
-							<FormMessage />
-						</FormItem>
+					render={() => (
+						<ConsentFormField
+							name="consent"
+							label="Acepto los términos y condiciones para participar en el festival"
+							description="Si llegaste hasta aquí y estas de acuerdo con todas las normas anteriores, acepta los términos y condiciones y dale clic al botón"
+						/>
 					)}
 				/>
 				<div className="flex flex-col sm:flex-row gap-4">

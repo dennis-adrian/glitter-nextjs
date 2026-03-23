@@ -95,7 +95,7 @@ export default async function ParticipantDashboardPage() {
 			)}
 
 			<div className="flex flex-col gap-6 mt-4">
-				{profileEnrollment && activeFestival && (
+				{profileEnrollment && activeParticipation && activeFestival && (
 					<>
 						<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
 							<div className="flex flex-col gap-2 md:gap-3">
@@ -109,10 +109,12 @@ export default async function ParticipantDashboardPage() {
 							</div>
 						</div>
 
-						<FestivalActivities
-							festivalId={activeFestival.id}
-							forProfile={currentProfile}
-						/>
+						{activeParticipation?.reservation.status === "accepted" && (
+							<FestivalActivities
+								festivalId={activeFestival.id}
+								forProfile={currentProfile}
+							/>
+						)}
 					</>
 				)}
 

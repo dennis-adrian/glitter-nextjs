@@ -17,4 +17,5 @@ export type EnrolledConfig = {
 	ctaType: "upload" | "link";
 	deadlineDate: Date | null;
 	isPending: boolean;
+	isDestructive?: boolean;
 };

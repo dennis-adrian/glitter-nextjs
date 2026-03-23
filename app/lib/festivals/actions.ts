@@ -337,6 +337,7 @@ export async function fetchFestivalActivityForReview(
 			),
 			with: {
 				details: {
+					orderBy: (details, { asc }) => [asc(details.id)],
 					with: {
 						participants: {
 							with: {
@@ -392,6 +393,7 @@ export async function fetchFestivalActivitiesByFestivalId(
 						votes: true,
 					},
 				},
+				waitlistEntries: { with: { user: true } },
 			},
 		})) as FestivalActivityWithDetailsAndParticipants[];
 	} catch (error) {
@@ -498,6 +500,7 @@ export async function fetchFestival({
 								votes: true,
 							},
 						},
+						waitlistEntries: { with: { user: true } },
 					},
 				},
 			},

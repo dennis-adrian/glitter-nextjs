@@ -1,7 +1,5 @@
 import Image from "next/image";
 
-import { DateTime } from "luxon";
-
 import { BaseProfile } from "@/app/api/users/definitions";
 import Heading from "@/app/components/atoms/heading";
 import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
@@ -32,8 +30,9 @@ export default function PassportActivityPage({
 		<div className="flex flex-col gap-4">
 			<Heading>{activity.name}</Heading>
 			<p className="text-sm md:text-base">
-				La Carrera de Sellos es una actividad en la cual incentivamos al público
-				asistente del evento a visitar distintos stands y coleccionar sellos.
+				La Carrera de Sellos es una actividad que incentiva al público del
+				evento a visitar distintos stands y conocer los productos de los
+				expositores mediante la colección de sellos.
 			</p>
 
 			{activity.promotionalArtUrl && (
@@ -53,6 +52,7 @@ export default function PassportActivityPage({
 					</div>
 				</div>
 			)}
+
 			<div className="flex flex-col gap-3">
 				<Heading level={2}>¿En qué consiste la actividad?</Heading>
 				<p className="text-sm md:text-base">
@@ -83,6 +83,7 @@ export default function PassportActivityPage({
 					mencionadas a continuación:
 				</p>
 			</div>
+
 			<div className="flex flex-col gap-3">
 				<Heading level={2}>Condiciones para participar de la actividad</Heading>
 				<ol className="ml-2 list-decimal list-inside space-y-2 text-sm md:text-base">
@@ -130,13 +131,7 @@ export default function PassportActivityPage({
 					Glitter al ingresar al festival. Sólo habrá 100 unidades disponibles.
 				</p>
 			</div>
-			<div className="bg-amber-50 border border-amber-100 rounded-md p-4 mt-4 text-amber-800">
-				<p className="text-sm md:text-base">
-					Una vez inscrito a la actividad, el participante se compromete a
-					cumplir con todas estas condiciones. En caso de incumplimiento, podría
-					perder el derecho a participar en futuros eventos y/o actividades.
-				</p>
-			</div>
+
 			<EnrollRedirectButton
 				currentProfile={currentProfile}
 				forProfile={forProfile}

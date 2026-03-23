@@ -3,6 +3,7 @@ import { BaseProfile } from "@/app/api/users/definitions";
 import EnrollRedirectButton from "@/app/components/festivals/festival_activities/enroll-redirect-button";
 import BestStandActivityPage from "@/app/components/pages/festival_activities/best-stand-activity";
 import BestStandActivitySkeleton from "@/app/components/pages/festival_activities/best-stand-activity-skeleton";
+import CouponBookActivityPage from "@/app/components/pages/festival_activities/coupon-book-activity";
 import FestivalStickerActivityPage from "@/app/components/pages/festival_activities/festival-sticker-activity";
 import PassportActivityPage from "@/app/components/pages/festival_activities/passport-activity";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
@@ -52,6 +53,19 @@ export default async function ParticipantsActivityPage({
 		return (
 			<div className="container p-3 md:p-6">
 				<PassportActivityPage
+					activity={activity}
+					currentProfile={currentProfile}
+					forProfile={forProfile}
+					festivalId={festivalId}
+				/>
+			</div>
+		);
+	}
+
+	if (activity.type === "coupon_book") {
+		return (
+			<div className="container p-3 md:p-6">
+				<CouponBookActivityPage
 					activity={activity}
 					currentProfile={currentProfile}
 					forProfile={forProfile}
@@ -240,13 +254,6 @@ export default async function ParticipantsActivityPage({
 						responsabilidad de la organización del festival.
 					</li>
 				</ul>
-			</div>
-			<div className="bg-amber-50 border border-amber-100 rounded-md p-4 mt-4 text-amber-800">
-				<p className="text-sm">
-					Una vez inscrito a la actividad, el ilustrador se compromete a cumplir
-					con todas estas condiciones. En caso de incumplimiento, el ilustrador
-					podría perder el derecho a participar en futuros eventos.
-				</p>
 			</div>
 			<EnrollRedirectButton
 				currentProfile={currentProfile}

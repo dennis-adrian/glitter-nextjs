@@ -1,0 +1,3 @@
+-- Backfill so CHECK can be applied (PRD: limit date required when proof is required)
+UPDATE "festival_activities" SET "proof_upload_limit_date" = "registration_end_date" WHERE "proof_type" IS NOT NULL AND "proof_upload_limit_date" IS NULL;--> statement-breakpoint
+ALTER TABLE "festival_activities" ADD CONSTRAINT "proof_upload_limit_required" CHECK (("festival_activities"."proof_type" IS NULL) OR ("festival_activities"."proof_upload_limit_date" IS NOT NULL));
