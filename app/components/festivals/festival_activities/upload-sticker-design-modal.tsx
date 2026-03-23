@@ -20,10 +20,11 @@ import {
 	DrawerDialogTrigger,
 } from "@/app/components/ui/drawer-dialog";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
-import { addFestivalActivityParticipantProof } from "@/app/lib/festival_sectors/actions";
+import { addFestivalActivityParticipantProof } from "@/app/lib/festival_activites/actions";
 
 type UploadStickerDesignModalProps = {
 	participationId: number;
+	forProfileId: number;
 	maxFiles?: number;
 	triggerLabel?: string;
 	triggerClassName?: string;
@@ -31,6 +32,7 @@ type UploadStickerDesignModalProps = {
 
 export default function UploadStickerDesignModal({
 	participationId,
+	forProfileId,
 	maxFiles: rawMaxFiles = 5,
 	triggerLabel = "Subir imagen",
 	triggerClassName,
@@ -76,6 +78,7 @@ export default function UploadStickerDesignModal({
 					<TryAgainForm
 						imageUrls={uploadedFiles.map((file) => file.imageUrl)}
 						participationId={participationId}
+						forProfileId={forProfileId}
 						onSuccess={() => {
 							setInsertSuccess(true);
 							setInsertError(false);
@@ -124,6 +127,7 @@ export default function UploadStickerDesignModal({
 					const res = await addFestivalActivityParticipantProof(
 						participationId,
 						files.map((file) => file.imageUrl),
+						forProfileId,
 					);
 					if (res.success) {
 						toast.success(res.message);

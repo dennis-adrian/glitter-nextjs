@@ -1,5 +1,9 @@
+import Link from "next/link";
+import { PlusIcon } from "lucide-react";
+
 import ActivityDetails from "@/app/dashboard/festivals/[id]/festival_activities/activity-details";
 import { fetchFullFestivalById } from "@/app/lib/festival_sectors/actions";
+import { Button } from "@/app/components/ui/button";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
@@ -28,19 +32,41 @@ export default async function Page({ params }: FestivalActivitiesPageProps) {
 	if (festival.festivalActivities.length === 0) {
 		return (
 			<div className="container p-4 md:p-6">
-				<h1 className="mb-2 text-2xl font-bold md:text-3xl">
-					Actividades del festival
-				</h1>
-				<p>No hay actividades para este festival</p>
+				<div className="flex items-center justify-between mb-4">
+					<h1 className="text-2xl font-bold md:text-3xl">
+						Actividades del festival
+					</h1>
+					<Button asChild size="sm">
+						<Link
+							href={`/dashboard/festivals/${festivalId}/festival_activities/new`}
+						>
+							<PlusIcon className="w-4 h-4 mr-1" />
+							Nueva actividad
+						</Link>
+					</Button>
+				</div>
+				<p className="text-muted-foreground">
+					No hay actividades para este festival
+				</p>
 			</div>
 		);
 	}
 
 	return (
 		<div className="container p-4 md:p-6">
-			<h1 className="mb-2 text-2xl font-bold md:text-3xl">
-				Actividades del festival
-			</h1>
+			<div className="flex items-center justify-between mb-4">
+				<h1 className="text-2xl font-bold md:text-3xl">
+					Actividades del festival
+				</h1>
+				<Button asChild size="sm">
+					<Link
+						href={`/dashboard/festivals/${festivalId}/festival_activities/new`}
+					>
+						<PlusIcon className="w-4 h-4 mr-1" />
+						Nueva actividad
+					</Link>
+				</Button>
+			</div>
 			{festival.festivalActivities.map((activity) => (
 				<div
 					key={activity.id}

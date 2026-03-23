@@ -1,0 +1,3 @@
+ALTER TABLE "festival_activity_waitlist" ADD CONSTRAINT "festival_activity_waitlist_activity_id_position_unique" UNIQUE("activity_id","position");--> statement-breakpoint
+ALTER TABLE "festival_activities" ADD CONSTRAINT "festival_activities_waitlist_window_minutes_positive" CHECK ("festival_activities"."waitlist_window_minutes" IS NULL OR "festival_activities"."waitlist_window_minutes" > 0);--> statement-breakpoint
+ALTER TABLE "festival_activity_waitlist" ADD CONSTRAINT "festival_activity_waitlist_position_check" CHECK ("festival_activity_waitlist"."position" > 0);

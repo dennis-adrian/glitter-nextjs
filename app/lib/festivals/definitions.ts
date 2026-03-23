@@ -1,8 +1,8 @@
 "use server";
 
 import {
-  BaseProfile,
-  ProfileWithParticipationsAndRequests,
+	BaseProfile,
+	ProfileWithParticipationsAndRequests,
 } from "@/app/api/users/definitions";
 import { TicketWithVisitor } from "@/app/data/tickets/actions";
 import { FestivalSectorWithStands } from "@/app/lib/festival_sectors/definitions";
@@ -12,6 +12,7 @@ import {
 	festivalActivityParticipantProofs,
 	festivalActivityParticipants,
 	festivalActivityVotes,
+	festivalActivityWaitlist,
 	festivalDates,
 	festivals,
 	festivalSectors,
@@ -21,23 +22,30 @@ import {
 
 export type FestivalBase = typeof festivals.$inferSelect;
 type UserRequest = typeof userRequests.$inferSelect & {
-  user: ProfileWithParticipationsAndRequests;
+	user: ProfileWithParticipationsAndRequests;
 };
 export type Festival = FestivalBase & {
-  festivalDates: FestivalDate[];
-  userRequests: UserRequest[];
-  standReservations: (typeof standReservations.$inferSelect)[];
-  festivalSectors: FestivalSectorWithStands[];
+	festivalDates: FestivalDate[];
+	userRequests: UserRequest[];
+	standReservations: (typeof standReservations.$inferSelect)[];
+	festivalSectors: FestivalSectorWithStands[];
 };
 
 export type FullFestival = Festival & {
-  festivalActivities: (FestivalActivity & {
-    details: ActivityDetailsWithParticipants[];
-  })[];
+	festivalActivities: FestivalActivityWithDetailsAndParticipants[];
+};
+
+export type WaitlistEntry = typeof festivalActivityWaitlist.$inferSelect;
+
+export type WaitlistEntryWithUser = WaitlistEntry & {
+	user: BaseProfile;
+	status?: "waiting" | "invited" | "expired";
+	serverStatus?: "waiting" | "invited" | "expired";
 };
 
 export type FestivalActivityWithDetailsAndParticipants = FestivalActivity & {
-  details: ActivityDetailsWithParticipants[];
+	details: ActivityDetailsWithParticipants[];
+	waitlistEntries: WaitlistEntryWithUser[];
 };
 
 export type ParticipantWithUserAndProofs = FestivalActivityParticipant & {
@@ -54,32 +62,32 @@ export type ActivityDetailsWithParticipants = FestivalActivityDetail & {
 
 export type FestivalActivity = typeof festivalActivities.$inferSelect;
 export type FestivalActivityDetail =
-  typeof festivalActivityDetails.$inferSelect;
+	typeof festivalActivityDetails.$inferSelect;
 export type FestivalActivityParticipant =
-  typeof festivalActivityParticipants.$inferSelect;
+	typeof festivalActivityParticipants.$inferSelect;
 
 export type FestivalWithUserRequests = Omit<
-  Festival,
-  "standReservations" | "stands"
+	Festival,
+	"standReservations" | "stands"
 >;
 
 export type FestivalWithTicketsAndDates = FestivalBase & {
-  festivalDates: FestivalDate[];
-  tickets: TicketWithVisitor[];
+	festivalDates: FestivalDate[];
+	tickets: TicketWithVisitor[];
 };
 export type FestivalMapVersion = FestivalBase["mapsVersion"];
 
 export type FestivalDate = typeof festivalDates.$inferSelect;
 export type FestivalWithDates = FestivalBase & {
-  festivalDates: FestivalDate[];
+	festivalDates: FestivalDate[];
 };
 
 export type FestivalWithSectors = FestivalBase & {
-  festivalSectors: FestivalSectorWithStands[];
+	festivalSectors: FestivalSectorWithStands[];
 };
 
 export type FestivalWithDatesAndSectors = FestivalBase & {
-  festivalDates: FestivalDate[];
-  festivalSectors: FestivalSectorWithStands[];
+	festivalDates: FestivalDate[];
+	festivalSectors: FestivalSectorWithStands[];
 };
 export type FestivalSector = typeof festivalSectors.$inferSelect;

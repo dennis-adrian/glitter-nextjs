@@ -57,7 +57,7 @@ export default async function FestivalActivityBanner({
             <FileSpreadsheetIcon className="w-4 h-4 ml-2" />
           </RedirectButton>
           {participation && !hasUploadedProof && (
-            <UploadStickerDesignModal participationId={participation.id} />
+            <UploadStickerDesignModal participationId={participation.id} forProfileId={profile.id} />
           )}
         </div>
       </div>

@@ -1072,6 +1072,55 @@
       "when": 1773521111245,
       "tag": "0152_mute_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1773711448821,
+      "tag": "0153_stiff_gateway",
+      "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "7",
+      "when": 1773756722392,
+      "tag": "0154_fine_electro",
+      "breakpoints": true
+    },
+    {
+      "idx": 155,
+      "version": "7",
+      "when": 1773800416932,
+      "tag": "0155_ambiguous_rogue",
+      "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1773803133509,
+      "tag": "0156_light_iron_patriot",
+      "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1774124569517,
+      "tag": "0157_yellow_azazel",
+      "breakpoints": true
+    },
+    {
+      "idx": 158,
+      "version": "7",
+      "when": 1774151677117,
+      "tag": "0158_noisy_namor",
+      "breakpoints": true
+    },
+    {
+      "idx": 159,
+      "version": "7",
+      "when": 1774292564868,
+      "tag": "0159_wakeful_lucky_pierre",
+      "breakpoints": true
     }
   ]
 }

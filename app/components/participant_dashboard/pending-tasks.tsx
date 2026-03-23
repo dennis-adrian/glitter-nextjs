@@ -1,10 +1,22 @@
-import { AlertCircleIcon, ArrowRightIcon, CheckCircle2Icon } from "lucide-react";
+import {
+	AlertCircleIcon,
+	ArrowRightIcon,
+	CheckCircle2Icon,
+} from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/app/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
+import {
+	Card,
+	CardContent,
+	CardHeader,
+	CardTitle,
+} from "@/app/components/ui/card";
 import { Participation, ProfileType } from "@/app/api/users/definitions";
-import { FestivalActivity, FestivalWithDates } from "@/app/lib/festivals/definitions";
+import {
+	FestivalActivity,
+	FestivalWithDates,
+} from "@/app/lib/festivals/definitions";
 
 type Task = {
 	id: string;
@@ -35,8 +47,7 @@ function buildTasks(
 		tasks.push({
 			id: "payment",
 			title: "Subir comprobante de pago",
-			description:
-				"Tu reserva está esperando la verificación del pago.",
+			description: "Tu reserva está esperando la verificación del pago.",
 			href: activeFestival
 				? `/profiles/${profile.id}/festivals/${activeFestival.id}/reservations`
 				: "/my_participations",
@@ -76,7 +87,7 @@ function buildTasks(
 		}
 
 		// Proof upload window open
-		if (activity.requiresProof && activity.proofUploadLimitDate) {
+		if (activity.proofType && activity.proofUploadLimitDate) {
 			const deadline = new Date(activity.proofUploadLimitDate);
 			if (now <= deadline) {
 				tasks.push({
@@ -115,7 +126,7 @@ export default function PendingTasksList({
 			<CardContent className="px-5 md:px-6 pb-5">
 				{tasks.length === 0 ? (
 					<div className="flex flex-col items-center text-center gap-2 py-4">
-						<div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-100 to-green-200 flex items-center justify-center">
+						<div className="w-10 h-10 rounded-full bg-linear-to-br from-green-100 to-green-200 flex items-center justify-center">
 							<CheckCircle2Icon className="w-5 h-5 text-green-600" />
 						</div>
 						<p className="text-sm font-medium">¡Estás al día!</p>
@@ -152,8 +163,7 @@ export default function PendingTasksList({
 										className="px-0 h-auto mt-1 text-xs text-primary"
 									>
 										<Link href={task.href}>
-											Ir ahora{" "}
-											<ArrowRightIcon className="w-3 h-3 ml-1" />
+											Ir ahora <ArrowRightIcon className="w-3 h-3 ml-1" />
 										</Link>
 									</Button>
 								</div>

@@ -713,6 +713,16 @@ export const festivalActivityTypeEnum = pgEnum("festival_activity_type", [
 	"sticker_print",
 	"best_stand",
 	"festival_sticker",
+	"coupon_book",
+]);
+
+export const proofTypeEnum = pgEnum("proof_type", ["image", "text", "both"]);
+
+export const proofStatusEnum = pgEnum("proof_status", [
+	"pending_review",
+	"approved",
+	"rejected_resubmit",
+	"rejected_removed",
 ]);
 
 export const accessLevelEnum = pgEnum("access_level", [
@@ -720,28 +730,42 @@ export const accessLevelEnum = pgEnum("access_level", [
 	"festival_participants_only",
 ]);
 
-export const festivalActivities = pgTable("festival_activities", {
-	id: serial("id").primaryKey(),
-	name: text("name").notNull(),
-	description: text("description"),
-	registrationStartDate: timestamp("registration_start_date").notNull(),
-	registrationEndDate: timestamp("registration_end_date").notNull(),
-	promotionalArtUrl: text("promotional_art_url"),
-	festivalId: integer("festival_id")
-		.references(() => festivals.id, { onDelete: "cascade" })
-		.notNull(),
-	visitorsDescription: text("visitors_description"),
-	type: festivalActivityTypeEnum("type").default("stamp_passport").notNull(),
-	activityPrizeUrl: text("activity_prize_url"),
-	allowsVoting: boolean("allows_voting").default(false).notNull(),
-	votingStartDate: timestamp("voting_start_date"),
-	votingEndDate: timestamp("voting_end_date"),
-	requiresProof: boolean("requires_proof").default(false).notNull(),
-	proofUploadLimitDate: timestamp("proof_upload_limit_date"),
-	accessLevel: accessLevelEnum("access_level").default("public").notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const festivalActivities = pgTable(
+	"festival_activities",
+	{
+		id: serial("id").primaryKey(),
+		name: text("name").notNull(),
+		description: text("description"),
+		registrationStartDate: timestamp("registration_start_date").notNull(),
+		registrationEndDate: timestamp("registration_end_date").notNull(),
+		promotionalArtUrl: text("promotional_art_url"),
+		festivalId: integer("festival_id")
+			.references(() => festivals.id, { onDelete: "cascade" })
+			.notNull(),
+		visitorsDescription: text("visitors_description"),
+		type: festivalActivityTypeEnum("type").default("stamp_passport").notNull(),
+		activityPrizeUrl: text("activity_prize_url"),
+		allowsVoting: boolean("allows_voting").default(false).notNull(),
+		votingStartDate: timestamp("voting_start_date"),
+		votingEndDate: timestamp("voting_end_date"),
+		proofType: proofTypeEnum("proof_type"),
+		proofUploadLimitDate: timestamp("proof_upload_limit_date"),
+		accessLevel: accessLevelEnum("access_level").default("public").notNull(),
+		waitlistWindowMinutes: integer("waitlist_window_minutes"),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => [
+		check(
+			"proof_upload_limit_required",
+			sql`(${t.proofType} IS NULL) OR (${t.proofUploadLimitDate} IS NOT NULL)`,
+		),
+		check(
+			"festival_activities_waitlist_window_minutes_positive",
+			sql`${t.waitlistWindowMinutes} IS NULL OR ${t.waitlistWindowMinutes} > 0`,
+		),
+	],
+);
 export const festivalActivitiesRelations = relations(
 	festivalActivities,
 	({ one, many }) => ({
@@ -750,6 +774,7 @@ export const festivalActivitiesRelations = relations(
 			references: [festivals.id],
 		}),
 		details: many(festivalActivityDetails),
+		waitlistEntries: many(festivalActivityWaitlist),
 	}),
 );
 
@@ -787,6 +812,7 @@ export const festivalActivityParticipants = pgTable(
 		userId: integer("user_id")
 			.notNull()
 			.references(() => users.id, { onDelete: "cascade" }),
+		removedAt: timestamp("removed_at"),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
@@ -813,12 +839,19 @@ export const festivalActivityParticipantProofs = pgTable(
 	"festival_activity_participant_proofs",
 	{
 		id: serial("id").primaryKey(),
-		imageUrl: text("image_url").notNull(),
+		imageUrl: text("image_url"),
 		participationId: integer("participation_id")
 			.notNull()
 			.references(() => festivalActivityParticipants.id, {
 				onDelete: "cascade",
 			}),
+		promoHighlight: text("promo_highlight"),
+		promoDescription: text("promo_description"),
+		promoConditions: text("promo_conditions"),
+		proofStatus: proofStatusEnum("proof_status")
+			.default("pending_review")
+			.notNull(),
+		adminFeedback: text("admin_feedback"),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
@@ -887,6 +920,52 @@ export const festivalActivityVotesRelations = relations(
 		participant: one(festivalActivityParticipants, {
 			fields: [festivalActivityVotes.participantId],
 			references: [festivalActivityParticipants.id],
+		}),
+	}),
+);
+
+export const festivalActivityWaitlist = pgTable(
+	"festival_activity_waitlist",
+	{
+		id: serial("id").primaryKey(),
+		activityId: integer("activity_id")
+			.notNull()
+			.references(() => festivalActivities.id, { onDelete: "cascade" }),
+		userId: integer("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		position: integer("position").notNull(),
+		notifiedAt: timestamp("notified_at"),
+		expiresAt: timestamp("expires_at"),
+		notifiedForDetailId: integer("notified_for_detail_id").references(
+			() => festivalActivityDetails.id,
+		),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		unique().on(table.activityId, table.userId),
+		unique().on(table.activityId, table.position),
+		check(
+			"festival_activity_waitlist_position_check",
+			sql`${table.position} > 0`,
+		),
+	],
+);
+export const festivalActivityWaitlistRelations = relations(
+	festivalActivityWaitlist,
+	({ one }) => ({
+		activity: one(festivalActivities, {
+			fields: [festivalActivityWaitlist.activityId],
+			references: [festivalActivities.id],
+		}),
+		user: one(users, {
+			fields: [festivalActivityWaitlist.userId],
+			references: [users.id],
+		}),
+		notifiedForDetail: one(festivalActivityDetails, {
+			fields: [festivalActivityWaitlist.notifiedForDetailId],
+			references: [festivalActivityDetails.id],
 		}),
 	}),
 );

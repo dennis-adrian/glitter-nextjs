@@ -150,7 +150,7 @@ export function StandInfoCard({
 				toast.error(res.message);
 			}
 		} catch {
-			toast.error("No se pudo reservar el espacio temporalmente");
+			toast.error("No se pudo seleccionar el espacio");
 		} finally {
 			setIsSubmitting(false);
 		}
