@@ -23,6 +23,20 @@ export default function CouponBookActivityPage({
 	forProfile,
 	festivalId,
 }: CouponBookActivityPageProps) {
+	const DEFAULT_SLOTS_PER_VERSION = 26;
+	const details = activity.details ?? [];
+	const versionsCount = details.length;
+	const slotsPerVersion = details.map(
+		(detail) => detail.participationLimit ?? DEFAULT_SLOTS_PER_VERSION,
+	);
+	const hasUniformSlotsPerVersion =
+		slotsPerVersion.length > 0 &&
+		slotsPerVersion.every((slots) => slots === slotsPerVersion[0]);
+	const totalParticipants = slotsPerVersion.reduce(
+		(sum, slots) => sum + slots,
+		0,
+	);
+
 	const proofUploadLimitDate = activity.proofUploadLimitDate
 		? formatDate(activity.proofUploadLimitDate)
 		: null;
@@ -65,14 +79,22 @@ export default function CouponBookActivityPage({
 					cada día del evento.
 				</p>
 				<p className="text-sm md:text-base">
-					Habrán 2 versiones de la cuponera y cada una tendrá espacio para 26
-					participantes. Se imprimirán equitativamente y se repartirán
-					aleatoriamente al público. En total son 500 cuponeras de cada versión.
+					{versionsCount === 1
+						? "Habrá 1 versión"
+						: `Habrán ${versionsCount} versiones`}{" "}
+					de la cuponera y{" "}
+					{hasUniformSlotsPerVersion
+						? `${versionsCount === 1 ? "tendrá" : "cada una tendrá"} espacio para ${slotsPerVersion[0]} participantes`
+						: "cada una tendrá un límite de participantes definido por versión"}
+					. Se imprimirán equitativamente y se repartirán aleatoriamente al
+					público. En total son 500 cuponeras de cada versión.
 				</p>
 				<p className="text-sm md:text-base">
-					Aunque tenemos dos versiones de la cuponera, la elección de la versión
-					se hará de manera ordenada según el orden de inscripción, llenado
-					primero una antes de pasar a la otra.
+					Aunque tenemos{" "}
+					{versionsCount === 1 ? "1 versión" : `${versionsCount} versiones`} de
+					la cuponera, la elección de la versión se hará de manera ordenada
+					según el orden de inscripción, llenado primero una antes de pasar a la
+					otra.
 				</p>
 				<div>
 					<VariantImagesDisplay details={activity.details} />
@@ -93,6 +115,15 @@ export default function CouponBookActivityPage({
 				</p>
 			</div>
 
+			<section>
+				<Heading level={4}>Recomendación</Heading>
+				<p className="text-sm md:text-base">
+					Para evitar abusos con tu promoción, te recomendamos recortar y
+					quedarte con el cupón canjeado o marcarlo de alguna manera para que
+					sea claro que ese cupón ya fue utilizado y ya no tiene validez.
+				</p>
+			</section>
+
 			{proofUploadLimitDate && (
 				<div className="flex flex-col gap-3">
 					<Heading level={2}>
@@ -101,9 +132,12 @@ export default function CouponBookActivityPage({
 					<ol className="ml-2 list-decimal list-inside space-y-2 text-sm md:text-base">
 						<li>Tener una reserva confirmada en el festival.</li>
 						<li>
-							Inscribirse a la actividad con el botón de inscripción que se
-							encuentra al final de la página. El límite de inscripciones es de
-							52 participantes con 26 cupos por versión de cuponera.
+							encuentra al final de la página. El límite de inscripciones es de{" "}
+							{totalParticipants} participantes
+							{hasUniformSlotsPerVersion &&
+								slotsPerVersion[0] > 0 &&
+								` con ${slotsPerVersion[0]} cupos por versión de cuponera`}
+							. .
 						</li>
 						<li>
 							Cargar los detalles de tu promoción al sitio web hasta el{" "}
@@ -123,6 +157,11 @@ export default function CouponBookActivityPage({
 							. En caso de no cumplir con el plazo, serás removido o removida de
 							la actividad y se dará lugar al primer participante en la lista de
 							espera.
+						</li>
+						<li>
+							Cumplir con la promoción con todo el público asistente que tenga
+							un cupón válido y según las condiciones establecidas por el mismo
+							participante.
 						</li>
 						<li>
 							Cumplir todas las normas del evento según los términos y

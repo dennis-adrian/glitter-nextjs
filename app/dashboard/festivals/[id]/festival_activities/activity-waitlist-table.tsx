@@ -68,6 +68,8 @@ function NotifyWaitlistButton({
 			} else {
 				toast.error(result.message);
 			}
+		} catch {
+			toast.error("No se pudo enviar la notificación");
 		} finally {
 			pendingRef.current = false;
 			setIsLoading(false);
@@ -107,8 +109,7 @@ function buildColumns(festivalId: number): ColumnDef<WaitlistEntryWithUser>[] {
 						<Avatar className="w-7 h-7">
 							<AvatarImage
 								src={
-									user.imageUrl ||
-									"/img/placeholders/avatar-placeholder.png"
+									user.imageUrl || "/img/placeholders/avatar-placeholder.png"
 								}
 								alt={user.displayName || ""}
 							/>
@@ -137,9 +138,7 @@ function buildColumns(festivalId: number): ColumnDef<WaitlistEntryWithUser>[] {
 			cell: ({ row }) => {
 				const { expiresAt, notifiedAt } = row.original;
 				if (!notifiedAt || !expiresAt)
-					return (
-						<span className="text-muted-foreground">—</span>
-					);
+					return <span className="text-muted-foreground">—</span>;
 				return (
 					<span className="text-sm text-muted-foreground">
 						{new Date(expiresAt).toLocaleString("es-ES", {
@@ -181,10 +180,6 @@ export default function ActivityWaitlistTable({
 }: ActivityWaitlistTableProps) {
 	const columns = buildColumns(festivalId);
 	return (
-		<DataTable
-			columns={columns}
-			data={entries}
-			columnTitles={COLUMN_TITLES}
-		/>
+		<DataTable columns={columns} data={entries} columnTitles={COLUMN_TITLES} />
 	);
 }

@@ -35,8 +35,7 @@ export async function processExpiredWaitlistNotifications() {
 				}
 
 				const [updated] = await tx
-					.update(festivalActivityWaitlist)
-					.set({ expiresAt: null, updatedAt: new Date() })
+					.delete(festivalActivityWaitlist)
 					.where(
 						and(
 							eq(festivalActivityWaitlist.id, entry.id),

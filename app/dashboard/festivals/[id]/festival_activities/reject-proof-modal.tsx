@@ -54,18 +54,24 @@ export default function RejectProofModal({
 	const status = mode === "resubmit" ? "rejected_resubmit" : "rejected_removed";
 
 	const onSubmit = form.handleSubmit(async (data) => {
-		const result = await reviewActivityParticipantProof(
-			proofId,
-			status,
-			data.adminFeedback,
-		);
+		try {
+			const result = await reviewActivityParticipantProof(
+				proofId,
+				status,
+				data.adminFeedback,
+			);
 
-		if (result.success) {
+			if (!result.success) {
+				toast.error(result.message);
+				return;
+			}
+
 			toast.success(result.message);
+			form.reset();
 			setOpen(false);
 			onSuccess?.();
-		} else {
-			toast.error(result.message);
+		} catch (error) {
+			toast.error("No se pudo revisar la prueba. Intentá nuevamente.");
 		}
 	});
 

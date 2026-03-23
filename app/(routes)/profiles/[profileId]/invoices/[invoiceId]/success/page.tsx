@@ -1,7 +1,6 @@
 import Heading from "@/app/components/atoms/heading";
 import InvoicePaymentSuccess from "@/app/components/organisms/payments/invoice-payment-success";
 import { fetchInvoice } from "@/app/data/invoices/actions";
-import { fetchCartItemCount } from "@/app/lib/cart/actions";
 import { fetchFeaturedProducts } from "@/app/lib/products/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { CheckCircleIcon } from "lucide-react";
@@ -28,7 +27,7 @@ export default async function UserInvoicesPage(props: {
 
 	const invoicePromise = fetchInvoice(params.invoiceId);
 	const productsPromise = fetchFeaturedProducts();
-	const initialItemCount = await fetchCartItemCount();
+	const initialItemCount = 0;
 
 	return (
 		<div className="container p-3 md:p-6">

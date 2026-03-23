@@ -32,11 +32,12 @@ function selectCanonicalProof(participant: ParticipantWithDetail) {
 	if (!participant.proofs.length) return null;
 
 	const sortedByCreatedAtDesc = [...participant.proofs].sort(
-		(a, b) =>
-			new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+		(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
 	);
 	return (
-		sortedByCreatedAtDesc.find((proof) => proof.proofStatus === "pending_review") ??
+		sortedByCreatedAtDesc.find(
+			(proof) => proof.proofStatus === "pending_review",
+		) ??
 		sortedByCreatedAtDesc[0] ??
 		null
 	);
@@ -65,6 +66,8 @@ function ApproveProofButton({
 			} else {
 				toast.error(result.message);
 			}
+		} catch {
+			toast.error("No se pudo aprobar la prueba. Intentá nuevamente.");
 		} finally {
 			approvingRef.current = false;
 			setIsApproving(false);
@@ -190,7 +193,8 @@ function buildColumns(
 		{
 			id: "proofStatus",
 			header: "Estado",
-			accessorFn: (row) => selectCanonicalProof(row)?.proofStatus ?? "sin_prueba",
+			accessorFn: (row) =>
+				selectCanonicalProof(row)?.proofStatus ?? "sin_prueba",
 			cell: ({ row }) => {
 				const proof = selectCanonicalProof(row.original);
 				if (!proof) {
@@ -217,7 +221,13 @@ function buildColumns(
 			filterFn: (row, _, filterValue) => {
 				const status =
 					selectCanonicalProof(row.original)?.proofStatus ?? "sin_prueba";
-				return filterValue === "all" || status === filterValue;
+				const selected = Array.isArray(filterValue)
+					? (filterValue as string[])
+					: typeof filterValue === "string"
+						? [filterValue]
+						: [];
+				if (!selected.length || selected.includes("all")) return true;
+				return selected.includes(status);
 			},
 		},
 		...(showText
@@ -421,20 +431,22 @@ export default function ActivityProofsTable({
 								(proof?.promoHighlight ||
 									proof?.promoDescription ||
 									proof?.promoConditions) && (
-								<div className="pl-10 space-y-0.5">
-									{proof.promoHighlight && (
-										<p className="text-sm font-semibold">{proof.promoHighlight}</p>
-									)}
-									{proof.promoDescription && (
-										<p className="text-sm">{proof.promoDescription}</p>
-									)}
-									{proof.promoConditions && (
-										<p className="text-xs text-muted-foreground">
-											{proof.promoConditions}
-										</p>
-									)}
-								</div>
-							)}
+									<div className="pl-10 space-y-0.5">
+										{proof.promoHighlight && (
+											<p className="text-sm font-semibold">
+												{proof.promoHighlight}
+											</p>
+										)}
+										{proof.promoDescription && (
+											<p className="text-sm">{proof.promoDescription}</p>
+										)}
+										{proof.promoConditions && (
+											<p className="text-xs text-muted-foreground">
+												{proof.promoConditions}
+											</p>
+										)}
+									</div>
+								)}
 
 							{proof && (
 								<div className="flex items-center gap-2 pl-10 flex-wrap">
