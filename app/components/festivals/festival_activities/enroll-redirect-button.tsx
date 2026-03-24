@@ -37,7 +37,7 @@ import { Button } from "@/app/components/ui/button";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import ConsentFormField from "@/app/components/molecules/consent-form-field";
 import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert";
-import { InfoIcon } from "lucide-react";
+import { CheckCircle2Icon, InfoIcon } from "lucide-react";
 import { formatDate } from "@/app/lib/formatters";
 
 const FormSchema = z.object({
@@ -67,6 +67,10 @@ export default function EnrollRedirectButton({
 	const [isEnabled, setIsEnabled] = useState(false);
 	const [statusMessage, setStatusMessage] = useState("");
 	const [isPending, startTransition] = useTransition();
+	const [justEnrolled, setJustEnrolled] = useState(false);
+	const [newParticipationId, setNewParticipationId] = useState<number | null>(
+		null,
+	);
 	const router = useRouter();
 	const form = useForm({
 		resolver: zodResolver(FormSchema),
@@ -126,7 +130,8 @@ export default function EnrollRedirectButton({
 	}
 
 	const activityDetail =
-		activity.details.find((d) => !isActivityDetailFull(d)) ?? activity.details[0];
+		activity.details.find((d) => !isActivityDetailFull(d)) ??
+		activity.details[0];
 
 	const action = form.handleSubmit(async (data) => {
 		startTransition(async () => {
@@ -140,9 +145,20 @@ export default function EnrollRedirectButton({
 				);
 				if (result.success) {
 					toast.success(result.message);
-					router.push(
-						`/profiles/${forProfile.id}/festivals/${festivalId}/activity/enroll/success`,
-					);
+					const isCouponBook =
+						activity.proofType === "text" || activity.proofType === "both";
+					if (
+						isCouponBook &&
+						"participationId" in result &&
+						result.participationId
+					) {
+						setJustEnrolled(true);
+						setNewParticipationId(result.participationId);
+					} else {
+						router.push(
+							`/profiles/${forProfile.id}/festivals/${festivalId}/activity/enroll/success`,
+						);
+					}
 				} else {
 					toast.error(result.message);
 				}
@@ -331,6 +347,26 @@ export default function EnrollRedirectButton({
 				<p className="text-sm">
 					La actividad ya ha llegado al límite de inscripciones
 				</p>
+			</div>
+		);
+	}
+
+	if (justEnrolled && newParticipationId) {
+		return (
+			<div className="flex flex-col gap-4 rounded-md border border-emerald-200 bg-emerald-50 p-4">
+				<div className="flex items-center gap-2 text-emerald-800">
+					<CheckCircle2Icon className="w-5 h-5" />
+					<p className="text-sm font-medium">¡Inscripción exitosa!</p>
+				</div>
+				<p className="text-sm text-emerald-700">
+					Completá los detalles de tu promoción para finalizar tu participación.
+				</p>
+				<CouponBookProofModal
+					participationId={newParticipationId}
+					proofDisplayState="pending_proof"
+					defaultOpen
+					onSuccess={() => router.push("/")}
+				/>
 			</div>
 		);
 	}

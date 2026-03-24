@@ -26,6 +26,8 @@ type CouponBookProofModalProps = {
 	existingPromoConditions?: string | null;
 	triggerLabel?: string;
 	triggerClassName?: string;
+	defaultOpen?: boolean;
+	onSuccess?: () => void;
 };
 
 export default function CouponBookProofModal({
@@ -37,13 +39,15 @@ export default function CouponBookProofModal({
 	existingPromoConditions,
 	triggerLabel = "Cargar mi promoción",
 	triggerClassName,
+	defaultOpen,
+	onSuccess,
 }: CouponBookProofModalProps) {
 	const isDesktop = useMediaQuery("(min-width: 768px)");
-	const [open, setOpen] = useState(false);
+	const [open, setOpen] = useState(defaultOpen ?? false);
 
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
-			<DialogTrigger>
+			<DialogTrigger asChild>
 				<Button
 					className={cn(
 						"hover:text-white hover:bg-amber-700 w-full md:max-w-[280px] mx-auto",
@@ -70,7 +74,10 @@ export default function CouponBookProofModal({
 						existingPromoHighlight={existingPromoHighlight}
 						existingPromoDescription={existingPromoDescription}
 						existingPromoConditions={existingPromoConditions}
-						onSuccess={() => setOpen(false)}
+						onSuccess={() => {
+							setOpen(false);
+							onSuccess?.();
+						}}
 					/>
 				</div>
 			</DialogContent>
