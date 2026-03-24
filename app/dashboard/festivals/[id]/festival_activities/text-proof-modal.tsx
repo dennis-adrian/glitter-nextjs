@@ -15,12 +15,14 @@ import {
 
 type TextProofModalProps = {
 	participantName: string;
+	promoHighlight: string | null;
 	promoDescription: string | null;
 	promoConditions: string | null;
 };
 
 export default function TextProofModal({
 	participantName,
+	promoHighlight,
 	promoDescription,
 	promoConditions,
 }: TextProofModalProps) {
@@ -47,18 +49,24 @@ export default function TextProofModal({
 						Prueba de {participantName}
 					</DrawerDialogTitle>
 				</DrawerDialogHeader>
-				<div className="max-h-[60vh] overflow-y-auto space-y-4 p-1">
+				<div className="flex flex-col gap-2 p-1">
+					{promoHighlight && promoHighlight.trim() !== "" && (
+						<div>
+							<p className="text-xs font-medium text-muted-foreground">Promo</p>
+							<p className="text-sm whitespace-pre-wrap">{promoHighlight}</p>
+						</div>
+					)}
 					{promoDescription && promoDescription.trim() !== "" && (
 						<div>
-							<p className="text-xs font-medium text-muted-foreground mb-1">
-								Promoción
+							<p className="text-xs font-medium text-muted-foreground">
+								Detalle
 							</p>
 							<p className="text-sm whitespace-pre-wrap">{promoDescription}</p>
 						</div>
 					)}
 					{promoConditions && promoConditions.trim() !== "" && (
 						<div>
-							<p className="text-xs font-medium text-muted-foreground mb-1">
+							<p className="text-xs font-medium text-muted-foreground">
 								Condiciones
 							</p>
 							<p className="text-sm whitespace-pre-wrap">{promoConditions}</p>

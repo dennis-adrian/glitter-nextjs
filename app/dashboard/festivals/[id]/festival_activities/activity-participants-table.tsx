@@ -53,6 +53,7 @@ function ParticipantProofViewer({
 				/>
 				<TextProofModal
 					participantName={participantName}
+					promoHighlight={proof.promoHighlight}
 					promoDescription={proof.promoDescription}
 					promoConditions={proof.promoConditions}
 				/>
@@ -74,6 +75,7 @@ function ParticipantProofViewer({
 	return (
 		<TextProofModal
 			participantName={participantName}
+			promoHighlight={proof.promoHighlight}
 			promoDescription={proof.promoDescription}
 			promoConditions={proof.promoConditions}
 		/>
@@ -114,9 +116,7 @@ const PROOF_STATUS_BADGE: Record<string, { label: string; className: string }> =
 		},
 	};
 
-function proofStatusKey(
-	proof: ParticipantProof | undefined,
-) {
+function proofStatusKey(proof: ParticipantProof | undefined) {
 	return proof?.proofStatus ?? "sin_prueba";
 }
 
