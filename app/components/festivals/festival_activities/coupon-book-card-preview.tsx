@@ -91,7 +91,7 @@ export default function CouponBookCardPreview({
 							</FitText>
 							{promoDescription && (
 								<FitText
-									mode="single-line"
+									mode="multi-line"
 									minFontSizePx={9}
 									maxFontSizePx={14}
 									className="font-semibold leading-tight text-gray-700"
@@ -102,7 +102,7 @@ export default function CouponBookCardPreview({
 						</>
 					) : (
 						<FitText
-							mode="single-line"
+							mode="multi-line"
 							minFontSizePx={10}
 							maxFontSizePx={20}
 							className="font-black leading-tight text-gray-900"

@@ -9,6 +9,7 @@ import {
 } from "@/app/lib/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import VariantImagesDisplay from "@/app/components/pages/festival_activities/variant-images-display";
+import CouponBookCardPreview from "../../festivals/festival_activities/coupon-book-card-preview";
 
 type CouponBookActivityPageProps = {
 	currentProfile: BaseProfile;
@@ -109,6 +110,24 @@ export default function CouponBookActivityPage({
 					</p>
 				</div>
 				<p className="text-sm md:text-base">
+					Al momento de rellenar los datos de tu promoción, habrá una vista
+					previa de cómo se verá tu promoción en la cuponera.
+				</p>
+				<div className="my-2 flex flex-col justify-center items-center gap-1">
+					<CouponBookCardPreview
+						imageUrl="/img/logo/glitter-logo-dark-160x160.png"
+						participantName="Glitter"
+						standLabels={["A15"]}
+						sectorName="Teatro"
+						promoHighlight="3x2"
+						promoDescription="en stickers temáticos del festival"
+						promoConditions="y hasta agotar stock"
+					/>
+					<p className="text-xs md:text-sm text-muted-foreground text-center">
+						Ejemplo de la vista previa
+					</p>
+				</div>
+				<p className="text-sm md:text-base">
 					El objetivo de la actividad no es forzar a los participantes a crear
 					ofertas o promociones para el festival, si no dar más alcance a
 					quienes ya lo vienen haciendo desde pasadas ediciones o están
@@ -168,6 +187,21 @@ export default function CouponBookActivityPage({
 							. En caso de no cumplir con el plazo, serás removido o removida de
 							la actividad y se dará lugar al primer participante en la lista de
 							espera.
+						</li>
+						<li>
+							La promoción debe ser atractiva y llamativa para el público
+							asistente. Algunas ideas son:
+							<ul className="ml-3 list-disc list-inside leading-relaxed mt-1 text-sm md:text-base">
+								<li>2x1 en stickers seleccionados</li>
+								<li>
+									Combo de bebida de cortesía con la compra de un alimento
+									específico
+								</li>
+								<li>
+									Descuento de 10% del total de la compra si se llega a un monto
+									específico
+								</li>
+							</ul>
 						</li>
 						<li>
 							Cumplir con la promoción con todo el público asistente que tenga
