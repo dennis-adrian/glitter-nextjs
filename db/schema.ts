@@ -1138,9 +1138,14 @@ export const orderStatusEnum = pgEnum("order_status", [
 ]);
 export const orders = pgTable("orders", {
 	id: serial("id").primaryKey(),
-	userId: integer("user_id")
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
+	userId: integer("user_id").references(() => users.id, {
+		onDelete: "cascade",
+	}),
+	// Guest order fields (populated when userId is null)
+	guestName: text("guest_name"),
+	guestEmail: text("guest_email"),
+	guestPhone: text("guest_phone"),
+	guestOrderToken: text("guest_order_token").unique(),
 	orderDate: timestamp("order_date").defaultNow(),
 	status: orderStatusEnum("status").default("pending").notNull(),
 	totalAmount: numeric("total_amount", {
