@@ -1,7 +1,6 @@
-import { redirect } from "next/navigation";
-
 import OrderDeliveryInfo from "@/app/components/molecules/order-delivery-info";
 import CheckoutConfirmButton from "@/app/components/organisms/checkout/checkout-confirm-button";
+import { CheckoutEmptyCart } from "@/app/components/organisms/checkout/checkout-empty-cart";
 import type { CheckoutLineItem } from "@/app/components/organisms/checkout/checkout-line-item";
 import { CheckoutPageLayout } from "@/app/components/organisms/checkout/checkout-page-layout";
 import GuestCheckoutView from "@/app/components/organisms/checkout/guest-checkout-view";
@@ -23,7 +22,10 @@ export default async function CheckoutPage() {
 			"No se pudo cargar el carrito. Intentá de nuevo más tarde.",
 		);
 	}
-	if (!cart || cart.items.length === 0) redirect("/store");
+
+	if (!cart || cart.items.length === 0) {
+		return <CheckoutEmptyCart />;
+	}
 
 	const orderLines: CheckoutLineItem[] = cart.items.map((i) => ({
 		key: i.id,

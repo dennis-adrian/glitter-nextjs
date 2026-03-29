@@ -32,13 +32,9 @@ type GuestFormValues = z.infer<typeof GuestFormSchema>;
 
 type GuestCheckoutFormProps = {
 	guestItems: GuestCartItem[];
-	clearGuestCart: () => void;
 };
 
-export function GuestCheckoutForm({
-	guestItems,
-	clearGuestCart,
-}: GuestCheckoutFormProps) {
+export function GuestCheckoutForm({ guestItems }: GuestCheckoutFormProps) {
 	const router = useRouter();
 	const isSubmittingRef = useRef(false);
 	const [loading, setLoading] = useState(false);
@@ -65,7 +61,6 @@ export function GuestCheckoutForm({
 			);
 
 			if (result.success && result.orderId && result.guestOrderToken) {
-				clearGuestCart();
 				router.push(
 					`/orders/${result.orderId}/payment?token=${result.guestOrderToken}`,
 				);
