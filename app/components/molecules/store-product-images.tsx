@@ -289,6 +289,7 @@ export default function StoreProductImages({
 									src={imgUrl}
 									alt={`${productName} - Image ${idx + 1}`}
 									fill
+									sizes="500px 500px"
 									className="object-cover select-none"
 								/>
 							</div>
