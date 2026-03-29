@@ -13,7 +13,6 @@ import { OrderItemWithRelations } from "@/app/lib/orders/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
-import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import Image from "next/image";
 
 const ParamsSchema = z.object({
@@ -115,7 +114,7 @@ export default async function OrderPaymentPage(props: {
 								const imageUrl = mainImage?.imageUrl
 									? mainImage.imageUrl
 									: PLACEHOLDER_IMAGE_URLS["300"];
-								const unitPrice = getProductPriceAtPurchase(item.product);
+								const unitPrice = item.priceAtPurchase;
 
 								return (
 									<div key={item.id} className="flex gap-3 items-center">

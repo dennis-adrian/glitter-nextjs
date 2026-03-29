@@ -95,8 +95,7 @@ export default async function GuestOrderPage(props: {
 												{item.product.name}
 											</p>
 											<p className="text-xs text-muted-foreground">
-												{item.quantity} × Bs{" "}
-												{getProductPriceAtPurchase(item.product).toFixed(2)}
+												{item.quantity} × Bs {item.priceAtPurchase.toFixed(2)}
 											</p>
 											{item.product.isPreOrder && (
 												<span className="inline-flex items-center gap-1 text-xs text-amber-600 font-medium mt-0.5">

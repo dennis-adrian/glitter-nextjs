@@ -62,6 +62,8 @@ export default function PaymentProofUpload({
 					toast.error(
 						"Faltan datos para subir el comprobante. Recargá la página e intentá de nuevo.",
 					);
+					setIsUploading(false);
+					onUploading(false);
 					return;
 				}
 				res = await startGuestOrderPaymentUpload([selectedFile], {

@@ -29,16 +29,28 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
 	},
 	{
 		id: "customer",
-		accessorFn: (row) => row.customer.displayName,
+		accessorFn: (row) =>
+			row.customer?.displayName ?? row.guestName ?? "Invitado",
 		header: ({ column }) => (
 			<DataTableColumnHeader column={column} title={columnTitles.customer} />
 		),
 		cell: ({ row }) => {
+			const customer = row.original.customer;
+			if (!customer) {
+				return (
+					<div className="text-sm">
+						<p className="font-medium">{row.original.guestName ?? "Invitado"}</p>
+						<p className="text-muted-foreground text-xs">
+							{row.original.guestEmail ?? ""}
+						</p>
+					</div>
+				);
+			}
 			return (
 				<ProfileQuickViewInfo
 					showAdminControls
 					truncateEmail
-					profile={row.original.customer}
+					profile={customer}
 				/>
 			);
 		},
