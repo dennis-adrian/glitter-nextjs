@@ -23,6 +23,8 @@ export default async function FestivalActivityBanner({
 	if (!hasReservation) return null;
 
 	const festivalActivity = festival.festivalActivities[0];
+	if (!festivalActivity) return null;
+
 	const allParticipants = festivalActivity.details.flatMap(
 		(detail) => detail.participants,
 	);
@@ -40,7 +42,7 @@ export default async function FestivalActivityBanner({
 
 	if (isProfileInFestivalActivity) {
 		return (
-			<div className="flex flex-col mdflex-row justify-center items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 md:p-4 text-amber-800">
+			<div className="flex flex-col md:flex-row justify-center items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 md:p-4 text-amber-800">
 				<p className="text-sm">
 					Gracias por inscribirte en la actividad de{" "}
 					<strong>{festival.name}</strong>. Si no subiste el diseño de tu

@@ -1136,37 +1136,50 @@ export const orderStatusEnum = pgEnum("order_status", [
 	/** Order was cancelled either by the user or system */
 	"cancelled",
 ]);
-export const orders = pgTable("orders", {
-	id: serial("id").primaryKey(),
-	userId: integer("user_id").references(() => users.id, {
-		onDelete: "cascade",
-	}),
-	// Guest order fields (populated when userId is null)
-	guestName: text("guest_name"),
-	guestEmail: text("guest_email"),
-	guestPhone: text("guest_phone"),
-	guestOrderToken: text("guest_order_token").unique(),
-	orderDate: timestamp("order_date").defaultNow(),
-	status: orderStatusEnum("status").default("pending").notNull(),
-	totalAmount: numeric("total_amount", {
-		precision: 10,
-		scale: 2,
-		mode: "number",
-	}).notNull(),
-	paymentVoucherUrl: text("payment_voucher_url"),
-	voucherSubmittedAt: timestamp("voucher_submitted_at"),
-	paymentDueDate: timestamp("payment_due_date")
-		.notNull()
-		.default(sql`now() + interval '10 days'`),
-	paymentReminder1SentAt: timestamp("payment_reminder1_sent_at"),
-	paymentReminder2SentAt: timestamp("payment_reminder2_sent_at"),
-	paymentReminder3SentAt: timestamp("payment_reminder3_sent_at"),
-	paymentReminder1ClaimedAt: timestamp("payment_reminder1_claimed_at"),
-	paymentReminder2ClaimedAt: timestamp("payment_reminder2_claimed_at"),
-	paymentReminder3ClaimedAt: timestamp("payment_reminder3_claimed_at"),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const orders = pgTable(
+	"orders",
+	{
+		id: serial("id").primaryKey(),
+		userId: integer("user_id").references(() => users.id, {
+			onDelete: "cascade",
+		}),
+		// Guest order fields (populated when userId is null)
+		guestName: text("guest_name"),
+		guestEmail: text("guest_email"),
+		guestPhone: text("guest_phone"),
+		guestOrderToken: text("guest_order_token").unique(),
+		orderDate: timestamp("order_date").defaultNow(),
+		status: orderStatusEnum("status").default("pending").notNull(),
+		totalAmount: numeric("total_amount", {
+			precision: 10,
+			scale: 2,
+			mode: "number",
+		}).notNull(),
+		paymentVoucherUrl: text("payment_voucher_url"),
+		voucherSubmittedAt: timestamp("voucher_submitted_at"),
+		paymentDueDate: timestamp("payment_due_date")
+			.notNull()
+			.default(sql`now() + interval '10 days'`),
+		paymentReminder1SentAt: timestamp("payment_reminder1_sent_at"),
+		paymentReminder2SentAt: timestamp("payment_reminder2_sent_at"),
+		paymentReminder3SentAt: timestamp("payment_reminder3_sent_at"),
+		paymentReminder1ClaimedAt: timestamp("payment_reminder1_claimed_at"),
+		paymentReminder2ClaimedAt: timestamp("payment_reminder2_claimed_at"),
+		paymentReminder3ClaimedAt: timestamp("payment_reminder3_claimed_at"),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => [
+		check(
+			"orders_identity_check",
+			sql`(
+				(${t.userId} IS NOT NULL AND ${t.guestName} IS NULL AND ${t.guestEmail} IS NULL AND ${t.guestPhone} IS NULL AND ${t.guestOrderToken} IS NULL)
+				OR
+				(${t.userId} IS NULL AND length(trim(${t.guestName})) > 0 AND length(trim(${t.guestEmail})) > 0 AND length(trim(${t.guestPhone})) > 0 AND length(trim(${t.guestOrderToken})) > 0)
+			)`,
+		),
+	],
+);
 export const ordersRelations = relations(orders, ({ many, one }) => ({
 	orderItems: many(orderItems),
 	customer: one(users, {
