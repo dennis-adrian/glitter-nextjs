@@ -70,14 +70,15 @@ export function CartProvider({
 	const [guestItems, setGuestItems] = useState<GuestCartItem[]>([]);
 	const [guestCartHydrated, setGuestCartHydrated] = useState(false);
 
-	// Hydrate guest cart from localStorage after mount (client only)
+	// Hydrate guest cart from localStorage after mount (client only).
+	// When authenticated, skip localStorage but still mark hydrated so consumers never wait forever.
 	useEffect(() => {
 		if (!isAuthenticated) {
 			const items = readGuestCart();
 			setGuestItems(items);
 			setItemCount(items.reduce((sum, i) => sum + i.quantity, 0));
-			setGuestCartHydrated(true);
 		}
+		setGuestCartHydrated(true);
 	}, [isAuthenticated]);
 
 	const openCart = useCallback(() => setIsOpen(true), []);
@@ -122,18 +123,28 @@ export function CartProvider({
 	const updateGuestItemQuantity = useCallback(
 		(productId: number, quantity: number) => {
 			setGuestItems((prev) => {
+				const guestCartLine = prev.find((i) => i.productId === productId);
 				let updatedGuestItems: GuestCartItem[];
+
 				if (quantity <= 0) {
 					updatedGuestItems = prev.filter((i) => i.productId !== productId);
+				} else if (!guestCartLine) {
+					updatedGuestItems = prev;
 				} else {
-					updatedGuestItems = prev.map((i) =>
-						i.productId === productId
-							? {
-									...i,
-									quantity: Math.min(quantity, MAX_CART_LINE_QUANTITY),
-								}
-							: i,
+					const stockCap =
+						guestCartLine.product?.stock ?? MAX_CART_LINE_QUANTITY;
+					const clampedQty = Math.min(
+						quantity,
+						MAX_CART_LINE_QUANTITY,
+						stockCap,
 					);
+					if (clampedQty <= 0) {
+						updatedGuestItems = prev.filter((i) => i.productId !== productId);
+					} else {
+						updatedGuestItems = prev.map((i) =>
+							i.productId === productId ? { ...i, quantity: clampedQty } : i,
+						);
+					}
 				}
 				writeGuestCart(updatedGuestItems);
 				setItemCount(updatedGuestItems.reduce((sum, i) => sum + i.quantity, 0));
