@@ -13,19 +13,26 @@ export default function PaymentProofUpload({
 	onUploading,
 	endpoint = "reservationPayment",
 	submitLabel = "Confirmar pago",
+	uploadInput,
 }: {
 	voucherImageUrl?: string;
 	onUploadComplete: (imageUrl: string) => Promise<void> | void;
 	onUploading: (isUploading: boolean) => void;
-	endpoint?: "reservationPayment" | "storeOrderPayment";
+	endpoint?: "reservationPayment" | "storeOrderPayment" | "guestOrderPayment";
 	submitLabel?: string;
+	uploadInput?: Record<string, unknown>;
 }) {
 	const [selectedFile, setSelectedFile] = useState<File | null>(null);
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 	const [isUploading, setIsUploading] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
-	const { startUpload } = useUploadThing(endpoint);
+	const { startUpload: startReservationPaymentUpload } =
+		useUploadThing("reservationPayment");
+	const { startUpload: startStoreOrderPaymentUpload } =
+		useUploadThing("storeOrderPayment");
+	const { startUpload: startGuestOrderPaymentUpload } =
+		useUploadThing("guestOrderPayment");
 
 	useEffect(() => {
 		return () => {
@@ -47,7 +54,25 @@ export default function PaymentProofUpload({
 		setIsUploading(true);
 		onUploading(true);
 		try {
-			const res = await startUpload([selectedFile]);
+			let res;
+			if (endpoint === "guestOrderPayment") {
+				const orderId = uploadInput?.["orderId"];
+				const token = uploadInput?.["token"];
+				if (typeof orderId !== "number" || typeof token !== "string") {
+					toast.error(
+						"Faltan datos para subir el comprobante. Recargá la página e intentá de nuevo.",
+					);
+					return;
+				}
+				res = await startGuestOrderPaymentUpload([selectedFile], {
+					orderId,
+					token,
+				});
+			} else if (endpoint === "storeOrderPayment") {
+				res = await startStoreOrderPaymentUpload([selectedFile]);
+			} else {
+				res = await startReservationPaymentUpload([selectedFile]);
+			}
 			if (!res || !res[0]) {
 				toast.error("Error al subir el comprobante. Intentá de nuevo.");
 				return;

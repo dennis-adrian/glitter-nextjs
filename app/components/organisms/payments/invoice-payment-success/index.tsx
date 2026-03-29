@@ -5,7 +5,7 @@ import StoreItemCard from "@/app/components/molecules/store-item-card";
 import CartSheet from "@/app/components/organisms/cart/cart-sheet";
 import {
 	CartProvider,
-	useCart,
+	useCartContext,
 } from "@/app/components/providers/cart-provider";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Button } from "@/app/components/ui/button";
@@ -18,10 +18,11 @@ type InvoicePaymentSuccessProps = {
 	invoicePromise: Promise<InvoiceWithPaymentsAndStand | null | undefined>;
 	productsPromise: Promise<BaseProductWithImages[]>;
 	initialItemCount: number;
+	isAuthenticated?: boolean;
 };
 
 function CartButton() {
-	const { itemCount, openCart } = useCart();
+	const { itemCount, openCart } = useCartContext();
 	if (itemCount === 0) return null;
 	return (
 		<Button
@@ -42,7 +43,12 @@ function CartButton() {
 export default function InvoicePaymentSuccess(
 	props: InvoicePaymentSuccessProps,
 ) {
-	const { invoicePromise, productsPromise, initialItemCount } = props;
+	const {
+		invoicePromise,
+		productsPromise,
+		initialItemCount,
+		isAuthenticated = true,
+	} = props;
 	const invoice = use(invoicePromise);
 	const products = use(productsPromise);
 	const sentinelRef = useRef<HTMLDivElement>(null);
@@ -64,7 +70,10 @@ export default function InvoicePaymentSuccess(
 	}
 
 	return (
-		<CartProvider initialItemCount={initialItemCount}>
+		<CartProvider
+			initialItemCount={initialItemCount}
+			isAuthenticated={isAuthenticated}
+		>
 			<CartSheet />
 			{products.length > 0 && (
 				<div className="flex flex-col gap-4">
