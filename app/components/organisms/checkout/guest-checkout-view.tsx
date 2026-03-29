@@ -8,7 +8,7 @@ import { useCartContext } from "@/app/components/providers/cart-provider";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 
 export default function GuestCheckoutView() {
-	const { guestItems, clearGuestCart, guestCartHydrated } = useCartContext();
+	const { guestItems, guestCartHydrated } = useCartContext();
 
 	if (!guestCartHydrated) {
 		return null;
@@ -36,10 +36,7 @@ export default function GuestCheckoutView() {
 			total={total}
 			presaleItems={presaleLines}
 		>
-			<GuestCheckoutForm
-				guestItems={guestItems}
-				clearGuestCart={clearGuestCart}
-			/>
+			<GuestCheckoutForm guestItems={guestItems} />
 		</CheckoutPageLayout>
 	);
 }

@@ -54,3 +54,12 @@ export const nameValidator = () => {
 			"Usá solo letras, espacios y guiones para tu nombre",
 		);
 };
+
+/** Guest checkout contact fields — shared by `GuestCheckoutForm` and `checkoutGuestCart`. */
+export const guestCheckoutContactSchema = z.object({
+	name: nameValidator(),
+	email: z.email("Ingresá un email válido"),
+	phone: phoneValidator(),
+});
+
+export type GuestCheckoutContactInput = z.infer<typeof guestCheckoutContactSchema>;

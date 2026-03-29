@@ -7,14 +7,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CircleCheckIcon, Loader2Icon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { z } from "zod";
 
 import Heading from "@/app/components/atoms/heading";
 import PhoneInput from "@/app/components/form/fields/phone";
 import TextInput from "@/app/components/form/fields/text";
 import {
-	nameValidator,
-	phoneValidator,
+	guestCheckoutContactSchema,
+	type GuestCheckoutContactInput,
 } from "@/app/components/form/input-validators";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
@@ -22,13 +21,7 @@ import { Form } from "@/app/components/ui/form";
 import { checkoutGuestCart } from "@/app/lib/cart/actions";
 import type { GuestCartItem } from "@/app/lib/cart/definitions";
 
-const GuestFormSchema = z.object({
-	name: nameValidator(),
-	email: z.email("Ingresá un email válido"),
-	phone: phoneValidator(),
-});
-
-type GuestFormValues = z.infer<typeof GuestFormSchema>;
+type GuestFormValues = GuestCheckoutContactInput;
 
 type GuestCheckoutFormProps = {
 	guestItems: GuestCartItem[];
@@ -40,7 +33,7 @@ export function GuestCheckoutForm({ guestItems }: GuestCheckoutFormProps) {
 	const [loading, setLoading] = useState(false);
 
 	const form = useForm<GuestFormValues>({
-		resolver: zodResolver(GuestFormSchema),
+		resolver: zodResolver(guestCheckoutContactSchema),
 		defaultValues: { name: "", email: "", phone: "" },
 	});
 

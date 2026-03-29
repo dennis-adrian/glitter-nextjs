@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { cartItems, carts, products } from "@/db/schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { guestCheckoutContactSchema } from "@/app/components/form/input-validators";
 import {
 	createOrderInTx,
 	createGuestOrderInTx,
@@ -409,6 +410,20 @@ export async function checkoutGuestCart(
 		return { success: false, message: "El carrito está vacío." };
 	}
 
+	const contactParsed = guestCheckoutContactSchema.safeParse({
+		name: guestName,
+		email: guestEmail,
+		phone: guestPhone,
+	});
+	if (!contactParsed.success) {
+		const message =
+			contactParsed.error.issues[0]?.message ?? "Datos de contacto inválidos";
+		return { success: false, message };
+	}
+
+	const { name: nameTrimmed, email: emailTrimmed, phone: phoneTrimmed } =
+		contactParsed.data;
+
 	try {
 		const orderItemsMap = new Map<number, number>(
 			items.map((i) => [i.productId, i.quantity]),
@@ -418,9 +433,9 @@ export async function checkoutGuestCart(
 			createGuestOrderInTx(
 				tx,
 				orderItemsMap,
-				guestName,
-				guestEmail,
-				guestPhone,
+				nameTrimmed,
+				emailTrimmed,
+				phoneTrimmed,
 			),
 		);
 
@@ -428,8 +443,8 @@ export async function checkoutGuestCart(
 			await sendGuestOrderEmails({
 				orderId: orderResult.orderId,
 				guestOrderToken: orderResult.guestOrderToken,
-				customerEmail: guestEmail,
-				customerName: guestName,
+				customerEmail: emailTrimmed,
+				customerName: nameTrimmed,
 				products: orderResult.mappedProducts,
 				total: orderResult.totalAmount,
 			});
