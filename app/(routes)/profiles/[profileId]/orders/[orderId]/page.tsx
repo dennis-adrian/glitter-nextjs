@@ -124,7 +124,7 @@ export default async function UserOrderPage(props: {
 										asChild
 										className="w-full bg-purple-600 hover:bg-purple-700"
 									>
-										<Link href={`/profiles/${profileId}/orders/${orderId}/pay`}>
+										<Link href={`/orders/${orderId}/payment`}>
 											Pagar pedido
 										</Link>
 									</Button>
@@ -155,7 +155,7 @@ export default async function UserOrderPage(props: {
 							asChild
 							className="w-full bg-purple-600 hover:bg-purple-700"
 						>
-							<Link href={`/profiles/${profileId}/orders/${orderId}/pay`}>
+							<Link href={`/orders/${orderId}/payment`}>
 								Pagar pedido
 							</Link>
 						</Button>

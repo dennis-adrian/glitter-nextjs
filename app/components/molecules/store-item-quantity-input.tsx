@@ -1,9 +1,9 @@
 "use client";
 
 import { addToCart } from "@/app/lib/cart/actions";
-import { useCart } from "@/app/components/providers/cart-provider";
+import { useCartContext } from "@/app/components/providers/cart-provider";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
-import { BaseProduct } from "@/app/lib/products/definitions";
+import { BaseProductWithImages } from "@/app/lib/products/definitions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { MinusIcon, PlusIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -20,6 +20,7 @@ import {
 } from "../ui/form";
 import { Input } from "../ui/input";
 import SubmitProductOrderButton from "@/app/components/molecules/submit-product-order-button";
+import { MAX_CART_LINE_QUANTITY } from "@/app/lib/constants";
 
 const FormSchema = z.object({
 	itemQuantity: z.coerce
@@ -27,19 +28,19 @@ const FormSchema = z.object({
 		.min(1, {
 			error: "La cantidad mínima es 1",
 		})
-		.max(5, {
-			error: "La cantidad máxima es 5",
+		.max(MAX_CART_LINE_QUANTITY, {
+			error: `La cantidad máxima es ${MAX_CART_LINE_QUANTITY}`,
 		}),
 });
 
 type StoreItemQuantityInputProps = {
-	product: BaseProduct;
+	product: BaseProductWithImages;
 };
 
 export default function StoreItemQuantityInput({
 	product,
 }: StoreItemQuantityInputProps) {
-	const { setItemCount } = useCart();
+	const { setItemCount, isAuthenticated, addGuestItem } = useCartContext();
 	const form = useForm<
 		z.input<typeof FormSchema>,
 		unknown,
@@ -65,16 +66,25 @@ export default function StoreItemQuantityInput({
 	};
 
 	const action: () => void = form.handleSubmit(async (data) => {
-		const { success, newCount } = await addToCart(
-			product.id,
-			data.itemQuantity,
-		);
+		if (isAuthenticated) {
+			const { success, newCount } = await addToCart(
+				product.id,
+				data.itemQuantity,
+			);
 
-		if (success) {
-			setItemCount(newCount);
-			toast.success("Producto agregado al carrito");
+			if (success) {
+				setItemCount(newCount);
+				toast.success("Producto agregado al carrito");
+			} else {
+				toast.error("No se pudo agregar al carrito");
+			}
 		} else {
-			toast.error("No se pudo agregar al carrito");
+			addGuestItem({
+				productId: product.id,
+				quantity: data.itemQuantity,
+				product,
+			});
+			toast.success("Producto agregado al carrito");
 		}
 
 		form.reset();

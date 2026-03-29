@@ -1,9 +1,12 @@
-import { fetchUserProfile } from "@/app/api/users/actions";
-import { db } from "@/db";
-import { productImages } from "@/db/schema";
 import { currentUser } from "@clerk/nextjs/server";
+import { and, eq, isNull } from "drizzle-orm";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { UploadThingError } from "uploadthing/server";
+import { z } from "zod";
+
+import { fetchUserProfile } from "@/app/api/users/actions";
+import { db } from "@/db";
+import { orders, productImages } from "@/db/schema";
 
 const f = createUploadthing();
 
@@ -128,6 +131,23 @@ export const ourFileRouter = {
 				},
 			};
 		}),
+	guestOrderPayment: f({ image: { maxFileSize: "4MB" } })
+		.input(z.object({ orderId: z.number(), token: z.string() }))
+		.middleware(async ({ input }) => {
+			const order = await db.query.orders.findFirst({
+				where: and(
+					eq(orders.id, input.orderId),
+					eq(orders.guestOrderToken, input.token),
+					eq(orders.status, "pending"),
+					isNull(orders.userId),
+				),
+			});
+			if (!order) throw new UploadThingError("Orden no encontrada");
+			return { orderId: input.orderId };
+		})
+		.onUploadComplete(({ file }) => ({
+			results: { imageUrl: (file as { url: string }).url },
+		})),
 	festivalActivityParticipantProof: f({
 		image: { maxFileSize: "4MB", maxFileCount: 5, minFileCount: 1 },
 	})
