@@ -1,7 +1,7 @@
 "use client";
 
 import { GuestCartItem } from "@/app/lib/cart/definitions";
-import { MAX_CART_LINE_QUANTITY } from "@/app/lib/constants";
+import { GUEST_CART_KEY, MAX_CART_LINE_QUANTITY } from "@/app/lib/constants";
 import {
 	createContext,
 	useCallback,
@@ -9,8 +9,6 @@ import {
 	useEffect,
 	useState,
 } from "react";
-
-const GUEST_CART_KEY = "glitter_guest_cart";
 
 type CartContextValue = {
 	itemCount: number;
@@ -30,12 +28,12 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
-export function useCart() {
-	const context = useContext(CartContext);
-	if (!context) {
-		throw new Error("useCart must be used within CartProvider");
+export function useCartContext() {
+	const cartContext = useContext(CartContext);
+	if (!cartContext) {
+		throw new Error("useCartContext must be used within CartProvider");
 	}
-	return context;
+	return cartContext;
 }
 
 function readGuestCart(): GuestCartItem[] {

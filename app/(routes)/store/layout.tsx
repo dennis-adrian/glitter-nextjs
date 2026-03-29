@@ -10,12 +10,12 @@ export default async function StoreLayout({
 	children: React.ReactNode;
 }) {
 	const user = await getCurrentUserProfile();
-	const initialItemCount = await fetchCartItemCount();
+	const initialItemCount = user ? await fetchCartItemCount() : 0;
 
 	return (
-		<CartProvider initialItemCount={initialItemCount}>
+		<CartProvider initialItemCount={initialItemCount} isAuthenticated={!!user}>
 			<StoreSubheader />
-			{user && <CartSheet />}
+			<CartSheet />
 			{children}
 		</CartProvider>
 	);
