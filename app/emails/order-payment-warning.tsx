@@ -28,36 +28,35 @@ export default function OrderPaymentWarningTemplate({
 	const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 	const userName = customerName || "Cliente";
 	const dueDateFormatted = formatDate(paymentDueDate).toLocaleString(
-		DateTime.DATE_MED,
+		DateTime.DATETIME_MED,
 	);
 
 	return (
 		<Html>
 			<Head />
-			<Preview>{`Tu orden #${orderId} vence mañana — último aviso`}</Preview>
+			<Preview>¡Tu pedido está a punto de vencer!</Preview>
 			<Body style={styles.main}>
 				<Container style={styles.container}>
 					<EmailHeader />
 					<Section style={styles.sectionWithBanner}>
 						<Text style={styles.text}>¡Hola {userName}!</Text>
 						<Text style={styles.text}>
-							Este es un último recordatorio: tu orden{" "}
-							<strong>#{orderId}</strong> vence mañana (
-							<strong>{dueDateFormatted}</strong>). Si no subís el comprobante
-							de pago antes de esa fecha, la orden será cancelada
-							automáticamente.
+							¡Atención! Tu pedido <strong>#{orderId}</strong> vence en las
+							próximas 2 horas (<strong>{dueDateFormatted}</strong>). Si no
+							subís el comprobante de pago antes de ese horario, el pedido se
+							cancelará automáticamente.
 						</Text>
 						<Text style={styles.text}>
-							Para evitar la cancelación, ingresá a tu orden y subí el
-							comprobante cuanto antes.
+							Si ya hiciste el pago, subí el comprobante ahora desde el botón de
+							abajo para que no se cancele el pedido.
 						</Text>
 						<Button href={`${baseUrl}/my_orders`} style={styles.button}>
 							Pagar ahora
 						</Button>
 						<Text style={styles.text}>
-							Si ya realizaste el pago y subiste el comprobante, podés ignorar
-							este mensaje. Si tenés dudas, escribinos a{" "}
-							<span style={styles.email}>soporte@productoraglitter.com</span>
+							Si ya subiste el comprobante, podés ignorar este mensaje. Para
+							cualquier duda escribinos a{" "}
+							<span style={styles.email}>soporte@productoraglitter.com</span>.
 						</Text>
 					</Section>
 				</Container>
@@ -70,5 +69,5 @@ export default function OrderPaymentWarningTemplate({
 OrderPaymentWarningTemplate.PreviewProps = {
 	customerName: "Jane Doe",
 	orderId: 42,
-	paymentDueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
+	paymentDueDate: new Date(Date.now() + 2 * 60 * 60 * 1000),
 } as OrderPaymentWarningTemplateProps;

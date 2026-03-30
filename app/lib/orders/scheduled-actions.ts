@@ -6,7 +6,7 @@ import OrderPaymentWarningTemplate from "@/app/emails/order-payment-warning";
 import { queueEmails } from "@/app/lib/emails/helpers";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
-import { orders, products, orderItems } from "@/db/schema";
+import { orders, products } from "@/db/schema";
 import {
 	and,
 	eq,
@@ -68,7 +68,7 @@ export async function handleOrderPaymentReminders(): Promise<{
 								sql`now() - interval '1 hour'`,
 							),
 						),
-						lte(orders.paymentDueDate, sql`now() + interval '8 days'`),
+						lte(orders.paymentDueDate, sql`now() + interval '42 hours'`),
 						gt(orders.paymentDueDate, sql`now()`),
 					),
 				)
@@ -99,7 +99,7 @@ export async function handleOrderPaymentReminders(): Promise<{
 								sql`now() - interval '1 hour'`,
 							),
 						),
-						lte(orders.paymentDueDate, sql`now() + interval '5 days'`),
+						lte(orders.paymentDueDate, sql`now() + interval '12 hours'`),
 						gt(orders.paymentDueDate, sql`now()`),
 					),
 				)
@@ -130,7 +130,7 @@ export async function handleOrderPaymentReminders(): Promise<{
 								sql`now() - interval '1 hour'`,
 							),
 						),
-						lte(orders.paymentDueDate, sql`now() + interval '1 day'`),
+						lte(orders.paymentDueDate, sql`now() + interval '2 hours'`),
 						gt(orders.paymentDueDate, sql`now()`),
 					),
 				)
@@ -150,7 +150,7 @@ export async function handleOrderPaymentReminders(): Promise<{
 		throw error;
 	}
 
-	// Reminder 1: 8 days before due date (day 2 of 10-day window)
+	// Reminder 1: 6 hours after order creation (42 hours remaining) — initial nudge
 	const sent1: number[] = [];
 	await queueEmails<OrderWithUser, number[]>(
 		pendingReminder1,
@@ -209,7 +209,7 @@ export async function handleOrderPaymentReminders(): Promise<{
 	}
 	counts.reminder1 = sent1.length;
 
-	// Reminder 2: 5 days before due date (day 5 of 10-day window)
+	// Reminder 2: 12 hours before due date — moderate urgency
 	const sent2: number[] = [];
 	await queueEmails<OrderWithUser, number[]>(
 		pendingReminder2,
@@ -218,7 +218,7 @@ export async function handleOrderPaymentReminders(): Promise<{
 				const { data } = await sendEmail({
 					from: "Glitter Store <reservas@productoraglitter.com>",
 					to: [order.customer.email],
-					subject: `Tu orden #${order.id} está pendiente de pago`,
+					subject: `Tu orden #${order.id} vence en 12 horas`,
 					react: OrderPaymentReminderTemplate({
 						customerName: getCustomerName(order.customer),
 						orderId: order.id,
@@ -268,7 +268,7 @@ export async function handleOrderPaymentReminders(): Promise<{
 	}
 	counts.reminder2 = sent2.length;
 
-	// Reminder 3: 1 day before due date
+	// Reminder 3: 2 hours before due date — final urgent warning
 	const sent3: number[] = [];
 	await queueEmails<OrderWithUser, number[]>(
 		pendingReminder3,
@@ -277,7 +277,7 @@ export async function handleOrderPaymentReminders(): Promise<{
 				const { data } = await sendEmail({
 					from: "Glitter Store <reservas@productoraglitter.com>",
 					to: [order.customer.email],
-					subject: `Tu orden #${order.id} vence mañana`,
+					subject: `Tu orden #${order.id} vence en 2 horas`,
 					react: OrderPaymentWarningTemplate({
 						customerName: getCustomerName(order.customer),
 						orderId: order.id,

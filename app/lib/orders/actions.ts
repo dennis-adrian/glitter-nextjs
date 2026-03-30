@@ -152,7 +152,7 @@ export async function createOrderInTx(
 		.values({
 			userId,
 			totalAmount,
-			paymentDueDate: sql`now() + interval '10 days'`,
+			paymentDueDate: sql`now() + interval '2 days'`,
 		})
 		.returning();
 
@@ -264,7 +264,7 @@ export async function createGuestOrderInTx(
 			guestPhone,
 			guestOrderToken,
 			totalAmount,
-			paymentDueDate: sql`now() + interval '10 days'`,
+			paymentDueDate: sql`now() + interval '2 days'`,
 		})
 		.returning();
 

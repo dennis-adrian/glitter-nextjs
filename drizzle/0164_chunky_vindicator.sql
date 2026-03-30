@@ -1,0 +1,1 @@
+ALTER TABLE "orders" ALTER COLUMN "payment_due_date" SET DEFAULT now() + interval '2 days';

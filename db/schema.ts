@@ -1159,7 +1159,7 @@ export const orders = pgTable(
 		voucherSubmittedAt: timestamp("voucher_submitted_at"),
 		paymentDueDate: timestamp("payment_due_date")
 			.notNull()
-			.default(sql`now() + interval '10 days'`),
+			.default(sql`now() + interval '2 days'`),
 		paymentReminder1SentAt: timestamp("payment_reminder1_sent_at"),
 		paymentReminder2SentAt: timestamp("payment_reminder2_sent_at"),
 		paymentReminder3SentAt: timestamp("payment_reminder3_sent_at"),
