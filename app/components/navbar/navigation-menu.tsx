@@ -58,21 +58,16 @@ const NavbarNavigationMenu = ({
 						</Link>
 					</NavigationMenuLink>
 				</NavigationMenuItem>
-				{profile && profile.status === "verified" && (
-					<NavigationMenuItem>
-						<NavigationMenuLink
-							asChild
-							className={navigationMenuTriggerStyle()}
-						>
-							<Link href="/store">
-								<div className="flex items-center">
-									<StoreIcon className="w-4 h-4 mr-1" />
-									Tiendita
-								</div>
-							</Link>
-						</NavigationMenuLink>
-					</NavigationMenuItem>
-				)}
+				<NavigationMenuItem>
+					<NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+						<Link href="/store">
+							<div className="flex items-center">
+								<StoreIcon className="w-4 h-4 mr-1" />
+								Tiendita
+							</div>
+						</Link>
+					</NavigationMenuLink>
+				</NavigationMenuItem>
 				<NavigationMenuItem>
 					<NavigationMenuTrigger>
 						<div className="flex items-center">

@@ -28,7 +28,9 @@ export async function backfillProductSlugs(): Promise<void> {
 		.where(isNotNull(products.slug));
 
 	const used = new Set<string>(
-		existingSlugs.map((r) => r.slug).filter((s): s is string => s.length > 0),
+		existingSlugs
+			.map((r) => r.slug)
+			.filter((s): s is string => !!s && s.length > 0),
 	);
 
 	for (const row of rows) {

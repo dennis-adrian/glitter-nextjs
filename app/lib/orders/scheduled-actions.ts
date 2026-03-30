@@ -215,6 +215,8 @@ export async function handleOrderPaymentReminders(): Promise<{
 					console.error(
 						`[handleOrderPaymentReminders] no email for order ${order.id} (reminder 1), skipping`,
 					);
+					// Mark as sent to prevent infinite re-claim cycle
+					options?.referenceEntity?.push(order.id);
 					return;
 				}
 				const { data } = await sendEmail({
