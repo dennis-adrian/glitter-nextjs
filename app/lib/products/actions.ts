@@ -19,6 +19,7 @@ type NewProductData = {
 	availableDate?: Date | string | null;
 	isFeatured?: boolean;
 	isNew?: boolean;
+	isVisible?: boolean;
 	imagePayloads?: { id: number; isMain: boolean }[];
 };
 
@@ -58,7 +59,7 @@ export async function createProduct(data: NewProductData) {
 						? normalizeAvailableDate(productData.availableDate)
 						: productData.availableDate,
 			} as typeof productData & { availableDate?: Date | null };
-			const baseSlug = slugifyName(productData.name) || "product";
+			const baseSlug = slugifyName(productData.name);
 			const slug = await ensureUniqueSlug(tx, baseSlug);
 			const [product] = await tx
 				.insert(products)
@@ -141,8 +142,8 @@ export async function updateProduct(id: number, data: NewProductData) {
 			};
 
 			if (productData.name !== existing.name) {
-				const baseSlug = slugifyName(productData.name) || "product";
-				nextSlug = await ensureUniqueSlug(tx, baseSlug, id);
+				const baseSlug = slugifyName(productData.name);
+				nextSlug = await ensureUniqueSlug(tx, baseSlug, id, id);
 				updateData.slug = nextSlug;
 			}
 
@@ -227,9 +228,14 @@ export async function deleteProduct(id: number) {
  * Callers can rely on these defaults without try/catch.
  */
 
-export async function fetchProducts(sort: "default" | "updatedAt" = "default") {
+export async function fetchProducts(
+	sort: "default" | "updatedAt" = "default",
+	options: { visibleOnly?: boolean } = {},
+) {
+	const { visibleOnly = false } = options;
 	try {
 		return await db.query.products.findMany({
+			where: visibleOnly ? eq(products.isVisible, true) : undefined,
 			with: {
 				images: true,
 			},
@@ -262,10 +268,17 @@ export async function fetchProduct(id: number) {
 	}
 }
 
-export async function fetchProductBySlug(slug: string) {
+export async function fetchProductBySlug(
+	slug: string,
+	options: { visibleOnly?: boolean } = {},
+) {
+	const { visibleOnly = false } = options;
 	try {
 		return await db.query.products.findFirst({
-			where: (products, { eq }) => eq(products.slug, slug),
+			where: (products, { eq, and }) =>
+				visibleOnly
+					? and(eq(products.slug, slug), eq(products.isVisible, true))
+					: eq(products.slug, slug),
 			with: {
 				images: true,
 			},
@@ -274,6 +287,31 @@ export async function fetchProductBySlug(slug: string) {
 		console.error(error);
 		return null;
 	}
+}
+
+export async function toggleProductVisibility(
+	id: number,
+	isVisible: boolean,
+): Promise<{ success: boolean; message: string }> {
+	const currentProfile = await getCurrentUserProfile();
+	if (!currentProfile || currentProfile.role !== "admin") {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción.",
+		};
+	}
+	try {
+		await db
+			.update(products)
+			.set({ isVisible, updatedAt: new Date() })
+			.where(eq(products.id, id));
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "No se pudo actualizar la visibilidad." };
+	}
+	revalidatePath("/dashboard/store/products");
+	revalidatePath("/store");
+	return { success: true, message: isVisible ? "Producto visible." : "Producto oculto." };
 }
 
 export async function fetchLowStockProducts(threshold = 5) {
@@ -292,7 +330,8 @@ export async function fetchLowStockProducts(threshold = 5) {
 export async function fetchFeaturedProducts() {
 	try {
 		return await db.query.products.findMany({
-			where: (products, { eq }) => eq(products.isFeatured, true),
+			where: (products, { eq, and }) =>
+				and(eq(products.isFeatured, true), eq(products.isVisible, true)),
 			with: {
 				images: true,
 			},

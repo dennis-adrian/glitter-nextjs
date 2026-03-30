@@ -29,17 +29,25 @@ export function slugifyName(name: string): string {
 /**
  * Picks the first unused slug: base, base-2, base-3, …
  * @param excludeProductId — when updating, ignore this row’s current slug so it can keep or reclaim its slot.
+ * @param fallbackProductId — when baseSlug is empty or whitespace-only after trim, use `product-${fallbackProductId}` (e.g. when updating an existing row). Omit for inserts before an id exists; then the base is `"product"`.
  */
 export async function ensureUniqueSlug(
 	tx: DbOrTx,
 	baseSlug: string,
 	excludeProductId?: number,
+	fallbackProductId?: number,
 ): Promise<string> {
-	let candidate = baseSlug;
+	const trimmed = baseSlug.trim();
+	const base =
+		trimmed ||
+		(fallbackProductId !== undefined
+			? `product-${fallbackProductId}`
+			: "product");
+	let candidate = base;
 	let n = 2;
 
 	while (await isSlugTaken(tx, candidate, excludeProductId)) {
-		candidate = `${baseSlug}-${n}`;
+		candidate = `${base}-${n}`;
 		n++;
 	}
 
@@ -69,7 +77,7 @@ export function allocateUniqueSlugFromUsedSet(
 	baseSlug: string,
 	productId: number,
 ): string {
-	let base = baseSlug || `product-${productId}`;
+	let base = baseSlug.trim() || `product-${productId}`;
 	let candidate = base;
 	let n = 2;
 

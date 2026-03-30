@@ -28,12 +28,15 @@ export default async function ProductDetailPage(props: {
 
 	if (/^\d+$/.test(raw)) {
 		const byId = await fetchProduct(Number(raw));
-		if (byId && byId.slug !== raw) {
+		if (!byId) {
+			return notFound();
+		}
+		if (byId.slug !== raw) {
 			permanentRedirect(`/store/products/${byId.slug}`);
 		}
 	}
 
-	const product = await fetchProductBySlug(raw);
+	const product = await fetchProductBySlug(raw, { visibleOnly: true });
 
 	if (!product) {
 		return notFound();

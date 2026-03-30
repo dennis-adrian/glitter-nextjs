@@ -3,8 +3,10 @@
 import DeleteProductModal from "@/app/components/organisms/products/delete-product-modal";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
+import { Switch } from "@/app/components/ui/switch";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
+import { toggleProductVisibility } from "@/app/lib/products/actions";
 import { cn } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
 import { EditIcon, StarIcon, Trash2Icon } from "lucide-react";
@@ -25,8 +27,30 @@ export const columnTitles = {
 	stock: "Stock",
 	status: "Estado",
 	isFeatured: "Destacado",
+	isVisible: "Visible",
 	actions: "",
 };
+
+function VisibilityToggle({ product }: { product: BaseProductWithImages }) {
+	const [visible, setVisible] = useState(product.isVisible);
+	const [loading, setLoading] = useState(false);
+
+	async function handleToggle(checked: boolean) {
+		setLoading(true);
+		setVisible(checked);
+		await toggleProductVisibility(product.id, checked);
+		setLoading(false);
+	}
+
+	return (
+		<Switch
+			checked={visible}
+			onCheckedChange={handleToggle}
+			disabled={loading}
+			aria-label={visible ? "Ocultar producto" : "Mostrar producto"}
+		/>
+	);
+}
 
 function ActionsCell({ product }: { product: BaseProductWithImages }) {
 	const [openDelete, setOpenDelete] = useState(false);
@@ -145,6 +169,13 @@ export const columns: ColumnDef<BaseProductWithImages>[] = [
 			row.original.isFeatured ? (
 				<StarIcon className="h-4 w-4 text-amber-500 fill-amber-500" />
 			) : null,
+	},
+	{
+		accessorKey: "isVisible",
+		header: ({ column }) => (
+			<DataTableColumnHeader column={column} title={columnTitles.isVisible} />
+		),
+		cell: ({ row }) => <VisibilityToggle product={row.original} />,
 	},
 	{
 		accessorKey: "actions",
