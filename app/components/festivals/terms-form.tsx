@@ -61,7 +61,6 @@ export default function TermsForm({
 
 			if (res.success) {
 				posthog.identify(profile.clerkId, {
-					display_name: profile.displayName,
 					category: profile.category,
 				});
 				posthog.capture(POSTHOG_EVENTS.FESTIVAL_TERMS_ACCEPTED, {

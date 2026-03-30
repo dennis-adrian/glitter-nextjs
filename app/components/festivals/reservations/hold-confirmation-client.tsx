@@ -318,7 +318,6 @@ export default function HoldConfirmationClient({
 					stand_id: stand.id,
 					stand_number: stand.standNumber,
 					stand_price: stand.price,
-					profile_id: profile.id,
 					profile_category: profile.category,
 					has_partner: !!selectedPartnerId,
 					reservation_id: res.reservationId,
@@ -348,7 +347,6 @@ export default function HoldConfirmationClient({
 				festival_name: festival.name,
 				stand_id: stand.id,
 				stand_number: stand.standNumber,
-				profile_id: profile.id,
 				profile_category: profile.category,
 			});
 			toast.info("Reserva temporal cancelada", {

@@ -161,15 +161,22 @@ export async function createUserProfile(user: NewUser) {
 		});
 
 		if (newUserRes) {
-			const posthog = getPostHogClient();
-			posthog.capture({
-				distinctId: String(user.clerkId),
-				event: POSTHOG_EVENTS.USER_PROFILE_CREATED,
-				properties: {
-					category: user.category,
-				},
-			});
-			await posthog.shutdown();
+			try {
+				const posthog = getPostHogClient();
+				posthog.capture({
+					distinctId: String(user.clerkId),
+					event: POSTHOG_EVENTS.USER_PROFILE_CREATED,
+					properties: {
+						category: user.category,
+					},
+				});
+				await posthog.shutdown();
+			} catch (telemetryError) {
+				console.error(
+					"PostHog telemetry failed (createUserProfile)",
+					telemetryError,
+				);
+			}
 		}
 
 		return {
