@@ -17,6 +17,7 @@ import {
 import { DateTime } from "luxon";
 import { FestivalWithDates } from "../lib/festivals/definitions";
 import EmailFooter from "@/app/emails/email-footer";
+import { getClientEnv } from "@/env";
 
 interface FestivalActivationTemplateProps {
 	festival: FestivalWithDates;
@@ -27,15 +28,16 @@ interface FestivalActivationTemplateProps {
 export default function ReservationConfirmationEmailTemplate(
 	props: FestivalActivationTemplateProps,
 ) {
-	const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+	const clientEnv = getClientEnv();
+	const baseUrl = clientEnv.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 	const userName = getUserName(props.profile);
 	let whatsAppGroupLink;
 	if (props.profile.category === "illustration") {
-		whatsAppGroupLink = process.env.NEXT_PUBLIC_ILLUSTRATION_GROUP_LINK;
+		whatsAppGroupLink = clientEnv.NEXT_PUBLIC_ILLUSTRATION_GROUP_LINK;
 	} else if (props.profile.category === "gastronomy") {
-		whatsAppGroupLink = process.env.NEXT_PUBLIC_GASTRONOMY_GROUP_LINK;
+		whatsAppGroupLink = clientEnv.NEXT_PUBLIC_GASTRONOMY_GROUP_LINK;
 	} else if (props.profile.category === "entrepreneurship") {
-		whatsAppGroupLink = process.env.NEXT_PUBLIC_ENTREPRENEURSHIP_GROUP_LINK;
+		whatsAppGroupLink = clientEnv.NEXT_PUBLIC_ENTREPRENEURSHIP_GROUP_LINK;
 	}
 
 	return (
@@ -85,27 +87,27 @@ export default function ReservationConfirmationEmailTemplate(
 }
 
 ReservationConfirmationEmailTemplate.PreviewProps = {
-  standLabel: "A52",
-  festival: {
-    id: 9,
-    name: "Glitter 10ma edición",
-    locationLabel: "Galería del CBA",
-    festivalDates: [
-      {
-        id: 1,
-        startDate: new Date(),
-        endDate: new Date(),
-      },
-      {
-        id: 2,
-        startDate: new Date(),
-        endDate: new Date(),
-      },
-    ],
-  },
-  profile: {
-    id: 1,
-    displayName: "John Doe",
-    category: "illustration",
-  },
+	standLabel: "A52",
+	festival: {
+		id: 9,
+		name: "Glitter 10ma edición",
+		locationLabel: "Galería del CBA",
+		festivalDates: [
+			{
+				id: 1,
+				startDate: new Date(),
+				endDate: new Date(),
+			},
+			{
+				id: 2,
+				startDate: new Date(),
+				endDate: new Date(),
+			},
+		],
+	},
+	profile: {
+		id: 1,
+		displayName: "John Doe",
+		category: "illustration",
+	},
 } as FestivalActivationTemplateProps;

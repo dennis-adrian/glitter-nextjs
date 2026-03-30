@@ -13,86 +13,78 @@ import { z } from "zod";
 
 const FormSchema = z.object({
 	firstName: z.string().trim().min(2, {
-        error: "El nombre tiene que tener al menos dos letras"
-    }),
+		error: "El nombre tiene que tener al menos dos letras",
+	}),
 	lastName: z.string().trim().min(2, {
-        error: "El apellido tiene que tener al menos dos letras"
-    }),
+		error: "El apellido tiene que tener al menos dos letras",
+	}),
 	phoneNumber: phoneValidator(),
 });
 
 type ContactInfoFormProps = {
-  profile: ProfileType;
+	profile: ProfileType;
 };
 
 export default function ContactInfoForm(props: ContactInfoFormProps) {
-  const form = useForm({
-    resolver: zodResolver(FormSchema),
-    defaultValues: {
-      firstName: props.profile.firstName || "",
-      lastName: props.profile.lastName || "",
-      phoneNumber: props.profile.phoneNumber || "",
-    },
-  });
+	const form = useForm({
+		resolver: zodResolver(FormSchema),
+		defaultValues: {
+			firstName: props.profile.firstName || "",
+			lastName: props.profile.lastName || "",
+			phoneNumber: props.profile.phoneNumber || "",
+		},
+	});
 
-  const action: () => void = form.handleSubmit(async (data) => {
-    const res = await updateProfile(props.profile.id, {
-      ...data,
-    });
-    if (res.success) {
-      toast.success(res.message);
-    } else {
-      toast.error(res.message);
-    }
-  });
+	const action: () => void = form.handleSubmit(async (data) => {
+		const res = await updateProfile(props.profile.id, {
+			...data,
+		});
+		if (res.success) {
+			toast.success(res.message);
+		} else {
+			toast.error(res.message);
+		}
+	});
 
-  return (
-    <Form {...form}>
-      <form
-        onSubmit={action}
-        className="w-full mt-4 md:mt-6 grid gap-4 items-start grid-cols-1 sm:grid-cols-2"
-      >
-        <TextInput
-          bottomBorderOnly
-          formControl={form.control}
-          label="Nombre"
-          name="firstName"
-          placeholder="Ingresa tu nombre"
-        />
-        <TextInput
-          bottomBorderOnly
-          formControl={form.control}
-          label="Apellido"
-          name="lastName"
-          placeholder="Ingresa tu apellido"
-        />
-        <PhoneInput
-          bottomBorderOnly
-          formControl={form.control}
-          label="Teléfono"
-          name="phoneNumber"
-        />
-        <TextInput
-          disabled
-          bottomBorderOnly
-          formControl={form.control}
-          label="Email"
-          name="email"
-          value={props.profile.email || ""}
-        />
-        <div className="flex gap-2 my-2 col-span-1 sm:col-span-2">
-          <SubmitButton
-            disabled={
-              form.formState.isSubmitting || form.formState.isSubmitSuccessful
-            }
-            loading={form.formState.isSubmitting}
-            loadingLabel="Guardando"
-          >
-            Guardar
-            <ArrowDownToLineIcon className="ml-2 w-4 h-4" />
-          </SubmitButton>
-        </div>
-      </form>
-    </Form>
-  );
+	return (
+		<Form {...form}>
+			<form
+				onSubmit={action}
+				className="w-full mt-4 md:mt-6 grid gap-4 items-start grid-cols-1 sm:grid-cols-2"
+			>
+				<TextInput
+					bottomBorderOnly
+					label="Nombre"
+					name="firstName"
+					placeholder="Ingresa tu nombre"
+				/>
+				<TextInput
+					bottomBorderOnly
+					label="Apellido"
+					name="lastName"
+					placeholder="Ingresa tu apellido"
+				/>
+				<PhoneInput bottomBorderOnly label="Teléfono" name="phoneNumber" />
+				<TextInput
+					disabled
+					bottomBorderOnly
+					label="Email"
+					name="email"
+					value={props.profile.email || ""}
+				/>
+				<div className="flex gap-2 my-2 col-span-1 sm:col-span-2">
+					<SubmitButton
+						disabled={
+							form.formState.isSubmitting || form.formState.isSubmitSuccessful
+						}
+						loading={form.formState.isSubmitting}
+						loadingLabel="Guardando"
+					>
+						Guardar
+						<ArrowDownToLineIcon className="ml-2 w-4 h-4" />
+					</SubmitButton>
+				</div>
+			</form>
+		</Form>
+	);
 }

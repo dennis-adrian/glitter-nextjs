@@ -1,5 +1,7 @@
 "use client";
 
+import posthog from "posthog-js";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
@@ -310,6 +312,16 @@ export default function HoldConfirmationClient({
 					spread: 70,
 					origin: { y: 0.6 },
 				});
+				posthog.capture(POSTHOG_EVENTS.RESERVATION_CONFIRMED, {
+					festival_id: festival.id,
+					festival_name: festival.name,
+					stand_id: stand.id,
+					stand_number: stand.standNumber,
+					stand_price: stand.price,
+					profile_category: profile.category,
+					has_partner: !!selectedPartnerId,
+					reservation_id: res.reservationId,
+				});
 				toast.success(res.message);
 				router.replace(
 					`/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.reservationId}/payments`,
@@ -330,6 +342,13 @@ export default function HoldConfirmationClient({
 		setIsSubmitting(true);
 		try {
 			await cancelStandHold(hold.id, profile.id);
+			posthog.capture(POSTHOG_EVENTS.RESERVATION_CANCELLED, {
+				festival_id: festival.id,
+				festival_name: festival.name,
+				stand_id: stand.id,
+				stand_number: stand.standNumber,
+				profile_category: profile.category,
+			});
 			toast.info("Reserva temporal cancelada", {
 				duration: 2000,
 			});

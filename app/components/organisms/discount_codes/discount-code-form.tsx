@@ -147,7 +147,6 @@ export default function DiscountCodeForm({
 		<Form {...form}>
 			<form className="grid gap-4" onSubmit={action}>
 				<TextInput
-					formControl={form.control}
 					label="Código"
 					name="code"
 					placeholder="EJEMPLO2025"
@@ -161,7 +160,6 @@ export default function DiscountCodeForm({
 					placeholder="Seleccionar tipo"
 				/>
 				<TextInput
-					formControl={form.control}
 					label="Valor"
 					name="discountValue"
 					type="number"
@@ -170,7 +168,6 @@ export default function DiscountCodeForm({
 					placeholder="0"
 				/>
 				<TextInput
-					formControl={form.control}
 					label="Límite de usos (opcional, vacío = ilimitado)"
 					name="maxUses"
 					type="number"

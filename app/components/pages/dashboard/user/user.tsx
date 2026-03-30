@@ -22,14 +22,12 @@ export default async function DashboardUserPage(props: DashboardUserPageProps) {
 		latestInvoice.reservation.status === "pending";
 
 	return (
-		<div className="mx-auto max-w-screen-lg p-3 md:p-6">
+		<div className="mx-auto max-w-5xl p-3 md:p-6">
 			<div className="flex flex-col gap-4">
 				{hasPendingPayment ? (
 					<UserProfileBanner profile={forProfile} />
 				) : (
 					<>
-						{/* FIXME: Find a way to make this dynamic. It was added specifically for the Festicker */}
-						{/* <FestivalActivityBanner profile={forProfile} /> */}
 						{forProfile.status !== "banned" && (
 							<AnnouncementCard profile={forProfile} />
 						)}

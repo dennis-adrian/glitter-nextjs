@@ -30,11 +30,7 @@ export default function PhoneForm(props: PhoneFormProps) {
 	return (
 		<Form {...form}>
 			<form className="flex flex-col gap-4" onSubmit={action}>
-				<PhoneInput
-					bottomBorderOnly
-					formControl={form.control}
-					name="phoneNumber"
-				/>
+				<PhoneInput bottomBorderOnly name="phoneNumber" />
 				<SubmitButton
 					disabled={form.formState.isSubmitting}
 					loading={form.formState.isSubmitting}

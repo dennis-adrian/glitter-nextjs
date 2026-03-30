@@ -1100,6 +1100,8 @@ export const productStatusEnum = pgEnum("product_status", [
 export const products = pgTable("products", {
 	id: serial("id").primaryKey(),
 	name: text("name").notNull(),
+	/** Public store URL segment; unique, hyphenated from name with -2,-3 suffixes on collision */
+	slug: text("slug").notNull().unique(),
 	description: text("description"),
 	price: real("price").notNull(),
 	stock: integer("stock").default(0),
@@ -1107,6 +1109,7 @@ export const products = pgTable("products", {
 	isNew: boolean("is_new").default(true).notNull(),
 	isFeatured: boolean("is_featured").default(false).notNull(),
 	isPreOrder: boolean("is_pre_order").default(false).notNull(),
+	isVisible: boolean("is_visible").default(true).notNull(),
 	availableDate: timestamp("available_date"),
 	discount: real("discount").default(0),
 	discountUnit: discountUnitEnum("discount_unit")
@@ -1136,32 +1139,50 @@ export const orderStatusEnum = pgEnum("order_status", [
 	/** Order was cancelled either by the user or system */
 	"cancelled",
 ]);
-export const orders = pgTable("orders", {
-	id: serial("id").primaryKey(),
-	userId: integer("user_id")
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-	orderDate: timestamp("order_date").defaultNow(),
-	status: orderStatusEnum("status").default("pending").notNull(),
-	totalAmount: numeric("total_amount", {
-		precision: 10,
-		scale: 2,
-		mode: "number",
-	}).notNull(),
-	paymentVoucherUrl: text("payment_voucher_url"),
-	voucherSubmittedAt: timestamp("voucher_submitted_at"),
-	paymentDueDate: timestamp("payment_due_date")
-		.notNull()
-		.default(sql`now() + interval '10 days'`),
-	paymentReminder1SentAt: timestamp("payment_reminder1_sent_at"),
-	paymentReminder2SentAt: timestamp("payment_reminder2_sent_at"),
-	paymentReminder3SentAt: timestamp("payment_reminder3_sent_at"),
-	paymentReminder1ClaimedAt: timestamp("payment_reminder1_claimed_at"),
-	paymentReminder2ClaimedAt: timestamp("payment_reminder2_claimed_at"),
-	paymentReminder3ClaimedAt: timestamp("payment_reminder3_claimed_at"),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const orders = pgTable(
+	"orders",
+	{
+		id: serial("id").primaryKey(),
+		userId: integer("user_id").references(() => users.id, {
+			onDelete: "cascade",
+		}),
+		// Guest order fields (populated when userId is null)
+		guestName: text("guest_name"),
+		guestEmail: text("guest_email"),
+		guestPhone: text("guest_phone"),
+		guestOrderToken: text("guest_order_token").unique(),
+		orderDate: timestamp("order_date").defaultNow(),
+		status: orderStatusEnum("status").default("pending").notNull(),
+		totalAmount: numeric("total_amount", {
+			precision: 10,
+			scale: 2,
+			mode: "number",
+		}).notNull(),
+		paymentVoucherUrl: text("payment_voucher_url"),
+		voucherSubmittedAt: timestamp("voucher_submitted_at"),
+		paymentDueDate: timestamp("payment_due_date")
+			.notNull()
+			.default(sql`now() + interval '2 days'`),
+		paymentReminder1SentAt: timestamp("payment_reminder1_sent_at"),
+		paymentReminder2SentAt: timestamp("payment_reminder2_sent_at"),
+		paymentReminder3SentAt: timestamp("payment_reminder3_sent_at"),
+		paymentReminder1ClaimedAt: timestamp("payment_reminder1_claimed_at"),
+		paymentReminder2ClaimedAt: timestamp("payment_reminder2_claimed_at"),
+		paymentReminder3ClaimedAt: timestamp("payment_reminder3_claimed_at"),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => [
+		check(
+			"orders_identity_check",
+			sql`(
+				(${t.userId} IS NOT NULL AND ${t.guestName} IS NULL AND ${t.guestEmail} IS NULL AND ${t.guestPhone} IS NULL AND ${t.guestOrderToken} IS NULL)
+				OR
+				(${t.userId} IS NULL AND length(trim(${t.guestName})) > 0 AND length(trim(${t.guestEmail})) > 0 AND length(trim(${t.guestPhone})) > 0 AND length(trim(${t.guestOrderToken})) > 0)
+			)`,
+		),
+	],
+);
 export const ordersRelations = relations(orders, ({ many, one }) => ({
 	orderItems: many(orderItems),
 	customer: one(users, {

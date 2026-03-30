@@ -27,6 +27,7 @@ interface OrderConfirmationForUsersEmailTemplateProps {
 	orderId: string;
 	products: Product[];
 	total: number;
+	trackingUrl?: string;
 }
 
 export default function OrderConfirmationForUsersEmailTemplate(
@@ -34,6 +35,7 @@ export default function OrderConfirmationForUsersEmailTemplate(
 ) {
 	const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 	const userName = props.customerName || "Cliente";
+	const orderUrl = props.trackingUrl ?? `${baseUrl}/my_orders`;
 
 	return (
 		<Html>
@@ -139,7 +141,7 @@ export default function OrderConfirmationForUsersEmailTemplate(
 							Puedes ver el detalle de tu orden haciendo clic en el botón
 						</Text>
 
-						<Button href={`${baseUrl}/my_orders`} style={styles.button}>
+						<Button href={orderUrl} style={styles.button}>
 							Ver mi orden
 						</Button>
 					</Section>

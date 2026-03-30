@@ -1,5 +1,6 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { orderItems, orders } from "@/db/schema";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
 import {
@@ -7,7 +8,7 @@ import {
 	type OrderTabValue,
 } from "@/app/lib/orders/order-tabs";
 import { db } from "@/db";
-import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { products } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
@@ -18,6 +19,8 @@ import OrderPaymentConfirmationForUserEmailTemplate from "@/app/emails/order-pay
 import OrderVoucherSubmittedForAdminsEmailTemplate from "@/app/emails/order-voucher-submitted-for-admins";
 import OrderUpdatedForUserEmailTemplate from "@/app/emails/order-updated-for-user";
 import OrderUpdatedForAdminsEmailTemplate from "@/app/emails/order-updated-for-admins";
+import { getPostHogClient } from "@/app/lib/posthog-server";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
@@ -151,7 +154,7 @@ export async function createOrderInTx(
 		.values({
 			userId,
 			totalAmount,
-			paymentDueDate: sql`now() + interval '10 days'`,
+			paymentDueDate: sql`now() + interval '2 days'`,
 		})
 		.returning();
 
@@ -189,6 +192,177 @@ export async function createOrderInTx(
 		mappedProducts,
 		totalAmount,
 	};
+}
+
+export type CreateGuestOrderInTxResult = CreateOrderInTxResult & {
+	guestOrderToken: string;
+};
+
+export async function createGuestOrderInTx(
+	tx: OrderTx,
+	orderItemsIdsQuantityMap: Map<number, number>,
+	guestName: string,
+	guestEmail: string,
+	guestPhone: string,
+): Promise<CreateGuestOrderInTxResult> {
+	if (orderItemsIdsQuantityMap.size === 0) {
+		throw new Error("No order items provided");
+	}
+
+	for (const [itemId, qty] of orderItemsIdsQuantityMap.entries()) {
+		if (qty <= 0) {
+			throw new Error(`Invalid quantity for itemId ${itemId}`);
+		}
+	}
+
+	const itemsIds = Array.from(orderItemsIdsQuantityMap.keys());
+	const productsInOrder = await tx
+		.select()
+		.from(products)
+		.where(inArray(products.id, itemsIds))
+		.for("update");
+
+	if (productsInOrder.length !== itemsIds.length) {
+		const foundIds = new Set(productsInOrder.map((p) => p.id));
+		const missingIds = itemsIds.filter((id) => !foundIds.has(id));
+		throw new Error(`Products not found: ${missingIds.join(", ")}`);
+	}
+
+	const stockValidationErrors: string[] = [];
+	for (const product of productsInOrder) {
+		const requestedQuantity = orderItemsIdsQuantityMap.get(product.id)!;
+		const currentStock = product.stock ?? 0;
+		if (currentStock < requestedQuantity) {
+			stockValidationErrors.push(
+				`${product.name} - ${currentStock} disponible(s)`,
+			);
+		}
+	}
+
+	if (stockValidationErrors.length > 0) {
+		throw new Error(`Stock insuficiente: ${stockValidationErrors.join(", ")}`, {
+			cause: "stock_insufficient",
+		});
+	}
+
+	const totalAmount = productsInOrder.reduce(
+		(acc, product) =>
+			acc +
+			getProductPriceAtPurchase(product) *
+				orderItemsIdsQuantityMap.get(product.id)!,
+		0,
+	);
+
+	// Generate a cryptographically random token for guest order tracking
+	const { randomBytes } = await import("crypto");
+	const guestOrderToken = randomBytes(32).toString("hex");
+
+	const [order] = await tx
+		.insert(orders)
+		.values({
+			userId: null,
+			guestName,
+			guestEmail,
+			guestPhone,
+			guestOrderToken,
+			totalAmount,
+			paymentDueDate: sql`now() + interval '2 days'`,
+		})
+		.returning();
+
+	for (const item of productsInOrder) {
+		await tx.insert(orderItems).values({
+			productId: item.id,
+			quantity: orderItemsIdsQuantityMap.get(item.id)!,
+			priceAtPurchase: getProductPriceAtPurchase(item),
+			orderId: order.id,
+		});
+	}
+
+	// Decrease product stock
+	for (const item of productsInOrder) {
+		const orderedQuantity = orderItemsIdsQuantityMap.get(item.id)!;
+		await tx
+			.update(products)
+			.set({
+				stock: sql`GREATEST(0, COALESCE(${products.stock}, 0) - ${orderedQuantity})`,
+			})
+			.where(eq(products.id, item.id));
+	}
+
+	const mappedProducts = productsInOrder.map((product) => ({
+		id: product.id,
+		name: product.name,
+		quantity: orderItemsIdsQuantityMap.get(product.id)!,
+		price: getProductPriceAtPurchase(product),
+		isPreOrder: !!product.isPreOrder,
+		availableDate: product.availableDate || null,
+	}));
+
+	return {
+		orderId: order.id,
+		mappedProducts,
+		totalAmount,
+		guestOrderToken,
+	};
+}
+
+export async function sendGuestOrderEmails(emailData: {
+	orderId: number;
+	guestOrderToken: string;
+	customerEmail: string;
+	customerName: string;
+	products: {
+		id: number;
+		name: string;
+		quantity: number;
+		price: number;
+		isPreOrder: boolean;
+		availableDate: Date | null;
+	}[];
+	total: number;
+}) {
+	const {
+		orderId,
+		guestOrderToken,
+		customerEmail,
+		customerName,
+		products,
+		total,
+	} = emailData;
+	const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+	const trackingUrl = `${baseUrl}/orders/${orderId}?token=${guestOrderToken}`;
+
+	await sendEmail({
+		to: [customerEmail],
+		from: "Glitter Store <reservas@productoraglitter.com>",
+		subject: `Tu orden #${orderId} ha sido recibida`,
+		react: OrderConfirmationForUsersEmailTemplate({
+			customerName,
+			orderId: String(orderId),
+			products,
+			total,
+			trackingUrl,
+		}) as React.ReactElement,
+	});
+
+	const admins = await fetchAdminUsers();
+	const adminEmails = admins.map((a) => a.email).filter(Boolean);
+
+	if (adminEmails.length > 0) {
+		await sendEmail({
+			to: adminEmails,
+			from: "Glitter Store <store@productoraglitter.com>",
+			replyTo: "soporte@productoraglitter.com",
+			subject: `Nueva orden #${orderId} de ${customerName || "Cliente"} (invitado)`,
+			react: OrderConfirmationForAdminsEmailTemplate({
+				customerName,
+				orderId: String(orderId),
+				products,
+				total,
+			}) as React.ReactElement,
+		});
+	}
 }
 
 export async function createOrder(
@@ -277,6 +451,43 @@ export async function fetchOrder(
 		}
 
 		return order;
+	} catch (error) {
+		console.error(error);
+		return null;
+	}
+}
+
+/** Fetches a guest order by id + token. Returns null if not found or token mismatch. */
+export async function fetchGuestOrder(
+	orderId: number,
+	token: string,
+): Promise<OrderWithRelations | null> {
+	try {
+		const order = await db.query.orders.findFirst({
+			with: {
+				customer: {
+					with: {
+						profileSubcategories: {
+							with: {
+								subcategory: true,
+							},
+						},
+					},
+				},
+				orderItems: {
+					with: {
+						product: {
+							with: {
+								images: true,
+							},
+						},
+					},
+				},
+			},
+			where: and(eq(orders.id, orderId), eq(orders.guestOrderToken, token)),
+		});
+
+		return order ?? null;
 	} catch (error) {
 		console.error(error);
 		return null;
@@ -499,20 +710,26 @@ export async function updateOrderStatus(orderId: number, status: OrderStatus) {
 	}
 
 	if (status === "paid" && orderBefore && orderBefore.status !== "paid") {
+		const recipientEmail =
+			orderBefore.customer?.email ?? orderBefore.guestEmail;
+		const recipientName =
+			orderBefore.customer?.displayName ??
+			orderBefore.customer?.firstName ??
+			orderBefore.guestName ??
+			"";
 		try {
-			await sendEmail({
-				to: [orderBefore.customer.email],
-				from: "Glitter Store <reservas@productoraglitter.com>",
-				subject: `Tu pago de la orden #${orderId} fue confirmado`,
-				react: OrderPaymentConfirmationForUserEmailTemplate({
-					customerName:
-						orderBefore.customer.displayName ??
-						orderBefore.customer.firstName ??
-						"",
-					orderId: String(orderId),
-					total: orderBefore.totalAmount,
-				}) as React.ReactElement,
-			});
+			if (recipientEmail) {
+				await sendEmail({
+					to: [recipientEmail],
+					from: "Glitter Store <reservas@productoraglitter.com>",
+					subject: `Tu pago de la orden #${orderId} fue confirmado`,
+					react: OrderPaymentConfirmationForUserEmailTemplate({
+						customerName: recipientName,
+						orderId: String(orderId),
+						total: orderBefore.totalAmount,
+					}) as React.ReactElement,
+				});
+			}
 		} catch (emailError) {
 			console.error("Failed to send payment confirmation email", emailError);
 		}
@@ -584,7 +801,9 @@ export async function submitOrderPaymentVoucher(
 			};
 		}
 
-		revalidatePath(`/profiles/${order.userId}/orders/${orderId}`);
+		if (order.userId) {
+			revalidatePath(`/profiles/${order.userId}/orders/${orderId}`);
+		}
 		revalidateStoreOrderViews();
 
 		try {
@@ -607,6 +826,101 @@ export async function submitOrderPaymentVoucher(
 				orderId,
 				error: adminEmailError,
 			});
+		}
+
+		try {
+			const posthog = getPostHogClient();
+			posthog.capture({
+				distinctId: currentUser.clerkId,
+				event: POSTHOG_EVENTS.ORDER_PAYMENT_VOUCHER_UPLOADED,
+				properties: { order_id: orderId },
+			});
+			await posthog.shutdown();
+		} catch (posthogError) {
+			console.error("[submitOrderPaymentVoucher] PostHog capture failed", {
+				orderId,
+				error: posthogError,
+			});
+		}
+
+		return { success: true, message: "Comprobante enviado correctamente." };
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "No se pudo enviar el comprobante." };
+	}
+}
+
+export async function submitGuestOrderPaymentVoucher(
+	orderId: number,
+	token: string,
+	voucherUrl: string,
+) {
+	if (!isAllowedVoucherUrl(voucherUrl)) {
+		return { success: false, message: "Invalid voucher URL source" };
+	}
+
+	try {
+		const [order] = await db
+			.update(orders)
+			.set({
+				paymentVoucherUrl: voucherUrl,
+				status: "payment_verification",
+				voucherSubmittedAt: new Date(),
+			})
+			.where(
+				and(
+					eq(orders.id, orderId),
+					eq(orders.guestOrderToken, token),
+					isNull(orders.userId),
+					eq(orders.status, "pending"),
+				),
+			)
+			.returning();
+
+		if (!order) {
+			return {
+				success: false,
+				message: "Orden no encontrada o el token no es válido.",
+			};
+		}
+
+		revalidatePath(`/orders/${orderId}`);
+		revalidateStoreOrderViews();
+
+		try {
+			const admins = await fetchAdminUsers();
+			const adminEmails = admins.map((a) => a.email).filter(Boolean);
+			if (adminEmails.length > 0) {
+				await sendEmail({
+					to: adminEmails,
+					from: "Glitter Store <store@productoraglitter.com>",
+					subject: `Nuevo comprobante de pago — orden #${orderId}`,
+					react: OrderVoucherSubmittedForAdminsEmailTemplate({
+						customerName: order.guestName ?? "Invitado",
+						orderId: String(orderId),
+					}) as React.ReactElement,
+				});
+			}
+		} catch (adminEmailError) {
+			console.error(
+				"[submitGuestOrderPaymentVoucher] Admin notification email failed",
+				{ orderId, error: adminEmailError },
+			);
+		}
+
+		try {
+			const posthog = getPostHogClient();
+			posthog.capture({
+				distinctId: `guest_${token}`,
+				event: POSTHOG_EVENTS.ORDER_PAYMENT_VOUCHER_UPLOADED,
+				properties: { order_id: orderId, is_guest: true },
+			});
+			await posthog.shutdown();
+		} catch (posthogError) {
+			console.error(
+				"[submitGuestOrderPaymentVoucher] PostHog capture failed",
+				{ orderId, error: posthogError },
+			);
 		}
 
 		return { success: true, message: "Comprobante enviado correctamente." };
@@ -787,7 +1101,7 @@ export async function updateOrder(
 		};
 	}
 
-	// 3. Ownership + status guards
+	// 3. Ownership + status guards (guest orders have no userId and cannot be edited here)
 	if (order.userId !== currentUser.id && currentUser.role !== "admin") {
 		return {
 			success: false,
@@ -1015,9 +1329,12 @@ export async function updateOrder(
 	try {
 		await sendOrderUpdatedEmails({
 			orderId,
-			customerEmail: order.customer.email,
+			customerEmail: order.customer?.email ?? order.guestEmail ?? "",
 			customerName:
-				order.customer.displayName ?? order.customer.firstName ?? "Cliente",
+				order.customer?.displayName ??
+				order.customer?.firstName ??
+				order.guestName ??
+				"Cliente",
 			changes,
 			newTotal,
 		});
@@ -1057,4 +1374,18 @@ export async function fetchOrdersTotalsByProduct() {
 		console.error(error);
 		return [];
 	}
+}
+
+export async function storeGuestOrderToken(
+	orderId: number,
+	token: string,
+): Promise<void> {
+	const cookieStore = await cookies();
+	cookieStore.set(`guest_order_${orderId}`, token, {
+		httpOnly: true,
+		secure: process.env.NODE_ENV === "production",
+		sameSite: "lax",
+		path: `/orders/${orderId}`,
+		maxAge: 60 * 60 * 24 * 30,
+	});
 }

@@ -18,9 +18,12 @@ export type OrderItemWithRelations = BaseOrderItem & {
 
 export type OrderWithRelations = BaseOrder & {
 	orderItems: OrderItemWithRelations[];
-	customer: BaseProfile & {
-		profileSubcategories: ProfileSubcategoryWithSubcategory[];
-	};
+	// null for guest orders (userId is null)
+	customer:
+		| (BaseProfile & {
+				profileSubcategories: ProfileSubcategoryWithSubcategory[];
+		  })
+		| null;
 };
 
 export type OrderStatus = BaseOrder["status"];

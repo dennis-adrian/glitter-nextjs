@@ -12,3 +12,9 @@ export type CartItemWithProduct = BaseCartItem & {
 export type CartWithItems = BaseCart & {
 	items: CartItemWithProduct[];
 };
+
+export type GuestCartItem = {
+	productId: number;
+	quantity: number;
+	product: BaseProductWithImages;
+};

@@ -1,4 +1,6 @@
 "use client";
+import posthog from "posthog-js";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -58,6 +60,16 @@ export default function TermsForm({
 			});
 
 			if (res.success) {
+				posthog.identify(profile.clerkId, {
+					category: profile.category,
+				});
+				posthog.capture(POSTHOG_EVENTS.FESTIVAL_TERMS_ACCEPTED, {
+					festival_id: festival.id,
+					festival_name: festival.name,
+					profile_id: profile.id,
+					profile_category: profile.category,
+					is_gastronomy_application: profile.category === "gastronomy",
+				});
 				if (profile.category === "gastronomy") {
 					toast.success("Postulación enviada. Te avisaremos si es aprobada.");
 					router.push(`/portal`);
