@@ -1,5 +1,7 @@
 "use server";
 
+import { getPostHogClient } from "@/app/lib/posthog-server";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { fetchAdminUsers, fetchUserProfileById } from "@/app/api/users/actions";
 import {
 	BaseProfile,
@@ -157,6 +159,16 @@ export async function createUserProfile(user: NewUser) {
 				taskType: "profile_creation",
 			});
 		});
+
+		const posthog = getPostHogClient();
+		posthog.capture({
+			distinctId: String(user.clerkId),
+			event: POSTHOG_EVENTS.USER_PROFILE_CREATED,
+			properties: {
+				category: user.category,
+			},
+		});
+		await posthog.shutdown();
 
 		return {
 			success: true,

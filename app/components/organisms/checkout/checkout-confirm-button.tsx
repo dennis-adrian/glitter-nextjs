@@ -1,5 +1,7 @@
 "use client";
 
+import posthog from "posthog-js";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CircleCheckIcon, Loader2Icon } from "lucide-react";
@@ -21,6 +23,9 @@ export default function CheckoutConfirmButton() {
 		try {
 			const result = await checkoutCart();
 			if (result.success && result.orderId && result.profileId) {
+				posthog.capture(POSTHOG_EVENTS.ORDER_PLACED, {
+					order_id: result.orderId,
+				});
 				setItemCount(0);
 				router.push(`/orders/${result.orderId}/payment`);
 				setLoading(false);

@@ -1,4 +1,6 @@
 "use client";
+import posthog from "posthog-js";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { Button } from "@/app/components/ui/button";
 import {
 	Form,
@@ -177,6 +179,12 @@ export default function NewFestivalForm() {
 		});
 
 		if (result.success) {
+			posthog.capture(POSTHOG_EVENTS.FESTIVAL_CREATED, {
+				festival_type: data.festivalType,
+				festival_status: data.status,
+				sector_count: data.festivalSectors.length,
+				date_count: data.dates.length,
+			});
 			toast.success(result.message);
 			router.push("/dashboard/festivals");
 		} else {

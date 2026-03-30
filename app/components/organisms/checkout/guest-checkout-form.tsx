@@ -1,5 +1,7 @@
 "use client";
 
+import posthog from "posthog-js";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
@@ -55,6 +57,10 @@ export function GuestCheckoutForm({ guestItems }: GuestCheckoutFormProps) {
 			);
 
 			if (result.success && result.orderId && result.guestOrderToken) {
+				posthog.capture(POSTHOG_EVENTS.ORDER_PLACED, {
+					order_id: result.orderId,
+					is_guest: true,
+				});
 				await storeGuestOrderToken(result.orderId, result.guestOrderToken);
 				router.push(`/orders/${result.orderId}/payment`);
 			} else {

@@ -1,5 +1,7 @@
 "use client";
 
+import posthog from "posthog-js";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { validateAndApplyDiscountCode } from "@/app/lib/discount_codes/actions";
@@ -31,6 +33,11 @@ export default function DiscountCodeInput({
       });
 
       if (result.success) {
+        posthog.capture(POSTHOG_EVENTS.DISCOUNT_CODE_APPLIED, {
+          invoice_id: invoiceId,
+          festival_id: festivalId,
+          code: code.trim().toUpperCase(),
+        });
         toast.success(result.message);
         router.refresh();
       } else {

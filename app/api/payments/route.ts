@@ -1,4 +1,7 @@
+import { auth } from "@clerk/nextjs/server";
 import { createPayment } from "@/app/data/invoices/actions";
+import { getPostHogClient } from "@/app/lib/posthog-server";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { z } from "zod";
 
 const PaymentSchema = z.object({
@@ -21,6 +24,7 @@ export type CreatePaymentResponseType = {
 };
 
 export async function POST(req: Request) {
+  const { userId: clerkId } = await auth();
   const body = await req.json();
   const validatedPayment = PaymentSchema.safeParse(body);
   if (!validatedPayment.success) {
@@ -52,6 +56,19 @@ export async function POST(req: Request) {
   if (!result.success) {
     return new Response(JSON.stringify(result), { status: 400 });
   }
+
+  const posthog = getPostHogClient();
+  posthog.capture({
+    distinctId: clerkId ?? `reservation_${data.reservationId}`,
+    event: POSTHOG_EVENTS.PAYMENT_UPLOADED,
+    properties: {
+      reservation_id: data.reservationId,
+      stand_id: data.standId,
+      invoice_id: data.invoiceId,
+      amount: data.amount,
+    },
+  });
+  await posthog.shutdown();
 
   return new Response(JSON.stringify(result), { status: 200 });
 }

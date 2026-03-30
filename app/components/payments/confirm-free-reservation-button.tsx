@@ -1,5 +1,7 @@
 "use client";
 
+import posthog from "posthog-js";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { confirmFreeInvoice } from "@/app/data/invoices/actions";
@@ -27,6 +29,12 @@ export default function ConfirmFreeReservationButton({
     });
 
     if (res.success) {
+      posthog.capture(POSTHOG_EVENTS.FREE_RESERVATION_CONFIRMED, {
+        invoice_id: invoice.id,
+        reservation_id: invoice.reservationId,
+        stand_id: invoice.reservation.standId,
+        user_id: invoice.userId,
+      });
       toast.success("Reserva confirmada con éxito.");
       router.push(
         `/profiles/${invoice.userId}/invoices/${invoice.id}/success`,
