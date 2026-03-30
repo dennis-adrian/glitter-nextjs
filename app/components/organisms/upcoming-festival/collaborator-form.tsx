@@ -60,21 +60,18 @@ export default function CollaboratorForm({
 						name="name"
 						placeholder="Ej. Juan Carlos"
 						required
-						formControl={form.control}
 					/>
 					<TextInput
 						label="Apellido(s)"
 						name="last_name"
 						placeholder="Ej. Perez"
 						required
-						formControl={form.control}
 					/>
 					<TextInput
 						label="Nro de Carnet"
 						name="identification_number"
 						placeholder="Ej. 12345678"
 						required
-						formControl={form.control}
 					/>
 				</div>
 				<SubmitButton

@@ -82,7 +82,6 @@ export default function VisitorRegistrationForm({
 			<form onSubmit={action} className="grid items-start gap-4 md:gap-6">
 				<TextInput
 					bottomBorderOnly
-					formControl={form.control}
 					name="email"
 					label="Email"
 					type="email"
@@ -91,14 +90,12 @@ export default function VisitorRegistrationForm({
 				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 					<TextInput
 						bottomBorderOnly
-						formControl={form.control}
 						name="firstName"
 						label="Nombre"
 						type="text"
 					/>
 					<TextInput
 						bottomBorderOnly
-						formControl={form.control}
 						name="lastName"
 						label="Apellido"
 						type="text"
@@ -111,12 +108,7 @@ export default function VisitorRegistrationForm({
 						name="birthdate"
 						label="Fecha de nacimiento"
 					/>
-					<PhoneInput
-						bottomBorderOnly
-						formControl={form.control}
-						name="phoneNumber"
-						label="Teléfono"
-					/>
+					<PhoneInput bottomBorderOnly name="phoneNumber" label="Teléfono" />
 					<SelectInput
 						variant="quiet"
 						formControl={form.control}

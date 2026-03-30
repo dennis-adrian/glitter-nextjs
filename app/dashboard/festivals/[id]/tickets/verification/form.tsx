@@ -11,74 +11,73 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 const FormSchema = z.object({
-  ticketCode: z.string().trim().min(1, {
-      error: "El código de entrada es requerido"
-}),
+	ticketCode: z.string().trim().min(1, {
+		error: "El código de entrada es requerido",
+	}),
 });
 
 export default function VerifyTicketForm({
-  festivalId,
+	festivalId,
 }: {
-  festivalId: number;
+	festivalId: number;
 }) {
-  const form = useForm({
-    resolver: zodResolver(FormSchema),
-    defaultValues: {
-      ticketCode: "",
-    },
-  });
+	const form = useForm({
+		resolver: zodResolver(FormSchema),
+		defaultValues: {
+			ticketCode: "",
+		},
+	});
 
-  useEffect(() => {
-    form.setFocus("ticketCode");
-  }, [form, form.setFocus]);
+	useEffect(() => {
+		form.setFocus("ticketCode");
+	}, [form, form.setFocus]);
 
-  const action: () => void = form.handleSubmit(async (data) => {
-    const { ticketCode } = data;
-    let ticketNumber = 0;
-    if (ticketCode.includes("-") || ticketCode.includes("/")) {
-      ticketNumber = Number(ticketCode.split(/[-\/]/)[1]); // Splits by either '-' or '/'
-    } else {
-      ticketNumber = Number(ticketCode);
-    }
+	const action: () => void = form.handleSubmit(async (data) => {
+		const { ticketCode } = data;
+		let ticketNumber = 0;
+		if (ticketCode.includes("-") || ticketCode.includes("/")) {
+			ticketNumber = Number(ticketCode.split(/[-\/]/)[1]); // Splits by either '-' or '/'
+		} else {
+			ticketNumber = Number(ticketCode);
+		}
 
-    if (Number.isNaN(ticketNumber)) {
-      toast.error("Código de entrada inválido", {
-        position: "top-right",
-      });
-      return;
-    }
+		if (Number.isNaN(ticketNumber)) {
+			toast.error("Código de entrada inválido", {
+				position: "top-right",
+			});
+			return;
+		}
 
-    const res = await verifyTicket(ticketNumber, festivalId);
-    if (res.success) {
-      toast.success(res.message, {
-        position: "top-right",
-      });
-    } else {
-      toast.error(res.message, {
-        position: "top-right",
-      });
-    }
+		const res = await verifyTicket(ticketNumber, festivalId);
+		if (res.success) {
+			toast.success(res.message, {
+				position: "top-right",
+			});
+		} else {
+			toast.error(res.message, {
+				position: "top-right",
+			});
+		}
 
-    form.setValue("ticketCode", "");
-    form.setFocus("ticketCode");
-  });
+		form.setValue("ticketCode", "");
+		form.setFocus("ticketCode");
+	});
 
-  return (
-    <Form {...form}>
-      <form className="grid gap-2" onSubmit={action}>
-        <TextInput
-          formControl={form.control}
-          name="ticketCode"
-          description="Puedes ingresar el código manualmente. Los dígitos después del guión (-) o barra (/)"
-          label="Código de entrada"
-          placeholder="Ingresa el código de la entrada"
-        />
-        <SubmitButton
-          loading={form.formState.isSubmitting}
-          disabled={form.formState.isSubmitting}
-          label="Verificar"
-        />
-      </form>
-    </Form>
-  );
+	return (
+		<Form {...form}>
+			<form className="grid gap-2" onSubmit={action}>
+				<TextInput
+					name="ticketCode"
+					description="Puedes ingresar el código manualmente. Los dígitos después del guión (-) o barra (/)"
+					label="Código de entrada"
+					placeholder="Ingresa el código de la entrada"
+				/>
+				<SubmitButton
+					loading={form.formState.isSubmitting}
+					disabled={form.formState.isSubmitting}
+					label="Verificar"
+				/>
+			</form>
+		</Form>
+	);
 }

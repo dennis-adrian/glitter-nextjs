@@ -198,7 +198,6 @@ export default function NewFestivalForm() {
 								</h3>
 
 								<TextInput
-									formControl={form.control}
 									name="name"
 									label="Nombre del festival"
 									type="text"
@@ -227,22 +226,15 @@ export default function NewFestivalForm() {
 									Información de la Ubicación
 								</h3>
 
-								<TextInput
-									formControl={form.control}
-									name="address"
-									label="Dirección"
-									type="text"
-								/>
+								<TextInput name="address" label="Dirección" type="text" />
 
 								<TextInput
-									formControl={form.control}
 									name="locationLabel"
 									label="Etiqueta de Dirección"
 									type="text"
 								/>
 
 								<TextInput
-									formControl={form.control}
 									name="locationUrl"
 									label="URL de Dirección"
 									type="text"
@@ -280,7 +272,6 @@ export default function NewFestivalForm() {
 										</div>
 
 										<TextInput
-											formControl={form.control}
 											name={`dates.${index}.date`}
 											label="Fecha"
 											type="date"
@@ -356,14 +347,12 @@ export default function NewFestivalForm() {
 										</div>
 
 										<TextInput
-											formControl={form.control}
 											name={`festivalSectors.${index}.name`}
 											label="Nombre del Sector"
 											type="text"
 										/>
 
 										<TextInput
-											formControl={form.control}
 											name={`festivalSectors.${index}.orderInFestival`}
 											label="Orden en el Festival"
 											type="number"
