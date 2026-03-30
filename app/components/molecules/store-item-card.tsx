@@ -50,7 +50,9 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
 			if (isAuthenticated) {
 				const { success, newCount } = await addToCart(product.id, 1);
 				if (success) {
-					setItemCount(newCount);
+					if (newCount !== undefined) {
+						setItemCount(newCount);
+					}
 					toast.success("Producto agregado al carrito");
 				} else {
 					toast.error("No se pudo agregar al carrito");

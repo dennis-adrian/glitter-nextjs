@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { ArrowLeftIcon, BoxIcon, CalendarClockIcon } from "lucide-react";
@@ -34,11 +35,19 @@ export default async function OrderPaymentPage(props: {
 	if (!parsedParams.success) return notFound();
 
 	const parsedSearch = SearchParamsSchema.safeParse(searchParams);
-	const token = parsedSearch.success ? parsedSearch.data.token : undefined;
+	const tokenFromParam = parsedSearch.success
+		? parsedSearch.data.token
+		: undefined;
 
 	const { orderId } = parsedParams.data;
 
 	const user = await getCurrentUserProfile();
+
+	const resolvedToken =
+		tokenFromParam ??
+		(user
+			? undefined
+			: (await cookies()).get(`guest_order_${orderId}`)?.value);
 
 	let order: Awaited<ReturnType<typeof fetchOrder>>;
 	let isGuest = false;
@@ -48,14 +57,16 @@ export default async function OrderPaymentPage(props: {
 		if (!order) return notFound();
 		if (order.userId !== user.id && user.role !== "admin") return notFound();
 	} else {
-		if (!token) return notFound();
-		order = await fetchGuestOrder(orderId, token);
+		if (!resolvedToken) return notFound();
+		order = await fetchGuestOrder(orderId, resolvedToken);
 		if (!order) return notFound();
 		isGuest = true;
 	}
 
 	const backHref = isGuest
-		? `/orders/${orderId}?token=${token}`
+		? tokenFromParam
+			? `/orders/${orderId}?token=${resolvedToken}`
+			: `/orders/${orderId}`
 		: `/profiles/${order.userId}/orders/${orderId}`;
 
 	const successRedirectUrl = isGuest ? undefined : "/my_orders";
@@ -96,7 +107,7 @@ export default async function OrderPaymentPage(props: {
 					totalAmount={order.totalAmount}
 					status={order.status}
 					paymentVoucherUrl={order.paymentVoucherUrl ?? null}
-					guestToken={isGuest ? token : undefined}
+					guestToken={isGuest ? resolvedToken : undefined}
 					successRedirectUrl={successRedirectUrl}
 				/>
 
@@ -151,7 +162,7 @@ export default async function OrderPaymentPage(props: {
 			{order.status === "pending" && (
 				<MobilePaymentBar
 					orderId={order.id}
-					guestToken={isGuest ? token : undefined}
+					guestToken={isGuest ? resolvedToken : undefined}
 					successRedirectUrl={successRedirectUrl}
 				/>
 			)}

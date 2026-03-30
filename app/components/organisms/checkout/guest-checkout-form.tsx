@@ -19,6 +19,7 @@ import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Form } from "@/app/components/ui/form";
 import { checkoutGuestCart } from "@/app/lib/cart/actions";
+import { storeGuestOrderToken } from "@/app/lib/orders/actions";
 import type { GuestCartItem } from "@/app/lib/cart/definitions";
 
 type GuestFormValues = GuestCheckoutContactInput;
@@ -54,9 +55,8 @@ export function GuestCheckoutForm({ guestItems }: GuestCheckoutFormProps) {
 			);
 
 			if (result.success && result.orderId && result.guestOrderToken) {
-				router.push(
-					`/orders/${result.orderId}/payment?token=${result.guestOrderToken}`,
-				);
+				await storeGuestOrderToken(result.orderId, result.guestOrderToken);
+				router.push(`/orders/${result.orderId}/payment`);
 			} else {
 				toast.error(result.message);
 				setLoading(false);

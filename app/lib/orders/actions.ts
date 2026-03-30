@@ -1,5 +1,6 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { orderItems, orders } from "@/db/schema";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
 import {
@@ -1341,4 +1342,18 @@ export async function fetchOrdersTotalsByProduct() {
 		console.error(error);
 		return [];
 	}
+}
+
+export async function storeGuestOrderToken(
+	orderId: number,
+	token: string,
+): Promise<void> {
+	const cookieStore = await cookies();
+	cookieStore.set(`guest_order_${orderId}`, token, {
+		httpOnly: true,
+		secure: process.env.NODE_ENV === "production",
+		sameSite: "lax",
+		path: `/orders/${orderId}`,
+		maxAge: 60 * 60 * 24 * 30,
+	});
 }
