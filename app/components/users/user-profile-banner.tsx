@@ -22,8 +22,6 @@ export default async function UserProfileBanner({
 		if (profile.status !== "banned") {
 			return (
 				<>
-					{/* FIXME: Find a way to make this dynamic. It was added specifically for the Festicker */}
-					{/* <FestivalActivityBanner profile={profile} /> */}
 					<AnnouncementCard profile={profile} />
 				</>
 			);

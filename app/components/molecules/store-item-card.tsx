@@ -2,13 +2,13 @@
 
 import StoreProductImages from "@/app/components/molecules/store-product-images";
 import { Card, CardContent } from "@/app/components/ui/card";
-import { useCart } from "@/app/components/providers/cart-provider";
+import { useCartContext } from "@/app/components/providers/cart-provider";
 import { formatDate } from "@/app/lib/formatters";
 import { addToCart } from "@/app/lib/cart/actions";
 import { validatedDiscount } from "@/app/lib/orders/utils";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
 import { ProductStatusBadge } from "@/components/molecules/ProductStatusBadge";
-import { ClockIcon, PlusIcon } from "lucide-react";
+import { ClockIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -20,7 +20,7 @@ type StoreItemCardProps = {
 
 export default function StoreItemCard({ product }: StoreItemCardProps) {
 	const [isAdding, setIsAdding] = useState(false);
-	const { setItemCount } = useCart();
+	const { setItemCount, isAuthenticated, addGuestItem } = useCartContext();
 
 	const inStock = (product.stock ?? 0) > 0;
 
@@ -47,12 +47,19 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
 	async function handleQuickAdd() {
 		setIsAdding(true);
 		try {
-			const { success, newCount } = await addToCart(product.id, 1);
-			if (success) {
-				setItemCount(newCount);
-				toast.success("Producto agregado al carrito");
+			if (isAuthenticated) {
+				const { success, newCount } = await addToCart(product.id, 1);
+				if (success) {
+					if (newCount !== undefined) {
+						setItemCount(newCount);
+					}
+					toast.success("Producto agregado al carrito");
+				} else {
+					toast.error("No se pudo agregar al carrito");
+				}
 			} else {
-				toast.error("No se pudo agregar al carrito");
+				addGuestItem({ productId: product.id, quantity: 1, product });
+				toast.success("Producto agregado al carrito");
 			}
 		} catch (error) {
 			const message =

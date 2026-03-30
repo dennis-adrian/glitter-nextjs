@@ -127,15 +127,13 @@ export default function PrivateProfileForm({
 			<form onSubmit={action} className="grid items-start gap-4 mt-4">
 				<TextInput
 					bottomBorderOnly
-					formControl={form.control}
 					name="firstName"
-					label="Ingres tu nombre"
+					label="Ingresa tu nombre"
 				/>
 				<TextInput
 					bottomBorderOnly
-					formControl={form.control}
 					name="lastName"
-					label="Ingres tu apellido"
+					label="Ingresa tu apellido"
 				/>
 				<DateInput
 					bottomBorderOnly
@@ -145,7 +143,6 @@ export default function PrivateProfileForm({
 				/>
 				<PhoneInput
 					bottomBorderOnly
-					formControl={form.control}
 					name="phoneNumber"
 					label="Número de teléfono"
 				/>

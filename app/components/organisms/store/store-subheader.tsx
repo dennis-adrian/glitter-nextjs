@@ -1,11 +1,11 @@
 "use client";
 
-import { useCart } from "@/app/components/providers/cart-provider";
+import { useCartContext } from "@/app/components/providers/cart-provider";
 import { Button } from "@/app/components/ui/button";
 import { ShoppingCartIcon } from "lucide-react";
 
 export default function StoreSubheader() {
-	const { itemCount, openCart } = useCart();
+	const { itemCount, openCart } = useCartContext();
 
 	return (
 		<div className="sticky top-16 md:top-20 z-40 bg-background border-b">
@@ -23,7 +23,11 @@ export default function StoreSubheader() {
 					variant="outline"
 					size="sm"
 					className="relative flex items-center gap-2"
-					aria-label={itemCount > 0 ? `Abrir carrito, ${itemCount > 9 ? "9+" : itemCount}` : "Abrir carrito"}
+					aria-label={
+						itemCount > 0
+							? `Abrir carrito, ${itemCount > 9 ? "9+" : itemCount}`
+							: "Abrir carrito"
+					}
 					onClick={openCart}
 				>
 					<ShoppingCartIcon className="w-4 h-4" />

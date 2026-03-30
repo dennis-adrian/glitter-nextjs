@@ -16,14 +16,14 @@ export const getActiveFestivalBase = cache(
 );
 
 export const getFestivalById = cache(
-  async (festivalId: number): Promise<FullFestival | undefined | null> => {
-    return await fetchFullFestivalById(festivalId);
-  },
+	async (festivalId: number): Promise<FullFestival | undefined | null> => {
+		return await fetchFullFestivalById(festivalId);
+	},
 );
 
 export async function getFestivalsOptions(festivals: FestivalBase[]) {
-  return festivals.map((festival) => ({
-    label: festival.name,
-    value: festival.id.toString(),
-  }));
+	return festivals.map((festival) => ({
+		label: festival.name,
+		value: festival.id.toString(),
+	}));
 }

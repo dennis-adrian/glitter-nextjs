@@ -310,14 +310,15 @@ export async function enrollInActivity(
 					}
 				}
 
-				await tx.insert(festivalActivityParticipants).values({
-					userId: forProfile.id,
-					detailsId,
-				});
+				const [newParticipant] = await tx
+					.insert(festivalActivityParticipants)
+					.values({ userId: forProfile.id, detailsId })
+					.returning({ id: festivalActivityParticipants.id });
 
 				return {
 					success: true,
 					message: "Inscripción realizada correctamente",
+					participationId: newParticipant.id,
 				};
 			});
 
@@ -369,14 +370,15 @@ export async function enrollInActivity(
 					};
 				}
 
-				await tx.insert(festivalActivityParticipants).values({
-					userId: forProfile.id,
-					detailsId,
-				});
+				const [newParticipant] = await tx
+					.insert(festivalActivityParticipants)
+					.values({ userId: forProfile.id, detailsId })
+					.returning({ id: festivalActivityParticipants.id });
 
 				return {
 					success: true,
 					message: "Inscripción realizada correctamente",
+					participationId: newParticipant.id,
 				};
 			});
 

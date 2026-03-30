@@ -158,13 +158,11 @@ export default function UploadProductModal({
 					<Form {...form}>
 						<form className="flex flex-col gap-3" onSubmit={action}>
 							<TextInput
-								formControl={form.control}
 								name="name"
 								label="Nombre del producto*"
 								placeholder="Escribe el nombre del producto"
 							/>
 							<TextInput
-								formControl={form.control}
 								name="description"
 								label="Descripción (opcional)"
 								placeholder="Escribe una descripción corta"

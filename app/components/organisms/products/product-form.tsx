@@ -6,7 +6,8 @@ import TextInput from "@/app/components/form/fields/text";
 import TextareaInput from "@/app/components/form/fields/textarea";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Button } from "@/app/components/ui/button";
-import { Form, FormLabel } from "@/app/components/ui/form";
+import { Form } from "@/app/components/ui/form";
+import { Label } from "@/app/components/ui/label";
 import { Progress } from "@/app/components/ui/progress";
 import { Switch } from "@/app/components/ui/switch";
 import { useUploadThing } from "@/app/vendors/uploadthing";
@@ -51,9 +52,12 @@ const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
 const MAX_IMAGE_COUNT = 10;
 
 /** Returns a local YYYY-MM-DD string from a Date or passes through an existing YYYY-MM-DD string. */
-function toLocalDateString(value: Date | string | null | undefined): string | null {
+function toLocalDateString(
+	value: Date | string | null | undefined,
+): string | null {
 	if (value == null) return null;
-	if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+	if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value))
+		return value;
 	const d = new Date(value);
 	if (Number.isNaN(d.getTime())) return null;
 	const y = d.getFullYear();
@@ -297,7 +301,7 @@ export default function ProductForm({ product }: ProductFormProps) {
 			<form onSubmit={action} className="flex flex-col gap-6 pb-24 md:pb-0">
 				{/* Images — at the top */}
 				<div className="flex flex-col gap-3">
-					<FormLabel>Imágenes del producto</FormLabel>
+					<Label className="text-muted-foreground">Imágenes del producto</Label>
 					<div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
 						{/* Uploaded images */}
 						{images.map((img) => {
@@ -403,7 +407,6 @@ export default function ProductForm({ product }: ProductFormProps) {
 
 				<div className="grid gap-4">
 					<TextInput
-						formControl={form.control}
 						label="Nombre"
 						name="name"
 						placeholder="Nombre del producto"
@@ -419,7 +422,6 @@ export default function ProductForm({ product }: ProductFormProps) {
 
 				<div className="grid gap-4 sm:grid-cols-2">
 					<TextInput
-						formControl={form.control}
 						label="Precio (Bs.)"
 						name="price"
 						type="number"
@@ -428,7 +430,6 @@ export default function ProductForm({ product }: ProductFormProps) {
 						step={0.01}
 					/>
 					<TextInput
-						formControl={form.control}
 						label="Stock"
 						name="stock"
 						type="number"
@@ -450,7 +451,6 @@ export default function ProductForm({ product }: ProductFormProps) {
 
 				<div className="grid gap-4 sm:grid-cols-2">
 					<TextInput
-						formControl={form.control}
 						label="Descuento"
 						name="discount"
 						type="number"
@@ -481,7 +481,9 @@ export default function ProductForm({ product }: ProductFormProps) {
 								})
 							}
 						/>
-						<FormLabel htmlFor="isPreOrder">Es pre-venta</FormLabel>
+						<Label htmlFor="isPreOrder" className="text-muted-foreground cursor-pointer">
+							Es pre-venta
+						</Label>
 					</div>
 					{isPreOrder && (
 						<DateInput
@@ -501,7 +503,9 @@ export default function ProductForm({ product }: ProductFormProps) {
 								})
 							}
 						/>
-						<FormLabel htmlFor="isFeatured">Producto destacado</FormLabel>
+						<Label htmlFor="isFeatured" className="text-muted-foreground cursor-pointer">
+							Producto destacado
+						</Label>
 					</div>
 					<div className="flex items-center gap-3">
 						<Switch
@@ -514,7 +518,9 @@ export default function ProductForm({ product }: ProductFormProps) {
 								})
 							}
 						/>
-						<FormLabel htmlFor="isNew">Producto nuevo</FormLabel>
+						<Label htmlFor="isNew" className="text-muted-foreground cursor-pointer">
+							Producto nuevo
+						</Label>
 					</div>
 				</div>
 

@@ -9,7 +9,6 @@ import StoreProductImages from "@/app/components/molecules/store-product-images"
 import { formatDate } from "@/app/lib/formatters";
 import { validatedDiscount } from "@/app/lib/orders/utils";
 import { fetchProduct } from "@/app/lib/products/actions";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 const ParamsSchema = z.object({
 	productId: z.coerce.number(),
@@ -22,12 +21,6 @@ export default async function ProductDetailPage(props: {
 	const validatedParams = ParamsSchema.safeParse(params);
 
 	if (!validatedParams.success) {
-		return notFound();
-	}
-
-	const currentProfile = await getCurrentUserProfile();
-
-	if (!currentProfile) {
 		return notFound();
 	}
 

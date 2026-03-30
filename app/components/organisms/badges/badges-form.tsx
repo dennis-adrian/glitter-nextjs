@@ -48,12 +48,8 @@ export default function BadgesForm({ festivalsOptions }: BadgesFormProps) {
 	return (
 		<Form {...form}>
 			<form className="grid gap-4" onSubmit={action}>
-				<TextInput formControl={form.control} label="Nombre" name="name" />
-				<TextInput
-					formControl={form.control}
-					label="Descripción"
-					name="description"
-				/>
+				<TextInput label="Nombre" name="name" />
+				<TextInput label="Descripción" name="description" />
 				<SelectInput
 					formControl={form.control}
 					label="Festival"

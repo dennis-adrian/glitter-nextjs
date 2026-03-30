@@ -1,0 +1,1 @@
+ALTER TABLE "orders" ADD CONSTRAINT "orders_identity_check" CHECK (("orders"."user_id" IS NOT NULL) OR ("orders"."guest_order_token" IS NOT NULL));

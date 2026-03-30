@@ -7,7 +7,10 @@ import { toast } from "sonner";
 import { CheckCircle2Icon, ClockIcon, XCircleIcon } from "lucide-react";
 import { Card, CardContent } from "@/app/components/ui/card";
 import PaymentProofUpload from "@/app/components/payments/payment-proof-upload";
-import { submitOrderPaymentVoucher } from "@/app/lib/orders/actions";
+import {
+	submitOrderPaymentVoucher,
+	submitGuestOrderPaymentVoucher,
+} from "@/app/lib/orders/actions";
 import { OrderStatus } from "@/app/lib/orders/definitions";
 import Heading from "@/app/components/atoms/heading";
 
@@ -16,6 +19,8 @@ type Props = {
 	totalAmount: number;
 	status: OrderStatus;
 	paymentVoucherUrl: string | null;
+	guestToken?: string;
+	successRedirectUrl?: string;
 };
 
 export default function OrderPaymentSection({
@@ -23,22 +28,35 @@ export default function OrderPaymentSection({
 	totalAmount,
 	status,
 	paymentVoucherUrl: initialVoucherUrl,
+	guestToken,
+	successRedirectUrl,
 }: Props) {
 	const [voucherUrl] = useState<string | null>(initialVoucherUrl);
 	const router = useRouter();
+	const redirectAfterSuccess =
+		successRedirectUrl ?? (guestToken ? undefined : "/my_orders");
+
+	const endpoint = guestToken ? "guestOrderPayment" : "storeOrderPayment";
+	const uploadInput = guestToken ? { orderId, token: guestToken } : undefined;
 
 	async function handleUploadComplete(imageUrl: string) {
 		try {
-			const result = await submitOrderPaymentVoucher(orderId, imageUrl);
+			const result = guestToken
+				? await submitGuestOrderPaymentVoucher(orderId, guestToken, imageUrl)
+				: await submitOrderPaymentVoucher(orderId, imageUrl);
 			if (result.success) {
 				toast.success("Comprobante enviado. Revisaremos tu pago pronto");
-				router.push("/my_orders");
+				if (redirectAfterSuccess) {
+					router.push(redirectAfterSuccess);
+				} else {
+					router.refresh();
+				}
 			} else {
 				toast.error(result.message);
 			}
 		} catch (error) {
 			console.error(
-				"[order-payment-section] handleUploadComplete / submitOrderPaymentVoucher error:",
+				"[order-payment-section] handleUploadComplete error:",
 				error,
 			);
 			toast.error("No se pudo enviar el comprobante. Intentá de nuevo.");
@@ -141,7 +159,8 @@ export default function OrderPaymentSection({
 				<div className="hidden md:flex flex-col gap-3 bg-card border rounded-lg p-4">
 					<Heading level={4}>Comprobante de pago</Heading>
 					<PaymentProofUpload
-						endpoint="storeOrderPayment"
+						endpoint={endpoint}
+						uploadInput={uploadInput}
 						onUploadComplete={handleUploadComplete}
 						onUploading={() => {}}
 					/>

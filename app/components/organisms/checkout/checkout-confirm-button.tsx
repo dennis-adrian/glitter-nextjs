@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CircleCheckIcon, Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
-import { useCart } from "@/app/components/providers/cart-provider";
+import { useCartContext } from "@/app/components/providers/cart-provider";
 import { Button } from "@/app/components/ui/button";
 import { checkoutCart } from "@/app/lib/cart/actions";
 
@@ -12,7 +12,7 @@ export default function CheckoutConfirmButton() {
 	const [loading, setLoading] = useState(false);
 	const isSubmittingRef = useRef(false);
 	const router = useRouter();
-	const { setItemCount } = useCart();
+	const { setItemCount } = useCartContext();
 
 	async function handleConfirm() {
 		if (isSubmittingRef.current) return;
@@ -22,9 +22,7 @@ export default function CheckoutConfirmButton() {
 			const result = await checkoutCart();
 			if (result.success && result.orderId && result.profileId) {
 				setItemCount(0);
-				router.push(
-					`/profiles/${result.profileId}/orders/${result.orderId}/pay`,
-				);
+				router.push(`/orders/${result.orderId}/payment`);
 				setLoading(false);
 				isSubmittingRef.current = false;
 			} else {

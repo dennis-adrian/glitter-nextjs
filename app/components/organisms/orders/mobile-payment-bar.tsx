@@ -7,14 +7,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/app/components/ui/button";
-import { submitOrderPaymentVoucher } from "@/app/lib/orders/actions";
+import {
+	submitOrderPaymentVoucher,
+	submitGuestOrderPaymentVoucher,
+} from "@/app/lib/orders/actions";
 import { useUploadThing } from "@/app/vendors/uploadthing";
 
 type Phase = "idle" | "selected" | "uploading" | "saving" | "done" | "error";
 
 type Props = {
 	orderId: number;
-	endpoint: "storeOrderPayment";
+	guestToken?: string;
+	successRedirectUrl?: string;
 };
 
 function formatBytes(bytes: number): string {
@@ -23,15 +27,23 @@ function formatBytes(bytes: number): string {
 	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function MobilePaymentBar({ orderId, endpoint }: Props) {
+export default function MobilePaymentBar({
+	orderId,
+	guestToken,
+	successRedirectUrl,
+}: Props) {
+	const redirectAfterSuccess =
+		successRedirectUrl ?? (guestToken ? undefined : "/my_orders");
+	const { startUpload: startGuestOrderPaymentUpload } =
+		useUploadThing("guestOrderPayment");
+	const { startUpload: startStoreOrderPaymentUpload } =
+		useUploadThing("storeOrderPayment");
 	const [selectedFile, setSelectedFile] = useState<File | null>(null);
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 	const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
 	const [phase, setPhase] = useState<Phase>("idle");
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const router = useRouter();
-
-	const { startUpload } = useUploadThing(endpoint);
 
 	useEffect(() => {
 		return () => {
@@ -66,7 +78,12 @@ export default function MobilePaymentBar({ orderId, endpoint }: Props) {
 			if (!selectedFile) return;
 			setPhase("uploading");
 			try {
-				const res = await startUpload([selectedFile]);
+				const res = guestToken
+					? await startGuestOrderPaymentUpload([selectedFile], {
+							orderId,
+							token: guestToken,
+						})
+					: await startStoreOrderPaymentUpload([selectedFile]);
 				if (!res?.[0]) {
 					toast.error("Error al subir la imagen. Intentá de nuevo.");
 					setPhase("error");
@@ -88,11 +105,17 @@ export default function MobilePaymentBar({ orderId, endpoint }: Props) {
 
 		setPhase("saving");
 		try {
-			const result = await submitOrderPaymentVoucher(orderId, imageUrl);
+			const result = guestToken
+				? await submitGuestOrderPaymentVoucher(orderId, guestToken, imageUrl)
+				: await submitOrderPaymentVoucher(orderId, imageUrl);
 			if (result.success) {
 				toast.success("¡Pago confirmado! Lo revisaremos pronto.");
 				setPhase("done");
-				router.push("/my_orders");
+				if (redirectAfterSuccess) {
+					router.push(redirectAfterSuccess);
+				} else {
+					router.refresh();
+				}
 			} else {
 				toast.error(result.message);
 				setPhase("error");

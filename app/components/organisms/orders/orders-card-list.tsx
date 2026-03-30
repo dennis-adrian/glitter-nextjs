@@ -65,7 +65,7 @@ export default function OrdersCardList({ ordersPromise }: OrdersCardListProps) {
 									<OrderStatusBadge status={order.status} />
 								</div>
 								<p className="text-sm text-muted-foreground truncate">
-									{order.customer.displayName}
+									{order.customer?.displayName ?? order.guestName ?? "Invitado"}
 								</p>
 								<p className="text-xs text-muted-foreground capitalize">
 									{formatDate(order.createdAt).toLocaleString(

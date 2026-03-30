@@ -1,18 +1,137 @@
-.react-international-phone-country-selector-button {
-  border: none;
-  border-radius: 0 !important;
-  border-bottom: 1px solid hsl(var(--primary-500));
-  margin-right: 0.25rem !important;
-  /* because of the flag height, the top-bottom padding is not actually doing anything */
-  padding: 0 0.5rem !important;
+/* Matches app/components/ui/input.tsx — full bordered variant */
+
+.phone-input.react-international-phone-input-container:not(
+		.phone-input--bottom-border-only
+	) {
+	border-radius: 6px; /* hsl(var(--radius-md)) */
 }
 
-.react-international-phone-country-selector-button:hover {
-  background-color: transparent;
+.phone-input.react-international-phone-input-container:not(
+		.phone-input--bottom-border-only
+	)
+	.react-international-phone-country-selector-button {
+	height: 2.5rem;
+	box-sizing: border-box;
+	border: 1px solid hsl(var(--input));
+	margin-right: -1px;
+	border-radius: 0;
+	border-top-left-radius: 6px; /* hsl(var(--radius-md)) */
+	border-bottom-left-radius: 6px; /* hsl(var(--radius-md)) */
+	border-bottom-right-radius: 0;
+	border-top-right-radius: 0;
+	background-color: hsl(var(--background));
+	padding: 0 0.5rem;
+}
+
+.phone-input.react-international-phone-input-container:not(
+		.phone-input--bottom-border-only
+	)
+	.react-international-phone-country-selector-button:hover {
+	background-color: hsl(var(--background));
+}
+
+.phone-input.react-international-phone-input-container:not(
+		.phone-input--bottom-border-only
+	)
+	.react-international-phone-input {
+	display: flex;
+	height: 2.5rem;
+	box-sizing: border-box;
+	width: 100%;
+	border: 1px solid hsl(var(--input));
+	border-radius: 0;
+	border-top-right-radius: 6px; /* hsl(var(--radius-md)) */
+	border-bottom-right-radius: 6px; /* hsl(var(--radius-md)) */
+	border-bottom-left-radius: 0;
+	border-top-left-radius: 0;
+	background-color: hsl(var(--background));
+	padding: 0.5rem 0.75rem;
+	color: hsl(var(--foreground));
+	font-size: inherit;
+}
+
+.phone-input.react-international-phone-input-container:not(
+		.phone-input--bottom-border-only
+	)
+	.react-international-phone-input::placeholder {
+	color: hsl(var(--muted-foreground));
+}
+
+.phone-input.react-international-phone-input-container:not(
+		.phone-input--bottom-border-only
+	)
+	.react-international-phone-input:focus {
+	outline: none;
+}
+
+/* focus-visible ring — mirrors Input focus-visible:ring-2 ring-ring ring-offset-2 */
+.phone-input:not(.phone-input--bottom-border-only):has(
+		.react-international-phone-input:focus-visible
+	) {
+	box-shadow:
+		0 0 0 2px hsl(var(--background)),
+		0 0 0 4px hsl(var(--ring));
+}
+
+.phone-input .react-international-phone-input:disabled,
+.phone-input .react-international-phone-input--disabled {
+	cursor: not-allowed;
+	opacity: 0.5;
+}
+
+.phone-input .react-international-phone-country-selector-button--disabled {
+	cursor: not-allowed;
+	opacity: 0.5;
+}
+
+/* Matches app/components/ui/input.tsx — bottomBorderOnly variant */
+
+.phone-input.phone-input--bottom-border-only
+	.react-international-phone-country-selector-button {
+	border: none !important;
+	border-radius: 0 !important;
+	border-bottom: 1px solid hsl(var(--primary-500)) !important;
+	margin-right: 0.25rem !important;
+	padding: 0 0.5rem !important;
+}
+
+.phone-input.phone-input--bottom-border-only
+	.react-international-phone-country-selector-button:hover {
+	background-color: transparent !important;
+}
+
+.phone-input.phone-input--bottom-border-only .react-international-phone-input {
+	border: none;
+	border-bottom: 1px solid hsl(var(--primary-500));
+	border-radius: 0;
+	width: 100%;
+	padding: 0.5rem;
+	font-size: inherit;
+	background-color: transparent;
+}
+
+.phone-input.phone-input--bottom-border-only
+	.react-international-phone-input:focus {
+	outline: none;
+}
+
+.phone-input.phone-input--bottom-border-only:has(
+		.react-international-phone-input:focus-visible
+	)
+	.react-international-phone-input {
+	border-bottom-width: 2px;
+	border-bottom-color: hsl(var(--primary-500));
+}
+
+.phone-input.phone-input--bottom-border-only:has(
+		.react-international-phone-country-selector-button:focus-visible
+	)
+	.react-international-phone-country-selector-button {
+	border-bottom-width: 2px !important;
 }
 
 .react-international-phone-country-selector-dropdown {
-  position: absolute !important;
-  top: -204px;
-  width: 240px;
+	position: absolute !important;
+	top: -204px;
+	width: 240px;
 }

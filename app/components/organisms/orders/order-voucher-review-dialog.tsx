@@ -75,7 +75,7 @@ export default function OrderVoucherReviewDialog({
 											{orderLabel}
 										</p>
 										<span className="text-sm text-muted-foreground">
-											{order.customer.displayName}
+											{order.customer?.displayName ?? order.guestName ?? "Invitado"}
 										</span>
 									</div>
 
@@ -109,7 +109,7 @@ export default function OrderVoucherReviewDialog({
 						<DialogHeader className="pr-8">
 							<DialogTitle>Verificar Comprobante de Pago</DialogTitle>
 							<DialogDescription>
-								{orderLabel} - {order.customer.displayName}
+								{orderLabel} - {order.customer?.displayName ?? order.guestName ?? "Invitado"}
 							</DialogDescription>
 						</DialogHeader>
 					</div>
@@ -184,9 +184,9 @@ export default function OrderVoucherReviewDialog({
 									</CardTitle>
 								</CardHeader>
 								<CardContent className="flex flex-col gap-1 text-sm text-muted-foreground">
-									<p>{order.customer.displayName}</p>
-									<p>{order.customer.email}</p>
-									<p>{order.customer.phoneNumber || "No registrado"}</p>
+									<p>{order.customer?.displayName ?? order.guestName ?? "Invitado"}</p>
+									<p>{order.customer?.email ?? order.guestEmail ?? "—"}</p>
+									<p>{order.customer?.phoneNumber ?? order.guestPhone ?? "No registrado"}</p>
 								</CardContent>
 							</Card>
 						</div>

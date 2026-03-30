@@ -76,7 +76,7 @@ export default function OrderCard({ order }: { order: OrderWithRelations }) {
 						</p>
 					)}
 					<Button asChild className="w-full bg-purple-600 hover:bg-purple-700">
-						<Link href={`/profiles/${order.userId}/orders/${order.id}/pay`}>
+						<Link href={`/orders/${order.id}/payment`}>
 							Pagar pedido
 						</Link>
 					</Button>

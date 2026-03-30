@@ -1,13 +1,57 @@
 "use server";
 
 import { db } from "@/db";
-import { cartItems, carts } from "@/db/schema";
-import { and, eq, sql } from "drizzle-orm";
+import { cartItems, carts, products } from "@/db/schema";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { createOrderInTx, sendOrderEmails } from "@/app/lib/orders/actions";
+import { guestCheckoutContactSchema } from "@/app/components/form/input-validators";
+import {
+	createOrderInTx,
+	createGuestOrderInTx,
+	sendOrderEmails,
+	sendGuestOrderEmails,
+} from "@/app/lib/orders/actions";
 import { BaseCart, CartWithItems } from "@/app/lib/cart/definitions";
 import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 import { fetchProduct } from "@/app/lib/products/actions";
+import { MAX_CART_LINE_QUANTITY } from "@/app/lib/constants";
+
+export type GuestCartItemInput = {
+	productId: number;
+	quantity: number;
+};
+
+export type GuestStockValidationResult = {
+	productId: number;
+	stock: number | null;
+	isOutOfStock: boolean;
+	quantityExceedsStock: boolean;
+};
+
+export async function validateGuestCartStock(
+	items: GuestCartItemInput[],
+): Promise<GuestStockValidationResult[]> {
+	if (!items.length) return [];
+
+	const productIds = items.map((i) => i.productId);
+	const rows = await db
+		.select({ id: products.id, stock: products.stock })
+		.from(products)
+		.where(inArray(products.id, productIds));
+
+	const stockMap = new Map(rows.map((r) => [r.id, r.stock]));
+
+	return items.map((item) => {
+		const stock = stockMap.get(item.productId) ?? null;
+		return {
+			productId: item.productId,
+			stock,
+			isOutOfStock: stock === 0,
+			quantityExceedsStock:
+				typeof stock === "number" && stock > 0 && item.quantity > stock,
+		};
+	});
+}
 
 type CartTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -93,7 +137,11 @@ export async function addToCart(
 		}
 
 		const cart = await getOrCreateCart(user.id);
-		const cappedQuantity = Math.min(quantity, 5, availableStock);
+		const cappedQuantity = Math.min(
+			quantity,
+			MAX_CART_LINE_QUANTITY,
+			availableStock,
+		);
 		if (cappedQuantity <= 0) {
 			const currentCount = await fetchCartItemCount();
 			return { success: false, newCount: currentCount };
@@ -137,7 +185,7 @@ export async function updateCartItemQuantity(
 		});
 		if (!cart) return { success: true };
 
-		const capped = Math.min(quantity, 5);
+		const capped = Math.min(quantity, MAX_CART_LINE_QUANTITY);
 
 		if (capped > 0) {
 			const product = await fetchProduct(productId);
@@ -344,5 +392,77 @@ export async function checkoutCart(): Promise<{
 			orderId: null,
 			profileId: null,
 		};
+	}
+}
+
+export async function checkoutGuestCart(
+	items: GuestCartItemInput[],
+	guestName: string,
+	guestEmail: string,
+	guestPhone: string,
+): Promise<{
+	success: boolean;
+	message: string;
+	orderId?: number | null;
+	guestOrderToken?: string | null;
+}> {
+	if (!items.length) {
+		return { success: false, message: "El carrito está vacío." };
+	}
+
+	const contactParsed = guestCheckoutContactSchema.safeParse({
+		name: guestName,
+		email: guestEmail,
+		phone: guestPhone,
+	});
+	if (!contactParsed.success) {
+		const message =
+			contactParsed.error.issues[0]?.message ?? "Datos de contacto inválidos";
+		return { success: false, message };
+	}
+
+	const { name: nameTrimmed, email: emailTrimmed, phone: phoneTrimmed } =
+		contactParsed.data;
+
+	try {
+		const orderItemsMap = new Map<number, number>(
+			items.map((i) => [i.productId, i.quantity]),
+		);
+
+		const orderResult = await db.transaction((tx) =>
+			createGuestOrderInTx(
+				tx,
+				orderItemsMap,
+				nameTrimmed,
+				emailTrimmed,
+				phoneTrimmed,
+			),
+		);
+
+		try {
+			await sendGuestOrderEmails({
+				orderId: orderResult.orderId,
+				guestOrderToken: orderResult.guestOrderToken,
+				customerEmail: emailTrimmed,
+				customerName: nameTrimmed,
+				products: orderResult.mappedProducts,
+				total: orderResult.totalAmount,
+			});
+		} catch (emailError) {
+			console.error("Failed to send guest order emails", emailError);
+		}
+
+		return {
+			success: true,
+			message: "Orden creada correctamente.",
+			orderId: orderResult.orderId,
+			guestOrderToken: orderResult.guestOrderToken,
+		};
+	} catch (err) {
+		console.error("checkoutGuestCart error:", err);
+		if (err instanceof Error && err.cause === "stock_insufficient") {
+			return { success: false, message: err.message };
+		}
+		return { success: false, message: "Error al procesar el pedido." };
 	}
 }
