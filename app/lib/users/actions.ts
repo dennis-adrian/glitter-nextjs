@@ -139,7 +139,7 @@ export const cachedFetchNavbarProfileByClerkId = cache(
 
 export async function createUserProfile(user: NewUser) {
 	try {
-		await db.transaction(async (tx) => {
+		const newUserRes = await db.transaction(async (tx) => {
 			const [newUser] = await tx
 				.insert(users)
 				.values({
@@ -148,9 +148,7 @@ export async function createUserProfile(user: NewUser) {
 				.onConflictDoNothing({ target: users.clerkId })
 				.returning();
 
-			if (!newUser) {
-				return;
-			}
+			if (!newUser) return null;
 
 			await tx.insert(scheduledTasks).values({
 				dueDate: sql`now() + interval '3 days'`,
@@ -158,17 +156,21 @@ export async function createUserProfile(user: NewUser) {
 				profileId: newUser.id,
 				taskType: "profile_creation",
 			});
+
+			return newUser;
 		});
 
-		const posthog = getPostHogClient();
-		posthog.capture({
-			distinctId: String(user.clerkId),
-			event: POSTHOG_EVENTS.USER_PROFILE_CREATED,
-			properties: {
-				category: user.category,
-			},
-		});
-		await posthog.shutdown();
+		if (newUserRes) {
+			const posthog = getPostHogClient();
+			posthog.capture({
+				distinctId: String(user.clerkId),
+				event: POSTHOG_EVENTS.USER_PROFILE_CREATED,
+				properties: {
+					category: user.category,
+				},
+			});
+			await posthog.shutdown();
+		}
 
 		return {
 			success: true,

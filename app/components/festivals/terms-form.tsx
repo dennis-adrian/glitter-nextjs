@@ -61,7 +61,6 @@ export default function TermsForm({
 
 			if (res.success) {
 				posthog.identify(profile.clerkId, {
-					email: profile.email,
 					display_name: profile.displayName,
 					category: profile.category,
 				});
