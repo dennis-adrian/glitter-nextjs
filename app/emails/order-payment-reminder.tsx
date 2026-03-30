@@ -18,48 +18,51 @@ interface OrderPaymentReminderTemplateProps {
 	customerName: string;
 	orderId: number;
 	paymentDueDate: Date;
+	ctaUrl: string;
 }
 
 export default function OrderPaymentReminderTemplate({
 	customerName,
 	orderId,
 	paymentDueDate,
+	ctaUrl,
 }: OrderPaymentReminderTemplateProps) {
-	const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 	const userName = customerName || "Cliente";
-	const dueDateFormatted = formatDate(paymentDueDate).toLocaleString(
-		DateTime.DATE_MED,
-	);
+	const dueDateWithTime = formatDate(paymentDueDate).toLocaleString({
+		...DateTime.DATETIME_MED,
+		timeZoneName: "short",
+	});
 
 	return (
 		<Html>
 			<Head />
-			<Preview>{`Tu orden #${orderId} todavía está pendiente de pago`}</Preview>
+			<Preview>Tu pedido aún está pendiente de pago</Preview>
 			<Body style={styles.main}>
 				<Container style={styles.container}>
 					<EmailHeader />
 					<Section style={styles.sectionWithBanner}>
 						<Text style={styles.text}>¡Hola {userName}!</Text>
 						<Text style={styles.text}>
-							Te recordamos que tu orden <strong>#{orderId}</strong> todavía está
-							pendiente de pago. Para confirmarla, debes subir tu comprobante de
-							pago antes del <strong>{dueDateFormatted}</strong>.
+							Tu pedido de la Tiendita Glitter aún está pendiente de pago. No te
+							olvidés de hacer el pago y subir el comprobante antes del{" "}
+							<strong>{dueDateWithTime}</strong>.
 						</Text>
 						<Text style={styles.text}>
-							Si no recibimos el comprobante antes de esa fecha, tu orden será
-							cancelada automáticamente y el stock de los productos será
-							liberado.
+							Si el comprobante de pago no se sube a tiempo, el pedido se
+							cancelará automáticamente y los productos volverán a estar
+							disponibles.
 						</Text>
 						<Text style={styles.text}>
-							Si ya realizaste el pago, podés subir el comprobante desde el
-							botón a continuación.
+							¿Ya pagaste? ¡Perfecto! Solo subí el comprobante desde el botón de
+							abajo y nosotros nos encargamos del resto.
 						</Text>
-						<Button href={`${baseUrl}/my_orders`} style={styles.button}>
-							Ver mi orden
+						<Button href={ctaUrl} style={styles.button}>
+							Ver mi pedido
 						</Button>
 						<Text style={styles.text}>
-							Si tenés alguna duda, contactanos a{" "}
-							<span style={styles.email}>soporte@productoraglitter.com</span>
+							Si tenés alguna duda, escribinos a{" "}
+							<span style={styles.email}>soporte@productoraglitter.com</span> y
+							te ayudamos.
 						</Text>
 					</Section>
 				</Container>
@@ -73,4 +76,5 @@ OrderPaymentReminderTemplate.PreviewProps = {
 	customerName: "Jane Doe",
 	orderId: 42,
 	paymentDueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+	ctaUrl: "http://localhost:3000/my_orders",
 } as OrderPaymentReminderTemplateProps;

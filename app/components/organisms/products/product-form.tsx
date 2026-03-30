@@ -45,6 +45,7 @@ const FormSchema = z.object({
 	availableDate: z.string().optional().nullable(),
 	isFeatured: z.boolean(),
 	isNew: z.boolean(),
+	isVisible: z.boolean(),
 });
 
 const MAX_IMAGE_SIZE_MB = 4;
@@ -176,6 +177,7 @@ export default function ProductForm({ product }: ProductFormProps) {
 			availableDate: toLocalDateString(product?.availableDate ?? null),
 			isFeatured: product?.isFeatured ?? false,
 			isNew: product?.isNew ?? true,
+			isVisible: product?.isVisible ?? true,
 		},
 	});
 
@@ -194,6 +196,7 @@ export default function ProductForm({ product }: ProductFormProps) {
 			availableDate: toLocalDateString(product?.availableDate ?? null),
 			isFeatured: product?.isFeatured ?? false,
 			isNew: product?.isNew ?? true,
+			isVisible: product?.isVisible ?? true,
 		});
 	}, [product?.id]);
 
@@ -520,6 +523,21 @@ export default function ProductForm({ product }: ProductFormProps) {
 						/>
 						<Label htmlFor="isNew" className="text-muted-foreground cursor-pointer">
 							Producto nuevo
+						</Label>
+					</div>
+					<div className="flex items-center gap-3">
+						<Switch
+							id="isVisible"
+							checked={form.watch("isVisible")}
+							onCheckedChange={(v) =>
+								form.setValue("isVisible", v, {
+									shouldDirty: true,
+									shouldValidate: true,
+								})
+							}
+						/>
+						<Label htmlFor="isVisible" className="text-muted-foreground cursor-pointer">
+							Visible en la tienda
 						</Label>
 					</div>
 				</div>

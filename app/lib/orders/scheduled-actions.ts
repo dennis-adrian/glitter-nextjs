@@ -6,7 +6,7 @@ import OrderPaymentWarningTemplate from "@/app/emails/order-payment-warning";
 import { queueEmails } from "@/app/lib/emails/helpers";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
-import { orders, products, orderItems } from "@/db/schema";
+import { orders, products } from "@/db/schema";
 import {
 	and,
 	eq,
@@ -29,15 +29,69 @@ type OrderCustomer = {
 type OrderWithUser = {
 	id: number;
 	paymentDueDate: Date;
-	customer: OrderCustomer;
+	userId: number | null;
+	guestName: string | null;
+	guestEmail: string | null;
+	guestOrderToken: string | null;
+	customer: OrderCustomer | null;
 };
 
-function getCustomerName(customer: OrderCustomer): string {
-	return (
-		customer.displayName ||
-		`${customer.firstName || ""} ${customer.lastName || ""}`.trim() ||
-		"Cliente"
-	);
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+
+function getCustomerName(order: OrderWithUser): string {
+	if (order.customer) {
+		return (
+			order.customer.displayName ||
+			`${order.customer.firstName || ""} ${order.customer.lastName || ""}`.trim() ||
+			"Cliente"
+		);
+	}
+	return order.guestName || "Cliente";
+}
+
+function getCustomerEmail(order: OrderWithUser): string | null {
+	return order.customer?.email ?? order.guestEmail ?? null;
+}
+
+function getCtaUrl(order: OrderWithUser): string {
+	if (order.guestOrderToken) {
+		return `${BASE_URL}/orders/${order.id}/payment?token=${order.guestOrderToken}`;
+	}
+	return `${BASE_URL}/my_orders`;
+}
+
+/** Copy for reminder 3 from actual time left; the DB selector only bounds the window. */
+function paymentDueFinalWarningCopy(minutesRemaining: number): {
+	subject: string;
+	dueInPhrase: string;
+} {
+	if (minutesRemaining <= 0) {
+		return {
+			subject: "Tu pedido vence pronto",
+			dueInPhrase: "vence pronto",
+		};
+	}
+	if (minutesRemaining < 60) {
+		const n = minutesRemaining;
+		const unit = n === 1 ? "minuto" : "minutos";
+		const phrase = `vence en ${n} ${unit}`;
+		return { subject: `Tu pedido ${phrase}`, dueInPhrase: phrase };
+	}
+	const hours = Math.floor(minutesRemaining / 60);
+	const mins = minutesRemaining % 60;
+	if (mins === 0) {
+		const n = hours;
+		const unit = n === 1 ? "hora" : "horas";
+		const phrase = `vence en ${n} ${unit}`;
+		return { subject: `Tu pedido ${phrase}`, dueInPhrase: phrase };
+	}
+	const hUnit = hours === 1 ? "hora" : "horas";
+	const mUnit = mins === 1 ? "minuto" : "minutos";
+	const phrase = `vence en ${hours} ${hUnit} y ${mins} ${mUnit}`;
+	return {
+		subject: `Tu pedido vence en ${hours} h ${mins} min`,
+		dueInPhrase: phrase,
+	};
 }
 
 export async function handleOrderPaymentReminders(): Promise<{
@@ -68,8 +122,8 @@ export async function handleOrderPaymentReminders(): Promise<{
 								sql`now() - interval '1 hour'`,
 							),
 						),
-						lte(orders.paymentDueDate, sql`now() + interval '8 days'`),
-						gt(orders.paymentDueDate, sql`now()`),
+						lte(orders.paymentDueDate, sql`now() + interval '42 hours'`),
+						gt(orders.paymentDueDate, sql`now() + interval '12 hours'`),
 					),
 				)
 				.returning({ id: orders.id });
@@ -99,8 +153,8 @@ export async function handleOrderPaymentReminders(): Promise<{
 								sql`now() - interval '1 hour'`,
 							),
 						),
-						lte(orders.paymentDueDate, sql`now() + interval '5 days'`),
-						gt(orders.paymentDueDate, sql`now()`),
+						lte(orders.paymentDueDate, sql`now() + interval '12 hours'`),
+						gt(orders.paymentDueDate, sql`now() + interval '2 hours'`),
 					),
 				)
 				.returning({ id: orders.id });
@@ -130,7 +184,7 @@ export async function handleOrderPaymentReminders(): Promise<{
 								sql`now() - interval '1 hour'`,
 							),
 						),
-						lte(orders.paymentDueDate, sql`now() + interval '1 day'`),
+						lte(orders.paymentDueDate, sql`now() + interval '2 hours'`),
 						gt(orders.paymentDueDate, sql`now()`),
 					),
 				)
@@ -150,20 +204,30 @@ export async function handleOrderPaymentReminders(): Promise<{
 		throw error;
 	}
 
-	// Reminder 1: 8 days before due date (day 2 of 10-day window)
+	// Reminder 1: 6 hours after order creation (42 hours remaining) — initial nudge
 	const sent1: number[] = [];
 	await queueEmails<OrderWithUser, number[]>(
 		pendingReminder1,
 		async (order, options) => {
 			try {
+				const email = getCustomerEmail(order);
+				if (!email) {
+					console.error(
+						`[handleOrderPaymentReminders] no email for order ${order.id} (reminder 1), skipping`,
+					);
+					// Mark as sent to prevent infinite re-claim cycle
+					options?.referenceEntity?.push(order.id);
+					return;
+				}
 				const { data } = await sendEmail({
 					from: "Glitter Store <reservas@productoraglitter.com>",
-					to: [order.customer.email],
-					subject: `Tu orden #${order.id} está pendiente de pago`,
+					to: [email],
+					subject: "Tu pedido aún está pendiente de pago",
 					react: OrderPaymentReminderTemplate({
-						customerName: getCustomerName(order.customer),
+						customerName: getCustomerName(order),
 						orderId: order.id,
 						paymentDueDate: order.paymentDueDate,
+						ctaUrl: getCtaUrl(order),
 					}) as React.ReactElement,
 				});
 				if (data) {
@@ -209,20 +273,30 @@ export async function handleOrderPaymentReminders(): Promise<{
 	}
 	counts.reminder1 = sent1.length;
 
-	// Reminder 2: 5 days before due date (day 5 of 10-day window)
+	// Reminder 2: 12 hours before due date — moderate urgency
 	const sent2: number[] = [];
 	await queueEmails<OrderWithUser, number[]>(
 		pendingReminder2,
 		async (order, options) => {
 			try {
+				const email = getCustomerEmail(order);
+				if (!email) {
+					console.error(
+						`[handleOrderPaymentReminders] no email for order ${order.id} (reminder 2), skipping`,
+					);
+					// Mark as sent to prevent infinite re-claim cycle
+					options?.referenceEntity?.push(order.id);
+					return;
+				}
 				const { data } = await sendEmail({
 					from: "Glitter Store <reservas@productoraglitter.com>",
-					to: [order.customer.email],
-					subject: `Tu orden #${order.id} está pendiente de pago`,
+					to: [email],
+					subject: "Tu pedido está a punto de vencer",
 					react: OrderPaymentReminderTemplate({
-						customerName: getCustomerName(order.customer),
+						customerName: getCustomerName(order),
 						orderId: order.id,
 						paymentDueDate: order.paymentDueDate,
+						ctaUrl: getCtaUrl(order),
 					}) as React.ReactElement,
 				});
 				if (data) {
@@ -268,20 +342,39 @@ export async function handleOrderPaymentReminders(): Promise<{
 	}
 	counts.reminder2 = sent2.length;
 
-	// Reminder 3: 1 day before due date
+	// Reminder 3: 2 hours before due date — final urgent warning
 	const sent3: number[] = [];
 	await queueEmails<OrderWithUser, number[]>(
 		pendingReminder3,
 		async (order, options) => {
 			try {
+				const email = getCustomerEmail(order);
+				if (!email) {
+					console.error(
+						`[handleOrderPaymentReminders] no email for order ${order.id} (reminder 3), skipping`,
+					);
+					// Mark as sent to prevent infinite re-claim cycle
+					options?.referenceEntity?.push(order.id);
+					return;
+				}
+				const minutesRemaining = Math.max(
+					0,
+					Math.floor(
+						(new Date(order.paymentDueDate).getTime() - Date.now()) / 60_000,
+					),
+				);
+				const { subject, dueInPhrase } =
+					paymentDueFinalWarningCopy(minutesRemaining);
 				const { data } = await sendEmail({
 					from: "Glitter Store <reservas@productoraglitter.com>",
-					to: [order.customer.email],
-					subject: `Tu orden #${order.id} vence mañana`,
+					to: [email],
+					subject,
 					react: OrderPaymentWarningTemplate({
-						customerName: getCustomerName(order.customer),
+						customerName: getCustomerName(order),
 						orderId: order.id,
 						paymentDueDate: order.paymentDueDate,
+						dueInPhrase,
+						ctaUrl: getCtaUrl(order),
 					}) as React.ReactElement,
 				});
 				if (data) {
@@ -392,12 +485,19 @@ export async function handleOrderCancellations(): Promise<number> {
 	await queueEmails<CancelledOrder, undefined>(
 		cancelledOrders,
 		async (order) => {
+			const email = getCustomerEmail(order);
+			if (!email) {
+				console.error(
+					`[handleOrderCancellations] no email for order ${order.id}, skipping cancellation email`,
+				);
+				return;
+			}
 			const { error } = await sendEmail({
 				from: "Glitter Store <reservas@productoraglitter.com>",
-				to: [order.customer.email],
+				to: [email],
 				subject: `Tu orden #${order.id} fue cancelada por falta de pago`,
 				react: OrderCancellationTemplate({
-					customerName: getCustomerName(order.customer),
+					customerName: getCustomerName(order),
 					orderId: order.id,
 				}) as React.ReactElement,
 			});

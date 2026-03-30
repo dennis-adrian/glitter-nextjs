@@ -72,7 +72,10 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
 
 	return (
 		<Card className="group relative bg-card rounded-lg border border-border overflow-hidden hover:shadow-lg transition-shadow h-full flex flex-col">
-			<Link href={`/store/products/${product.id}`} className="flex-1 block">
+			<Link
+				href={`/store/products/${encodeURIComponent(product.slug)}`}
+				className="flex-1 block"
+			>
 				<div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
 					<ProductStatusBadge
 						status={product.status}

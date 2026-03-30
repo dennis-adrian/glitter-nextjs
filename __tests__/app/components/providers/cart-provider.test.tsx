@@ -17,6 +17,7 @@ function buildProduct(
 ): GuestCartItem["product"] {
   return {
     id,
+    slug: `product-${id}`,
     name: `Product ${id}`,
     stock,
     images: [],

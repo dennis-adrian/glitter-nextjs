@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/app/components/ui/dialog";
 import UserDropdown from "@/app/components/ui/user-dropdown";
-import { isNoNavigationPage } from "@/app/lib/utils";
+import { isNoNavigationPage, isStoreFlowPage } from "@/app/lib/utils";
 import { SignedIn, SignedOut } from "@clerk/nextjs";
 import { InfoIcon, LogInIcon, UserPlusIcon } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
@@ -30,12 +30,15 @@ export default function SessionButtons({
 		return null;
 	}
 
+	const storeFlow = isStoreFlowPage(pathname);
+
 	return (
 		<div>
 			<SignedIn>
 				<UserDropdown profile={profile} />
 			</SignedIn>
 			<SignedOut>
+				{!storeFlow && (
 				<div className="flex gap-1">
 					<Button
 						variant="ghost"
@@ -51,6 +54,7 @@ export default function SessionButtons({
 						Iniciar sesión
 					</RedirectButton>
 				</div>
+			)}
 			</SignedOut>
 			<Dialog open={open} onOpenChange={setOpen}>
 				<DialogContent className="p-4 md:p-6">

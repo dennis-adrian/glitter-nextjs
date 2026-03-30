@@ -4,12 +4,16 @@ import DeleteProductModal from "@/app/components/organisms/products/delete-produ
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
+import { Switch } from "@/app/components/ui/switch";
+import { Label } from "@/app/components/ui/label";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
+import { toggleProductVisibility } from "@/app/lib/products/actions";
 import { cn } from "@/lib/utils";
-import { EditIcon, StarIcon, Trash2Icon } from "lucide-react";
+import { EditIcon, EyeOffIcon, StarIcon, Trash2Icon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { use, useState } from "react";
+import { toast } from "sonner";
 
 const STATUS_LABELS: Record<string, string> = {
 	available: "Disponible",
@@ -19,9 +23,30 @@ const STATUS_LABELS: Record<string, string> = {
 
 function ProductCard({ product }: { product: BaseProductWithImages }) {
 	const [openDelete, setOpenDelete] = useState(false);
+	const [visible, setVisible] = useState(product.isVisible);
+	const [togglingVisibility, setTogglingVisibility] = useState(false);
 	const mainImage = product.images.find((img) => img.isMain);
 	const imageUrl = mainImage?.imageUrl ?? product.images[0]?.imageUrl;
 	const stock = product.stock ?? 0;
+
+	async function handleVisibilityToggle(checked: boolean) {
+		const prev = visible;
+		setTogglingVisibility(true);
+		setVisible(checked);
+		try {
+			const result = await toggleProductVisibility(product.id, checked);
+			if (!result.success) {
+				setVisible(prev);
+				toast.error(result.message);
+			}
+		} catch (error) {
+			setVisible(prev);
+			console.error(error);
+			toast.error("No se pudo actualizar la visibilidad.");
+		} finally {
+			setTogglingVisibility(false);
+		}
+	}
 
 	return (
 		<>
@@ -42,6 +67,11 @@ function ProductCard({ product }: { product: BaseProductWithImages }) {
 					{product.isFeatured && (
 						<div className="absolute top-2 left-2">
 							<StarIcon className="h-4 w-4 text-amber-500 fill-amber-500 drop-shadow" />
+						</div>
+					)}
+					{!visible && (
+						<div className="absolute inset-0 bg-background/60 flex items-center justify-center">
+							<EyeOffIcon className="h-6 w-6 text-muted-foreground" />
 						</div>
 					)}
 				</div>
@@ -70,6 +100,21 @@ function ProductCard({ product }: { product: BaseProductWithImages }) {
 					<Badge variant="outline" className="self-start text-xs">
 						{STATUS_LABELS[product.status] ?? product.status}
 					</Badge>
+					<div className="flex items-center gap-2">
+						<Switch
+							id={`visible-${product.id}`}
+							checked={visible}
+							onCheckedChange={handleVisibilityToggle}
+							disabled={togglingVisibility}
+							className="h-4 w-7"
+						/>
+						<Label
+							htmlFor={`visible-${product.id}`}
+							className="text-xs text-muted-foreground cursor-pointer"
+						>
+							{visible ? "Visible" : "Oculto"}
+						</Label>
+					</div>
 					<div className="flex gap-2 mt-1">
 						<Button
 							asChild

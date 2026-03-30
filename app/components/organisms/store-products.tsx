@@ -2,7 +2,7 @@ import StoreItemCard from "@/app/components/molecules/store-item-card";
 import { fetchProducts } from "@/app/lib/products/actions";
 
 export default async function StoreProducts() {
-	const products = await fetchProducts();
+	const products = await fetchProducts("default", { visibleOnly: true });
 
 	if (products.length === 0) {
 		return (
