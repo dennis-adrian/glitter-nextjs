@@ -25,10 +25,13 @@ export function CheckoutOrderSummary({ items, total }: CheckoutOrderSummaryProps
 				</Heading>
 				<div className="divide-y">
 					{items.map((item) => {
-						const mainImage = item.product.images.find((img) => img.isMain);
-						const imageUrl = mainImage?.imageUrl
-							? mainImage.imageUrl
-							: PLACEHOLDER_IMAGE_URLS["300"];
+						const images = item.product.images;
+						const mainImage =
+							images.find((img) => img.isMain) ?? images[0];
+						const imageUrl =
+							images.length === 0
+								? PLACEHOLDER_IMAGE_URLS["300"]
+								: mainImage!.imageUrl;
 						const unitPrice = getProductPriceAtPurchase(item.product);
 
 						return (

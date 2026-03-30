@@ -1,3 +1,5 @@
+import { InputHTMLAttributes } from "react";
+
 import {
 	FormControl,
 	FormDescription,
@@ -7,8 +9,6 @@ import {
 	FormMessage,
 } from "@/app/components/ui/form";
 import { Input } from "@/app/components/ui/input";
-import { InputHTMLAttributes } from "react";
-import { UseFormReturn } from "react-hook-form";
 
 export default function TextInput({
 	bottomBorderOnly,
@@ -19,8 +19,6 @@ export default function TextInput({
 	...props
 }: {
 	bottomBorderOnly?: boolean;
-	/** @deprecated FormField gets the control form the context */
-	formControl?: UseFormReturn<any>["control"];
 	label?: string;
 	messagePosition?: "top" | "bottom";
 	name: string;

@@ -40,7 +40,7 @@ export function CartSheetShell({
 					</SheetDescription>
 				</SheetHeader>
 
-				<div className="flex-1 overflow-y-auto px-6">{body}</div>
+				<div className="min-h-0 flex-1 overflow-y-auto px-6">{body}</div>
 
 				{footer}
 			</SheetContent>
