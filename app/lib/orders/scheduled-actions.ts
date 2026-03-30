@@ -60,6 +60,40 @@ function getCtaUrl(order: OrderWithUser): string {
 	return `${BASE_URL}/my_orders`;
 }
 
+/** Copy for reminder 3 from actual time left; the DB selector only bounds the window. */
+function paymentDueFinalWarningCopy(minutesRemaining: number): {
+	subject: string;
+	dueInPhrase: string;
+} {
+	if (minutesRemaining <= 0) {
+		return {
+			subject: "Tu pedido vence pronto",
+			dueInPhrase: "vence pronto",
+		};
+	}
+	if (minutesRemaining < 60) {
+		const n = minutesRemaining;
+		const unit = n === 1 ? "minuto" : "minutos";
+		const phrase = `vence en ${n} ${unit}`;
+		return { subject: `Tu pedido ${phrase}`, dueInPhrase: phrase };
+	}
+	const hours = Math.floor(minutesRemaining / 60);
+	const mins = minutesRemaining % 60;
+	if (mins === 0) {
+		const n = hours;
+		const unit = n === 1 ? "hora" : "horas";
+		const phrase = `vence en ${n} ${unit}`;
+		return { subject: `Tu pedido ${phrase}`, dueInPhrase: phrase };
+	}
+	const hUnit = hours === 1 ? "hora" : "horas";
+	const mUnit = mins === 1 ? "minuto" : "minutos";
+	const phrase = `vence en ${hours} ${hUnit} y ${mins} ${mUnit}`;
+	return {
+		subject: `Tu pedido vence en ${hours} h ${mins} min`,
+		dueInPhrase: phrase,
+	};
+}
+
 export async function handleOrderPaymentReminders(): Promise<{
 	reminder1: number;
 	reminder2: number;
@@ -317,14 +351,23 @@ export async function handleOrderPaymentReminders(): Promise<{
 					);
 					return;
 				}
+				const minutesRemaining = Math.max(
+					0,
+					Math.floor(
+						(new Date(order.paymentDueDate).getTime() - Date.now()) / 60_000,
+					),
+				);
+				const { subject, dueInPhrase } =
+					paymentDueFinalWarningCopy(minutesRemaining);
 				const { data } = await sendEmail({
 					from: "Glitter Store <reservas@productoraglitter.com>",
 					to: [email],
-					subject: "Tu pedido vence en las próximas 2 horas",
+					subject,
 					react: OrderPaymentWarningTemplate({
 						customerName: getCustomerName(order),
 						orderId: order.id,
 						paymentDueDate: order.paymentDueDate,
+						dueInPhrase,
 						ctaUrl: getCtaUrl(order),
 					}) as React.ReactElement,
 				});

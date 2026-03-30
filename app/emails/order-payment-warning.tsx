@@ -18,6 +18,7 @@ interface OrderPaymentWarningTemplateProps {
 	customerName: string;
 	orderId: number;
 	paymentDueDate: Date;
+	dueInPhrase: string;
 	ctaUrl: string;
 }
 
@@ -25,6 +26,7 @@ export default function OrderPaymentWarningTemplate({
 	customerName,
 	orderId,
 	paymentDueDate,
+	dueInPhrase,
 	ctaUrl,
 }: OrderPaymentWarningTemplateProps) {
 	const userName = customerName || "Cliente";
@@ -43,10 +45,9 @@ export default function OrderPaymentWarningTemplate({
 					<Section style={styles.sectionWithBanner}>
 						<Text style={styles.text}>¡Hola {userName}!</Text>
 						<Text style={styles.text}>
-							¡Atención! Tu pedido <strong>#{orderId}</strong> vence en las
-							próximas 2 horas (<strong>{dueDateWithTime}</strong>). Si no subís
-							el comprobante de pago antes de ese horario, el pedido se
-							cancelará automáticamente.
+							¡Atención! Tu pedido <strong>#{orderId}</strong> {dueInPhrase} (
+							<strong>{dueDateWithTime}</strong>). Si no subís el comprobante de
+							pago antes de ese horario, el pedido se cancelará automáticamente.
 						</Text>
 						<Text style={styles.text}>
 							Si ya hiciste el pago, subí el comprobante ahora desde el botón de
@@ -72,5 +73,6 @@ OrderPaymentWarningTemplate.PreviewProps = {
 	customerName: "Jane Doe",
 	orderId: 42,
 	paymentDueDate: new Date(Date.now() + 2 * 60 * 60 * 1000),
+	dueInPhrase: "vence en 2 horas",
 	ctaUrl: "http://localhost:3000/my_orders",
 } as OrderPaymentWarningTemplateProps;
