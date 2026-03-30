@@ -1100,6 +1100,8 @@ export const productStatusEnum = pgEnum("product_status", [
 export const products = pgTable("products", {
 	id: serial("id").primaryKey(),
 	name: text("name").notNull(),
+	/** Public store URL segment; unique, hyphenated from name with -2,-3 suffixes on collision */
+	slug: text("slug").notNull().unique(),
 	description: text("description"),
 	price: real("price").notNull(),
 	stock: integer("stock").default(0),

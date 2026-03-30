@@ -1,6 +1,7 @@
 "use server";
 
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { ensureUniqueSlug, slugifyName } from "@/app/lib/products/slug";
 import { db } from "@/db";
 import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -47,6 +48,7 @@ export async function createProduct(data: NewProductData) {
 			productData.availableDate,
 		);
 	}
+	let createdSlug: string | undefined;
 	try {
 		await db.transaction(async (tx) => {
 			const insertData = {
@@ -56,10 +58,13 @@ export async function createProduct(data: NewProductData) {
 						? normalizeAvailableDate(productData.availableDate)
 						: productData.availableDate,
 			} as typeof productData & { availableDate?: Date | null };
+			const baseSlug = slugifyName(productData.name) || "product";
+			const slug = await ensureUniqueSlug(tx, baseSlug);
 			const [product] = await tx
 				.insert(products)
-				.values(insertData)
+				.values({ ...insertData, slug })
 				.returning();
+			createdSlug = product.slug;
 
 			for (const img of imagePayloads) {
 				const updated = await tx
@@ -89,6 +94,9 @@ export async function createProduct(data: NewProductData) {
 	}
 
 	revalidatePath("/dashboard/store/products");
+	if (createdSlug) {
+		revalidatePath(`/store/products/${createdSlug}`);
+	}
 	revalidatePath("/store");
 	return { success: true, message: "Producto creado correctamente." };
 }
@@ -107,8 +115,18 @@ export async function updateProduct(id: number, data: NewProductData) {
 			productData.availableDate,
 		);
 	}
+	let previousSlug: string | undefined;
+	let nextSlug: string | undefined;
 	try {
 		await db.transaction(async (tx) => {
+			const existing = await tx.query.products.findFirst({
+				where: eq(products.id, id),
+			});
+			if (!existing) {
+				throw new Error("Product not found");
+			}
+			previousSlug = existing.slug;
+
 			const updateData = {
 				...productData,
 				availableDate:
@@ -119,7 +137,15 @@ export async function updateProduct(id: number, data: NewProductData) {
 			} as typeof productData & {
 				availableDate?: Date | null;
 				updatedAt: Date;
+				slug?: string;
 			};
+
+			if (productData.name !== existing.name) {
+				const baseSlug = slugifyName(productData.name) || "product";
+				nextSlug = await ensureUniqueSlug(tx, baseSlug, id);
+				updateData.slug = nextSlug;
+			}
+
 			await tx.update(products).set(updateData).where(eq(products.id, id));
 
 			for (const img of imagePayloads) {
@@ -155,7 +181,12 @@ export async function updateProduct(id: number, data: NewProductData) {
 	}
 
 	revalidatePath("/dashboard/store/products");
-	revalidatePath(`/store/products/${id}`);
+	if (previousSlug) {
+		revalidatePath(`/store/products/${previousSlug}`);
+	}
+	if (nextSlug && nextSlug !== previousSlug) {
+		revalidatePath(`/store/products/${nextSlug}`);
+	}
 	revalidatePath("/store");
 	return { success: true, message: "Producto actualizado correctamente." };
 }
@@ -168,7 +199,13 @@ export async function deleteProduct(id: number) {
 			message: "No tienes permisos para realizar esta acción.",
 		};
 	}
+	let deletedSlug: string | undefined;
 	try {
+		const row = await db.query.products.findFirst({
+			where: eq(products.id, id),
+			columns: { slug: true },
+		});
+		deletedSlug = row?.slug;
 		await db.delete(products).where(eq(products.id, id));
 	} catch (error) {
 		console.error(error);
@@ -176,6 +213,9 @@ export async function deleteProduct(id: number) {
 	}
 
 	revalidatePath("/dashboard/store/products");
+	if (deletedSlug) {
+		revalidatePath(`/store/products/${deletedSlug}`);
+	}
 	revalidatePath("/store");
 	return { success: true, message: "Producto eliminado correctamente." };
 }
@@ -212,6 +252,20 @@ export async function fetchProduct(id: number) {
 	try {
 		return await db.query.products.findFirst({
 			where: (products, { eq }) => eq(products.id, id),
+			with: {
+				images: true,
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return null;
+	}
+}
+
+export async function fetchProductBySlug(slug: string) {
+	try {
+		return await db.query.products.findFirst({
+			where: (products, { eq }) => eq(products.slug, slug),
 			with: {
 				images: true,
 			},

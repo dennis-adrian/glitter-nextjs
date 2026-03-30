@@ -1,6 +1,6 @@
 import { ArrowLeftIcon, ClockIcon } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { z } from "zod";
 
 import Heading from "@/app/components/atoms/heading";
@@ -8,10 +8,10 @@ import StoreItemQuantityInput from "@/app/components/molecules/store-item-quanti
 import StoreProductImages from "@/app/components/molecules/store-product-images";
 import { formatDate } from "@/app/lib/formatters";
 import { validatedDiscount } from "@/app/lib/orders/utils";
-import { fetchProduct } from "@/app/lib/products/actions";
+import { fetchProduct, fetchProductBySlug } from "@/app/lib/products/actions";
 
 const ParamsSchema = z.object({
-	productId: z.coerce.number(),
+	slug: z.string().min(1),
 });
 
 export default async function ProductDetailPage(props: {
@@ -24,7 +24,16 @@ export default async function ProductDetailPage(props: {
 		return notFound();
 	}
 
-	const product = await fetchProduct(validatedParams.data.productId);
+	const raw = decodeURIComponent(validatedParams.data.slug);
+
+	if (/^\d+$/.test(raw)) {
+		const byId = await fetchProduct(Number(raw));
+		if (byId && byId.slug !== raw) {
+			permanentRedirect(`/store/products/${byId.slug}`);
+		}
+	}
+
+	const product = await fetchProductBySlug(raw);
 
 	if (!product) {
 		return notFound();

@@ -334,3 +334,13 @@ export function isNoNavigationPage(pathname?: string | null) {
     pathname.includes("sign_up")
   );
 }
+
+export function isStoreFlowPage(pathname?: string | null) {
+  if (!pathname) return false;
+
+  return (
+    pathname.startsWith("/store") ||
+    pathname.startsWith("/checkout") ||
+    pathname.startsWith("/orders/")
+  );
+}
