@@ -1,12 +1,13 @@
 import { CreateEmailOptions, CreateEmailRequestOptions, Resend } from "resend";
+import { serverEnv } from "../../env";
 
-export const resend = new Resend(process.env.RESEND_API_KEY);
+export const resend = new Resend(serverEnv.RESEND_API_KEY);
 
 export async function sendEmail(
 	payload: CreateEmailOptions,
 	options?: CreateEmailRequestOptions,
 ) {
-	if (process.env.VERCEL_ENV === "development") {
+	if (serverEnv.VERCEL_ENV === "development") {
 		console.log("Sending email to", payload.to);
 		console.log("Subject:", payload.subject);
 		console.log("From:", payload.from);

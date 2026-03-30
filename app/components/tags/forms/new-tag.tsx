@@ -45,7 +45,6 @@ export default function NewTagForm(props: NewTagFormProps) {
 		<Form {...form}>
 			<form className="grid gap-4" onSubmit={action}>
 				<TextInput
-					formControl={form.control}
 					label="Etiqueta"
 					name="label"
 					placeholder="Nombre de la etiqueta"

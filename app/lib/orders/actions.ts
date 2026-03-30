@@ -19,6 +19,8 @@ import OrderPaymentConfirmationForUserEmailTemplate from "@/app/emails/order-pay
 import OrderVoucherSubmittedForAdminsEmailTemplate from "@/app/emails/order-voucher-submitted-for-admins";
 import OrderUpdatedForUserEmailTemplate from "@/app/emails/order-updated-for-user";
 import OrderUpdatedForAdminsEmailTemplate from "@/app/emails/order-updated-for-admins";
+import { getPostHogClient } from "@/app/lib/posthog-server";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
@@ -826,6 +828,21 @@ export async function submitOrderPaymentVoucher(
 			});
 		}
 
+		try {
+			const posthog = getPostHogClient();
+			posthog.capture({
+				distinctId: currentUser.clerkId,
+				event: POSTHOG_EVENTS.ORDER_PAYMENT_VOUCHER_UPLOADED,
+				properties: { order_id: orderId },
+			});
+			await posthog.shutdown();
+		} catch (posthogError) {
+			console.error("[submitOrderPaymentVoucher] PostHog capture failed", {
+				orderId,
+				error: posthogError,
+			});
+		}
+
 		return { success: true, message: "Comprobante enviado correctamente." };
 	} catch (error) {
 		console.error(error);
@@ -888,6 +905,21 @@ export async function submitGuestOrderPaymentVoucher(
 			console.error(
 				"[submitGuestOrderPaymentVoucher] Admin notification email failed",
 				{ orderId, error: adminEmailError },
+			);
+		}
+
+		try {
+			const posthog = getPostHogClient();
+			posthog.capture({
+				distinctId: `guest_${token}`,
+				event: POSTHOG_EVENTS.ORDER_PAYMENT_VOUCHER_UPLOADED,
+				properties: { order_id: orderId, is_guest: true },
+			});
+			await posthog.shutdown();
+		} catch (posthogError) {
+			console.error(
+				"[submitGuestOrderPaymentVoucher] PostHog capture failed",
+				{ orderId, error: posthogError },
 			);
 		}
 

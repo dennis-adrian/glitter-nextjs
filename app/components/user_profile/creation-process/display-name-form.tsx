@@ -5,11 +5,7 @@ import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
 import { updateProfile } from "@/app/lib/users/actions";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-	ArrowDownToLineIcon,
-	ArrowLeftIcon,
-	ArrowRightIcon,
-} from "lucide-react";
+import { ArrowDownToLineIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";

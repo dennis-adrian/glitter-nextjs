@@ -1,5 +1,7 @@
 "use server";
 
+import { getPostHogClient } from "@/app/lib/posthog-server";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { fetchAdminUsers, fetchUserProfileById } from "@/app/api/users/actions";
 import {
 	BaseProfile,
@@ -137,7 +139,7 @@ export const cachedFetchNavbarProfileByClerkId = cache(
 
 export async function createUserProfile(user: NewUser) {
 	try {
-		await db.transaction(async (tx) => {
+		const newUserRes = await db.transaction(async (tx) => {
 			const [newUser] = await tx
 				.insert(users)
 				.values({
@@ -146,9 +148,7 @@ export async function createUserProfile(user: NewUser) {
 				.onConflictDoNothing({ target: users.clerkId })
 				.returning();
 
-			if (!newUser) {
-				return;
-			}
+			if (!newUser) return null;
 
 			await tx.insert(scheduledTasks).values({
 				dueDate: sql`now() + interval '3 days'`,
@@ -156,7 +156,28 @@ export async function createUserProfile(user: NewUser) {
 				profileId: newUser.id,
 				taskType: "profile_creation",
 			});
+
+			return newUser;
 		});
+
+		if (newUserRes) {
+			try {
+				const posthog = getPostHogClient();
+				posthog.capture({
+					distinctId: String(user.clerkId),
+					event: POSTHOG_EVENTS.USER_PROFILE_CREATED,
+					properties: {
+						category: user.category,
+					},
+				});
+				await posthog.shutdown();
+			} catch (telemetryError) {
+				console.error(
+					"PostHog telemetry failed (createUserProfile)",
+					telemetryError,
+				);
+			}
+		}
 
 		return {
 			success: true,

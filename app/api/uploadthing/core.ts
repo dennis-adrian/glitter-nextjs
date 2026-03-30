@@ -132,7 +132,12 @@ export const ourFileRouter = {
 			};
 		}),
 	guestOrderPayment: f({ image: { maxFileSize: "4MB" } })
-		.input(z.object({ orderId: z.number(), token: z.string() }))
+		.input(
+			z.object({
+				orderId: z.number().int().positive(),
+				token: z.string().trim().min(1),
+			}),
+		)
 		.middleware(async ({ input }) => {
 			const order = await db.query.orders.findFirst({
 				where: and(
