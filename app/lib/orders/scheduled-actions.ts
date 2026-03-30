@@ -123,7 +123,7 @@ export async function handleOrderPaymentReminders(): Promise<{
 							),
 						),
 						lte(orders.paymentDueDate, sql`now() + interval '42 hours'`),
-						gt(orders.paymentDueDate, sql`now()`),
+						gt(orders.paymentDueDate, sql`now() + interval '12 hours'`),
 					),
 				)
 				.returning({ id: orders.id });
@@ -154,7 +154,7 @@ export async function handleOrderPaymentReminders(): Promise<{
 							),
 						),
 						lte(orders.paymentDueDate, sql`now() + interval '12 hours'`),
-						gt(orders.paymentDueDate, sql`now()`),
+						gt(orders.paymentDueDate, sql`now() + interval '2 hours'`),
 					),
 				)
 				.returning({ id: orders.id });
