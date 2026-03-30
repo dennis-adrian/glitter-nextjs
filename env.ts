@@ -13,6 +13,9 @@ try {
 }
 
 import { z } from "zod";
+import { getClientEnv } from "./env.client";
+
+export { getClientEnv };
 
 const serverSchema = z
 	.object({
@@ -63,33 +66,10 @@ const serverSchema = z
 		}
 	});
 
-const clientSchema = z.object({
-	// Auth (public keys)
-	NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().min(1),
-	NEXT_PUBLIC_CLERK_SIGN_IN_URL: z.string().min(1),
-	NEXT_PUBLIC_CLERK_SIGN_UP_URL: z.string().min(1),
-	NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: z.string().min(1),
-	NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: z.string().min(1),
-
-	// App
-	NEXT_PUBLIC_BASE_URL: z.string().min(1).default("http://localhost:3000"),
-
-	// Analytics
-	NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: z.string().min(1),
-	NEXT_PUBLIC_POSTHOG_HOST: z.string().min(1),
-
-	// WhatsApp group links
-	NEXT_PUBLIC_ILLUSTRATION_GROUP_LINK: z.string().min(1).optional(),
-	NEXT_PUBLIC_GASTRONOMY_GROUP_LINK: z.string().min(1).optional(),
-	NEXT_PUBLIC_ENTREPRENEURSHIP_GROUP_LINK: z.string().min(1).optional(),
-});
-
 export const serverEnv = serverSchema.parse(process.env);
-
-let _clientEnv: z.infer<typeof clientSchema> | undefined;
-export function getClientEnv() {
-	return (_clientEnv ??= clientSchema.parse(process.env));
-}
+// Validate client env at startup too — getClientEnv() is lazy but we call it
+// here so missing NEXT_PUBLIC_* vars are caught before the app serves traffic.
+getClientEnv();
 
 export function getPostgresUrl(): string {
 	if (serverEnv.POSTGRES_URL) return serverEnv.POSTGRES_URL;
