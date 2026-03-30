@@ -58,9 +58,7 @@ export default async function OrderPaymentPage(props: {
 		? `/orders/${orderId}?token=${token}`
 		: `/profiles/${order.userId}/orders/${orderId}`;
 
-	const successRedirectUrl = isGuest
-		? `/orders/${orderId}?token=${token}`
-		: "/my_orders";
+	const successRedirectUrl = isGuest ? undefined : "/my_orders";
 
 	return (
 		<div className="container p-3 pb-28 md:p-6 md:pb-6">

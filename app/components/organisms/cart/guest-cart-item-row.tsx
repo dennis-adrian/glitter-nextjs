@@ -35,7 +35,11 @@ export default function GuestCartItemRow({
 			item.product.stock ?? MAX_CART_LINE_QUANTITY,
 		),
 	);
-	const maxQty = Math.max(stockCap, item.quantity);
+	const sanitizedQuantity = Math.max(
+		1,
+		Math.min(MAX_CART_LINE_QUANTITY, Number(item.quantity) || 1),
+	);
+	const maxQty = Math.max(stockCap, sanitizedQuantity);
 	const unitPrice = getProductPriceAtPurchase(item.product);
 	const subtotal = unitPrice * item.quantity;
 
@@ -71,7 +75,7 @@ export default function GuestCartItemRow({
 			}
 			quantityControl={
 				<Select
-					value={String(item.quantity)}
+					value={String(sanitizedQuantity)}
 					onValueChange={(v) =>
 						updateGuestItemQuantity(item.productId, Number(v))
 					}

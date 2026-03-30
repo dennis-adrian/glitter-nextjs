@@ -30,8 +30,10 @@ function formatBytes(bytes: number): string {
 export default function MobilePaymentBar({
 	orderId,
 	guestToken,
-	successRedirectUrl = "/my_orders",
+	successRedirectUrl,
 }: Props) {
+	const redirectAfterSuccess =
+		successRedirectUrl ?? (guestToken ? undefined : "/my_orders");
 	const { startUpload: startGuestOrderPaymentUpload } =
 		useUploadThing("guestOrderPayment");
 	const { startUpload: startStoreOrderPaymentUpload } =
@@ -109,7 +111,7 @@ export default function MobilePaymentBar({
 			if (result.success) {
 				toast.success("¡Pago confirmado! Lo revisaremos pronto.");
 				setPhase("done");
-				router.push(successRedirectUrl);
+				if (redirectAfterSuccess) router.push(redirectAfterSuccess);
 			} else {
 				toast.error(result.message);
 				setPhase("error");

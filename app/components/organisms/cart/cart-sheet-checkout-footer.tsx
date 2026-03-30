@@ -30,7 +30,7 @@ export function CartSheetCheckoutFooter({
 				<span>Bs {total.toFixed(2)}</span>
 			</div>
 			<Button
-				disabled={disabled}
+				disabled={disabled || pending}
 				className="w-full bg-primary hover:bg-primary/90"
 				onClick={onCheckout}
 			>

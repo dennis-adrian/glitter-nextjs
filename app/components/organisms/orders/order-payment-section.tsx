@@ -29,10 +29,12 @@ export default function OrderPaymentSection({
 	status,
 	paymentVoucherUrl: initialVoucherUrl,
 	guestToken,
-	successRedirectUrl = "/my_orders",
+	successRedirectUrl,
 }: Props) {
 	const [voucherUrl] = useState<string | null>(initialVoucherUrl);
 	const router = useRouter();
+	const redirectAfterSuccess =
+		successRedirectUrl ?? (guestToken ? undefined : "/my_orders");
 
 	const endpoint = guestToken ? "guestOrderPayment" : "storeOrderPayment";
 	const uploadInput = guestToken ? { orderId, token: guestToken } : undefined;
@@ -44,7 +46,7 @@ export default function OrderPaymentSection({
 				: await submitOrderPaymentVoucher(orderId, imageUrl);
 			if (result.success) {
 				toast.success("Comprobante enviado. Revisaremos tu pago pronto");
-				router.push(successRedirectUrl);
+				if (redirectAfterSuccess) router.push(redirectAfterSuccess);
 			} else {
 				toast.error(result.message);
 			}

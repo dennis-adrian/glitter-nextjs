@@ -6,6 +6,7 @@ import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { MinusIcon, PlusIcon } from "lucide-react";
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -22,17 +23,6 @@ import { Input } from "../ui/input";
 import SubmitProductOrderButton from "@/app/components/molecules/submit-product-order-button";
 import { MAX_CART_LINE_QUANTITY } from "@/app/lib/constants";
 
-const FormSchema = z.object({
-	itemQuantity: z.coerce
-		.number()
-		.min(1, {
-			error: "La cantidad mínima es 1",
-		})
-		.max(MAX_CART_LINE_QUANTITY, {
-			error: `La cantidad máxima es ${MAX_CART_LINE_QUANTITY}`,
-		}),
-});
-
 type StoreItemQuantityInputProps = {
 	product: BaseProductWithImages;
 };
@@ -41,12 +31,28 @@ export default function StoreItemQuantityInput({
 	product,
 }: StoreItemQuantityInputProps) {
 	const { setItemCount, isAuthenticated, addGuestItem } = useCartContext();
-	const form = useForm<
-		z.input<typeof FormSchema>,
-		unknown,
-		z.output<typeof FormSchema>
-	>({
-		resolver: zodResolver(FormSchema),
+	const maxQuantity = Math.min(
+		MAX_CART_LINE_QUANTITY,
+		product.stock ?? MAX_CART_LINE_QUANTITY,
+	);
+
+	const formSchema = useMemo(
+		() =>
+			z.object({
+				itemQuantity: z.coerce
+					.number()
+					.min(1, {
+						error: "La cantidad mínima es 1",
+					})
+					.max(maxQuantity, {
+						error: `La cantidad máxima es ${maxQuantity}`,
+					}),
+			}),
+		[maxQuantity],
+	);
+
+	const form = useForm({
+		resolver: zodResolver(formSchema),
 		defaultValues: {
 			itemQuantity: 1,
 		},
@@ -55,7 +61,10 @@ export default function StoreItemQuantityInput({
 	const handleAddItem = (e: React.MouseEvent<HTMLButtonElement>) => {
 		e.preventDefault();
 		const currentValue = form.getValues("itemQuantity") as number;
-		form.setValue("itemQuantity", currentValue + 1);
+		form.setValue(
+			"itemQuantity",
+			Math.min(maxQuantity, currentValue + 1),
+		);
 	};
 
 	const handleRemoveItem = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -66,11 +75,9 @@ export default function StoreItemQuantityInput({
 	};
 
 	const action: () => void = form.handleSubmit(async (data) => {
+		const quantity = Math.min(data.itemQuantity, maxQuantity);
 		if (isAuthenticated) {
-			const { success, newCount } = await addToCart(
-				product.id,
-				data.itemQuantity,
-			);
+			const { success, newCount } = await addToCart(product.id, quantity);
 
 			if (success) {
 				setItemCount(newCount);
@@ -81,7 +88,7 @@ export default function StoreItemQuantityInput({
 		} else {
 			addGuestItem({
 				productId: product.id,
-				quantity: data.itemQuantity,
+				quantity,
 				product,
 			});
 			toast.success("Producto agregado al carrito");
@@ -113,8 +120,28 @@ export default function StoreItemQuantityInput({
 											className="w-16 md:w-16"
 											type="number"
 											value={field.value as string}
-											onChange={(e) => field.onChange(Number(e.target.value))}
-											onBlur={field.onBlur}
+											onChange={(e) => {
+												const n = Number(e.target.value);
+												if (!Number.isFinite(n)) return;
+												field.onChange(
+													Math.max(
+														1,
+														Math.min(maxQuantity, Math.trunc(n)),
+													),
+												);
+											}}
+											onBlur={() => {
+												const n = Number(field.value);
+												field.onChange(
+													Number.isFinite(n)
+														? Math.max(
+																1,
+																Math.min(maxQuantity, Math.trunc(n)),
+															)
+														: 1,
+												);
+												field.onBlur();
+											}}
 										/>
 									</FormControl>
 									<Button variant="outline" size="icon" onClick={handleAddItem}>
