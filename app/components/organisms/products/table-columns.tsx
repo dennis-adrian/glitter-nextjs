@@ -13,6 +13,7 @@ import { EditIcon, StarIcon, Trash2Icon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { toast } from "sonner";
 
 const STATUS_LABELS: Record<string, string> = {
 	available: "Disponible",
@@ -36,10 +37,22 @@ function VisibilityToggle({ product }: { product: BaseProductWithImages }) {
 	const [loading, setLoading] = useState(false);
 
 	async function handleToggle(checked: boolean) {
+		const prev = visible;
 		setLoading(true);
 		setVisible(checked);
-		await toggleProductVisibility(product.id, checked);
-		setLoading(false);
+		try {
+			const result = await toggleProductVisibility(product.id, checked);
+			if (!result.success) {
+				setVisible(prev);
+				toast.error(result.message);
+			}
+		} catch (error) {
+			setVisible(prev);
+			console.error(error);
+			toast.error("No se pudo actualizar la visibilidad.");
+		} finally {
+			setLoading(false);
+		}
 	}
 
 	return (

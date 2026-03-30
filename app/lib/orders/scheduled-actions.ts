@@ -284,6 +284,8 @@ export async function handleOrderPaymentReminders(): Promise<{
 					console.error(
 						`[handleOrderPaymentReminders] no email for order ${order.id} (reminder 2), skipping`,
 					);
+					// Mark as sent to prevent infinite re-claim cycle
+					options?.referenceEntity?.push(order.id);
 					return;
 				}
 				const { data } = await sendEmail({
@@ -351,6 +353,8 @@ export async function handleOrderPaymentReminders(): Promise<{
 					console.error(
 						`[handleOrderPaymentReminders] no email for order ${order.id} (reminder 3), skipping`,
 					);
+					// Mark as sent to prevent infinite re-claim cycle
+					options?.referenceEntity?.push(order.id);
 					return;
 				}
 				const minutesRemaining = Math.max(

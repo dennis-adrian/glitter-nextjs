@@ -13,6 +13,7 @@ import { EditIcon, EyeOffIcon, StarIcon, Trash2Icon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { use, useState } from "react";
+import { toast } from "sonner";
 
 const STATUS_LABELS: Record<string, string> = {
 	available: "Disponible",
@@ -29,10 +30,22 @@ function ProductCard({ product }: { product: BaseProductWithImages }) {
 	const stock = product.stock ?? 0;
 
 	async function handleVisibilityToggle(checked: boolean) {
+		const prev = visible;
 		setTogglingVisibility(true);
 		setVisible(checked);
-		await toggleProductVisibility(product.id, checked);
-		setTogglingVisibility(false);
+		try {
+			const result = await toggleProductVisibility(product.id, checked);
+			if (!result.success) {
+				setVisible(prev);
+				toast.error(result.message);
+			}
+		} catch (error) {
+			setVisible(prev);
+			console.error(error);
+			toast.error("No se pudo actualizar la visibilidad.");
+		} finally {
+			setTogglingVisibility(false);
+		}
 	}
 
 	return (
