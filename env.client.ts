@@ -24,7 +24,30 @@ export const clientSchema = z.object({
 	NEXT_PUBLIC_ENTREPRENEURSHIP_GROUP_LINK: z.string().min(1).optional(),
 });
 
-let _clientEnv: z.infer<typeof clientSchema> | undefined;
+// Next.js only inlines NEXT_PUBLIC_* values when accessed individually —
+// passing process.env as a whole gives an empty object in the browser.
+export const clientEnv = clientSchema.parse({
+	NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:
+		process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+	NEXT_PUBLIC_CLERK_SIGN_IN_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL,
+	NEXT_PUBLIC_CLERK_SIGN_UP_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL,
+	NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL:
+		process.env.NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL,
+	NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL:
+		process.env.NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL,
+	NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
+	NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN:
+		process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN,
+	NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
+	NEXT_PUBLIC_VERCEL_ENV: process.env.NEXT_PUBLIC_VERCEL_ENV,
+	NEXT_PUBLIC_ILLUSTRATION_GROUP_LINK:
+		process.env.NEXT_PUBLIC_ILLUSTRATION_GROUP_LINK,
+	NEXT_PUBLIC_GASTRONOMY_GROUP_LINK:
+		process.env.NEXT_PUBLIC_GASTRONOMY_GROUP_LINK,
+	NEXT_PUBLIC_ENTREPRENEURSHIP_GROUP_LINK:
+		process.env.NEXT_PUBLIC_ENTREPRENEURSHIP_GROUP_LINK,
+});
+
 export function getClientEnv() {
-	return (_clientEnv ??= clientSchema.parse(process.env));
+	return clientEnv;
 }
