@@ -301,17 +301,27 @@ export async function toggleProductVisibility(
 		};
 	}
 	try {
-		await db
+		const [updated] = await db
 			.update(products)
 			.set({ isVisible, updatedAt: new Date() })
-			.where(eq(products.id, id));
+			.where(eq(products.id, id))
+			.returning({ slug: products.slug });
+
+		if (!updated) {
+			return { success: false, message: "Producto no encontrado." };
+		}
+
+		revalidatePath(`/store/products/${updated.slug}`);
 	} catch (error) {
 		console.error(error);
 		return { success: false, message: "No se pudo actualizar la visibilidad." };
 	}
 	revalidatePath("/dashboard/store/products");
 	revalidatePath("/store");
-	return { success: true, message: isVisible ? "Producto visible." : "Producto oculto." };
+	return {
+		success: true,
+		message: isVisible ? "Producto visible." : "Producto oculto.",
+	};
 }
 
 export async function fetchLowStockProducts(threshold = 5) {

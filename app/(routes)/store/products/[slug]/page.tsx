@@ -26,19 +26,16 @@ export default async function ProductDetailPage(props: {
 
 	const raw = decodeURIComponent(validatedParams.data.slug);
 
-	if (/^\d+$/.test(raw)) {
-		const byId = await fetchProduct(Number(raw));
-		if (!byId) {
-			return notFound();
-		}
-		if (byId.slug !== raw) {
-			permanentRedirect(`/store/products/${byId.slug}`);
-		}
-	}
-
 	const product = await fetchProductBySlug(raw, { visibleOnly: true });
 
 	if (!product) {
+		if (/^\d+$/.test(raw)) {
+			const byId = await fetchProduct(Number(raw));
+			if (!byId || !byId.isVisible) {
+				return notFound();
+			}
+			return permanentRedirect(`/store/products/${byId.slug}`);
+		}
 		return notFound();
 	}
 
