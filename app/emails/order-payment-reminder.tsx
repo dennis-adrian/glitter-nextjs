@@ -18,18 +18,20 @@ interface OrderPaymentReminderTemplateProps {
 	customerName: string;
 	orderId: number;
 	paymentDueDate: Date;
+	ctaUrl: string;
 }
 
 export default function OrderPaymentReminderTemplate({
 	customerName,
 	orderId,
 	paymentDueDate,
+	ctaUrl,
 }: OrderPaymentReminderTemplateProps) {
-	const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 	const userName = customerName || "Cliente";
-	const dueDateFormatted = formatDate(paymentDueDate).toLocaleString(
-		DateTime.DATE_MED,
-	);
+	const dueDateWithTime = formatDate(paymentDueDate).toLocaleString({
+		...DateTime.DATETIME_MED,
+		timeZoneName: "short",
+	});
 
 	return (
 		<Html>
@@ -43,7 +45,7 @@ export default function OrderPaymentReminderTemplate({
 						<Text style={styles.text}>
 							Tu pedido de la Tiendita Glitter aún está pendiente de pago. No te
 							olvidés de hacer el pago y subir el comprobante antes del{" "}
-							<strong>{dueDateFormatted}</strong>.
+							<strong>{dueDateWithTime}</strong>.
 						</Text>
 						<Text style={styles.text}>
 							Si el comprobante de pago no se sube a tiempo, el pedido se
@@ -54,7 +56,7 @@ export default function OrderPaymentReminderTemplate({
 							¿Ya pagaste? ¡Perfecto! Solo subí el comprobante desde el botón de
 							abajo y nosotros nos encargamos del resto.
 						</Text>
-						<Button href={`${baseUrl}/my_orders`} style={styles.button}>
+						<Button href={ctaUrl} style={styles.button}>
 							Ver mi pedido
 						</Button>
 						<Text style={styles.text}>
@@ -74,4 +76,5 @@ OrderPaymentReminderTemplate.PreviewProps = {
 	customerName: "Jane Doe",
 	orderId: 42,
 	paymentDueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+	ctaUrl: "http://localhost:3000/my_orders",
 } as OrderPaymentReminderTemplateProps;

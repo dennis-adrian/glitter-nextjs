@@ -29,15 +29,35 @@ type OrderCustomer = {
 type OrderWithUser = {
 	id: number;
 	paymentDueDate: Date;
-	customer: OrderCustomer;
+	userId: number | null;
+	guestName: string | null;
+	guestEmail: string | null;
+	guestOrderToken: string | null;
+	customer: OrderCustomer | null;
 };
 
-function getCustomerName(customer: OrderCustomer): string {
-	return (
-		customer.displayName ||
-		`${customer.firstName || ""} ${customer.lastName || ""}`.trim() ||
-		"Cliente"
-	);
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+
+function getCustomerName(order: OrderWithUser): string {
+	if (order.customer) {
+		return (
+			order.customer.displayName ||
+			`${order.customer.firstName || ""} ${order.customer.lastName || ""}`.trim() ||
+			"Cliente"
+		);
+	}
+	return order.guestName || "Cliente";
+}
+
+function getCustomerEmail(order: OrderWithUser): string | null {
+	return order.customer?.email ?? order.guestEmail ?? null;
+}
+
+function getCtaUrl(order: OrderWithUser): string {
+	if (order.guestOrderToken) {
+		return `${BASE_URL}/orders/${order.id}/payment?token=${order.guestOrderToken}`;
+	}
+	return `${BASE_URL}/my_orders`;
 }
 
 export async function handleOrderPaymentReminders(): Promise<{
@@ -156,14 +176,22 @@ export async function handleOrderPaymentReminders(): Promise<{
 		pendingReminder1,
 		async (order, options) => {
 			try {
+				const email = getCustomerEmail(order);
+				if (!email) {
+					console.error(
+						`[handleOrderPaymentReminders] no email for order ${order.id} (reminder 1), skipping`,
+					);
+					return;
+				}
 				const { data } = await sendEmail({
 					from: "Glitter Store <reservas@productoraglitter.com>",
-					to: [order.customer.email],
-					subject: `Tu orden #${order.id} está pendiente de pago`,
+					to: [email],
+					subject: "Tu pedido aún está pendiente de pago",
 					react: OrderPaymentReminderTemplate({
-						customerName: getCustomerName(order.customer),
+						customerName: getCustomerName(order),
 						orderId: order.id,
 						paymentDueDate: order.paymentDueDate,
+						ctaUrl: getCtaUrl(order),
 					}) as React.ReactElement,
 				});
 				if (data) {
@@ -215,14 +243,22 @@ export async function handleOrderPaymentReminders(): Promise<{
 		pendingReminder2,
 		async (order, options) => {
 			try {
+				const email = getCustomerEmail(order);
+				if (!email) {
+					console.error(
+						`[handleOrderPaymentReminders] no email for order ${order.id} (reminder 2), skipping`,
+					);
+					return;
+				}
 				const { data } = await sendEmail({
 					from: "Glitter Store <reservas@productoraglitter.com>",
-					to: [order.customer.email],
-					subject: `Tu orden #${order.id} vence en 12 horas`,
+					to: [email],
+					subject: "Tu pedido está a punto de vencer",
 					react: OrderPaymentReminderTemplate({
-						customerName: getCustomerName(order.customer),
+						customerName: getCustomerName(order),
 						orderId: order.id,
 						paymentDueDate: order.paymentDueDate,
+						ctaUrl: getCtaUrl(order),
 					}) as React.ReactElement,
 				});
 				if (data) {
@@ -274,14 +310,22 @@ export async function handleOrderPaymentReminders(): Promise<{
 		pendingReminder3,
 		async (order, options) => {
 			try {
+				const email = getCustomerEmail(order);
+				if (!email) {
+					console.error(
+						`[handleOrderPaymentReminders] no email for order ${order.id} (reminder 3), skipping`,
+					);
+					return;
+				}
 				const { data } = await sendEmail({
 					from: "Glitter Store <reservas@productoraglitter.com>",
-					to: [order.customer.email],
-					subject: `Tu orden #${order.id} vence en 2 horas`,
+					to: [email],
+					subject: "Tu pedido vence en las próximas 2 horas",
 					react: OrderPaymentWarningTemplate({
-						customerName: getCustomerName(order.customer),
+						customerName: getCustomerName(order),
 						orderId: order.id,
 						paymentDueDate: order.paymentDueDate,
+						ctaUrl: getCtaUrl(order),
 					}) as React.ReactElement,
 				});
 				if (data) {
@@ -392,12 +436,19 @@ export async function handleOrderCancellations(): Promise<number> {
 	await queueEmails<CancelledOrder, undefined>(
 		cancelledOrders,
 		async (order) => {
+			const email = getCustomerEmail(order);
+			if (!email) {
+				console.error(
+					`[handleOrderCancellations] no email for order ${order.id}, skipping cancellation email`,
+				);
+				return;
+			}
 			const { error } = await sendEmail({
 				from: "Glitter Store <reservas@productoraglitter.com>",
-				to: [order.customer.email],
+				to: [email],
 				subject: `Tu orden #${order.id} fue cancelada por falta de pago`,
 				react: OrderCancellationTemplate({
-					customerName: getCustomerName(order.customer),
+					customerName: getCustomerName(order),
 					orderId: order.id,
 				}) as React.ReactElement,
 			});
