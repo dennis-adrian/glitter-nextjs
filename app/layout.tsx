@@ -6,6 +6,7 @@ import { esES } from "@clerk/localizations";
 import { ClerkProvider } from "@clerk/nextjs";
 
 import { EdgeStoreProvider } from "@/app/lib/edgestore";
+import PostHogAuthIdentify from "@/app/components/providers/posthog-identify";
 
 import { Toaster } from "@/components/ui/sonner";
 import { inter, spaceGrotesk } from "@/ui/fonts";
@@ -52,6 +53,7 @@ export default function RootLayout({
 							<Suspense fallback={<div className="h-[180px] md:h-[290px]" />}>
 								<Footer />
 							</Suspense>
+							<PostHogAuthIdentify />
 							<Toaster richColors />
 							<Analytics />
 						</EdgeStoreProvider>
