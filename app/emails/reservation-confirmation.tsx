@@ -17,7 +17,7 @@ import {
 import { DateTime } from "luxon";
 import { FestivalWithDates } from "../lib/festivals/definitions";
 import EmailFooter from "@/app/emails/email-footer";
-import { clientEnv } from "@/env";
+import { getClientEnv } from "@/env";
 
 interface FestivalActivationTemplateProps {
 	festival: FestivalWithDates;
@@ -28,6 +28,7 @@ interface FestivalActivationTemplateProps {
 export default function ReservationConfirmationEmailTemplate(
 	props: FestivalActivationTemplateProps,
 ) {
+	const clientEnv = getClientEnv();
 	const baseUrl = clientEnv.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 	const userName = getUserName(props.profile);
 	let whatsAppGroupLink;

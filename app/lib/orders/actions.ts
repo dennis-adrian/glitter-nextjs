@@ -908,13 +908,20 @@ export async function submitGuestOrderPaymentVoucher(
 			);
 		}
 
-		const posthog = getPostHogClient();
-		posthog.capture({
-			distinctId: `guest_${token}`,
-			event: POSTHOG_EVENTS.ORDER_PAYMENT_VOUCHER_UPLOADED,
-			properties: { order_id: orderId, is_guest: true },
-		});
-		await posthog.shutdown();
+		try {
+			const posthog = getPostHogClient();
+			posthog.capture({
+				distinctId: `guest_${token}`,
+				event: POSTHOG_EVENTS.ORDER_PAYMENT_VOUCHER_UPLOADED,
+				properties: { order_id: orderId, is_guest: true },
+			});
+			await posthog.shutdown();
+		} catch (posthogError) {
+			console.error(
+				"[submitGuestOrderPaymentVoucher] PostHog capture failed",
+				{ orderId, error: posthogError },
+			);
+		}
 
 		return { success: true, message: "Comprobante enviado correctamente." };
 	} catch (error) {

@@ -85,7 +85,11 @@ const clientSchema = z.object({
 });
 
 export const serverEnv = serverSchema.parse(process.env);
-export const clientEnv = clientSchema.parse(process.env);
+
+let _clientEnv: z.infer<typeof clientSchema> | undefined;
+export function getClientEnv() {
+	return (_clientEnv ??= clientSchema.parse(process.env));
+}
 
 export function getPostgresUrl(): string {
 	if (serverEnv.POSTGRES_URL) return serverEnv.POSTGRES_URL;
