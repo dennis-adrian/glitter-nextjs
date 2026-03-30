@@ -46,7 +46,11 @@ export default function OrderPaymentSection({
 				: await submitOrderPaymentVoucher(orderId, imageUrl);
 			if (result.success) {
 				toast.success("Comprobante enviado. Revisaremos tu pago pronto");
-				if (redirectAfterSuccess) router.push(redirectAfterSuccess);
+				if (redirectAfterSuccess) {
+					router.push(redirectAfterSuccess);
+				} else {
+					router.refresh();
+				}
 			} else {
 				toast.error(result.message);
 			}

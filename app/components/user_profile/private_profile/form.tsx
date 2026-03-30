@@ -125,11 +125,15 @@ export default function PrivateProfileForm({
 	return (
 		<Form {...form}>
 			<form onSubmit={action} className="grid items-start gap-4 mt-4">
-				<TextInput bottomBorderOnly name="firstName" label="Ingres tu nombre" />
+				<TextInput
+					bottomBorderOnly
+					name="firstName"
+					label="Ingresa tu nombre"
+				/>
 				<TextInput
 					bottomBorderOnly
 					name="lastName"
-					label="Ingres tu apellido"
+					label="Ingresa tu apellido"
 				/>
 				<DateInput
 					bottomBorderOnly

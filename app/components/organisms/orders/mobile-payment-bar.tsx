@@ -111,7 +111,11 @@ export default function MobilePaymentBar({
 			if (result.success) {
 				toast.success("¡Pago confirmado! Lo revisaremos pronto.");
 				setPhase("done");
-				if (redirectAfterSuccess) router.push(redirectAfterSuccess);
+				if (redirectAfterSuccess) {
+					router.push(redirectAfterSuccess);
+				} else {
+					router.refresh();
+				}
 			} else {
 				toast.error(result.message);
 				setPhase("error");
