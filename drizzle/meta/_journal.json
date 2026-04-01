@@ -1170,6 +1170,13 @@
       "when": 1774841166146,
       "tag": "0166_supreme_sunset_bain",
       "breakpoints": true
+    },
+    {
+      "idx": 167,
+      "version": "7",
+      "when": 1774927538155,
+      "tag": "0167_legal_hawkeye",
+      "breakpoints": true
     }
   ]
 }

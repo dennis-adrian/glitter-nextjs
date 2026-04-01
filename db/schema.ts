@@ -46,6 +46,17 @@ export const participationTypeEnum = pgEnum("participation_type", [
 	"standard",
 	"live_activity",
 ]);
+export const liveActCategoryEnum = pgEnum("live_act_category", [
+	"music",
+	"dance",
+	"talk",
+]);
+export const liveActStatusEnum = pgEnum("live_act_status", [
+	"pending",
+	"backlog",
+	"approved",
+	"rejected",
+]);
 
 export const users = pgTable(
 	"users",
@@ -1547,3 +1558,19 @@ export const discountCodesRelations = relations(
 		invoices: many(invoices),
 	}),
 );
+
+export const liveActs = pgTable("live_acts", {
+	id: serial("id").primaryKey(),
+	actName: text("act_name").notNull(),
+	category: liveActCategoryEnum("category").notNull(),
+	description: text("description"),
+	resourceLink: text("resource_link"),
+	socialLinks: jsonb("social_links").$type<string[]>().default([]),
+	contactName: text("contact_name").notNull(),
+	contactEmail: text("contact_email").notNull(),
+	contactPhone: text("contact_phone").notNull(),
+	status: liveActStatusEnum("status").default("pending").notNull(),
+	adminNotes: text("admin_notes"),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
