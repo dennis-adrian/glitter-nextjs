@@ -14,6 +14,7 @@ import {
 	FestivalActivityWithDetailsAndParticipants,
 	ParticipantWithUserAndProofs,
 } from "@/app/lib/festivals/definitions";
+import { getMaterialConfig } from "@/app/lib/festival_activites/helpers";
 
 type ActivitySummaryCardProps = {
 	activity: FestivalActivityWithDetailsAndParticipants;
@@ -40,7 +41,7 @@ const PROOF_STATUS_CONFIG: Record<
 		className: "text-orange-700 bg-orange-50 border-orange-200",
 	},
 	sin_prueba: {
-		label: "Sin prueba",
+		label: "Sin material",
 		className: "text-muted-foreground bg-muted border-border",
 	},
 	approved: {
@@ -91,6 +92,7 @@ export default function ActivitySummaryCard({
 }: ActivitySummaryCardProps) {
 	const showVariantHeaders = activity.details.length > 1;
 	const detailHref = `/dashboard/festivals/${festivalId}/festival_activities/${activity.id}`;
+	const { label: materialLabel } = getMaterialConfig(activity.type);
 
 	return (
 		<Card>
@@ -142,12 +144,16 @@ export default function ActivitySummaryCard({
 											const n = statusCounts[status];
 											if (!n) return null;
 											const config = PROOF_STATUS_CONFIG[status];
+											const label =
+												status === "sin_prueba"
+													? `sin ${materialLabel}`
+													: config.label.toLowerCase();
 											return (
 												<span
 													key={status}
 													className={`inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium ${config.className}`}
 												>
-													{n} {config.label.toLowerCase()}
+													{n} {label}
 												</span>
 											);
 										})}

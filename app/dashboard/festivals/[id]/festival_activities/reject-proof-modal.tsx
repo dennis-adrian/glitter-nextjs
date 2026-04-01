@@ -34,6 +34,7 @@ type RejectProofModalProps = {
 	proofId: number;
 	mode: "resubmit" | "remove";
 	participantName: string;
+	materialLabel?: string;
 	onSuccess?: () => void;
 };
 
@@ -41,6 +42,7 @@ export default function RejectProofModal({
 	proofId,
 	mode,
 	participantName,
+	materialLabel = "material",
 	onSuccess,
 }: RejectProofModalProps) {
 	const [open, setOpen] = useState(false);
@@ -71,7 +73,7 @@ export default function RejectProofModal({
 			setOpen(false);
 			onSuccess?.();
 		} catch (error) {
-			toast.error("No se pudo revisar la prueba. Intentá nuevamente.");
+			toast.error(`No se pudo revisar el ${materialLabel}. Intentá nuevamente.`);
 		}
 	});
 

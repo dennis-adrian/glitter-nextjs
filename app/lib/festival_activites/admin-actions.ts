@@ -22,6 +22,7 @@ import { sendEmail } from "@/app/vendors/resend";
 import ActivityProofReviewEmail from "@/app/emails/activity-proof-review";
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
 import { promoteFromWaitlist } from "@/app/lib/festival_activites/actions";
+import { getMaterialConfig } from "@/app/lib/festival_activites/helpers";
 import React from "react";
 
 export type FestivalActivityDetailInput = {
@@ -526,10 +527,11 @@ export async function reviewActivityParticipantProof(
 					where: eq(festivals.id, activity.festivalId),
 				});
 				if (festival) {
+					const materialConfig = getMaterialConfig(activity.type);
 					const subjects: Record<typeof status, string> = {
-						approved: `Tu material fue aprobado - ${activity.name}`,
-						rejected_resubmit: `Tu material necesita correcciones - ${activity.name}`,
-						rejected_removed: `Fuiste removido de la actividad - ${activity.name}`,
+						approved: `Tu ${materialConfig.label} fue ${materialConfig.pastParticiple} - ${activity.name}`,
+						rejected_resubmit: `Tu ${materialConfig.label} necesita correcciones - ${activity.name}`,
+						rejected_removed: `Fuiste removido/a de la actividad - ${activity.name}`,
 					};
 					await sendEmail({
 						to: [user.email],
@@ -544,6 +546,9 @@ export async function reviewActivityParticipantProof(
 							festivalType: festival.festivalType,
 							status,
 							adminFeedback,
+							materialLabel: materialConfig.label,
+							materialArticle: materialConfig.article,
+							materialPastParticiple: materialConfig.pastParticiple,
 						}),
 					});
 				}
@@ -639,10 +644,11 @@ export async function removeActivityParticipant(
 					where: eq(festivals.id, activity.festivalId),
 				});
 				if (festival) {
+					const materialConfig = getMaterialConfig(activity.type);
 					await sendEmail({
 						to: [user.email],
 						from: "Equipo Glitter <equipo@productoraglitter.com>",
-						subject: `Fuiste removido de la actividad - ${activity.name}`,
+						subject: `Fuiste removido/a de la actividad - ${activity.name}`,
 						react: React.createElement(ActivityProofReviewEmail, {
 							profile: user,
 							festivalId: activity.festivalId,
@@ -652,6 +658,9 @@ export async function removeActivityParticipant(
 							festivalType: festival.festivalType,
 							status: "rejected_removed",
 							adminFeedback: reason,
+							materialLabel: materialConfig.label,
+							materialArticle: materialConfig.article,
+							materialPastParticiple: materialConfig.pastParticiple,
 						}),
 					});
 				}

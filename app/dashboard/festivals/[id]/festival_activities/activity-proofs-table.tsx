@@ -16,6 +16,7 @@ import type {
 import type { FestivalActivity } from "@/app/lib/festivals/definitions";
 import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import { reviewActivityParticipantProof } from "@/app/lib/festival_activites/admin-actions";
+import { getMaterialConfig } from "@/app/lib/festival_activites/helpers";
 import { cn } from "@/app/lib/utils";
 import ProofImageModal from "./proof-image-modal";
 import RejectProofModal from "./reject-proof-modal";
@@ -47,9 +48,11 @@ function selectCanonicalProof(participant: ParticipantWithDetail) {
 
 function ApproveProofButton({
 	proofId,
+	materialLabel,
 	className,
 }: {
 	proofId: number;
+	materialLabel: string;
 	className?: string;
 }) {
 	const [isApproving, setIsApproving] = useState(false);
@@ -69,7 +72,7 @@ function ApproveProofButton({
 				toast.error(result.message);
 			}
 		} catch {
-			toast.error("No se pudo aprobar la prueba. Intentá nuevamente.");
+			toast.error(`No se pudo aprobar el ${materialLabel}. Intentá nuevamente.`);
 		} finally {
 			approvingRef.current = false;
 			setIsApproving(false);
@@ -121,6 +124,7 @@ const PROOF_STATUS_BADGE: Record<string, { label: string; className: string }> =
 
 function buildColumns(
 	proofType: FestivalActivity["proofType"],
+	materialLabel: string,
 ): ColumnDef<ParticipantWithDetail>[] {
 	const showImage = proofType === "image" || proofType === "both";
 	const showText = proofType === "text" || proofType === "both";
@@ -202,7 +206,7 @@ function buildColumns(
 				if (!proof) {
 					return (
 						<Badge variant="outline" className="text-muted-foreground text-xs">
-							Sin prueba
+							Sin {materialLabel}
 						</Badge>
 					);
 				}
@@ -291,23 +295,27 @@ function buildColumns(
 							<ProofImageModal
 								imageUrl={proof.imageUrl}
 								participantName={participantName}
+								materialLabel={materialLabel}
 							/>
 						)}
 						{proof && proof.proofStatus === "pending_review" && (
 							<>
 								<ApproveProofButton
 									proofId={proof.id}
+									materialLabel={materialLabel}
 									className="hover:bg-emerald-50"
 								/>
 								<RejectProofModal
 									proofId={proof.id}
 									mode="resubmit"
 									participantName={participantName}
+									materialLabel={materialLabel}
 								/>
 								<RejectProofModal
 									proofId={proof.id}
 									mode="remove"
 									participantName={participantName}
+									materialLabel={materialLabel}
 								/>
 							</>
 						)}
@@ -339,7 +347,8 @@ export default function ActivityProofsTable({
 	const proofType = activity.proofType;
 	const showText = proofType === "text" || proofType === "both";
 	const showImage = proofType === "image" || proofType === "both";
-	const columns = buildColumns(proofType);
+	const { label: materialLabel } = getMaterialConfig(activity.type);
+	const columns = buildColumns(proofType, materialLabel);
 
 	if (participants.length === 0) {
 		return (
@@ -434,7 +443,7 @@ export default function ActivityProofsTable({
 										variant="outline"
 										className="text-xs text-muted-foreground shrink-0"
 									>
-										Sin prueba
+										Sin {materialLabel}
 									</Badge>
 								)}
 							</div>
@@ -468,17 +477,22 @@ export default function ActivityProofsTable({
 											participantName={
 												participant.user.displayName ?? "Participante"
 											}
+											materialLabel={materialLabel}
 										/>
 									)}
 									{proof.proofStatus === "pending_review" && (
 										<>
-											<ApproveProofButton proofId={proof.id} />
+											<ApproveProofButton
+												proofId={proof.id}
+												materialLabel={materialLabel}
+											/>
 											<RejectProofModal
 												proofId={proof.id}
 												mode="resubmit"
 												participantName={
 													participant.user.displayName ?? "Participante"
 												}
+												materialLabel={materialLabel}
 											/>
 											<RejectProofModal
 												proofId={proof.id}
@@ -486,6 +500,7 @@ export default function ActivityProofsTable({
 												participantName={
 													participant.user.displayName ?? "Participante"
 												}
+												materialLabel={materialLabel}
 											/>
 										</>
 									)}
