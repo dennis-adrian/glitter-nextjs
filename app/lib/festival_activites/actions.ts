@@ -621,7 +621,7 @@ export async function addFestivalActivityParticipantProof(
 	if (proofUploadLimitDate && new Date() > new Date(proofUploadLimitDate)) {
 		return {
 			success: false,
-			message: "El período de subida de pruebas ha finalizado",
+			message: "El período de subida ha finalizado",
 		};
 	}
 

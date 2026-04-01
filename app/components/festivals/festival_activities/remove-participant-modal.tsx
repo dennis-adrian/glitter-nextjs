@@ -5,8 +5,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
-import { reviewActivityParticipantProof } from "@/app/lib/festival_activites/admin-actions";
+import { removeActivityParticipant } from "@/app/lib/festival_activites/admin-actions";
 import { Button } from "@/app/components/ui/button";
 import {
 	DrawerDialog,
@@ -27,40 +28,32 @@ import { Textarea } from "@/app/components/ui/textarea";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
 
 const FormSchema = z.object({
-	adminFeedback: z.string().trim().min(1, "El feedback es requerido"),
+	reason: z.string().trim().min(1, "El motivo es requerido"),
 });
 
-type RejectProofModalProps = {
-	proofId: number;
-	mode: "resubmit" | "remove";
+type RemoveParticipantModalProps = {
+	participationId: number;
 	participantName: string;
-	materialLabel?: string;
-	onSuccess?: () => void;
 };
 
-export default function RejectProofModal({
-	proofId,
-	mode,
+export default function RemoveParticipantModal({
+	participationId,
 	participantName,
-	materialLabel = "material",
-	onSuccess,
-}: RejectProofModalProps) {
+}: RemoveParticipantModalProps) {
 	const [open, setOpen] = useState(false);
 	const isDesktop = useMediaQuery("(min-width: 768px)");
+	const router = useRouter();
 
 	const form = useForm({
 		resolver: zodResolver(FormSchema),
-		defaultValues: { adminFeedback: "" },
+		defaultValues: { reason: "" },
 	});
-
-	const status = mode === "resubmit" ? "rejected_resubmit" : "rejected_removed";
 
 	const onSubmit = form.handleSubmit(async (data) => {
 		try {
-			const result = await reviewActivityParticipantProof(
-				proofId,
-				status,
-				data.adminFeedback,
+			const result = await removeActivityParticipant(
+				participationId,
+				data.reason,
 			);
 
 			if (!result.success) {
@@ -71,57 +64,43 @@ export default function RejectProofModal({
 			toast.success(result.message);
 			form.reset();
 			setOpen(false);
-			onSuccess?.();
-		} catch (error) {
-			toast.error(`No se pudo revisar el ${materialLabel}. Intentá nuevamente.`);
+			router.refresh();
+		} catch {
+			toast.error("No se pudo remover al participante. Intentá nuevamente.");
 		}
 	});
-
-	const isDestructive = mode === "remove";
 
 	return (
 		<DrawerDialog open={open} onOpenChange={setOpen} isDesktop={isDesktop}>
 			<DrawerDialogTrigger isDesktop={isDesktop}>
-				<Button
-					variant={isDestructive ? "destructive" : "outline"}
-					size="sm"
-					className="h-7 px-2 text-xs"
-				>
-					{mode === "resubmit" ? "Pedir corrección" : "Remover participante"}
+				<Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
+					Remover participante
 				</Button>
 			</DrawerDialogTrigger>
 			<DrawerDialogContent isDesktop={isDesktop} className="max-w-md">
 				<DrawerDialogHeader isDesktop={isDesktop}>
 					<DrawerDialogTitle isDesktop={isDesktop}>
-						{mode === "resubmit"
-							? `Pedir corrección a ${participantName}`
-							: `Remover a ${participantName}`}
+						Remover a {participantName}
 					</DrawerDialogTitle>
 				</DrawerDialogHeader>
 				<div className={`${isDesktop ? "" : "px-4 pb-4"} pt-2 space-y-4`}>
-					{isDestructive && (
-						<p className="text-sm text-destructive">
-							Esta acción removerá al participante de la actividad y liberará su
-							cupo. No puede deshacerse.
-						</p>
-					)}
+					<p className="text-sm text-destructive">
+						Esta acción removerá al participante de la actividad y liberará su
+						cupo. No puede deshacerse.
+					</p>
 					<Form {...form}>
 						<form onSubmit={onSubmit} className="space-y-4">
 							<FormField
 								control={form.control}
-								name="adminFeedback"
+								name="reason"
 								render={({ field }) => (
 									<FormItem>
-										<FormLabel>Motivo / Feedback</FormLabel>
+										<FormLabel>Motivo</FormLabel>
 										<FormControl>
 											<Textarea
 												className="resize-none"
 												rows={3}
-												placeholder={
-													mode === "resubmit"
-														? "Describí qué debe corregir el participante"
-														: "Describí el motivo de la remoción"
-												}
+												placeholder="Describí el motivo de la remoción"
 												{...field}
 											/>
 										</FormControl>
@@ -131,15 +110,13 @@ export default function RejectProofModal({
 							/>
 							<Button
 								type="submit"
-								variant={isDestructive ? "destructive" : "default"}
+								variant="destructive"
 								className="w-full"
 								disabled={form.formState.isSubmitting}
 							>
 								{form.formState.isSubmitting
 									? "Procesando..."
-									: mode === "resubmit"
-										? "Enviar corrección"
-										: "Remover participante"}
+									: "Remover participante"}
 							</Button>
 						</form>
 					</Form>

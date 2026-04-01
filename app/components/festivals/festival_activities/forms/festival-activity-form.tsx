@@ -452,13 +452,13 @@ export default function FestivalActivityForm({
 				{/* Proof */}
 				<Card>
 					<CardContent className="pt-6 space-y-4">
-						<h3 className="font-semibold text-lg">Prueba de participación</h3>
+						<h3 className="font-semibold text-lg">Material de participación</h3>
 						<FormField
 							control={form.control}
 							name="proofType"
 							render={({ field }) => (
 								<FormItem>
-									<FormLabel>Tipo de prueba</FormLabel>
+									<FormLabel>Tipo de material</FormLabel>
 									<FormControl>
 										<select
 											className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -469,7 +469,7 @@ export default function FestivalActivityForm({
 												)
 											}
 										>
-											<option value="">Sin prueba</option>
+											<option value="">Sin material</option>
 											{PROOF_TYPE_OPTIONS.map((opt) => (
 												<option key={opt.value} value={opt.value}>
 													{opt.label}
@@ -487,7 +487,7 @@ export default function FestivalActivityForm({
 								name="proofUploadLimitDate"
 								render={({ field }) => (
 									<FormItem>
-										<FormLabel>Fecha límite para subir prueba</FormLabel>
+										<FormLabel>Fecha límite para subir el material</FormLabel>
 										<FormControl>
 											<Input type="datetime-local" {...field} />
 										</FormControl>

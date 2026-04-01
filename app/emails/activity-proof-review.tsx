@@ -25,13 +25,14 @@ type ActivityProofReviewEmailProps = {
 	status: Exclude<ProofStatus, "pending_review">;
 	adminFeedback?: string | null;
 	festivalType?: FestivalBase["festivalType"];
+	materialLabel: string;
+	materialArticle: "el" | "la";
+	materialPastParticiple: "aprobado" | "aprobada";
 };
 
-const previews: Record<Exclude<ProofStatus, "pending_review">, string> = {
-	approved: "¡Tu material fue aprobado!",
-	rejected_resubmit: "Tu material necesita correcciones",
-	rejected_removed: "Has sido removido de la actividad",
-};
+function capitalize(s: string): string {
+	return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 export default function ActivityProofReviewEmail({
 	profile,
@@ -42,10 +43,19 @@ export default function ActivityProofReviewEmail({
 	status,
 	adminFeedback,
 	festivalType = "glitter",
+	materialLabel,
+	materialArticle,
+	materialPastParticiple,
 }: ActivityProofReviewEmailProps) {
 	const userName = getUserName(profile);
 	const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 	const activityUrl = `${baseUrl}/profiles/${profile.id}/festivals/${festivalId}/activity/${activityId}`;
+
+	const previews: Record<Exclude<ProofStatus, "pending_review">, string> = {
+		approved: `¡Tu ${materialLabel} fue ${materialPastParticiple}!`,
+		rejected_resubmit: `Tu ${materialLabel} necesita correcciones`,
+		rejected_removed: "Has sido removido de la actividad",
+	};
 
 	return (
 		<Html>
@@ -60,9 +70,9 @@ export default function ActivityProofReviewEmail({
 						{status === "approved" && (
 							<>
 								<Text style={styles.text}>
-									¡El material que agregaste para la actividad{" "}
-									<strong>{activityName}</strong> del festival{" "}
-									<strong>{festivalName}</strong> fue aprobado!
+									¡{capitalize(materialArticle)} {materialLabel} que agregaste
+									para la actividad <strong>{activityName}</strong> del festival{" "}
+									<strong>{festivalName}</strong> fue {materialPastParticiple}!
 								</Text>
 								<Text style={styles.text}>
 									Tu participación en la actividad está confirmada.
@@ -76,8 +86,8 @@ export default function ActivityProofReviewEmail({
 						{status === "rejected_resubmit" && (
 							<>
 								<Text style={styles.text}>
-									El material que agregaste para la actividad{" "}
-									<strong>{activityName}</strong> del festival{" "}
+									{capitalize(materialArticle)} {materialLabel} que agregaste
+									para la actividad <strong>{activityName}</strong> del festival{" "}
 									<strong>{festivalName}</strong> necesita correcciones.
 								</Text>
 								{adminFeedback && (
@@ -87,7 +97,7 @@ export default function ActivityProofReviewEmail({
 									Por favor ingresa al sitio web y súbelo nuevamente.
 								</Text>
 								<Button href={activityUrl} style={styles.buttonWithBanner}>
-									Subir material nuevamente
+									Subir {materialLabel} nuevamente
 								</Button>
 							</>
 						)}
@@ -124,4 +134,7 @@ ActivityProofReviewEmail.PreviewProps = {
 	festivalType: "glitter",
 	status: "rejected_resubmit",
 	adminFeedback: "La imagen no cumple con los requisitos de calidad mínima.",
+	materialLabel: "foto del stand",
+	materialArticle: "la",
+	materialPastParticiple: "aprobada",
 } as ActivityProofReviewEmailProps;

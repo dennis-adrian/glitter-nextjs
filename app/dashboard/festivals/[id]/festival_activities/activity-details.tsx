@@ -4,6 +4,7 @@ import { PencilIcon, ClipboardListIcon } from "lucide-react";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Button } from "@/app/components/ui/button";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
+import { getMaterialConfig } from "@/app/lib/festival_activites/helpers";
 import ActivityParticipantsTable from "./activity-participants-table";
 import ActivityWaitlistTable from "./activity-waitlist-table";
 
@@ -17,6 +18,7 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
 		0,
 	);
 	const showVariantHeaders = activity.details.length > 1;
+	const { label: materialLabel } = getMaterialConfig(activity.type);
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -61,7 +63,10 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
 									{participants.length !== 1 ? "s" : ""}
 								</h3>
 							)}
-							<ActivityParticipantsTable participants={participants} />
+							<ActivityParticipantsTable
+								participants={participants}
+								materialLabel={materialLabel}
+							/>
 						</div>
 					);
 				})}
