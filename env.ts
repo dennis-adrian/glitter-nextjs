@@ -67,9 +67,6 @@ const serverSchema = z
 	});
 
 export const serverEnv = serverSchema.parse(process.env);
-// Validate client env at startup too — getClientEnv() is lazy but we call it
-// here so missing NEXT_PUBLIC_* vars are caught before the app serves traffic.
-getClientEnv();
 
 export function getPostgresUrl(): string {
 	if (serverEnv.POSTGRES_URL) return serverEnv.POSTGRES_URL;
