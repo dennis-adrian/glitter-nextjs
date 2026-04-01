@@ -86,7 +86,8 @@ export default function RemoveParticipantModal({
 				<div className={`${isDesktop ? "" : "px-4 pb-4"} pt-2 space-y-4`}>
 					<p className="text-sm text-destructive">
 						Esta acción removerá al participante de la actividad y liberará su
-						cupo. No puede deshacerse.
+						cupo. Podés revertirla desde la lista de participantes con el botón
+						Restaurar.
 					</p>
 					<Form {...form}>
 						<form onSubmit={onSubmit} className="space-y-4">
