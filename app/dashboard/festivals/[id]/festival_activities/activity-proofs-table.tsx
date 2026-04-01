@@ -20,6 +20,7 @@ import { cn } from "@/app/lib/utils";
 import ProofImageModal from "./proof-image-modal";
 import RejectProofModal from "./reject-proof-modal";
 import RemoveParticipantModal from "@/app/components/festivals/festival_activities/remove-participant-modal";
+import RestoreParticipantButton from "@/app/components/festivals/festival_activities/restore-participant-button";
 
 /** Detail fields needed for proof review rows (avoids duplicating full detail + participants per row). */
 type ProofRowDetail = Pick<FestivalActivityDetail, "id" | "category">;
@@ -316,6 +317,9 @@ function buildColumns(
 								participantName={participantName}
 							/>
 						)}
+						{isRemoved && (
+							<RestoreParticipantButton participationId={row.original.id} />
+						)}
 					</div>
 				);
 			},
@@ -495,6 +499,11 @@ export default function ActivityProofsTable({
 											participant.user.displayName ?? "Participante"
 										}
 									/>
+								</div>
+							)}
+							{isRemoved && (
+								<div className="pl-10">
+									<RestoreParticipantButton participationId={participant.id} />
 								</div>
 							)}
 						</div>

@@ -682,6 +682,71 @@ export async function removeActivityParticipant(
 	}
 }
 
+export async function restoreActivityParticipant(
+	participationId: number,
+): Promise<{ success: boolean; message: string }> {
+	const profile = await getAdminProfile();
+	if (!profile) {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción",
+		};
+	}
+
+	try {
+		const participation =
+			await db.query.festivalActivityParticipants.findFirst({
+				where: eq(festivalActivityParticipants.id, participationId),
+				with: { activityDetail: true },
+			});
+
+		if (!participation) {
+			return { success: false, message: "Participante no encontrado" };
+		}
+
+		if (!participation.removedAt) {
+			return { success: false, message: "El participante no está removido" };
+		}
+
+		if (participation.activityDetail.participationLimit) {
+			const [{ activeCount }] = await db
+				.select({ activeCount: count() })
+				.from(festivalActivityParticipants)
+				.where(
+					and(
+						eq(
+							festivalActivityParticipants.detailsId,
+							participation.detailsId,
+						),
+						isNull(festivalActivityParticipants.removedAt),
+					),
+				);
+
+			if (activeCount >= participation.activityDetail.participationLimit) {
+				return {
+					success: false,
+					message: "No hay cupos disponibles para restaurar al participante",
+				};
+			}
+		}
+
+		await db
+			.update(festivalActivityParticipants)
+			.set({ removedAt: null, updatedAt: new Date() })
+			.where(eq(festivalActivityParticipants.id, participationId));
+
+		revalidatePath("/dashboard");
+		return { success: true, message: "Participante restaurado correctamente" };
+	} catch (error) {
+		const message =
+			error instanceof Error
+				? error.message
+				: "Error al restaurar al participante";
+		console.error("Error restoring activity participant:", error);
+		return { success: false, message };
+	}
+}
+
 export async function promoteWaitlistToVariant(
 	activityId: number,
 	targetDetailId: number,
