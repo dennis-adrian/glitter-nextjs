@@ -19,6 +19,7 @@ import { reviewActivityParticipantProof } from "@/app/lib/festival_activites/adm
 import { cn } from "@/app/lib/utils";
 import ProofImageModal from "./proof-image-modal";
 import RejectProofModal from "./reject-proof-modal";
+import RemoveParticipantModal from "@/app/components/festivals/festival_activities/remove-participant-modal";
 
 /** Detail fields needed for proof review rows (avoids duplicating full detail + participants per row). */
 type ProofRowDetail = Pick<FestivalActivityDetail, "id" | "category">;
@@ -281,6 +282,7 @@ function buildColumns(
 			cell: ({ row }) => {
 				const proof = selectCanonicalProof(row.original);
 				const participantName = row.original.user.displayName ?? "Participante";
+				const isRemoved = row.original.removedAt !== null;
 
 				return (
 					<div className="flex items-center gap-1">
@@ -307,6 +309,12 @@ function buildColumns(
 									participantName={participantName}
 								/>
 							</>
+						)}
+						{!isRemoved && !proof && (
+							<RemoveParticipantModal
+								participationId={row.original.id}
+								participantName={participantName}
+							/>
 						)}
 					</div>
 				);
@@ -477,6 +485,16 @@ export default function ActivityProofsTable({
 											/>
 										</>
 									)}
+								</div>
+							)}
+							{!isRemoved && !proof && (
+								<div className="pl-10">
+									<RemoveParticipantModal
+										participationId={participant.id}
+										participantName={
+											participant.user.displayName ?? "Participante"
+										}
+									/>
 								</div>
 							)}
 						</div>

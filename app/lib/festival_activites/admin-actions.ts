@@ -588,6 +588,100 @@ export async function reviewActivityParticipantProof(
 	}
 }
 
+export async function removeActivityParticipant(
+	participationId: number,
+	reason: string,
+): Promise<{ success: boolean; message: string }> {
+	const profile = await getAdminProfile();
+	if (!profile) {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción",
+		};
+	}
+
+	if (!reason.trim()) {
+		return { success: false, message: "El motivo de remoción es requerido" };
+	}
+
+	try {
+		const participation = await db.query.festivalActivityParticipants.findFirst(
+			{
+				where: eq(festivalActivityParticipants.id, participationId),
+				with: {
+					user: true,
+					activityDetail: {
+						with: { festivalActivity: true },
+					},
+				},
+			},
+		);
+
+		if (!participation) {
+			return { success: false, message: "Participante no encontrado" };
+		}
+
+		if (participation.removedAt) {
+			return { success: false, message: "El participante ya fue removido" };
+		}
+
+		await db
+			.update(festivalActivityParticipants)
+			.set({ removedAt: new Date(), updatedAt: new Date() })
+			.where(eq(festivalActivityParticipants.id, participationId));
+
+		// Send notification email
+		try {
+			if (participation.user?.email) {
+				const { user, activityDetail } = participation;
+				const activity = activityDetail.festivalActivity;
+				const festival = await db.query.festivals.findFirst({
+					where: eq(festivals.id, activity.festivalId),
+				});
+				if (festival) {
+					await sendEmail({
+						to: [user.email],
+						from: "Equipo Glitter <equipo@productoraglitter.com>",
+						subject: `Fuiste removido de la actividad - ${activity.name}`,
+						react: React.createElement(ActivityProofReviewEmail, {
+							profile: user,
+							festivalId: activity.festivalId,
+							activityId: activity.id,
+							activityName: activity.name,
+							festivalName: festival.name,
+							festivalType: festival.festivalType,
+							status: "rejected_removed",
+							adminFeedback: reason,
+						}),
+					});
+				}
+			}
+		} catch (emailError) {
+			console.error("Error sending participant removal email:", emailError);
+		}
+
+		// Promote next person from waitlist
+		try {
+			await promoteFromWaitlist(
+				participation.activityDetail.festivalActivity.id,
+				participation.activityDetail.id,
+			);
+		} catch (waitlistError) {
+			console.error("Error promoting from waitlist:", waitlistError);
+		}
+
+		revalidatePath("/dashboard");
+		return { success: true, message: "Participante removido correctamente" };
+	} catch (error) {
+		const message =
+			error instanceof Error
+				? error.message
+				: "Error al remover al participante";
+		console.error("Error removing activity participant:", error);
+		return { success: false, message };
+	}
+}
+
 export async function promoteWaitlistToVariant(
 	activityId: number,
 	targetDetailId: number,
@@ -878,7 +972,14 @@ export async function notifyWaitlistEntry(
 				Date.now() + activity.waitlistWindowMinutes * 60 * 1000,
 			);
 
-			return { ok: true as const, entry, activity, expiresAt, now, matchedDetail };
+			return {
+				ok: true as const,
+				entry,
+				activity,
+				expiresAt,
+				now,
+				matchedDetail,
+			};
 		});
 
 		if (!txResult.ok) {
