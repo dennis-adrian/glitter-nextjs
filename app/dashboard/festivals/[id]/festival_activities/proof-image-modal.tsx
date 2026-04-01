@@ -17,36 +17,44 @@ import {
 type ProofImageModalProps = {
 	imageUrl: string | null;
 	participantName: string;
+	materialLabel: string;
 };
+
+function capitalize(s: string): string {
+	return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 export default function ProofImageModal({
 	imageUrl,
 	participantName,
+	materialLabel,
 }: ProofImageModalProps) {
 	const [open, setOpen] = useState(false);
 	const isDesktop = useMediaQuery("(min-width: 768px)");
 
 	if (!imageUrl) return null;
 
+	const title = `${capitalize(materialLabel)} de ${participantName}`;
+
 	return (
 		<DrawerDialog open={open} onOpenChange={setOpen} isDesktop={isDesktop}>
 			<DrawerDialogTrigger isDesktop={isDesktop}>
 				<Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
 					<EyeIcon className="w-3.5 h-3.5 mr-1" />
-					Ver prueba
+					Ver {materialLabel}
 				</Button>
 			</DrawerDialogTrigger>
 			<DrawerDialogContent isDesktop={isDesktop}>
 				<DrawerDialogHeader isDesktop={isDesktop}>
 					<DrawerDialogTitle isDesktop={isDesktop}>
-						Prueba de {participantName}
+						{title}
 					</DrawerDialogTitle>
 				</DrawerDialogHeader>
 				<div className="flex justify-center p-4">
 					<div className="relative w-full max-w-sm aspect-square">
 						<Image
 							src={imageUrl}
-							alt={`Prueba de ${participantName}`}
+							alt={title}
 							fill
 							className="object-contain rounded-md"
 							unoptimized

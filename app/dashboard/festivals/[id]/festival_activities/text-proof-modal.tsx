@@ -18,13 +18,19 @@ type TextProofModalProps = {
 	promoHighlight: string | null;
 	promoDescription: string | null;
 	promoConditions: string | null;
+	materialLabel: string;
 };
+
+function capitalize(s: string): string {
+	return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 export default function TextProofModal({
 	participantName,
 	promoHighlight,
 	promoDescription,
 	promoConditions,
+	materialLabel,
 }: TextProofModalProps) {
 	const [open, setOpen] = useState(false);
 	const isDesktop = useMediaQuery("(min-width: 768px)");
@@ -40,13 +46,13 @@ export default function TextProofModal({
 			<DrawerDialogTrigger isDesktop={isDesktop}>
 				<Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
 					<EyeIcon className="w-3.5 h-3.5 mr-1" />
-					Ver prueba
+					Ver {materialLabel}
 				</Button>
 			</DrawerDialogTrigger>
 			<DrawerDialogContent isDesktop={isDesktop}>
 				<DrawerDialogHeader isDesktop={isDesktop}>
 					<DrawerDialogTitle isDesktop={isDesktop}>
-						Prueba de {participantName}
+						{capitalize(materialLabel)} de {participantName}
 					</DrawerDialogTitle>
 				</DrawerDialogHeader>
 				<div className="flex flex-col gap-2 p-1">

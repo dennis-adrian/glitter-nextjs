@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PlusIcon } from "lucide-react";
 
-import ActivityDetails from "@/app/dashboard/festivals/[id]/festival_activities/activity-details";
+import ActivitySummaryCard from "@/app/components/festivals/festival_activities/activity-summary-card";
 import { fetchFullFestivalById } from "@/app/lib/festival_sectors/actions";
 import { Button } from "@/app/components/ui/button";
 import { notFound } from "next/navigation";
@@ -67,17 +67,15 @@ export default async function Page({ params }: FestivalActivitiesPageProps) {
 					</Link>
 				</Button>
 			</div>
-			{festival.festivalActivities.map((activity) => (
-				<div
-					key={activity.id}
-					className="border border-border rounded-md p-3 my-3"
-				>
-					<h2 className="text-lg font-semibold mb-3 leading-tight">
-						{activity.name}
-					</h2>
-					<ActivityDetails activity={activity} />
-				</div>
-			))}
+			<div className="space-y-3">
+				{festival.festivalActivities.map((activity) => (
+					<ActivitySummaryCard
+						key={activity.id}
+						activity={activity}
+						festivalId={festivalId}
+					/>
+				))}
+			</div>
 		</div>
 	);
 }

@@ -1,4 +1,5 @@
 import { fetchFestivalActivityForReview } from "@/app/lib/festivals/actions";
+import { getMaterialConfig } from "@/app/lib/festival_activites/helpers";
 import { Button } from "@/app/components/ui/button";
 import Link from "next/link";
 import { BookOpenIcon } from "lucide-react";
@@ -26,6 +27,8 @@ export default async function Page({ params }: ReviewPageProps) {
 	);
 
 	if (!activity) return notFound();
+
+	const { label: materialLabel } = getMaterialConfig(activity.type);
 
 	const allParticipants = activity.details.flatMap((detail) =>
 		detail.participants.map((p) => ({
@@ -58,7 +61,7 @@ export default async function Page({ params }: ReviewPageProps) {
 		<div className="container p-3 md:p-6 space-y-4">
 			<div className="flex items-center justify-between gap-4 flex-wrap">
 				<h1 className="text-lg md:text-xl font-bold">
-					Revisión de pruebas — {activity.name}
+					Revisión de {materialLabel} — {activity.name}
 				</h1>
 				{showExport && (
 					<div className="flex gap-2">

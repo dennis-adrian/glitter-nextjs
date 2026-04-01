@@ -22,6 +22,7 @@ import { sendEmail } from "@/app/vendors/resend";
 import ActivityProofReviewEmail from "@/app/emails/activity-proof-review";
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
 import { promoteFromWaitlist } from "@/app/lib/festival_activites/actions";
+import { getMaterialConfig } from "@/app/lib/festival_activites/helpers";
 import React from "react";
 
 export type FestivalActivityDetailInput = {
@@ -526,10 +527,11 @@ export async function reviewActivityParticipantProof(
 					where: eq(festivals.id, activity.festivalId),
 				});
 				if (festival) {
+					const materialConfig = getMaterialConfig(activity.type);
 					const subjects: Record<typeof status, string> = {
-						approved: `Tu material fue aprobado - ${activity.name}`,
-						rejected_resubmit: `Tu material necesita correcciones - ${activity.name}`,
-						rejected_removed: `Fuiste removido de la actividad - ${activity.name}`,
+						approved: `Tu ${materialConfig.label} fue ${materialConfig.pastParticiple} - ${activity.name}`,
+						rejected_resubmit: `Tu ${materialConfig.label} necesita correcciones - ${activity.name}`,
+						rejected_removed: `Fuiste removido/a de la actividad - ${activity.name}`,
 					};
 					await sendEmail({
 						to: [user.email],
@@ -544,6 +546,9 @@ export async function reviewActivityParticipantProof(
 							festivalType: festival.festivalType,
 							status,
 							adminFeedback,
+							materialLabel: materialConfig.label,
+							materialArticle: materialConfig.article,
+							materialPastParticiple: materialConfig.pastParticiple,
 						}),
 					});
 				}
@@ -584,6 +589,221 @@ export async function reviewActivityParticipantProof(
 		const message =
 			error instanceof Error ? error.message : "Error al revisar la prueba";
 		console.error("Error reviewing activity participant proof:", error);
+		return { success: false, message };
+	}
+}
+
+export async function removeActivityParticipant(
+	participationId: number,
+	reason: string,
+): Promise<{ success: boolean; message: string }> {
+	const profile = await getAdminProfile();
+	if (!profile) {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción",
+		};
+	}
+
+	if (!reason.trim()) {
+		return { success: false, message: "El motivo de remoción es requerido" };
+	}
+
+	try {
+		const participation = await db.query.festivalActivityParticipants.findFirst(
+			{
+				where: eq(festivalActivityParticipants.id, participationId),
+				with: {
+					user: true,
+					activityDetail: {
+						with: { festivalActivity: true },
+					},
+				},
+			},
+		);
+
+		if (!participation) {
+			return { success: false, message: "Participante no encontrado" };
+		}
+
+		if (participation.removedAt) {
+			return { success: false, message: "El participante ya fue removido" };
+		}
+
+		const updatedRows = await db
+			.update(festivalActivityParticipants)
+			.set({ removedAt: new Date(), updatedAt: new Date() })
+			.where(
+				and(
+					eq(festivalActivityParticipants.id, participationId),
+					isNull(festivalActivityParticipants.removedAt),
+				),
+			)
+			.returning({ id: festivalActivityParticipants.id });
+
+		const didRemove = updatedRows.length === 1;
+
+		if (!didRemove) {
+			// Concurrent removal won the race, or row state changed — idempotent: no duplicate emails / waitlist promotion
+			revalidatePath("/dashboard");
+			return { success: true, message: "Participante removido correctamente" };
+		}
+
+		// Send notification email
+		try {
+			if (participation.user?.email) {
+				const { user, activityDetail } = participation;
+				const activity = activityDetail.festivalActivity;
+				const festival = await db.query.festivals.findFirst({
+					where: eq(festivals.id, activity.festivalId),
+				});
+				if (festival) {
+					const materialConfig = getMaterialConfig(activity.type);
+					await sendEmail({
+						to: [user.email],
+						from: "Equipo Glitter <equipo@productoraglitter.com>",
+						subject: `Fuiste removido/a de la actividad - ${activity.name}`,
+						react: React.createElement(ActivityProofReviewEmail, {
+							profile: user,
+							festivalId: activity.festivalId,
+							activityId: activity.id,
+							activityName: activity.name,
+							festivalName: festival.name,
+							festivalType: festival.festivalType,
+							status: "rejected_removed",
+							adminFeedback: reason,
+							materialLabel: materialConfig.label,
+							materialArticle: materialConfig.article,
+							materialPastParticiple: materialConfig.pastParticiple,
+						}),
+					});
+				}
+			}
+		} catch (emailError) {
+			console.error("Error sending participant removal email:", emailError);
+		}
+
+		// Promote next person from waitlist
+		try {
+			await promoteFromWaitlist(
+				participation.activityDetail.festivalActivity.id,
+				participation.activityDetail.id,
+			);
+		} catch (waitlistError) {
+			console.error("Error promoting from waitlist:", waitlistError);
+		}
+
+		revalidatePath("/dashboard");
+		return { success: true, message: "Participante removido correctamente" };
+	} catch (error) {
+		const message =
+			error instanceof Error
+				? error.message
+				: "Error al remover al participante";
+		console.error("Error removing activity participant:", error);
+		return { success: false, message };
+	}
+}
+
+export async function restoreActivityParticipant(
+	participationId: number,
+): Promise<{ success: boolean; message: string }> {
+	const profile = await getAdminProfile();
+	if (!profile) {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción",
+		};
+	}
+
+	try {
+		const participation =
+			await db.query.festivalActivityParticipants.findFirst({
+				where: eq(festivalActivityParticipants.id, participationId),
+				with: { activityDetail: true },
+			});
+
+		if (!participation) {
+			return { success: false, message: "Participante no encontrado" };
+		}
+
+		if (!participation.removedAt) {
+			return { success: false, message: "El participante no está removido" };
+		}
+
+		if (participation.activityDetail.participationLimit) {
+			const now = new Date();
+
+			const [{ activeCount }] = await db
+				.select({ activeCount: count() })
+				.from(festivalActivityParticipants)
+				.where(
+					and(
+						eq(
+							festivalActivityParticipants.detailsId,
+							participation.detailsId,
+						),
+						isNull(festivalActivityParticipants.removedAt),
+					),
+				);
+
+			const [{ reservedCount }] = await db
+				.select({ reservedCount: count() })
+				.from(festivalActivityWaitlist)
+				.where(
+					and(
+						eq(
+							festivalActivityWaitlist.notifiedForDetailId,
+							participation.detailsId,
+						),
+						gt(festivalActivityWaitlist.expiresAt, now),
+					),
+				);
+
+			const combinedCount = activeCount + reservedCount;
+
+			if (combinedCount >= participation.activityDetail.participationLimit) {
+				return {
+					success: false,
+					message: "No hay cupos disponibles para restaurar al participante",
+				};
+			}
+		}
+
+		await db.transaction(async (tx) => {
+			await tx
+				.update(festivalActivityParticipants)
+				.set({ removedAt: null, updatedAt: new Date() })
+				.where(eq(festivalActivityParticipants.id, participationId));
+
+			await tx
+				.update(festivalActivityParticipantProofs)
+				.set({
+					proofStatus: "rejected_resubmit",
+					updatedAt: new Date(),
+				})
+				.where(
+					and(
+						eq(
+							festivalActivityParticipantProofs.participationId,
+							participationId,
+						),
+						eq(
+							festivalActivityParticipantProofs.proofStatus,
+							"rejected_removed",
+						),
+					),
+				);
+		});
+
+		revalidatePath("/dashboard");
+		return { success: true, message: "Participante restaurado correctamente" };
+	} catch (error) {
+		const message =
+			error instanceof Error
+				? error.message
+				: "Error al restaurar al participante";
+		console.error("Error restoring activity participant:", error);
 		return { success: false, message };
 	}
 }
@@ -878,7 +1098,14 @@ export async function notifyWaitlistEntry(
 				Date.now() + activity.waitlistWindowMinutes * 60 * 1000,
 			);
 
-			return { ok: true as const, entry, activity, expiresAt, now, matchedDetail };
+			return {
+				ok: true as const,
+				entry,
+				activity,
+				expiresAt,
+				now,
+				matchedDetail,
+			};
 		});
 
 		if (!txResult.ok) {

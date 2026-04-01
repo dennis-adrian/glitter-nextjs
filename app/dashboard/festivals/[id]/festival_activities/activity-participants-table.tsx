@@ -32,12 +32,18 @@ function getPrimaryProof(
 	return textProof;
 }
 
+function capitalize(s: string): string {
+	return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 function ParticipantProofViewer({
 	proof,
 	participantName,
+	materialLabel,
 }: {
 	proof: ParticipantProof;
 	participantName: string;
+	materialLabel: string;
 }) {
 	const hasImage = Boolean(proof.imageUrl);
 	const hasText =
@@ -50,12 +56,14 @@ function ParticipantProofViewer({
 				<ProofImageModal
 					imageUrl={proof.imageUrl}
 					participantName={participantName}
+					materialLabel={materialLabel}
 				/>
 				<TextProofModal
 					participantName={participantName}
 					promoHighlight={proof.promoHighlight}
 					promoDescription={proof.promoDescription}
 					promoConditions={proof.promoConditions}
+					materialLabel={materialLabel}
 				/>
 			</>
 		);
@@ -66,6 +74,7 @@ function ParticipantProofViewer({
 			<ProofImageModal
 				imageUrl={proof.imageUrl}
 				participantName={participantName}
+				materialLabel={materialLabel}
 			/>
 		);
 	}
@@ -78,24 +87,16 @@ function ParticipantProofViewer({
 			promoHighlight={proof.promoHighlight}
 			promoDescription={proof.promoDescription}
 			promoConditions={proof.promoConditions}
+			materialLabel={materialLabel}
 		/>
 	);
 }
-
-const COLUMN_TITLES: Record<string, string> = {
-	index: "#",
-	participant: "Participante",
-	category: "Categoría",
-	enrolledAt: "Inscrito el",
-	proof: "Prueba",
-	actions: "Acciones",
-};
 
 /** Synthetic key when the participant has not submitted a proof row yet. */
 const PROOF_STATUS_BADGE: Record<string, { label: string; className: string }> =
 	{
 		sin_prueba: {
-			label: "Pendiente",
+			label: "Sin material",
 			className: "text-amber-700 border-amber-300 bg-amber-50",
 		},
 		pending_review: {
@@ -120,106 +121,120 @@ function proofStatusKey(proof: ParticipantProof | undefined) {
 	return proof?.proofStatus ?? "sin_prueba";
 }
 
-const columns: ColumnDef<ParticipantWithDetail>[] = [
-	{
-		id: "index",
-		header: "#",
-		cell: ({ row }) => (
-			<span className="text-muted-foreground text-sm">{row.index + 1}</span>
-		),
-		size: 40,
-	},
-	{
-		id: "participant",
-		header: "Participante",
-		accessorFn: (row) => row.user.displayName ?? "",
-		cell: ({ row }) => {
-			const user = row.original.user;
-			return (
-				<div className="flex items-center gap-2">
-					<Avatar className="w-7 h-7 shrink-0">
-						<AvatarImage
-							src={user.imageUrl || "/img/placeholders/avatar-placeholder.png"}
-							alt={user.displayName ?? "Avatar"}
-						/>
-					</Avatar>
-					<span className="font-medium text-sm truncate max-w-[160px]">
-						{user.displayName ?? "—"}
-					</span>
-				</div>
-			);
+function buildColumns(
+	materialLabel: string,
+): ColumnDef<ParticipantWithDetail>[] {
+	const columnTitleLabel = capitalize(materialLabel);
+
+	return [
+		{
+			id: "index",
+			header: "#",
+			cell: ({ row }) => (
+				<span className="text-muted-foreground text-sm">{row.index + 1}</span>
+			),
+			size: 40,
 		},
-	},
-	{
-		id: "category",
-		header: "Categoría",
-		accessorFn: (row) => {
-			const cat = row.detail.category;
-			return cat ? getCategoryLabel(cat) : "Todas";
+		{
+			id: "participant",
+			header: "Participante",
+			accessorFn: (row) => row.user.displayName ?? "",
+			cell: ({ row }) => {
+				const user = row.original.user;
+				return (
+					<div className="flex items-center gap-2">
+						<Avatar className="w-7 h-7 shrink-0">
+							<AvatarImage
+								src={user.imageUrl || "/img/placeholders/avatar-placeholder.png"}
+								alt={user.displayName ?? "Avatar"}
+							/>
+						</Avatar>
+						<span className="font-medium text-sm truncate max-w-[160px]">
+							{user.displayName ?? "—"}
+						</span>
+					</div>
+				);
+			},
 		},
-		cell: ({ getValue }) => (
-			<span className="text-sm text-muted-foreground">
-				{getValue() as string}
-			</span>
-		),
-		filterFn: "equalsString",
-	},
-	{
-		id: "enrolledAt",
-		header: "Inscrito el",
-		accessorFn: (row) => row.createdAt,
-		cell: ({ row }) =>
-			new Date(row.original.createdAt).toLocaleDateString("es-ES", {
-				day: "numeric",
-				month: "short",
-				year: "numeric",
-			}),
-		sortingFn: "datetime",
-	},
-	{
-		id: "proof",
-		header: "Prueba",
-		accessorFn: (row) => proofStatusKey(getPrimaryProof(row.proofs)),
-		cell: ({ row }) => {
-			const proof = getPrimaryProof(row.original.proofs);
-			const key = proofStatusKey(proof);
-			const config = PROOF_STATUS_BADGE[key] ?? PROOF_STATUS_BADGE.sin_prueba;
-			return (
-				<Badge variant="outline" className={`text-xs ${config.className}`}>
-					{config.label}
-				</Badge>
-			);
+		{
+			id: "category",
+			header: "Categoría",
+			accessorFn: (row) => {
+				const cat = row.detail.category;
+				return cat ? getCategoryLabel(cat) : "Todas";
+			},
+			cell: ({ getValue }) => (
+				<span className="text-sm text-muted-foreground">
+					{getValue() as string}
+				</span>
+			),
+			filterFn: "equalsString",
 		},
-		filterFn: (row, _, filterValue) => {
-			const selected = filterValue as string[] | undefined;
-			if (!selected?.length) return true;
-			const key = proofStatusKey(getPrimaryProof(row.original.proofs));
-			return selected.includes(key);
+		{
+			id: "enrolledAt",
+			header: "Inscrito el",
+			accessorFn: (row) => row.createdAt,
+			cell: ({ row }) =>
+				new Date(row.original.createdAt).toLocaleDateString("es-ES", {
+					day: "numeric",
+					month: "short",
+					year: "numeric",
+				}),
+			sortingFn: "datetime",
 		},
-	},
-	{
-		id: "actions",
-		header: "",
-		cell: ({ row }) => {
-			const proof = getPrimaryProof(row.original.proofs);
-			if (!proof) return null;
-			return (
-				<ParticipantProofViewer
-					proof={proof}
-					participantName={row.original.user.displayName ?? "Participante"}
-				/>
-			);
+		{
+			id: "proof",
+			header: columnTitleLabel,
+			accessorFn: (row) => proofStatusKey(getPrimaryProof(row.proofs)),
+			cell: ({ row }) => {
+				const proof = getPrimaryProof(row.original.proofs);
+				const key = proofStatusKey(proof);
+				const config = PROOF_STATUS_BADGE[key] ?? PROOF_STATUS_BADGE.sin_prueba;
+				const label =
+					key === "sin_prueba" ? `Sin ${materialLabel}` : config.label;
+				return (
+					<Badge variant="outline" className={`text-xs ${config.className}`}>
+						{label}
+					</Badge>
+				);
+			},
+			filterFn: (row, _, filterValue) => {
+				const selected = filterValue as string[] | undefined;
+				if (!selected?.length) return true;
+				const key = proofStatusKey(getPrimaryProof(row.original.proofs));
+				return selected.includes(key);
+			},
 		},
-	},
-];
+		{
+			id: "actions",
+			header: "",
+			cell: ({ row }) => {
+				const proof = getPrimaryProof(row.original.proofs);
+				if (!proof) return null;
+				return (
+					<ParticipantProofViewer
+						proof={proof}
+						participantName={row.original.user.displayName ?? "Participante"}
+						materialLabel={materialLabel}
+					/>
+				);
+			},
+		},
+	];
+}
 
 type ActivityParticipantsTableProps = {
 	participants: ParticipantWithDetail[];
+	materialLabel: string;
 };
 
 export default function ActivityParticipantsTable({
 	participants,
+	materialLabel,
 }: ActivityParticipantsTableProps) {
+	const columns = buildColumns(materialLabel);
+	const columnTitleLabel = capitalize(materialLabel);
+
 	if (participants.length === 0) {
 		return (
 			<p className="text-sm text-muted-foreground py-2">
@@ -235,13 +250,20 @@ export default function ActivityParticipantsTable({
 				<DataTable
 					columns={columns}
 					data={participants}
-					columnTitles={COLUMN_TITLES}
+					columnTitles={{
+						"#": "#",
+						participant: "Participante",
+						category: "Categoría",
+						enrolledAt: "Inscrito el",
+						proof: columnTitleLabel,
+						actions: "Acciones",
+					}}
 					filters={[
 						{
 							columnId: "proof",
-							label: "Prueba",
+							label: columnTitleLabel,
 							options: [
-								{ value: "sin_prueba", label: "Pendiente (sin enviar)" },
+								{ value: "sin_prueba", label: `Sin ${materialLabel}` },
 								{ value: "pending_review", label: "En revisión" },
 								{ value: "approved", label: "Aprobada" },
 								{
@@ -260,8 +282,12 @@ export default function ActivityParticipantsTable({
 				{participants.map((participant, index) => {
 					const proof = getPrimaryProof(participant.proofs);
 					const statusKey = proofStatusKey(proof);
-					const statusBadge =
+					const statusConfig =
 						PROOF_STATUS_BADGE[statusKey] ?? PROOF_STATUS_BADGE.sin_prueba;
+					const statusLabel =
+						statusKey === "sin_prueba"
+							? `Sin ${materialLabel}`
+							: statusConfig.label;
 					const category = participant.detail.category;
 
 					return (
@@ -296,9 +322,9 @@ export default function ActivityParticipantsTable({
 							<div className="flex items-center gap-2 shrink-0">
 								<Badge
 									variant="outline"
-									className={`text-xs shrink-0 ${statusBadge.className}`}
+									className={`text-xs shrink-0 ${statusConfig.className}`}
 								>
-									{statusBadge.label}
+									{statusLabel}
 								</Badge>
 								{proof && (
 									<ParticipantProofViewer
@@ -306,6 +332,7 @@ export default function ActivityParticipantsTable({
 										participantName={
 											participant.user.displayName ?? "Participante"
 										}
+										materialLabel={materialLabel}
 									/>
 								)}
 							</div>
