@@ -16,10 +16,7 @@ export const liveActSchema = z
 			error: "Seleccioná una categoría",
 		}),
 		description: z.string().trim().optional(),
-		resourceLink: z
-			.url("Ingresá un enlace válido")
-			.or(z.literal(""))
-			.optional(),
+		resourceLink: z.url("Ingresá un enlace válido"),
 		socialLinks: z.array(z.url("Ingresá un enlace válido")).optional(),
 		contactName: nameValidator(),
 		contactEmail: z.email("Ingresá un email válido"),

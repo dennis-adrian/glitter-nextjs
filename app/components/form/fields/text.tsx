@@ -16,6 +16,7 @@ export default function TextInput({
 	name,
 	messagePosition = "bottom",
 	description,
+	required,
 	...props
 }: {
 	bottomBorderOnly?: boolean;
@@ -24,13 +25,19 @@ export default function TextInput({
 	name: string;
 	placeholder?: string;
 	description?: string;
+	required?: boolean;
 } & InputHTMLAttributes<HTMLInputElement>) {
 	return (
 		<FormField
 			name={name}
 			render={({ field }) => (
 				<FormItem className="w-full grid gap-2">
-					{label && <FormLabel>{label}</FormLabel>}
+					{label && (
+						<FormLabel>
+							{label}
+							{required && <span className="text-destructive ml-0.5">*</span>}
+						</FormLabel>
+					)}
 					{messagePosition === "top" && <FormMessage />}
 					<FormControl>
 						<Input bottomBorderOnly={bottomBorderOnly} {...field} {...props} />
