@@ -38,9 +38,12 @@ export function getUserWaitlistEntry(
 }
 
 export function isActivityDetailFull(detail: ActivityDetailsWithParticipants) {
+	const activeParticipants = detail.participants.filter(
+		(p) => p.removedAt === null,
+	);
 	return (
 		detail.participationLimit &&
 		detail.participationLimit > 0 &&
-		detail.participants.length >= detail.participationLimit
+		activeParticipants.length >= detail.participationLimit
 	);
 }
