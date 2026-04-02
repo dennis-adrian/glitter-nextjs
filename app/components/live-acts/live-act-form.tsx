@@ -55,21 +55,28 @@ export default function LiveActForm() {
 	const config = category ? CATEGORY_CONFIG[category] : CATEGORY_CONFIG.music;
 
 	async function onSubmit(values: LiveActInput) {
-		const result = await createLiveAct({
-			actName: values.actName,
-			category: values.category,
-			description: values.description || null,
-			resourceLink: values.resourceLink,
-			socialLinks: values.socialLinks ?? [],
-			contactName: values.contactName,
-			contactEmail: values.contactEmail,
-			contactPhone: values.contactPhone,
-		});
+		try {
+			const result = await createLiveAct({
+				actName: values.actName,
+				category: values.category,
+				description: values.description || null,
+				resourceLink: values.resourceLink,
+				socialLinks: values.socialLinks ?? [],
+				contactName: values.contactName,
+				contactEmail: values.contactEmail,
+				contactPhone: values.contactPhone,
+			});
 
-		if (result.success) {
-			setSubmitted(true);
-		} else {
-			toast.error(result.error ?? "Error al enviar la postulación");
+			if (result.success) {
+				setSubmitted(true);
+			} else {
+				toast.error(result.error ?? "Error al enviar la postulación");
+			}
+		} catch (error) {
+			console.error("createLiveAct failed", error);
+			toast.error(
+				"Ocurrió un error inesperado al enviar la postulación. Intentá de nuevo.",
+			);
 		}
 	}
 

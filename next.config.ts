@@ -12,6 +12,10 @@ const nextConfig: NextConfig = {
 				source: "/ingest/:path*",
 				destination: "https://us.i.posthog.com/:path*",
 			},
+			{
+				source: "/presentaciones-en-vivo",
+				destination: "/live-acts",
+			},
 		];
 	},
 	skipTrailingSlashRedirect: true,
