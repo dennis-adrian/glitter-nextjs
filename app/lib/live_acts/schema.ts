@@ -23,7 +23,11 @@ export const liveActSchema = z
 			.transform((arr) =>
 				(arr ?? []).map((s) => s.trim()).filter((s) => s.length > 0),
 			)
-			.pipe(z.array(z.url("Ingresá un enlace válido"))),
+			.pipe(
+				z
+					.array(z.url("Ingresá un enlace válido"))
+					.max(5, "No se permiten más de 5 enlaces"),
+			),
 		contactName: nameValidator(),
 		contactEmail: z.email("Ingresá un email válido"),
 		contactPhone: phoneValidator(),
