@@ -24,6 +24,7 @@ import {
 	CreditCardIcon,
 	HomeIcon,
 	LogOutIcon,
+	MicIcon,
 	PackageIcon,
 	ReceiptTextIcon,
 	ShirtIcon,
@@ -167,6 +168,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 								<MobileSidebarItem href="/dashboard/discount_codes">
 									<TicketIcon className="mr-2 h-6 w-6" />
 									Códigos de descuento
+								</MobileSidebarItem>
+								<MobileSidebarItem href="/dashboard/live-acts">
+									<MicIcon className="mr-2 h-6 w-6" />
+									Presentaciones en vivo
 								</MobileSidebarItem>
 							</div>
 						</>

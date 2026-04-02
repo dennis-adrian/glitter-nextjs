@@ -22,6 +22,7 @@ export const columnTitles = {
 	contactEmail: "Email",
 	contactPhone: "Teléfono",
 	status: "Estado",
+	resourceLink: "Enlace de referencia",
 	socialLinks: "Redes / sitio web",
 	createdAt: "Fecha",
 };
@@ -87,6 +88,32 @@ export const columns: ColumnDef<LiveAct>[] = [
 		filterFn: (row, columnId, filterValues: string[]) => {
 			if (filterValues.length === 0) return true;
 			return filterValues.includes(row.getValue(columnId));
+		},
+	},
+	{
+		id: "resourceLink",
+		accessorKey: "resourceLink",
+		header: columnTitles.resourceLink,
+		cell: ({ row }) => {
+			const link = row.original.resourceLink;
+			if (!link) return <span className="text-muted-foreground">—</span>;
+			const isHttpUrl =
+				link.startsWith("http://") || link.startsWith("https://");
+			if (isHttpUrl) {
+				return (
+					<a
+						href={link}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="truncate text-blue-500 hover:underline max-w-40 block"
+					>
+						{link}
+					</a>
+				);
+			}
+			return (
+				<span className="truncate max-w-40 block">{link}</span>
+			);
 		},
 	},
 	{

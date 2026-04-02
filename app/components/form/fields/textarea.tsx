@@ -14,12 +14,14 @@ export default function TextareaInput({
   maxLength,
   name,
   placeholder,
+  required,
 }: {
   formControl: UseFormReturn<any>["control"];
   label: string;
   maxLength?: number;
   name: string;
   placeholder: string;
+  required?: boolean;
 }) {
   return (
     <FormField
@@ -27,7 +29,10 @@ export default function TextareaInput({
       name={name}
       render={({ field }) => (
         <FormItem className="grid gap-2">
-          <FormLabel>{label}</FormLabel>
+          <FormLabel>
+            {label}
+            {required && <span className="text-destructive ml-0.5">*</span>}
+          </FormLabel>
           <FormControl>
             <Textarea
               className="resize-none"
