@@ -97,15 +97,22 @@ export const columns: ColumnDef<LiveAct>[] = [
 		cell: ({ row }) => {
 			const link = row.original.resourceLink;
 			if (!link) return <span className="text-muted-foreground">—</span>;
+			const isHttpUrl =
+				link.startsWith("http://") || link.startsWith("https://");
+			if (isHttpUrl) {
+				return (
+					<a
+						href={link}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="truncate text-blue-500 hover:underline max-w-40 block"
+					>
+						{link}
+					</a>
+				);
+			}
 			return (
-				<a
-					href={link}
-					target="_blank"
-					rel="noopener noreferrer"
-					className="truncate text-blue-500 hover:underline max-w-40 block"
-				>
-					{link}
-				</a>
+				<span className="truncate max-w-40 block">{link}</span>
 			);
 		},
 	},

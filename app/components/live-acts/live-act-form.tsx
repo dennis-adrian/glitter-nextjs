@@ -188,6 +188,7 @@ export default function LiveActForm() {
 										variant="ghost"
 										size="icon"
 										className="mt-0.5 shrink-0 text-muted-foreground hover:text-destructive"
+										aria-label={`Eliminar enlace ${index + 1}`}
 										onClick={() => remove(index)}
 									>
 										<Trash2Icon className="h-4 w-4" />

@@ -33,9 +33,14 @@ export const liveActSchema = z
 		contactPhone: phoneValidator(),
 	})
 	.refine(
-		(data) =>
-			data.category !== "talk" ||
-			(!!data.description && data.description.trim().length >= 20),
+		(data) => {
+			const descriptionRequired =
+				data.category === "talk" || data.category === "dance";
+			return (
+				!descriptionRequired ||
+				(!!data.description && data.description.trim().length >= 20)
+			);
+		},
 		{
 			message: "La descripción debe tener al menos 20 caracteres",
 			path: ["description"],
