@@ -33,6 +33,11 @@ export async function createLiveAct(
 }
 
 export async function fetchLiveActs(): Promise<LiveAct[]> {
+	const profile = await getCurrentUserProfile();
+	if (!profile || profile.role !== "admin") {
+		return [];
+	}
+
 	try {
 		return await db.select().from(liveActs).orderBy(desc(liveActs.createdAt));
 	} catch (error) {

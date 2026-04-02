@@ -142,7 +142,10 @@ export function LiveActActionsCell({ liveAct }: { liveAct: LiveAct }) {
 					<DropdownMenuSeparator />
 					<DropdownMenuItem
 						disabled={savingStatus}
-						onSelect={() => setNotesOpen(true)}
+						onSelect={() => {
+							setNotes(liveAct.adminNotes ?? "");
+							setNotesOpen(true);
+						}}
 					>
 						{liveAct.adminNotes ? "Editar notas" : "Agregar notas"}
 					</DropdownMenuItem>

@@ -154,6 +154,12 @@ const NavbarNavigationMenu = ({
 								>
 									Códigos de descuento para reservas
 								</NavigationMenuListItem>
+								<NavigationMenuListItem
+									title="Presentaciones en vivo"
+									href="/dashboard/live-acts"
+								>
+									Postulaciones de actos en vivo
+								</NavigationMenuListItem>
 							</ul>
 						</NavigationMenuContent>
 					</NavigationMenuItem>

@@ -630,10 +630,24 @@ export async function removeActivityParticipant(
 			return { success: false, message: "El participante ya fue removido" };
 		}
 
-		await db
+		const updatedRows = await db
 			.update(festivalActivityParticipants)
 			.set({ removedAt: new Date(), updatedAt: new Date() })
-			.where(eq(festivalActivityParticipants.id, participationId));
+			.where(
+				and(
+					eq(festivalActivityParticipants.id, participationId),
+					isNull(festivalActivityParticipants.removedAt),
+				),
+			)
+			.returning({ id: festivalActivityParticipants.id });
+
+		const didRemove = updatedRows.length === 1;
+
+		if (!didRemove) {
+			// Concurrent removal won the race, or row state changed — idempotent: no duplicate emails / waitlist promotion
+			revalidatePath("/dashboard");
+			return { success: true, message: "Participante removido correctamente" };
+		}
 
 		// Send notification email
 		try {
@@ -718,6 +732,8 @@ export async function restoreActivityParticipant(
 		}
 
 		if (participation.activityDetail.participationLimit) {
+			const now = new Date();
+
 			const [{ activeCount }] = await db
 				.select({ activeCount: count() })
 				.from(festivalActivityParticipants)
@@ -731,7 +747,22 @@ export async function restoreActivityParticipant(
 					),
 				);
 
-			if (activeCount >= participation.activityDetail.participationLimit) {
+			const [{ reservedCount }] = await db
+				.select({ reservedCount: count() })
+				.from(festivalActivityWaitlist)
+				.where(
+					and(
+						eq(
+							festivalActivityWaitlist.notifiedForDetailId,
+							participation.detailsId,
+						),
+						gt(festivalActivityWaitlist.expiresAt, now),
+					),
+				);
+
+			const combinedCount = activeCount + reservedCount;
+
+			if (combinedCount >= participation.activityDetail.participationLimit) {
 				return {
 					success: false,
 					message: "No hay cupos disponibles para restaurar al participante",
@@ -739,10 +770,31 @@ export async function restoreActivityParticipant(
 			}
 		}
 
-		await db
-			.update(festivalActivityParticipants)
-			.set({ removedAt: null, updatedAt: new Date() })
-			.where(eq(festivalActivityParticipants.id, participationId));
+		await db.transaction(async (tx) => {
+			await tx
+				.update(festivalActivityParticipants)
+				.set({ removedAt: null, updatedAt: new Date() })
+				.where(eq(festivalActivityParticipants.id, participationId));
+
+			await tx
+				.update(festivalActivityParticipantProofs)
+				.set({
+					proofStatus: "rejected_resubmit",
+					updatedAt: new Date(),
+				})
+				.where(
+					and(
+						eq(
+							festivalActivityParticipantProofs.participationId,
+							participationId,
+						),
+						eq(
+							festivalActivityParticipantProofs.proofStatus,
+							"rejected_removed",
+						),
+					),
+				);
+		});
 
 		revalidatePath("/dashboard");
 		return { success: true, message: "Participante restaurado correctamente" };
