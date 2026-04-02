@@ -17,7 +17,13 @@ export const liveActSchema = z
 		}),
 		description: z.string().trim().optional(),
 		resourceLink: z.url("Ingresá un enlace válido"),
-		socialLinks: z.array(z.url("Ingresá un enlace válido")).optional(),
+		socialLinks: z
+			.array(z.string())
+			.optional()
+			.transform((arr) =>
+				(arr ?? []).map((s) => s.trim()).filter((s) => s.length > 0),
+			)
+			.pipe(z.array(z.url("Ingresá un enlace válido"))),
 		contactName: nameValidator(),
 		contactEmail: z.email("Ingresá un email válido"),
 		contactPhone: phoneValidator(),
@@ -32,4 +38,7 @@ export const liveActSchema = z
 		},
 	);
 
-export type LiveActInput = z.infer<typeof liveActSchema>;
+/** Parsed payload after Zod transforms (e.g. trimmed, filtered social links). */
+export type LiveActInput = z.output<typeof liveActSchema>;
+/** Raw react-hook-form values before Zod transforms. */
+export type LiveActFormValues = z.input<typeof liveActSchema>;

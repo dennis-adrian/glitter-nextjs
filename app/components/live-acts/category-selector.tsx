@@ -33,7 +33,10 @@ export default function CategorySelector({ onSelect }: CategorySelectorProps) {
 						tabIndex={0}
 						onClick={() => onSelect(cat)}
 						onKeyDown={(e) => {
-							if (e.key === "Enter" || e.key === " ") onSelect(cat);
+							if (e.key === "Enter" || e.key === " ") {
+								e.preventDefault();
+								onSelect(cat);
+							}
 						}}
 					>
 						<CardHeader className="flex flex-row items-center gap-4 py-4">

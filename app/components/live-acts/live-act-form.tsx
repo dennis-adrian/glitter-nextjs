@@ -19,7 +19,11 @@ import TextareaInput from "@/app/components/form/fields/textarea";
 import { Button } from "@/app/components/ui/button";
 import { Form } from "@/app/components/ui/form";
 import { createLiveAct } from "@/app/lib/live_acts/actions";
-import { liveActSchema, type LiveActInput } from "@/app/lib/live_acts/schema";
+import {
+	liveActSchema,
+	type LiveActFormValues,
+	type LiveActInput,
+} from "@/app/lib/live_acts/schema";
 import CategorySelector from "./category-selector";
 import { CATEGORY_CONFIG, type Category } from "./category-config";
 
@@ -27,7 +31,7 @@ export default function LiveActForm() {
 	const [submitted, setSubmitted] = useState(false);
 	const [step, setStep] = useState<"select" | "form">("select");
 
-	const form = useForm<LiveActInput>({
+	const form = useForm<LiveActFormValues, unknown, LiveActInput>({
 		resolver: zodResolver(liveActSchema),
 		defaultValues: {
 			actName: "",
@@ -105,7 +109,7 @@ export default function LiveActForm() {
 
 	return (
 		<>
-			<div className="mb-2 md:mb-4 flex items-center gap-2">
+			<div className="sticky top-16 md:top-20 z-10 -mx-4 -mt-8 mb-2 flex items-center gap-2 border-b bg-background px-4 py-3 md:-mx-6 md:-mt-12 md:mb-4 md:px-6 md:py-4">
 				<Button
 					type="button"
 					variant="ghost"
@@ -195,8 +199,8 @@ export default function LiveActForm() {
 
 						<TextInput
 							name="contactName"
-							label="Nombre completo"
-							placeholder="Tu nombre"
+							label="Nombre del encargado de la presentación"
+							placeholder="Ej: María Pérez"
 							autoComplete="name"
 							required
 						/>
