@@ -1088,6 +1088,7 @@ export async function enrollFromWaitlistInvitation(
 		await db.transaction(async (tx) => {
 			const ensureCapacityAvailable = async () => {
 				if (!detail.participationLimit) return;
+				const now = new Date();
 				const [{ activeCount }] = await tx
 					.select({ activeCount: count() })
 					.from(festivalActivityParticipants)
@@ -1100,7 +1101,21 @@ export async function enrollFromWaitlistInvitation(
 							isNull(festivalActivityParticipants.removedAt),
 						),
 					);
-				if (activeCount >= detail.participationLimit) {
+				const [{ reservedCount }] = await tx
+					.select({ reservedCount: count() })
+					.from(festivalActivityWaitlist)
+					.where(
+						and(
+							eq(
+								festivalActivityWaitlist.notifiedForDetailId,
+								entry.notifiedForDetailId!,
+							),
+							gt(festivalActivityWaitlist.expiresAt, now),
+							ne(festivalActivityWaitlist.id, waitlistEntryId),
+						),
+					);
+				const combinedCount = activeCount + reservedCount;
+				if (combinedCount >= detail.participationLimit) {
 					throw new Error("El cupo ya no está disponible");
 				}
 			};

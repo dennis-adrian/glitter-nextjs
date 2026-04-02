@@ -10,6 +10,7 @@ import {
 	PlusIcon,
 	Trash2Icon,
 } from "lucide-react";
+import posthog from "posthog-js";
 import { toast } from "sonner";
 
 import Heading from "@/app/components/atoms/heading";
@@ -24,6 +25,7 @@ import {
 	type LiveActFormValues,
 	type LiveActInput,
 } from "@/app/lib/live_acts/schema";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import CategorySelector from "./category-selector";
 import { CATEGORY_CONFIG, type Category } from "./category-config";
 
@@ -68,6 +70,9 @@ export default function LiveActForm() {
 			});
 
 			if (result.success) {
+				posthog.capture(POSTHOG_EVENTS.LIVE_ACT_SUBMITTED, {
+					category: values.category,
+				});
 				setSubmitted(true);
 			} else {
 				toast.error(result.error ?? "Error al enviar la postulación");
@@ -81,6 +86,9 @@ export default function LiveActForm() {
 	}
 
 	function handleSelectCategory(cat: Category) {
+		posthog.capture(POSTHOG_EVENTS.LIVE_ACT_CATEGORY_SELECTED, {
+			category: cat,
+		});
 		form.setValue("category", cat, { shouldValidate: false });
 		setStep("form");
 	}

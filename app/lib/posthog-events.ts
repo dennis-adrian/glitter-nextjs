@@ -17,4 +17,7 @@ export const POSTHOG_EVENTS = {
 	// Visitor registration
 	VISITOR_EMAIL_SUBMITTED: "visitor_email_submitted",
 	VISITOR_REGISTRATION_COMPLETED: "visitor_registration_completed",
+	// Live acts
+	LIVE_ACT_CATEGORY_SELECTED: "live_act_category_selected",
+	LIVE_ACT_SUBMITTED: "live_act_submitted",
 } as const;
