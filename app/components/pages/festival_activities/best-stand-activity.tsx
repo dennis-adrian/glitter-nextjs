@@ -6,6 +6,8 @@ import { fetchFestivalParticipants } from "@/app/lib/festivals/actions";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert";
+import BestStandDisclaimer from "./best-stand-disclaimer";
 
 type BestStandActivityPageProps = {
 	activity: FestivalActivityWithDetailsAndParticipants;
@@ -30,7 +32,7 @@ export default async function BestStandActivityPage({
 	if (!activityVariantForProfile) return notFound();
 
 	return (
-		<div className="container p-3 md:p-6 flex flex-col gap-4 md:gap-5">
+		<div className="container p-2 md:p-4 space-y-4 md:space-y-5">
 			<section>
 				<Heading level={1}>{activity.name}</Heading>
 				<p>{activity.description}</p>
@@ -38,7 +40,7 @@ export default async function BestStandActivityPage({
 			{activity.promotionalArtUrl && (
 				<section>
 					<figure className="relative mx-auto mb-2 md:mb-3">
-						<div className="relative w-full max-w-[400px] h-auto aspect-square mx-auto">
+						<div className="relative w-full max-w-[425px] h-auto aspect-3/4 mx-auto">
 							<Image
 								className="object-cover rounded-md"
 								src={activity.promotionalArtUrl}
@@ -58,20 +60,28 @@ export default async function BestStandActivityPage({
 				<Heading level={3}>¿En qué consiste la actividad?</Heading>
 				<div className="flex flex-col gap-1 md:gap-2">
 					<p>
-						<em>Iconic Stand</em> es un reconocimiento especial para celebrar a
+						<em>Stand Icónico</em> es un reconocimiento especial para celebrar a
 						los expositores que llenan de creatividad, encanto y personalidad
 						sus espacios dentro del festival.
 					</p>
 					<p>
-						En esta edición del festival, los propios participantes votarán en
-						nuestro sitio web para elegir al stand que más destaque por su
-						propuesta visual y originalidad.
+						Para reconocer esa creatividad, en esta edición del festival los
+						participantes podrán votar en nuestro sitio web para elegir al stand
+						que más destaque por su propuesta visual y originalidad. ¡Queremos
+						invitarlos a todos a participar y votar por su stand favorito en cada
+						categoría! Cuantos más se sumen, más especial será la votación.
 					</p>
 					<p>
-						El participante que reciba más votos en cada categoría obtendrá un
-						espacio sin costo en el primer Glitter 2026, como una forma de
-						celebrar su dedicación y el aporte que hace a la magia del festival.
+						Luego de que cierre la votación, el participante que obtenga más
+						votos, según su categoría, obtendrá un espacio sin costo en la
+						próxima edición del festival Glitter, como una forma de celebrar su
+						dedicación y el aporte que hace a la magia del festival.
 					</p>
+					<p>
+						El reconocimiento es exclusivo para la próxima edición del{" "}
+						<strong>festival Glitter</strong>, lo que lo hace aún más especial.
+					</p>
+					<BestStandDisclaimer />
 				</div>
 			</section>
 			<section>
@@ -79,7 +89,7 @@ export default async function BestStandActivityPage({
 				<div className="flex flex-col gap-1 md:gap-2">
 					<p>
 						Si tenés una reserva confirmada para este festival, podrás
-						inscribirte en la actividad el{" "}
+						inscribirte a la actividad a partir del{" "}
 						{activity.registrationStartDate && activity.registrationEndDate && (
 							<span>
 								<strong>
@@ -88,7 +98,7 @@ export default async function BestStandActivityPage({
 										format={{ month: "long", day: "numeric" }}
 									/>
 								</strong>{" "}
-								desde las{" "}
+								a las{" "}
 								<strong>
 									<DateSpan
 										date={activity.registrationStartDate}
@@ -97,7 +107,14 @@ export default async function BestStandActivityPage({
 								</strong>
 							</span>
 						)}{" "}
-						hasta las{" "}
+						hasta el{" "}
+						<strong>
+							<DateSpan
+								date={activity.registrationEndDate}
+								format={{ month: "long", day: "numeric" }}
+							/>
+						</strong>{" "}
+						a las{" "}
 						<strong>
 							<DateSpan
 								date={activity.registrationEndDate}
@@ -105,20 +122,20 @@ export default async function BestStandActivityPage({
 							/>
 						</strong>
 						. Al inscribirte, deberás subir una imagen de tu stand para que los
-						demás participantes puedan verlo y votar por ti. La imagen tiene que
-						ser tomada el mismo día del festival. No puede ser una imagen
-						antigua ya que el propósito de la actividad es reconocer al stand
-						destacado de la edición actual.
+						demás participantes puedan verlo y votar por ti. La imagen debe ser
+						tomada el mismo día del festival, para que todos puedan ver tu stand
+						en su mejor momento y apoyarte en esta edición.
 					</p>
+
 					<p>
 						No hay un límite de inscripciones. Todos los participantes pueden
 						inscribirse a la actividad. Habrá una votación por cada categoría
-						para elegir al <em>Iconic Stand</em> de cada una. Pero tomá en
+						para elegir al <em>Stand Icónico</em> de cada una. Pero tomá en
 						cuenta que <strong>la participación es por stand</strong>. Si sos
 						ilustrador y compartís stand con otro ilustrador, solo uno de los
 						dos deberá inscribirse para participar de la actividad.
 					</p>
-					<p>El botón de inscripción se encuentra al final de la página.</p>
+					<p>¡El botón de inscripción te espera al final de la página!</p>
 				</div>
 			</section>
 			<section>
@@ -129,9 +146,8 @@ export default async function BestStandActivityPage({
 						online. Existirán 3 categorías distintas por las cuales votar:{" "}
 						<strong>Ilustración</strong>, <strong>Gastronomía</strong> y{" "}
 						<strong>Emprendimiento creativo</strong>. Todos los participantes
-						deberán elegir su stand favorito en cada categoría. La votación
-						estará disponible solo para quienes tienen una reserva confirmada
-						para este festival{" "}
+						podrán elegir su stand favorito en cada categoría. La votación
+						estará disponible{" "}
 						{activity.votingStartDate && activity.votingEndDate && (
 							<span>
 								a partir del{" "}
@@ -168,14 +184,15 @@ export default async function BestStandActivityPage({
 					</p>
 					<p>
 						A los participantes con más votos en cada categoría se los
-						reconocerá con un espacio sin costo en el primer festival Glitter
-						del 2026, además de un pin especial de reconocimiento del{" "}
-						<em>Iconic Stand</em>. En caso de ser ilustrador y compartir stand
-						con otro ilustrador, ambos deberán hacer su reserva en conjunto
-						nuevamente para recibir el espacio.
+						reconocerá con un espacio sin costo en el próximo festival Glitter,
+						además de un pin especial de reconocimiento del{" "}
+						<em>Stand Icónico</em>. En caso de ser ilustrador y compartir stand
+						con otro ilustrador, el reconocimiento será compartido por ambos y
+						pueden hacer su reserva juntos en el próximo festival para
+						validar el premio.
 					</p>
 					<p>
-						Los stands con más votos serán anunciados en el escenario y en la
+						Los stands más votados serán anunciados en el escenario y en la
 						comunidad de WhatsApp de la Productora Glitter antes de finalizar el
 						festival.
 					</p>
@@ -226,11 +243,13 @@ export default async function BestStandActivityPage({
 								</strong>
 							</span>
 						)}{" "}
-						para que los demás participantes puedan verlo y votar por ti.
+						para que los demás participantes puedan verlo y votar por vos.
 					</li>
 					<li>
 						Votar por tu stand favorito en cada categoría durante el periodo de
-						votación. No se permitirá votar por uno mismo.
+						votación, recordando que no podés votar por tu propio stand. En caso
+						de ganar pero no haber votado por algún participante en cada
+						categoría, el premio pasará al siguiente en la votación.
 					</li>
 					<li>
 						Cumplir todas las normas del evento según los términos y condiciones
@@ -243,7 +262,7 @@ export default async function BestStandActivityPage({
 						eliminado de la actividad.
 					</span>
 					<span>
-						* En caso de recibir el reconocimiento del <em>Iconic Stand</em>,
+						* En caso de recibir el reconocimiento del <em>Stand Icónico</em>,
 						dependiendo de la gravedad de la norma infringida, el reconocimiento
 						podría ser retirado.
 					</span>
