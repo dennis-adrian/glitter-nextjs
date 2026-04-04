@@ -197,7 +197,7 @@ function buildColumns(
 						<Badge variant="outline" className={`text-xs ${config.className}`}>
 							{label}
 						</Badge>
-						{key === "rejected_removed" && row.original.removalReason && (
+						{row.original.removedAt != null && row.original.removalReason && (
 							<p className="text-xs text-muted-foreground mt-0.5 italic">{row.original.removalReason}</p>
 						)}
 					</div>
@@ -342,7 +342,7 @@ export default function ActivityParticipantsTable({
 										/>
 									)}
 								</div>
-								{statusKey === "rejected_removed" && participant.removalReason && (
+								{participant.removedAt != null && participant.removalReason && (
 									<p className="text-xs text-muted-foreground italic text-right max-w-[160px]">{participant.removalReason}</p>
 								)}
 							</div>

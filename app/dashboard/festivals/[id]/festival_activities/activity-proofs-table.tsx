@@ -223,9 +223,10 @@ function buildColumns(
 						<Badge variant="outline" className={`text-xs ${config.className}`}>
 							{config.label}
 						</Badge>
-						{proof.proofStatus === "rejected_removed" && row.original.removalReason && (
-							<p className="text-xs text-muted-foreground mt-0.5 italic">{row.original.removalReason}</p>
-						)}
+						{row.original.removalReason &&
+							(proof.proofStatus === "rejected_removed" || row.original.removedAt) && (
+								<p className="text-xs text-muted-foreground mt-0.5 italic">{row.original.removalReason}</p>
+							)}
 					</div>
 				);
 			},

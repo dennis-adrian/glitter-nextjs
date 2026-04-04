@@ -636,7 +636,11 @@ export async function removeActivityParticipant(
 
 		const updatedRows = await db
 			.update(festivalActivityParticipants)
-			.set({ removedAt: new Date(), updatedAt: new Date() })
+			.set({
+				removedAt: new Date(),
+				updatedAt: new Date(),
+				removalReason: reason.trim() ?? null,
+			})
 			.where(
 				and(
 					eq(festivalActivityParticipants.id, participationId),
