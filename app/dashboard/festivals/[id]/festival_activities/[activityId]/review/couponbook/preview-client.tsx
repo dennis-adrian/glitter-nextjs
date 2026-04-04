@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import CouponBookPrintPage from "@/app/components/festivals/festival_activities/coupon-book-print-page";
 import {
@@ -112,9 +118,8 @@ export default function CouponBookPreviewClient({
 	);
 	const [selectedPageIndex, setSelectedPageIndex] = useState(0);
 	const [previewScale, setPreviewScale] = useState(1);
-	const [textLayoutConfig, setTextLayoutConfig] = useState<CouponTextLayoutConfig>(
-		DEFAULT_COUPON_TEXT_LAYOUT_CONFIG,
-	);
+	const [textLayoutConfig, setTextLayoutConfig] =
+		useState<CouponTextLayoutConfig>(DEFAULT_COUPON_TEXT_LAYOUT_CONFIG);
 	const [activeBoxKey, setActiveBoxKey] = useState<BoxKey>("nameBox");
 	const [pdfCanvasConfig, setPdfCanvasConfig] = useState<PdfCanvasConfig>(
 		DEFAULT_PDF_CANVAS_CONFIG,
@@ -166,15 +171,9 @@ export default function CouponBookPreviewClient({
 						...prev,
 						...pdfCanvas,
 						widthCm: clamp(pdfCanvas.widthCm ?? prev.widthCm, 10, 200),
-						heightCm: clamp(
-							pdfCanvas.heightCm ?? prev.heightCm,
-							10,
-							200,
-						),
+						heightCm: clamp(pdfCanvas.heightCm ?? prev.heightCm, 10, 200),
 						orientation:
-							pdfCanvas.orientation === "portrait"
-								? "portrait"
-								: "landscape",
+							pdfCanvas.orientation === "portrait" ? "portrait" : "landscape",
 					}));
 				}
 			}
@@ -218,8 +217,14 @@ export default function CouponBookPreviewClient({
 	const selectedPage = pages[selectedPageIndex] ?? pages[0] ?? null;
 
 	const effectivePdfCanvas = useMemo(() => {
-		const longSide = Math.max(pdfCanvasConfig.widthCm, pdfCanvasConfig.heightCm);
-		const shortSide = Math.min(pdfCanvasConfig.widthCm, pdfCanvasConfig.heightCm);
+		const longSide = Math.max(
+			pdfCanvasConfig.widthCm,
+			pdfCanvasConfig.heightCm,
+		);
+		const shortSide = Math.min(
+			pdfCanvasConfig.widthCm,
+			pdfCanvasConfig.heightCm,
+		);
 		const widthCm =
 			pdfCanvasConfig.orientation === "landscape" ? longSide : shortSide;
 		const heightCm =
@@ -257,7 +262,9 @@ export default function CouponBookPreviewClient({
 				1,
 				(viewportWidth - horizontalPadding * 2) / naturalWidth,
 			);
-			setPreviewScale(Number.isFinite(nextScale) && nextScale > 0 ? nextScale : 1);
+			setPreviewScale(
+				Number.isFinite(nextScale) && nextScale > 0 ? nextScale : 1,
+			);
 		};
 
 		updateScale();
@@ -287,7 +294,13 @@ export default function CouponBookPreviewClient({
 			cancelAnimationFrame(rafA);
 			if (rafB) cancelAnimationFrame(rafB);
 		};
-	}, [selectedPageIndex, selectedDetailId, previewScale, pages.length, textLayoutConfig]);
+	}, [
+		selectedPageIndex,
+		selectedDetailId,
+		previewScale,
+		pages.length,
+		textLayoutConfig,
+	]);
 
 	useEffect(() => {
 		const onPointerMove = (event: PointerEvent) => {
@@ -306,16 +319,32 @@ export default function CouponBookPreviewClient({
 				if (!current) return prev;
 
 				if (drag.mode === "move") {
-					const nextX = clamp(drag.startBox.xPct + dxPct, 0, 100 - current.widthPct);
-					const nextY = clamp(drag.startBox.yPct + dyPct, 0, 100 - current.heightPct);
+					const nextX = clamp(
+						drag.startBox.xPct + dxPct,
+						0,
+						100 - current.widthPct,
+					);
+					const nextY = clamp(
+						drag.startBox.yPct + dyPct,
+						0,
+						100 - current.heightPct,
+					);
 					return {
 						...prev,
 						[drag.boxKey]: { ...current, xPct: nextX, yPct: nextY },
 					};
 				}
 
-				const nextW = clamp(drag.startBox.widthPct + dxPct, 5, 100 - current.xPct);
-				const nextH = clamp(drag.startBox.heightPct + dyPct, 5, 100 - current.yPct);
+				const nextW = clamp(
+					drag.startBox.widthPct + dxPct,
+					5,
+					100 - current.xPct,
+				);
+				const nextH = clamp(
+					drag.startBox.heightPct + dyPct,
+					5,
+					100 - current.yPct,
+				);
 				return {
 					...prev,
 					[drag.boxKey]: { ...current, widthPct: nextW, heightPct: nextH },
@@ -382,8 +411,8 @@ export default function CouponBookPreviewClient({
 		validityM: textLayoutConfig.validityBox.multiline ? "1" : "0",
 	});
 
-	const exportUrl = `/dashboard/festivals/${festivalId}/festival_activities/${activityId}/review/couponbook/export?detailId=${selectedDetailId}&${layoutQuery.toString()}`;
-	const exportAllUrl = `/dashboard/festivals/${festivalId}/festival_activities/${activityId}/review/couponbook/export?${layoutQuery.toString()}`;
+	const exportUrl = `/api/festivals/${festivalId}/festival_activities/${activityId}/couponbook/export?detailId=${selectedDetailId}&${layoutQuery.toString()}`;
+	const exportAllUrl = `/api/festivals/${festivalId}/festival_activities/${activityId}/couponbook/export?${layoutQuery.toString()}`;
 
 	if (variants.length === 0) {
 		return (
@@ -408,7 +437,10 @@ export default function CouponBookPreviewClient({
 					</SelectTrigger>
 					<SelectContent>
 						{variants.map((variant) => (
-							<SelectItem key={variant.detailId} value={String(variant.detailId)}>
+							<SelectItem
+								key={variant.detailId}
+								value={String(variant.detailId)}
+							>
 								{variant.detailLabel} ({variant.entries.length} cupones)
 							</SelectItem>
 						))}
@@ -437,14 +469,13 @@ export default function CouponBookPreviewClient({
 				</Button>
 
 				<Button asChild>
-					<a href={exportAllUrl}>
-						Descargar PDF todas las variantes
-					</a>
+					<a href={exportAllUrl}>Descargar PDF todas las variantes</a>
 				</Button>
 			</div>
 
 			<div className="text-xs text-muted-foreground">
-				Actividad: {activityName} · Estado incluido: aprobadas + pendientes de revisión
+				Actividad: {activityName} · Estado incluido: aprobadas + pendientes de
+				revisión
 			</div>
 
 			<div className="rounded-md border p-3 bg-background space-y-2">
@@ -462,7 +493,11 @@ export default function CouponBookPreviewClient({
 							onChange={(event) =>
 								setPdfCanvasConfig((prev) => ({
 									...prev,
-									widthCm: clamp(Number(event.target.value) || prev.widthCm, 10, 200),
+									widthCm: clamp(
+										Number(event.target.value) || prev.widthCm,
+										10,
+										200,
+									),
 								}))
 							}
 						/>
@@ -586,7 +621,8 @@ export default function CouponBookPreviewClient({
 				</p>
 				<div className="rounded-md border bg-muted/30 p-2">
 					<p className="text-xs text-muted-foreground mb-2">
-						Editor visual: arrastra cada caja para moverla y usa el cuadrado de la esquina para redimensionar.
+						Editor visual: arrastra cada caja para moverla y usa el cuadrado de
+						la esquina para redimensionar.
 					</p>
 					<div className="flex justify-center">
 						<div
@@ -617,7 +653,9 @@ export default function CouponBookPreviewClient({
 											top: `${box.yPct}%`,
 											width: `${box.widthPct}%`,
 											height: `${box.heightPct}%`,
-											border: isActive ? "2px solid #2563eb" : "1px solid #6b7280",
+											border: isActive
+												? "2px solid #2563eb"
+												: "1px solid #6b7280",
 											background: isActive
 												? "rgba(37,99,235,0.14)"
 												: "rgba(107,114,128,0.10)",
