@@ -32,6 +32,7 @@ export type FestivalActivityDetailInput = {
 	participationLimit?: number;
 	category?: ActivityUserCategory | null;
 	imageUrl?: string;
+	couponBookHeaderImageUrl?: string;
 };
 
 export type FestivalActivityInput = {
@@ -140,6 +141,7 @@ export async function createFestivalActivity(
 					participationLimit: detail.participationLimit,
 					category: detail.category ?? null,
 					imageUrl: detail.imageUrl ?? null,
+					couponBookHeaderImageUrl: detail.couponBookHeaderImageUrl ?? null,
 				})),
 			);
 
@@ -257,6 +259,7 @@ export async function updateFestivalActivity(
 						participationLimit: detail.participationLimit ?? null,
 						category: detail.category ?? null,
 						imageUrl: detail.imageUrl ?? null,
+						couponBookHeaderImageUrl: detail.couponBookHeaderImageUrl ?? null,
 					})
 					.where(eq(festivalActivityDetails.id, detail.id as number));
 			}
@@ -271,6 +274,7 @@ export async function updateFestivalActivity(
 						participationLimit: detail.participationLimit,
 						category: detail.category ?? null,
 						imageUrl: detail.imageUrl ?? null,
+						couponBookHeaderImageUrl: detail.couponBookHeaderImageUrl ?? null,
 					})),
 				);
 			}

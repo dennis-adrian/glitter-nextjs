@@ -77,6 +77,7 @@ const DetailSchema = z.object({
 		.or(z.literal("").transform(() => undefined)),
 	category: z.enum(CATEGORY_VALUES).nullable().optional(),
 	imageUrl: z.string().optional(),
+	couponBookHeaderImageUrl: z.string().optional(),
 });
 
 const WAITLIST_WINDOW_PRESETS = [
@@ -164,6 +165,7 @@ function buildDefaultValues(
 					description: "",
 					participationLimit: undefined,
 					imageUrl: "",
+					couponBookHeaderImageUrl: "",
 				},
 			],
 		};
@@ -194,6 +196,7 @@ function buildDefaultValues(
 			participationLimit: d.participationLimit ?? undefined,
 			category: d.category && d.category !== "none" ? d.category : null,
 			imageUrl: d.imageUrl ?? "",
+			couponBookHeaderImageUrl: d.couponBookHeaderImageUrl ?? "",
 		})),
 	};
 }
@@ -222,6 +225,7 @@ export default function FestivalActivityForm({
 	} = useFieldArray({ control: form.control, name: "details" });
 
 	const proofType = form.watch("proofType");
+	const activityType = form.watch("type");
 	const allowsVoting = form.watch("allowsVoting");
 	const waitlistEnabled = form.watch("waitlistEnabled");
 	const formErrors = form.formState.errors;
@@ -238,6 +242,7 @@ export default function FestivalActivityForm({
 					participationLimit?: number;
 					category?: string | null;
 					imageUrl?: string;
+					couponBookHeaderImageUrl?: string;
 				}) => ({
 					id: d.id,
 					description: d.description,
@@ -249,6 +254,7 @@ export default function FestivalActivityForm({
 						| "new_artist"
 						| null,
 					imageUrl: d.imageUrl || undefined,
+					couponBookHeaderImageUrl: d.couponBookHeaderImageUrl || undefined,
 				}),
 			);
 
@@ -649,6 +655,7 @@ export default function FestivalActivityForm({
 								// eslint-disable-next-line @typescript-eslint/no-explicit-any
 								form={form as any}
 								index={index}
+								showCouponBookHeaderImage={activityType === "coupon_book"}
 								onRemove={() => removeDetail(index)}
 								canRemove={detailFields.length > 1}
 							/>
@@ -664,6 +671,7 @@ export default function FestivalActivityForm({
 									participationLimit: undefined,
 									category: null,
 									imageUrl: "",
+									couponBookHeaderImageUrl: "",
 								})
 							}
 						>
@@ -703,6 +711,7 @@ type VariantSectionProps = {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	form: ReturnType<typeof useForm<any>>;
 	index: number;
+	showCouponBookHeaderImage: boolean;
 	onRemove: () => void;
 	canRemove: boolean;
 };
@@ -710,6 +719,7 @@ type VariantSectionProps = {
 function VariantSection({
 	form,
 	index,
+	showCouponBookHeaderImage,
 	onRemove,
 	canRemove,
 }: VariantSectionProps) {
@@ -747,6 +757,30 @@ function VariantSection({
 					</FormItem>
 				)}
 			/>
+
+			{showCouponBookHeaderImage && (
+				<FormField
+					control={form.control}
+					name={`details.${index}.couponBookHeaderImageUrl`}
+					render={({ field }: { field: any }) => (
+						<FormItem>
+							<FormLabel>Imagen de header para cuponera (opcional)</FormLabel>
+							<FormControl>
+								<SectorImageUpload
+									imageUrl={field.value || null}
+									setImageUrl={(url) => field.onChange(url)}
+									sectorName={`couponbook-header-${index + 1}`}
+								/>
+							</FormControl>
+							<FormDescription>
+								Se usa en la cabecera de 3 columnas de la cuponera para esta
+								variante.
+							</FormDescription>
+							<FormMessage />
+						</FormItem>
+					)}
+				/>
+			)}
 
 			<FormField
 				control={form.control}
