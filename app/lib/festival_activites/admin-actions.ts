@@ -464,6 +464,8 @@ export async function reviewActivityParticipantProof(
 		};
 	}
 
+	const normalizedRemovalReason = adminFeedback?.trim() || null;
+
 	try {
 		let proofWasReviewed = false;
 		let shouldPromoteFromWaitlist = false;
@@ -480,7 +482,7 @@ export async function reviewActivityParticipantProof(
 				.update(festivalActivityParticipantProofs)
 				.set({
 					proofStatus: status,
-					adminFeedback: adminFeedback?.trim() ?? null,
+					adminFeedback: normalizedRemovalReason,
 					updatedAt: new Date(),
 				})
 				.where(eq(festivalActivityParticipantProofs.id, proofId));
@@ -489,7 +491,11 @@ export async function reviewActivityParticipantProof(
 			if (status === "rejected_removed") {
 				await tx
 					.update(festivalActivityParticipants)
-					.set({ removedAt: new Date(), updatedAt: new Date() })
+					.set({
+						removedAt: new Date(),
+						updatedAt: new Date(),
+						removalReason: normalizedRemovalReason,
+					})
 					.where(eq(festivalActivityParticipants.id, proof.participationId));
 				shouldPromoteFromWaitlist = true;
 			}
@@ -630,9 +636,15 @@ export async function removeActivityParticipant(
 			return { success: false, message: "El participante ya fue removido" };
 		}
 
+		const normalizedRemovalReason = reason.trim() || null;
+
 		const updatedRows = await db
 			.update(festivalActivityParticipants)
-			.set({ removedAt: new Date(), updatedAt: new Date() })
+			.set({
+				removedAt: new Date(),
+				updatedAt: new Date(),
+				removalReason: normalizedRemovalReason,
+			})
 			.where(
 				and(
 					eq(festivalActivityParticipants.id, participationId),
@@ -717,11 +729,12 @@ export async function restoreActivityParticipant(
 	}
 
 	try {
-		const participation =
-			await db.query.festivalActivityParticipants.findFirst({
+		const participation = await db.query.festivalActivityParticipants.findFirst(
+			{
 				where: eq(festivalActivityParticipants.id, participationId),
 				with: { activityDetail: true },
-			});
+			},
+		);
 
 		if (!participation) {
 			return { success: false, message: "Participante no encontrado" };
@@ -739,10 +752,7 @@ export async function restoreActivityParticipant(
 				.from(festivalActivityParticipants)
 				.where(
 					and(
-						eq(
-							festivalActivityParticipants.detailsId,
-							participation.detailsId,
-						),
+						eq(festivalActivityParticipants.detailsId, participation.detailsId),
 						isNull(festivalActivityParticipants.removedAt),
 					),
 				);

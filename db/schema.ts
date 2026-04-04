@@ -824,6 +824,7 @@ export const festivalActivityParticipants = pgTable(
 			.notNull()
 			.references(() => users.id, { onDelete: "cascade" }),
 		removedAt: timestamp("removed_at"),
+		removalReason: text("removal_reason"),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
