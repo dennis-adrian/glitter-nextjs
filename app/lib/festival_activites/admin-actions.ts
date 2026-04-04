@@ -464,6 +464,8 @@ export async function reviewActivityParticipantProof(
 		};
 	}
 
+	const normalizedRemovalReason = adminFeedback?.trim() || null;
+
 	try {
 		let proofWasReviewed = false;
 		let shouldPromoteFromWaitlist = false;
@@ -480,7 +482,7 @@ export async function reviewActivityParticipantProof(
 				.update(festivalActivityParticipantProofs)
 				.set({
 					proofStatus: status,
-					adminFeedback: adminFeedback?.trim() ?? null,
+					adminFeedback: normalizedRemovalReason,
 					updatedAt: new Date(),
 				})
 				.where(eq(festivalActivityParticipantProofs.id, proofId));
@@ -492,7 +494,7 @@ export async function reviewActivityParticipantProof(
 					.set({
 						removedAt: new Date(),
 						updatedAt: new Date(),
-						removalReason: adminFeedback ?? null,
+						removalReason: normalizedRemovalReason,
 					})
 					.where(eq(festivalActivityParticipants.id, proof.participationId));
 				shouldPromoteFromWaitlist = true;
@@ -634,12 +636,14 @@ export async function removeActivityParticipant(
 			return { success: false, message: "El participante ya fue removido" };
 		}
 
+		const normalizedRemovalReason = reason.trim() || null;
+
 		const updatedRows = await db
 			.update(festivalActivityParticipants)
 			.set({
 				removedAt: new Date(),
 				updatedAt: new Date(),
-				removalReason: reason.trim() ?? null,
+				removalReason: normalizedRemovalReason,
 			})
 			.where(
 				and(
