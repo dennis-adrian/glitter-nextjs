@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
 import { AlertTriangleIcon } from "lucide-react";
 import { DateTime } from "luxon";
+import Link from "next/link";
 
 export const columnTitles = {
 	id: "ID",
@@ -25,6 +26,14 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
 		accessorKey: "id",
 		header: ({ column }) => (
 			<DataTableColumnHeader column={column} title={columnTitles.id} />
+		),
+		cell: ({ row }) => (
+			<Link
+				href={`/dashboard/store/orders/${row.original.id}`}
+				className="font-medium text-primary hover:underline"
+			>
+				#{row.original.id}
+			</Link>
 		),
 	},
 	{

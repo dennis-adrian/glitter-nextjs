@@ -324,6 +324,84 @@ export async function toggleProductVisibility(
 	};
 }
 
+export async function updateProductStock(
+	id: number,
+	stock: number | null,
+): Promise<{ success: boolean; message: string }> {
+	const currentProfile = await getCurrentUserProfile();
+	if (!currentProfile || currentProfile.role !== "admin") {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción.",
+		};
+	}
+	try {
+		const [updated] = await db
+			.update(products)
+			.set({ stock, updatedAt: new Date() })
+			.where(eq(products.id, id))
+			.returning({ slug: products.slug });
+
+		if (!updated) {
+			return { success: false, message: "Producto no encontrado." };
+		}
+
+		revalidatePath(`/store/products/${updated.slug}`);
+		revalidatePath("/dashboard/store/products");
+		revalidatePath("/dashboard/store/analytics");
+		revalidatePath("/store");
+		return { success: true, message: "Stock actualizado." };
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "No se pudo actualizar el stock." };
+	}
+}
+
+export async function bulkToggleProductVisibility(
+	ids: number[],
+	isVisible: boolean,
+): Promise<{ success: boolean; message: string }> {
+	const currentProfile = await getCurrentUserProfile();
+	if (!currentProfile || currentProfile.role !== "admin") {
+		return { success: false, message: "No tienes permisos para realizar esta acción." };
+	}
+	try {
+		await db
+			.update(products)
+			.set({ isVisible, updatedAt: new Date() })
+			.where(inArray(products.id, ids));
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "No se pudo actualizar la visibilidad." };
+	}
+	revalidatePath("/dashboard/store/products");
+	revalidatePath("/store");
+	return {
+		success: true,
+		message: isVisible
+			? `${ids.length} productos visibles.`
+			: `${ids.length} productos ocultos.`,
+	};
+}
+
+export async function bulkDeleteProducts(
+	ids: number[],
+): Promise<{ success: boolean; message: string }> {
+	const currentProfile = await getCurrentUserProfile();
+	if (!currentProfile || currentProfile.role !== "admin") {
+		return { success: false, message: "No tienes permisos para realizar esta acción." };
+	}
+	try {
+		await db.delete(products).where(inArray(products.id, ids));
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "No se pudo eliminar los productos." };
+	}
+	revalidatePath("/dashboard/store/products");
+	revalidatePath("/store");
+	return { success: true, message: `${ids.length} productos eliminados.` };
+}
+
 export async function fetchLowStockProducts(threshold = 5) {
 	try {
 		return await db

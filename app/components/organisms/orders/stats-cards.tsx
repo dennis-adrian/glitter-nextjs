@@ -7,6 +7,8 @@ import {
 	CardTitle,
 } from "@/app/components/ui/card";
 import { OrdersStats } from "@/app/lib/orders/actions";
+import Link from "next/link";
+import { cn } from "@/lib/utils";
 import {
 	AlertTriangleIcon,
 	BanIcon,
@@ -32,36 +34,42 @@ export default function OrdersStatsCards({
 			value: stats.totalOrders,
 			icon: ShoppingBagIcon,
 			accent: false,
+			href: undefined,
 		},
 		{
 			label: "Ingresos confirmados",
 			value: `Bs ${stats.totalRevenue.toFixed(2)}`,
 			icon: CoinsIcon,
 			accent: false,
+			href: undefined,
 		},
 		{
 			label: "Requieren atención",
 			value: stats.needsAttention,
 			icon: AlertTriangleIcon,
 			accent: stats.needsAttention > 0,
+			href: "/dashboard/store/orders",
 		},
 		{
 			label: "En proceso",
 			value: stats.inProgress,
 			icon: CogIcon,
 			accent: false,
+			href: undefined,
 		},
 		{
 			label: "Entregados",
 			value: stats.delivered,
 			icon: TruckIcon,
 			accent: false,
+			href: undefined,
 		},
 		{
 			label: "Cancelados",
 			value: stats.cancelled,
 			icon: BanIcon,
 			accent: false,
+			href: undefined,
 		},
 	];
 
@@ -69,10 +77,13 @@ export default function OrdersStatsCards({
 		<div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
 			{cards.map((card) => {
 				const Icon = card.icon;
-				return (
+				const cardEl = (
 					<Card
 						key={card.label}
-						className={card.accent ? "border-amber-200" : undefined}
+						className={cn(
+							card.accent ? "border-amber-200" : undefined,
+							card.href ? "cursor-pointer transition-colors hover:bg-accent" : undefined,
+						)}
 					>
 						<CardHeader className="p-4 pb-2">
 							<div className="flex items-center gap-2">
@@ -92,6 +103,14 @@ export default function OrdersStatsCards({
 							</p>
 						</CardContent>
 					</Card>
+				);
+
+				return card.href ? (
+					<Link key={card.label} href={card.href}>
+						{cardEl}
+					</Link>
+				) : (
+					<div key={card.label}>{cardEl}</div>
 				);
 			})}
 		</div>
