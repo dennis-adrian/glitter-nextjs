@@ -10,16 +10,17 @@ import { cn } from "@/lib/utils";
 import { AlertTriangleIcon, ReceiptIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
-import { use, useMemo, useState } from "react";
+import { use, useOptimistic, useTransition } from "react";
+
+type ActiveStatus = OrderStatus | "all";
 
 type OrdersCardListProps = {
 	ordersPromise: Promise<OrderWithRelations[]>;
+	activeStatus: ActiveStatus;
 };
 
-const ALL_STATUSES = "" as const;
-
 const STATUS_OPTIONS: { value: "" | OrderStatus; label: string }[] = [
-	{ value: ALL_STATUSES, label: "Todos" },
+	{ value: "", label: "Todos" },
 	{ value: "pending", label: getOrderStatusLabel("pending") },
 	{ value: "payment_verification", label: getOrderStatusLabel("payment_verification") },
 	{ value: "processing", label: getOrderStatusLabel("processing") },
@@ -27,6 +28,10 @@ const STATUS_OPTIONS: { value: "" | OrderStatus; label: string }[] = [
 	{ value: "delivered", label: getOrderStatusLabel("delivered") },
 	{ value: "cancelled", label: getOrderStatusLabel("cancelled") },
 ];
+
+function chipToActive(value: "" | OrderStatus): ActiveStatus {
+	return value === "" ? "all" : value;
+}
 
 function OrderCard({ order }: { order: OrderWithRelations }) {
 	const router = useRouter();
@@ -60,7 +65,6 @@ function OrderCard({ order }: { order: OrderWithRelations }) {
 			<CardContent className="p-4">
 				<div className="flex items-start justify-between gap-2">
 					<div className="flex flex-col gap-1.5 min-w-0">
-						{/* ID + status badges */}
 						<div className="flex flex-wrap items-center gap-1.5">
 							<span className="text-sm font-semibold">#{order.id}</span>
 							<OrderStatusBadge status={order.status} />
@@ -78,19 +82,16 @@ function OrderCard({ order }: { order: OrderWithRelations }) {
 							)}
 						</div>
 
-						{/* Customer */}
 						<p className="text-sm text-muted-foreground truncate">
 							{order.customer?.displayName ?? order.guestName ?? "Invitado"}
 						</p>
 
-						{/* Items preview */}
 						{order.orderItems.length > 0 && (
 							<p className="text-xs text-muted-foreground truncate">
 								{itemsPreview}{extraItems}
 							</p>
 						)}
 
-						{/* Date */}
 						<p className="text-xs text-muted-foreground capitalize">
 							{formatDate(order.createdAt).toLocaleString(DateTime.DATE_MED)}
 						</p>
@@ -111,48 +112,61 @@ function OrderCard({ order }: { order: OrderWithRelations }) {
 	);
 }
 
-export default function OrdersCardList({ ordersPromise }: OrdersCardListProps) {
+export default function OrdersCardList({
+	ordersPromise,
+	activeStatus,
+}: OrdersCardListProps) {
 	const orders = use(ordersPromise);
-	const [statusFilter, setStatusFilter] = useState<"" | OrderStatus>(ALL_STATUSES);
+	const router = useRouter();
+	const [isPending, startTransition] = useTransition();
+	const [optimisticStatus, setOptimisticStatus] = useOptimistic(activeStatus);
 
-	const filtered = useMemo(
-		() =>
-			statusFilter ? orders.filter((o) => o.status === statusFilter) : orders,
-		[orders, statusFilter],
-	);
+	function handleStatusChange(value: "" | OrderStatus) {
+		const param = value === "" ? "all" : value;
+		startTransition(() => {
+			setOptimisticStatus(chipToActive(value));
+			router.push(`/dashboard/store/orders?status=${param}`);
+		});
+	}
 
 	return (
 		<div className="flex flex-col gap-4">
 			{/* Filter chips */}
 			<div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 [&::-webkit-scrollbar]:hidden">
-				{STATUS_OPTIONS.map((opt) => (
-					<button
-						key={opt.value}
-						onClick={() => setStatusFilter(opt.value)}
-						className={cn(
-							"shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-							statusFilter === opt.value
-								? "bg-primary text-primary-foreground border-primary"
-								: "border-border text-muted-foreground hover:bg-accent",
-						)}
-					>
-						{opt.label}
-					</button>
-				))}
+				{STATUS_OPTIONS.map((opt) => {
+					const isActive = optimisticStatus === chipToActive(opt.value);
+					return (
+						<button
+							key={opt.value}
+							onClick={() => handleStatusChange(opt.value)}
+							className={cn(
+								"shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+								isActive
+									? "bg-primary text-primary-foreground border-primary"
+									: "border-border text-muted-foreground hover:bg-accent",
+							)}
+						>
+							{opt.label}
+						</button>
+					);
+				})}
 			</div>
 
 			{/* Cards */}
-			{filtered.length === 0 ? (
-				<p className="text-sm text-muted-foreground text-center py-8">
-					No hay pedidos para mostrar.
-				</p>
-			) : (
-				<div className="flex flex-col gap-3">
-					{filtered.map((order) => (
-						<OrderCard key={order.id} order={order} />
-					))}
-				</div>
-			)}
+			<div
+				className={cn(
+					"flex flex-col gap-3 transition-opacity",
+					isPending && "opacity-60 pointer-events-none",
+				)}
+			>
+				{orders.length === 0 ? (
+					<p className="text-sm text-muted-foreground text-center py-8">
+						No hay pedidos para mostrar.
+					</p>
+				) : (
+					orders.map((order) => <OrderCard key={order.id} order={order} />)
+				)}
+			</div>
 		</div>
 	);
 }

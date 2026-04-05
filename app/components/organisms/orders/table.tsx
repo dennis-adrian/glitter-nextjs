@@ -104,38 +104,6 @@ export default function OrdersTable(props: OrdersTableProps) {
 				columns={columns}
 				data={filteredOrders}
 				columnTitles={columnTitles}
-				filters={[
-					{
-						columnId: "status",
-						label: "Estado del pedido",
-						options: [
-							{
-								label: "Pendiente",
-								value: "pending",
-							},
-							{
-								label: "Pago en verificación",
-								value: "payment_verification",
-							},
-							{
-								label: "En proceso",
-								value: "processing",
-							},
-							{
-								label: "Pagado",
-								value: "paid",
-							},
-							{
-								label: "Entregado",
-								value: "delivered",
-							},
-							{
-								label: "Cancelado",
-								value: "cancelled",
-							},
-						],
-					},
-				]}
 				actions={(table) => (
 					<div className="hidden md:flex">
 						<OrdersExportButton table={table} />

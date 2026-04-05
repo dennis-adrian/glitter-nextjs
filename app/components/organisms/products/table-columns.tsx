@@ -7,7 +7,10 @@ import { Input } from "@/app/components/ui/input";
 import { Switch } from "@/app/components/ui/switch";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
-import { toggleProductVisibility, updateProductStock } from "@/app/lib/products/actions";
+import {
+	toggleProductVisibility,
+	updateProductStock,
+} from "@/app/lib/products/actions";
 import { cn } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
 import { EditIcon, StarIcon, Trash2Icon } from "lucide-react";
@@ -113,7 +116,10 @@ function StockCell({ product }: { product: BaseProductWithImages }) {
 				onBlur={handleCommit}
 				onKeyDown={(e) => {
 					if (e.key === "Enter") handleCommit();
-					if (e.key === "Escape") setEditing(false);
+					if (e.key === "Escape") {
+						setInputValue(String(stock));
+						setEditing(false);
+					}
 				}}
 				className="h-7 w-16 px-2 text-sm"
 				disabled={loading}

@@ -626,6 +626,38 @@ export async function fetchOrders() {
 	}
 }
 
+export async function fetchOrdersByStatus(status?: OrderStatus) {
+	try {
+		return await db.query.orders.findMany({
+			where: status ? eq(orders.status, status) : undefined,
+			orderBy: [desc(orders.createdAt)],
+			with: {
+				customer: {
+					with: {
+						profileSubcategories: {
+							with: {
+								subcategory: true,
+							},
+						},
+					},
+				},
+				orderItems: {
+					with: {
+						product: {
+							with: {
+								images: true,
+							},
+						},
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
+}
+
 export async function fetchPendingVoucherCount(): Promise<number> {
 	try {
 		const result = await db

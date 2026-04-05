@@ -361,9 +361,15 @@ export async function bulkToggleProductVisibility(
 	ids: number[],
 	isVisible: boolean,
 ): Promise<{ success: boolean; message: string }> {
+	if (ids.length === 0) {
+		return { success: true, message: "No hay productos seleccionados." };
+	}
 	const currentProfile = await getCurrentUserProfile();
 	if (!currentProfile || currentProfile.role !== "admin") {
-		return { success: false, message: "No tienes permisos para realizar esta acción." };
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción.",
+		};
 	}
 	try {
 		await db
@@ -387,9 +393,15 @@ export async function bulkToggleProductVisibility(
 export async function bulkDeleteProducts(
 	ids: number[],
 ): Promise<{ success: boolean; message: string }> {
+	if (ids.length === 0) {
+		return { success: true, message: "No hay productos seleccionados." };
+	}
 	const currentProfile = await getCurrentUserProfile();
 	if (!currentProfile || currentProfile.role !== "admin") {
-		return { success: false, message: "No tienes permisos para realizar esta acción." };
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción.",
+		};
 	}
 	try {
 		await db.delete(products).where(inArray(products.id, ids));
