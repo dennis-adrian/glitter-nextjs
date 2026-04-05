@@ -30,7 +30,7 @@ export default async function StoreOrdersPage(props: {
 
 			<div className="hidden md:block">
 				<Suspense fallback={<TableSkeleton />}>
-					<OrdersTable ordersPromise={ordersPromise} />
+					<OrdersTable ordersPromise={ordersPromise} activeStatus={status} />
 				</Suspense>
 			</div>
 		</div>

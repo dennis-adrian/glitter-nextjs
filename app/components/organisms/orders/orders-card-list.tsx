@@ -6,11 +6,12 @@ import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
 import { getOrderStatusLabel } from "@/app/lib/orders/utils";
+import { Input } from "@/app/components/ui/input";
 import { cn } from "@/lib/utils";
-import { AlertTriangleIcon, ReceiptIcon } from "lucide-react";
+import { AlertTriangleIcon, ReceiptIcon, SearchIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
-import { use, useOptimistic, useTransition } from "react";
+import { use, useMemo, useOptimistic, useState, useTransition } from "react";
 
 type ActiveStatus = OrderStatus | "all";
 
@@ -120,17 +121,30 @@ export default function OrdersCardList({
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
 	const [optimisticStatus, setOptimisticStatus] = useOptimistic(activeStatus);
+	const [search, setSearch] = useState("");
 
 	function handleStatusChange(value: "" | OrderStatus) {
 		const param = value === "" ? "all" : value;
 		startTransition(() => {
 			setOptimisticStatus(chipToActive(value));
+			setSearch("");
 			router.push(`/dashboard/store/orders?status=${param}`);
 		});
 	}
 
+	const visibleOrders = useMemo(() => {
+		const q = search.trim().toLowerCase();
+		if (!q) return orders;
+		return orders.filter((o) => {
+			const customer = (o.customer?.displayName ?? o.guestName ?? "").toLowerCase();
+			const id = String(o.id);
+			const items = o.orderItems.map((i) => i.product.name.toLowerCase()).join(" ");
+			return customer.includes(q) || id.includes(q) || items.includes(q);
+		});
+	}, [orders, search]);
+
 	return (
-		<div className="flex flex-col gap-4">
+		<div className="flex flex-col gap-3">
 			{/* Filter chips */}
 			<div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 [&::-webkit-scrollbar]:hidden">
 				{STATUS_OPTIONS.map((opt) => {
@@ -152,6 +166,17 @@ export default function OrdersCardList({
 				})}
 			</div>
 
+			{/* Search */}
+			<div className="relative">
+				<SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+				<Input
+					placeholder="Buscar por cliente, ID o producto..."
+					value={search}
+					onChange={(e) => setSearch(e.target.value)}
+					className="pl-9"
+				/>
+			</div>
+
 			{/* Cards */}
 			<div
 				className={cn(
@@ -159,12 +184,12 @@ export default function OrdersCardList({
 					isPending && "opacity-60 pointer-events-none",
 				)}
 			>
-				{orders.length === 0 ? (
+				{visibleOrders.length === 0 ? (
 					<p className="text-sm text-muted-foreground text-center py-8">
 						No hay pedidos para mostrar.
 					</p>
 				) : (
-					orders.map((order) => <OrderCard key={order.id} order={order} />)
+					visibleOrders.map((order) => <OrderCard key={order.id} order={order} />)
 				)}
 			</div>
 		</div>
