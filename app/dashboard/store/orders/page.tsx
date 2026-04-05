@@ -1,83 +1,119 @@
-import LowStockAlert from "@/app/components/organisms/orders/low-stock-alert";
 import OrdersCardList from "@/app/components/organisms/orders/orders-card-list";
-import OrdersTotals from "@/app/components/organisms/orders/order_totals_card/totals";
-import OrdersSalesChart from "@/app/components/organisms/orders/sales-chart";
-import OrdersStatsCards from "@/app/components/organisms/orders/stats-cards";
 import OrdersTable from "@/app/components/organisms/orders/table";
+import { Button } from "@/app/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { Skeleton } from "@/app/components/ui/skeleton";
 import TableSkeleton from "@/app/components/users/skeletons/table";
+import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
 import {
 	fetchOrders,
-	fetchOrdersStats,
-	fetchOrdersTotalsByProduct,
 } from "@/app/lib/orders/actions";
-import { fetchLowStockProducts } from "@/app/lib/products/actions";
+import { OrderWithRelations } from "@/app/lib/orders/definitions";
+import { DateTime } from "luxon";
+import Link from "next/link";
 import { Suspense } from "react";
 
-function StatsCardsSkeleton() {
+function OperationalAlertsSkeleton() {
 	return (
-		<div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-			{Array.from({ length: 6 }).map((_, i) => (
+		<div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+			{Array.from({ length: 3 }).map((_, i) => (
 				<Skeleton key={i} className="h-24 w-full" />
 			))}
 		</div>
 	);
 }
 
-function LowStockSkeleton() {
-	return (
-		<div className="rounded-lg border border-amber-200/50 bg-card p-4">
-			<div className="flex items-center gap-2 pb-2">
-				<Skeleton className="h-5 w-5 shrink-0" />
-				<Skeleton className="h-5 w-24" />
-			</div>
-			<div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-				{Array.from({ length: 4 }).map((_, i) => (
-					<Skeleton key={i} className="h-10 w-full" />
-				))}
-			</div>
-		</div>
-	);
-}
+async function OrdersOperationalAlerts({
+	ordersPromise,
+}: {
+	ordersPromise: Promise<OrderWithRelations[]>;
+}) {
+	const orders = await ordersPromise;
+	const nowInStore = DateTime.now().setZone(STORE_TIMEZONE);
 
-function OrdersTotalsSkeleton() {
+	const pendingVerification = orders.filter(
+		(order) => order.status === "payment_verification",
+	).length;
+
+	const requiresAction = orders.filter(
+		(order) => order.status === "pending" || order.status === "payment_verification",
+	).length;
+
+	const overduePayments = orders.filter((order) => {
+		if (!order.paymentDueDate) return false;
+		if (order.status !== "pending" && order.status !== "payment_verification")
+			return false;
+		return formatDate(order.paymentDueDate) < nowInStore;
+	}).length;
+
 	return (
-		<div className="space-y-3">
-			<Skeleton className="h-7 w-48" />
-			<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-				{Array.from({ length: 6 }).map((_, i) => (
-					<Skeleton key={i} className="h-28 w-full" />
-				))}
-			</div>
+		<div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+			<Card className="border-amber-200/70 bg-amber-50/30">
+				<CardHeader className="pb-2">
+					<CardTitle className="text-sm text-muted-foreground">
+						Requieren atención
+					</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<p className="text-2xl font-semibold">{requiresAction}</p>
+				</CardContent>
+			</Card>
+
+			<Card className="border-destructive/30 bg-destructive/5">
+				<CardHeader className="pb-2">
+					<CardTitle className="text-sm text-muted-foreground">
+						Pagos vencidos
+					</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<p className="text-2xl font-semibold">{overduePayments}</p>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader className="pb-2">
+					<CardTitle className="text-sm text-muted-foreground">
+						Comprobantes por revisar
+					</CardTitle>
+				</CardHeader>
+				<CardContent className="flex items-center justify-between gap-3">
+					<p className="text-2xl font-semibold">{pendingVerification}</p>
+					<Button asChild size="sm" variant="outline">
+						<Link href="/dashboard/store/payments">Ir a pagos</Link>
+					</Button>
+				</CardContent>
+			</Card>
 		</div>
 	);
 }
 
 export default function StoreOrdersPage() {
 	const ordersPromise = fetchOrders();
-	const ordersTotalsPromise = fetchOrdersTotalsByProduct();
-	const statsPromise = fetchOrdersStats();
-	const lowStockPromise = fetchLowStockProducts();
 
 	return (
 		<div className="space-y-6">
-			<Suspense fallback={<StatsCardsSkeleton />}>
-				<OrdersStatsCards statsPromise={statsPromise} />
-			</Suspense>
+			<section className="space-y-4">
+				<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+					<div className="space-y-1">
+						<h3 className="text-xl font-semibold">Gestión de pedidos</h3>
+						<p className="text-sm text-muted-foreground md:text-base">
+							Administra pedidos primero y revisa métricas cuando lo necesites.
+						</p>
+					</div>
+					<div className="flex items-center gap-2">
+						<Button asChild variant="outline" size="sm">
+							<Link href="/dashboard/store/payments">Revisar comprobantes</Link>
+						</Button>
+						<Button asChild size="sm">
+							<Link href="/dashboard/store/products">Gestionar productos</Link>
+						</Button>
+					</div>
+				</div>
 
-			<div className="hidden md:block">
-				<Suspense fallback={<Skeleton className="h-72 w-full" />}>
-					<OrdersSalesChart ordersPromise={ordersPromise} />
+				<Suspense fallback={<OperationalAlertsSkeleton />}>
+					<OrdersOperationalAlerts ordersPromise={ordersPromise} />
 				</Suspense>
-			</div>
-
-			<Suspense fallback={<LowStockSkeleton />}>
-				<LowStockAlert lowStockPromise={lowStockPromise} />
-			</Suspense>
-
-			<Suspense fallback={<OrdersTotalsSkeleton />}>
-				<OrdersTotals ordersTotalsPromise={ordersTotalsPromise} />
-			</Suspense>
+			</section>
 
 			<div className="block md:hidden">
 				<Suspense fallback={<TableSkeleton />}>

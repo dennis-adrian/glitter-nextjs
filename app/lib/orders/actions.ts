@@ -28,6 +28,7 @@ function revalidateStoreOrderViews() {
 	revalidatePath("/dashboard/store");
 	revalidatePath("/dashboard/store/orders");
 	revalidatePath("/dashboard/store/payments");
+	revalidatePath("/dashboard/store/analytics");
 }
 
 export async function sendOrderEmails(emailData: {
@@ -622,6 +623,19 @@ export async function fetchOrders() {
 	} catch (error) {
 		console.error(error);
 		return [];
+	}
+}
+
+export async function fetchPendingVoucherCount(): Promise<number> {
+	try {
+		const result = await db
+			.select({ count: count() })
+			.from(orders)
+			.where(eq(orders.status, "payment_verification"));
+		return result[0]?.count ?? 0;
+	} catch (error) {
+		console.error(error);
+		return 0;
 	}
 }
 
