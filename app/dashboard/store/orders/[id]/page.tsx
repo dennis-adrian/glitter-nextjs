@@ -1,9 +1,15 @@
 import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
+import OrderDetailActions from "@/app/components/organisms/orders/order-detail-actions";
 import { OrdersActionsCell } from "@/app/components/organisms/orders/table-actions-cell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { fetchOrder } from "@/app/lib/orders/actions";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
-import { AlertTriangleIcon, ArrowLeftIcon, PackageIcon, UserIcon } from "lucide-react";
+import {
+	AlertTriangleIcon,
+	ArrowLeftIcon,
+	PackageIcon,
+	UserIcon,
+} from "lucide-react";
 import { DateTime } from "luxon";
 import Image from "next/image";
 import Link from "next/link";
@@ -11,6 +17,35 @@ import { notFound } from "next/navigation";
 
 function formatCurrency(amount: number) {
 	return `Bs. ${Number.isInteger(amount) ? amount.toFixed(0) : amount.toFixed(2)}`;
+}
+
+function VoucherCard({ url }: { url: string }) {
+	return (
+		<Card>
+			<CardHeader className="pb-3">
+				<CardTitle className="text-base">Comprobante de pago</CardTitle>
+			</CardHeader>
+			<CardContent className="space-y-3">
+				<div className="relative aspect-4/3 overflow-hidden rounded-lg border bg-muted">
+					<Image
+						src={url}
+						alt="Comprobante de pago"
+						fill
+						className="object-contain p-2"
+						sizes="(max-width: 1024px) 100vw, 400px"
+					/>
+				</div>
+				<a
+					href={url}
+					target="_blank"
+					rel="noopener noreferrer"
+					className="text-sm font-medium text-primary hover:underline"
+				>
+					Abrir en pantalla completa →
+				</a>
+			</CardContent>
+		</Card>
+	);
 }
 
 export default async function OrderDetailPage({
@@ -33,7 +68,7 @@ export default async function OrderDetailPage({
 
 	const nowInStore = DateTime.now().setZone(STORE_TIMEZONE);
 	const isOverdue =
-		order.paymentDueDate &&
+		!!order.paymentDueDate &&
 		formatDate(order.paymentDueDate) < nowInStore &&
 		(order.status === "pending" || order.status === "payment_verification");
 
@@ -54,12 +89,16 @@ export default async function OrderDetailPage({
 				</div>
 				<div className="flex items-center gap-3">
 					<OrderStatusBadge status={order.status} />
+					{/* Desktop-only dropdown — actions button visible on all sizes as overflow menu */}
 					<OrdersActionsCell order={order} />
 				</div>
 			</div>
 
+			{/* Primary action buttons — prominent on mobile, supplementary on desktop */}
+			<OrderDetailActions order={order} />
+
 			<div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-				{/* Left column: customer + items */}
+				{/* Left column */}
 				<div className="space-y-6 lg:col-span-2">
 					{/* Customer */}
 					<Card>
@@ -97,10 +136,7 @@ export default async function OrderDetailPage({
 								const subtotal = item.quantity * item.priceAtPurchase;
 
 								return (
-									<div
-										key={item.id}
-										className="flex items-center gap-3"
-									>
+									<div key={item.id} className="flex items-center gap-3">
 										<div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md border bg-muted">
 											{imageUrl ? (
 												<Image
@@ -129,16 +165,22 @@ export default async function OrderDetailPage({
 									</div>
 								);
 							})}
-
 							<div className="border-t pt-3 flex justify-between text-sm font-semibold">
 								<span>Total</span>
 								<span>{formatCurrency(order.totalAmount)}</span>
 							</div>
 						</CardContent>
 					</Card>
+
+					{/* Voucher — mobile position (after items, before dates) */}
+					{order.paymentVoucherUrl && (
+						<div className="lg:hidden">
+							<VoucherCard url={order.paymentVoucherUrl} />
+						</div>
+					)}
 				</div>
 
-				{/* Right column: dates + payment */}
+				{/* Right column */}
 				<div className="space-y-6">
 					{/* Dates */}
 					<Card>
@@ -186,32 +228,11 @@ export default async function OrderDetailPage({
 						</CardContent>
 					</Card>
 
-					{/* Voucher */}
+					{/* Voucher — desktop position */}
 					{order.paymentVoucherUrl && (
-						<Card>
-							<CardHeader className="pb-3">
-								<CardTitle className="text-base">Comprobante de pago</CardTitle>
-							</CardHeader>
-							<CardContent className="space-y-3">
-								<div className="relative aspect-4/3 overflow-hidden rounded-lg border bg-muted">
-									<Image
-										src={order.paymentVoucherUrl}
-										alt="Comprobante de pago"
-										fill
-										className="object-contain p-2"
-										sizes="(max-width: 1024px) 100vw, 400px"
-									/>
-								</div>
-								<a
-									href={order.paymentVoucherUrl}
-									target="_blank"
-									rel="noopener noreferrer"
-									className="text-sm font-medium text-primary hover:underline"
-								>
-									Abrir en pantalla completa →
-								</a>
-							</CardContent>
-						</Card>
+						<div className="hidden lg:block">
+							<VoucherCard url={order.paymentVoucherUrl} />
+						</div>
 					)}
 				</div>
 			</div>
