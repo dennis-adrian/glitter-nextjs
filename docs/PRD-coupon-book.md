@@ -103,7 +103,7 @@ Admins need to:
 
 ## 8) Technical Design Summary
 
-- Render source of truth: React print page route (`/couponbook-print/[festivalId]/[activityId]`).
+- Render source of truth: React print page route (`/couponbook-print/[id]/[activityId]`).
 - Export flow: API route opens print page in Playwright and prints to PDF.
 - Shared config parser: `coupon-book-print-config` parses layout/pdf query values.
 - Print precision: dimensions converted to inches with fixed precision for PDF API.
