@@ -411,8 +411,8 @@ export default function CouponBookPreviewClient({
 		validityM: textLayoutConfig.validityBox.multiline ? "1" : "0",
 	});
 
-	const exportUrl = `/api/festivals/${festivalId}/festival_activities/${activityId}/couponbook/export?detailId=${selectedDetailId}&${layoutQuery.toString()}`;
-	const exportAllUrl = `/api/festivals/${festivalId}/festival_activities/${activityId}/couponbook/export?${layoutQuery.toString()}`;
+	const exportUrl = `/api/festival_activities/${activityId}/couponbook/export?detailId=${selectedDetailId}&${layoutQuery.toString()}`;
+	const exportAllUrl = `/api/festival_activities/${activityId}/couponbook/export?${layoutQuery.toString()}`;
 
 	if (variants.length === 0) {
 		return (

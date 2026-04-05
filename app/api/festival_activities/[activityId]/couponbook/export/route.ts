@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
 import {
 	cmToInches,
 	resolvePdfCanvasConfig,
@@ -7,13 +8,12 @@ import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { z } from "zod";
 
 const ParamsSchema = z.object({
-	id: z.coerce.number(),
 	activityId: z.coerce.number(),
 });
 
 export async function GET(
 	request: NextRequest,
-	context: { params: Promise<{ id: string; activityId: string }> },
+	context: { params: Promise<{ activityId: string }> },
 ) {
 	const profile = await getCurrentUserProfile();
 	if (
@@ -34,9 +34,14 @@ export async function GET(
 	const detailId = Number.isFinite(parsedDetailId) ? parsedDetailId : null;
 	const pdfCanvas = resolvePdfCanvasConfig(searchParams);
 
-	const { id, activityId } = validatedParams.data;
+	const { activityId } = validatedParams.data;
+	const activity = await fetchFestivalActivity(activityId);
+	if (!activity) {
+		return new Response("Actividad no encontrada", { status: 404 });
+	}
+
 	const printUrl = new URL(
-		`/couponbook-print/${id}/${activityId}`,
+		`/couponbook-print/${activity.festivalId}/${activityId}`,
 		request.nextUrl.origin,
 	);
 	printUrl.search = searchParams.toString();
