@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeftIcon } from "lucide-react";
 
-import ActivityDetails from "@/app/dashboard/festivals/[id]/festival_activities/activity-details";
+import ActivityDetails from "@/app/components/festivals/festival_activities/admin-activity-details";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 
 type AdminActivityDetailProps = {

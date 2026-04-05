@@ -145,7 +145,9 @@ function buildColumns(
 					<div className="flex items-center gap-2">
 						<Avatar className="w-7 h-7 shrink-0">
 							<AvatarImage
-								src={user.imageUrl || "/img/placeholders/avatar-placeholder.png"}
+								src={
+									user.imageUrl || "/img/placeholders/avatar-placeholder.png"
+								}
 								alt={user.displayName ?? "Avatar"}
 							/>
 						</Avatar>
@@ -198,7 +200,9 @@ function buildColumns(
 							{label}
 						</Badge>
 						{row.original.removedAt != null && row.original.removalReason && (
-							<p className="text-xs text-muted-foreground mt-0.5 italic">{row.original.removalReason}</p>
+							<p className="text-xs text-muted-foreground mt-0.5 italic">
+								{row.original.removalReason}
+							</p>
 						)}
 					</div>
 				);
@@ -343,7 +347,9 @@ export default function ActivityParticipantsTable({
 									)}
 								</div>
 								{participant.removedAt != null && participant.removalReason && (
-									<p className="text-xs text-muted-foreground italic text-right max-w-[160px]">{participant.removalReason}</p>
+									<p className="text-xs text-muted-foreground italic text-right max-w-[160px]">
+										{participant.removalReason}
+									</p>
 								)}
 							</div>
 						</div>

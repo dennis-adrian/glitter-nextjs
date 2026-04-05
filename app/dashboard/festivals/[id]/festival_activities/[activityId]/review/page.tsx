@@ -5,8 +5,8 @@ import Link from "next/link";
 import { BookOpenIcon } from "lucide-react";
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import ActivityProofsTable from "../../activity-proofs-table";
-import ExportProofsButton from "./export-proofs-button";
+import ActivityProofsTable from "@/app/components/festivals/festival_activities/activity-proofs-table";
+import ExportProofsButton from "@/app/components/festivals/festival_activities/export-proofs-button";
 
 const ParamsSchema = z.object({
 	id: z.coerce.number(),
@@ -40,6 +40,7 @@ export default async function Page({ params }: ReviewPageProps) {
 
 	const showExport =
 		activity.proofType === "text" || activity.proofType === "both";
+	const showCouponBookLink = activity.type === "coupon_book";
 
 	const approvedPromos = showExport
 		? allParticipants
@@ -50,10 +51,10 @@ export default async function Page({ params }: ReviewPageProps) {
 				.map((p) => {
 					const firstProof = p.proofs?.[0];
 					return {
-					name: p.user.displayName ?? "—",
-					promoDescription: firstProof?.promoDescription ?? "",
-					promoConditions: firstProof?.promoConditions ?? null,
-				};
+						name: p.user.displayName ?? "—",
+						promoDescription: firstProof?.promoDescription ?? "",
+						promoConditions: firstProof?.promoConditions ?? null,
+					};
 				})
 		: [];
 
@@ -66,12 +67,14 @@ export default async function Page({ params }: ReviewPageProps) {
 				{showExport && (
 					<div className="flex gap-2">
 						<ExportProofsButton approvedPromos={approvedPromos} />
-						<Button asChild variant="outline" size="sm">
-							<Link href="./couponbook">
-								<BookOpenIcon className="w-4 h-4 mr-1" />
-								Ver cuponera
-							</Link>
-						</Button>
+						{showCouponBookLink && (
+							<Button asChild variant="outline" size="sm">
+								<Link href="./review/couponbook">
+									<BookOpenIcon className="w-4 h-4 mr-1" />
+									Ver cuponera
+								</Link>
+							</Button>
+						)}
 					</div>
 				)}
 			</div>
@@ -95,12 +98,15 @@ export default async function Page({ params }: ReviewPageProps) {
 						{showHeader && (
 							<h3 className="text-sm font-semibold text-muted-foreground">
 								Variante {index + 1}
-								{detail.description ? ` — ${detail.description}` : ""}
-								{" "}· {limitLabel} participante
+								{detail.description ? ` — ${detail.description}` : ""} ·{" "}
+								{limitLabel} participante
 								{activeParticipants.length !== 1 ? "s" : ""}
 							</h3>
 						)}
-						<ActivityProofsTable participants={variantParticipants} activity={activity} />
+						<ActivityProofsTable
+							participants={variantParticipants}
+							activity={activity}
+						/>
 					</div>
 				);
 			})}

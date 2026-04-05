@@ -32,7 +32,7 @@ export default function ExportProofsButton({
 		a.href = url;
 		a.download = "promociones-aprobadas.txt";
 		a.click();
-		URL.revokeObjectURL(url);
+		setTimeout(() => URL.revokeObjectURL(url), 100);
 	};
 
 	return (

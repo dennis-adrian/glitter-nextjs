@@ -73,7 +73,9 @@ export default function RejectProofModal({
 			setOpen(false);
 			onSuccess?.();
 		} catch (error) {
-			toast.error(`No se pudo revisar el ${materialLabel}. Intentá nuevamente.`);
+			toast.error(
+				`No se pudo revisar el ${materialLabel}. Intentá nuevamente.`,
+			);
 		}
 	});
 
