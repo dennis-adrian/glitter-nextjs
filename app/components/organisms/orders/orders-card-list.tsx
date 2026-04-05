@@ -6,9 +6,11 @@ import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
 import { getOrderStatusLabel } from "@/app/lib/orders/utils";
+import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
 import { Input } from "@/app/components/ui/input";
+import { useOrdersDateFilter } from "@/app/hooks/use-orders-date-filter";
 import { cn } from "@/lib/utils";
-import { AlertTriangleIcon, ReceiptIcon, SearchIcon } from "lucide-react";
+import { AlertTriangleIcon, ReceiptIcon, SearchIcon, SlidersHorizontalIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
 import { use, useMemo, useOptimistic, useState, useTransition } from "react";
@@ -122,6 +124,17 @@ export default function OrdersCardList({
 	const [isPending, startTransition] = useTransition();
 	const [optimisticStatus, setOptimisticStatus] = useOptimistic(activeStatus);
 	const [search, setSearch] = useState("");
+	const [filtersOpen, setFiltersOpen] = useState(false);
+	const {
+		period,
+		dateFrom,
+		dateTo,
+		hasCustomRange,
+		filteredByDate,
+		selectPeriod,
+		handleFromChange,
+		handleToChange,
+	} = useOrdersDateFilter(orders);
 
 	function handleStatusChange(value: "" | OrderStatus) {
 		const param = value === "" ? "all" : value;
@@ -134,48 +147,90 @@ export default function OrdersCardList({
 
 	const visibleOrders = useMemo(() => {
 		const q = search.trim().toLowerCase();
-		if (!q) return orders;
-		return orders.filter((o) => {
+		if (!q) return filteredByDate;
+		return filteredByDate.filter((o) => {
 			const customer = (o.customer?.displayName ?? o.guestName ?? "").toLowerCase();
 			const id = String(o.id);
 			const items = o.orderItems.map((i) => i.product.name.toLowerCase()).join(" ");
 			return customer.includes(q) || id.includes(q) || items.includes(q);
 		});
-	}, [orders, search]);
+	}, [filteredByDate, search]);
 
 	return (
-		<div className="flex flex-col gap-3">
-			{/* Filter chips */}
-			<div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 [&::-webkit-scrollbar]:hidden">
-				{STATUS_OPTIONS.map((opt) => {
-					const isActive = optimisticStatus === chipToActive(opt.value);
-					return (
-						<button
-							key={opt.value}
-							onClick={() => handleStatusChange(opt.value)}
-							className={cn(
-								"shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-								isActive
-									? "bg-primary text-primary-foreground border-primary"
-									: "border-border text-muted-foreground hover:bg-accent",
-							)}
-						>
-							{opt.label}
-						</button>
-					);
-				})}
+		<div className="flex flex-col gap-4">
+			{/* Status filter */}
+			<div className="flex flex-col gap-1.5">
+				<div className="flex items-center justify-between">
+					<span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+						Estado
+					</span>
+					<button
+						onClick={() => setFiltersOpen((v) => !v)}
+						className={cn(
+							"relative inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+							filtersOpen
+								? "border-primary bg-primary/10 text-primary"
+								: "border-border text-muted-foreground hover:bg-accent",
+						)}
+					>
+						<SlidersHorizontalIcon className="h-3.5 w-3.5" />
+						Filtros
+						{(search !== "" || hasCustomRange) && (
+							<span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
+						)}
+					</button>
+				</div>
+				<div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 [&::-webkit-scrollbar]:hidden">
+					{STATUS_OPTIONS.map((opt) => {
+						const isActive = optimisticStatus === chipToActive(opt.value);
+						return (
+							<button
+								key={opt.value}
+								onClick={() => handleStatusChange(opt.value)}
+								className={cn(
+									"shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+									isActive
+										? "bg-primary text-primary-foreground border-primary"
+										: "border-border text-muted-foreground hover:bg-accent",
+								)}
+							>
+								{opt.label}
+							</button>
+						);
+					})}
+				</div>
 			</div>
 
-			{/* Search */}
-			<div className="relative">
-				<SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-				<Input
-					placeholder="Buscar por cliente, ID o producto..."
-					value={search}
-					onChange={(e) => setSearch(e.target.value)}
-					className="pl-9"
-				/>
-			</div>
+			{filtersOpen && (
+				<>
+					{/* Search */}
+					<div className="relative">
+						<SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+						<Input
+							placeholder="Buscar por cliente, ID o producto..."
+							value={search}
+							onChange={(e) => setSearch(e.target.value)}
+							className="pl-9"
+						/>
+					</div>
+
+					{/* Date filter */}
+					<div className="flex flex-col gap-1.5">
+						<span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+							Fecha
+						</span>
+						<OrdersDateFilter
+							period={period}
+							dateFrom={dateFrom}
+							dateTo={dateTo}
+							hasCustomRange={hasCustomRange}
+							onPeriodChange={selectPeriod}
+							onFromChange={handleFromChange}
+							onToChange={handleToChange}
+						/>
+					</div>
+				</>
+			)}
 
 			{/* Cards */}
 			<div

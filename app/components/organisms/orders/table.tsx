@@ -4,19 +4,20 @@ import {
 	columns,
 	columnTitles,
 } from "@/app/components/organisms/orders/table-columns";
+import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
 import { Button } from "@/app/components/ui/button";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
+import { useOrdersDateFilter } from "@/app/hooks/use-orders-date-filter";
 import { formatDate } from "@/app/lib/formatters";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
 import { getOrderStatusLabel } from "@/app/lib/orders/utils";
+import { cn } from "@/lib/utils";
 import type { Table } from "@tanstack/react-table";
 import { DownloadIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
-import { use, useMemo, useOptimistic, useState, useTransition } from "react";
-import { cn } from "@/lib/utils";
+import { use, useOptimistic, useTransition } from "react";
 
-type DatePeriod = "all" | "today" | "week" | "month";
 type ActiveStatus = OrderStatus | "all";
 
 type OrdersTableProps = {
@@ -76,21 +77,17 @@ export default function OrdersTable({ ordersPromise, activeStatus }: OrdersTable
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
 	const [optimisticStatus, setOptimisticStatus] = useOptimistic(activeStatus);
-	const [period, setPeriod] = useState<DatePeriod>("all");
 
-	const filteredOrders = useMemo(() => {
-		if (period === "all") return orders;
-		const now = DateTime.now().setZone("America/La_Paz");
-		const cutoff =
-			period === "today"
-				? now.startOf("day")
-				: period === "week"
-					? now.startOf("week")
-					: now.startOf("month");
-		return orders.filter(
-			(o) => formatDate(o.createdAt).toMillis() >= cutoff.toMillis(),
-		);
-	}, [orders, period]);
+	const {
+		period,
+		dateFrom,
+		dateTo,
+		hasCustomRange,
+		filteredByDate,
+		selectPeriod,
+		handleFromChange,
+		handleToChange,
+	} = useOrdersDateFilter(orders);
 
 	function handleStatusChange(value: ActiveStatus) {
 		startTransition(() => {
@@ -99,17 +96,10 @@ export default function OrdersTable({ ordersPromise, activeStatus }: OrdersTable
 		});
 	}
 
-	const periodOptions: { value: DatePeriod; label: string }[] = [
-		{ value: "all", label: "Todo" },
-		{ value: "month", label: "Este mes" },
-		{ value: "week", label: "Esta semana" },
-		{ value: "today", label: "Hoy" },
-	];
-
 	return (
 		<div className={cn("transition-opacity", isPending && "opacity-60 pointer-events-none")}>
 			{/* Status tabs */}
-			<div className="flex gap-1 overflow-x-auto border-b mb-3 [&::-webkit-scrollbar]:hidden">
+			<div className="flex gap-1 overflow-x-auto border-b mb-4 [&::-webkit-scrollbar]:hidden">
 				{STATUS_OPTIONS.map((opt) => {
 					const isActive = optimisticStatus === opt.value;
 					return (
@@ -129,22 +119,22 @@ export default function OrdersTable({ ordersPromise, activeStatus }: OrdersTable
 				})}
 			</div>
 
-			{/* Period filter + table */}
-			<div className="flex items-center gap-1 mb-2">
-				{periodOptions.map((opt) => (
-					<Button
-						key={opt.value}
-						size="sm"
-						variant={period === opt.value ? "default" : "ghost"}
-						onClick={() => setPeriod(opt.value)}
-					>
-						{opt.label}
-					</Button>
-				))}
+			{/* Date filter */}
+			<div className="mb-3">
+				<OrdersDateFilter
+					period={period}
+					dateFrom={dateFrom}
+					dateTo={dateTo}
+					hasCustomRange={hasCustomRange}
+					onPeriodChange={selectPeriod}
+					onFromChange={handleFromChange}
+					onToChange={handleToChange}
+				/>
 			</div>
+
 			<DataTable
 				columns={columns}
-				data={filteredOrders}
+				data={filteredByDate}
 				columnTitles={columnTitles}
 				actions={(table) => (
 					<div className="hidden md:flex">
