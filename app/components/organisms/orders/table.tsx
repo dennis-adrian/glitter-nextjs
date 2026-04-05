@@ -43,7 +43,9 @@ function OrdersExportButton({ table }: { table: Table<OrderWithRelations> }) {
 		const visibleOrders = table.getRowModel().rows.map((row) => row.original);
 		const headers = [
 			"ID",
+			"Tipo",
 			"Cliente",
+			"Teléfono",
 			"Productos",
 			"Total (Bs)",
 			"Estado",
@@ -51,7 +53,9 @@ function OrdersExportButton({ table }: { table: Table<OrderWithRelations> }) {
 		];
 		const rows = visibleOrders.map((o) => [
 			o.id,
+			o.customer ? "Participante" : "Invitado",
 			o.customer?.displayName ?? o.guestName ?? "Invitado",
+			o.customer?.phoneNumber ?? o.guestPhone ?? "",
 			o.orderItems.map((i) => `${i.quantity}x ${i.product.name}`).join(", "),
 			o.totalAmount.toFixed(2),
 			getOrderStatusLabel(o.status),

@@ -2,6 +2,7 @@
 
 import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
 import { OrdersActionsCell } from "@/app/components/organisms/orders/table-actions-cell";
+import SocialMediaBadge from "@/app/components/social-media-badge";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
@@ -49,7 +50,9 @@ function chipToActive(value: "" | OrderStatus): ActiveStatus {
 function exportOrdersToCsv(orders: OrderWithRelations[]) {
 	const headers = [
 		"ID",
+		"Tipo",
 		"Cliente",
+		"Teléfono",
 		"Productos",
 		"Total (Bs)",
 		"Estado",
@@ -57,7 +60,9 @@ function exportOrdersToCsv(orders: OrderWithRelations[]) {
 	];
 	const rows = orders.map((o) => [
 		o.id,
+		o.customer ? "Participante" : "Invitado",
 		o.customer?.displayName ?? o.guestName ?? "Invitado",
+		o.customer?.phoneNumber ?? o.guestPhone ?? "",
 		o.orderItems.map((i) => `${i.quantity}x ${i.product.name}`).join(", "),
 		o.totalAmount.toFixed(2),
 		getOrderStatusLabel(o.status),
@@ -139,6 +144,14 @@ function OrderCard({
 						<p className="text-sm text-muted-foreground truncate">
 							{order.customer?.displayName ?? order.guestName ?? "Invitado"}
 						</p>
+						{!order.customer && order.guestPhone && (
+							<div onClick={(e) => e.stopPropagation()}>
+								<SocialMediaBadge
+									socialMediaType="whatsapp"
+									username={order.guestPhone}
+								/>
+							</div>
+						)}
 
 						{order.orderItems.length > 0 && (
 							<p className="text-xs text-muted-foreground truncate">
