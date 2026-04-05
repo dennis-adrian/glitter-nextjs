@@ -32,7 +32,7 @@ export default function OrdersDateFilter({
 	onFromChange,
 	onToChange,
 }: OrdersDateFilterProps) {
-	const [customOpen, setCustomOpen] = useState(hasCustomRange);
+	const [customOpen, setCustomOpen] = useState(false);
 
 	function handlePeriodClick(p: DatePeriod) {
 		setCustomOpen(false);
@@ -55,7 +55,8 @@ export default function OrdersDateFilter({
 		<div className="flex flex-col gap-2">
 			<div className="flex gap-1.5 flex-wrap items-center">
 				{PERIOD_OPTIONS.map((opt) => {
-					const isActive = !customOpen && !hasCustomRange && period === opt.value;
+					const isActive =
+						!customOpen && !hasCustomRange && period === opt.value;
 					return (
 						<button
 							key={opt.value}

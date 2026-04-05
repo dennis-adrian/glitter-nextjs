@@ -38,10 +38,11 @@ const STATUS_OPTIONS: { value: ActiveStatus; label: string }[] = [
 function OrdersExportButton({ table }: { table: Table<OrderWithRelations> }) {
 	function handleExport() {
 		const visibleOrders = table.getRowModel().rows.map((row) => row.original);
-		const headers = ["ID", "Cliente", "Total (Bs)", "Estado", "Fecha"];
+		const headers = ["ID", "Cliente", "Productos", "Total (Bs)", "Estado", "Fecha"];
 		const rows = visibleOrders.map((o) => [
 			o.id,
 			o.customer?.displayName ?? o.guestName ?? "Invitado",
+			o.orderItems.map((i) => `${i.quantity}x ${i.product.name}`).join(", "),
 			o.totalAmount.toFixed(2),
 			getOrderStatusLabel(o.status),
 			formatDate(o.createdAt).toLocaleString(DateTime.DATETIME_MED),
@@ -136,11 +137,7 @@ export default function OrdersTable({ ordersPromise, activeStatus }: OrdersTable
 				columns={columns}
 				data={filteredByDate}
 				columnTitles={columnTitles}
-				actions={(table) => (
-					<div className="hidden md:flex">
-						<OrdersExportButton table={table} />
-					</div>
-				)}
+				actions={(table) => <OrdersExportButton table={table} />}
 			/>
 		</div>
 	);

@@ -10,7 +10,7 @@ import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filt
 import { Input } from "@/app/components/ui/input";
 import { useOrdersDateFilter } from "@/app/hooks/use-orders-date-filter";
 import { cn } from "@/lib/utils";
-import { AlertTriangleIcon, ReceiptIcon, SearchIcon, SlidersHorizontalIcon } from "lucide-react";
+import { AlertTriangleIcon, DownloadIcon, ReceiptIcon, SearchIcon, SlidersHorizontalIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
 import { use, useMemo, useOptimistic, useState, useTransition } from "react";
@@ -34,6 +34,30 @@ const STATUS_OPTIONS: { value: "" | OrderStatus; label: string }[] = [
 
 function chipToActive(value: "" | OrderStatus): ActiveStatus {
 	return value === "" ? "all" : value;
+}
+
+function exportOrdersToCsv(orders: OrderWithRelations[]) {
+	const headers = ["ID", "Cliente", "Productos", "Total (Bs)", "Estado", "Fecha"];
+	const rows = orders.map((o) => [
+		o.id,
+		o.customer?.displayName ?? o.guestName ?? "Invitado",
+		o.orderItems.map((i) => `${i.quantity}x ${i.product.name}`).join(", "),
+		o.totalAmount.toFixed(2),
+		getOrderStatusLabel(o.status),
+		formatDate(o.createdAt).toLocaleString(DateTime.DATETIME_MED),
+	]);
+
+	const csv = [headers, ...rows]
+		.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+		.join("\n");
+
+	const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+	const url = URL.createObjectURL(blob);
+	const link = document.createElement("a");
+	link.href = url;
+	link.download = `pedidos-${DateTime.now().toISODate()}.csv`;
+	link.click();
+	URL.revokeObjectURL(url);
 }
 
 function OrderCard({ order }: { order: OrderWithRelations }) {
@@ -164,21 +188,30 @@ export default function OrdersCardList({
 					<span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
 						Estado
 					</span>
-					<button
-						onClick={() => setFiltersOpen((v) => !v)}
-						className={cn(
-							"relative inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
-							filtersOpen
-								? "border-primary bg-primary/10 text-primary"
-								: "border-border text-muted-foreground hover:bg-accent",
-						)}
-					>
-						<SlidersHorizontalIcon className="h-3.5 w-3.5" />
-						Filtros
-						{(search !== "" || hasCustomRange) && (
-							<span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
-						)}
-					</button>
+					<div className="flex items-center gap-1.5">
+						<button
+							onClick={() => exportOrdersToCsv(visibleOrders)}
+							className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent"
+						>
+							<DownloadIcon className="h-3.5 w-3.5" />
+							CSV
+						</button>
+						<button
+							onClick={() => setFiltersOpen((v) => !v)}
+							className={cn(
+								"relative inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+								filtersOpen
+									? "border-primary bg-primary/10 text-primary"
+									: "border-border text-muted-foreground hover:bg-accent",
+							)}
+						>
+							<SlidersHorizontalIcon className="h-3.5 w-3.5" />
+							Filtros
+							{(search !== "" || hasCustomRange) && (
+								<span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
+							)}
+						</button>
+					</div>
 				</div>
 				<div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 [&::-webkit-scrollbar]:hidden">
 					{STATUS_OPTIONS.map((opt) => {
