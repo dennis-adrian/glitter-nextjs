@@ -5,8 +5,8 @@ import Link from "next/link";
 import { BookOpenIcon } from "lucide-react";
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import ActivityProofsTable from "../../activity-proofs-table";
-import ExportProofsButton from "./export-proofs-button";
+import ActivityProofsTable from "@/app/components/festivals/festival_activities/activity-proofs-table";
+import ExportProofsButton from "@/app/components/festivals/festival_activities/export-proofs-button";
 
 const ParamsSchema = z.object({
 	id: z.coerce.number(),

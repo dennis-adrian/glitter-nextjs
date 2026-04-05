@@ -46,9 +46,7 @@ export default function ProofImageModal({
 			</DrawerDialogTrigger>
 			<DrawerDialogContent isDesktop={isDesktop}>
 				<DrawerDialogHeader isDesktop={isDesktop}>
-					<DrawerDialogTitle isDesktop={isDesktop}>
-						{title}
-					</DrawerDialogTitle>
+					<DrawerDialogTitle isDesktop={isDesktop}>{title}</DrawerDialogTitle>
 				</DrawerDialogHeader>
 				<div className="flex justify-center p-4">
 					<div className="relative w-full max-w-sm aspect-square">

@@ -48,7 +48,10 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
 
 			<div className="flex flex-col gap-4">
 				{activity.details.map((detail, index) => {
-					const participants = detail.participants.map((p) => ({ ...p, detail }));
+					const participants = detail.participants.map((p) => ({
+						...p,
+						detail,
+					}));
 					const limitLabel = detail.participationLimit
 						? `${participants.length}/${detail.participationLimit}`
 						: `${participants.length}`;
@@ -58,8 +61,8 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
 							{showVariantHeaders && (
 								<h3 className="text-sm font-medium text-muted-foreground">
 									Variante {index + 1}
-									{detail.description ? ` — ${detail.description}` : ""}
-									{" "}· {limitLabel} participante
+									{detail.description ? ` — ${detail.description}` : ""} ·{" "}
+									{limitLabel} participante
 									{participants.length !== 1 ? "s" : ""}
 								</h3>
 							)}
@@ -78,7 +81,10 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
 						<h2 className="text-base font-semibold text-muted-foreground">
 							Lista de espera ({activity.waitlistEntries.length})
 						</h2>
-						<ActivityWaitlistTable entries={activity.waitlistEntries} festivalId={activity.festivalId} />
+						<ActivityWaitlistTable
+							entries={activity.waitlistEntries}
+							festivalId={activity.festivalId}
+						/>
 					</div>
 				)}
 		</div>

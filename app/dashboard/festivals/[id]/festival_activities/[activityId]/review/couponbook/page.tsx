@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
-import CouponBookPreviewClient from "./preview-client";
+import CouponBookPreviewClient from "@/app/components/festivals/festival_activities/coupon-book-preview-client";
 import { fetchFestivalActivityForReview } from "@/app/lib/festivals/actions";
 import { buildCouponBookVariants } from "@/app/lib/festival_activites/coupon-book-builder";
 import { fetchParticipationPreviewData } from "@/app/lib/festival_activites/actions";
@@ -39,7 +38,8 @@ export default async function CouponBookReviewPage({
 					return {
 						...entry,
 						imageUrl: previewData.imageUrl,
-						participantName: previewData.participantName ?? entry.participantName,
+						participantName:
+							previewData.participantName ?? entry.participantName,
 						standLabels: previewData.standLabels,
 						sectorName: previewData.sectorName,
 					};
@@ -50,30 +50,12 @@ export default async function CouponBookReviewPage({
 	);
 
 	return (
-		<div className="container p-3 md:p-6 space-y-4">
-			<div className="flex items-center justify-between gap-2 flex-wrap">
-				<div>
-					<h1 className="text-lg md:text-xl font-bold">
-						Cuponera imprimible - {activity.name}
-					</h1>
-					<p className="text-sm text-muted-foreground">
-						Vista previa fiel a impresión (21.59cm x 16.5cm)
-					</p>
-				</div>
-				<Link
-					href={`../`}
-					className="text-sm underline underline-offset-2 text-muted-foreground hover:text-foreground"
-				>
-					Volver a revisión
-				</Link>
-			</div>
-
-			<CouponBookPreviewClient
-				festivalId={id}
-				activityId={activityId}
-				activityName={activity.name}
-				variants={variants}
-			/>
-		</div>
+		<CouponBookPreviewClient
+			festivalId={id}
+			activityId={activityId}
+			activityName={activity.name}
+			variants={variants}
+			backUrl="../"
+		/>
 	);
 }

@@ -2,7 +2,7 @@
 
 import { ActivityDetailsWithParticipants } from "@/app/lib/festivals/definitions";
 import { useCallback, useEffect, useState } from "react";
-import ParticipantCard from "../../participant-card";
+import ParticipantCard from "./participant-card";
 import { Button } from "@/components/ui/button";
 import { RefreshCcwIcon } from "lucide-react";
 
