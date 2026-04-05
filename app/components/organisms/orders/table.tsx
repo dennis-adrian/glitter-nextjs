@@ -28,7 +28,10 @@ type OrdersTableProps = {
 const STATUS_OPTIONS: { value: ActiveStatus; label: string }[] = [
 	{ value: "all", label: "Todos" },
 	{ value: "pending", label: getOrderStatusLabel("pending") },
-	{ value: "payment_verification", label: getOrderStatusLabel("payment_verification") },
+	{
+		value: "payment_verification",
+		label: getOrderStatusLabel("payment_verification"),
+	},
 	{ value: "processing", label: getOrderStatusLabel("processing") },
 	{ value: "paid", label: getOrderStatusLabel("paid") },
 	{ value: "delivered", label: getOrderStatusLabel("delivered") },
@@ -38,7 +41,14 @@ const STATUS_OPTIONS: { value: ActiveStatus; label: string }[] = [
 function OrdersExportButton({ table }: { table: Table<OrderWithRelations> }) {
 	function handleExport() {
 		const visibleOrders = table.getRowModel().rows.map((row) => row.original);
-		const headers = ["ID", "Cliente", "Productos", "Total (Bs)", "Estado", "Fecha"];
+		const headers = [
+			"ID",
+			"Cliente",
+			"Productos",
+			"Total (Bs)",
+			"Estado",
+			"Fecha",
+		];
 		const rows = visibleOrders.map((o) => [
 			o.id,
 			o.customer?.displayName ?? o.guestName ?? "Invitado",
@@ -73,7 +83,10 @@ function OrdersExportButton({ table }: { table: Table<OrderWithRelations> }) {
 	);
 }
 
-export default function OrdersTable({ ordersPromise, activeStatus }: OrdersTableProps) {
+export default function OrdersTable({
+	ordersPromise,
+	activeStatus,
+}: OrdersTableProps) {
 	const orders = use(ordersPromise);
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
@@ -98,7 +111,12 @@ export default function OrdersTable({ ordersPromise, activeStatus }: OrdersTable
 	}
 
 	return (
-		<div className={cn("transition-opacity", isPending && "opacity-60 pointer-events-none")}>
+		<div
+			className={cn(
+				"transition-opacity",
+				isPending && "opacity-60 pointer-events-none",
+			)}
+		>
 			{/* Status tabs */}
 			<div className="flex gap-1 overflow-x-auto border-b mb-4 [&::-webkit-scrollbar]:hidden">
 				{STATUS_OPTIONS.map((opt) => {
@@ -134,9 +152,15 @@ export default function OrdersTable({ ordersPromise, activeStatus }: OrdersTable
 			</div>
 
 			<DataTable
+				key={optimisticStatus}
 				columns={columns}
 				data={filteredByDate}
 				columnTitles={columnTitles}
+				initialState={
+					optimisticStatus !== "all"
+						? { columnVisibility: { status: false } }
+						: undefined
+				}
 				actions={(table) => <OrdersExportButton table={table} />}
 			/>
 		</div>

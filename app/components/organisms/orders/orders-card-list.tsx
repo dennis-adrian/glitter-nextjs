@@ -10,7 +10,14 @@ import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filt
 import { Input } from "@/app/components/ui/input";
 import { useOrdersDateFilter } from "@/app/hooks/use-orders-date-filter";
 import { cn } from "@/lib/utils";
-import { AlertTriangleIcon, DownloadIcon, ReceiptIcon, SearchIcon, SlidersHorizontalIcon } from "lucide-react";
+import {
+	AlertTriangleIcon,
+	ChevronRightIcon,
+	DownloadIcon,
+	ReceiptIcon,
+	SearchIcon,
+	SlidersHorizontalIcon,
+} from "lucide-react";
 import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
 import { use, useMemo, useOptimistic, useState, useTransition } from "react";
@@ -25,7 +32,10 @@ type OrdersCardListProps = {
 const STATUS_OPTIONS: { value: "" | OrderStatus; label: string }[] = [
 	{ value: "", label: "Todos" },
 	{ value: "pending", label: getOrderStatusLabel("pending") },
-	{ value: "payment_verification", label: getOrderStatusLabel("payment_verification") },
+	{
+		value: "payment_verification",
+		label: getOrderStatusLabel("payment_verification"),
+	},
 	{ value: "processing", label: getOrderStatusLabel("processing") },
 	{ value: "paid", label: getOrderStatusLabel("paid") },
 	{ value: "delivered", label: getOrderStatusLabel("delivered") },
@@ -37,7 +47,14 @@ function chipToActive(value: "" | OrderStatus): ActiveStatus {
 }
 
 function exportOrdersToCsv(orders: OrderWithRelations[]) {
-	const headers = ["ID", "Cliente", "Productos", "Total (Bs)", "Estado", "Fecha"];
+	const headers = [
+		"ID",
+		"Cliente",
+		"Productos",
+		"Total (Bs)",
+		"Estado",
+		"Fecha",
+	];
 	const rows = orders.map((o) => [
 		o.id,
 		o.customer?.displayName ?? o.guestName ?? "Invitado",
@@ -48,7 +65,9 @@ function exportOrdersToCsv(orders: OrderWithRelations[]) {
 	]);
 
 	const csv = [headers, ...rows]
-		.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+		.map((row) =>
+			row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
+		)
 		.join("\n");
 
 	const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
@@ -60,7 +79,13 @@ function exportOrdersToCsv(orders: OrderWithRelations[]) {
 	URL.revokeObjectURL(url);
 }
 
-function OrderCard({ order }: { order: OrderWithRelations }) {
+function OrderCard({
+	order,
+	activeStatus,
+}: {
+	order: OrderWithRelations;
+	activeStatus: ActiveStatus;
+}) {
 	const router = useRouter();
 	const nowInStore = DateTime.now().setZone(STORE_TIMEZONE);
 
@@ -72,14 +97,16 @@ function OrderCard({ order }: { order: OrderWithRelations }) {
 	const hasPendingVoucher =
 		!!order.paymentVoucherUrl && order.status === "payment_verification";
 
+	const showStatusBadge = activeStatus === "all";
+	const showOverdueBadge =
+		isOverdue && (activeStatus === "all" || activeStatus === "pending");
+
 	const itemsPreview = order.orderItems
 		.slice(0, 2)
 		.map((item) => `${item.quantity}× ${item.product.name}`)
 		.join(", ");
 	const extraItems =
-		order.orderItems.length > 2
-			? ` +${order.orderItems.length - 2} más`
-			: "";
+		order.orderItems.length > 2 ? ` +${order.orderItems.length - 2} más` : "";
 
 	return (
 		<Card
@@ -94,8 +121,8 @@ function OrderCard({ order }: { order: OrderWithRelations }) {
 					<div className="flex flex-col gap-1.5 min-w-0">
 						<div className="flex flex-wrap items-center gap-1.5">
 							<span className="text-sm font-semibold">#{order.id}</span>
-							<OrderStatusBadge status={order.status} />
-							{isOverdue && (
+							{showStatusBadge && <OrderStatusBadge status={order.status} />}
+							{showOverdueBadge && (
 								<span className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600">
 									<AlertTriangleIcon className="h-3 w-3" />
 									Vencido
@@ -115,7 +142,8 @@ function OrderCard({ order }: { order: OrderWithRelations }) {
 
 						{order.orderItems.length > 0 && (
 							<p className="text-xs text-muted-foreground truncate">
-								{itemsPreview}{extraItems}
+								{itemsPreview}
+								{extraItems}
 							</p>
 						)}
 
@@ -124,14 +152,16 @@ function OrderCard({ order }: { order: OrderWithRelations }) {
 						</p>
 					</div>
 
-					<div
-						className="flex flex-col items-end gap-2 shrink-0"
-						onClick={(e) => e.stopPropagation()}
-					>
-						<span className="font-semibold text-sm">
-							Bs {order.totalAmount.toFixed(2)}
-						</span>
-						<OrdersActionsCell order={order} />
+					<div className="flex flex-col items-end gap-2 shrink-0">
+						<div className="flex items-center gap-1">
+							<span className="font-semibold text-sm">
+								Bs {order.totalAmount.toFixed(2)}
+							</span>
+							<ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+						</div>
+						<div onClick={(e) => e.stopPropagation()}>
+							<OrdersActionsCell order={order} />
+						</div>
 					</div>
 				</div>
 			</CardContent>
@@ -173,9 +203,15 @@ export default function OrdersCardList({
 		const q = search.trim().toLowerCase();
 		if (!q) return filteredByDate;
 		return filteredByDate.filter((o) => {
-			const customer = (o.customer?.displayName ?? o.guestName ?? "").toLowerCase();
+			const customer = (
+				o.customer?.displayName ??
+				o.guestName ??
+				""
+			).toLowerCase();
 			const id = String(o.id);
-			const items = o.orderItems.map((i) => i.product.name.toLowerCase()).join(" ");
+			const items = o.orderItems
+				.map((i) => i.product.name.toLowerCase())
+				.join(" ");
 			return customer.includes(q) || id.includes(q) || items.includes(q);
 		});
 	}, [filteredByDate, search]);
@@ -277,7 +313,13 @@ export default function OrdersCardList({
 						No hay pedidos para mostrar.
 					</p>
 				) : (
-					visibleOrders.map((order) => <OrderCard key={order.id} order={order} />)
+					visibleOrders.map((order) => (
+						<OrderCard
+							key={order.id}
+							order={order}
+							activeStatus={optimisticStatus}
+						/>
+					))
 				)}
 			</div>
 		</div>
