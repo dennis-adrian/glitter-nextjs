@@ -2,40 +2,86 @@
 
 import { useState } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
 } from "@/app/components/ui/dialog";
+import ReservationStatusBadge from "@/app/components/atoms/reservation-status-badge";
 import Link from "next/link";
 import { Participation } from "@/app/api/users/definitions";
-import { ReservationStatus } from "../../reservations/cells/status";
 
 type Props = {
-  participations: Participation[];
+	participations: Participation[];
 };
 
 export default function ParticipationsCell({ participations }: Props) {
-  const [open, setOpen] = useState(false);
+	const [open, setOpen] = useState(false);
 
-  const uniqueFestivalIds = new Set(
-    (participations || [])
-      .map((participation) => {
-        return (
-          participation?.reservation?.festivalId ??
-          participation?.reservation?.festival?.id
-        );
-      })
-      .filter((festivalId): festivalId is number => festivalId != null),
-  );
-  const count = uniqueFestivalIds.size;
+	const groupedParticipationsByFestival = Array.from(
+		(participations || [])
+			.reduce<
+				Map<
+					number,
+					{
+						festivalId: number;
+						festivalName: string;
+						reservationsCount: number;
+						stands: Set<string>;
+						statuses: Set<Participation["reservation"]["status"]>;
+					}
+				>
+			>((acc, participation) => {
+				const festivalId =
+					participation?.reservation?.festivalId ??
+					participation?.reservation?.festival?.id;
 
-  if (count === 0) {
-    return <span>0 participaciones</span>;
-  }
+				if (festivalId == null) {
+					return acc;
+				}
 
-  return (
+				const festivalName =
+					participation?.reservation?.festival?.name ??
+					`Festival ${festivalId}`;
+				const standNumber = participation.reservation.stand.standNumber;
+				const standLabel = `${participation.reservation.stand.label}${
+					standNumber == null ? "" : standNumber
+				}`;
+				const reservationStatus = participation.reservation.status;
+				const currentFestival = acc.get(festivalId);
+
+				if (!currentFestival) {
+					acc.set(festivalId, {
+						festivalId,
+						festivalName,
+						reservationsCount: 1,
+						stands: new Set([standLabel]),
+						statuses: new Set([reservationStatus]),
+					});
+					return acc;
+				}
+
+				currentFestival.reservationsCount += 1;
+				currentFestival.stands.add(standLabel);
+				currentFestival.statuses.add(reservationStatus);
+
+				return acc;
+			}, new Map())
+			.values(),
+	).map((festival) => ({
+		...festival,
+		stands: Array.from(festival.stands),
+		statuses: Array.from(festival.statuses),
+	}));
+
+	const count = groupedParticipationsByFestival.length;
+
+	if (count === 0) {
+		return <span>0 participaciones</span>;
+	}
+
+	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger asChild>
 				<span className="underline cursor-pointer">
@@ -51,33 +97,33 @@ export default function ParticipationsCell({ participations }: Props) {
 					<table className="w-full text-sm border">
 						<thead>
 							<tr className="border-b">
-								<th className="p-2 text-left">ID</th>
 								<th className="p-2 text-left">Festival</th>
-								<th className="p-2 text-left">Stand</th>
+								<th className="p-2 text-left">Reservas</th>
+								<th className="p-2 text-left">Stands</th>
 								<th className="p-2 text-left">Estado</th>
 							</tr>
 						</thead>
 						<tbody>
-							{participations.map((p) => (
-								<tr key={p.id} className="border-b">
-									<td className="p-2">{p.id}</td>
+							{groupedParticipationsByFestival.map((festival) => (
+								<tr key={festival.festivalId} className="border-b">
 									<td className="p-2">
 										<Link
-											href={`/festivals/${p.reservation.festival.id}`}
+											href={`/festivals/${festival.festivalId}`}
 											className="text-blue-600 underline"
 											target="_blank"
 											rel="noopener noreferrer"
 										>
-											{p.reservation.festival.name}
+											{festival.festivalName}
 										</Link>
 									</td>
+									<td className="p-2">{festival.reservationsCount}</td>
+									<td className="p-2">{festival.stands.join(", ")}</td>
 									<td className="p-2">
-										{p.reservation.stand.label}
-										{p.reservation.stand.standNumber}
-									</td>
-
-									<td className="p-2">
-										<ReservationStatus reservation={p.reservation} />
+										<div className="flex flex-wrap gap-1">
+											{festival.statuses.map((status) => (
+												<ReservationStatusBadge key={status} status={status} />
+											))}
+										</div>
 									</td>
 								</tr>
 							))}
