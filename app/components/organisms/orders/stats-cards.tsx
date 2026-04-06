@@ -48,7 +48,7 @@ export default function OrdersStatsCards({
 			value: stats.needsAttention,
 			icon: AlertTriangleIcon,
 			accent: stats.needsAttention > 0,
-			href: "/dashboard/store/orders",
+			href: "/dashboard/store/orders?status=needs_attention",
 		},
 		{
 			label: "En proceso",

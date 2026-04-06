@@ -3,7 +3,7 @@
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
 import { OrderWithRelations } from "@/app/lib/orders/definitions";
 import { DateTime } from "luxon";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export type DatePeriod = "all" | "today" | "week" | "month";
 
@@ -11,6 +11,7 @@ export function useOrdersDateFilter(orders: OrderWithRelations[]) {
 	const [period, setPeriod] = useState<DatePeriod>("all");
 	const [dateFrom, setDateFrom] = useState("");
 	const [dateTo, setDateTo] = useState("");
+	const [now, setNow] = useState(() => DateTime.now().setZone(STORE_TIMEZONE));
 
 	const hasCustomRange = !!(dateFrom || dateTo);
 
@@ -29,6 +30,22 @@ export function useOrdersDateFilter(orders: OrderWithRelations[]) {
 		setDateTo(v);
 		if (v) setPeriod("all");
 	}
+
+	useEffect(() => {
+		const refreshNow = () => {
+			setNow(DateTime.now().setZone(STORE_TIMEZONE));
+		};
+
+		const intervalId = window.setInterval(refreshNow, 60 * 1000);
+		window.addEventListener("focus", refreshNow);
+		document.addEventListener("visibilitychange", refreshNow);
+
+		return () => {
+			window.clearInterval(intervalId);
+			window.removeEventListener("focus", refreshNow);
+			document.removeEventListener("visibilitychange", refreshNow);
+		};
+	}, []);
 
 	const filteredByDate = useMemo(() => {
 		if (hasCustomRange) {
@@ -52,7 +69,6 @@ export function useOrdersDateFilter(orders: OrderWithRelations[]) {
 
 		if (period === "all") return orders;
 
-		const now = DateTime.now().setZone(STORE_TIMEZONE);
 		const cutoff =
 			period === "today"
 				? now.startOf("day")
@@ -63,7 +79,7 @@ export function useOrdersDateFilter(orders: OrderWithRelations[]) {
 		return orders.filter(
 			(o) => formatDate(o.createdAt).toMillis() >= cutoff.toMillis(),
 		);
-	}, [orders, period, dateFrom, dateTo, hasCustomRange]);
+	}, [orders, period, dateFrom, dateTo, hasCustomRange, now]);
 
 	return {
 		period,

@@ -626,10 +626,14 @@ export async function fetchOrders() {
 	}
 }
 
-export async function fetchOrdersByStatus(status?: OrderStatus) {
+export async function fetchOrdersByStatus(status?: OrderStatus | readonly OrderStatus[]) {
 	try {
 		return await db.query.orders.findMany({
-			where: status ? eq(orders.status, status) : undefined,
+			where: status
+				? Array.isArray(status)
+					? inArray(orders.status, status)
+					: eq(orders.status, status)
+				: undefined,
 			orderBy: [desc(orders.createdAt)],
 			with: {
 				customer: {

@@ -23,15 +23,16 @@ import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
 import { use, useMemo, useOptimistic, useState, useTransition } from "react";
 
-type ActiveStatus = OrderStatus | "all";
+type ActiveStatus = OrderStatus | "all" | "needs_attention";
 
 type OrdersCardListProps = {
 	ordersPromise: Promise<OrderWithRelations[]>;
 	activeStatus: ActiveStatus;
 };
 
-const STATUS_OPTIONS: { value: "" | OrderStatus; label: string }[] = [
+const STATUS_OPTIONS: { value: "" | OrderStatus | "needs_attention"; label: string }[] = [
 	{ value: "", label: "Todos" },
+	{ value: "needs_attention", label: "Requieren atención" },
 	{ value: "pending", label: getOrderStatusLabel("pending") },
 	{
 		value: "payment_verification",
@@ -43,7 +44,7 @@ const STATUS_OPTIONS: { value: "" | OrderStatus; label: string }[] = [
 	{ value: "cancelled", label: getOrderStatusLabel("cancelled") },
 ];
 
-function chipToActive(value: "" | OrderStatus): ActiveStatus {
+function chipToActive(value: "" | OrderStatus | "needs_attention"): ActiveStatus {
 	return value === "" ? "all" : value;
 }
 
@@ -93,6 +94,7 @@ function OrderCard({
 }) {
 	const router = useRouter();
 	const nowInStore = DateTime.now().setZone(STORE_TIMEZONE);
+	const goToOrder = () => router.push(`/dashboard/store/orders/${order.id}`);
 
 	const isOverdue =
 		!!order.paymentDueDate &&
@@ -102,9 +104,12 @@ function OrderCard({
 	const hasPendingVoucher =
 		!!order.paymentVoucherUrl && order.status === "payment_verification";
 
-	const showStatusBadge = activeStatus === "all";
+	const showStatusBadge = activeStatus === "all" || activeStatus === "needs_attention";
 	const showOverdueBadge =
-		isOverdue && (activeStatus === "all" || activeStatus === "pending");
+		isOverdue &&
+		(activeStatus === "all" ||
+			activeStatus === "needs_attention" ||
+			activeStatus === "pending");
 
 	const itemsPreview = order.orderItems
 		.slice(0, 2)
@@ -119,7 +124,15 @@ function OrderCard({
 				"cursor-pointer transition-colors hover:bg-accent/40",
 				isOverdue && "border-red-200 bg-red-50/30",
 			)}
-			onClick={() => router.push(`/dashboard/store/orders/${order.id}`)}
+			role="button"
+			tabIndex={0}
+			onClick={goToOrder}
+			onKeyDown={(event) => {
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					goToOrder();
+				}
+			}}
 		>
 			<CardContent className="p-4">
 				<div className="flex items-start justify-between gap-2">
@@ -203,7 +216,7 @@ export default function OrdersCardList({
 		handleToChange,
 	} = useOrdersDateFilter(orders);
 
-	function handleStatusChange(value: "" | OrderStatus) {
+	function handleStatusChange(value: "" | OrderStatus | "needs_attention") {
 		const param = value === "" ? "all" : value;
 		startTransition(() => {
 			setOptimisticStatus(chipToActive(value));
@@ -256,7 +269,7 @@ export default function OrdersCardList({
 						>
 							<SlidersHorizontalIcon className="h-3.5 w-3.5" />
 							Filtros
-							{(search !== "" || hasCustomRange) && (
+							{(search !== "" || hasCustomRange || period !== "all") && (
 								<span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
 							)}
 						</button>

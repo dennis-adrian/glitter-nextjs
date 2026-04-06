@@ -18,7 +18,7 @@ import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
 import { use, useOptimistic, useTransition } from "react";
 
-type ActiveStatus = OrderStatus | "all";
+type ActiveStatus = OrderStatus | "all" | "needs_attention";
 
 type OrdersTableProps = {
 	ordersPromise: Promise<OrderWithRelations[]>;
@@ -27,6 +27,7 @@ type OrdersTableProps = {
 
 const STATUS_OPTIONS: { value: ActiveStatus; label: string }[] = [
 	{ value: "all", label: "Todos" },
+	{ value: "needs_attention", label: "Requieren atención" },
 	{ value: "pending", label: getOrderStatusLabel("pending") },
 	{
 		value: "payment_verification",

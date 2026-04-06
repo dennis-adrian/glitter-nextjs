@@ -6,7 +6,11 @@ import { orderStatusEnum } from "@/db/schema";
 import { Suspense } from "react";
 import { z } from "zod";
 
-const STATUS_VALUES = [...orderStatusEnum.enumValues, "all"] as const;
+const STATUS_VALUES = [
+	...orderStatusEnum.enumValues,
+	"all",
+	"needs_attention",
+] as const;
 
 const SearchParamsSchema = z.object({
 	status: z.enum(STATUS_VALUES).catch("pending"),
@@ -17,7 +21,12 @@ export default async function StoreOrdersPage(props: {
 }) {
 	const raw = await props.searchParams;
 	const { status } = SearchParamsSchema.parse(raw);
-	const statusFilter = status === "all" ? undefined : status;
+	const statusFilter =
+		status === "all"
+			? undefined
+			: status === "needs_attention"
+				? (["pending", "payment_verification"] as const)
+				: status;
 	const ordersPromise = fetchOrdersByStatus(statusFilter);
 
 	return (
