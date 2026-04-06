@@ -1,3 +1,5 @@
+import { resolveCouponBookHeaderImageUrl } from "@/app/lib/festival_activites/coupon-book-header-image";
+
 export const COUPON_BOOK_PAGE_WIDTH_CM = 21.59;
 export const COUPON_BOOK_PAGE_HEIGHT_CM = 16.5;
 export const COUPON_BOOK_COLUMNS = 5;
@@ -176,7 +178,9 @@ export function buildCouponBookVariants(
 		return {
 			detailId: detail.id,
 			detailLabel: detail.description?.trim() || `Variante ${detailIndex + 1}`,
-			headerImageUrl: detail.couponBookHeaderImageUrl ?? null,
+			headerImageUrl: resolveCouponBookHeaderImageUrl(
+				detail.couponBookHeaderImageUrl ?? null,
+			),
 			entries,
 		};
 	});

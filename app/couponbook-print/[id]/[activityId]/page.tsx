@@ -1,5 +1,5 @@
 import CouponBookPrintPage from "@/app/components/festivals/festival_activities/coupon-book-print-page";
-import { fetchParticipationPreviewData } from "@/app/lib/festival_activites/actions";
+import { fetchParticipationPreviewDataBatch } from "@/app/lib/festival_activites/actions";
 import {
 	COUPON_BOOK_PAGE_HEIGHT_CM,
 	COUPON_BOOK_PAGE_WIDTH_CM,
@@ -76,28 +76,33 @@ export default async function CouponBookPrintDocumentPage({
 			: variants.filter((variant) => variant.detailId === detailId);
 	if (selectedVariants.length === 0) notFound();
 
-	const hydratedVariants = await Promise.all(
-		selectedVariants.map(async (variant) => {
-			const entries = await Promise.all(
-				variant.entries.map(async (entry) => {
-					if (!entry.participationId) return entry;
-					const previewData = await fetchParticipationPreviewData(
-						entry.participationId,
-					);
-					if (!previewData) return entry;
-					return {
-						...entry,
-						imageUrl: previewData.imageUrl,
-						participantName:
-							previewData.participantName ?? entry.participantName,
-						standLabels: previewData.standLabels,
-						sectorName: previewData.sectorName,
-					};
-				}),
-			);
-			return { ...variant, entries };
-		}),
-	);
+	const participationIds = [
+		...new Set(
+			selectedVariants.flatMap((variant) =>
+				variant.entries
+					.map((entry) => entry.participationId)
+					.filter((id): id is number => typeof id === "number"),
+			),
+		),
+	];
+	const previewDataMap =
+		await fetchParticipationPreviewDataBatch(participationIds);
+
+	const hydratedVariants = selectedVariants.map((variant) => {
+		const entries = variant.entries.map((entry) => {
+			if (!entry.participationId) return entry;
+			const previewData = previewDataMap[entry.participationId];
+			if (!previewData) return entry;
+			return {
+				...entry,
+				imageUrl: previewData.imageUrl,
+				participantName: previewData.participantName ?? entry.participantName,
+				standLabels: previewData.standLabels,
+				sectorName: previewData.sectorName,
+			};
+		});
+		return { ...variant, entries };
+	});
 
 	const couponBookPages = hydratedVariants.flatMap((variant) =>
 		paginateCouponBookEntries(variant.entries).map((page) => ({

@@ -11,6 +11,29 @@ const ParamsSchema = z.object({
 	activityId: z.coerce.number(),
 });
 
+function parseCookieHeaderForOrigin(cookieHeader: string, origin: string) {
+	return cookieHeader
+		.split(";")
+		.map((entry) => entry.trim())
+		.filter(Boolean)
+		.map((entry) => {
+			const separatorIndex = entry.indexOf("=");
+			if (separatorIndex < 1) return null;
+
+			const name = entry.slice(0, separatorIndex).trim();
+			const value = entry.slice(separatorIndex + 1).trim();
+			if (!name) return null;
+
+			return {
+				url: origin,
+				name,
+				value,
+				path: "/",
+			};
+		})
+		.filter((cookie) => cookie !== null);
+}
+
 export async function GET(
 	request: NextRequest,
 	context: { params: Promise<{ activityId: string }> },
@@ -32,6 +55,11 @@ export async function GET(
 	const requestedDetailId = searchParams.get("detailId");
 	const parsedDetailId = requestedDetailId ? Number(requestedDetailId) : null;
 	const detailId = Number.isFinite(parsedDetailId) ? parsedDetailId : null;
+	if (detailId === null) {
+		searchParams.delete("detailId");
+	} else {
+		searchParams.set("detailId", String(detailId));
+	}
 	const pdfCanvas = resolvePdfCanvasConfig(searchParams);
 
 	const { activityId } = validatedParams.data;
@@ -60,13 +88,19 @@ export async function GET(
 		headless: true,
 		args: ["--no-sandbox", "--disable-setuid-sandbox"],
 	});
+	let browserContext: Awaited<ReturnType<typeof browser.newContext>> | null =
+		null;
 
 	try {
-		const page = await browser.newPage();
+		browserContext = await browser.newContext();
 		const cookieHeader = request.headers.get("cookie");
 		if (cookieHeader) {
-			await page.setExtraHTTPHeaders({ cookie: cookieHeader });
+			const cookies = parseCookieHeaderForOrigin(cookieHeader, printUrl.origin);
+			if (cookies.length > 0) {
+				await browserContext.addCookies(cookies);
+			}
 		}
+		const page = await browserContext.newPage();
 		await page.goto(printUrl.toString(), { waitUntil: "networkidle" });
 		await page.waitForSelector("[data-couponbook-print-ready='true']", {
 			timeout: 10000,
@@ -130,6 +164,9 @@ export async function GET(
 			},
 		});
 	} finally {
+		if (browserContext) {
+			await browserContext.close();
+		}
 		await browser.close();
 	}
 }

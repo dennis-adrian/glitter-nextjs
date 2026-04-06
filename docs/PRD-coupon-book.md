@@ -2,7 +2,7 @@
 
 ## 1) Overview
 
-The Coupon Book feature enables festival admins to generate a printable coupon sheet from participant proof content in festival activities. It provides a collapsible side panel for layout tuning and exports high-fidelity PDFs with configurable sheet size/orientation. The preview is WYSIWYG in that it matches print output exactly.
+The Coupon Book feature enables festival admins to generate a printable coupon sheet from participant proof content in festival activities. It provides a collapsible side panel for layout tuning and exports high-fidelity PDFs with configurable sheet size/orientation. The preview targets near-WYSIWYG parity (<=2px layout tolerance); QA passes only when corresponding element bounds between preview and exported PDF differ by no more than 2px and text fit behavior is identical (no clipping/ellipsis regressions).
 
 The implementation is designed so preview and print use the same visual structure, minimizing divergence between UI and exported documents.
 
@@ -17,7 +17,7 @@ Admins need to:
 
 ## 3) Goals
 
-- Provide exact-ish print preview parity with final PDF.
+- Goal 1: Provide near-WYSIWYG parity (<=2px layout tolerance) between print preview and final PDF; QA pass criterion is that corresponding element bounds differ by no more than 2px and text fit behavior is identical (no clipping/ellipsis regressions), otherwise QA fails.
 - Support dynamic text fitting so content is always visible.
 - Include only approved + pending-review proofs.
 - Allow admin-controlled layout tuning (text boxes, columns, font sizes, header image scale).

@@ -178,13 +178,13 @@ export function resolveCouponTextLayoutConfig(
 export function resolvePdfCanvasConfig(
 	searchParams: URLSearchParams,
 ): PdfCanvasConfig {
-	const widthCm = parseNumberSetting(
+	const parsedWidthCm = parseNumberSetting(
 		searchParams.get("pdfWcm"),
 		COUPON_BOOK_PAGE_WIDTH_CM,
 		10,
 		200,
 	);
-	const heightCm = parseNumberSetting(
+	const parsedHeightCm = parseNumberSetting(
 		searchParams.get("pdfHcm"),
 		COUPON_BOOK_PAGE_HEIGHT_CM,
 		10,
@@ -192,11 +192,26 @@ export function resolvePdfCanvasConfig(
 	);
 	const orientation = parseOrientation(searchParams.get("pdfOrientation"));
 
-	const longSide = Math.max(widthCm, heightCm);
-	const shortSide = Math.min(widthCm, heightCm);
+	const longSide = Math.max(parsedWidthCm, parsedHeightCm);
+	const shortSide = Math.min(parsedWidthCm, parsedHeightCm);
+
+	if (orientation === "landscape") {
+		return {
+			widthCm: Math.max(longSide, COUPON_BOOK_PAGE_WIDTH_CM),
+			heightCm: Math.max(shortSide, COUPON_BOOK_PAGE_HEIGHT_CM),
+			orientation,
+		};
+	}
+
+	const clampedWidthCm = Math.max(shortSide, COUPON_BOOK_PAGE_WIDTH_CM);
+	const clampedHeightCm = Math.max(
+		longSide,
+		COUPON_BOOK_PAGE_HEIGHT_CM,
+		clampedWidthCm,
+	);
 	return {
-		widthCm: orientation === "landscape" ? longSide : shortSide,
-		heightCm: orientation === "landscape" ? shortSide : longSide,
+		widthCm: clampedWidthCm,
+		heightCm: clampedHeightCm,
 		orientation,
 	};
 }

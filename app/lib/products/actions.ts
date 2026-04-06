@@ -335,10 +335,22 @@ export async function updateProductStock(
 			message: "No tienes permisos para realizar esta acción.",
 		};
 	}
+
+	let validatedStock: number | null = stock;
+	if (stock !== null) {
+		if (!Number.isFinite(stock) || !Number.isInteger(stock) || stock < 0) {
+			return {
+				success: false,
+				message: "El stock debe ser un numero entero mayor o igual a 0.",
+			};
+		}
+		validatedStock = stock;
+	}
+
 	try {
 		const [updated] = await db
 			.update(products)
-			.set({ stock, updatedAt: new Date() })
+			.set({ stock: validatedStock, updatedAt: new Date() })
 			.where(eq(products.id, id))
 			.returning({ slug: products.slug });
 

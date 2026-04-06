@@ -25,17 +25,23 @@ export default function ParticipantSelection({
 	// Initialize from localStorage on mount
 	useEffect(() => {
 		const stored = localStorage.getItem(storageKey);
-		if (stored) {
-			try {
-				const parsed = JSON.parse(stored);
-				if (Array.isArray(parsed)) {
-					setSelectedParticipants(parsed);
-				}
-			} catch (e) {
-				console.error(
-					"Failed to parse selected participants from localStorage",
-				);
+		if (stored === null) {
+			setSelectedParticipants([]);
+			return;
+		}
+
+		try {
+			const parsed = JSON.parse(stored);
+			if (Array.isArray(parsed)) {
+				setSelectedParticipants(parsed);
+			} else {
+				setSelectedParticipants([]);
 			}
+		} catch (e) {
+			setSelectedParticipants([]);
+			console.error(
+				"Failed to parse selected participants from localStorage",
+			);
 		}
 	}, [storageKey]);
 

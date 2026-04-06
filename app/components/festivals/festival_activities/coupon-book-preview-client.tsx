@@ -44,6 +44,7 @@ type CouponBookPreviewClientProps = {
 };
 
 type BoxKey = "nameBox" | "highlightBox" | "descriptionBox" | "validityBox";
+type BoxNumericField = "xPct" | "yPct" | "widthPct" | "heightPct";
 
 type StoredCouponLayout = {
 	textLayoutConfig: CouponTextLayoutConfig;
@@ -83,18 +84,45 @@ export default function CouponBookPreviewClient({
 
 	const setBoxValue = (
 		boxKey: BoxKey,
-		field: keyof CouponTextBoxConfig,
+		field: BoxNumericField,
 		value: string,
 		min: number,
 		max: number,
 	) => {
 		const parsed = Number(value);
 		if (!Number.isFinite(parsed)) return;
-		const clamped = clamp(parsed, min, max);
-		setTextLayoutConfig((prev) => ({
-			...prev,
-			[boxKey]: { ...prev[boxKey], [field]: clamped },
-		}));
+		const clampField = (
+			nextValue: number,
+			fieldMin: number,
+			fieldMax: number,
+		) => clamp(nextValue, fieldMin, Math.max(fieldMin, fieldMax));
+		setTextLayoutConfig((prev) => {
+			const current = prev[boxKey];
+			const next: CouponTextBoxConfig = { ...current };
+
+			if (field === "xPct") {
+				const maxX = Math.min(max, 100 - current.widthPct);
+				next.xPct = clampField(parsed, min, maxX);
+				next.widthPct = clampField(current.widthPct, 10, 100 - next.xPct);
+			} else if (field === "widthPct") {
+				const maxWidth = Math.min(max, 100 - current.xPct);
+				next.widthPct = clampField(parsed, min, maxWidth);
+				next.xPct = clampField(current.xPct, 0, 100 - next.widthPct);
+			} else if (field === "yPct") {
+				const maxY = Math.min(max, 100 - current.heightPct);
+				next.yPct = clampField(parsed, min, maxY);
+				next.heightPct = clampField(current.heightPct, 5, 100 - next.yPct);
+			} else if (field === "heightPct") {
+				const maxHeight = Math.min(max, 100 - current.yPct);
+				next.heightPct = clampField(parsed, min, maxHeight);
+				next.yPct = clampField(current.yPct, 0, 100 - next.heightPct);
+			}
+
+			return {
+				...prev,
+				[boxKey]: next,
+			};
+		});
 	};
 
 	const setRootValue = (
@@ -350,8 +378,11 @@ export default function CouponBookPreviewClient({
 					</p>
 					<div className="grid grid-cols-2 gap-2">
 						<div className="space-y-1">
-							<Label className="text-xs">Ancho (cm)</Label>
+							<Label htmlFor="pdf-width-cm" className="text-xs">
+								Ancho (cm)
+							</Label>
 							<Input
+								id="pdf-width-cm"
 								type="number"
 								step="0.01"
 								min="10"
@@ -370,8 +401,11 @@ export default function CouponBookPreviewClient({
 							/>
 						</div>
 						<div className="space-y-1">
-							<Label className="text-xs">Alto (cm)</Label>
+							<Label htmlFor="pdf-height-cm" className="text-xs">
+								Alto (cm)
+							</Label>
 							<Input
+								id="pdf-height-cm"
 								type="number"
 								step="0.01"
 								min="10"
@@ -391,7 +425,13 @@ export default function CouponBookPreviewClient({
 						</div>
 					</div>
 					<div className="space-y-1">
-						<Label className="text-xs">Orientación</Label>
+						<Label
+							id="orientation-select-label"
+							htmlFor="orientation-select"
+							className="text-xs"
+						>
+							Orientación
+						</Label>
 						<Select
 							value={pdfCanvasConfig.orientation}
 							onValueChange={(value) =>
@@ -401,7 +441,11 @@ export default function CouponBookPreviewClient({
 								}))
 							}
 						>
-							<SelectTrigger className="w-full">
+							<SelectTrigger
+								id="orientation-select"
+								aria-labelledby="orientation-select-label"
+								className="w-full"
+							>
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
@@ -422,8 +466,11 @@ export default function CouponBookPreviewClient({
 						Layout
 					</p>
 					<div className="space-y-1">
-						<Label className="text-xs">Columna Izquierda (%)</Label>
+						<Label htmlFor="left-column-width-pct" className="text-xs">
+							Columna Izquierda (%)
+						</Label>
 						<Input
+							id="left-column-width-pct"
 							type="number"
 							step="1"
 							min="20"
@@ -435,8 +482,11 @@ export default function CouponBookPreviewClient({
 						/>
 					</div>
 					<div className="space-y-1">
-						<Label className="text-xs">Escala Header (%)</Label>
+						<Label htmlFor="header-scale-pct" className="text-xs">
+							Escala Header (%)
+						</Label>
 						<Input
+							id="header-scale-pct"
 							type="number"
 							step="1"
 							min="10"
@@ -451,8 +501,11 @@ export default function CouponBookPreviewClient({
 						<p className="text-xs text-muted-foreground">Tamaños de Fuente</p>
 						<div className="grid grid-cols-2 gap-2">
 							<div className="space-y-1">
-								<Label className="text-xs">Stand (mm)</Label>
+								<Label htmlFor="stand-font-size-mm" className="text-xs">
+									Stand (mm)
+								</Label>
 								<Input
+									id="stand-font-size-mm"
 									type="number"
 									step="0.1"
 									min="1.5"
@@ -464,8 +517,11 @@ export default function CouponBookPreviewClient({
 								/>
 							</div>
 							<div className="space-y-1">
-								<Label className="text-xs">Sector (mm)</Label>
+								<Label htmlFor="sector-font-size-mm" className="text-xs">
+									Sector (mm)
+								</Label>
 								<Input
+									id="sector-font-size-mm"
 									type="number"
 									step="0.1"
 									min="1.5"
@@ -495,10 +551,14 @@ export default function CouponBookPreviewClient({
 								<p className="text-xs font-medium">{label}</p>
 								<div className="grid grid-cols-2 gap-2">
 									<div className="space-y-1">
-										<Label className="text-xs text-muted-foreground">
+										<Label
+											htmlFor={`${key}-xPct`}
+											className="text-xs text-muted-foreground"
+										>
 											X (%)
 										</Label>
 										<Input
+											id={`${key}-xPct`}
 											type="number"
 											step="1"
 											min="0"
@@ -510,10 +570,14 @@ export default function CouponBookPreviewClient({
 										/>
 									</div>
 									<div className="space-y-1">
-										<Label className="text-xs text-muted-foreground">
+										<Label
+											htmlFor={`${key}-yPct`}
+											className="text-xs text-muted-foreground"
+										>
 											Y (%)
 										</Label>
 										<Input
+											id={`${key}-yPct`}
 											type="number"
 											step="1"
 											min="0"
@@ -525,10 +589,14 @@ export default function CouponBookPreviewClient({
 										/>
 									</div>
 									<div className="space-y-1">
-										<Label className="text-xs text-muted-foreground">
+										<Label
+											htmlFor={`${key}-widthPct`}
+											className="text-xs text-muted-foreground"
+										>
 											W (%)
 										</Label>
 										<Input
+											id={`${key}-widthPct`}
 											type="number"
 											step="1"
 											min="10"
@@ -540,10 +608,14 @@ export default function CouponBookPreviewClient({
 										/>
 									</div>
 									<div className="space-y-1">
-										<Label className="text-xs text-muted-foreground">
+										<Label
+											htmlFor={`${key}-heightPct`}
+											className="text-xs text-muted-foreground"
+										>
 											H (%)
 										</Label>
 										<Input
+											id={`${key}-heightPct`}
 											type="number"
 											step="1"
 											min="5"
@@ -626,7 +698,9 @@ export default function CouponBookPreviewClient({
 				<div className="flex-1 min-w-0 p-4 space-y-4">
 					{/* Variant selector + stats */}
 					<div className="space-y-2">
-						<Label>Variante</Label>
+						<Label id="variant-select-label" htmlFor="variant-select">
+							Variante
+						</Label>
 						<Select
 							value={String(selectedDetailId)}
 							onValueChange={(value) => {
@@ -634,7 +708,11 @@ export default function CouponBookPreviewClient({
 								setSelectedPageIndex(0);
 							}}
 						>
-							<SelectTrigger className="w-full">
+							<SelectTrigger
+								id="variant-select"
+								aria-labelledby="variant-select-label"
+								className="w-full"
+							>
 								<SelectValue placeholder="Selecciona una variante" />
 							</SelectTrigger>
 							<SelectContent>
@@ -682,6 +760,7 @@ export default function CouponBookPreviewClient({
 									variant="ghost"
 									size="icon"
 									className="h-7 w-7 ml-1"
+									aria-label="Página anterior"
 									disabled={selectedPageIndex === 0}
 									onClick={() => setSelectedPageIndex((i) => i - 1)}
 								>
@@ -691,6 +770,7 @@ export default function CouponBookPreviewClient({
 									variant="ghost"
 									size="icon"
 									className="h-7 w-7"
+									aria-label="Página siguiente"
 									disabled={selectedPageIndex === pages.length - 1}
 									onClick={() => setSelectedPageIndex((i) => i + 1)}
 								>

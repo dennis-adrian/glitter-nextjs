@@ -111,6 +111,38 @@ describe("coupon-book-builder", () => {
 		]);
 	});
 
+	it("resolves internal header image identifiers to safe internal URLs", () => {
+		const variants = buildCouponBookVariants({
+			details: [
+				{
+					id: 22,
+					description: "Variante Header",
+					couponBookHeaderImageUrl: "uploadthing:abc123-safeAssetKey",
+					participants: [],
+				},
+			],
+		});
+
+		expect(variants[0].headerImageUrl).toBe(
+			"https://utfs.io/f/abc123-safeAssetKey",
+		);
+	});
+
+	it("drops non-allowlisted header image URLs from rendered variants", () => {
+		const variants = buildCouponBookVariants({
+			details: [
+				{
+					id: 33,
+					description: "Variante Header",
+					couponBookHeaderImageUrl: "https://evil.example.com/payload.png",
+					participants: [],
+				},
+			],
+		});
+
+		expect(variants[0].headerImageUrl).toBeNull();
+	});
+
 	it("paginates using header-dynamic slot + 25 body slots", () => {
 		const entries = Array.from(
 			{ length: COUPON_BOOK_DYNAMIC_SLOTS_PER_PAGE + 3 },
