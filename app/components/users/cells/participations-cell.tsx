@@ -19,7 +19,17 @@ type Props = {
 export default function ParticipationsCell({ participations }: Props) {
   const [open, setOpen] = useState(false);
 
-  const count = participations?.length || 0;
+  const uniqueFestivalIds = new Set(
+    (participations || [])
+      .map((participation) => {
+        return (
+          participation?.reservation?.festivalId ??
+          participation?.reservation?.festival?.id
+        );
+      })
+      .filter((festivalId): festivalId is number => festivalId != null),
+  );
+  const count = uniqueFestivalIds.size;
 
   if (count === 0) {
     return <span>0 participaciones</span>;
