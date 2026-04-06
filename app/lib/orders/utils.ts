@@ -16,7 +16,7 @@ export function hasPreorders(order: OrderWithRelations): boolean {
 export function getOrderStatusLabel(status: OrderStatus): string {
 	switch (status) {
 		case "pending":
-			return "Por confirmar";
+			return "Pendiente";
 		case "payment_verification":
 			return "Pago en verificación";
 		case "processing":

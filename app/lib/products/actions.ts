@@ -324,6 +324,126 @@ export async function toggleProductVisibility(
 	};
 }
 
+export async function updateProductStock(
+	id: number,
+	stock: number | null,
+): Promise<{ success: boolean; message: string }> {
+	const currentProfile = await getCurrentUserProfile();
+	if (!currentProfile || currentProfile.role !== "admin") {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción.",
+		};
+	}
+	try {
+		const [updated] = await db
+			.update(products)
+			.set({ stock, updatedAt: new Date() })
+			.where(eq(products.id, id))
+			.returning({ slug: products.slug });
+
+		if (!updated) {
+			return { success: false, message: "Producto no encontrado." };
+		}
+
+		revalidatePath(`/store/products/${updated.slug}`);
+		revalidatePath("/dashboard/store/products");
+		revalidatePath("/dashboard/store/analytics");
+		revalidatePath("/store");
+		return { success: true, message: "Stock actualizado." };
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "No se pudo actualizar el stock." };
+	}
+}
+
+export async function bulkToggleProductVisibility(
+	ids: number[],
+	isVisible: boolean,
+): Promise<{ success: boolean; message: string; slugs: string[] }> {
+	if (ids.length === 0) {
+		return {
+			success: true,
+			message: "No hay productos seleccionados.",
+			slugs: [],
+		};
+	}
+	const currentProfile = await getCurrentUserProfile();
+	if (!currentProfile || currentProfile.role !== "admin") {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción.",
+			slugs: [],
+		};
+	}
+	let slugs: string[] = [];
+	try {
+		await db
+			.update(products)
+			.set({ isVisible, updatedAt: new Date() })
+			.where(inArray(products.id, ids));
+
+		const updatedRows = await db
+			.select({ slug: products.slug })
+			.from(products)
+			.where(inArray(products.id, ids));
+		slugs = updatedRows.map((row) => row.slug);
+	} catch (error) {
+		console.error(error);
+		return {
+			success: false,
+			message: "No se pudo actualizar la visibilidad.",
+			slugs: [],
+		};
+	}
+	revalidatePath("/dashboard/store/products");
+	revalidatePath("/store");
+	for (const slug of slugs) {
+		revalidatePath(`/store/products/${slug}`);
+	}
+	return {
+		success: true,
+		message: isVisible
+			? `${ids.length} productos visibles.`
+			: `${ids.length} productos ocultos.`,
+		slugs,
+	};
+}
+
+export async function bulkDeleteProducts(
+	ids: number[],
+): Promise<{ success: boolean; message: string }> {
+	if (ids.length === 0) {
+		return { success: true, message: "No hay productos seleccionados." };
+	}
+	const currentProfile = await getCurrentUserProfile();
+	if (!currentProfile || currentProfile.role !== "admin") {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción.",
+		};
+	}
+	let deletedSlugs: string[] = [];
+	try {
+		const rows = await db
+			.select({ slug: products.slug })
+			.from(products)
+			.where(inArray(products.id, ids));
+		deletedSlugs = rows.map((row) => row.slug);
+
+		await db.delete(products).where(inArray(products.id, ids));
+	} catch (error) {
+		console.error(error);
+		return { success: false, message: "No se pudo eliminar los productos." };
+	}
+	revalidatePath("/dashboard/store/products");
+	for (const slug of deletedSlugs) {
+		revalidatePath(`/store/products/${slug}`);
+	}
+	revalidatePath("/store");
+	return { success: true, message: `${ids.length} productos eliminados.` };
+}
+
 export async function fetchLowStockProducts(threshold = 5) {
 	try {
 		return await db

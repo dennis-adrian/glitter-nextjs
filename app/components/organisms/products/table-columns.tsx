@@ -3,16 +3,20 @@
 import DeleteProductModal from "@/app/components/organisms/products/delete-product-modal";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
+import { Input } from "@/app/components/ui/input";
 import { Switch } from "@/app/components/ui/switch";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
-import { toggleProductVisibility } from "@/app/lib/products/actions";
+import {
+	toggleProductVisibility,
+	updateProductStock,
+} from "@/app/lib/products/actions";
 import { cn } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
 import { EditIcon, StarIcon, Trash2Icon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -62,6 +66,82 @@ function VisibilityToggle({ product }: { product: BaseProductWithImages }) {
 			disabled={loading}
 			aria-label={visible ? "Ocultar producto" : "Mostrar producto"}
 		/>
+	);
+}
+
+function StockCell({ product }: { product: BaseProductWithImages }) {
+	const [stock, setStock] = useState(product.stock ?? 0);
+	const [editing, setEditing] = useState(false);
+	const [inputValue, setInputValue] = useState(String(stock));
+	const [loading, setLoading] = useState(false);
+	const inputRef = useRef<HTMLInputElement>(null);
+
+	function handleBadgeClick() {
+		setInputValue(String(stock));
+		setEditing(true);
+		setTimeout(() => inputRef.current?.select(), 0);
+	}
+
+	async function handleCommit() {
+		const parsed = parseInt(inputValue, 10);
+		const newStock = isNaN(parsed) || parsed < 0 ? stock : parsed;
+		setEditing(false);
+		if (newStock === stock) return;
+
+		const prev = stock;
+		setStock(newStock);
+		setLoading(true);
+		try {
+			const result = await updateProductStock(product.id, newStock);
+			if (!result.success) {
+				setStock(prev);
+				toast.error(result.message);
+			}
+		} catch {
+			setStock(prev);
+			toast.error("No se pudo actualizar el stock.");
+		} finally {
+			setLoading(false);
+		}
+	}
+
+	if (editing) {
+		return (
+			<Input
+				ref={inputRef}
+				type="number"
+				min={0}
+				value={inputValue}
+				onChange={(e) => setInputValue(e.target.value)}
+				onBlur={handleCommit}
+				onKeyDown={(e) => {
+					if (e.key === "Enter") handleCommit();
+					if (e.key === "Escape") {
+						setInputValue(String(stock));
+						setEditing(false);
+					}
+				}}
+				className="h-7 w-16 px-2 text-sm"
+				disabled={loading}
+			/>
+		);
+	}
+
+	return (
+		<Badge
+			variant="outline"
+			className={cn(
+				"cursor-pointer",
+				stock === 0
+					? "border-red-300 text-red-600"
+					: stock <= 5
+						? "border-amber-300 text-amber-600"
+						: "border-green-300 text-green-600",
+			)}
+			onClick={handleBadgeClick}
+		>
+			{stock}
+		</Badge>
 	);
 }
 
@@ -140,23 +220,7 @@ export const columns: ColumnDef<BaseProductWithImages>[] = [
 		header: ({ column }) => (
 			<DataTableColumnHeader column={column} title={columnTitles.stock} />
 		),
-		cell: ({ row }) => {
-			const stock = row.original.stock ?? 0;
-			return (
-				<Badge
-					variant="outline"
-					className={cn(
-						stock === 0
-							? "border-red-300 text-red-600"
-							: stock <= 5
-								? "border-amber-300 text-amber-600"
-								: "border-green-300 text-green-600",
-					)}
-				>
-					{stock}
-				</Badge>
-			);
-		},
+		cell: ({ row }) => <StockCell product={row.original} />,
 	},
 	{
 		accessorKey: "status",

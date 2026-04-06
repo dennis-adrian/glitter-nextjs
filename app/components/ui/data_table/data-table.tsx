@@ -9,6 +9,7 @@ import type { Table as TableInstance } from "@tanstack/react-table";
 import {
 	ColumnDef,
 	ColumnFiltersState,
+	RowSelectionState,
 	SortingState,
 	getCoreRowModel,
 	getFilteredRowModel,
@@ -23,6 +24,7 @@ import { DataTableHeader } from "@/app/components/ui/data_table/data-table-heade
 import { DataTableFilter } from "@/app/components/ui/data_table/filter";
 import { DataTableFilters } from "@/app/components/ui/data_table/filters";
 import { DataTablePagination } from "@/app/components/ui/data_table/pagination";
+import { Checkbox } from "@/app/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Table } from "@/components/ui/table";
 
@@ -45,7 +47,31 @@ interface DataTableProps<TData, TValue> {
 	filters?: DataTableFiltersProps[];
 	initialState?: DataTableInitialState;
 	actions?: ReactNode | ((table: TableInstance<TData>) => ReactNode);
+	selectable?: boolean;
 }
+
+const selectColumn = {
+	id: "select",
+	header: ({ table }: { table: TableInstance<unknown> }) => (
+		<Checkbox
+			checked={
+				table.getIsAllPageRowsSelected() ||
+				(table.getIsSomePageRowsSelected() && "indeterminate")
+			}
+			onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+			aria-label="Seleccionar todos"
+		/>
+	),
+	cell: ({ row }: { row: { getIsSelected: () => boolean; toggleSelected: (v: boolean) => void } }) => (
+		<Checkbox
+			checked={row.getIsSelected()}
+			onCheckedChange={(value) => row.toggleSelected(!!value)}
+			aria-label="Seleccionar fila"
+		/>
+	),
+	enableSorting: false,
+	enableHiding: false,
+};
 
 export function DataTable<TData, TValue>({
 	columns,
@@ -54,27 +80,35 @@ export function DataTable<TData, TValue>({
 	filters = [],
 	initialState,
 	actions,
+	selectable = false,
 }: DataTableProps<TData, TValue>) {
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [searchFilter, setSearchFilter] = useState<string>("");
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
 		initialState?.columnFilters || [],
 	);
+	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+	const allColumns = selectable
+		? [selectColumn as ColumnDef<TData, TValue>, ...columns]
+		: columns;
 
 	// eslint-disable-next-line -- TanStack Table API incompatible with React Compiler
 	const table = useReactTable({
 		data,
-		columns,
+		columns: allColumns,
 		getCoreRowModel: getCoreRowModel(),
 		getPaginationRowModel: getPaginationRowModel(),
 		onSortingChange: setSorting,
 		getSortedRowModel: getSortedRowModel(),
 		getFilteredRowModel: getFilteredRowModel(),
 		onColumnFiltersChange: setColumnFilters,
+		...(selectable && { onRowSelectionChange: setRowSelection }),
 		state: {
 			sorting,
 			columnFilters,
 			globalFilter: searchFilter,
+			...(selectable && { rowSelection }),
 		},
 		initialState: {
 			columnPinning: {
@@ -124,7 +158,7 @@ export function DataTable<TData, TValue>({
 			<div className="mb-4 rounded-md border">
 				<Table wrapperClassName="max-h-[calc(100dvh-16rem)]">
 					<DataTableHeader table={table} />
-					<DataTableBody table={table} columns={columns} />
+					<DataTableBody table={table} columns={allColumns} />
 				</Table>
 			</div>
 			<div className="mb-4">
