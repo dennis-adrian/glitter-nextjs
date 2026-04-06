@@ -1,0 +1,1 @@
+ALTER TABLE "festival_activity_details" ADD COLUMN "coupon_book_header_image_url" text;

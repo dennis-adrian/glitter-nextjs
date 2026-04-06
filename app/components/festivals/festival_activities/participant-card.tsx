@@ -34,9 +34,7 @@ export default function ParticipantCard({
 					<div className="relative w-20 h-20 xs:w-28 xs:h-28 overflow-hidden rounded-md">
 						<Image
 							src={participant.proofs[0].imageUrl}
-							alt={participant.user.displayName!}
-							placeholder="blur"
-							blurDataURL="/img/placeholders/placeholder-300x300.png"
+							alt={participant.user.displayName || "Participant"}
 							fill
 							className="object-cover"
 							unoptimized
@@ -48,7 +46,6 @@ export default function ParticipantCard({
 							src="/img/placeholders/placeholder-300x300.png"
 							alt="No proof"
 							fill
-							blurDataURL="/img/placeholders/placeholder-300x300.png"
 							className="object-cover"
 						/>
 					</div>

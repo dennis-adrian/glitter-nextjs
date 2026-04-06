@@ -2,6 +2,7 @@ import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
 import { OrdersActionsCell } from "@/app/components/organisms/orders/table-actions-cell";
 import OrderVoucherDialog from "@/app/components/organisms/orders/order-voucher-dialog";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
+import SocialMediaBadge from "@/app/components/social-media-badge";
 import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
 import { OrderWithRelations } from "@/app/lib/orders/definitions";
@@ -9,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
 import { AlertTriangleIcon } from "lucide-react";
 import { DateTime } from "luxon";
+import Link from "next/link";
 
 export const columnTitles = {
 	id: "ID",
@@ -25,6 +27,14 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
 		accessorKey: "id",
 		header: ({ column }) => (
 			<DataTableColumnHeader column={column} title={columnTitles.id} />
+		),
+		cell: ({ row }) => (
+			<Link
+				href={`/dashboard/store/orders/${row.original.id}`}
+				className="font-medium text-primary hover:underline"
+			>
+				#{row.original.id}
+			</Link>
 		),
 	},
 	{
@@ -43,6 +53,14 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
 						<p className="text-muted-foreground text-xs">
 							{row.original.guestEmail ?? ""}
 						</p>
+						{row.original.guestPhone && (
+							<div className="mt-1">
+								<SocialMediaBadge
+									socialMediaType="whatsapp"
+									username={row.original.guestPhone}
+								/>
+							</div>
+						)}
 					</div>
 				);
 			}

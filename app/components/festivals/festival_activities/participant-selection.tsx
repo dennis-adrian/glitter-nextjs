@@ -1,36 +1,47 @@
 "use client";
 
 import { ActivityDetailsWithParticipants } from "@/app/lib/festivals/definitions";
-import { useCallback, useEffect, useState } from "react";
-import ParticipantCard from "../../participant-card";
+import { useCallback, useEffect, useRef, useState } from "react";
+import ParticipantCard from "./participant-card";
 import { Button } from "@/components/ui/button";
 import { RefreshCcwIcon } from "lucide-react";
 
 type ParticipantSelectionProps = {
 	participants: ActivityDetailsWithParticipants["participants"];
+	activityId?: number | string;
 };
 export default function ParticipantSelection({
 	participants,
+	activityId,
 }: ParticipantSelectionProps) {
 	const [selectedParticipants, setSelectedParticipants] = useState<number[]>(
 		[],
 	);
-	const storageKey = `selected-participants-${participants[0]?.detailsId || "default"}`;
+	const instanceStorageIdRef = useRef<string>(crypto.randomUUID());
+	const storageIdentifier =
+		participants[0]?.detailsId ?? activityId ?? instanceStorageIdRef.current;
+	const storageKey = `selected-participants-${storageIdentifier}`;
 
 	// Initialize from localStorage on mount
 	useEffect(() => {
 		const stored = localStorage.getItem(storageKey);
-		if (stored) {
-			try {
-				const parsed = JSON.parse(stored);
-				if (Array.isArray(parsed)) {
-					setSelectedParticipants(parsed);
-				}
-			} catch (e) {
-				console.error(
-					"Failed to parse selected participants from localStorage",
-				);
+		if (stored === null) {
+			setSelectedParticipants([]);
+			return;
+		}
+
+		try {
+			const parsed = JSON.parse(stored);
+			if (Array.isArray(parsed)) {
+				setSelectedParticipants(parsed);
+			} else {
+				setSelectedParticipants([]);
 			}
+		} catch (e) {
+			setSelectedParticipants([]);
+			console.error(
+				"Failed to parse selected participants from localStorage",
+			);
 		}
 	}, [storageKey]);
 

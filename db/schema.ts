@@ -793,6 +793,7 @@ export const festivalActivityDetails = pgTable("festival_activity_details", {
 	id: serial("id").primaryKey(),
 	description: text("description"),
 	imageUrl: text("image_url"),
+	couponBookHeaderImageUrl: text("coupon_book_header_image_url"),
 	participationLimit: integer("participation_limit"),
 	activityId: integer("activity_id")
 		.notNull()
@@ -824,6 +825,7 @@ export const festivalActivityParticipants = pgTable(
 			.notNull()
 			.references(() => users.id, { onDelete: "cascade" }),
 		removedAt: timestamp("removed_at"),
+		removalReason: text("removal_reason"),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},

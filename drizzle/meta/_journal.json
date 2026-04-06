@@ -1177,6 +1177,20 @@
       "when": 1774927538155,
       "tag": "0167_legal_hawkeye",
       "breakpoints": true
+    },
+    {
+      "idx": 168,
+      "version": "7",
+      "when": 1775072087926,
+      "tag": "0168_high_scarlet_spider",
+      "breakpoints": true
+    },
+    {
+      "idx": 169,
+      "version": "7",
+      "when": 1775283003255,
+      "tag": "0169_nostalgic_rage",
+      "breakpoints": true
     }
   ]
 }

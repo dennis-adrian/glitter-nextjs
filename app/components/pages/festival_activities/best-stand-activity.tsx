@@ -6,7 +6,6 @@ import { fetchFestivalParticipants } from "@/app/lib/festivals/actions";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert";
 import BestStandDisclaimer from "./best-stand-disclaimer";
 
 type BestStandActivityPageProps = {
@@ -68,8 +67,8 @@ export default async function BestStandActivityPage({
 						Para reconocer esa creatividad, en esta edición del festival los
 						participantes podrán votar en nuestro sitio web para elegir al stand
 						que más destaque por su propuesta visual y originalidad. ¡Queremos
-						invitarlos a todos a participar y votar por su stand favorito en cada
-						categoría! Cuantos más se sumen, más especial será la votación.
+						invitarlos a todos a participar y votar por su stand favorito en
+						cada categoría! Cuantos más se sumen, más especial será la votación.
 					</p>
 					<p>
 						Luego de que cierre la votación, el participante que obtenga más
@@ -188,8 +187,8 @@ export default async function BestStandActivityPage({
 						además de un pin especial de reconocimiento del{" "}
 						<em>Stand Icónico</em>. En caso de ser ilustrador y compartir stand
 						con otro ilustrador, el reconocimiento será compartido por ambos y
-						pueden hacer su reserva juntos en el próximo festival para
-						validar el premio.
+						pueden hacer su reserva juntos en el próximo festival para validar
+						el premio.
 					</p>
 					<p>
 						Los stands más votados serán anunciados en el escenario y en la

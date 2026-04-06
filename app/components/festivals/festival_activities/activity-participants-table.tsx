@@ -145,7 +145,9 @@ function buildColumns(
 					<div className="flex items-center gap-2">
 						<Avatar className="w-7 h-7 shrink-0">
 							<AvatarImage
-								src={user.imageUrl || "/img/placeholders/avatar-placeholder.png"}
+								src={
+									user.imageUrl || "/img/placeholders/avatar-placeholder.png"
+								}
 								alt={user.displayName ?? "Avatar"}
 							/>
 						</Avatar>
@@ -193,9 +195,16 @@ function buildColumns(
 				const label =
 					key === "sin_prueba" ? `Sin ${materialLabel}` : config.label;
 				return (
-					<Badge variant="outline" className={`text-xs ${config.className}`}>
-						{label}
-					</Badge>
+					<div>
+						<Badge variant="outline" className={`text-xs ${config.className}`}>
+							{label}
+						</Badge>
+						{row.original.removedAt != null && row.original.removalReason && (
+							<p className="text-xs text-muted-foreground mt-0.5 italic">
+								{row.original.removalReason}
+							</p>
+						)}
+					</div>
 				);
 			},
 			filterFn: (row, _, filterValue) => {
@@ -319,21 +328,28 @@ export default function ActivityParticipantsTable({
 									)}
 								</div>
 							</div>
-							<div className="flex items-center gap-2 shrink-0">
-								<Badge
-									variant="outline"
-									className={`text-xs shrink-0 ${statusConfig.className}`}
-								>
-									{statusLabel}
-								</Badge>
-								{proof && (
-									<ParticipantProofViewer
-										proof={proof}
-										participantName={
-											participant.user.displayName ?? "Participante"
-										}
-										materialLabel={materialLabel}
-									/>
+							<div className="flex flex-col items-end gap-1 shrink-0">
+								<div className="flex items-center gap-2">
+									<Badge
+										variant="outline"
+										className={`text-xs shrink-0 ${statusConfig.className}`}
+									>
+										{statusLabel}
+									</Badge>
+									{proof && (
+										<ParticipantProofViewer
+											proof={proof}
+											participantName={
+												participant.user.displayName ?? "Participante"
+											}
+											materialLabel={materialLabel}
+										/>
+									)}
+								</div>
+								{participant.removedAt != null && participant.removalReason && (
+									<p className="text-xs text-muted-foreground italic text-right max-w-[160px]">
+										{participant.removalReason}
+									</p>
 								)}
 							</div>
 						</div>

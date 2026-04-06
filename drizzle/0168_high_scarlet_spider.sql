@@ -1,0 +1,1 @@
+ALTER TABLE "festival_activity_participants" ADD COLUMN "removal_reason" text;

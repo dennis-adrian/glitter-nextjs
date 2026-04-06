@@ -36,6 +36,7 @@ import {
 	count,
 	eq,
 	gt,
+	inArray,
 	isNotNull,
 	isNull,
 	lt,
@@ -1175,8 +1176,28 @@ export async function enrollFromWaitlistInvitation(
 }
 
 export async function fetchParticipationPreviewData(participationId: number) {
-	const [row] = await db
+	const batchData = await fetchParticipationPreviewDataBatch([participationId]);
+	return batchData[participationId] ?? null;
+}
+
+export async function fetchParticipationPreviewDataBatch(
+	participationIds: number[],
+) {
+	if (participationIds.length === 0) return {} as Record<
+		number,
+		{
+			imageUrl: string | null;
+			participantName: string | null;
+			standLabels: string[];
+			sectorName: string | null;
+		}
+	>;
+
+	const uniqueParticipationIds = [...new Set(participationIds)];
+
+	const rows = await db
 		.select({
+			participationId: festivalActivityParticipants.id,
 			imageUrl: users.imageUrl,
 			displayName: users.displayName,
 			firstName: users.firstName,
@@ -1216,24 +1237,36 @@ export async function fetchParticipationPreviewData(participationId: number) {
 		)
 		.leftJoin(stands, eq(stands.id, standReservations.standId))
 		.leftJoin(festivalSectors, eq(festivalSectors.id, stands.festivalSectorId))
-		.where(eq(festivalActivityParticipants.id, participationId))
+		.where(inArray(festivalActivityParticipants.id, uniqueParticipationIds))
 		.groupBy(
+			festivalActivityParticipants.id,
 			users.imageUrl,
 			users.displayName,
 			users.firstName,
 			users.lastName,
 		);
 
-	if (!row) return null;
+	return rows.reduce<
+		Record<
+			number,
+			{
+				imageUrl: string | null;
+				participantName: string | null;
+				standLabels: string[];
+				sectorName: string | null;
+			}
+		>
+	>((acc, row) => {
+		const participantName =
+			row.displayName ??
+			(`${row.firstName ?? ""} ${row.lastName ?? ""}`.trim() || null);
 
-	const participantName =
-		row.displayName ??
-		(`${row.firstName ?? ""} ${row.lastName ?? ""}`.trim() || null);
-
-	return {
-		imageUrl: row.imageUrl ?? null,
-		participantName,
-		standLabels: row.standLabels,
-		sectorName: row.sectorName ?? null,
-	};
+		acc[row.participationId] = {
+			imageUrl: row.imageUrl ?? null,
+			participantName,
+			standLabels: row.standLabels,
+			sectorName: row.sectorName ?? null,
+		};
+		return acc;
+	}, {});
 }

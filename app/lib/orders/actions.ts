@@ -28,6 +28,7 @@ function revalidateStoreOrderViews() {
 	revalidatePath("/dashboard/store");
 	revalidatePath("/dashboard/store/orders");
 	revalidatePath("/dashboard/store/payments");
+	revalidatePath("/dashboard/store/analytics");
 }
 
 export async function sendOrderEmails(emailData: {
@@ -625,6 +626,60 @@ export async function fetchOrders() {
 	}
 }
 
+export async function fetchOrdersByStatus(
+	status?: OrderStatus | readonly OrderStatus[],
+) {
+	try {
+		const statusWhere =
+			status === undefined
+				? undefined
+				: typeof status === "string"
+					? eq(orders.status, status)
+					: inArray(orders.status, status);
+
+		return await db.query.orders.findMany({
+			where: statusWhere,
+			orderBy: [desc(orders.createdAt)],
+			with: {
+				customer: {
+					with: {
+						profileSubcategories: {
+							with: {
+								subcategory: true,
+							},
+						},
+					},
+				},
+				orderItems: {
+					with: {
+						product: {
+							with: {
+								images: true,
+							},
+						},
+					},
+				},
+			},
+		});
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
+}
+
+export async function fetchPendingVoucherCount(): Promise<number> {
+	try {
+		const result = await db
+			.select({ count: count() })
+			.from(orders)
+			.where(eq(orders.status, "payment_verification"));
+		return result[0]?.count ?? 0;
+	} catch (error) {
+		console.error(error);
+		return 0;
+	}
+}
+
 export async function fetchPendingVoucherReviewOrders() {
 	try {
 		return await db.query.orders.findMany({
@@ -917,10 +972,10 @@ export async function submitGuestOrderPaymentVoucher(
 			});
 			await posthog.shutdown();
 		} catch (posthogError) {
-			console.error(
-				"[submitGuestOrderPaymentVoucher] PostHog capture failed",
-				{ orderId, error: posthogError },
-			);
+			console.error("[submitGuestOrderPaymentVoucher] PostHog capture failed", {
+				orderId,
+				error: posthogError,
+			});
 		}
 
 		return { success: true, message: "Comprobante enviado correctamente." };

@@ -22,6 +22,7 @@ import { sendEmail } from "@/app/vendors/resend";
 import ActivityProofReviewEmail from "@/app/emails/activity-proof-review";
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
 import { promoteFromWaitlist } from "@/app/lib/festival_activites/actions";
+import { validateCouponBookHeaderImageInput } from "@/app/lib/festival_activites/coupon-book-header-image";
 import { getMaterialConfig } from "@/app/lib/festival_activites/helpers";
 import React from "react";
 
@@ -32,6 +33,7 @@ export type FestivalActivityDetailInput = {
 	participationLimit?: number;
 	category?: ActivityUserCategory | null;
 	imageUrl?: string;
+	couponBookHeaderImageUrl?: string;
 };
 
 export type FestivalActivityInput = {
@@ -85,6 +87,45 @@ function proofUploadLimitValidationMessage(
 	return null;
 }
 
+function normalizeCouponBookHeaderImages(data: FestivalActivityInput):
+	| {
+			ok: true;
+			details: FestivalActivityDetailInput[];
+	  }
+	| {
+			ok: false;
+			message: string;
+	  } {
+	const details: FestivalActivityDetailInput[] = [];
+
+	for (const [index, detail] of data.details.entries()) {
+		if (data.type !== "coupon_book") {
+			details.push({
+				...detail,
+				couponBookHeaderImageUrl: undefined,
+			});
+			continue;
+		}
+
+		const validated = validateCouponBookHeaderImageInput(
+			detail.couponBookHeaderImageUrl,
+		);
+		if (!validated.ok) {
+			return {
+				ok: false,
+				message: `Variante ${index + 1}: ${validated.error}`,
+			};
+		}
+
+		details.push({
+			...detail,
+			couponBookHeaderImageUrl: validated.value ?? undefined,
+		});
+	}
+
+	return { ok: true, details };
+}
+
 export async function createFestivalActivity(
 	festivalId: number,
 	data: FestivalActivityInput,
@@ -108,6 +149,12 @@ export async function createFestivalActivity(
 	if (proofLimitMsg) {
 		return { success: false, message: proofLimitMsg };
 	}
+
+	const normalizedHeaderImages = normalizeCouponBookHeaderImages(data);
+	if (!normalizedHeaderImages.ok) {
+		return { success: false, message: normalizedHeaderImages.message };
+	}
+	const detailsWithValidatedHeaderImage = normalizedHeaderImages.details;
 
 	try {
 		const activityId = await db.transaction(async (tx) => {
@@ -134,12 +181,16 @@ export async function createFestivalActivity(
 				.returning({ id: festivalActivities.id });
 
 			await tx.insert(festivalActivityDetails).values(
-				data.details.map((detail) => ({
+				detailsWithValidatedHeaderImage.map((detail) => ({
 					activityId: activity.id,
 					description: detail.description,
 					participationLimit: detail.participationLimit,
 					category: detail.category ?? null,
 					imageUrl: detail.imageUrl ?? null,
+					couponBookHeaderImageUrl:
+						data.type === "coupon_book"
+							? (detail.couponBookHeaderImageUrl ?? null)
+							: null,
 				})),
 			);
 
@@ -184,6 +235,12 @@ export async function updateFestivalActivity(
 		return { success: false, message: proofLimitMsgUpdate };
 	}
 
+	const normalizedHeaderImages = normalizeCouponBookHeaderImages(data);
+	if (!normalizedHeaderImages.ok) {
+		return { success: false, message: normalizedHeaderImages.message };
+	}
+	const detailsWithValidatedHeaderImage = normalizedHeaderImages.details;
+
 	try {
 		await db.transaction(async (tx) => {
 			await tx
@@ -221,7 +278,9 @@ export async function updateFestivalActivity(
 
 			const existingIds = new Set(existing.map((d) => d.id));
 			const incomingIds = new Set(
-				data.details.filter((d) => d.id != null).map((d) => d.id as number),
+				detailsWithValidatedHeaderImage
+					.filter((d) => d.id != null)
+					.map((d) => d.id as number),
 			);
 
 			// Delete details no longer in the payload — abort if active participants exist
@@ -247,7 +306,7 @@ export async function updateFestivalActivity(
 			}
 
 			// Update existing details
-			for (const detail of data.details.filter(
+			for (const detail of detailsWithValidatedHeaderImage.filter(
 				(d) => d.id != null && existingIds.has(d.id),
 			)) {
 				await tx
@@ -257,12 +316,18 @@ export async function updateFestivalActivity(
 						participationLimit: detail.participationLimit ?? null,
 						category: detail.category ?? null,
 						imageUrl: detail.imageUrl ?? null,
+						couponBookHeaderImageUrl:
+							data.type === "coupon_book"
+								? (detail.couponBookHeaderImageUrl ?? null)
+								: null,
 					})
 					.where(eq(festivalActivityDetails.id, detail.id as number));
 			}
 
 			// Insert new details
-			const newDetails = data.details.filter((d) => d.id == null);
+			const newDetails = detailsWithValidatedHeaderImage.filter(
+				(d) => d.id == null,
+			);
 			if (newDetails.length > 0) {
 				await tx.insert(festivalActivityDetails).values(
 					newDetails.map((detail) => ({
@@ -271,6 +336,10 @@ export async function updateFestivalActivity(
 						participationLimit: detail.participationLimit,
 						category: detail.category ?? null,
 						imageUrl: detail.imageUrl ?? null,
+						couponBookHeaderImageUrl:
+							data.type === "coupon_book"
+								? (detail.couponBookHeaderImageUrl ?? null)
+								: null,
 					})),
 				);
 			}
@@ -464,6 +533,8 @@ export async function reviewActivityParticipantProof(
 		};
 	}
 
+	const normalizedRemovalReason = adminFeedback?.trim() || null;
+
 	try {
 		let proofWasReviewed = false;
 		let shouldPromoteFromWaitlist = false;
@@ -480,7 +551,7 @@ export async function reviewActivityParticipantProof(
 				.update(festivalActivityParticipantProofs)
 				.set({
 					proofStatus: status,
-					adminFeedback: adminFeedback?.trim() ?? null,
+					adminFeedback: normalizedRemovalReason,
 					updatedAt: new Date(),
 				})
 				.where(eq(festivalActivityParticipantProofs.id, proofId));
@@ -489,7 +560,11 @@ export async function reviewActivityParticipantProof(
 			if (status === "rejected_removed") {
 				await tx
 					.update(festivalActivityParticipants)
-					.set({ removedAt: new Date(), updatedAt: new Date() })
+					.set({
+						removedAt: new Date(),
+						updatedAt: new Date(),
+						removalReason: normalizedRemovalReason,
+					})
 					.where(eq(festivalActivityParticipants.id, proof.participationId));
 				shouldPromoteFromWaitlist = true;
 			}
@@ -630,9 +705,15 @@ export async function removeActivityParticipant(
 			return { success: false, message: "El participante ya fue removido" };
 		}
 
+		const normalizedRemovalReason = reason.trim() || null;
+
 		const updatedRows = await db
 			.update(festivalActivityParticipants)
-			.set({ removedAt: new Date(), updatedAt: new Date() })
+			.set({
+				removedAt: new Date(),
+				updatedAt: new Date(),
+				removalReason: normalizedRemovalReason,
+			})
 			.where(
 				and(
 					eq(festivalActivityParticipants.id, participationId),
@@ -717,11 +798,12 @@ export async function restoreActivityParticipant(
 	}
 
 	try {
-		const participation =
-			await db.query.festivalActivityParticipants.findFirst({
+		const participation = await db.query.festivalActivityParticipants.findFirst(
+			{
 				where: eq(festivalActivityParticipants.id, participationId),
 				with: { activityDetail: true },
-			});
+			},
+		);
 
 		if (!participation) {
 			return { success: false, message: "Participante no encontrado" };
@@ -739,10 +821,7 @@ export async function restoreActivityParticipant(
 				.from(festivalActivityParticipants)
 				.where(
 					and(
-						eq(
-							festivalActivityParticipants.detailsId,
-							participation.detailsId,
-						),
+						eq(festivalActivityParticipants.detailsId, participation.detailsId),
 						isNull(festivalActivityParticipants.removedAt),
 					),
 				);
@@ -773,7 +852,11 @@ export async function restoreActivityParticipant(
 		await db.transaction(async (tx) => {
 			await tx
 				.update(festivalActivityParticipants)
-				.set({ removedAt: null, updatedAt: new Date() })
+				.set({
+					removedAt: null,
+					removalReason: null,
+					updatedAt: new Date(),
+				})
 				.where(eq(festivalActivityParticipants.id, participationId));
 
 			await tx
@@ -953,7 +1036,11 @@ export async function promoteWaitlistToVariant(
 				if (existing && existing.removedAt) {
 					await tx
 						.update(festivalActivityParticipants)
-						.set({ removedAt: null, updatedAt: new Date() })
+						.set({
+							removedAt: null,
+							removalReason: null,
+							updatedAt: new Date(),
+						})
 						.where(eq(festivalActivityParticipants.id, existing.id));
 				} else {
 					await tx.insert(festivalActivityParticipants).values({

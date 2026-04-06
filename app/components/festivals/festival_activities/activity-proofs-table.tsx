@@ -72,7 +72,9 @@ function ApproveProofButton({
 				toast.error(result.message);
 			}
 		} catch {
-			toast.error(`No se pudo aprobar el ${materialLabel}. Intentá nuevamente.`);
+			toast.error(
+				`No se pudo aprobar el ${materialLabel}. Intentá nuevamente.`,
+			);
 		} finally {
 			approvingRef.current = false;
 			setIsApproving(false);
@@ -219,9 +221,18 @@ function buildColumns(
 					);
 				}
 				return (
-					<Badge variant="outline" className={`text-xs ${config.className}`}>
-						{config.label}
-					</Badge>
+					<div>
+						<Badge variant="outline" className={`text-xs ${config.className}`}>
+							{config.label}
+						</Badge>
+						{row.original.removalReason &&
+							(proof.proofStatus === "rejected_removed" ||
+								row.original.removedAt) && (
+								<p className="text-xs text-muted-foreground mt-0.5 italic">
+									{row.original.removalReason}
+								</p>
+							)}
+					</div>
 				);
 			},
 			filterFn: (row, _, filterValue) => {
@@ -447,6 +458,12 @@ export default function ActivityProofsTable({
 									</Badge>
 								)}
 							</div>
+
+							{isRemoved && participant.removalReason && (
+								<p className="text-xs text-muted-foreground italic pl-10">
+									{participant.removalReason}
+								</p>
+							)}
 
 							{showText &&
 								(proof?.promoHighlight ||
