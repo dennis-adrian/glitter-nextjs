@@ -77,7 +77,7 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 			>
 				{children}
 			</SheetTrigger>
-			<SheetContent side="left">
+			<SheetContent side="left" className="flex flex-col">
 				<SheetHeader>
 					<SheetTitle>
 						<SheetClose>
@@ -88,7 +88,7 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 					</SheetTitle>
 				</SheetHeader>
 				<Separator className="my-2" />
-				<ul className="flex flex-col">
+				<ul className="flex flex-col flex-1 overflow-y-auto">
 					<MobileSidebarItem href="/">
 						<HomeIcon className="mr-2 h-6 w-6" />
 						Inicio
