@@ -626,14 +626,19 @@ export async function fetchOrders() {
 	}
 }
 
-export async function fetchOrdersByStatus(status?: OrderStatus | readonly OrderStatus[]) {
+export async function fetchOrdersByStatus(
+	status?: OrderStatus | readonly OrderStatus[],
+) {
 	try {
+		const statusWhere =
+			status === undefined
+				? undefined
+				: typeof status === "string"
+					? eq(orders.status, status)
+					: inArray(orders.status, status);
+
 		return await db.query.orders.findMany({
-			where: status
-				? Array.isArray(status)
-					? inArray(orders.status, status)
-					: eq(orders.status, status)
-				: undefined,
+			where: statusWhere,
 			orderBy: [desc(orders.createdAt)],
 			with: {
 				customer: {
@@ -967,10 +972,10 @@ export async function submitGuestOrderPaymentVoucher(
 			});
 			await posthog.shutdown();
 		} catch (posthogError) {
-			console.error(
-				"[submitGuestOrderPaymentVoucher] PostHog capture failed",
-				{ orderId, error: posthogError },
-			);
+			console.error("[submitGuestOrderPaymentVoucher] PostHog capture failed", {
+				orderId,
+				error: posthogError,
+			});
 		}
 
 		return { success: true, message: "Comprobante enviado correctamente." };
