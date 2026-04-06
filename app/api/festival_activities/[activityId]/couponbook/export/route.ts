@@ -12,6 +12,13 @@ const ParamsSchema = z.object({
 });
 
 function parseCookieHeaderForOrigin(cookieHeader: string, origin: string) {
+	let originUrl: string;
+	try {
+		originUrl = new URL(origin).toString();
+	} catch {
+		return [];
+	}
+
 	return cookieHeader
 		.split(";")
 		.map((entry) => entry.trim())
@@ -25,10 +32,9 @@ function parseCookieHeaderForOrigin(cookieHeader: string, origin: string) {
 			if (!name) return null;
 
 			return {
-				url: origin,
+				url: originUrl,
 				name,
 				value,
-				path: "/",
 			};
 		})
 		.filter((cookie) => cookie !== null);
@@ -60,13 +66,19 @@ export async function GET(
 	} else {
 		searchParams.set("detailId", String(detailId));
 	}
-	const pdfCanvas = resolvePdfCanvasConfig(searchParams);
-
 	const { activityId } = validatedParams.data;
 	const activity = await fetchFestivalActivity(activityId);
 	if (!activity) {
 		return new Response("Actividad no encontrada", { status: 404 });
 	}
+	if (
+		detailId !== null &&
+		!activity.details.some((detail) => detail.id === detailId)
+	) {
+		return new Response("Variante no encontrada", { status: 404 });
+	}
+
+	const pdfCanvas = resolvePdfCanvasConfig(searchParams);
 
 	const printUrl = new URL(
 		`/couponbook-print/${activity.festivalId}/${activityId}`,

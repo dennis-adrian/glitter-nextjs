@@ -127,9 +127,15 @@ Response:
 
 - `200` PDF binary (`application/pdf`)
 - `401` unauthorized
-- `400` invalid params
+- `400` invalid `activityId` path param (fails numeric coercion)
 - `404` activity not found
+- `404` variant not found (only when numeric `detailId` is provided but not present in activity details)
 - `500` Playwright missing
+
+Notes on query-param behavior:
+
+- `detailId` is parsed with `Number(...)`; non-numeric values are treated as absent and removed from the forwarded query (not a `400`).
+- PDF/layout params (`pdfWcm`, `pdfHcm`, `pdfOrientation`, `leftColW`, `standFsMm`, `sectorFsMm`, `headerScalePct`, `nameX/nameY/nameW/nameH/nameM`, `highlightX/...`, `descriptionX/...`, `validityX/...`) are normalized via parser defaults and min/max clamping rather than rejected.
 
 ## 10) UX Requirements
 

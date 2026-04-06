@@ -389,17 +389,23 @@ export async function bulkToggleProductVisibility(
 		};
 	}
 	let slugs: string[] = [];
+	let updatedCount = 0;
 	try {
-		await db
+		const updatedRows = await db
 			.update(products)
 			.set({ isVisible, updatedAt: new Date() })
-			.where(inArray(products.id, ids));
+			.where(inArray(products.id, ids))
+			.returning({ id: products.id, slug: products.slug });
 
-		const updatedRows = await db
-			.select({ slug: products.slug })
-			.from(products)
-			.where(inArray(products.id, ids));
+		if (updatedRows.length === 0) {
+			return {
+				success: false,
+				message: "No se encontraron productos para actualizar.",
+				slugs: [],
+			};
+		}
 		slugs = updatedRows.map((row) => row.slug);
+		updatedCount = updatedRows.length;
 	} catch (error) {
 		console.error(error);
 		return {
@@ -416,8 +422,8 @@ export async function bulkToggleProductVisibility(
 	return {
 		success: true,
 		message: isVisible
-			? `${ids.length} productos visibles.`
-			: `${ids.length} productos ocultos.`,
+			? `${updatedCount} productos visibles.`
+			: `${updatedCount} productos ocultos.`,
 		slugs,
 	};
 }
@@ -436,14 +442,14 @@ export async function bulkDeleteProducts(
 		};
 	}
 	let deletedSlugs: string[] = [];
+	let deletedCount = 0;
 	try {
-		const rows = await db
-			.select({ slug: products.slug })
-			.from(products)
-			.where(inArray(products.id, ids));
-		deletedSlugs = rows.map((row) => row.slug);
-
-		await db.delete(products).where(inArray(products.id, ids));
+		const deletedRows = await db
+			.delete(products)
+			.where(inArray(products.id, ids))
+			.returning({ slug: products.slug });
+		deletedSlugs = deletedRows.map((row) => row.slug);
+		deletedCount = deletedRows.length;
 	} catch (error) {
 		console.error(error);
 		return { success: false, message: "No se pudo eliminar los productos." };
@@ -453,7 +459,7 @@ export async function bulkDeleteProducts(
 		revalidatePath(`/store/products/${slug}`);
 	}
 	revalidatePath("/store");
-	return { success: true, message: `${ids.length} productos eliminados.` };
+	return { success: true, message: `${deletedCount} productos eliminados.` };
 }
 
 export async function fetchLowStockProducts(threshold = 5) {
