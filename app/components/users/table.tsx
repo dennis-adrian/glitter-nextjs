@@ -41,7 +41,7 @@ export default function UsersTable({
 
 	return (
 		<div className="group-has-data-pending:animate-pulse">
-			<div className="md:hidden flex flex-col gap-4">
+			<div className="md:hidden flex flex-col gap-3">
 				<MobileUsersList users={users || []} />
 			</div>
 

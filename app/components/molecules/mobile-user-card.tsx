@@ -88,7 +88,7 @@ export default function MobileUserCard({ user }: MobileUserCardProps) {
 						</Button>
 					</ProfileQuickActions>
 				</div>
-				{participations.length > 0 && (
+				{participations?.length > 0 && (
 					<div className="text-sm px-4 pb-2">
 						<p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">
 							Participaciones

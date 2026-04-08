@@ -39,8 +39,8 @@ export function getGroupedParticipationsByFestival(
 				const stand = participation.reservation?.stand;
 				const standNumber = stand?.standNumber;
 				const standLabel = stand?.label
-					? `${stand.label}${standNumber ?? ""}`
-					: "";
+					? stand.label + (standNumber ?? "")
+					: undefined;
 				const reservationStatus = participation.reservation?.status;
 				const currentFestival = acc.get(festivalId);
 
@@ -49,15 +49,19 @@ export function getGroupedParticipationsByFestival(
 						festivalId,
 						festivalName,
 						reservationsCount: 1,
-						stands: new Set([standLabel]),
-						statuses: new Set([reservationStatus]),
+						stands: standLabel ? new Set([standLabel]) : new Set(),
+						statuses: new Set([reservationStatus].filter(Boolean)),
 					});
 					return acc;
 				}
 
 				currentFestival.reservationsCount += 1;
-				currentFestival.stands.add(standLabel);
-				currentFestival.statuses.add(reservationStatus);
+				if (standLabel) {
+					currentFestival.stands.add(standLabel);
+				}
+				if (reservationStatus != null) {
+					currentFestival.statuses.add(reservationStatus);
+				}
 
 				return acc;
 			}, new Map())

@@ -66,11 +66,16 @@ export default function UsersTableFilters() {
 		categoryOptions.map((option) => [option.value, option.label]),
 	);
 
-	const appliedFilterChips: { key: string; label: string | ReactElement }[] = [
+	const appliedFilterChips: {
+		key: string;
+		label: string | ReactElement;
+		textLabel: string;
+	}[] = [
 		...(profileCompletion && profileCompletion !== "all"
 			? [
 					{
 						key: "profileCompletion",
+						textLabel: `Perfiles: ${profileCompletionOptions[profileCompletion]}`,
 						label: (
 							<span>
 								<span className="font-medium text-[9px] uppercase">
@@ -86,6 +91,11 @@ export default function UsersTableFilters() {
 			? [
 					{
 						key: "status",
+						textLabel: `Estado: ${status
+							.map(
+								(statusValue) => statusLabelByValue[statusValue] || statusValue,
+							)
+							.join(", ")}`,
 						label: (
 							<span>
 								<span className="font-medium text-[9px] uppercase">
@@ -106,6 +116,12 @@ export default function UsersTableFilters() {
 			? [
 					{
 						key: "category",
+						textLabel: `Categoria: ${category
+							.map(
+								(categoryValue) =>
+									categoryLabelByValue[categoryValue] || categoryValue,
+							)
+							.join(", ")}`,
 						label: (
 							<span>
 								<span className="font-medium text-[9px] uppercase">
@@ -123,7 +139,13 @@ export default function UsersTableFilters() {
 				]
 			: []),
 		...(includeAdmins
-			? [{ key: "includeAdmins", label: "Mostrar admins" }]
+			? [
+					{
+						key: "includeAdmins",
+						label: "Mostrar admins",
+						textLabel: "Mostrar admins",
+					},
+				]
 			: []),
 	];
 
@@ -199,7 +221,7 @@ export default function UsersTableFilters() {
 
 	return (
 		<div data-pending={isPending ? "" : undefined}>
-			<div className="hidden md:flex md:flex-wrap md:items-center md:gap-2">
+			<div className="hidden md:flex md:flex-wrap md:items-center md:gap-2 text-sm">
 				<Search placeholder="Buscar..." />
 				{filterControls}
 			</div>
@@ -220,11 +242,20 @@ export default function UsersTableFilters() {
 					</Button>
 				</div>
 
-				{filtersOpen ? (
-					<div className="flex flex-col gap-2 border rounded-md p-2">
-						{filterControls}
+				<div
+					aria-hidden={!filtersOpen}
+					className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
+						filtersOpen
+							? "grid-rows-[1fr] opacity-100"
+							: "grid-rows-[0fr] opacity-0"
+					}`}
+				>
+					<div className="overflow-hidden">
+						<div className="flex flex-col gap-2 border rounded-md p-2 shadow-sm">
+							{filterControls}
+						</div>
 					</div>
-				) : null}
+				</div>
 
 				{appliedFilterChips.length > 0 && (
 					<div className="flex flex-wrap gap-1">
@@ -237,7 +268,7 @@ export default function UsersTableFilters() {
 								<span>{chip.label}</span>
 								<button
 									type="button"
-									aria-label={`Quitar filtro ${chip.label}`}
+									aria-label={`Quitar filtro ${chip.textLabel}`}
 									className="inline-flex items-center justify-center rounded-full p-0.5 hover:bg-black/10"
 									onClick={() => handleClearFilter(chip.key)}
 								>
