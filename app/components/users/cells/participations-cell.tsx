@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+
+import { Participation } from "@/app/api/users/definitions";
+import ReservationStatusBadge from "@/app/components/atoms/reservation-status-badge";
 import {
 	Dialog,
 	DialogContent,
@@ -8,9 +11,8 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/app/components/ui/dialog";
-import ReservationStatusBadge from "@/app/components/atoms/reservation-status-badge";
+import { getGroupedParticipationsByFestival } from "@/app/components/users/utils";
 import Link from "next/link";
-import { Participation } from "@/app/api/users/definitions";
 
 type Props = {
 	participations: Participation[];
@@ -19,61 +21,8 @@ type Props = {
 export default function ParticipationsCell({ participations }: Props) {
 	const [open, setOpen] = useState(false);
 
-	const groupedParticipationsByFestival = Array.from(
-		(participations || [])
-			.reduce<
-				Map<
-					number,
-					{
-						festivalId: number;
-						festivalName: string;
-						reservationsCount: number;
-						stands: Set<string>;
-						statuses: Set<Participation["reservation"]["status"]>;
-					}
-				>
-			>((acc, participation) => {
-				const festivalId =
-					participation?.reservation?.festivalId ??
-					participation?.reservation?.festival?.id;
-
-				if (festivalId == null) {
-					return acc;
-				}
-
-				const festivalName =
-					participation?.reservation?.festival?.name ??
-					`Festival ${festivalId}`;
-				const standNumber = participation.reservation.stand.standNumber;
-				const standLabel = `${participation.reservation.stand.label}${
-					standNumber == null ? "" : standNumber
-				}`;
-				const reservationStatus = participation.reservation.status;
-				const currentFestival = acc.get(festivalId);
-
-				if (!currentFestival) {
-					acc.set(festivalId, {
-						festivalId,
-						festivalName,
-						reservationsCount: 1,
-						stands: new Set([standLabel]),
-						statuses: new Set([reservationStatus]),
-					});
-					return acc;
-				}
-
-				currentFestival.reservationsCount += 1;
-				currentFestival.stands.add(standLabel);
-				currentFestival.statuses.add(reservationStatus);
-
-				return acc;
-			}, new Map())
-			.values(),
-	).map((festival) => ({
-		...festival,
-		stands: Array.from(festival.stands),
-		statuses: Array.from(festival.statuses),
-	}));
+	const groupedParticipationsByFestival =
+		getGroupedParticipationsByFestival(participations);
 
 	const count = groupedParticipationsByFestival.length;
 
