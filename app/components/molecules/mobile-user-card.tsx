@@ -1,3 +1,5 @@
+"use client";
+
 import {
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
@@ -5,6 +7,7 @@ import {
 	PhoneIcon,
 } from "lucide-react";
 import { DateTime } from "luxon";
+import { useCallback } from "react";
 
 import { ProfileType } from "@/app/api/users/definitions";
 import CategoryBadge from "@/app/components/category-badge";
@@ -22,12 +25,15 @@ import ParticipationsCell from "../users/cells/participations-cell";
 import ProfileQuickActions from "../user_profile/public_profile/quick-actions";
 import { Button } from "../ui/button";
 import { ScrollArea, ScrollBar } from "../ui/scroll-area";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type MobileUserCardProps = {
 	user: ProfileType;
 };
 
 export default function MobileUserCard({ user }: MobileUserCardProps) {
+	const { prefetch } = useRouter();
 	const {
 		birthdate,
 		category,
@@ -50,6 +56,12 @@ export default function MobileUserCard({ user }: MobileUserCardProps) {
 				.diff(DateTime.fromJSDate(birthdate), "years")
 				.years.toFixed(0)
 		: null;
+	const socialsWithUsername =
+		user.userSocials?.filter((social) => social.username) ?? [];
+	const profileHref = `/dashboard/users/${id}`;
+	const handlePrefetchProfile = useCallback(() => {
+		prefetch(profileHref);
+	}, [prefetch, profileHref]);
 
 	return (
 		<div className="rounded-md border shadow-sm">
@@ -62,7 +74,17 @@ export default function MobileUserCard({ user }: MobileUserCardProps) {
 					/>
 					<ProfileStatusCell className="text-xs gap-1" status={status} />
 				</div>
-				<ChevronRightIcon className="w-4 h-4" />
+				<Link
+					href={profileHref}
+					prefetch
+					className="flex items-center gap-2"
+					onMouseEnter={handlePrefetchProfile}
+					onTouchStart={handlePrefetchProfile}
+					onFocus={handlePrefetchProfile}
+				>
+					<span className="sr-only">Ver perfil</span>
+					<ChevronRightIcon className="w-4 h-4" />
+				</Link>
 			</div>
 			{/* Body */}
 			<div className="flex flex-col">
@@ -89,6 +111,25 @@ export default function MobileUserCard({ user }: MobileUserCardProps) {
 						</Button>
 					</ProfileQuickActions>
 				</div>
+				{socialsWithUsername.length > 0 && (
+					<div>
+						<p className="text-[10px] uppercase font-semibold text-muted-foreground px-4">
+							redes
+						</p>
+						<ScrollArea className="px-3 pb-2 whitespace-nowrap">
+							<div className="flex gap-1">
+								{socialsWithUsername.map((social) => (
+									<SocialMediaBadge
+										key={social.id}
+										socialMediaType={social.type}
+										username={social.username}
+									/>
+								))}
+							</div>
+							<ScrollBar orientation="horizontal" />
+						</ScrollArea>
+					</div>
+				)}
 				{participations?.length > 0 && (
 					<div className="text-sm px-4 pb-2">
 						<p className="text-[10px] uppercase font-semibold text-muted-foreground">
@@ -97,26 +138,6 @@ export default function MobileUserCard({ user }: MobileUserCardProps) {
 						<ParticipationsCell participations={participations} />
 					</div>
 				)}
-				<div>
-					<p className="text-[10px] uppercase font-semibold text-muted-foreground px-4">
-						redes
-					</p>
-					<ScrollArea className="px-3 pb-2 whitespace-nowrap">
-						<div className="flex gap-1">
-							{user.userSocials
-								.filter((social) => social.username)
-								.map((social) => (
-									<SocialMediaBadge
-										key={social.id}
-										socialMediaType={social.type}
-										username={social.username}
-									/>
-								))}
-						</div>
-						<ScrollBar orientation="horizontal" />
-					</ScrollArea>
-				</div>
-
 				{/* Footer */}
 				<Accordion type="single" collapsible className="w-full">
 					<AccordionItem value={`user-${id}`} className="border-b-0">
