@@ -21,6 +21,7 @@ import { formatDate } from "@/app/lib/formatters";
 import ParticipationsCell from "../users/cells/participations-cell";
 import ProfileQuickActions from "../user_profile/public_profile/quick-actions";
 import { Button } from "../ui/button";
+import { ScrollArea, ScrollBar } from "../ui/scroll-area";
 
 type MobileUserCardProps = {
 	user: ProfileType;
@@ -90,12 +91,32 @@ export default function MobileUserCard({ user }: MobileUserCardProps) {
 				</div>
 				{participations?.length > 0 && (
 					<div className="text-sm px-4 pb-2">
-						<p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">
+						<p className="text-[10px] uppercase font-semibold text-muted-foreground">
 							Participaciones
 						</p>
 						<ParticipationsCell participations={participations} />
 					</div>
 				)}
+				<div>
+					<p className="text-[10px] uppercase font-semibold text-muted-foreground px-4">
+						redes
+					</p>
+					<ScrollArea className="px-3 pb-2 whitespace-nowrap">
+						<div className="flex gap-1">
+							{user.userSocials
+								.filter((social) => social.username)
+								.map((social) => (
+									<SocialMediaBadge
+										key={social.id}
+										socialMediaType={social.type}
+										username={social.username}
+									/>
+								))}
+						</div>
+						<ScrollBar orientation="horizontal" />
+					</ScrollArea>
+				</div>
+
 				{/* Footer */}
 				<Accordion type="single" collapsible className="w-full">
 					<AccordionItem value={`user-${id}`} className="border-b-0">
