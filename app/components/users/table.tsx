@@ -68,7 +68,9 @@ export default function UsersTable({
 								value="updatedAt"
 								label="Última actualización"
 							/>
-							<TableHead className="sticky right-0 z-20 bg-white shadow-inner"></TableHead>
+							<TableHead className="sticky right-0 z-20 bg-white shadow-inner">
+								<span className="sr-only">Acciones</span>
+							</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>

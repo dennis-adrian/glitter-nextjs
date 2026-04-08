@@ -52,9 +52,9 @@ export default function MobileUserCard({ user }: MobileUserCardProps) {
 	} = user;
 
 	const age = birthdate
-		? DateTime.now()
-				.diff(DateTime.fromJSDate(birthdate), "years")
-				.years.toFixed(0)
+		? Math.floor(
+				DateTime.now().diff(DateTime.fromJSDate(birthdate), "years").years,
+			)
 		: null;
 	const socialsWithUsername =
 		user.userSocials?.filter((social) => social.username) ?? [];

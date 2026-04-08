@@ -38,6 +38,7 @@ export function ComboboxPopover(props: ComboboxPopoverProps) {
 	const [selected, setSelected] = React.useState<string>(
 		props.defaultValue || "",
 	);
+	const labelId = React.useId();
 	React.useEffect(() => {
 		setSelected(props.defaultValue || "");
 	}, [props.defaultValue]);
@@ -54,10 +55,18 @@ export function ComboboxPopover(props: ComboboxPopoverProps) {
 
 	return (
 		<div className="flex items-center gap-2">
-			<p className="text-sm text-muted-foreground">{props.label}</p>
+			<p id={labelId} className="text-sm text-muted-foreground">
+				{props.label}
+			</p>
 			<Popover open={open} onOpenChange={setOpen}>
 				<PopoverTrigger asChild>
-					<Button variant="outline" size="sm" className="">
+					<Button
+						variant="outline"
+						size="sm"
+						className=""
+						aria-labelledby={labelId}
+						aria-expanded={open}
+					>
 						{selectedOption ? (
 							<>
 								{selectedOption.icon && (

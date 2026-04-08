@@ -35,9 +35,18 @@ type ComboboxProps = {
 
 export function MultipleSelectCombobox(props: ComboboxProps) {
 	const [open, setOpen] = React.useState(false);
-	const [selectedValues, setSelectedValues] = React.useState<string[]>(
-		props.defaultValue ?? [],
+	const defaultSelectedValues = React.useMemo(
+		() => props.defaultValue ?? [],
+		[props.defaultValue],
 	);
+	const defaultValueKey = React.useMemo(
+		() => JSON.stringify(defaultSelectedValues),
+		[defaultSelectedValues],
+	);
+	const [selectedValues, setSelectedValues] = React.useState<string[]>(
+		defaultSelectedValues,
+	);
+	const lastSyncedDefaultKeyRef = React.useRef(defaultValueKey);
 
 	const selected = React.useMemo(() => {
 		const optionsByValue = new Map(
@@ -55,8 +64,10 @@ export function MultipleSelectCombobox(props: ComboboxProps) {
 	);
 
 	React.useEffect(() => {
-		setSelectedValues(props.defaultValue ?? []);
-	}, [props.defaultValue]);
+		if (lastSyncedDefaultKeyRef.current === defaultValueKey) return;
+		lastSyncedDefaultKeyRef.current = defaultValueKey;
+		setSelectedValues(defaultSelectedValues);
+	}, [defaultValueKey, defaultSelectedValues]);
 
 	const handleSelect = (value: string) => {
 		let newSelectedValues: string[] = [];
