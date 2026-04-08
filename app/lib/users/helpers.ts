@@ -110,6 +110,11 @@ export async function buildWhereClauseForProfileFetching(
 				)} and ${isNotNull(users.birthdate)} and ${isNotNull(
 					users.country,
 				)} and json_array_length("users_userSocials"."data") > 0
+      and exists (
+        select 1
+        from jsonb_array_elements("users_userSocials"."data") as social
+        where nullif(trim(social ->> 'username'), '') is not null
+      )
       and json_array_length("users_profileSubcategories"."data") > 0)`,
 			);
 		}
@@ -125,6 +130,11 @@ export async function buildWhereClauseForProfileFetching(
 				)} or ${isNull(users.displayName)} or ${isNull(users.birthdate)} or ${isNull(
 					users.country,
 				)} or ${isNull(users.gender)} or ${eq(users.category, "none")} or json_array_length("users_userSocials"."data") = 0
+      or not exists (
+        select 1
+        from jsonb_array_elements("users_userSocials"."data") as social
+        where nullif(trim(social ->> 'username'), '') is not null
+      )
       or json_array_length("users_profileSubcategories"."data") = 0)`,
 			);
 		}
