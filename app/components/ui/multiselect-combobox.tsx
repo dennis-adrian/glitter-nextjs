@@ -6,126 +6,147 @@ import { CheckIcon, CirclePlusIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
 } from "@/components/ui/command";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
 } from "@/components/ui/popover";
 import { Separator } from "@/app/components/ui/separator";
 
 type ComboboxOption = {
-  value: string;
-  label: string;
+	value: string;
+	label: string;
 };
 
 type ComboboxProps = {
-  defaultValue?: string[];
-  label: string;
-  name: string;
-  options: ComboboxOption[];
-  onSelect?: (name: string, options: string[]) => void;
+	defaultValue?: string[];
+	label: string;
+	name: string;
+	options: ComboboxOption[];
+	onSelect?: (name: string, options: string[]) => void;
 };
 
 export function MultipleSelectCombobox(props: ComboboxProps) {
-  const [open, setOpen] = React.useState(false);
-  const [selected, setSelected] = React.useState<ComboboxOption[]>(
-    props.options.filter((option) =>
-      props.defaultValue?.includes(option.value),
-    ),
-  );
+	const [open, setOpen] = React.useState(false);
+	const defaultSelectedValues = React.useMemo(
+		() => props.defaultValue ?? [],
+		[props.defaultValue],
+	);
+	const defaultValueKey = React.useMemo(
+		() => JSON.stringify(defaultSelectedValues),
+		[defaultSelectedValues],
+	);
+	const [selectedValues, setSelectedValues] = React.useState<string[]>(
+		defaultSelectedValues,
+	);
+	const lastSyncedDefaultKeyRef = React.useRef(defaultValueKey);
 
-  const handleSelect = (value: string) => {
-    const option = props.options.find((option) => option.value === value);
-    if (!option) return;
+	const selected = React.useMemo(() => {
+		const optionsByValue = new Map(
+			props.options.map((option) => [option.value, option]),
+		);
 
-    let newSelected = [];
-    if (selected.map((option) => option.value).includes(value)) {
-      newSelected = selected.filter((option) => option.value !== value);
-    } else {
-      newSelected = [...selected, option];
-    }
-    setSelected(newSelected);
-    if (props.onSelect)
-      props.onSelect(
-        props.name,
-        newSelected.map((option) => option.value),
-      );
-  };
+		return selectedValues
+			.map((value) => optionsByValue.get(value))
+			.filter((option): option is ComboboxOption => Boolean(option));
+	}, [selectedValues, props.options]);
 
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          className="border-dashed h-fit"
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-        >
-          <CirclePlusIcon className="h-4 w-4 mr-1" />
-          {props.label}
-          {selected.length > 0 && (
-            <>
-              <Separator
-                decorative
-                orientation="vertical"
-                className="mx-2 h-4"
-              />
-              <div className="flex gap-1 flex-wrap">
-                {selected.length > 2 ? (
-                  <span className="text-muted-foreground">
-                    {selected.length} seleccionados
-                  </span>
-                ) : (
-                  selected.map((option) => (
-                    <span
-                      key={option.value}
-                      className="text-sm font-normal bg-primary-50 py-1 px-2 rounded-md"
-                    >
-                      {option.label}
-                    </span>
-                  ))
-                )}
-              </div>
-            </>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0">
-        <Command>
-          <CommandInput placeholder="Buscar..." className="h-9" />
-          <CommandList>
-            <CommandEmpty>Sin resultados</CommandEmpty>
-            <CommandGroup>
-              {props.options.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  value={option.value}
-                  onSelect={(currentValue) => handleSelect(currentValue)}
-                >
-                  {option.label}
-                  <CheckIcon
-                    className={cn(
-                      "ml-auto h-4 w-4",
-                      selected
-                        .map((option) => option.value)
-                        .includes(option.value)
-                        ? "opacity-100"
-                        : "opacity-0",
-                    )}
-                  />
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
+	const selectedValueSet = React.useMemo(
+		() => new Set(selectedValues),
+		[selectedValues],
+	);
+
+	React.useEffect(() => {
+		if (lastSyncedDefaultKeyRef.current === defaultValueKey) return;
+		lastSyncedDefaultKeyRef.current = defaultValueKey;
+		setSelectedValues(defaultSelectedValues);
+	}, [defaultValueKey, defaultSelectedValues]);
+
+	const handleSelect = (value: string) => {
+		let newSelectedValues: string[] = [];
+		if (selectedValueSet.has(value)) {
+			newSelectedValues = selectedValues.filter(
+				(selectedValue) => selectedValue !== value,
+			);
+		} else {
+			newSelectedValues = [...selectedValues, value];
+		}
+		setSelectedValues(newSelectedValues);
+		if (props.onSelect) props.onSelect(props.name, newSelectedValues);
+	};
+
+	return (
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger asChild>
+				<Button
+					className="border-dashed h-fit"
+					variant="outline"
+					role="combobox"
+					aria-expanded={open}
+				>
+					<CirclePlusIcon className="h-4 w-4 mr-1" />
+					{props.label}
+					{selected.length > 0 && (
+						<>
+							<Separator
+								decorative
+								orientation="vertical"
+								className="mx-2 h-4"
+							/>
+							<div className="flex gap-1 flex-wrap">
+								{selected.length > 2 ? (
+									<span className="text-muted-foreground">
+										{selected.length} seleccionados
+									</span>
+								) : (
+									selected.map((option) => (
+										<span
+											key={option.value}
+											className="text-sm font-normal bg-primary-50 py-1 px-2 rounded-md"
+										>
+											{option.label}
+										</span>
+									))
+								)}
+							</div>
+						</>
+					)}
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent className="w-[200px] p-0">
+				<Command>
+					<CommandInput placeholder="Buscar..." className="h-9" />
+					<CommandList>
+						<CommandEmpty>Sin resultados</CommandEmpty>
+						<CommandGroup>
+							{props.options.map((option) => (
+								<CommandItem
+									key={option.value}
+									value={option.value}
+									onSelect={(currentValue) => handleSelect(currentValue)}
+								>
+									{option.label}
+									<CheckIcon
+										className={cn(
+											"ml-auto h-4 w-4",
+											selectedValueSet.has(option.value)
+												? "opacity-100"
+												: "opacity-0",
+										)}
+									/>
+								</CommandItem>
+							))}
+						</CommandGroup>
+					</CommandList>
+				</Command>
+			</PopoverContent>
+		</Popover>
+	);
 }

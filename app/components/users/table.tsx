@@ -19,6 +19,7 @@ import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 import { useSearchParams } from "next/navigation";
 import { use } from "react";
+import MobileUsersList from "./mobile-users-list";
 import ParticipationsCell from "./cells/participations-cell";
 
 type Props = {
@@ -39,75 +40,89 @@ export default function UsersTable({
 	const pageCount = Math.ceil(aggregates.total / limit);
 
 	return (
-		<div className="group-has-[[data-pending]]:animate-pulse">
-			<Table className="border">
-				<TableHeader>
-					<TableRow>
-						<HeaderCell canSort value="displayName" label="Perfil" />
-						<HeaderCell canSort value="category" label="Categoría" />
-						<HeaderCell canSort value="status" label="Estado del perfil" />
-						<HeaderCell canSort value="status" label="Participaciones" />
-						<HeaderCell
-							canSort
-							value="verifiedAt"
-							label="Fecha de verificación"
-						/>
-						<HeaderCell canSort value="createdAt" label="Fecha de creación" />
-						<HeaderCell
-							canSort
-							value="updatedAt"
-							label="Última actualización"
-						/>
-						<TableHead className="sticky right-0 z-20 bg-white shadow-inner"></TableHead>
-					</TableRow>
-				</TableHeader>
-				<TableBody>
-					{users?.length ? (
-						users.map((user) => (
-							<TableRow key={user.id}>
-								<TableCell>
-									<UserInfoCell profile={user} />
-								</TableCell>
-								<TableCell>
-									<ProfileCategoryBadge profile={user} />
-								</TableCell>
-								<TableCell>
-									<ProfileStatusCell status={user.status} />
-								</TableCell>
-								<TableCell>
-									<ParticipationsCell participations={user.participations || []} />
-								</TableCell>
-								<TableCell>
-									{user.verifiedAt
-										? formatDate(user.verifiedAt).toLocaleString(
-												DateTime.DATETIME_SHORT_WITH_SECONDS,
-											)
-										: "--"}
-								</TableCell>
-								<TableCell>
-									{formatDate(user.createdAt).toLocaleString(
-										DateTime.DATETIME_SHORT_WITH_SECONDS,
-									)}
-								</TableCell>
-								<TableCell>
-									{formatDate(user.updatedAt).toLocaleString(
-										DateTime.DATETIME_SHORT_WITH_SECONDS,
-									)}
-								</TableCell>
-								<TableCell className="sticky right-0 z-20 bg-white shadow-inner">
-									<ActionsCell user={user} />
+		<div className="group-has-data-pending:animate-pulse">
+			<div className="md:hidden flex flex-col gap-3">
+				<MobileUsersList users={users || []} />
+			</div>
+
+			<div className="hidden md:block">
+				<Table className="border">
+					<TableHeader>
+						<TableRow>
+							<HeaderCell canSort value="displayName" label="Perfil" />
+							<HeaderCell canSort value="category" label="Categoría" />
+							<HeaderCell canSort value="status" label="Estado del perfil" />
+							<HeaderCell
+								canSort={false}
+								value="participationsCount"
+								label="Participaciones"
+							/>
+							<HeaderCell
+								canSort
+								value="verifiedAt"
+								label="Fecha de verificación"
+							/>
+							<HeaderCell canSort value="createdAt" label="Fecha de creación" />
+							<HeaderCell
+								canSort
+								value="updatedAt"
+								label="Última actualización"
+							/>
+							<TableHead className="sticky right-0 z-20 bg-white shadow-inner">
+								<span className="sr-only">Acciones</span>
+							</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{users?.length ? (
+							users.map((user) => (
+								<TableRow key={user.id}>
+									<TableCell>
+										<UserInfoCell profile={user} />
+									</TableCell>
+									<TableCell>
+										<ProfileCategoryBadge profile={user} />
+									</TableCell>
+									<TableCell>
+										<ProfileStatusCell status={user.status} />
+									</TableCell>
+									<TableCell>
+										<ParticipationsCell
+											participations={user.participations || []}
+										/>
+									</TableCell>
+									<TableCell>
+										{user.verifiedAt
+											? formatDate(user.verifiedAt).toLocaleString(
+													DateTime.DATETIME_MED_WITH_SECONDS,
+												)
+											: "--"}
+									</TableCell>
+									<TableCell>
+										{formatDate(user.createdAt).toLocaleString(
+											DateTime.DATETIME_MED_WITH_SECONDS,
+										)}
+									</TableCell>
+									<TableCell>
+										{formatDate(user.updatedAt).toLocaleString(
+											DateTime.DATETIME_MED_WITH_SECONDS,
+										)}
+									</TableCell>
+									<TableCell className="sticky right-0 z-20 bg-white shadow-inner">
+										<ActionsCell user={user} />
+									</TableCell>
+								</TableRow>
+							))
+						) : (
+							<TableRow>
+								<TableCell colSpan={8} className="h-24 text-center">
+									Sin resultados
 								</TableCell>
 							</TableRow>
-						))
-					) : (
-						<TableRow>
-							<TableCell colSpan={6} className="h-24 text-center">
-								Sin resultados
-							</TableCell>
-						</TableRow>
-					)}
-				</TableBody>
-			</Table>
+						)}
+					</TableBody>
+				</Table>
+			</div>
 			<UsersTablePagination
 				canNextPage={canNextPage}
 				canPreviousPage={canPreviousPage}
