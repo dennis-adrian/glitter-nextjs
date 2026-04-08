@@ -17,6 +17,7 @@ export default function UsersTableFilters() {
 	const { push } = useRouter();
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	const [isPending, startTransition] = useTransition();
+	const mobileFiltersPanelId = "users-table-mobile-filters-panel";
 
 	const statusParams = searchParams.getAll("status");
 	const categoryParams = searchParams.getAll("category");
@@ -240,6 +241,8 @@ export default function UsersTableFilters() {
 						type="button"
 						variant={filtersOpen ? "default" : "outline"}
 						className="shrink-0"
+						aria-expanded={filtersOpen}
+						aria-controls={mobileFiltersPanelId}
 						onClick={() => setFiltersOpen((current) => !current)}
 					>
 						<SlidersHorizontalIcon className="h-4 w-4 mr-1" />
@@ -247,20 +250,13 @@ export default function UsersTableFilters() {
 					</Button>
 				</div>
 
-				<div
-					aria-hidden={!filtersOpen}
-					className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
-						filtersOpen
-							? "grid-rows-[1fr] opacity-100"
-							: "grid-rows-[0fr] opacity-0"
-					}`}
-				>
-					<div className="overflow-hidden">
+				{filtersOpen && (
+					<div id={mobileFiltersPanelId}>
 						<div className="flex flex-col gap-2 border rounded-md p-2 shadow-sm">
 							{filterControls}
 						</div>
 					</div>
-				</div>
+				)}
 
 				{appliedFilterChips.length > 0 && (
 					<div className="flex flex-wrap gap-1">

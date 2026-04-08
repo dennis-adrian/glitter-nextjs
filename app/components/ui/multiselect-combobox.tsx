@@ -35,35 +35,40 @@ type ComboboxProps = {
 
 export function MultipleSelectCombobox(props: ComboboxProps) {
 	const [open, setOpen] = React.useState(false);
-	const [selected, setSelected] = React.useState<ComboboxOption[]>(
-		props.options.filter((option) =>
-			props.defaultValue?.includes(option.value),
-		),
+	const [selectedValues, setSelectedValues] = React.useState<string[]>(
+		props.defaultValue ?? [],
 	);
-	React.useEffect(() => {
-		setSelected(
-			props.options.filter((option) =>
-				props.defaultValue?.includes(option.value),
-			),
+
+	const selected = React.useMemo(() => {
+		const optionsByValue = new Map(
+			props.options.map((option) => [option.value, option]),
 		);
-	}, [props.defaultValue, props.options]);
+
+		return selectedValues
+			.map((value) => optionsByValue.get(value))
+			.filter((option): option is ComboboxOption => Boolean(option));
+	}, [selectedValues, props.options]);
+
+	const selectedValueSet = React.useMemo(
+		() => new Set(selectedValues),
+		[selectedValues],
+	);
+
+	React.useEffect(() => {
+		setSelectedValues(props.defaultValue ?? []);
+	}, [props.defaultValue]);
 
 	const handleSelect = (value: string) => {
-		const option = props.options.find((option) => option.value === value);
-		if (!option) return;
-
-		let newSelected = [];
-		if (selected.map((option) => option.value).includes(value)) {
-			newSelected = selected.filter((option) => option.value !== value);
-		} else {
-			newSelected = [...selected, option];
-		}
-		setSelected(newSelected);
-		if (props.onSelect)
-			props.onSelect(
-				props.name,
-				newSelected.map((option) => option.value),
+		let newSelectedValues: string[] = [];
+		if (selectedValueSet.has(value)) {
+			newSelectedValues = selectedValues.filter(
+				(selectedValue) => selectedValue !== value,
 			);
+		} else {
+			newSelectedValues = [...selectedValues, value];
+		}
+		setSelectedValues(newSelectedValues);
+		if (props.onSelect) props.onSelect(props.name, newSelectedValues);
 	};
 
 	return (
@@ -120,9 +125,7 @@ export function MultipleSelectCombobox(props: ComboboxProps) {
 									<CheckIcon
 										className={cn(
 											"ml-auto h-4 w-4",
-											selected
-												.map((option) => option.value)
-												.includes(option.value)
+											selectedValueSet.has(option.value)
 												? "opacity-100"
 												: "opacity-0",
 										)}
