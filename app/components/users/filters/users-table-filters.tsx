@@ -151,7 +151,12 @@ export default function UsersTableFilters() {
 
 	const handleShowAdminsChange = (value: boolean) => {
 		const newSearchParams = new URLSearchParams(searchParams.toString());
-		newSearchParams.set("includeAdmins", value.toString());
+		if (value) {
+			newSearchParams.set("includeAdmins", "true");
+		} else {
+			newSearchParams.delete("includeAdmins");
+		}
+		newSearchParams.set("offset", "0");
 		startTransition(() => {
 			push(`?${newSearchParams.toString()}`, {
 				scroll: false,
