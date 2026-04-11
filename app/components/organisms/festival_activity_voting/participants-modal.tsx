@@ -72,7 +72,7 @@ export default function ParticipantsModal({
 							: "Sin categoría"}
 					</DrawerDialogTitle>
 				</DrawerDialogHeader>
-				<div className="relative">
+				<div className="relative flex-1 overflow-y-auto min-h-0">
 					<div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3 p-3">
 						{standsWithParticipantProofs.map((participant, index) => {
 							/**
