@@ -18,7 +18,11 @@ export default async function StoreLayout({
 	await connection();
 
 	const activeFestival = await getActiveFestivalBase();
-	if (isFestivalHappeningAt(activeFestival, new Date())) {
+
+	if (
+		!activeFestival?.keepStoreOpen &&
+		isFestivalHappeningAt(activeFestival, new Date())
+	) {
 		return <FestivalHappeningNotice festival={activeFestival} />;
 	}
 
