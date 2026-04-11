@@ -1,14 +1,18 @@
 import { SignIn } from "@clerk/nextjs";
 
 type PageProps = {
-	searchParams: Promise<{ returnUrl?: string }>;
+	searchParams: Promise<{ returnUrl?: string | string[] }>;
 };
 
 export default async function Page({ searchParams }: PageProps) {
 	const { returnUrl } = await searchParams;
+	const rawReturnUrl = Array.isArray(returnUrl) ? returnUrl[0] : returnUrl;
+	const decodedUrl = rawReturnUrl
+		? decodeURIComponent(rawReturnUrl)
+		: undefined;
 	const safeReturnUrl =
-		returnUrl?.startsWith("/") && !returnUrl.startsWith("//")
-			? returnUrl
+		decodedUrl?.startsWith("/") && !decodedUrl.startsWith("//")
+			? decodedUrl
 			: undefined;
 
 	return (

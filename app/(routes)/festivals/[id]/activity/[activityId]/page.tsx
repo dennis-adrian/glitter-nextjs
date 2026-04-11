@@ -5,6 +5,8 @@ import CouponBookActivityPage from "@/app/components/pages/festival_activities/c
 import FestivalStickerActivityPage from "@/app/components/pages/festival_activities/festival-sticker-activity";
 import PassportActivityPage from "@/app/components/pages/festival_activities/passport-activity";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
+import { fetchFestivalWithDates } from "@/app/lib/festivals/actions";
+import { formatDate } from "@/app/lib/formatters";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
@@ -18,6 +20,16 @@ const ParamsSchema = z.object({
 
 type PageProps = {
 	params: Promise<z.infer<typeof ParamsSchema>>;
+};
+
+const formatSpanishDateTime = (date: Date | null | undefined) => {
+	if (!date) return null;
+	return formatDate(date).toFormat("cccc d 'de' LLLL 'a las' HH:mm'hs'");
+};
+
+const formatSpanishDate = (date: Date | null | undefined) => {
+	if (!date) return null;
+	return formatDate(date).toFormat("cccc d 'de' LLLL");
 };
 
 export default async function Page({ params }: PageProps) {
@@ -34,7 +46,33 @@ export default async function Page({ params }: PageProps) {
 	}
 
 	const activity = await fetchFestivalActivity(activityId);
-	if (!activity) notFound();
+	if (!activity || activity.festivalId !== festivalId) notFound();
+	const festival = await fetchFestivalWithDates(festivalId);
+	if (!festival) notFound();
+
+	const firstFestivalDate =
+		festival.startDate ??
+		festival.festivalDates
+			.map((festivalDate) => festivalDate.startDate)
+			.sort((a, b) => a.getTime() - b.getTime())[0] ??
+		null;
+
+	const proofUploadDeadlineText = formatSpanishDateTime(
+		activity.proofUploadLimitDate,
+	);
+	const registrationDeadlineText = formatSpanishDateTime(
+		activity.registrationEndDate,
+	);
+	const festivalStartDateText = formatSpanishDate(firstFestivalDate);
+	const rawStickerRemovalDeadline =
+		"stickerRemovalDeadline" in activity
+			? activity["stickerRemovalDeadline"]
+			: null;
+	const stickerRemovalDeadlineText = formatSpanishDate(
+		rawStickerRemovalDeadline instanceof Date
+			? rawStickerRemovalDeadline
+			: null,
+	);
 
 	if (activity.type === "stamp_passport") {
 		return (
@@ -188,9 +226,11 @@ export default async function Page({ params }: PageProps) {
 					</li>
 					<li>
 						El ilustrador deberá subir el diseño de su sticker al sitio web en
-						formato PNG con un tamaño máximo de 2MB hasta el miércoles 9 de
-						abril a las 18:00hs. (Esta opción no se encuentra disponible en este
-						momento pero se comunicará los ilustradores cuando esté disponible).
+						formato PNG con un tamaño máximo de 2MB hasta{" "}
+						{proofUploadDeadlineText ??
+							"la fecha límite definida para la actividad"}
+						. (Esta opción no se encuentra disponible en este momento pero se
+						comunicará los ilustradores cuando esté disponible).
 					</li>
 					<li>
 						El ilustrador se hará cargo de la impresión y la venta o
@@ -212,17 +252,22 @@ export default async function Page({ params }: PageProps) {
 						festival.
 					</li>
 					<li>
-						La fecha límite para inscribirse a la actividad es el domingo 6 de
-						abril a las 18:00hs.
+						La fecha límite para inscribirse a la actividad es{" "}
+						{registrationDeadlineText ??
+							"la fecha de cierre de registro configurada para la actividad"}
+						.
 					</li>
 					<li>
 						En caso de que un diseño de Sticker-Print no cumpla con la cantidad
 						mínima de participantes, podrá ser retirado de la actividad lo cual
-						se comunicará hasta el lunes 7 de abril.
+						{stickerRemovalDeadlineText
+							? ` se comunicará hasta el ${stickerRemovalDeadlineText}.`
+							: " se comunicará oportunamente por los canales oficiales del festival."}
 					</li>
 					<li>
 						El ilustrador se compromete a tener sus stickers coleccionables
-						listos para el primer día del evento: sábado 12 de abril.
+						listos para el primer día del evento:{" "}
+						{festivalStartDateText ?? "la fecha de inicio del festival"}.
 					</li>
 					<li>
 						El ilustrador comprende que la venta de cada diseño de Sticker-Print
