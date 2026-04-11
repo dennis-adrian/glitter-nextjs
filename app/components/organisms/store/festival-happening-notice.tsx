@@ -1,14 +1,25 @@
 "use client";
 
-import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert";
+import Link from "next/link";
 import { PartyPopperIcon } from "lucide-react";
 
-export default function FestivalHappeningNotice() {
+import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert";
+import { Button } from "@/app/components/ui/button";
+
+type Props = {
+	festival: { id: number; name: string } | null;
+};
+
+export default function FestivalHappeningNotice({ festival }: Props) {
 	return (
 		<div className="container px-3 py-10">
 			<Alert>
 				<PartyPopperIcon className="h-4 w-4" />
-				<AlertTitle>¡Estamos en el festival!</AlertTitle>
+				<AlertTitle>
+					{festival
+						? `¡Estamos en ${festival.name}!`
+						: "¡Estamos en el festival!"}
+				</AlertTitle>
 				<AlertDescription>
 					<p>
 						La tiendita en línea está en pausa mientras el festival está en
@@ -18,6 +29,11 @@ export default function FestivalHappeningNotice() {
 					<p className="mt-2">
 						¡Vuelve después del festival para seguir comprando en línea!
 					</p>
+					{festival && (
+						<Button asChild className="mt-4">
+							<Link href={`/festivals/${festival.id}`}>Ver el festival</Link>
+						</Button>
+					)}
 				</AlertDescription>
 			</Alert>
 		</div>

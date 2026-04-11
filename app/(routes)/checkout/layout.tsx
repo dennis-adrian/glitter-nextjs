@@ -17,7 +17,7 @@ export default async function CheckoutLayout({
 
 	const activeFestival = await getActiveFestivalBase();
 	if (isFestivalHappeningAt(activeFestival, new Date())) {
-		return <FestivalHappeningNotice />;
+		return <FestivalHappeningNotice festival={activeFestival} />;
 	}
 
 	const user = await getCurrentUserProfile();
