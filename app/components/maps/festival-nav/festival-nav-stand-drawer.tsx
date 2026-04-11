@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Stamp } from "lucide-react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
@@ -26,6 +26,7 @@ type FestivalNavStandDrawerProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	couponBookProofs: Record<number, CouponProof[]>;
+	passportUserIdSet: Set<number>;
 };
 
 function getCategoryLabel(category: string): string {
@@ -48,6 +49,7 @@ export default function FestivalNavStandDrawer({
 	open,
 	onOpenChange,
 	couponBookProofs,
+	passportUserIdSet,
 }: FestivalNavStandDrawerProps) {
 	const [activeTab, setActiveTab] = useState(0);
 
@@ -71,6 +73,11 @@ export default function FestivalNavStandDrawer({
 			? (couponBookProofs[currentParticipant.user.id]?.[0] ?? null)
 			: null;
 
+	const isInPassport =
+		currentParticipant != null
+			? passportUserIdSet.has(currentParticipant.user.id)
+			: false;
+
 	return (
 		<Drawer open={open} onOpenChange={onOpenChange} modal={false}>
 			<DrawerContent className="max-h-[85vh]">
@@ -80,7 +87,9 @@ export default function FestivalNavStandDrawer({
 							{standLabel}
 						</Badge>
 						{sectorName && (
-							<span className="text-xs text-muted-foreground">{sectorName}</span>
+							<span className="text-xs text-muted-foreground">
+								{sectorName}
+							</span>
 						)}
 						{categoryLabel && (
 							<Badge
@@ -173,6 +182,18 @@ export default function FestivalNavStandDrawer({
 													{couponProof.promoConditions}
 												</p>
 											)}
+										</div>
+									)}
+
+									{/* Passport section */}
+									{isInPassport && (
+										<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+											<div className="flex items-center gap-2 text-emerald-700">
+												<Stamp className="h-4 w-4 shrink-0" />
+												<span className="text-xs font-semibold uppercase tracking-wide">
+													Participa en la carrera de sellos
+												</span>
+											</div>
 										</div>
 									)}
 

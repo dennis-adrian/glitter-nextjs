@@ -24,6 +24,7 @@ type FestivalNavMapCanvasProps = {
 	mapBounds?: { minX: number; minY: number; width: number; height: number };
 	selectedStandId: number | null;
 	couponBookUserIdSet: Set<number>;
+	passportUserIdSet: Set<number>;
 	sectorName: string;
 	onStandSelect: (
 		stand: StandWithReservationsWithParticipants,
@@ -44,20 +45,24 @@ function getStandParticipantUserIds(
 		.map((p) => p.user.id);
 }
 
-function hasCouponParticipant(
+function hasActivityParticipant(
 	stand: StandWithReservationsWithParticipants,
-	couponBookUserIdSet: Set<number>,
+	userIdSet: Set<number>,
 ): boolean {
-	return getStandParticipantUserIds(stand).some((id) =>
-		couponBookUserIdSet.has(id),
-	);
+	return getStandParticipantUserIds(stand).some((id) => userIdSet.has(id));
 }
 
 function getNavStandColors(
 	stand: StandWithReservationsWithParticipants,
 	couponBookUserIdSet: Set<number>,
+	passportUserIdSet: Set<number>,
 ): StandColors {
-	if (isOccupied(stand) && hasCouponParticipant(stand, couponBookUserIdSet)) {
+	if (!isOccupied(stand)) return getPublicStandColors(stand.status);
+
+	const hasCoupon = hasActivityParticipant(stand, couponBookUserIdSet);
+	const hasPassport = hasActivityParticipant(stand, passportUserIdSet);
+
+	if (hasCoupon) {
 		return {
 			fill: "rgba(217, 119, 6, 0.85)",
 			hoverFill: "rgba(180, 83, 9, 0.95)",
@@ -65,6 +70,16 @@ function getNavStandColors(
 			text: "#ffffff",
 		};
 	}
+
+	if (hasPassport) {
+		return {
+			fill: "rgba(5, 150, 105, 0.85)",
+			hoverFill: "rgba(4, 120, 87, 0.95)",
+			stroke: "rgba(6, 95, 70, 0.9)",
+			text: "#ffffff",
+		};
+	}
+
 	return getPublicStandColors(stand.status);
 }
 
@@ -74,6 +89,7 @@ export default function FestivalNavMapCanvas({
 	mapBounds,
 	selectedStandId,
 	couponBookUserIdSet,
+	passportUserIdSet,
 	sectorName,
 	onStandSelect,
 }: FestivalNavMapCanvasProps) {
@@ -89,8 +105,12 @@ export default function FestivalNavMapCanvas({
 		[onStandSelect, sectorName],
 	);
 
-	const couponStands = visibleStands.filter(
-		(s) => isOccupied(s) && hasCouponParticipant(s, couponBookUserIdSet),
+	const occupiedStands = visibleStands.filter(isOccupied);
+	const couponStands = occupiedStands.filter((s) =>
+		hasActivityParticipant(s, couponBookUserIdSet),
+	);
+	const passportStands = occupiedStands.filter((s) =>
+		hasActivityParticipant(s, passportUserIdSet),
 	);
 
 	const canvasConfig = {
@@ -102,8 +122,16 @@ export default function FestivalNavMapCanvas({
 
 	return (
 		<div className="relative w-full border rounded-lg overflow-hidden">
-			<MapTransformWrapper initialScale={1} minScale={1} maxScale={4} centerOnInit>
-				<TransformComponent wrapperStyle={{ width: "100%" }} contentStyle={{ width: "100%" }}>
+			<MapTransformWrapper
+				initialScale={1}
+				minScale={1}
+				maxScale={4}
+				centerOnInit
+			>
+				<TransformComponent
+					wrapperStyle={{ width: "100%" }}
+					contentStyle={{ width: "100%" }}
+				>
 					<MapCanvas config={canvasConfig}>
 						{mapElements.map((element) => (
 							<MapElement key={`el-${element.id}`} element={element} />
@@ -114,18 +142,22 @@ export default function FestivalNavMapCanvas({
 								stand={stand}
 								canBeReserved={false}
 								selected={stand.id === selectedStandId}
-								colors={getNavStandColors(stand, couponBookUserIdSet)}
+								colors={getNavStandColors(
+									stand,
+									couponBookUserIdSet,
+									passportUserIdSet,
+								)}
 								onTouchTap={handleStandSelect}
 								onClick={handleStandSelect}
 							/>
 						))}
-						{/* Coupon badge overlay — painted after stands */}
+						{/* Activity badge overlay — painted after stands */}
 						<g aria-hidden="true">
 							{couponStands.map((stand) => {
 								const { left, top } = getStandPosition(stand);
 								return (
 									<g
-										key={`badge-${stand.id}`}
+										key={`coupon-${stand.id}`}
 										transform={`translate(${left}, ${top})`}
 										style={{ pointerEvents: "none" }}
 									>
@@ -152,6 +184,43 @@ export default function FestivalNavMapCanvas({
 									</g>
 								);
 							})}
+							{passportStands.map((stand) => {
+								const { left, top } = getStandPosition(stand);
+								// If stand also has a coupon badge, shift the passport badge left
+								const hasCoupon = hasActivityParticipant(
+									stand,
+									couponBookUserIdSet,
+								);
+								const cx = hasCoupon ? STAND_SIZE - 2.8 : STAND_SIZE - 0.8;
+								return (
+									<g
+										key={`passport-${stand.id}`}
+										transform={`translate(${left}, ${top})`}
+										style={{ pointerEvents: "none" }}
+									>
+										<circle
+											cx={cx}
+											cy={0.8}
+											r={1.3}
+											fill="#059669"
+											stroke="#fff"
+											strokeWidth={0.3}
+										/>
+										<text
+											x={cx}
+											y={0.8}
+											textAnchor="middle"
+											dominantBaseline="central"
+											fontSize={1.4}
+											fontWeight={700}
+											fill="#fff"
+											style={{ userSelect: "none" }}
+										>
+											★
+										</text>
+									</g>
+								);
+							})}
 						</g>
 					</MapCanvas>
 				</TransformComponent>
@@ -163,7 +232,6 @@ export default function FestivalNavMapCanvas({
 						<span className="text-xs font-medium">Pellizca para ampliar</span>
 					</div>
 				</div>
-
 			</MapTransformWrapper>
 		</div>
 	);
