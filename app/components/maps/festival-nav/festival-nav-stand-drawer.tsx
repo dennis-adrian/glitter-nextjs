@@ -43,6 +43,12 @@ function getCategoryLabel(category: string): string {
 	}
 }
 
+function formatStandLabel(
+	stand: Pick<StandWithReservationsWithParticipants, "label" | "standNumber">,
+): string {
+	return `${stand.label ?? ""}${stand.standNumber}`;
+}
+
 export default function FestivalNavStandDrawer({
 	stand,
 	sectorName,
@@ -68,7 +74,7 @@ export default function FestivalNavStandDrawer({
 	if (!stand) return null;
 
 	const currentParticipant = participants[clampedTab] ?? participants[0];
-	const standLabel = `${stand.label}${stand.standNumber}`;
+	const standLabel = formatStandLabel(stand);
 	const categoryLabel = getCategoryLabel(stand.standCategory);
 	const products = stand.standSubcategories.map((sc) => sc.subcategory.label);
 

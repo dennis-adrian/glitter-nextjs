@@ -63,7 +63,7 @@ export default async function FestivalMapPage(props: {
 	}
 
 	const passportActivity = activities.find((a) => a.type === "stamp_passport");
-	const passportUserIds: number[] = [];
+	const passportUserIdSet = new Set<number>();
 
 	for (const detail of passportActivity?.details ?? []) {
 		for (const participant of detail.participants) {
@@ -71,10 +71,11 @@ export default async function FestivalMapPage(props: {
 				(p) => p.proofStatus === "approved",
 			);
 			if (hasApprovedProof) {
-				passportUserIds.push(participant.user.id);
+				passportUserIdSet.add(participant.user.id);
 			}
 		}
 	}
+	const passportUserIds = Array.from(passportUserIdSet);
 
 	return (
 		<FestivalNavMap
