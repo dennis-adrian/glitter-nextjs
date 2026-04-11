@@ -3,6 +3,7 @@ import { PencilIcon, ClipboardListIcon, ChevronRightIcon } from "lucide-react";
 
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Button } from "@/app/components/ui/button";
+import CopyActivityLinkButton from "@/app/components/festivals/festival_activities/copy-activity-link-button";
 import {
 	Card,
 	CardContent,
@@ -187,6 +188,10 @@ export default function ActivitySummaryCard({
 						<ClipboardListIcon className="w-4 h-4 mr-1" />
 						Iniciar revisión
 					</RedirectButton>
+					<CopyActivityLinkButton
+						festivalId={festivalId}
+						activityId={activity.id}
+					/>
 				</div>
 			</CardContent>
 		</Card>
