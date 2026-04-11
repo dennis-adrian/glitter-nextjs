@@ -32,12 +32,23 @@ type TicketsChartProps = {
 export default function TicketsChart(props: TicketsChartProps) {
 	const chartData = generateChartData(props.tickets, props.festivalDates);
 	const isMultiDay = props.festivalDates.length > 1;
+	const totalCheckIns = chartData.reduce(
+		(sum, d) => sum + d.day1 + (d.day2 ?? 0),
+		0,
+	);
 
 	return (
 		<div className="space-y-2">
-			<h2 className="text-sm font-medium text-muted-foreground">
-				Distribución de check-ins por hora
-			</h2>
+			<div className="flex items-baseline justify-between">
+				<h2 className="text-sm font-medium text-muted-foreground">
+					Distribución de check-ins por hora
+				</h2>
+				{chartData.length > 0 && (
+					<span className="text-sm font-medium">
+						Total: {totalCheckIns.toLocaleString()}
+					</span>
+				)}
+			</div>
 			{chartData.length === 0 ? (
 				<div className="flex min-h-[200px] flex-col items-center justify-center gap-3 text-muted-foreground">
 					<TicketIcon className="h-10 w-10 opacity-30" />
