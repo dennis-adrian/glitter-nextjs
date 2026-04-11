@@ -10,6 +10,7 @@ import {
 	FormMessage,
 } from "@/app/components/ui/form";
 import { Input } from "@/app/components/ui/input";
+import { Switch } from "@/app/components/ui/switch";
 import { festivalTypeOptions } from "@/app/lib/utils";
 import { festivalTypeEnum } from "@/db/schema";
 import { updateFestival } from "@/app/lib/festivals/actions";
@@ -42,6 +43,7 @@ const FormSchema = z.object({
 	mapsVersion: z.enum(["v1", "v2", "v3"]).prefault("v1"),
 	publicRegistration: z.boolean().prefault(false),
 	eventDayRegistration: z.boolean().prefault(false),
+	keepStoreOpen: z.boolean().prefault(false),
 	festivalType: z.enum([...festivalTypeEnum.enumValues]),
 	dates: z
 		.array(
@@ -110,6 +112,7 @@ export default function UpdateFestivalForm({
 			mapsVersion: festival.mapsVersion,
 			publicRegistration: festival.publicRegistration,
 			eventDayRegistration: festival.eventDayRegistration,
+			keepStoreOpen: festival.keepStoreOpen,
 			festivalType: festival.festivalType,
 			description: festival.description || "",
 			address: festival.address || "",
@@ -268,6 +271,30 @@ export default function UpdateFestivalForm({
 									name="festivalType"
 									options={festivalTypeOptions}
 									side="bottom"
+								/>
+
+								<FormField
+									control={form.control}
+									name="keepStoreOpen"
+									render={({ field }) => (
+										<FormItem className="flex flex-row items-start justify-between gap-4 rounded-lg border p-4">
+											<div className="space-y-1">
+												<FormLabel>Mantener la tiendita abierta</FormLabel>
+												<p className="text-sm text-muted-foreground">
+													Por defecto, la tiendita en línea y el checkout se
+													bloquean durante los días del festival. Actívalo para
+													permitir que los visitantes sigan comprando en línea
+													mientras el festival está en curso.
+												</p>
+											</div>
+											<FormControl>
+												<Switch
+													checked={field.value}
+													onCheckedChange={field.onChange}
+												/>
+											</FormControl>
+										</FormItem>
+									)}
 								/>
 							</div>
 

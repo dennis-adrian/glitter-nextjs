@@ -1,0 +1,1 @@
+ALTER TABLE "festivals" ADD COLUMN "keep_store_open" boolean DEFAULT false NOT NULL;

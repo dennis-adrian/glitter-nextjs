@@ -212,6 +212,7 @@ export async function updateFestival(
 					mapsVersion: data.mapsVersion || "v1",
 					publicRegistration: data.publicRegistration || false,
 					eventDayRegistration: data.eventDayRegistration || false,
+					keepStoreOpen: data.keepStoreOpen || false,
 					festivalType: data.festivalType || "glitter",
 					generalMapUrl: data.generalMapUrl || null,
 					mascotUrl: data.mascotUrl || null,
