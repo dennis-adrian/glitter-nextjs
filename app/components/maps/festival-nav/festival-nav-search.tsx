@@ -26,6 +26,7 @@ export default function FestivalNavSearch({
 }: FestivalNavSearchProps) {
 	const [query, setQuery] = useState("");
 	const [open, setOpen] = useState(false);
+	const wrapperRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	const normalized = query.trim().toLowerCase();
@@ -44,8 +45,19 @@ export default function FestivalNavSearch({
 		onSelect(entry);
 	}
 
+	function handleWrapperBlur(event: React.FocusEvent<HTMLDivElement>) {
+		const nextTarget = event.relatedTarget as Node | null;
+		if (!nextTarget || !wrapperRef.current?.contains(nextTarget)) {
+			setOpen(false);
+		}
+	}
+
 	return (
-		<div className="relative shrink-0 px-4 py-2">
+		<div
+			ref={wrapperRef}
+			onBlur={handleWrapperBlur}
+			className="relative shrink-0 px-4 py-2"
+		>
 			<div className="relative flex items-center">
 				<Search className="absolute left-3 h-4 w-4 text-muted-foreground pointer-events-none" />
 				<input
@@ -58,10 +70,6 @@ export default function FestivalNavSearch({
 						setOpen(true);
 					}}
 					onFocus={() => setOpen(true)}
-					onBlur={() => {
-						// Delay so click on result fires before blur closes the dropdown
-						setTimeout(() => setOpen(false), 150);
-					}}
 					className="w-full rounded-lg border border-border bg-background pl-9 pr-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
 				/>
 			</div>

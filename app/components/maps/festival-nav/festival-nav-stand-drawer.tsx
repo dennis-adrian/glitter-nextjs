@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { BookOpen, Stamp } from "lucide-react";
 
@@ -52,6 +52,10 @@ export default function FestivalNavStandDrawer({
 	passportUserIdSet,
 }: FestivalNavStandDrawerProps) {
 	const [activeTab, setActiveTab] = useState(0);
+
+	useEffect(() => {
+		setActiveTab(0);
+	}, [stand?.id]);
 
 	const participants = stand
 		? stand.reservations

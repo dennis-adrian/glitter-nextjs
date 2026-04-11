@@ -161,6 +161,7 @@ export default function FestivalNavMap({
 							{sectors.map((sector) => (
 								<div
 									key={sector.id}
+									className="scroll-mt-36 md:scroll-mt-40"
 									ref={(el) => {
 										if (el) sectorDivRefs.current.set(sector.id, el);
 										else sectorDivRefs.current.delete(sector.id);
