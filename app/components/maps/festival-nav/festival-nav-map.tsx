@@ -12,6 +12,7 @@ import FestivalNavSearch, {
 import FestivalNavStandDrawer, {
 	CouponProof,
 } from "@/app/components/maps/festival-nav/festival-nav-stand-drawer";
+import FestivalNavMapLegend from "@/app/components/maps/festival-nav/festival-nav-map-legend";
 
 type FestivalNavMapProps = {
 	festivalName: string;
@@ -136,6 +137,13 @@ export default function FestivalNavMap({
 					activeIndex={activeSectorIndex}
 					onChange={setActiveSectorIndex}
 				/>
+			</div>
+
+			{/* Legend */}
+			<div className="flex justify-center px-4 md:px-0">
+				<div className="w-full md:max-w-3xl">
+					<FestivalNavMapLegend />
+				</div>
 			</div>
 
 			{/* Map area */}

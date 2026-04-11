@@ -4,7 +4,10 @@ import { notFound } from "next/navigation";
 
 import FestivalNavMap from "@/app/components/maps/festival-nav/festival-nav-map";
 import { CouponProof } from "@/app/components/maps/festival-nav/festival-nav-stand-drawer";
-import { fetchBaseFestival, fetchFestivalActivitiesByFestivalId } from "@/app/lib/festivals/actions";
+import {
+	fetchBaseFestival,
+	fetchFestivalActivitiesByFestivalId,
+} from "@/app/lib/festivals/actions";
 import { fetchFestivalSectors } from "@/app/lib/festival_sectors/actions";
 
 export const metadata: Metadata = {
@@ -43,12 +46,18 @@ export default async function FestivalMapPage(props: {
 				(p) => p.proofStatus === "approved",
 			);
 			if (approvedProofs.length > 0) {
-				couponBookUserIds.push(participant.user.id);
-				couponBookProofs[participant.user.id] = approvedProofs.map((p) => ({
-					promoHighlight: p.promoHighlight,
-					promoDescription: p.promoDescription,
-					promoConditions: p.promoConditions,
-				}));
+				const userId = participant.user.id;
+				if (!couponBookProofs[userId]) {
+					couponBookUserIds.push(userId);
+					couponBookProofs[userId] = [];
+				}
+				couponBookProofs[userId].push(
+					...approvedProofs.map((p) => ({
+						promoHighlight: p.promoHighlight,
+						promoDescription: p.promoDescription,
+						promoConditions: p.promoConditions,
+					})),
+				);
 			}
 		}
 	}

@@ -17,7 +17,6 @@ import MapCanvas from "@/app/components/maps/map-canvas";
 import MapStand from "@/app/components/maps/map-stand";
 import MapElement from "@/app/components/maps/map-element";
 import MapTransformWrapper from "@/app/components/maps/map-transform-wrapper";
-import FestivalNavMapLegend from "@/app/components/maps/festival-nav/festival-nav-map-legend";
 
 type FestivalNavMapCanvasProps = {
 	stands: StandWithReservationsWithParticipants[];
@@ -165,10 +164,6 @@ export default function FestivalNavMapCanvas({
 					</div>
 				</div>
 
-				{/* Legend overlay */}
-				<div className="absolute bottom-3 left-3 z-10 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 shadow-sm border border-border pointer-events-none">
-					<FestivalNavMapLegend />
-				</div>
 			</MapTransformWrapper>
 		</div>
 	);
