@@ -45,6 +45,11 @@ export default function ActivityVotingResults({
 						),
 					}))
 					.sort((a, b) => b.voteCount - a.voteCount);
+				const topScore = results[0]?.voteCount ?? 0;
+				const topScorers = results.filter(
+					(result) => result.voteCount === topScore,
+				);
+				const hasUniqueTopScorer = topScore > 0 && topScorers.length === 1;
 
 				return (
 					<div key={detail.id} className="space-y-4">
@@ -80,7 +85,9 @@ export default function ActivityVotingResults({
 												? Math.round((voteCount / totalVotes) * 100)
 												: 0;
 										const isEligibleWinner =
-											rank === 0 && voteCount > 0 && hasVotedAllVariants;
+											hasUniqueTopScorer &&
+											participant.id === topScorers[0].participant.id &&
+											hasVotedAllVariants;
 
 										return (
 											<VotingResultRow

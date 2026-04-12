@@ -304,7 +304,7 @@ export default async function BestStandActivityPage({
 					</span>
 				</p>
 			</section>
-			{isActivityInVotingWindow(activity) ? (
+			{isActivityInVotingWindow(activity) && activity.allowsVoting ? (
 				<Button
 					size="lg"
 					className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold"

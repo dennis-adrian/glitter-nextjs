@@ -13,11 +13,15 @@ export default function CopyVotingLinkButton({
 	activityId,
 }: CopyVotingLinkButtonProps) {
 	const path = `/festivals/${festivalId}/activity/${activityId}/voting`;
-	const [url, setUrl] = useState(path);
+	const [url, setUrl] = useState<string | null>(null);
 
 	useEffect(() => {
 		setUrl(window.location.origin + path);
 	}, [path]);
+
+	if (!url) {
+		return null;
+	}
 
 	return (
 		<CopyToClipboardButton
