@@ -1,0 +1,106 @@
+import Link from "next/link";
+import { ArrowLeftIcon, UsersIcon } from "lucide-react";
+
+import VotingResultRow from "@/app/components/festivals/festival_activities/voting-result-row";
+import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
+
+type ActivityVotingResultsProps = {
+	activity: FestivalActivityWithDetailsAndParticipants;
+};
+
+export default function ActivityVotingResults({
+	activity,
+}: ActivityVotingResultsProps) {
+	const showVariantHeaders = activity.details.length > 1;
+
+	return (
+		<div className="container p-4 md:p-6 space-y-6">
+			<div className="flex items-center gap-2">
+				<Link
+					href={`/dashboard/festivals/${activity.festivalId}/festival_activities/${activity.id}`}
+					className="text-muted-foreground hover:text-foreground transition-colors"
+				>
+					<ArrowLeftIcon className="w-4 h-4" />
+				</Link>
+				<h1 className="text-2xl font-bold leading-tight">
+					Resultados — {activity.name}
+				</h1>
+			</div>
+
+			{activity.details.map((detail, index) => {
+				const activeParticipants = detail.participants.filter(
+					(p) => !p.removedAt,
+				);
+				const totalVotes = detail.votes.length;
+				const uniqueVoters = new Set(detail.votes.map((v) => v.voterId)).size;
+
+				const results = activeParticipants
+					.map((participant) => ({
+						participant,
+						voteCount: detail.votes.filter(
+							(v) => v.participantId === participant.id,
+						).length,
+						hasVotedAllVariants: activity.details.every((d) =>
+							d.votes.some((v) => v.voterId === participant.userId),
+						),
+					}))
+					.sort((a, b) => b.voteCount - a.voteCount);
+
+				return (
+					<div key={detail.id} className="space-y-4">
+						{showVariantHeaders && (
+							<h2 className="text-base font-semibold text-muted-foreground">
+								Variante {index + 1}
+								{detail.description ? ` — ${detail.description}` : ""}
+							</h2>
+						)}
+
+						<div className="flex items-center gap-4 text-sm text-muted-foreground">
+							<span className="flex items-center gap-1">
+								<UsersIcon className="w-4 h-4" />
+								{uniqueVoters} votante{uniqueVoters !== 1 ? "s" : ""} de{" "}
+								{activeParticipants.length} participante
+								{activeParticipants.length !== 1 ? "s" : ""}
+							</span>
+							<span>
+								{totalVotes} voto{totalVotes !== 1 ? "s" : ""} en total
+							</span>
+						</div>
+
+						{results.length === 0 ? (
+							<p className="text-sm text-muted-foreground italic">
+								No hay participantes en esta variante.
+							</p>
+						) : (
+							<div className="space-y-3">
+								{results.map(
+									({ participant, voteCount, hasVotedAllVariants }, rank) => {
+										const percentage =
+											totalVotes > 0
+												? Math.round((voteCount / totalVotes) * 100)
+												: 0;
+										const isEligibleWinner =
+											rank === 0 && voteCount > 0 && hasVotedAllVariants;
+
+										return (
+											<VotingResultRow
+												key={participant.id}
+												participant={participant}
+												voteCount={voteCount}
+												percentage={percentage}
+												rank={rank}
+												hasVotedAllVariants={hasVotedAllVariants}
+												isEligibleWinner={isEligibleWinner}
+												allDetails={activity.details}
+											/>
+										);
+									},
+								)}
+							</div>
+						)}
+					</div>
+				);
+			})}
+		</div>
+	);
+}
