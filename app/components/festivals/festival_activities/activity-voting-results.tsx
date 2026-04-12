@@ -18,6 +18,7 @@ export default function ActivityVotingResults({
 			<div className="flex items-center gap-2">
 				<Link
 					href={`/dashboard/festivals/${activity.festivalId}/festival_activities/${activity.id}`}
+					aria-label="Back to festival activities"
 					className="text-muted-foreground hover:text-foreground transition-colors"
 				>
 					<ArrowLeftIcon className="w-4 h-4" />
@@ -31,13 +32,23 @@ export default function ActivityVotingResults({
 				const activeParticipants = detail.participants.filter(
 					(p) => !p.removedAt,
 				);
-				const totalVotes = detail.votes.length;
-				const uniqueVoters = new Set(detail.votes.map((v) => v.voterId)).size;
+				const activeParticipantIds = new Set(
+					activeParticipants.map((participant) => participant.id),
+				);
+				const filteredVotes = detail.votes.filter((vote) => {
+					if (vote.participantId === null) {
+						return false;
+					}
+					return activeParticipantIds.has(vote.participantId);
+				});
+				const totalVotes = filteredVotes.length;
+				const uniqueVoters = new Set(filteredVotes.map((vote) => vote.voterId))
+					.size;
 
 				const results = activeParticipants
 					.map((participant) => ({
 						participant,
-						voteCount: detail.votes.filter(
+						voteCount: filteredVotes.filter(
 							(v) => v.participantId === participant.id,
 						).length,
 						hasVotedAllVariants: activity.details.every((d) =>
