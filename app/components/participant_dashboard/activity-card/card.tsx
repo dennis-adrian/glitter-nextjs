@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { ChevronRight, Clock, Hourglass } from "lucide-react";
+import { ChevronRight, Clock, Hourglass, VoteIcon } from "lucide-react";
 
 import { BaseProfile } from "@/app/api/users/definitions";
 import Heading from "@/app/components/atoms/heading";
@@ -15,6 +15,7 @@ import {
 	getActivityTheme,
 	getEnrolledConfig,
 	getEnrollmentInfo,
+	isActivityInVotingWindow,
 } from "@/app/components/participant_dashboard/activity-card/utils";
 import { Button } from "@/app/components/ui/button";
 import type { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
@@ -35,6 +36,12 @@ export default function FestivalActivityCard({
 	const enrolledConfig = enrollment.isEnrolled
 		? getEnrolledConfig(activity, forProfile.id, enrollment.proofDisplayState)
 		: null;
+	const isInVotingWindow =
+		activity.allowsVoting && isActivityInVotingWindow(activity);
+	const enrollmentIsOpen =
+		!activity.registrationEndDate ||
+		new Date() <= new Date(activity.registrationEndDate);
+	const activityHref = `/profiles/${forProfile.id}/festivals/${activity.festivalId}/activity/${activity.id}`;
 
 	return (
 		<div
@@ -178,26 +185,48 @@ export default function FestivalActivityCard({
 
 							{/* CTA for unenrolled users */}
 							<div className="pt-2">
-								<Button
-									className="w-full font-bold border-0 hover:opacity-90 transition-opacity"
-									style={{
-										backgroundColor: theme.buttonBg,
-										color: theme.buttonText,
-										clipPath:
-											"polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))",
-									}}
-									size="lg"
-									asChild
-								>
-									<Link
-										href={`/profiles/${forProfile.id}/festivals/${activity.festivalId}/activity/${activity.id}`}
+								{isInVotingWindow ? (
+									<Button
+										className="w-full font-bold border-0 hover:opacity-90 transition-opacity bg-amber-500 hover:bg-amber-600 text-white"
+										style={{
+											clipPath:
+												"polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))",
+										}}
+										size="lg"
+										asChild
 									>
-										{!enrollment.isEnrolled && enrollment.waitlistEntry
-											? "Ver estado"
-											: "Participar"}
-										<ChevronRight className="w-5 h-5 ml-1" />
+										<Link href={`${activityHref}/voting`}>
+											<VoteIcon className="w-5 h-5 mr-1" />
+											Votar ahora
+										</Link>
+									</Button>
+								) : enrollment.waitlistEntry || enrollmentIsOpen ? (
+									<Button
+										className="w-full font-bold border-0 hover:opacity-90 transition-opacity"
+										style={{
+											backgroundColor: theme.buttonBg,
+											color: theme.buttonText,
+											clipPath:
+												"polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))",
+										}}
+										size="lg"
+										asChild
+									>
+										<Link href={activityHref}>
+											{enrollment.waitlistEntry ? "Ver estado" : "Participar"}
+											<ChevronRight className="w-5 h-5 ml-1" />
+										</Link>
+									</Button>
+								) : (
+									<Link
+										href={activityHref}
+										className="flex items-center justify-center gap-1 text-sm font-semibold transition-opacity hover:opacity-80"
+										style={{ color: theme.textPrimary }}
+									>
+										Ver detalles
+										<ChevronRight className="w-4 h-4" />
 									</Link>
-								</Button>
+								)}
 							</div>
 						</>
 					)}

@@ -2,9 +2,13 @@ import { BaseProfile } from "@/app/api/users/definitions";
 import DateSpan from "@/app/components/atoms/date-span";
 import Heading from "@/app/components/atoms/heading";
 import EnrollBestStandForm from "@/app/components/festivals/festival_activities/enroll-best-stand-form";
+import { isActivityInVotingWindow } from "@/app/components/participant_dashboard/activity-card/utils";
+import { Button } from "@/app/components/ui/button";
 import { fetchFestivalParticipants } from "@/app/lib/festivals/actions";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
+import { VoteIcon } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import BestStandDisclaimer from "./best-stand-disclaimer";
 
@@ -220,7 +224,40 @@ export default async function BestStandActivityPage({
 					<li>Tener una reserva confirmada para este festival.</li>
 					<li>
 						Inscribirse a la actividad con el botón de inscripción que se
-						encuentra al final de la página.
+						encuentra al final de la página durante el periodo de inscripción
+						{activity.registrationStartDate && activity.registrationEndDate && (
+							<span>
+								: desde el{" "}
+								<strong>
+									<DateSpan
+										date={activity.registrationStartDate}
+										format={{ month: "long", day: "numeric" }}
+									/>
+								</strong>{" "}
+								a las{" "}
+								<strong>
+									<DateSpan
+										date={activity.registrationStartDate}
+										format={{ hour: "numeric", minute: "numeric" }}
+									/>
+								</strong>
+							</span>
+						)}{" "}
+						hasta el{" "}
+						<strong>
+							<DateSpan
+								date={activity.registrationEndDate}
+								format={{ month: "long", day: "numeric" }}
+							/>
+						</strong>{" "}
+						a las{" "}
+						<strong>
+							<DateSpan
+								date={activity.registrationEndDate}
+								format={{ hour: "numeric", minute: "numeric" }}
+							/>
+						</strong>
+						.
 					</li>
 					<li>
 						Subir una imagen de tu stand{" "}
@@ -267,12 +304,27 @@ export default async function BestStandActivityPage({
 					</span>
 				</p>
 			</section>
-			<EnrollBestStandForm
-				forProfile={forProfile}
-				activity={activity}
-				festivalParticipants={confirmedParticipants}
-				activityVariantForProfile={activityVariantForProfile}
-			/>
+			{isActivityInVotingWindow(activity) && activity.allowsVoting ? (
+				<Button
+					size="lg"
+					className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold"
+					asChild
+				>
+					<Link
+						href={`/profiles/${forProfile.id}/festivals/${activity.festivalId}/activity/${activity.id}/voting`}
+					>
+						<VoteIcon className="w-5 h-5 mr-1" />
+						Votar ahora
+					</Link>
+				</Button>
+			) : (
+				<EnrollBestStandForm
+					forProfile={forProfile}
+					activity={activity}
+					festivalParticipants={confirmedParticipants}
+					activityVariantForProfile={activityVariantForProfile}
+				/>
+			)}
 		</div>
 	);
 }

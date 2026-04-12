@@ -154,17 +154,6 @@ export default function EnrollBestStandForm({
 		? "Quiero participar en la actividad"
 		: "Registro no disponible";
 
-	if (!isRegistrationOpen) {
-		return (
-			<div className="w-full flex flex-col gap-2">
-				<Button className="w-full" disabled>
-					Registro no disponible
-				</Button>
-				<p className="text-sm text-muted-foreground italic">{statusMessage}</p>
-			</div>
-		);
-	}
-
 	if (!activityVariantForProfile) {
 		return (
 			<div className="w-full flex gap-2 bg-amber-50 border border-amber-200 rounded-md p-4 text-amber-800">
@@ -175,51 +164,9 @@ export default function EnrollBestStandForm({
 	}
 
 	/**
-	 * Check if the stand is already enrolled by another participant
-	 */
-	const forProfileStand = festivalParticipants.find(
-		(participant) => participant.user.id === forProfile.id,
-	)?.reservation?.stand;
-
-	const otherParticipantIdsInSameStand = festivalParticipants
-		.filter(
-			(participant) =>
-				participant.reservation?.standId === forProfileStand?.id &&
-				participant.user.id !== forProfile.id,
-		)
-		?.map((participant) => participant.user.id);
-
-	let isStandAlreadyEnrolled = false;
-	// Check if the other participant with the same stand is already enrolled in the activity
-	for (const participant of activityVariantForProfile?.participants || []) {
-		if (otherParticipantIdsInSameStand?.includes(participant.userId)) {
-			isStandAlreadyEnrolled = true;
-			break;
-		}
-	}
-
-	if (isStandAlreadyEnrolled) {
-		return (
-			<div className="w-full flex gap-2 bg-amber-50 border border-amber-200 rounded-md p-4 text-amber-800">
-				<CircleAlertIcon className="w-6 h-6" />
-				<p className="text-sm">
-					El espacio{" "}
-					{forProfileStand && (
-						<span>
-							<strong>
-								{forProfileStand?.label}
-								{forProfileStand?.standNumber}
-							</strong>{" "}
-						</span>
-					)}
-					ya está inscrito a la actividad por otro participante
-				</p>
-			</div>
-		);
-	}
-
-	/**
-	 * Check if the profile is already enrolled in the activity
+	 * Check if the profile is already enrolled in the activity.
+	 * This check happens before the registration window guard so that
+	 * enrolled users can still upload their proof image after enrollment closes.
 	 */
 	if (
 		activityVariantForProfile.participants.some(
@@ -350,6 +297,60 @@ export default function EnrollBestStandForm({
 			<Button className="w-full" disabled>
 				Ya estás inscrito en esta actividad
 			</Button>
+		);
+	}
+
+	if (!isRegistrationOpen) {
+		return (
+			<div className="w-full flex flex-col gap-2">
+				<Button className="w-full" disabled>
+					Registro no disponible
+				</Button>
+				<p className="text-sm text-muted-foreground italic">{statusMessage}</p>
+			</div>
+		);
+	}
+
+	/**
+	 * Check if the stand is already enrolled by another participant
+	 */
+	const forProfileStand = festivalParticipants.find(
+		(participant) => participant.user.id === forProfile.id,
+	)?.reservation?.stand;
+
+	const otherParticipantIdsInSameStand = festivalParticipants
+		.filter(
+			(participant) =>
+				participant.reservation?.standId === forProfileStand?.id &&
+				participant.user.id !== forProfile.id,
+		)
+		?.map((participant) => participant.user.id);
+
+	let isStandAlreadyEnrolled = false;
+	for (const participant of activityVariantForProfile?.participants || []) {
+		if (otherParticipantIdsInSameStand?.includes(participant.userId)) {
+			isStandAlreadyEnrolled = true;
+			break;
+		}
+	}
+
+	if (isStandAlreadyEnrolled) {
+		return (
+			<div className="w-full flex gap-2 bg-amber-50 border border-amber-200 rounded-md p-4 text-amber-800">
+				<CircleAlertIcon className="w-6 h-6" />
+				<p className="text-sm">
+					El espacio{" "}
+					{forProfileStand && (
+						<span>
+							<strong>
+								{forProfileStand?.label}
+								{forProfileStand?.standNumber}
+							</strong>{" "}
+						</span>
+					)}
+					ya está inscrito a la actividad por otro participante
+				</p>
+			</div>
 		);
 	}
 

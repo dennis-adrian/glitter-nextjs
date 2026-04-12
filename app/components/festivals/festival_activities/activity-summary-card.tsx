@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { PencilIcon, ClipboardListIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, ClipboardListIcon, PencilIcon } from "lucide-react";
 
+import ActivityActionsDropdown from "@/app/components/festivals/festival_activities/activity-actions-dropdown";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Button } from "@/app/components/ui/button";
-import CopyActivityLinkButton from "@/app/components/festivals/festival_activities/copy-activity-link-button";
 import {
 	Card,
 	CardContent,
@@ -188,9 +188,10 @@ export default function ActivitySummaryCard({
 						<ClipboardListIcon className="w-4 h-4 mr-1" />
 						Iniciar revisión
 					</RedirectButton>
-					<CopyActivityLinkButton
+					<ActivityActionsDropdown
 						festivalId={festivalId}
 						activityId={activity.id}
+						allowsVoting={activity.allowsVoting}
 					/>
 				</div>
 			</CardContent>

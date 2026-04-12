@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PencilIcon, ClipboardListIcon } from "lucide-react";
+import { PencilIcon, ClipboardListIcon, TrophyIcon } from "lucide-react";
 
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Button } from "@/app/components/ui/button";
@@ -43,6 +43,16 @@ export default function ActivityDetails({ activity }: ActivityDetailsProps) {
 						<ClipboardListIcon className="w-4 h-4 mr-1" />
 						Iniciar revisión
 					</RedirectButton>
+					{activity.allowsVoting && (
+						<Button asChild variant="outline" size="sm">
+							<Link
+								href={`/dashboard/festivals/${activity.festivalId}/festival_activities/${activity.id}/results`}
+							>
+								<TrophyIcon className="w-4 h-4 mr-1" />
+								Ver resultados
+							</Link>
+						</Button>
+					)}
 				</div>
 			</div>
 
