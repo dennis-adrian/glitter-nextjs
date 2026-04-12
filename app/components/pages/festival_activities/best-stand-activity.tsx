@@ -2,9 +2,13 @@ import { BaseProfile } from "@/app/api/users/definitions";
 import DateSpan from "@/app/components/atoms/date-span";
 import Heading from "@/app/components/atoms/heading";
 import EnrollBestStandForm from "@/app/components/festivals/festival_activities/enroll-best-stand-form";
+import { isActivityInVotingWindow } from "@/app/components/participant_dashboard/activity-card/utils";
+import { Button } from "@/app/components/ui/button";
 import { fetchFestivalParticipants } from "@/app/lib/festivals/actions";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
+import { VoteIcon } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import BestStandDisclaimer from "./best-stand-disclaimer";
 
@@ -267,12 +271,27 @@ export default async function BestStandActivityPage({
 					</span>
 				</p>
 			</section>
-			<EnrollBestStandForm
-				forProfile={forProfile}
-				activity={activity}
-				festivalParticipants={confirmedParticipants}
-				activityVariantForProfile={activityVariantForProfile}
-			/>
+			{isActivityInVotingWindow(activity) ? (
+				<Button
+					size="lg"
+					className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold"
+					asChild
+				>
+					<Link
+						href={`/profiles/${forProfile.id}/festivals/${activity.festivalId}/activity/${activity.id}/voting`}
+					>
+						<VoteIcon className="w-5 h-5 mr-1" />
+						Votar ahora
+					</Link>
+				</Button>
+			) : (
+				<EnrollBestStandForm
+					forProfile={forProfile}
+					activity={activity}
+					festivalParticipants={confirmedParticipants}
+					activityVariantForProfile={activityVariantForProfile}
+				/>
+			)}
 		</div>
 	);
 }
