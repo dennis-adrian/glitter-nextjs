@@ -1,17 +1,71 @@
 import Link from "next/link";
 import { ArrowLeftIcon, UsersIcon } from "lucide-react";
 
+import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservations/definitions";
 import VotingResultRow from "@/app/components/festivals/festival_activities/voting-result-row";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 
 type ActivityVotingResultsProps = {
 	activity: FestivalActivityWithDetailsAndParticipants;
+	reservations?: ReservationWithParticipantsAndUsersAndStand[];
 };
 
 export default function ActivityVotingResults({
 	activity,
+	reservations = [],
 }: ActivityVotingResultsProps) {
 	const showVariantHeaders = activity.details.length > 1;
+	const isStandVoting = activity.type === "best_stand";
+	const standIdByUserId = new Map<number, number>();
+
+	if (isStandVoting) {
+		for (const reservation of reservations) {
+			for (const reservationParticipant of reservation.participants) {
+				standIdByUserId.set(
+					reservationParticipant.userId,
+					reservation.stand.id,
+				);
+			}
+		}
+	}
+
+	const voteContextByDetailId = new Map<
+		number,
+		{
+			activeParticipantIds: Set<number>;
+			participantIdByStandId: Map<number, number>;
+			standIdByParticipantId: Map<number, number>;
+		}
+	>();
+
+	for (const variant of activity.details) {
+		const activeVariantParticipants = variant.participants.filter(
+			(variantParticipant) => !variantParticipant.removedAt,
+		);
+		const activeParticipantIds = new Set(
+			activeVariantParticipants.map(
+				(variantParticipant) => variantParticipant.id,
+			),
+		);
+		const participantIdByStandId = new Map<number, number>();
+		const standIdByParticipantId = new Map<number, number>();
+
+		if (isStandVoting) {
+			for (const participant of activeVariantParticipants) {
+				const standId = standIdByUserId.get(participant.userId);
+				if (standId !== undefined) {
+					participantIdByStandId.set(standId, participant.id);
+					standIdByParticipantId.set(participant.id, standId);
+				}
+			}
+		}
+
+		voteContextByDetailId.set(variant.id, {
+			activeParticipantIds,
+			participantIdByStandId,
+			standIdByParticipantId,
+		});
+	}
 
 	return (
 		<div className="container p-4 md:p-6 space-y-6">
@@ -29,17 +83,37 @@ export default function ActivityVotingResults({
 			</div>
 
 			{activity.details.map((detail, index) => {
+				const currentDetailVoteContext = voteContextByDetailId.get(detail.id);
+				if (!currentDetailVoteContext) {
+					return null;
+				}
+
 				const activeParticipants = detail.participants.filter(
 					(p) => !p.removedAt,
 				);
-				const activeParticipantIds = new Set(
-					activeParticipants.map((participant) => participant.id),
-				);
 				const filteredVotes = detail.votes.filter((vote) => {
+					if (isStandVoting) {
+						if (vote.standId === null) {
+							return false;
+						}
+
+						const mappedParticipantId =
+							currentDetailVoteContext.participantIdByStandId.get(vote.standId);
+						return (
+							mappedParticipantId !== undefined &&
+							currentDetailVoteContext.activeParticipantIds.has(
+								mappedParticipantId,
+							)
+						);
+					}
+
 					if (vote.participantId === null) {
 						return false;
 					}
-					return activeParticipantIds.has(vote.participantId);
+
+					return currentDetailVoteContext.activeParticipantIds.has(
+						vote.participantId,
+					);
 				});
 				const totalVotes = filteredVotes.length;
 				const uniqueVoters = new Set(filteredVotes.map((vote) => vote.voterId))
@@ -48,23 +122,53 @@ export default function ActivityVotingResults({
 				const results = activeParticipants
 					.map((participant) => ({
 						participant,
-						voteCount: filteredVotes.filter(
-							(v) => v.participantId === participant.id,
-						).length,
+						voteCount: filteredVotes.filter((vote) => {
+							if (isStandVoting) {
+								const participantStandId =
+									currentDetailVoteContext.standIdByParticipantId.get(
+										participant.id,
+									);
+								return (
+									participantStandId !== undefined &&
+									vote.standId === participantStandId
+								);
+							}
+
+							return vote.participantId === participant.id;
+						}).length,
 						hasVotedAllVariants: activity.details.every((d) => {
-							const activeParticipantIdsForVariant = new Set(
-								d.participants
-									.filter((variantParticipant) => !variantParticipant.removedAt)
-									.map((variantParticipant) => variantParticipant.id),
-							);
+							const variantVoteContext = voteContextByDetailId.get(d.id);
+							if (!variantVoteContext) {
+								return false;
+							}
+
 							const participantVotes = d.votes.filter((v) => {
-								if (
-									v.voterId !== participant.userId ||
-									v.participantId === null
-								) {
+								if (v.voterId !== participant.userId) {
 									return false;
 								}
-								return activeParticipantIdsForVariant.has(v.participantId);
+
+								if (isStandVoting) {
+									if (v.standId === null) {
+										return false;
+									}
+
+									const mappedParticipantId =
+										variantVoteContext.participantIdByStandId.get(v.standId);
+									return (
+										mappedParticipantId !== undefined &&
+										variantVoteContext.activeParticipantIds.has(
+											mappedParticipantId,
+										)
+									);
+								}
+
+								if (v.participantId === null) {
+									return false;
+								}
+
+								return variantVoteContext.activeParticipantIds.has(
+									v.participantId,
+								);
 							});
 							return participantVotes.some(
 								(vote) => vote.voterId === participant.userId,

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import ActivityVotingResults from "@/app/components/festivals/festival_activities/activity-voting-results";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
+import { fetchPublicReservationsByFestivalId } from "@/app/lib/reservations/actions";
 
 const ParamsSchema = z.object({
 	id: z.coerce.number(),
@@ -23,5 +24,12 @@ export default async function Page({ params }: ResultsPageProps) {
 	if (!activity || activity.festivalId !== festivalId) return notFound();
 	if (!activity.allowsVoting) return notFound();
 
-	return <ActivityVotingResults activity={activity} />;
+	const reservations =
+		activity.type === "best_stand"
+			? await fetchPublicReservationsByFestivalId(festivalId)
+			: [];
+
+	return (
+		<ActivityVotingResults activity={activity} reservations={reservations} />
+	);
 }
