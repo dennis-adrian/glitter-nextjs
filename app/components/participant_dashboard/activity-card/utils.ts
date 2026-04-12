@@ -9,6 +9,18 @@ import {
 import type { ProofDisplayState } from "@/app/lib/festival_activites/types";
 import { getUserWaitlistEntry } from "@/app/lib/festival_sectors/helpers";
 
+export function isActivityInVotingWindow(
+	activity: FestivalActivityWithDetailsAndParticipants,
+): boolean {
+	const now = new Date();
+	return (
+		activity.votingStartDate !== null &&
+		activity.votingEndDate !== null &&
+		now >= activity.votingStartDate &&
+		now <= activity.votingEndDate
+	);
+}
+
 export function getEnrolledConfig(
 	activity: FestivalActivityWithDetailsAndParticipants,
 	profileId: number,
@@ -39,12 +51,7 @@ export function getEnrolledConfig(
 		const hasVotedAll = activity.details.every((variant) =>
 			variant.votes.some((vote) => vote.voterId === profileId),
 		);
-		const now = new Date();
-		const isInVotingWindow =
-			activity.votingStartDate !== null &&
-			activity.votingEndDate !== null &&
-			now >= activity.votingStartDate &&
-			now <= activity.votingEndDate;
+		const isInVotingWindow = isActivityInVotingWindow(activity);
 
 		return {
 			pendingLabel: "Votación pendiente",
