@@ -224,7 +224,40 @@ export default async function BestStandActivityPage({
 					<li>Tener una reserva confirmada para este festival.</li>
 					<li>
 						Inscribirse a la actividad con el botón de inscripción que se
-						encuentra al final de la página.
+						encuentra al final de la página durante el periodo de inscripción
+						{activity.registrationStartDate && activity.registrationEndDate && (
+							<span>
+								: desde el{" "}
+								<strong>
+									<DateSpan
+										date={activity.registrationStartDate}
+										format={{ month: "long", day: "numeric" }}
+									/>
+								</strong>{" "}
+								a las{" "}
+								<strong>
+									<DateSpan
+										date={activity.registrationStartDate}
+										format={{ hour: "numeric", minute: "numeric" }}
+									/>
+								</strong>
+							</span>
+						)}{" "}
+						hasta el{" "}
+						<strong>
+							<DateSpan
+								date={activity.registrationEndDate}
+								format={{ month: "long", day: "numeric" }}
+							/>
+						</strong>{" "}
+						a las{" "}
+						<strong>
+							<DateSpan
+								date={activity.registrationEndDate}
+								format={{ hour: "numeric", minute: "numeric" }}
+							/>
+						</strong>
+						.
 					</li>
 					<li>
 						Subir una imagen de tu stand{" "}
