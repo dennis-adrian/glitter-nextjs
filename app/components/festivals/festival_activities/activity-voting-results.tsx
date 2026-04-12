@@ -51,9 +51,25 @@ export default function ActivityVotingResults({
 						voteCount: filteredVotes.filter(
 							(v) => v.participantId === participant.id,
 						).length,
-						hasVotedAllVariants: activity.details.every((d) =>
-							d.votes.some((v) => v.voterId === participant.userId),
-						),
+						hasVotedAllVariants: activity.details.every((d) => {
+							const activeParticipantIdsForVariant = new Set(
+								d.participants
+									.filter((variantParticipant) => !variantParticipant.removedAt)
+									.map((variantParticipant) => variantParticipant.id),
+							);
+							const participantVotes = d.votes.filter((v) => {
+								if (
+									v.voterId !== participant.userId ||
+									v.participantId === null
+								) {
+									return false;
+								}
+								return activeParticipantIdsForVariant.has(v.participantId);
+							});
+							return participantVotes.some(
+								(vote) => vote.voterId === participant.userId,
+							);
+						}),
 					}))
 					.sort((a, b) => b.voteCount - a.voteCount);
 				const topScore = results[0]?.voteCount ?? 0;
