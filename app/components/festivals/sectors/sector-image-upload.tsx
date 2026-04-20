@@ -29,7 +29,7 @@ export default function SectorImageUpload({
 				<Image
 					className="object-cover"
 					alt={`Imagen del sector ${sectorName}`}
-					src={imageUrl || "/img/placeholder-image.png"}
+					src={imageUrl || "/img/placeholders/placeholder-500x500.png"}
 					sizes="(max-width: 640px) 100vw, 240px"
 					fill
 				/>

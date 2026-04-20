@@ -15,7 +15,7 @@ import { festivalTypeOptions } from "@/app/lib/utils";
 import { festivalTypeEnum } from "@/db/schema";
 import { updateFestival } from "@/app/lib/festivals/actions";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, type FieldErrors } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
@@ -96,6 +96,73 @@ const FormSchema = z.object({
 		.min(1, "Debe haber al menos un sector"),
 });
 
+function getFirstErrorPath(
+	errors: FieldErrors<z.input<typeof FormSchema>>,
+	parentPath = "",
+): string | undefined {
+	for (const [key, value] of Object.entries(
+		errors as Record<string, unknown>,
+	)) {
+		if (!value) continue;
+		const currentPath = parentPath ? `${parentPath}.${key}` : key;
+
+		if (Array.isArray(value)) {
+			for (let index = 0; index < value.length; index++) {
+				const nested = value[index];
+				if (!nested) continue;
+				const nestedPath = getFirstErrorPath(
+					nested as FieldErrors<z.input<typeof FormSchema>>,
+					`${currentPath}.${index}`,
+				);
+				if (nestedPath) return nestedPath;
+			}
+			continue;
+		}
+
+		if (typeof value === "object") {
+			if ("message" in value || "type" in value) return currentPath;
+			const nestedPath = getFirstErrorPath(
+				value as FieldErrors<z.input<typeof FormSchema>>,
+				currentPath,
+			);
+			if (nestedPath) return nestedPath;
+		}
+	}
+
+	return undefined;
+}
+
+function getFirstErrorMessage(
+	errors: FieldErrors<z.input<typeof FormSchema>>,
+): string | undefined {
+	for (const value of Object.values(errors as Record<string, unknown>)) {
+		if (!value) continue;
+
+		if (Array.isArray(value)) {
+			for (const nested of value) {
+				if (!nested) continue;
+				const message = getFirstErrorMessage(
+					nested as FieldErrors<z.input<typeof FormSchema>>,
+				);
+				if (message) return message;
+			}
+			continue;
+		}
+
+		if (typeof value === "object") {
+			if ("message" in value && typeof value.message === "string") {
+				return value.message;
+			}
+			const message = getFirstErrorMessage(
+				value as FieldErrors<z.input<typeof FormSchema>>,
+			);
+			if (message) return message;
+		}
+	}
+
+	return undefined;
+}
+
 export default function UpdateFestivalForm({
 	festival,
 }: {
@@ -108,11 +175,11 @@ export default function UpdateFestivalForm({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
 			name: festival.name,
-			status: festival.status,
-			mapsVersion: festival.mapsVersion,
-			publicRegistration: festival.publicRegistration,
-			eventDayRegistration: festival.eventDayRegistration,
-			keepStoreOpen: festival.keepStoreOpen,
+			status: festival.status ?? "draft",
+			mapsVersion: festival.mapsVersion ?? "v1",
+			publicRegistration: festival.publicRegistration ?? false,
+			eventDayRegistration: festival.eventDayRegistration ?? false,
+			keepStoreOpen: festival.keepStoreOpen ?? false,
 			festivalType: festival.festivalType,
 			description: festival.description || "",
 			address: festival.address || "",
@@ -168,13 +235,16 @@ export default function UpdateFestivalForm({
 	};
 
 	const addNewSector = () => {
+		const currentSectors = form.getValues("festivalSectors");
+		const highestOrder = currentSectors.reduce((maxOrder, sector) => {
+			const currentOrder = Number(sector.orderInFestival);
+			if (!Number.isFinite(currentOrder)) return maxOrder;
+			return Math.max(maxOrder, currentOrder);
+		}, 0);
+
 		appendSector({
 			name: "",
-			orderInFestival:
-				Math.max(
-					0,
-					...sectorFields.map((s) => Number(s.orderInFestival) || 0),
-				) + 1,
+			orderInFestival: highestOrder + 1,
 			mapUrl: "",
 			mascotUrl: "",
 		});
@@ -188,7 +258,7 @@ export default function UpdateFestivalForm({
 		removeSector(index);
 	}
 
-	const onSubmit = form.handleSubmit(async (data) => {
+	const onValidSubmit = async (data: z.output<typeof FormSchema>) => {
 		const processedDates = data.dates.map((dateItem) => {
 			const startDateTime = DateTime.fromFormat(
 				`${dateItem.date} ${dateItem.startTime}`,
@@ -237,7 +307,28 @@ export default function UpdateFestivalForm({
 		} else {
 			toast.error(result.message);
 		}
-	});
+	};
+
+	const onInvalidSubmit = (
+		errors: FieldErrors<z.input<typeof FormSchema>>,
+	) => {
+		const firstErrorMessage = getFirstErrorMessage(errors);
+		toast.error(
+			firstErrorMessage || "Completa los campos requeridos antes de guardar.",
+		);
+		const firstErrorPath = getFirstErrorPath(errors);
+		if (!firstErrorPath) return;
+
+		const element = document.querySelector<HTMLElement>(
+			`[name="${firstErrorPath}"]`,
+		);
+		if (!element) return;
+
+		form.setFocus(firstErrorPath as Parameters<typeof form.setFocus>[0]);
+		element?.scrollIntoView({ behavior: "smooth", block: "center" });
+	};
+
+	const onSubmit = form.handleSubmit(onValidSubmit, onInvalidSubmit);
 
 	return (
 		<div className="max-w-3xl mx-auto">
@@ -256,6 +347,7 @@ export default function UpdateFestivalForm({
 									name="name"
 									label="Nombre del festival"
 									type="text"
+									required
 								/>
 
 								<TextareaInput
@@ -271,6 +363,7 @@ export default function UpdateFestivalForm({
 									name="festivalType"
 									options={festivalTypeOptions}
 									side="bottom"
+									required
 								/>
 
 								<FormField
@@ -354,6 +447,7 @@ export default function UpdateFestivalForm({
 											name={`dates.${index}.date`}
 											label="Fecha"
 											type="date"
+											required
 										/>
 
 										<div className="grid grid-cols-2 gap-4">
@@ -362,7 +456,10 @@ export default function UpdateFestivalForm({
 												name={`dates.${index}.startTime`}
 												render={({ field }) => (
 													<FormItem>
-														<FormLabel>Hora de inicio</FormLabel>
+														<FormLabel>
+															Hora de inicio
+															<span className="text-destructive ml-0.5">*</span>
+														</FormLabel>
 														<FormControl>
 															<Input type="time" {...field} />
 														</FormControl>
@@ -376,7 +473,10 @@ export default function UpdateFestivalForm({
 												name={`dates.${index}.endTime`}
 												render={({ field }) => (
 													<FormItem>
-														<FormLabel>Hora de finalización</FormLabel>
+														<FormLabel>
+															Hora de finalización
+															<span className="text-destructive ml-0.5">*</span>
+														</FormLabel>
 														<FormControl>
 															<Input type="time" {...field} />
 														</FormControl>
@@ -429,6 +529,7 @@ export default function UpdateFestivalForm({
 											name={`festivalSectors.${index}.name`}
 											label="Nombre del Sector"
 											type="text"
+											required
 										/>
 
 										<TextInput
@@ -436,6 +537,7 @@ export default function UpdateFestivalForm({
 											label="Orden en el Festival"
 											type="number"
 											min={1}
+											required
 										/>
 
 										<div className="grid grid-cols-2 gap-4">

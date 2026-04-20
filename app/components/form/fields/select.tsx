@@ -29,6 +29,7 @@ export default function SelectInput<
 	placeholder,
 	variant,
 	side,
+	required,
 }: {
 	className?: string;
 	formControl: Control<T, TContext, TTransformedValues>;
@@ -37,6 +38,7 @@ export default function SelectInput<
 	options: { value: string; label: string | React.ReactNode }[];
 	placeholder?: string;
 	side?: "top" | "bottom" | "left" | "right";
+	required?: boolean;
 } & SelectVariants) {
 	return (
 		<FormField
@@ -44,7 +46,12 @@ export default function SelectInput<
 			name={name}
 			render={({ field }) => (
 				<FormItem className={cn("grid gap-2", className)}>
-					{label && <FormLabel>{label}</FormLabel>}
+					{label && (
+						<FormLabel>
+							{label}
+							{required && <span className="text-destructive ml-0.5">*</span>}
+						</FormLabel>
+					)}
 					{variant === "quiet" && <FormMessage />}
 					<FormControl>
 						<Select onValueChange={field.onChange} {...field}>
