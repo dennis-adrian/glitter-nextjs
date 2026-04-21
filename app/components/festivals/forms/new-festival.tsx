@@ -14,7 +14,7 @@ import { Input } from "@/app/components/ui/input";
 import { createFestival } from "@/app/lib/festivals/actions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, type FieldErrors } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import TextareaInput from "@/app/components/form/fields/textarea";
@@ -25,6 +25,7 @@ import { festivalTypeEnum } from "@/db/schema";
 import {
 	BuildingIcon,
 	CalendarDaysIcon,
+	Loader2,
 	MapPinIcon,
 	PlusIcon,
 	TrashIcon,
@@ -33,6 +34,7 @@ import { useFieldArray } from "react-hook-form";
 import { DateTime } from "luxon";
 import SectorImageUpload from "../sectors/sector-image-upload";
 import { Card, CardContent } from "@/components/ui/card";
+import { useEffect, useRef } from "react";
 
 const FormSchema = z.object({
 	name: z
@@ -92,7 +94,44 @@ const FormSchema = z.object({
 		.min(1, "Debe haber al menos un sector"),
 });
 
+function getFirstErrorPath(
+	errors: FieldErrors<z.input<typeof FormSchema>>,
+	parentPath = "",
+): string | undefined {
+	for (const [key, value] of Object.entries(
+		errors as Record<string, unknown>,
+	)) {
+		if (!value) continue;
+		const currentPath = parentPath ? `${parentPath}.${key}` : key;
+
+		if (Array.isArray(value)) {
+			for (let index = 0; index < value.length; index++) {
+				const nested = value[index];
+				if (!nested) continue;
+				const nestedPath = getFirstErrorPath(
+					nested as FieldErrors<z.input<typeof FormSchema>>,
+					`${currentPath}.${index}`,
+				);
+				if (nestedPath) return nestedPath;
+			}
+			continue;
+		}
+
+		if (typeof value === "object") {
+			if ("message" in value || "type" in value) return currentPath;
+			const nestedPath = getFirstErrorPath(
+				value as FieldErrors<z.input<typeof FormSchema>>,
+				currentPath,
+			);
+			if (nestedPath) return nestedPath;
+		}
+	}
+
+	return undefined;
+}
+
 export default function NewFestivalForm() {
+	const datesSectionRef = useRef<HTMLDivElement>(null);
 	const router = useRouter();
 	const form = useForm<
 		z.input<typeof FormSchema>,
@@ -148,7 +187,16 @@ export default function NewFestivalForm() {
 		});
 	};
 
-	const onSubmit = form.handleSubmit(async (data) => {
+	useEffect(() => {
+		if (fields.length > 0) return;
+		append({
+			date: DateTime.local().toFormat("yyyy-MM-dd"),
+			startTime: "10:00",
+			endTime: "20:00",
+		});
+	}, [append, fields.length]);
+
+	const onValidSubmit = async (data: z.output<typeof FormSchema>) => {
 		const processedDates = data.dates.map((dateItem) => {
 			const startDateTime = DateTime.fromFormat(
 				`${dateItem.date} ${dateItem.startTime}`,
@@ -190,7 +238,43 @@ export default function NewFestivalForm() {
 		} else {
 			toast.error(result.message);
 		}
-	});
+	};
+
+	const onInvalidSubmit = (errors: FieldErrors<z.input<typeof FormSchema>>) => {
+		toast.error("Completa los campos requeridos antes de guardar.");
+		const firstErrorPath = getFirstErrorPath(errors);
+		if (!firstErrorPath) return;
+
+		if (firstErrorPath === "dates") {
+			datesSectionRef.current?.scrollIntoView({
+				behavior: "smooth",
+				block: "center",
+			});
+			return;
+		}
+
+		const element = document.querySelector<HTMLElement>(
+			`[name="${firstErrorPath}"]`,
+		);
+		if (!element && firstErrorPath.startsWith("dates")) {
+			datesSectionRef.current?.scrollIntoView({
+				behavior: "smooth",
+				block: "center",
+			});
+			return;
+		}
+
+		if (!element) return;
+		form.setFocus(firstErrorPath as Parameters<typeof form.setFocus>[0]);
+		element?.scrollIntoView({ behavior: "smooth", block: "center" });
+	};
+
+	const onSubmit = form.handleSubmit(onValidSubmit, onInvalidSubmit);
+	const datesErrorMessage =
+		(form.formState.errors.dates as { message?: string } | undefined)
+			?.message ?? null;
+	const hasDates = fields.length > 0;
+	const isSubmitting = form.formState.isSubmitting;
 
 	return (
 		<div className="max-w-3xl mx-auto">
@@ -209,6 +293,7 @@ export default function NewFestivalForm() {
 									name="name"
 									label="Nombre del festival"
 									type="text"
+									required
 								/>
 
 								<TextareaInput
@@ -224,6 +309,7 @@ export default function NewFestivalForm() {
 									name="festivalType"
 									options={festivalTypeOptions}
 									side="bottom"
+									required
 								/>
 							</div>
 
@@ -251,11 +337,24 @@ export default function NewFestivalForm() {
 							</div>
 
 							{/* Dates Section */}
-							<div className="space-y-4 p-4 border rounded-lg">
+							<div
+								ref={datesSectionRef}
+								className="space-y-4 p-4 border rounded-lg"
+							>
 								<h3 className="font-semibold text-xl flex items-center gap-2">
 									<CalendarDaysIcon className="w-5 h-5" />
 									Fechas del Evento
 								</h3>
+								{datesErrorMessage && (
+									<p className="text-sm text-destructive">
+										{datesErrorMessage}
+									</p>
+								)}
+								{!hasDates && (
+									<p className="text-sm text-muted-foreground">
+										Debes agregar al menos una fecha para guardar el festival.
+									</p>
+								)}
 
 								{fields.map((field, index) => (
 									<div
@@ -283,6 +382,7 @@ export default function NewFestivalForm() {
 											name={`dates.${index}.date`}
 											label="Fecha"
 											type="date"
+											required
 										/>
 
 										<div className="grid grid-cols-2 gap-4">
@@ -291,7 +391,10 @@ export default function NewFestivalForm() {
 												name={`dates.${index}.startTime`}
 												render={({ field }) => (
 													<FormItem>
-														<FormLabel>Hora de inicio</FormLabel>
+														<FormLabel>
+															Hora de inicio
+															<span className="text-destructive ml-0.5">*</span>
+														</FormLabel>
 														<FormControl>
 															<Input type="time" {...field} />
 														</FormControl>
@@ -305,7 +408,10 @@ export default function NewFestivalForm() {
 												name={`dates.${index}.endTime`}
 												render={({ field }) => (
 													<FormItem>
-														<FormLabel>Hora de finalización</FormLabel>
+														<FormLabel>
+															Hora de finalización
+															<span className="text-destructive ml-0.5">*</span>
+														</FormLabel>
 														<FormControl>
 															<Input type="time" {...field} />
 														</FormControl>
@@ -324,7 +430,7 @@ export default function NewFestivalForm() {
 									onClick={addNewDate}
 								>
 									<PlusIcon className="mr-2 h-4 w-4" />
-									Agregar otra fecha
+									{hasDates ? "Agregar otra fecha" : "Agregar primera fecha"}
 								</Button>
 							</div>
 
@@ -358,6 +464,7 @@ export default function NewFestivalForm() {
 											name={`festivalSectors.${index}.name`}
 											label="Nombre del Sector"
 											type="text"
+											required
 										/>
 
 										<TextInput
@@ -365,6 +472,7 @@ export default function NewFestivalForm() {
 											label="Orden en el Festival"
 											type="number"
 											min={1}
+											required
 										/>
 
 										<div className="grid grid-cols-2 gap-4">
@@ -421,8 +529,16 @@ export default function NewFestivalForm() {
 								</Button>
 							</div>
 
-							<Button type="submit" size="lg" className="w-full md:w-auto">
-								Agregar Festival
+							<Button
+								type="submit"
+								size="lg"
+								className="w-full md:w-auto"
+								disabled={isSubmitting}
+							>
+								{isSubmitting && (
+									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+								)}
+								{isSubmitting ? "Agregando Festival..." : "Agregar Festival"}
 							</Button>
 						</CardContent>
 					</Card>

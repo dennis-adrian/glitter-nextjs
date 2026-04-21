@@ -412,6 +412,7 @@ export const stands = pgTable(
 		festivalId: integer("festival_id"),
 		festivalSectorId: integer("festival_sector_id").references(
 			() => festivalSectors.id,
+			{ onDelete: "cascade" },
 		),
 		qrCodeId: integer("qr_code_id").references(() => qrCodes.id),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -504,7 +505,9 @@ export const standHoldsRelations = relations(standHolds, ({ one }) => ({
 
 export const standReservations = pgTable("stand_reservations", {
 	id: serial("id").primaryKey(),
-	standId: integer("stand_id").notNull(),
+	standId: integer("stand_id")
+		.notNull()
+		.references(() => stands.id),
 	festivalId: integer("festival_id").notNull(),
 	status: reservationStatusEnum("status").default("pending").notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),

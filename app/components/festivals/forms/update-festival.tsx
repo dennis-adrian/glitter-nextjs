@@ -15,7 +15,7 @@ import { festivalTypeOptions } from "@/app/lib/utils";
 import { festivalTypeEnum } from "@/db/schema";
 import { updateFestival } from "@/app/lib/festivals/actions";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, type FieldErrors } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
@@ -24,6 +24,7 @@ import TextareaInput from "../../form/fields/textarea";
 import {
 	BuildingIcon,
 	CalendarDaysIcon,
+	Loader2,
 	MapPinIcon,
 	PlusIcon,
 	TrashIcon,
@@ -33,7 +34,25 @@ import { DateTime } from "luxon";
 import { FestivalWithDatesAndSectors } from "@/app/lib/festivals/definitions";
 import SectorImageUpload from "../sectors/sector-image-upload";
 import { Card, CardContent } from "@/components/ui/card";
-import { useRef } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/app/components/ui/alert-dialog";
+
+type SectorUsage = {
+	id: number;
+	stands?: Array<{
+		id: number;
+		reservations?: Array<{ id: number }>;
+	}>;
+};
 
 const FormSchema = z.object({
 	name: z.string().min(1, "El nombre es requerido"),
@@ -96,23 +115,96 @@ const FormSchema = z.object({
 		.min(1, "Debe haber al menos un sector"),
 });
 
+function getFirstErrorPath(
+	errors: FieldErrors<z.input<typeof FormSchema>>,
+	parentPath = "",
+): string | undefined {
+	for (const [key, value] of Object.entries(
+		errors as Record<string, unknown>,
+	)) {
+		if (!value) continue;
+		const currentPath = parentPath ? `${parentPath}.${key}` : key;
+
+		if (Array.isArray(value)) {
+			for (let index = 0; index < value.length; index++) {
+				const nested = value[index];
+				if (!nested) continue;
+				const nestedPath = getFirstErrorPath(
+					nested as FieldErrors<z.input<typeof FormSchema>>,
+					`${currentPath}.${index}`,
+				);
+				if (nestedPath) return nestedPath;
+			}
+			continue;
+		}
+
+		if (typeof value === "object") {
+			if ("message" in value || "type" in value) return currentPath;
+			const nestedPath = getFirstErrorPath(
+				value as FieldErrors<z.input<typeof FormSchema>>,
+				currentPath,
+			);
+			if (nestedPath) return nestedPath;
+		}
+	}
+
+	return undefined;
+}
+
+function getFirstErrorMessage(
+	errors: FieldErrors<z.input<typeof FormSchema>>,
+): string | undefined {
+	for (const value of Object.values(errors as Record<string, unknown>)) {
+		if (!value) continue;
+
+		if (Array.isArray(value)) {
+			for (const nested of value) {
+				if (!nested) continue;
+				const message = getFirstErrorMessage(
+					nested as FieldErrors<z.input<typeof FormSchema>>,
+				);
+				if (message) return message;
+			}
+			continue;
+		}
+
+		if (typeof value === "object") {
+			if ("message" in value && typeof value.message === "string") {
+				return value.message;
+			}
+			const message = getFirstErrorMessage(
+				value as FieldErrors<z.input<typeof FormSchema>>,
+			);
+			if (message) return message;
+		}
+	}
+
+	return undefined;
+}
+
 export default function UpdateFestivalForm({
 	festival,
 }: {
 	festival: FestivalWithDatesAndSectors;
 }) {
 	const deletedSectorIdsRef = useRef<number[]>([]);
+	const datesSectionRef = useRef<HTMLDivElement>(null);
+	const [isPending, startTransition] = useTransition();
+	const [pendingSectorRemoval, setPendingSectorRemoval] = useState<{
+		index: number;
+		standsCount: number;
+	} | null>(null);
 
 	const router = useRouter();
 	const form = useForm({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
 			name: festival.name,
-			status: festival.status,
-			mapsVersion: festival.mapsVersion,
-			publicRegistration: festival.publicRegistration,
-			eventDayRegistration: festival.eventDayRegistration,
-			keepStoreOpen: festival.keepStoreOpen,
+			status: festival.status ?? "draft",
+			mapsVersion: festival.mapsVersion ?? "v1",
+			publicRegistration: festival.publicRegistration ?? false,
+			eventDayRegistration: festival.eventDayRegistration ?? false,
+			keepStoreOpen: festival.keepStoreOpen ?? false,
 			festivalType: festival.festivalType,
 			description: festival.description || "",
 			address: festival.address || "",
@@ -168,19 +260,22 @@ export default function UpdateFestivalForm({
 	};
 
 	const addNewSector = () => {
+		const currentSectors = form.getValues("festivalSectors");
+		const highestOrder = currentSectors.reduce((maxOrder, sector) => {
+			const currentOrder = Number(sector.orderInFestival);
+			if (!Number.isFinite(currentOrder)) return maxOrder;
+			return Math.max(maxOrder, currentOrder);
+		}, 0);
+
 		appendSector({
 			name: "",
-			orderInFestival:
-				Math.max(
-					0,
-					...sectorFields.map((s) => Number(s.orderInFestival) || 0),
-				) + 1,
+			orderInFestival: highestOrder + 1,
 			mapUrl: "",
 			mascotUrl: "",
 		});
 	};
 
-	function handleRemoveSector(index: number) {
+	function removeSectorAtIndex(index: number) {
 		const sector = form.getValues(`festivalSectors.${index}`);
 		if (sector?.id) {
 			deletedSectorIdsRef.current.push(sector.id);
@@ -188,7 +283,33 @@ export default function UpdateFestivalForm({
 		removeSector(index);
 	}
 
-	const onSubmit = form.handleSubmit(async (data) => {
+	function handleRemoveSector(index: number) {
+		const sector = form.getValues(`festivalSectors.${index}`);
+		const currentSectorUsage = (festival.festivalSectors as SectorUsage[]).find(
+			(existingSector) => existingSector.id === sector?.id,
+		);
+		const standsCount = currentSectorUsage?.stands?.length ?? 0;
+		const hasReservations =
+			currentSectorUsage?.stands?.some(
+				(stand) => (stand.reservations?.length ?? 0) > 0,
+			) ?? false;
+
+		if (hasReservations) {
+			toast.error(
+				"No puedes eliminar este sector porque tiene stands con reservaciones. Elimina primero esas reservaciones.",
+			);
+			return;
+		}
+
+		if (standsCount > 0) {
+			setPendingSectorRemoval({ index, standsCount });
+			return;
+		}
+
+		removeSectorAtIndex(index);
+	}
+
+	const onValidSubmit = async (data: z.output<typeof FormSchema>) => {
 		const processedDates = data.dates.map((dateItem) => {
 			const startDateTime = DateTime.fromFormat(
 				`${dateItem.date} ${dateItem.startTime}`,
@@ -229,15 +350,62 @@ export default function UpdateFestivalForm({
 			updatedAt: new Date(),
 		};
 
-		const result = await updateFestival(festivalData);
+		startTransition(async () => {
+			try {
+				const result = await updateFestival(festivalData);
+				if (result.success) {
+					toast.success(result.message);
+					router.push("/dashboard/festivals");
+				} else {
+					toast.error(result.message);
+				}
+			} catch (error) {
+				toast.error(
+					"Error al actualizar el festival. Por favor, intenta nuevamente.",
+				);
+			}
+		});
+	};
 
-		if (result.success) {
-			toast.success(result.message);
-			router.push("/dashboard/festivals");
-		} else {
-			toast.error(result.message);
+	const onInvalidSubmit = (errors: FieldErrors<z.input<typeof FormSchema>>) => {
+		const firstErrorMessage = getFirstErrorMessage(errors);
+		toast.error(
+			firstErrorMessage || "Completa los campos requeridos antes de guardar.",
+		);
+		const firstErrorPath = getFirstErrorPath(errors);
+		if (!firstErrorPath) return;
+
+		if (firstErrorPath === "dates") {
+			datesSectionRef.current?.scrollIntoView({
+				behavior: "smooth",
+				block: "center",
+			});
+			return;
 		}
-	});
+
+		const element = document.querySelector<HTMLElement>(
+			`[name="${firstErrorPath}"]`,
+		);
+		if (!element && firstErrorPath.startsWith("dates")) {
+			datesSectionRef.current?.scrollIntoView({
+				behavior: "smooth",
+				block: "center",
+			});
+			return;
+		}
+		if (!element) return;
+
+		form.setFocus(firstErrorPath as Parameters<typeof form.setFocus>[0]);
+		element?.scrollIntoView({ behavior: "smooth", block: "center" });
+	};
+
+	const onSubmit = form.handleSubmit(onValidSubmit, onInvalidSubmit);
+
+	const datesErrorMessage =
+		(form.formState.errors.dates as { message?: string } | undefined)
+			?.message ?? null;
+	const hasDates = fields.length > 0;
+	const isSubmitting = form.formState.isSubmitting;
 
 	return (
 		<div className="max-w-3xl mx-auto">
@@ -256,6 +424,7 @@ export default function UpdateFestivalForm({
 									name="name"
 									label="Nombre del festival"
 									type="text"
+									required
 								/>
 
 								<TextareaInput
@@ -271,6 +440,7 @@ export default function UpdateFestivalForm({
 									name="festivalType"
 									options={festivalTypeOptions}
 									side="bottom"
+									required
 								/>
 
 								<FormField
@@ -322,11 +492,24 @@ export default function UpdateFestivalForm({
 							</div>
 
 							{/* Dates Section */}
-							<div className="space-y-4 p-4 border rounded-lg">
+							<div
+								ref={datesSectionRef}
+								className="space-y-4 p-4 border rounded-lg"
+							>
 								<h3 className="font-semibold text-xl flex items-center gap-2">
 									<CalendarDaysIcon className="w-5 h-5" />
 									Fechas del Evento
 								</h3>
+								{datesErrorMessage && (
+									<p className="text-sm text-destructive">
+										{datesErrorMessage}
+									</p>
+								)}
+								{!hasDates && (
+									<p className="text-sm text-muted-foreground">
+										Debes agregar al menos una fecha para guardar el festival.
+									</p>
+								)}
 
 								{fields.map((field, index) => (
 									<div
@@ -354,6 +537,7 @@ export default function UpdateFestivalForm({
 											name={`dates.${index}.date`}
 											label="Fecha"
 											type="date"
+											required
 										/>
 
 										<div className="grid grid-cols-2 gap-4">
@@ -362,7 +546,10 @@ export default function UpdateFestivalForm({
 												name={`dates.${index}.startTime`}
 												render={({ field }) => (
 													<FormItem>
-														<FormLabel>Hora de inicio</FormLabel>
+														<FormLabel>
+															Hora de inicio
+															<span className="text-destructive ml-0.5">*</span>
+														</FormLabel>
 														<FormControl>
 															<Input type="time" {...field} />
 														</FormControl>
@@ -376,7 +563,10 @@ export default function UpdateFestivalForm({
 												name={`dates.${index}.endTime`}
 												render={({ field }) => (
 													<FormItem>
-														<FormLabel>Hora de finalización</FormLabel>
+														<FormLabel>
+															Hora de finalización
+															<span className="text-destructive ml-0.5">*</span>
+														</FormLabel>
 														<FormControl>
 															<Input type="time" {...field} />
 														</FormControl>
@@ -395,7 +585,7 @@ export default function UpdateFestivalForm({
 									onClick={addNewDate}
 								>
 									<PlusIcon className="mr-2 h-4 w-4" />
-									Agregar otra fecha
+									{hasDates ? "Agregar otra fecha" : "Agregar primera fecha"}
 								</Button>
 							</div>
 
@@ -429,6 +619,7 @@ export default function UpdateFestivalForm({
 											name={`festivalSectors.${index}.name`}
 											label="Nombre del Sector"
 											type="text"
+											required
 										/>
 
 										<TextInput
@@ -436,6 +627,7 @@ export default function UpdateFestivalForm({
 											label="Orden en el Festival"
 											type="number"
 											min={1}
+											required
 										/>
 
 										<div className="grid grid-cols-2 gap-4">
@@ -487,13 +679,54 @@ export default function UpdateFestivalForm({
 								</Button>
 							</div>
 
-							<Button type="submit" size="lg" className="w-full md:w-auto">
-								Actualizar Festival
+							<Button
+								type="submit"
+								size="lg"
+								className="w-full md:w-auto"
+								disabled={isSubmitting || isPending || !form.formState.isDirty}
+							>
+								{(isSubmitting || isPending) && (
+									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+								)}
+								{isSubmitting || isPending
+									? "Actualizando Festival"
+									: "Actualizar Festival"}
 							</Button>
 						</CardContent>
 					</Card>
 				</form>
 			</Form>
+			<AlertDialog
+				open={pendingSectorRemoval !== null}
+				onOpenChange={(open) => {
+					if (open) return;
+					setPendingSectorRemoval(null);
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Eliminar sector con stands</AlertDialogTitle>
+						<AlertDialogDescription>
+							Este sector tiene {pendingSectorRemoval?.standsCount ?? 0} stands
+							creados. Si lo eliminas, también se eliminarán esos stands.
+							¿Deseas continuar?
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancelar</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={() => {
+								if (pendingSectorRemoval) {
+									removeSectorAtIndex(pendingSectorRemoval.index);
+								}
+								setPendingSectorRemoval(null);
+							}}
+						>
+							Eliminar sector
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }
