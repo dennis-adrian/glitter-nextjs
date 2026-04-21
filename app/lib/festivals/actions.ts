@@ -309,10 +309,15 @@ export async function updateFestival(
 						})
 						.from(standReservations)
 						.innerJoin(stands, eq(standReservations.standId, stands.id))
+						.innerJoin(
+							festivalSectors,
+							eq(stands.festivalSectorId, festivalSectors.id),
+						)
 						.where(
 							and(
 								inArray(stands.festivalSectorId, data.deletedSectorIds),
 								eq(stands.festivalId, data.id),
+								eq(festivalSectors.festivalId, data.id),
 							),
 						)
 						.limit(1);
@@ -323,7 +328,12 @@ export async function updateFestival(
 
 					await tx
 						.delete(festivalSectors)
-						.where(inArray(festivalSectors.id, data.deletedSectorIds));
+						.where(
+							and(
+								inArray(festivalSectors.id, data.deletedSectorIds),
+								eq(festivalSectors.festivalId, data.id),
+							),
+						);
 				}
 			}
 

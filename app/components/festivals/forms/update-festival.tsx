@@ -259,15 +259,6 @@ export default function UpdateFestivalForm({
 		});
 	};
 
-	useEffect(() => {
-		if (fields.length > 0) return;
-		append({
-			date: DateTime.local().toFormat("yyyy-MM-dd"),
-			startTime: "10:00",
-			endTime: "20:00",
-		});
-	}, [append, fields.length]);
-
 	const addNewSector = () => {
 		const currentSectors = form.getValues("festivalSectors");
 		const highestOrder = currentSectors.reduce((maxOrder, sector) => {

@@ -5,9 +5,10 @@ import Link from "next/link";
 import { cn } from "@/app/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { VariantProps } from "class-variance-authority";
-import { HTMLAttributes, useEffect, useState } from "react";
+import { HTMLAttributes, useCallback, useTransition } from "react";
 import { Loader2Icon } from "lucide-react";
 import clsx from "clsx";
+import { useRouter } from "next/navigation";
 
 export function RedirectButton({
 	children,
@@ -23,16 +24,8 @@ export function RedirectButton({
 	loadingText?: string;
 } & VariantProps<typeof buttonVariants> &
 	HTMLAttributes<HTMLButtonElement>) {
-	const [loading, setLoading] = useState(false);
-
-	useEffect(() => {
-		if (loading) {
-			const timeout = setTimeout(() => {
-				setLoading(false);
-			}, 5000);
-			return () => clearTimeout(timeout);
-		}
-	}, [loading]);
+	const [isPending, startTransition] = useTransition();
+	const router = useRouter();
 
 	if (disabled) {
 		return (
@@ -42,7 +35,13 @@ export function RedirectButton({
 		);
 	}
 
-	return loading ? (
+	const handleClick = useCallback(() => {
+		startTransition(() => {
+			router.push(href);
+		});
+	}, [href, router]);
+
+	return isPending ? (
 		<Button disabled variant={variant} {...props}>
 			<Loader2Icon
 				className={clsx("h-4 w-4 animate-spin", loadingText && "mr-1")}
@@ -50,10 +49,8 @@ export function RedirectButton({
 			{loadingText && loadingText}
 		</Button>
 	) : (
-		<Link className={cn("w-fit", props.className)} href={href}>
-			<Button variant={variant} onClick={() => setLoading(true)} {...props}>
-				{children}
-			</Button>
-		</Link>
+		<Button variant={variant} onClick={handleClick} {...props}>
+			{children}
+		</Button>
 	);
 }

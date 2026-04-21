@@ -505,7 +505,9 @@ export const standHoldsRelations = relations(standHolds, ({ one }) => ({
 
 export const standReservations = pgTable("stand_reservations", {
 	id: serial("id").primaryKey(),
-	standId: integer("stand_id").notNull(),
+	standId: integer("stand_id")
+		.notNull()
+		.references(() => stands.id),
 	festivalId: integer("festival_id").notNull(),
 	status: reservationStatusEnum("status").default("pending").notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
