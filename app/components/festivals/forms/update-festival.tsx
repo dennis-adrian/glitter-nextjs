@@ -34,7 +34,25 @@ import { DateTime } from "luxon";
 import { FestivalWithDatesAndSectors } from "@/app/lib/festivals/definitions";
 import SectorImageUpload from "../sectors/sector-image-upload";
 import { Card, CardContent } from "@/components/ui/card";
-import { useEffect, useRef, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/app/components/ui/alert-dialog";
+
+type SectorUsage = {
+	id: number;
+	stands?: Array<{
+		id: number;
+		reservations?: Array<{ id: number }>;
+	}>;
+};
 
 const FormSchema = z.object({
 	name: z.string().min(1, "El nombre es requerido"),
@@ -172,6 +190,10 @@ export default function UpdateFestivalForm({
 	const deletedSectorIdsRef = useRef<number[]>([]);
 	const datesSectionRef = useRef<HTMLDivElement>(null);
 	const [isPending, startTransition] = useTransition();
+	const [pendingSectorRemoval, setPendingSectorRemoval] = useState<{
+		index: number;
+		standsCount: number;
+	} | null>(null);
 
 	const router = useRouter();
 	const form = useForm({
@@ -262,12 +284,38 @@ export default function UpdateFestivalForm({
 		});
 	};
 
-	function handleRemoveSector(index: number) {
+	function removeSectorAtIndex(index: number) {
 		const sector = form.getValues(`festivalSectors.${index}`);
 		if (sector?.id) {
 			deletedSectorIdsRef.current.push(sector.id);
 		}
 		removeSector(index);
+	}
+
+	function handleRemoveSector(index: number) {
+		const sector = form.getValues(`festivalSectors.${index}`);
+		const currentSectorUsage = (festival.festivalSectors as SectorUsage[]).find(
+			(existingSector) => existingSector.id === sector?.id,
+		);
+		const standsCount = currentSectorUsage?.stands?.length ?? 0;
+		const hasReservations =
+			currentSectorUsage?.stands?.some(
+				(stand) => (stand.reservations?.length ?? 0) > 0,
+			) ?? false;
+
+		if (hasReservations) {
+			toast.error(
+				"No puedes eliminar este sector porque tiene stands con reservaciones. Elimina primero esas reservaciones.",
+			);
+			return;
+		}
+
+		if (standsCount > 0) {
+			setPendingSectorRemoval({ index, standsCount });
+			return;
+		}
+
+		removeSectorAtIndex(index);
 	}
 
 	const onValidSubmit = async (data: z.output<typeof FormSchema>) => {
@@ -644,7 +692,7 @@ export default function UpdateFestivalForm({
 								type="submit"
 								size="lg"
 								className="w-full md:w-auto"
-								disabled={isSubmitting || isPending}
+								disabled={isSubmitting || isPending || !form.formState.isDirty}
 							>
 								{(isSubmitting || isPending) && (
 									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -657,6 +705,37 @@ export default function UpdateFestivalForm({
 					</Card>
 				</form>
 			</Form>
+			<AlertDialog
+				open={pendingSectorRemoval !== null}
+				onOpenChange={(open) => {
+					if (open) return;
+					setPendingSectorRemoval(null);
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Eliminar sector con stands</AlertDialogTitle>
+						<AlertDialogDescription>
+							Este sector tiene {pendingSectorRemoval?.standsCount ?? 0} stands
+							creados. Si lo eliminas, también se eliminarán esos stands.
+							¿Deseas continuar?
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancelar</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={() => {
+								if (pendingSectorRemoval) {
+									removeSectorAtIndex(pendingSectorRemoval.index);
+								}
+								setPendingSectorRemoval(null);
+							}}
+						>
+							Eliminar sector
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }

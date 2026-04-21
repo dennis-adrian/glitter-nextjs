@@ -412,6 +412,7 @@ export const stands = pgTable(
 		festivalId: integer("festival_id"),
 		festivalSectorId: integer("festival_sector_id").references(
 			() => festivalSectors.id,
+			{ onDelete: "cascade" },
 		),
 		qrCodeId: integer("qr_code_id").references(() => qrCodes.id),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
