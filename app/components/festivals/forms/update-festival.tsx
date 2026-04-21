@@ -24,6 +24,7 @@ import TextareaInput from "../../form/fields/textarea";
 import {
 	BuildingIcon,
 	CalendarDaysIcon,
+	Loader2,
 	MapPinIcon,
 	PlusIcon,
 	TrashIcon,
@@ -33,7 +34,7 @@ import { DateTime } from "luxon";
 import { FestivalWithDatesAndSectors } from "@/app/lib/festivals/definitions";
 import SectorImageUpload from "../sectors/sector-image-upload";
 import { Card, CardContent } from "@/components/ui/card";
-import { useRef } from "react";
+import { useEffect, useRef, useTransition } from "react";
 
 const FormSchema = z.object({
 	name: z.string().min(1, "El nombre es requerido"),
@@ -169,6 +170,8 @@ export default function UpdateFestivalForm({
 	festival: FestivalWithDatesAndSectors;
 }) {
 	const deletedSectorIdsRef = useRef<number[]>([]);
+	const datesSectionRef = useRef<HTMLDivElement>(null);
+	const [isPending, startTransition] = useTransition();
 
 	const router = useRouter();
 	const form = useForm({
@@ -233,6 +236,15 @@ export default function UpdateFestivalForm({
 			endTime: "20:00",
 		});
 	};
+
+	useEffect(() => {
+		if (fields.length > 0) return;
+		append({
+			date: DateTime.local().toFormat("yyyy-MM-dd"),
+			startTime: "10:00",
+			endTime: "20:00",
+		});
+	}, [append, fields.length]);
 
 	const addNewSector = () => {
 		const currentSectors = form.getValues("festivalSectors");
@@ -299,19 +311,24 @@ export default function UpdateFestivalForm({
 			updatedAt: new Date(),
 		};
 
-		const result = await updateFestival(festivalData);
-
-		if (result.success) {
-			toast.success(result.message);
-			router.push("/dashboard/festivals");
-		} else {
-			toast.error(result.message);
-		}
+		startTransition(async () => {
+			try {
+				const result = await updateFestival(festivalData);
+				if (result.success) {
+					toast.success(result.message);
+					router.push("/dashboard/festivals");
+				} else {
+					toast.error(result.message);
+				}
+			} catch (error) {
+				toast.error(
+					"Error al actualizar el festival. Por favor, intenta nuevamente.",
+				);
+			}
+		});
 	};
 
-	const onInvalidSubmit = (
-		errors: FieldErrors<z.input<typeof FormSchema>>,
-	) => {
+	const onInvalidSubmit = (errors: FieldErrors<z.input<typeof FormSchema>>) => {
 		const firstErrorMessage = getFirstErrorMessage(errors);
 		toast.error(
 			firstErrorMessage || "Completa los campos requeridos antes de guardar.",
@@ -319,9 +336,24 @@ export default function UpdateFestivalForm({
 		const firstErrorPath = getFirstErrorPath(errors);
 		if (!firstErrorPath) return;
 
+		if (firstErrorPath === "dates") {
+			datesSectionRef.current?.scrollIntoView({
+				behavior: "smooth",
+				block: "center",
+			});
+			return;
+		}
+
 		const element = document.querySelector<HTMLElement>(
 			`[name="${firstErrorPath}"]`,
 		);
+		if (!element && firstErrorPath.startsWith("dates")) {
+			datesSectionRef.current?.scrollIntoView({
+				behavior: "smooth",
+				block: "center",
+			});
+			return;
+		}
 		if (!element) return;
 
 		form.setFocus(firstErrorPath as Parameters<typeof form.setFocus>[0]);
@@ -329,6 +361,12 @@ export default function UpdateFestivalForm({
 	};
 
 	const onSubmit = form.handleSubmit(onValidSubmit, onInvalidSubmit);
+
+	const datesErrorMessage =
+		(form.formState.errors.dates as { message?: string } | undefined)
+			?.message ?? null;
+	const hasDates = fields.length > 0;
+	const isSubmitting = form.formState.isSubmitting;
 
 	return (
 		<div className="max-w-3xl mx-auto">
@@ -415,11 +453,24 @@ export default function UpdateFestivalForm({
 							</div>
 
 							{/* Dates Section */}
-							<div className="space-y-4 p-4 border rounded-lg">
+							<div
+								ref={datesSectionRef}
+								className="space-y-4 p-4 border rounded-lg"
+							>
 								<h3 className="font-semibold text-xl flex items-center gap-2">
 									<CalendarDaysIcon className="w-5 h-5" />
 									Fechas del Evento
 								</h3>
+								{datesErrorMessage && (
+									<p className="text-sm text-destructive">
+										{datesErrorMessage}
+									</p>
+								)}
+								{!hasDates && (
+									<p className="text-sm text-muted-foreground">
+										Debes agregar al menos una fecha para guardar el festival.
+									</p>
+								)}
 
 								{fields.map((field, index) => (
 									<div
@@ -495,7 +546,7 @@ export default function UpdateFestivalForm({
 									onClick={addNewDate}
 								>
 									<PlusIcon className="mr-2 h-4 w-4" />
-									Agregar otra fecha
+									{hasDates ? "Agregar otra fecha" : "Agregar primera fecha"}
 								</Button>
 							</div>
 
@@ -589,8 +640,18 @@ export default function UpdateFestivalForm({
 								</Button>
 							</div>
 
-							<Button type="submit" size="lg" className="w-full md:w-auto">
-								Actualizar Festival
+							<Button
+								type="submit"
+								size="lg"
+								className="w-full md:w-auto"
+								disabled={isSubmitting || isPending}
+							>
+								{(isSubmitting || isPending) && (
+									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+								)}
+								{isSubmitting || isPending
+									? "Actualizando Festival"
+									: "Actualizar Festival"}
 							</Button>
 						</CardContent>
 					</Card>

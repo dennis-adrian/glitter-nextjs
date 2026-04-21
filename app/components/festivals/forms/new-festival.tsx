@@ -25,6 +25,7 @@ import { festivalTypeEnum } from "@/db/schema";
 import {
 	BuildingIcon,
 	CalendarDaysIcon,
+	Loader2,
 	MapPinIcon,
 	PlusIcon,
 	TrashIcon,
@@ -33,6 +34,7 @@ import { useFieldArray } from "react-hook-form";
 import { DateTime } from "luxon";
 import SectorImageUpload from "../sectors/sector-image-upload";
 import { Card, CardContent } from "@/components/ui/card";
+import { useEffect, useRef } from "react";
 
 const FormSchema = z.object({
 	name: z
@@ -129,6 +131,7 @@ function getFirstErrorPath(
 }
 
 export default function NewFestivalForm() {
+	const datesSectionRef = useRef<HTMLDivElement>(null);
 	const router = useRouter();
 	const form = useForm<
 		z.input<typeof FormSchema>,
@@ -184,6 +187,15 @@ export default function NewFestivalForm() {
 		});
 	};
 
+	useEffect(() => {
+		if (fields.length > 0) return;
+		append({
+			date: DateTime.local().toFormat("yyyy-MM-dd"),
+			startTime: "10:00",
+			endTime: "20:00",
+		});
+	}, [append, fields.length]);
+
 	const onValidSubmit = async (data: z.output<typeof FormSchema>) => {
 		const processedDates = data.dates.map((dateItem) => {
 			const startDateTime = DateTime.fromFormat(
@@ -228,21 +240,41 @@ export default function NewFestivalForm() {
 		}
 	};
 
-	const onInvalidSubmit = (
-		errors: FieldErrors<z.input<typeof FormSchema>>,
-	) => {
+	const onInvalidSubmit = (errors: FieldErrors<z.input<typeof FormSchema>>) => {
 		toast.error("Completa los campos requeridos antes de guardar.");
 		const firstErrorPath = getFirstErrorPath(errors);
 		if (!firstErrorPath) return;
 
-		form.setFocus(firstErrorPath as Parameters<typeof form.setFocus>[0]);
+		if (firstErrorPath === "dates") {
+			datesSectionRef.current?.scrollIntoView({
+				behavior: "smooth",
+				block: "center",
+			});
+			return;
+		}
+
 		const element = document.querySelector<HTMLElement>(
 			`[name="${firstErrorPath}"]`,
 		);
+		if (!element && firstErrorPath.startsWith("dates")) {
+			datesSectionRef.current?.scrollIntoView({
+				behavior: "smooth",
+				block: "center",
+			});
+			return;
+		}
+
+		if (!element) return;
+		form.setFocus(firstErrorPath as Parameters<typeof form.setFocus>[0]);
 		element?.scrollIntoView({ behavior: "smooth", block: "center" });
 	};
 
 	const onSubmit = form.handleSubmit(onValidSubmit, onInvalidSubmit);
+	const datesErrorMessage =
+		(form.formState.errors.dates as { message?: string } | undefined)
+			?.message ?? null;
+	const hasDates = fields.length > 0;
+	const isSubmitting = form.formState.isSubmitting;
 
 	return (
 		<div className="max-w-3xl mx-auto">
@@ -305,11 +337,24 @@ export default function NewFestivalForm() {
 							</div>
 
 							{/* Dates Section */}
-							<div className="space-y-4 p-4 border rounded-lg">
+							<div
+								ref={datesSectionRef}
+								className="space-y-4 p-4 border rounded-lg"
+							>
 								<h3 className="font-semibold text-xl flex items-center gap-2">
 									<CalendarDaysIcon className="w-5 h-5" />
 									Fechas del Evento
 								</h3>
+								{datesErrorMessage && (
+									<p className="text-sm text-destructive">
+										{datesErrorMessage}
+									</p>
+								)}
+								{!hasDates && (
+									<p className="text-sm text-muted-foreground">
+										Debes agregar al menos una fecha para guardar el festival.
+									</p>
+								)}
 
 								{fields.map((field, index) => (
 									<div
@@ -385,7 +430,7 @@ export default function NewFestivalForm() {
 									onClick={addNewDate}
 								>
 									<PlusIcon className="mr-2 h-4 w-4" />
-									Agregar otra fecha
+									{hasDates ? "Agregar otra fecha" : "Agregar primera fecha"}
 								</Button>
 							</div>
 
@@ -484,8 +529,16 @@ export default function NewFestivalForm() {
 								</Button>
 							</div>
 
-							<Button type="submit" size="lg" className="w-full md:w-auto">
-								Agregar Festival
+							<Button
+								type="submit"
+								size="lg"
+								className="w-full md:w-auto"
+								disabled={isSubmitting}
+							>
+								{isSubmitting && (
+									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+								)}
+								{isSubmitting ? "Agregando Festival..." : "Agregar Festival"}
 							</Button>
 						</CardContent>
 					</Card>
