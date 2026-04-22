@@ -9,11 +9,13 @@ export const getActiveFestival = cache(async () => {
 	return await fetchFestival({});
 });
 
-export const getActiveFestivalBase = cache(
-	async (): Promise<FestivalWithDates | null> => {
-		return await fetchActiveFestivalWithDates();
-	},
-);
+// react.cache() is not needed here because fetchActiveFestivalWithDates uses
+// "use cache", which already deduplicates across requests. If "use cache" is
+// ever removed from that function, wrap this in react.cache() again for
+// per-request memoization.
+export async function getActiveFestivalBase(): Promise<FestivalWithDates | null> {
+	return await fetchActiveFestivalWithDates();
+}
 
 export const getFestivalById = cache(
 	async (festivalId: number): Promise<FullFestival | undefined | null> => {

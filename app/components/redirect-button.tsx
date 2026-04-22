@@ -27,6 +27,12 @@ export function RedirectButton({
 	const [isPending, startTransition] = useTransition();
 	const router = useRouter();
 
+	const handleClick = useCallback(() => {
+		startTransition(() => {
+			router.push(href);
+		});
+	}, [href, router]);
+
 	if (disabled) {
 		return (
 			<Button disabled variant={variant} {...props}>
@@ -34,12 +40,6 @@ export function RedirectButton({
 			</Button>
 		);
 	}
-
-	const handleClick = useCallback(() => {
-		startTransition(() => {
-			router.push(href);
-		});
-	}, [href, router]);
 
 	return isPending ? (
 		<Button disabled variant={variant} {...props}>
