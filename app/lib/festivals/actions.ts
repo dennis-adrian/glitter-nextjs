@@ -17,6 +17,7 @@ import {
 	festivalSectors,
 	profileSubcategories,
 	reservationParticipants,
+	stands,
 	standReservations,
 	userRequests,
 	users,
@@ -301,9 +302,38 @@ export async function updateFestival(
 					}
 				}
 				if (data.deletedSectorIds && data.deletedSectorIds.length > 0) {
+					const reservationsInDeletedSectors = await tx
+						.select({
+							reservationId: standReservations.id,
+							sectorId: stands.festivalSectorId,
+						})
+						.from(standReservations)
+						.innerJoin(stands, eq(standReservations.standId, stands.id))
+						.innerJoin(
+							festivalSectors,
+							eq(stands.festivalSectorId, festivalSectors.id),
+						)
+						.where(
+							and(
+								inArray(stands.festivalSectorId, data.deletedSectorIds),
+								eq(stands.festivalId, data.id),
+								eq(festivalSectors.festivalId, data.id),
+							),
+						)
+						.limit(1);
+
+					if (reservationsInDeletedSectors.length > 0) {
+						throw new Error("SECTOR_HAS_RESERVATIONS");
+					}
+
 					await tx
 						.delete(festivalSectors)
-						.where(inArray(festivalSectors.id, data.deletedSectorIds));
+						.where(
+							and(
+								inArray(festivalSectors.id, data.deletedSectorIds),
+								eq(festivalSectors.festivalId, data.id),
+							),
+						);
 				}
 			}
 
@@ -314,14 +344,24 @@ export async function updateFestival(
 		updateTag("active-festival");
 		return {
 			success: true,
-			message: "Festival updated successfully",
+			message: "Festival actualizado correctamente.",
 			data: result,
 		};
 	} catch (error) {
+		if (
+			error instanceof Error &&
+			error.message === "SECTOR_HAS_RESERVATIONS"
+		) {
+			return {
+				success: false,
+				message:
+					"No puedes eliminar sectores que tienen stands con reservaciones. Elimina esas reservaciones primero.",
+			};
+		}
 		console.error("Error updating festival:", error);
 		return {
 			success: false,
-			message: "Failed to update festival. Please try again.",
+			message: "No se pudo actualizar el festival. Inténtalo nuevamente.",
 		};
 	}
 }
@@ -411,7 +451,19 @@ export async function fetchFestivalWithDatesAndSectors(
 			where: eq(festivals.id, id),
 			with: {
 				festivalDates: true,
-				festivalSectors: true,
+				festivalSectors: {
+					with: {
+						stands: {
+							with: {
+								reservations: {
+									columns: {
+										id: true,
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		});
 
@@ -424,7 +476,7 @@ export async function fetchFestivalWithDatesAndSectors(
 
 export async function fetchActiveFestivalWithDates(): Promise<FestivalWithDates | null> {
 	"use cache";
-	cacheLife("minutes");
+	cacheLife("hours");
 	cacheTag("active-festival");
 
 	try {

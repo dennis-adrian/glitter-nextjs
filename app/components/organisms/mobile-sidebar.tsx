@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
-import { SignedIn, SignedOut, useClerk } from "@clerk/nextjs";
+import { useClerk, useUser } from "@clerk/nextjs";
 
 import { Separator } from "@/app/components/ui/separator";
 import {
@@ -62,6 +62,7 @@ type MobileSidebarProps = {
 
 const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 	const { signOut } = useClerk();
+	const { isSignedIn } = useUser();
 	const router = useRouter();
 	const pathname = usePathname();
 
@@ -176,21 +177,23 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 							</div>
 						</>
 					)}
-					<SignedIn>
-						<Separator className="my-2" />
-						<SheetClose asChild>
-							<Button
-								className="p-2"
-								onClick={() => signOut(() => router.push("/"))}
-								variant="ghost"
-							>
-								<LogOutIcon className="mr-2 h-6 w-6" />
-								<span className="w-full text-left text-base font-normal">
-									Cerrar Sesión
-								</span>
-							</Button>
-						</SheetClose>
-					</SignedIn>
+					{isSignedIn && (
+						<>
+							<Separator className="my-2" />
+							<SheetClose asChild>
+								<Button
+									className="p-2"
+									onClick={() => signOut(() => router.push("/"))}
+									variant="ghost"
+								>
+									<LogOutIcon className="mr-2 h-6 w-6" />
+									<span className="w-full text-left text-base font-normal">
+										Cerrar Sesión
+									</span>
+								</Button>
+							</SheetClose>
+						</>
+					)}
 				</ul>
 			</SheetContent>
 		</Sheet>
