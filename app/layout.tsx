@@ -2,7 +2,7 @@ import { Analytics } from "@vercel/analytics/react";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { esES } from "@clerk/localizations";
+import { esMX } from "@clerk/localizations";
 import { ClerkProvider } from "@clerk/nextjs";
 
 import { EdgeStoreProvider } from "@/app/lib/edgestore";
@@ -42,7 +42,7 @@ export default function RootLayout({
 		<html lang="es">
 			<body className={`${inter.variable} ${spaceGrotesk.variable} font-sans`}>
 				<Suspense fallback={<div className="min-h-screen" />}>
-					<ClerkProvider localization={esES}>
+					<ClerkProvider localization={esMX}>
 						<EdgeStoreProvider>
 							<Suspense fallback={<div className="h-16 md:h-20" />}>
 								<Navbar />

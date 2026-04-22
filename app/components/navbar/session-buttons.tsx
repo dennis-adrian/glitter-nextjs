@@ -1,21 +1,24 @@
 "use client";
 
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
+
+import { useUser } from "@clerk/nextjs";
+import { InfoIcon, LogInIcon, UserPlusIcon } from "lucide-react";
+
 import { NavbarProfile } from "@/app/api/users/definitions";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Button } from "@/app/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
 } from "@/app/components/ui/dialog";
 import UserDropdown from "@/app/components/ui/user-dropdown";
 import { isNoNavigationPage, isStoreFlowPage } from "@/app/lib/utils";
-import { SignedIn, SignedOut } from "@clerk/nextjs";
-import { InfoIcon, LogInIcon, UserPlusIcon } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { UserDropdownSkeleton } from "@/app/components/user_dropdown/skeleton";
 
 export default function SessionButtons({
 	profile,
@@ -25,20 +28,25 @@ export default function SessionButtons({
 	const [open, setOpen] = useState(false);
 	const router = useRouter();
 	const pathname = usePathname();
+	const { isLoaded, isSignedIn } = useUser();
 
 	if (isNoNavigationPage(pathname)) {
 		return null;
 	}
 
+	if (!isLoaded) {
+		return (
+			<div className="flex min-h-9 items-center justify-end">
+				<UserDropdownSkeleton />
+			</div>
+		);
+	}
+
 	const storeFlow = isStoreFlowPage(pathname);
 
-	return (
-		<div>
-			<SignedIn>
-				<UserDropdown profile={profile} />
-			</SignedIn>
-			<SignedOut>
-				{!storeFlow && (
+	if (!storeFlow && !isSignedIn) {
+		return (
+			<>
 				<div className="flex gap-1">
 					<Button
 						variant="ghost"
@@ -54,42 +62,43 @@ export default function SessionButtons({
 						Iniciar sesión
 					</RedirectButton>
 				</div>
-			)}
-			</SignedOut>
-			<Dialog open={open} onOpenChange={setOpen}>
-				<DialogContent className="p-4 md:p-6">
-					<DialogHeader>
-						<DialogTitle className="text-center">
-							¿Quieres crear una cuenta?
-						</DialogTitle>
-					</DialogHeader>
-					<div className="flex flex-col gap-2 my-2 text-center">
-						<InfoIcon className="w-12 h-12 mx-auto text-amber-500" />
-						<p className="leading-5">
-							Al crear una cuenta y completar tu perfil serás considerado para
-							participar como expositor en nuestros eventos
-						</p>
-					</div>
-					<DialogFooter className="flex flex-col-reverse md:flex-row w-full gap-2">
-						<Button
-							className="w-full"
-							variant="outline"
-							onClick={() => setOpen(false)}
-						>
-							Cancelar
-						</Button>
-						<Button
-							className="w-full"
-							onClick={() => {
-								setOpen(false);
-								router.push("/sign_up");
-							}}
-						>
-							Continuar
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-		</div>
-	);
+				<Dialog open={open} onOpenChange={setOpen}>
+					<DialogContent className="p-4 md:p-6">
+						<DialogHeader>
+							<DialogTitle className="text-center">
+								¿Quieres crear una cuenta?
+							</DialogTitle>
+						</DialogHeader>
+						<div className="flex flex-col gap-2 my-2 text-center">
+							<InfoIcon className="w-12 h-12 mx-auto text-amber-500" />
+							<p className="leading-5">
+								Al crear una cuenta y completar tu perfil serás considerado para
+								participar como expositor en nuestros eventos
+							</p>
+						</div>
+						<DialogFooter className="flex flex-col-reverse md:flex-row w-full gap-2">
+							<Button
+								className="w-full"
+								variant="outline"
+								onClick={() => setOpen(false)}
+							>
+								Cancelar
+							</Button>
+							<Button
+								className="w-full"
+								onClick={() => {
+									setOpen(false);
+									router.push("/sign_up");
+								}}
+							>
+								Continuar
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+			</>
+		);
+	}
+
+	return <UserDropdown profile={profile} />;
 }
