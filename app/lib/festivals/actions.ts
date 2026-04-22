@@ -476,7 +476,7 @@ export async function fetchFestivalWithDatesAndSectors(
 
 export async function fetchActiveFestivalWithDates(): Promise<FestivalWithDates | null> {
 	"use cache";
-	cacheLife("minutes");
+	cacheLife("hours");
 	cacheTag("active-festival");
 
 	try {
