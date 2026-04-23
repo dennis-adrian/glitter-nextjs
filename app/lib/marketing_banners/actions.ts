@@ -5,7 +5,11 @@ import { db } from "@/db";
 import { marketingBanners } from "@/db/schema";
 import { and, asc, eq, inArray, max, or } from "drizzle-orm";
 import { cacheLife, cacheTag, revalidatePath, updateTag } from "next/cache";
-import type { MarketingBannerAudience, MarketingBannerRow } from "./definitions";
+import { redirect } from "next/navigation";
+import type {
+	MarketingBannerAudience,
+	MarketingBannerRow,
+} from "./definitions";
 import { assertValidHref } from "./validate-href";
 
 const CACHE_TAG = "marketing-banners";
@@ -62,7 +66,9 @@ export async function fetchMarketingBannersForLanding(
 	}
 }
 
-export async function fetchMarketingBannersForPortal(): Promise<MarketingBannerRow[]> {
+export async function fetchMarketingBannersForPortal(): Promise<
+	MarketingBannerRow[]
+> {
 	"use cache";
 	cacheLife("minutes");
 	cacheTag(CACHE_TAG);
@@ -84,8 +90,17 @@ export async function fetchMarketingBannersForPortal(): Promise<MarketingBannerR
 	}
 }
 
-/** Dashboard `/dashboard/banners` only; [`app/dashboard/layout`](app/dashboard/layout.tsx) enforces `admin` | `festival_admin`. */
-export async function listMarketingBannersForAdmin(): Promise<MarketingBannerRow[]> {
+/** Dashboard `/dashboard/banners`; layout also restricts access — this check runs before any DB read. */
+export async function listMarketingBannersForAdmin(): Promise<
+	MarketingBannerRow[]
+> {
+	const profile = await getCurrentUserProfile();
+	if (!profile) {
+		redirect("/sign_in");
+	}
+	if (!canManageBanners(profile.role)) {
+		redirect("/");
+	}
 	return db
 		.select()
 		.from(marketingBanners)
@@ -95,6 +110,13 @@ export async function listMarketingBannersForAdmin(): Promise<MarketingBannerRow
 export async function getMarketingBannerById(
 	id: number,
 ): Promise<MarketingBannerRow | null> {
+	const profile = await getCurrentUserProfile();
+	if (!profile) {
+		redirect("/sign_in");
+	}
+	if (!canManageBanners(profile.role)) {
+		redirect("/");
+	}
 	const rows = await db
 		.select()
 		.from(marketingBanners)
@@ -123,7 +145,9 @@ export type CreateMarketingBannerInput = {
 
 export async function createMarketingBanner(
 	data: CreateMarketingBannerInput,
-): Promise<{ success: true; id: number } | { success: false; message: string }> {
+): Promise<
+	{ success: true; id: number } | { success: false; message: string }
+> {
 	const profile = await getCurrentUserProfile();
 	if (!canManageBanners(profile?.role)) {
 		return { success: false, message: "No tienes permisos." };

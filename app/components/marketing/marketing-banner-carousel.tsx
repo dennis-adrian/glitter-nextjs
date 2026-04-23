@@ -18,15 +18,11 @@ type Props = {
 };
 
 function slideAlt(banner: MarketingBannerRow): string {
-	return (
-		banner.altText?.trim() ||
-		banner.label?.trim() ||
-		"Banner promocional"
-	);
+	return banner.altText?.trim() || banner.label?.trim() || "Banner promocional";
 }
 
 const linkFrameClass =
-	"relative block min-h-0 w-full overflow-hidden rounded-lg bg-muted aspect-3/2 max-h-[240px] outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring md:max-h-[280px] md:aspect-3/1 lg:aspect-4/1";
+	"relative block min-h-0 w-full overflow-hidden rounded-lg bg-muted aspect-3/2 max-h-[240px] outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring md:max-h-[280px] md:aspect-3/1 lg:max-h-[320px] lg:aspect-4/1";
 
 function SlideImages({
 	banner,
