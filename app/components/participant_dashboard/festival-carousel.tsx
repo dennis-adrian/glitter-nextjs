@@ -1,6 +1,7 @@
 "use client";
 
 import Autoplay from "embla-carousel-autoplay";
+import Image from "next/image";
 import Link from "next/link";
 import { useRef } from "react";
 
@@ -76,7 +77,7 @@ export default function FestivalCarousel({
 			className="w-full"
 		>
 			<CarouselContent className="ml-0">
-				{festivals.map((festival) => {
+				{festivals.map((festival, slideIndex) => {
 					const cta = getCtaProps(
 						festival,
 						profile.id,
@@ -87,25 +88,26 @@ export default function FestivalCarousel({
 						festival.festivalDates.length > 0
 							? getFestivalDateLabel(festival, true)
 							: null;
+					const bannerUrl = festival.festivalBannerUrl;
 
 					return (
 						<CarouselItem key={festival.id} className="pl-0">
-							<div
-								className="relative w-full flex items-end overflow-hidden rounded-lg"
-								style={{
-									height: "clamp(200px, 35vh, 280px)",
-									backgroundImage: festival.festivalBannerUrl
-										? `url(${festival.festivalBannerUrl})`
-										: undefined,
-									backgroundSize: "cover",
-									backgroundPosition: "center top",
-									backgroundColor: festival.festivalBannerUrl
-										? undefined
-										: "hsl(262 77% 49%)",
-								}}
-							>
+							<div className="relative flex min-h-0 w-full items-end overflow-hidden rounded-lg bg-[hsl(262_77%_49%)] aspect-3/2 max-h-[240px] md:max-h-[280px] md:aspect-3/1 lg:aspect-4/1">
+								{bannerUrl ? (
+									<Image
+										src={bannerUrl}
+										alt={festival.name}
+										fill
+										priority={slideIndex === 0}
+										sizes="(max-width: 768px) 100vw, (max-width: 1280px) 100vw, 1280px"
+										className="z-0 object-cover object-top"
+									/>
+								) : null}
 								{/* Gradient overlay */}
-								<div className="absolute inset-0 bg-linear-to-t md:bg-linear-to-r from-black/90 via-black/40 to-black/20" />
+								<div
+									aria-hidden
+									className="absolute inset-0 z-1 bg-linear-to-t md:bg-linear-to-r from-black/90 via-black/40 to-black/20"
+								/>
 
 								{/* Slide content */}
 								<div className="relative z-10 w-full max-w-2xl px-4 md:px-10 pb-4 md:pb-14">
