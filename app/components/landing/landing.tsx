@@ -1,13 +1,20 @@
 import Carousel from "@/app/components/landing/carousel";
 import EventFeatures from "@/app/components/landing/event-features";
 import NoFestivalBanner from "@/app/components/landing/no-festival-banner";
+import MarketingBannerCarousel from "@/app/components/marketing/marketing-banner-carousel";
 import FestivalBanner from "@/app/components/molecules/festival-banner";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { getActiveFestival } from "@/app/lib/festivals/helpers";
+import { fetchMarketingBannersForLanding } from "@/app/lib/marketing_banners/actions";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import Image from "next/image";
 
 export default async function Landing() {
-	const festival = await getActiveFestival();
+	const [festival, profile] = await Promise.all([
+		getActiveFestival(),
+		getCurrentUserProfile(),
+	]);
+	const marketingBanners = await fetchMarketingBannersForLanding(!!profile);
 
 	// let eventRegistrationLink = "";
 	// if (festival) {
@@ -18,6 +25,11 @@ export default async function Landing() {
 
 	return (
 		<div className="container p-4 md:p-6">
+			{marketingBanners.length > 0 && (
+				<div className="mb-6 w-full">
+					<MarketingBannerCarousel banners={marketingBanners} />
+				</div>
+			)}
 			{festival ? (
 				<>
 					<div>
