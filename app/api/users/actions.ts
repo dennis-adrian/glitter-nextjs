@@ -340,7 +340,6 @@ export async function verifyProfile(profileId: number, category: UserCategory) {
 					? activeFestival
 					: null,
 				isFestivalFull: availableStands.length === 0,
-				profileId: updatedUser.id,
 			}) as React.ReactElement,
 		});
 	} catch (error) {

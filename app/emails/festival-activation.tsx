@@ -68,7 +68,7 @@ export default function FestivalActivationEmailTemplate({
 							para que podamos ayudarte.
 						</Text>
 						<Button
-							href={`${baseUrl}/profiles/${profile.id}/festivals/${festival.id}/terms`}
+							href={`${baseUrl}/festivals/${festival.id}/terms`}
 							style={styles.button}
 						>
 							Leer términos y condiciones

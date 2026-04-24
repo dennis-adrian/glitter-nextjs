@@ -1,12 +1,12 @@
 import * as styles from "@/app/emails/styles";
 import {
-  Body,
-  Container,
-  Head,
-  Html,
-  Preview,
-  Section,
-  Text,
+	Body,
+	Container,
+	Head,
+	Html,
+	Preview,
+	Section,
+	Text,
 } from "@react-email/components";
 import RegularBody from "./regular-body";
 import ActiveFestivalBody from "./active-festival-body";
@@ -17,75 +17,69 @@ import EmailHeader from "@/app/emails/email-header";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 
 interface FestivalActivationTemplateProps {
-  name: string;
-  festival?: FestivalWithDates | null;
-  isFestivalFull?: boolean;
-  profileId: number;
-  category: UserCategory;
+	name: string;
+	festival?: FestivalWithDates | null;
+	isFestivalFull?: boolean;
+	category: UserCategory;
 }
 
 export default function VerificationConfirmationEmailTemplate(
-  props: FestivalActivationTemplateProps,
+	props: FestivalActivationTemplateProps,
 ) {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+	const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
-  return (
-    <Html>
-      <Head />
-      <Preview>
-        Tu perfil ha sido verificado y ya puedes participar en nuestros eventos
-      </Preview>
-      <Body style={styles.main}>
-        <Container style={styles.container}>
-          <EmailHeader />
-          <Section style={styles.sectionWithBanner}>
-            <Text style={styles.text}>¡Hola {props.name}!</Text>
-            <Text style={styles.text}>
-              ¡Felicidades! Tu cuenta ha sido verificada
-            </Text>
-            {!props.festival ? (
-              <RegularBody category={props.category} baseUrl={baseUrl} />
-            ) : !props.isFestivalFull ? (
-              <ActiveFestivalBody
-                baseUrl={baseUrl}
-                festival={props.festival}
-                profileId={props.profileId}
-              />
-            ) : (
-              <FullFestivalBody
-                baseUrl={baseUrl}
-                festival={props.festival}
-                category={props.category}
-              />
-            )}
-          </Section>
-        </Container>
-        <EmailFooter />
-      </Body>
-    </Html>
-  );
+	return (
+		<Html>
+			<Head />
+			<Preview>
+				Tu perfil ha sido verificado y ya puedes participar en nuestros eventos
+			</Preview>
+			<Body style={styles.main}>
+				<Container style={styles.container}>
+					<EmailHeader />
+					<Section style={styles.sectionWithBanner}>
+						<Text style={styles.text}>¡Hola {props.name}!</Text>
+						<Text style={styles.text}>
+							¡Felicidades! Tu cuenta ha sido verificada
+						</Text>
+						{!props.festival ? (
+							<RegularBody category={props.category} baseUrl={baseUrl} />
+						) : !props.isFestivalFull ? (
+							<ActiveFestivalBody baseUrl={baseUrl} festival={props.festival} />
+						) : (
+							<FullFestivalBody
+								baseUrl={baseUrl}
+								festival={props.festival}
+								category={props.category}
+							/>
+						)}
+					</Section>
+				</Container>
+				<EmailFooter />
+			</Body>
+		</Html>
+	);
 }
 
 VerificationConfirmationEmailTemplate.PreviewProps = {
-  name: "John Doe",
-  profileId: 90,
-  category: "illustration",
-  festival: {
-    id: 12,
-    name: "Glitter 10ma edición",
-    reservationsStartDate: new Date("2024-08-10 22:00:00"),
-    festivalDates: [
-      {
-        id: 1,
-        startDate: new Date(),
-        endDate: new Date(),
-      },
-      {
-        id: 2,
-        startDate: new Date(),
-        endDate: new Date(),
-      },
-    ],
-  },
-  isFestivalFull: false,
+	name: "John Doe",
+	category: "illustration",
+	festival: {
+		id: 12,
+		name: "Glitter 10ma edición",
+		reservationsStartDate: new Date("2024-08-10 22:00:00"),
+		festivalDates: [
+			{
+				id: 1,
+				startDate: new Date(),
+				endDate: new Date(),
+			},
+			{
+				id: 2,
+				startDate: new Date(),
+				endDate: new Date(),
+			},
+		],
+	},
+	isFestivalFull: false,
 } as FestivalActivationTemplateProps;

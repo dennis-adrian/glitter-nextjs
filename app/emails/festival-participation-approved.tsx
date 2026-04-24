@@ -67,7 +67,7 @@ export default function FestivalParticipationApprovedEmailTemplate({
 							para que podamos ayudarte.
 						</Text>
 						<Button
-							href={`${baseUrl}/profiles/${profile.id}/festivals/${festival.id}/terms`}
+							href={`${baseUrl}/festivals/${festival.id}/terms`}
 							style={styles.button}
 						>
 							Reservar mi espacio
