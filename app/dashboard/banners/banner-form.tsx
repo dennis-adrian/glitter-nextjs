@@ -28,7 +28,10 @@ import { twMerge } from "tailwind-merge";
 import type { UploadThingError } from "uploadthing/server";
 import type { Json } from "@uploadthing/shared";
 
-const AUDIENCE_OPTIONS: { value: MarketingBannerRow["audience"]; label: string }[] = [
+const AUDIENCE_OPTIONS: {
+	value: MarketingBannerRow["audience"];
+	label: string;
+}[] = [
 	{ value: "all", label: "Todos (landing y portal)" },
 	{ value: "public_only", label: "Solo visitantes (landing, sin sesión)" },
 	{ value: "participants_only", label: "Solo participantes (portal)" },
@@ -86,7 +89,9 @@ export default function BannerForm(props: Props) {
 	);
 
 	const title =
-		props.mode === "create" ? "Nuevo banner" : `Editar banner #${props.initialBanner.id}`;
+		props.mode === "create"
+			? "Nuevo banner"
+			: `Editar banner #${props.initialBanner.id}`;
 
 	function onSubmit(e: React.FormEvent) {
 		e.preventDefault();
@@ -102,40 +107,58 @@ export default function BannerForm(props: Props) {
 
 		startTransition(async () => {
 			if (props.mode === "create") {
-				const res = await createMarketingBanner({
-					imageUrl: form.imageUrl,
-					imageUrlTablet: form.imageUrlTablet || null,
-					imageUrlMobile: form.imageUrlMobile || null,
-					href: form.href,
-					audience: form.audience,
-					openInNewTab: form.openInNewTab,
-					isVisible: form.isVisible,
-					label: form.label || null,
-					altText: form.altText || null,
-				});
-				if (!res.success) {
-					toast.error(res.message);
+				try {
+					const res = await createMarketingBanner({
+						imageUrl: form.imageUrl,
+						imageUrlTablet: form.imageUrlTablet || null,
+						imageUrlMobile: form.imageUrlMobile || null,
+						href: form.href,
+						audience: form.audience,
+						openInNewTab: form.openInNewTab,
+						isVisible: form.isVisible,
+						label: form.label || null,
+						altText: form.altText || null,
+					});
+					if (!res.success) {
+						toast.error(res.message);
+						return;
+					}
+					toast.success("Banner creado");
+				} catch (err) {
+					toast.error(
+						err instanceof Error && err.message
+							? err.message
+							: "No se pudo crear el banner.",
+					);
 					return;
 				}
-				toast.success("Banner creado");
 			} else {
-				const res = await updateMarketingBanner({
-					id: props.initialBanner.id,
-					imageUrl: form.imageUrl,
-					imageUrlTablet: form.imageUrlTablet || null,
-					imageUrlMobile: form.imageUrlMobile || null,
-					href: form.href,
-					audience: form.audience,
-					openInNewTab: form.openInNewTab,
-					isVisible: form.isVisible,
-					label: form.label || null,
-					altText: form.altText || null,
-				});
-				if (!res.success) {
-					toast.error(res.message);
+				try {
+					const res = await updateMarketingBanner({
+						id: props.initialBanner.id,
+						imageUrl: form.imageUrl,
+						imageUrlTablet: form.imageUrlTablet || null,
+						imageUrlMobile: form.imageUrlMobile || null,
+						href: form.href,
+						audience: form.audience,
+						openInNewTab: form.openInNewTab,
+						isVisible: form.isVisible,
+						label: form.label || null,
+						altText: form.altText || null,
+					});
+					if (!res.success) {
+						toast.error(res.message);
+						return;
+					}
+					toast.success("Cambios guardados");
+				} catch (err) {
+					toast.error(
+						err instanceof Error && err.message
+							? err.message
+							: "No se pudieron guardar los cambios.",
+					);
 					return;
 				}
-				toast.success("Cambios guardados");
 			}
 			router.push("/dashboard/banners");
 			router.refresh();
@@ -156,10 +179,10 @@ export default function BannerForm(props: Props) {
 				<div className="space-y-2 rounded-lg border p-4">
 					<Label>Escritorio (obligatoria)</Label>
 					<p className="text-xs text-muted-foreground">
-						Recomendado: 2400 × 600 px (aprox. 4:1) — imagen ancha mostrada en pantallas
-						grandes
+						Recomendado: 2400 × 600 px (aprox. 4:1) — imagen ancha mostrada en
+						pantallas grandes
 					</p>
-					<div className="relative mt-2 aspect-[4/1] w-full max-w-lg overflow-hidden rounded-md border bg-muted">
+					<div className="relative mt-2 aspect-4/1 w-full max-w-lg overflow-hidden rounded-md border bg-muted">
 						{form.imageUrl ? (
 							<Image
 								src={form.imageUrl}
@@ -193,13 +216,18 @@ export default function BannerForm(props: Props) {
 							);
 						}}
 					/>
-					<Label htmlFor="img-desktop-url" className="text-xs text-muted-foreground">
+					<Label
+						htmlFor="img-desktop-url"
+						className="text-xs text-muted-foreground"
+					>
 						O pega la URL
 					</Label>
 					<Input
 						id="img-desktop-url"
 						value={form.imageUrl}
-						onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
+						onChange={(e) =>
+							setForm((f) => ({ ...f, imageUrl: e.target.value }))
+						}
 					/>
 				</div>
 
@@ -345,11 +373,15 @@ export default function BannerForm(props: Props) {
 					/>
 				</div>
 				<div className="space-y-2">
-					<Label htmlFor="alt">Texto alternativo (accesibilidad, opcional)</Label>
+					<Label htmlFor="alt">
+						Texto alternativo (accesibilidad, opcional)
+					</Label>
 					<Input
 						id="alt"
 						value={form.altText}
-						onChange={(e) => setForm((f) => ({ ...f, altText: e.target.value }))}
+						onChange={(e) =>
+							setForm((f) => ({ ...f, altText: e.target.value }))
+						}
 					/>
 				</div>
 				<div className="flex gap-2 pt-2">

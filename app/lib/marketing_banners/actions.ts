@@ -130,6 +130,47 @@ function optUrl(v: string | null | undefined): string | null {
 	return t || null;
 }
 
+/** Validates desktop (required) and optional tablet/mobile image URLs like `href` via `assertValidHref`. */
+function validatedBannerImageUrls(data: {
+	imageUrl: string;
+	imageUrlTablet?: string | null;
+	imageUrlMobile?: string | null;
+}):
+	| {
+			ok: true;
+			imageUrl: string;
+			imageUrlTablet: string | null;
+			imageUrlMobile: string | null;
+	  }
+	| { ok: false; message: string } {
+	if (!data.imageUrl?.trim()) {
+		return { ok: false, message: "La imagen es obligatoria." };
+	}
+	const main = assertValidHref(data.imageUrl);
+	if (!main.ok) {
+		return { ok: false, message: main.message };
+	}
+	const tabletOpt = optUrl(data.imageUrlTablet ?? null);
+	let imageUrlTablet: string | null = null;
+	if (tabletOpt) {
+		const t = assertValidHref(tabletOpt);
+		if (!t.ok) {
+			return { ok: false, message: `Imagen tablet: ${t.message}` };
+		}
+		imageUrlTablet = t.href;
+	}
+	const mobileOpt = optUrl(data.imageUrlMobile ?? null);
+	let imageUrlMobile: string | null = null;
+	if (mobileOpt) {
+		const m = assertValidHref(mobileOpt);
+		if (!m.ok) {
+			return { ok: false, message: `Imagen móvil: ${m.message}` };
+		}
+		imageUrlMobile = m.href;
+	}
+	return { ok: true, imageUrl: main.href, imageUrlTablet, imageUrlMobile };
+}
+
 export type CreateMarketingBannerInput = {
 	/** Required — desktop / 4:1 style */
 	imageUrl: string;
@@ -156,8 +197,9 @@ export async function createMarketingBanner(
 	if (!hrefCheck.ok) {
 		return { success: false, message: hrefCheck.message };
 	}
-	if (!data.imageUrl?.trim()) {
-		return { success: false, message: "La imagen es obligatoria." };
+	const urls = validatedBannerImageUrls(data);
+	if (!urls.ok) {
+		return { success: false, message: urls.message };
 	}
 
 	const [{ maxOrder }] = await db
@@ -168,9 +210,9 @@ export async function createMarketingBanner(
 	const [row] = await db
 		.insert(marketingBanners)
 		.values({
-			imageUrl: data.imageUrl.trim(),
-			imageUrlTablet: optUrl(data.imageUrlTablet ?? null),
-			imageUrlMobile: optUrl(data.imageUrlMobile ?? null),
+			imageUrl: urls.imageUrl,
+			imageUrlTablet: urls.imageUrlTablet,
+			imageUrlMobile: urls.imageUrlMobile,
 			href: hrefCheck.href,
 			audience: data.audience,
 			openInNewTab: data.openInNewTab ?? false,
@@ -214,16 +256,17 @@ export async function updateMarketingBanner(
 	if (!hrefCheck.ok) {
 		return { success: false, message: hrefCheck.message };
 	}
-	if (!data.imageUrl?.trim()) {
-		return { success: false, message: "La imagen es obligatoria." };
+	const urls = validatedBannerImageUrls(data);
+	if (!urls.ok) {
+		return { success: false, message: urls.message };
 	}
 
 	const [updated] = await db
 		.update(marketingBanners)
 		.set({
-			imageUrl: data.imageUrl.trim(),
-			imageUrlTablet: optUrl(data.imageUrlTablet ?? null),
-			imageUrlMobile: optUrl(data.imageUrlMobile ?? null),
+			imageUrl: urls.imageUrl,
+			imageUrlTablet: urls.imageUrlTablet,
+			imageUrlMobile: urls.imageUrlMobile,
 			href: hrefCheck.href,
 			audience: data.audience,
 			openInNewTab: data.openInNewTab,
@@ -287,13 +330,24 @@ export async function reorderMarketingBanners(
 	if (!canManageBanners(profile?.role)) {
 		return { success: false, message: "No tienes permisos." };
 	}
-	if (orderedIds.length === 0) {
-		return { success: true };
-	}
 	const unique = new Set(orderedIds);
 	if (unique.size !== orderedIds.length) {
 		return { success: false, message: "Lista inválida." };
 	}
+
+	const existingRows = await db
+		.select({ id: marketingBanners.id })
+		.from(marketingBanners);
+	const existingSet = new Set(existingRows.map((r) => r.id));
+	if (existingRows.length !== orderedIds.length) {
+		return { success: false, message: "Lista inválida." };
+	}
+	for (const id of orderedIds) {
+		if (!existingSet.has(id)) {
+			return { success: false, message: "Lista inválida." };
+		}
+	}
+
 	try {
 		await db.transaction(async (tx) => {
 			for (let i = 0; i < orderedIds.length; i++) {
