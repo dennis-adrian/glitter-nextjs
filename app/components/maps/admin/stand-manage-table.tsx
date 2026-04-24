@@ -1,84 +1,70 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { ListTree } from "lucide-react";
 import Link from "next/link";
-import { ListTree, X } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
+import { bulkUpdateStands } from "@/app/api/stands/actions";
 import {
-	bulkUpdateStands,
-	deleteStands,
-	renumberStandsSequentially,
-	updateStand,
-} from "@/app/api/stands/actions";
+	StandBase,
+	StandWithReservationsWithParticipants,
+} from "@/app/api/stands/definitions";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
-import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
-import { Checkbox } from "@/app/components/ui/checkbox";
+import { Card, CardContent } from "@/app/components/ui/card";
+import { DataTable } from "@/app/components/ui/data_table/data-table";
+import { Tabs, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
+
+import StandBulkActionsMenu from "@/app/components/maps/admin/stand-manage/bulk-actions-menu";
+import StandManageCardList from "@/app/components/maps/admin/stand-manage/card-list";
 import {
-	Dialog,
-	DialogContent,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/app/components/ui/dialog";
-import { Input } from "@/app/components/ui/input";
-import { Label } from "@/app/components/ui/label";
+	StandRow,
+	columnTitles,
+	createColumns,
+	standFilterOptions,
+} from "@/app/components/maps/admin/stand-manage/columns";
+import StandEditFormDialog from "@/app/components/maps/admin/stand-manage/edit-form-dialog";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/app/components/ui/select";
-import { StandStatusBadge } from "@/app/components/stands/status-badge";
+	STAND_STATUS_OPTIONS,
+	StandCategory,
+	StandStatus,
+	getStatusLabel,
+} from "@/app/components/maps/admin/stand-manage/shared";
 
-const STAND_STATUS_OPTIONS = [
-	{ value: "available", label: "Disponible" },
-	{ value: "held", label: "En espera" },
-	{ value: "reserved", label: "Reservado" },
-	{ value: "confirmed", label: "Confirmado" },
-	{ value: "disabled", label: "Deshabilitado" },
-] as const;
-
-type StandStatus = (typeof STAND_STATUS_OPTIONS)[number]["value"];
-
-const CATEGORY_OPTIONS = [
-	{ value: "none", label: "Ninguna" },
-	{ value: "illustration", label: "Ilustración" },
-	{ value: "gastronomy", label: "Gastronomía" },
-	{ value: "entrepreneurship", label: "Emprendimiento" },
-	{ value: "new_artist", label: "Artista nuevo" },
-] as const;
-
-type StandCategory = (typeof CATEGORY_OPTIONS)[number]["value"];
-
-function formatPrice(amount: number) {
-	return new Intl.NumberFormat("es-BO", {
-		style: "currency",
-		currency: "BOB",
-		minimumFractionDigits: 2,
-	}).format(amount);
-}
-
-function sortStands(
-	list: StandWithReservationsWithParticipants[],
-): StandWithReservationsWithParticipants[] {
-	return [...list].sort(
-		(a, b) =>
-			(a.standCategory ?? "").localeCompare(b.standCategory ?? "") ||
-			a.standNumber - b.standNumber ||
-			a.id - b.id,
-	);
-}
+type Sector = FestivalSectorWithStandsWithReservationsWithParticipants;
 
 type Props = {
 	festivalId: number;
 	festivalName: string;
-	sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
+	sectors: Sector[];
 };
+
+const ALL_SECTOR_VALUE = "all";
+
+function patchSectors(
+	sectors: Sector[],
+	ids: Set<number>,
+	patch: Partial<StandBase>,
+): Sector[] {
+	return sectors.map((s) => ({
+		...s,
+		stands: s.stands.map((st) =>
+			ids.has(st.id) ? ({ ...st, ...patch } as typeof st) : st,
+		),
+	}));
+}
+
+function countByStatus(stands: StandWithReservationsWithParticipants[]) {
+	return stands.reduce(
+		(acc, s) => {
+			acc[s.status as StandStatus] = (acc[s.status as StandStatus] ?? 0) + 1;
+			return acc;
+		},
+		{} as Record<StandStatus, number>,
+	);
+}
 
 export default function StandManageTable({
 	festivalId,
@@ -86,144 +72,211 @@ export default function StandManageTable({
 	sectors,
 }: Props) {
 	const router = useRouter();
-	const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+	const searchParams = useSearchParams();
 
-	const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
-	const [bulkStatus, setBulkStatus] = useState<StandStatus>("available");
-
-	const [bulkPriceOpen, setBulkPriceOpen] = useState(false);
-	const [bulkPrice, setBulkPrice] = useState(0);
-
-	const [bulkLabelOpen, setBulkLabelOpen] = useState(false);
-	const [bulkLabel, setBulkLabel] = useState("");
-
-	const [bulkCategoryOpen, setBulkCategoryOpen] = useState(false);
-	const [bulkCategory, setBulkCategory] =
-		useState<StandCategory>("illustration");
-
-	const [renumberOpen, setRenumberOpen] = useState(false);
-	const [renumberStart, setRenumberStart] = useState(1);
-
-	const [deleteOpen, setDeleteOpen] = useState(false);
-
-	const [singleOpen, setSingleOpen] = useState(false);
-	const [editStand, setEditStand] =
-		useState<StandWithReservationsWithParticipants | null>(null);
-	const [editLabel, setEditLabel] = useState("");
-	const [editStandNumber, setEditStandNumber] = useState(1);
-	const [editStatus, setEditStatus] = useState<StandStatus>("available");
-	const [editPrice, setEditPrice] = useState(0);
-	const [editCategory, setEditCategory] =
-		useState<StandCategory>("illustration");
-	const [isSaving, setIsSaving] = useState(false);
-	const [pendingBulk, setPendingBulk] = useState(false);
-
-	const allStands = useMemo(() => {
-		const out: StandWithReservationsWithParticipants[] = [];
-		for (const s of sectors) {
-			for (const st of s.stands) out.push(st);
-		}
-		return out;
+	const [liveSectors, setLiveSectors] = useState(sectors);
+	useEffect(() => {
+		setLiveSectors(sectors);
 	}, [sectors]);
 
-	const standById = useMemo(() => {
-		const m = new Map<number, StandWithReservationsWithParticipants>();
-		for (const s of allStands) m.set(s.id, s);
-		return m;
-	}, [allStands]);
+	const urlSector = searchParams.get("sector") ?? ALL_SECTOR_VALUE;
+	const activeTab = useMemo(() => {
+		if (urlSector === ALL_SECTOR_VALUE) return ALL_SECTOR_VALUE;
+		return liveSectors.some((s) => String(s.id) === urlSector)
+			? urlSector
+			: ALL_SECTOR_VALUE;
+	}, [urlSector, liveSectors]);
 
-	const selectedCount = selectedIds.size;
+	const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+	const [editStand, setEditStand] =
+		useState<StandWithReservationsWithParticipants | null>(null);
+	const [editOpen, setEditOpen] = useState(false);
+	const [pendingQuickStatusId, setPendingQuickStatusId] = useState<
+		number | null
+	>(null);
+
+	const allRows: StandRow[] = useMemo(() => {
+		const out: StandRow[] = [];
+		for (const sector of liveSectors) {
+			for (const stand of sector.stands) {
+				out.push({
+					...stand,
+					sectorId: sector.id,
+					sectorName: sector.name,
+				});
+			}
+		}
+		return out;
+	}, [liveSectors]);
+
+	const rowsForTab = useMemo(() => {
+		if (activeTab === ALL_SECTOR_VALUE) return allRows;
+		const sectorId = Number(activeTab);
+		return allRows.filter((r) => r.sectorId === sectorId);
+	}, [allRows, activeTab]);
+
+	const rowsById = useMemo(() => {
+		const m = new Map<number, StandRow>();
+		for (const r of allRows) m.set(r.id, r);
+		return m;
+	}, [allRows]);
+
 	const selectedIdsArr = useMemo(() => Array.from(selectedIds), [selectedIds]);
 
 	const selectedHaveReservation = useMemo(() => {
 		for (const id of selectedIds) {
-			const st = standById.get(id);
-			if (st && st.reservations.length > 0) return true;
+			const r = rowsById.get(id);
+			if (r && r.reservations.length > 0) return true;
 		}
 		return false;
-	}, [selectedIds, standById]);
+	}, [selectedIds, rowsById]);
 
-	const toggleStand = (id: number) => {
+	const statusCounts = useMemo(() => countByStatus(allRows), [allRows]);
+	const reservationCount = useMemo(
+		() => allRows.filter((r) => r.reservations.length > 0).length,
+		[allRows],
+	);
+
+	function handleTabChange(value: string) {
+		setSelectedIds(new Set());
+		const params = new URLSearchParams(searchParams.toString());
+		if (value === ALL_SECTOR_VALUE) params.delete("sector");
+		else params.set("sector", value);
+		const query = params.toString();
+		router.replace(query ? `?${query}` : "?", { scroll: false });
+	}
+
+	const isSelected = useCallback(
+		(id: number) => selectedIds.has(id),
+		[selectedIds],
+	);
+
+	const onToggle = useCallback((id: number) => {
 		setSelectedIds((prev) => {
 			const next = new Set(prev);
 			if (next.has(id)) next.delete(id);
 			else next.add(id);
 			return next;
 		});
-	};
+	}, []);
 
-	const toggleSector = (
-		sectorStands: StandWithReservationsWithParticipants[],
-	) => {
-		const ids = sectorStands.map((s) => s.id);
+	const onToggleAll = useCallback((ids: number[], allOn: boolean) => {
 		setSelectedIds((prev) => {
 			const next = new Set(prev);
-			const allOn = ids.length > 0 && ids.every((id) => next.has(id));
 			if (allOn) ids.forEach((id) => next.delete(id));
 			else ids.forEach((id) => next.add(id));
 			return next;
 		});
-	};
+	}, []);
 
 	const clearSelection = useCallback(() => {
 		setSelectedIds(new Set());
 	}, []);
 
-	const runBulk = async (
-		fn: () => Promise<{ success: boolean; message: string }>,
-		onSuccess?: () => void,
-	) => {
-		if (selectedIds.size === 0) return;
-		setPendingBulk(true);
-		try {
-			const res = await fn();
-			if (res.success) {
-				toast.success(res.message);
-				onSuccess?.();
+	const onEdit = useCallback((stand: StandWithReservationsWithParticipants) => {
+		setEditStand(stand);
+		setEditOpen(true);
+	}, []);
+
+	const onOptimisticStatus = useCallback(
+		(ids: number[], status: StandStatus) => {
+			const idSet = new Set(ids);
+			setLiveSectors((curr) => patchSectors(curr, idSet, { status }));
+		},
+		[],
+	);
+
+	const onOptimisticCategory = useCallback(
+		(ids: number[], standCategory: StandCategory) => {
+			const idSet = new Set(ids);
+			setLiveSectors((curr) => patchSectors(curr, idSet, { standCategory }));
+		},
+		[],
+	);
+
+	const onQuickStatus = useCallback(
+		async (stand: StandRow, status: StandStatus) => {
+			if (stand.status === status) return;
+			setPendingQuickStatusId(stand.id);
+			onOptimisticStatus([stand.id], status);
+			try {
+				const res = await bulkUpdateStands({
+					festivalId,
+					standIds: [stand.id],
+					patch: { status },
+				});
+				if (res.success) {
+					toast.success("Estado actualizado");
+					router.refresh();
+				} else {
+					toast.error(res.message);
+					onOptimisticStatus([stand.id], stand.status as StandStatus);
+				}
+			} finally {
+				setPendingQuickStatusId(null);
+			}
+		},
+		[festivalId, router, onOptimisticStatus],
+	);
+
+	const columns = useMemo(
+		() =>
+			createColumns({
+				onEdit,
+				onQuickStatus,
+				pendingQuickStatusId,
+				isSelected,
+				onToggle,
+				onToggleAll,
+			}),
+		[
+			onEdit,
+			onQuickStatus,
+			pendingQuickStatusId,
+			isSelected,
+			onToggle,
+			onToggleAll,
+		],
+	);
+
+	const tableFilters = useMemo(() => {
+		const { status, category, reservation } = standFilterOptions();
+		const base = [
+			{ columnId: "status", label: "Estado", options: status },
+			{ columnId: "standCategory", label: "Categoría", options: category },
+			{
+				columnId: "reservation",
+				label: "Reservas",
+				options: reservation,
+			},
+		];
+		if (activeTab === ALL_SECTOR_VALUE) {
+			base.unshift({
+				columnId: "sector",
+				label: "Sector",
+				options: liveSectors.map((s) => ({
+					value: String(s.id),
+					label: s.name,
+				})),
+			});
+		}
+		return base;
+	}, [liveSectors, activeTab]);
+
+	const bulkMenu = (
+		<StandBulkActionsMenu
+			festivalId={festivalId}
+			selectedIds={selectedIdsArr}
+			hasReservation={selectedHaveReservation}
+			onCleared={clearSelection}
+			onDone={() => {
 				clearSelection();
 				router.refresh();
-			} else {
-				toast.error(res.message);
-			}
-		} finally {
-			setPendingBulk(false);
-		}
-	};
-
-	const openSingleEdit = (stand: StandWithReservationsWithParticipants) => {
-		setEditStand(stand);
-		setEditLabel(stand.label ?? "");
-		setEditStandNumber(stand.standNumber);
-		setEditStatus(stand.status as StandStatus);
-		setEditPrice(stand.price ?? 0);
-		setEditCategory(stand.standCategory as StandCategory);
-		setSingleOpen(true);
-	};
-
-	const handleSingleSave = async () => {
-		if (!editStand || !editLabel.trim()) return;
-		setIsSaving(true);
-		try {
-			const res = await updateStand({
-				id: editStand.id,
-				label: editLabel.trim(),
-				standNumber: editStandNumber,
-				status: editStatus,
-				price: editPrice,
-				standCategory: editCategory,
-			});
-			if (res.success) {
-				toast.success(res.message);
-				setSingleOpen(false);
-				setEditStand(null);
-				router.refresh();
-			} else {
-				toast.error(res.message);
-			}
-		} finally {
-			setIsSaving(false);
-		}
-	};
+			}}
+			onOptimisticStatus={onOptimisticStatus}
+			onOptimisticCategory={onOptimisticCategory}
+		/>
+	);
 
 	return (
 		<>
@@ -233,9 +286,8 @@ export default function StandManageTable({
 						Gestión de espacios — {festivalName}
 					</h1>
 					<p className="mt-1 text-sm text-muted-foreground">
-						Edita metadatos de uno o varios stands. Selecciona filas y usa las
-						acciones inferiores. El orden al renumerar es: número de stand
-						ascendente y luego ID.
+						Filtra, selecciona y edita espacios en lote. Cambia el estado
+						rápidamente tocando su etiqueta.
 					</p>
 				</div>
 				<Button variant="outline" size="sm" asChild>
@@ -246,510 +298,101 @@ export default function StandManageTable({
 				</Button>
 			</div>
 
-			<div className="flex flex-col gap-8 pb-32">
-				{sectors.map((sector) => {
-					const sectorStands = sortStands(sector.stands);
-					const sectorIds = sectorStands.map((s) => s.id);
-					const allSectorSelected =
-						sectorIds.length > 0 &&
-						sectorIds.every((id) => selectedIds.has(id));
-					const someSectorSelected = sectorIds.some((id) =>
-						selectedIds.has(id),
-					);
-
-					return (
-						<div key={sector.id}>
-							<div className="mb-3 flex items-center gap-3">
-								<Checkbox
-									checked={
-										allSectorSelected
-											? true
-											: someSectorSelected
-												? "indeterminate"
-												: false
-									}
-									onCheckedChange={() => toggleSector(sectorStands)}
-									aria-label={`Seleccionar todos en ${sector.name}`}
-								/>
-								<h2 className="text-base font-semibold">{sector.name}</h2>
-							</div>
-
-							{sectorStands.length === 0 ? (
-								<p className="pl-7 text-sm text-muted-foreground">
-									Sin stands en este sector
-								</p>
-							) : (
-								<div className="divide-y rounded-lg border">
-									{sectorStands.map((stand) => {
-										const isSelected = selectedIds.has(stand.id);
-										const hasRes = stand.reservations.length > 0;
-										const standLabel = `${stand.label ?? ""}${stand.standNumber}`;
-
-										return (
-											<div
-												key={stand.id}
-												className={`flex flex-wrap items-center gap-3 px-4 py-3 transition-colors ${
-													isSelected ? "bg-muted/50" : ""
-												}`}
-											>
-												<Checkbox
-													checked={isSelected}
-													onCheckedChange={() => toggleStand(stand.id)}
-													aria-label={`Seleccionar stand ${standLabel}`}
-												/>
-												<div className="min-w-0 flex-1">
-													<div className="flex flex-wrap items-center gap-2">
-														<span className="shrink-0 text-sm font-medium">
-															Stand {standLabel}
-														</span>
-														<StandStatusBadge status={stand.status} />
-														<span className="text-xs capitalize text-muted-foreground">
-															{stand.standCategory}
-														</span>
-														{hasRes && (
-															<Badge variant="secondary" className="text-xs">
-																Con reserva
-															</Badge>
-														)}
-													</div>
-													<p className="text-xs text-muted-foreground">
-														{formatPrice(stand.price ?? 0)}
-													</p>
-												</div>
-												<Button
-													variant="outline"
-													size="sm"
-													onClick={() => openSingleEdit(stand)}
-												>
-													Editar
-												</Button>
-											</div>
-										);
-									})}
-								</div>
-							)}
-						</div>
-					);
-				})}
-			</div>
-
-			{selectedCount > 0 && (
-				<div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background px-4 py-3 shadow-lg">
-					<div className="mx-auto flex max-w-3xl flex-wrap items-center gap-2">
-						<span className="text-sm font-medium">
-							{selectedCount} espacio{selectedCount !== 1 ? "s" : ""}{" "}
-							seleccionado
-							{selectedCount !== 1 ? "s" : ""}
-						</span>
-						<div className="ml-auto flex flex-wrap items-center gap-2">
-							<Button
-								variant="secondary"
-								size="sm"
-								disabled={pendingBulk}
-								onClick={() => setBulkStatusOpen(true)}
-							>
-								Estado
-							</Button>
-							<Button
-								variant="secondary"
-								size="sm"
-								disabled={pendingBulk}
-								onClick={() => setBulkPriceOpen(true)}
-							>
-								Precio
-							</Button>
-							<Button
-								variant="secondary"
-								size="sm"
-								disabled={pendingBulk}
-								onClick={() => setBulkLabelOpen(true)}
-							>
-								Etiqueta
-							</Button>
-							<Button
-								variant="secondary"
-								size="sm"
-								disabled={pendingBulk}
-								onClick={() => setBulkCategoryOpen(true)}
-							>
-								Categoría
-							</Button>
-							<Button
-								variant="secondary"
-								size="sm"
-								disabled={pendingBulk}
-								onClick={() => setRenumberOpen(true)}
-							>
-								Renumerar
-							</Button>
-							<Button
-								variant="destructive"
-								size="sm"
-								disabled={pendingBulk || selectedHaveReservation}
-								title={
-									selectedHaveReservation
-										? "No se pueden eliminar stands con reservas"
-										: undefined
-								}
-								onClick={() => setDeleteOpen(true)}
-							>
-								Eliminar
-							</Button>
-							<Button variant="ghost" size="sm" onClick={clearSelection}>
-								<X className="mr-1 h-4 w-4" />
-								Limpiar
-							</Button>
-						</div>
+			<Card className="mb-4">
+				<CardContent className="flex flex-wrap items-center gap-x-6 gap-y-2 p-4 text-sm">
+					<div>
+						<span className="text-muted-foreground">Total:</span>{" "}
+						<span className="font-semibold">{allRows.length}</span>
 					</div>
+					{STAND_STATUS_OPTIONS.map((o) => (
+						<div key={o.value}>
+							<span className="text-muted-foreground">
+								{getStatusLabel(o.value)}:
+							</span>{" "}
+							<span className="font-semibold">
+								{statusCounts[o.value] ?? 0}
+							</span>
+						</div>
+					))}
+					<div>
+						<span className="text-muted-foreground">Con reserva:</span>{" "}
+						<span className="font-semibold">{reservationCount}</span>
+					</div>
+				</CardContent>
+			</Card>
+
+			<Tabs value={activeTab} onValueChange={handleTabChange} className="mb-4">
+				<TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-muted p-1">
+					<TabsTrigger value={ALL_SECTOR_VALUE}>
+						Todos
+						<span className="ml-2 rounded bg-background/80 px-1.5 py-0.5 text-xs">
+							{allRows.length}
+						</span>
+					</TabsTrigger>
+					{liveSectors.map((s) => {
+						const sectorReservations = s.stands.filter(
+							(st) => st.reservations.length > 0,
+						).length;
+						return (
+							<TabsTrigger key={s.id} value={String(s.id)}>
+								{s.name}
+								<span className="ml-2 rounded bg-background/80 px-1.5 py-0.5 text-xs">
+									{s.stands.length}
+								</span>
+								{sectorReservations > 0 && (
+									<span className="ml-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-xs text-emerald-700">
+										{sectorReservations} res.
+									</span>
+								)}
+							</TabsTrigger>
+						);
+					})}
+				</TabsList>
+			</Tabs>
+
+			{selectedIds.size > 0 && (
+				<div className="mb-3 hidden rounded-lg border bg-background p-3 md:block">
+					{bulkMenu}
 				</div>
 			)}
 
-			<Dialog open={bulkStatusOpen} onOpenChange={setBulkStatusOpen}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Cambiar estado ({selectedCount})</DialogTitle>
-					</DialogHeader>
-					<div className="grid gap-2">
-						<Label>Estado</Label>
-						<Select
-							value={bulkStatus}
-							onValueChange={(v) => setBulkStatus(v as StandStatus)}
-						>
-							<SelectTrigger>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{STAND_STATUS_OPTIONS.map((o) => (
-									<SelectItem key={o.value} value={o.value}>
-										{o.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setBulkStatusOpen(false)}>
-							Cancelar
-						</Button>
-						<Button
-							disabled={pendingBulk}
-							onClick={() => {
-								void runBulk(
-									() =>
-										bulkUpdateStands({
-											festivalId,
-											standIds: selectedIdsArr,
-											patch: { status: bulkStatus },
-										}),
-									() => setBulkStatusOpen(false),
-								);
-							}}
-						>
-							Guardar
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<div className="hidden md:block">
+				<DataTable
+					key={activeTab}
+					columns={columns}
+					data={rowsForTab}
+					columnTitles={columnTitles}
+					filters={tableFilters}
+				/>
+			</div>
 
-			<Dialog open={bulkPriceOpen} onOpenChange={setBulkPriceOpen}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Establecer precio ({selectedCount})</DialogTitle>
-					</DialogHeader>
-					<div className="grid gap-2">
-						<Label htmlFor="bulk-price">Precio (BOB)</Label>
-						<Input
-							id="bulk-price"
-							type="number"
-							min={0}
-							step={1}
-							value={bulkPrice}
-							onChange={(e) =>
-								setBulkPrice(Math.max(0, Number(e.target.value) || 0))
-							}
-						/>
-					</div>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setBulkPriceOpen(false)}>
-							Cancelar
-						</Button>
-						<Button
-							disabled={pendingBulk}
-							onClick={() => {
-								void runBulk(
-									() =>
-										bulkUpdateStands({
-											festivalId,
-											standIds: selectedIdsArr,
-											patch: { price: bulkPrice },
-										}),
-									() => setBulkPriceOpen(false),
-								);
-							}}
-						>
-							Guardar
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<div className="block pb-32 md:hidden">
+				<StandManageCardList
+					stands={rowsForTab}
+					selectedIds={selectedIds}
+					onToggle={onToggle}
+					onToggleAll={onToggleAll}
+					onEdit={onEdit}
+				/>
+			</div>
 
-			<Dialog open={bulkLabelOpen} onOpenChange={setBulkLabelOpen}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Establecer etiqueta ({selectedCount})</DialogTitle>
-					</DialogHeader>
-					<p className="text-sm text-muted-foreground">
-						Se aplicará el mismo prefijo de etiqueta a todos los stands
-						seleccionados (p. ej. &quot;S&quot;).
-					</p>
-					<div className="grid gap-2">
-						<Label htmlFor="bulk-label">Etiqueta</Label>
-						<Input
-							id="bulk-label"
-							value={bulkLabel}
-							onChange={(e) => setBulkLabel(e.target.value)}
-						/>
-					</div>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setBulkLabelOpen(false)}>
-							Cancelar
-						</Button>
-						<Button
-							disabled={pendingBulk || !bulkLabel.trim()}
-							onClick={() => {
-								const label = bulkLabel.trim();
-								void runBulk(
-									() =>
-										bulkUpdateStands({
-											festivalId,
-											standIds: selectedIdsArr,
-											patch: { label },
-										}),
-									() => {
-										setBulkLabelOpen(false);
-										setBulkLabel("");
-									},
-								);
-							}}
-						>
-							Guardar
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			{selectedIds.size > 0 && (
+				<div className="fixed bottom-0 left-0 right-0 z-50 block border-t bg-background px-4 py-3 shadow-lg md:hidden">
+					<div className="mx-auto max-w-3xl">{bulkMenu}</div>
+				</div>
+			)}
 
-			<Dialog open={bulkCategoryOpen} onOpenChange={setBulkCategoryOpen}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Cambiar categoría ({selectedCount})</DialogTitle>
-					</DialogHeader>
-					<div className="grid gap-2">
-						<Label>Categoría</Label>
-						<Select
-							value={bulkCategory}
-							onValueChange={(v) => setBulkCategory(v as StandCategory)}
-						>
-							<SelectTrigger>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{CATEGORY_OPTIONS.map((o) => (
-									<SelectItem key={o.value} value={o.value}>
-										{o.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
-					<DialogFooter>
-						<Button
-							variant="outline"
-							onClick={() => setBulkCategoryOpen(false)}
-						>
-							Cancelar
-						</Button>
-						<Button
-							disabled={pendingBulk}
-							onClick={() => {
-								void runBulk(
-									() =>
-										bulkUpdateStands({
-											festivalId,
-											standIds: selectedIdsArr,
-											patch: { standCategory: bulkCategory },
-										}),
-									() => setBulkCategoryOpen(false),
-								);
-							}}
-						>
-							Guardar
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-
-			<Dialog open={renumberOpen} onOpenChange={setRenumberOpen}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Renumerar en secuencia ({selectedCount})</DialogTitle>
-					</DialogHeader>
-					<p className="text-sm text-muted-foreground">
-						El primer stand seleccionado (según el orden: número de stand, luego
-						ID) recibirá el número indicado; los siguientes serán consecutivos.
-					</p>
-					<div className="grid gap-2">
-						<Label htmlFor="renumber-start">Número inicial</Label>
-						<Input
-							id="renumber-start"
-							type="number"
-							min={1}
-							value={renumberStart}
-							onChange={(e) =>
-								setRenumberStart(Math.max(1, Number(e.target.value) || 1))
-							}
-						/>
-					</div>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setRenumberOpen(false)}>
-							Cancelar
-						</Button>
-						<Button
-							disabled={pendingBulk}
-							onClick={() => {
-								void runBulk(
-									() =>
-										renumberStandsSequentially({
-											festivalId,
-											standIds: selectedIdsArr,
-											startNumber: renumberStart,
-										}),
-									() => setRenumberOpen(false),
-								);
-							}}
-						>
-							Aplicar
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-
-			<Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Eliminar {selectedCount} espacio(s)</DialogTitle>
-					</DialogHeader>
-					<p className="text-sm text-muted-foreground">
-						Esta acción no se puede deshacer. No puedes eliminar stands con
-						reservas.
-					</p>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setDeleteOpen(false)}>
-							Cancelar
-						</Button>
-						<Button
-							variant="destructive"
-							disabled={pendingBulk || selectedHaveReservation}
-							onClick={() => {
-								void runBulk(
-									() => deleteStands(selectedIdsArr),
-									() => setDeleteOpen(false),
-								);
-							}}
-						>
-							Eliminar
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-
-			<Dialog open={singleOpen} onOpenChange={setSingleOpen}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Editar espacio</DialogTitle>
-					</DialogHeader>
-					<div className="grid gap-4 py-2">
-						<div className="grid gap-2">
-							<Label htmlFor="single-label">Etiqueta</Label>
-							<Input
-								id="single-label"
-								value={editLabel}
-								onChange={(e) => setEditLabel(e.target.value)}
-							/>
-						</div>
-						<div className="grid gap-2">
-							<Label htmlFor="single-number">Número</Label>
-							<Input
-								id="single-number"
-								type="number"
-								min={1}
-								value={editStandNumber}
-								onChange={(e) =>
-									setEditStandNumber(Math.max(1, Number(e.target.value) || 1))
-								}
-							/>
-						</div>
-						<div className="grid gap-2">
-							<Label htmlFor="single-status">Estado</Label>
-							<Select
-								value={editStatus}
-								onValueChange={(v) => setEditStatus(v as StandStatus)}
-							>
-								<SelectTrigger id="single-status">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{STAND_STATUS_OPTIONS.map((o) => (
-										<SelectItem key={o.value} value={o.value}>
-											{o.label}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-						<div className="grid grid-cols-2 gap-4">
-							<div className="grid gap-2">
-								<Label htmlFor="single-price">Precio</Label>
-								<Input
-									id="single-price"
-									type="number"
-									min={0}
-									step={1}
-									value={editPrice}
-									onChange={(e) =>
-										setEditPrice(Math.max(0, Number(e.target.value) || 0))
-									}
-								/>
-							</div>
-							<div className="grid gap-2">
-								<Label htmlFor="single-cat">Categoría</Label>
-								<Select
-									value={editCategory}
-									onValueChange={(v) => setEditCategory(v as StandCategory)}
-								>
-									<SelectTrigger id="single-cat">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{CATEGORY_OPTIONS.map((o) => (
-											<SelectItem key={o.value} value={o.value}>
-												{o.label}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-						</div>
-					</div>
-					<DialogFooter>
-						<Button
-							onClick={handleSingleSave}
-							disabled={isSaving || !editLabel.trim()}
-						>
-							{isSaving ? "Guardando…" : "Guardar"}
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<StandEditFormDialog
+				stand={editStand}
+				open={editOpen}
+				onOpenChange={(open) => {
+					setEditOpen(open);
+					if (!open) setEditStand(null);
+				}}
+				onSaved={() => {
+					router.refresh();
+				}}
+			/>
 		</>
 	);
 }
