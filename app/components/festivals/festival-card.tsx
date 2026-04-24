@@ -62,6 +62,13 @@ export default function FestivalCard({
 					>
 						Editor del mapa
 					</RedirectButton>
+					<RedirectButton
+						variant="outline"
+						size="sm"
+						href={`/dashboard/festivals/${festival.id}/stands/manage`}
+					>
+						Gestionar espacios
+					</RedirectButton>
 				</div>
 				<FestivalSwitches festival={festival} />
 				<div className="p-4 border rounded-lg space-y-3">
