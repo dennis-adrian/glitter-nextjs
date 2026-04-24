@@ -292,20 +292,6 @@ export async function bulkUpdateStands(
 
 		const uniqueIds = [...new Set(standIds)];
 
-		const rows = await db
-			.select()
-			.from(stands)
-			.where(
-				and(eq(stands.festivalId, festivalId), inArray(stands.id, uniqueIds)),
-			);
-
-		if (rows.length !== uniqueIds.length) {
-			return {
-				success: false,
-				message: "Uno o más espacios no pertenecen a este festival.",
-			};
-		}
-
 		const setData: Record<string, unknown> = { updatedAt: new Date() };
 		if (patch.status !== undefined) setData.status = patch.status;
 		if (patch.label !== undefined) setData.label = patch.label;
@@ -313,17 +299,41 @@ export async function bulkUpdateStands(
 		if (patch.standCategory !== undefined)
 			setData.standCategory = patch.standCategory;
 
-		await db
-			.update(stands)
-			.set(setData)
-			.where(
-				and(eq(stands.festivalId, festivalId), inArray(stands.id, uniqueIds)),
-			);
+		const result = await db.transaction(async (tx) => {
+			const rows = await tx
+				.select({ id: stands.id })
+				.from(stands)
+				.where(
+					and(eq(stands.festivalId, festivalId), inArray(stands.id, uniqueIds)),
+				)
+				.for("update");
+
+			if (rows.length !== uniqueIds.length) {
+				return {
+					success: false as const,
+					message: "Uno o más espacios no pertenecen a este festival.",
+				};
+			}
+
+			const updated = await tx
+				.update(stands)
+				.set(setData)
+				.where(
+					and(eq(stands.festivalId, festivalId), inArray(stands.id, uniqueIds)),
+				)
+				.returning({ id: stands.id });
+
+			return { success: true as const, updatedCount: updated.length };
+		});
+
+		if (!result.success) {
+			return { success: false, message: result.message };
+		}
 
 		revalidatePath("/dashboard/festivals");
 		revalidatePath("/", "layout");
 
-		const n = uniqueIds.length;
+		const n = result.updatedCount;
 		return {
 			success: true,
 			message: `${n} espacio${n !== 1 ? "s" : ""} actualizado${n !== 1 ? "s" : ""}`,

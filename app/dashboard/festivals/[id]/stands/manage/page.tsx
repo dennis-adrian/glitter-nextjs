@@ -26,7 +26,7 @@ export default async function StandManagePage({
 	if (!festival) return notFound();
 
 	return (
-		<div className="container py-6">
+		<div className="container p-4 md:p-6">
 			<StandManageTable
 				festivalId={id}
 				festivalName={festival.name}

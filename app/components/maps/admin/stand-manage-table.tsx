@@ -68,7 +68,7 @@ function sortStands(
 ): StandWithReservationsWithParticipants[] {
 	return [...list].sort(
 		(a, b) =>
-			a.standCategory.localeCompare(b.standCategory) ||
+			(a.standCategory ?? "").localeCompare(b.standCategory ?? "") ||
 			a.standNumber - b.standNumber ||
 			a.id - b.id,
 	);
