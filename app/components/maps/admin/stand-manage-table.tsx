@@ -7,7 +7,6 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
-	useOptimistic,
 	useState,
 	useTransition,
 } from "react";
@@ -21,6 +20,7 @@ import {
 	StandWithReservationsWithParticipants,
 } from "@/app/api/stands/definitions";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
+import { useMediaQuery } from "@/app/hooks/use-media-query";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
@@ -82,6 +82,7 @@ export default function StandManageTable({
 }: Props) {
 	const router = useRouter();
 	const searchParams = useSearchParams();
+	const isDesktop = useMediaQuery("(min-width: 768px)");
 
 	const [liveSectors, setLiveSectors] = useState(sectors);
 	useEffect(() => {
@@ -89,7 +90,7 @@ export default function StandManageTable({
 	}, [sectors]);
 
 	const urlSector = searchParams.get("sector") ?? ALL_SECTOR_VALUE;
-	const activeTab = useMemo(() => {
+	const resolvedUrlTab = useMemo(() => {
 		if (urlSector === ALL_SECTOR_VALUE) return ALL_SECTOR_VALUE;
 		return liveSectors.some((s) => String(s.id) === urlSector)
 			? urlSector
@@ -97,7 +98,10 @@ export default function StandManageTable({
 	}, [urlSector, liveSectors]);
 
 	const [isTabPending, startTabTransition] = useTransition();
-	const [optimisticTab, setOptimisticTab] = useOptimistic(activeTab);
+	const [activeTab, setActiveTab] = useState(resolvedUrlTab);
+	useEffect(() => {
+		setActiveTab(resolvedUrlTab);
+	}, [resolvedUrlTab]);
 
 	const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 	const [editStand, setEditStand] =
@@ -122,10 +126,10 @@ export default function StandManageTable({
 	}, [liveSectors]);
 
 	const rowsForTab = useMemo(() => {
-		if (optimisticTab === ALL_SECTOR_VALUE) return allRows;
-		const sectorId = Number(optimisticTab);
+		if (activeTab === ALL_SECTOR_VALUE) return allRows;
+		const sectorId = Number(activeTab);
 		return allRows.filter((r) => r.sectorId === sectorId);
-	}, [allRows, optimisticTab]);
+	}, [allRows, activeTab]);
 
 	const rowsById = useMemo(() => {
 		const m = new Map<number, StandRow>();
@@ -150,10 +154,10 @@ export default function StandManageTable({
 	);
 
 	function handleTabChange(value: string) {
-		if (value === optimisticTab) return;
+		if (value === activeTab) return;
 		setSelectedIds(new Set());
+		setActiveTab(value);
 		startTabTransition(() => {
-			setOptimisticTab(value);
 			const params = new URLSearchParams(searchParams.toString());
 			if (value === ALL_SECTOR_VALUE) params.delete("sector");
 			else params.set("sector", value);
@@ -266,7 +270,7 @@ export default function StandManageTable({
 				options: reservation,
 			},
 		];
-		if (optimisticTab === ALL_SECTOR_VALUE) {
+		if (activeTab === ALL_SECTOR_VALUE) {
 			base.unshift({
 				columnId: "sector",
 				label: "Sector",
@@ -277,7 +281,7 @@ export default function StandManageTable({
 			});
 		}
 		return base;
-	}, [liveSectors, optimisticTab]);
+	}, [liveSectors, activeTab]);
 
 	const bulkMenu = (
 		<StandBulkActionsMenu
@@ -339,7 +343,7 @@ export default function StandManageTable({
 			</Card>
 
 			<Tabs
-				value={optimisticTab}
+				value={activeTab}
 				onValueChange={handleTabChange}
 				className="mb-4"
 			>
@@ -371,43 +375,50 @@ export default function StandManageTable({
 				</TabsList>
 			</Tabs>
 
-			{selectedIds.size > 0 && (
-				<div className="mb-3 hidden rounded-lg border bg-background p-3 md:block">
-					{bulkMenu}
-				</div>
-			)}
-
-			<div
-				className={cn(
-					"transition-opacity",
-					isTabPending && "opacity-60 pointer-events-none",
-				)}
-			>
-				<div className="hidden md:block">
-					<DataTable
-						key={optimisticTab}
-						columns={columns}
-						data={rowsForTab}
-						columnTitles={columnTitles}
-						filters={tableFilters}
-					/>
-				</div>
-
-				<div className="block pb-32 md:hidden">
-					<StandManageCardList
-						stands={rowsForTab}
-						selectedIds={selectedIds}
-						onToggle={onToggle}
-						onToggleAll={onToggleAll}
-						onEdit={onEdit}
-					/>
-				</div>
-			</div>
-
-			{selectedIds.size > 0 && (
-				<div className="fixed bottom-0 left-0 right-0 z-50 block border-t bg-background px-4 py-3 shadow-lg md:hidden">
-					<div className="mx-auto max-w-3xl">{bulkMenu}</div>
-				</div>
+			{isDesktop ? (
+				<>
+					{selectedIds.size > 0 && (
+						<div className="mb-3 rounded-lg border bg-background p-3">
+							{bulkMenu}
+						</div>
+					)}
+					<div
+						className={cn(
+							"transition-opacity",
+							isTabPending && "opacity-60 pointer-events-none",
+						)}
+					>
+						<DataTable
+							key={activeTab}
+							columns={columns}
+							data={rowsForTab}
+							columnTitles={columnTitles}
+							filters={tableFilters}
+						/>
+					</div>
+				</>
+			) : (
+				<>
+					<div
+						className={cn(
+							"pb-32 transition-opacity",
+							isTabPending && "opacity-60 pointer-events-none",
+						)}
+					>
+						<StandManageCardList
+							stands={rowsForTab}
+							selectedIds={selectedIds}
+							onToggle={onToggle}
+							onToggleAll={onToggleAll}
+							onEdit={onEdit}
+						/>
+					</div>
+					{selectedIds.size > 0 && (
+						<div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background px-4 py-3 shadow-lg">
+							<div className="mx-auto max-w-3xl">{bulkMenu}</div>
+						</div>
+					)}
+				</>
 			)}
 
 			<StandEditFormDialog
