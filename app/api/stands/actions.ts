@@ -363,54 +363,54 @@ export async function renumberStandsSequentially(
 		const { festivalId, standIds, startNumber } = parsed;
 		const uniqueIds = [...new Set(standIds)];
 
-		const selectedRows = await db
-			.select()
-			.from(stands)
-			.where(
-				and(eq(stands.festivalId, festivalId), inArray(stands.id, uniqueIds)),
+		await db.transaction(async (tx) => {
+			const selectedRows = await tx
+				.select()
+				.from(stands)
+				.where(
+					and(eq(stands.festivalId, festivalId), inArray(stands.id, uniqueIds)),
+				);
+
+			if (selectedRows.length !== uniqueIds.length) {
+				return {
+					success: false,
+					message: "Uno o más espacios no pertenecen a este festival.",
+				};
+			}
+
+			const sorted = [...selectedRows].sort(
+				(a, b) => a.standNumber - b.standNumber || a.id - b.id,
 			);
 
-		if (selectedRows.length !== uniqueIds.length) {
-			return {
-				success: false,
-				message: "Uno o más espacios no pertenecen a este festival.",
-			};
-		}
+			const newAssignments = sorted.map((row, i) => ({
+				id: row.id,
+				label: row.label,
+				standNumber: startNumber + i,
+			}));
 
-		const sorted = [...selectedRows].sort(
-			(a, b) => a.standNumber - b.standNumber || a.id - b.id,
-		);
+			const unselected = await tx
+				.select()
+				.from(stands)
+				.where(
+					and(
+						eq(stands.festivalId, festivalId),
+						not(inArray(stands.id, uniqueIds)),
+					),
+				);
 
-		const newAssignments = sorted.map((row, i) => ({
-			id: row.id,
-			label: row.label,
-			standNumber: startNumber + i,
-		}));
-
-		const unselected = await db
-			.select()
-			.from(stands)
-			.where(
-				and(
-					eq(stands.festivalId, festivalId),
-					not(inArray(stands.id, uniqueIds)),
-				),
-			);
-
-		for (const a of newAssignments) {
-			const aLabel = normalizeStandLabelForCompare(a.label);
-			for (const u of unselected) {
-				if (normalizeStandLabelForCompare(u.label) !== aLabel) continue;
-				if (u.standNumber === a.standNumber) {
-					return {
-						success: false,
-						message: `El número ${a.standNumber} ya está en uso para la etiqueta «${aLabel || "(vacía)"}» en otro espacio.`,
-					};
+			for (const a of newAssignments) {
+				const aLabel = normalizeStandLabelForCompare(a.label);
+				for (const u of unselected) {
+					if (normalizeStandLabelForCompare(u.label) !== aLabel) continue;
+					if (u.standNumber === a.standNumber) {
+						return {
+							success: false,
+							message: `El número ${a.standNumber} ya está en uso para la etiqueta «${aLabel || "(vacía)"}» en otro espacio.`,
+						};
+					}
 				}
 			}
-		}
 
-		await db.transaction(async (tx) => {
 			for (const a of newAssignments) {
 				await tx
 					.update(stands)
@@ -420,7 +420,6 @@ export async function renumberStandsSequentially(
 		});
 
 		revalidatePath("/dashboard/festivals");
-		revalidatePath("/", "layout");
 
 		return { success: true, message: "Números de espacio actualizados" };
 	} catch (error) {
