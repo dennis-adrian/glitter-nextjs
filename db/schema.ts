@@ -57,6 +57,11 @@ export const liveActStatusEnum = pgEnum("live_act_status", [
 	"approved",
 	"rejected",
 ]);
+export const marketingBannerAudienceEnum = pgEnum("marketing_banner_audience", [
+	"all",
+	"public_only",
+	"participants_only",
+]);
 
 export const users = pgTable(
 	"users",
@@ -246,6 +251,30 @@ export const festivalsRelations = relations(festivals, ({ many, one }) => ({
 	badge: one(badges),
 	infractions: many(infractions),
 }));
+
+export const marketingBanners = pgTable(
+	"marketing_banners",
+	{
+		id: serial("id").primaryKey(),
+		/** Desktop / large screens (required) — 4:1 style art */
+		imageUrl: text("image_url").notNull(),
+		imageUrlTablet: text("image_url_tablet"),
+		imageUrlMobile: text("image_url_mobile"),
+		href: text("href").notNull(),
+		sortOrder: integer("sort_order").notNull().default(0),
+		isVisible: boolean("is_visible").default(true).notNull(),
+		audience: marketingBannerAudienceEnum("audience").default("all").notNull(),
+		openInNewTab: boolean("open_in_new_tab").default(false).notNull(),
+		label: text("label"),
+		altText: text("alt_text"),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => [
+		index("marketing_banners_sort_order_idx").on(t.sortOrder),
+		index("marketing_banners_is_visible_idx").on(t.isVisible),
+	],
+);
 
 export const festivalSectors = pgTable(
 	"festival_sectors",

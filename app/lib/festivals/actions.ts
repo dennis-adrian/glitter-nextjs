@@ -396,7 +396,8 @@ export async function fetchFestivalActivityForReview(
 	}
 }
 
-export async function fetchCarouselFestivals(): Promise<FestivalWithDates[]> {
+/** Active + published festivals (e.g. dashboard/portal) — not the marketing banner carousel. */
+export async function fetchPublishedActiveFestivals(): Promise<FestivalWithDates[]> {
 	"use cache";
 	cacheLife("minutes");
 	cacheTag("active-festival");
@@ -411,7 +412,7 @@ export async function fetchCarouselFestivals(): Promise<FestivalWithDates[]> {
 			orderBy: desc(festivals.id),
 		})) as FestivalWithDates[];
 	} catch (error) {
-		console.error("Error fetching carousel festivals", error);
+		console.error("Error fetching published/active festivals", error);
 		return [];
 	}
 }

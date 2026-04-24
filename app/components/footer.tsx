@@ -1,15 +1,16 @@
+"use client";
+
 import Link from "next/link";
 
 import GlitterLogo from "@/app/components/landing/glitter-logo";
-import { headers } from "next/headers";
+import { usePathname } from "next/navigation";
 import { MailIcon } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 
-export default async function Footer() {
-	const pathname = await headers().then((headers) =>
-		headers.get("x-current-path"),
-	);
+export default function Footer() {
+	const pathname = usePathname();
 
+	// Hide footer on festival registration pages
 	const shouldHide =
 		pathname?.includes("festivals") && pathname.includes("registration");
 

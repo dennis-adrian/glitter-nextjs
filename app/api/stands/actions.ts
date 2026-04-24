@@ -5,6 +5,7 @@ import {
 	FestivalWithDates,
 	FestivalWithUserRequests,
 } from "@/app/lib/festivals/definitions";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
 	reservationParticipants,
@@ -12,9 +13,44 @@ import {
 	stands,
 	users,
 } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, not } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+
+const standStatusZ = z.enum([
+	"available",
+	"held",
+	"reserved",
+	"confirmed",
+	"disabled",
+]);
+
+const standCategoryZ = z.enum([
+	"none",
+	"illustration",
+	"gastronomy",
+	"entrepreneurship",
+	"new_artist",
+]);
+
+function normalizeStandLabelForCompare(label: string | null | undefined) {
+	return label?.trim() ?? "";
+}
+
+/** Dashboard-only actions; require festival or global admin. */
+async function requireFestivalOrAdmin() {
+	const profile = await getCurrentUserProfile();
+	if (!profile) {
+		return { ok: false as const, message: "Inicia sesión para continuar." };
+	}
+	if (profile.role !== "festival_admin" && profile.role !== "admin") {
+		return {
+			ok: false as const,
+			message: "No tienes permisos para realizar esta acción.",
+		};
+	}
+	return { ok: true as const, profile };
+}
 
 export type Participant = typeof reservationParticipants.$inferSelect & {
 	user: typeof users.$inferSelect;
@@ -134,11 +170,9 @@ const updateStandSchema = z.object({
 	id: z.number().int().positive(),
 	label: z.string().min(1),
 	standNumber: z.coerce.number().int().min(1),
-	status: z.enum(["available", "held", "reserved", "confirmed", "disabled"]),
+	status: standStatusZ,
 	price: z.number().min(0).optional(),
-	standCategory: z
-		.enum(["none", "illustration", "gastronomy", "entrepreneurship", "new_artist"])
-		.optional(),
+	standCategory: standCategoryZ.optional(),
 });
 
 export async function updateStand(
@@ -222,5 +256,182 @@ export async function deleteStands(
 	} catch (error) {
 		console.error("Error deleting stands", error);
 		return { success: false, message: "Error al eliminar los espacios" };
+	}
+}
+
+const bulkUpdateStandsSchema = z.object({
+	festivalId: z.coerce.number().int().positive(),
+	standIds: z.array(z.coerce.number().int().positive()).min(1),
+	patch: z
+		.object({
+			status: standStatusZ.optional(),
+			label: z.string().min(1).optional(),
+			price: z.coerce.number().min(0).optional(),
+			standCategory: standCategoryZ.optional(),
+		})
+		.refine(
+			(p) =>
+				p.status !== undefined ||
+				p.label !== undefined ||
+				p.price !== undefined ||
+				p.standCategory !== undefined,
+			{ message: "Debes indicar al menos un cambio" },
+		),
+});
+
+export async function bulkUpdateStands(
+	input: z.infer<typeof bulkUpdateStandsSchema>,
+): Promise<{ success: boolean; message: string; updatedCount?: number }> {
+	const auth = await requireFestivalOrAdmin();
+	if (!auth.ok) {
+		return { success: false, message: auth.message };
+	}
+	try {
+		const parsed = bulkUpdateStandsSchema.parse(input);
+		const { festivalId, standIds, patch } = parsed;
+
+		const uniqueIds = [...new Set(standIds)];
+
+		const setData: Record<string, unknown> = { updatedAt: new Date() };
+		if (patch.status !== undefined) setData.status = patch.status;
+		if (patch.label !== undefined) setData.label = patch.label;
+		if (patch.price !== undefined) setData.price = patch.price;
+		if (patch.standCategory !== undefined)
+			setData.standCategory = patch.standCategory;
+
+		const result = await db.transaction(async (tx) => {
+			const rows = await tx
+				.select({ id: stands.id })
+				.from(stands)
+				.where(
+					and(eq(stands.festivalId, festivalId), inArray(stands.id, uniqueIds)),
+				)
+				.for("update");
+
+			if (rows.length !== uniqueIds.length) {
+				return {
+					success: false as const,
+					message: "Uno o más espacios no pertenecen a este festival.",
+				};
+			}
+
+			const updated = await tx
+				.update(stands)
+				.set(setData)
+				.where(
+					and(eq(stands.festivalId, festivalId), inArray(stands.id, uniqueIds)),
+				)
+				.returning({ id: stands.id });
+
+			return { success: true as const, updatedCount: updated.length };
+		});
+
+		if (!result.success) {
+			return { success: false, message: result.message };
+		}
+
+		revalidatePath("/dashboard/festivals");
+		revalidatePath("/", "layout");
+
+		const n = result.updatedCount;
+		return {
+			success: true,
+			message: `${n} espacio${n !== 1 ? "s" : ""} actualizado${n !== 1 ? "s" : ""}`,
+			updatedCount: n,
+		};
+	} catch (error) {
+		console.error("Error in bulkUpdateStands", error);
+		return { success: false, message: "Error al actualizar los espacios" };
+	}
+}
+
+const renumberStandsSequentiallySchema = z.object({
+	festivalId: z.coerce.number().int().positive(),
+	standIds: z.array(z.coerce.number().int().positive()).min(1),
+	startNumber: z.coerce.number().int().min(1),
+});
+
+export async function renumberStandsSequentially(
+	input: z.infer<typeof renumberStandsSequentiallySchema>,
+): Promise<{ success: boolean; message: string }> {
+	const auth = await requireFestivalOrAdmin();
+	if (!auth.ok) {
+		return { success: false, message: auth.message };
+	}
+	try {
+		const parsed = renumberStandsSequentiallySchema.parse(input);
+		const { festivalId, standIds, startNumber } = parsed;
+		const uniqueIds = [...new Set(standIds)];
+
+		const result = await db.transaction(async (tx) => {
+			const selectedRows = await tx
+				.select()
+				.from(stands)
+				.where(
+					and(eq(stands.festivalId, festivalId), inArray(stands.id, uniqueIds)),
+				)
+				.for("update");
+
+			if (selectedRows.length !== uniqueIds.length) {
+				return {
+					success: false as const,
+					message: "Uno o más espacios no pertenecen a este festival.",
+				};
+			}
+
+			const sorted = [...selectedRows].sort(
+				(a, b) => a.standNumber - b.standNumber || a.id - b.id,
+			);
+
+			const newAssignments = sorted.map((row, i) => ({
+				id: row.id,
+				label: row.label,
+				standNumber: startNumber + i,
+			}));
+
+			const unselected = await tx
+				.select()
+				.from(stands)
+				.where(
+					and(
+						eq(stands.festivalId, festivalId),
+						not(inArray(stands.id, uniqueIds)),
+					),
+				)
+				.for("update");
+
+			for (const a of newAssignments) {
+				const aLabel = normalizeStandLabelForCompare(a.label);
+				for (const u of unselected) {
+					if (normalizeStandLabelForCompare(u.label) !== aLabel) continue;
+					if (u.standNumber === a.standNumber) {
+						return {
+							success: false as const,
+							message: `El número ${a.standNumber} ya está en uso para la etiqueta «${aLabel || "(vacía)"}» en otro espacio.`,
+						};
+					}
+				}
+			}
+
+			for (const a of newAssignments) {
+				await tx
+					.update(stands)
+					.set({ standNumber: a.standNumber, updatedAt: new Date() })
+					.where(eq(stands.id, a.id));
+			}
+
+			return { success: true as const };
+		});
+
+		if (!result.success) {
+			return { success: false, message: result.message };
+		}
+
+		revalidatePath("/dashboard/festivals");
+
+		return { success: true, message: "Números de espacio actualizados" };
+	} catch (error) {
+		console.error("Error in renumberStandsSequentially", error);
+		return { success: false, message: "Error al renumerar los espacios" };
 	}
 }

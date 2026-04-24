@@ -23,6 +23,7 @@ import {
 	CalendarIcon,
 	CreditCardIcon,
 	HomeIcon,
+	ImagesIcon,
 	LogOutIcon,
 	MicIcon,
 	PackageIcon,
@@ -116,6 +117,12 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 						<BoxesIcon className="w-6 h-6 mr-2" />
 						Categorías Glitter
 					</MobileSidebarItem>
+					{profile && profile.role === "festival_admin" && (
+						<MobileSidebarItem href="/dashboard/banners">
+							<ImagesIcon className="mr-2 h-6 w-6" />
+							Carrusel inicio
+						</MobileSidebarItem>
+					)}
 					{profile && profile.role === "admin" && (
 						<>
 							<MobileSidebarItem href="/dashboard">
@@ -173,6 +180,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 								<MobileSidebarItem href="/dashboard/live-acts">
 									<MicIcon className="mr-2 h-6 w-6" />
 									Presentaciones en vivo
+								</MobileSidebarItem>
+								<MobileSidebarItem href="/dashboard/banners">
+									<ImagesIcon className="mr-2 h-6 w-6" />
+									Carrusel inicio
 								</MobileSidebarItem>
 							</div>
 						</>
