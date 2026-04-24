@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	TransformComponent,
@@ -15,6 +16,7 @@ import {
 	AlignVerticalSpaceAround,
 	Download,
 	Grid3x3,
+	ListTree,
 	Magnet,
 	MapPin,
 	Maximize2,
@@ -1428,6 +1430,12 @@ export default function StandPositionEditor({
 					<Upload className="h-4 w-4 mr-1" />
 					Importar
 				</Button>
+				<Button variant="outline" size="sm" asChild>
+					<Link href={`/dashboard/festivals/${festivalId}/stands/manage`}>
+						<ListTree className="h-4 w-4 mr-1" />
+						Gestionar espacios (tabla)
+					</Link>
+				</Button>
 			</div>
 
 			{/* Toggles toolbar */}
@@ -1865,6 +1873,7 @@ export default function StandPositionEditor({
 							>
 								<option value="disabled">Deshabilitado</option>
 								<option value="available">Disponible</option>
+								<option value="held">En espera</option>
 								<option value="reserved">Reservado</option>
 								<option value="confirmed">Confirmado</option>
 							</select>
