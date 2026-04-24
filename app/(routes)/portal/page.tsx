@@ -6,14 +6,15 @@ import { redirect } from "next/navigation";
 import Heading from "@/app/components/atoms/heading";
 import VerificationStatusLabel from "@/app/components/atoms/verification-status-label";
 import FestivalActivities from "@/app/components/participant_dashboard/festival-activities";
-import FestivalCarousel from "@/app/components/participant_dashboard/festival-carousel";
+import MarketingBannerCarousel from "@/app/components/marketing/marketing-banner-carousel";
 import ParticipationHistoryPreview from "@/app/components/participant_dashboard/participation-history-preview";
 import ReservationCard from "@/app/components/participant_dashboard/reservation-card";
 import RestrictedDashboard from "@/app/components/participant_dashboard/restricted-dashboard";
 import {
-	fetchCarouselFestivals,
 	fetchProfileEnrollmentInFestival,
+	fetchPublishedActiveFestivals,
 } from "@/app/lib/festivals/actions";
+import { fetchMarketingBannersForPortal } from "@/app/lib/marketing_banners/actions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -34,7 +35,10 @@ export default async function ParticipantDashboardPage() {
 		);
 	}
 
-	const carouselFestivals = await fetchCarouselFestivals();
+	const [marketingBanners, carouselFestivals] = await Promise.all([
+		fetchMarketingBannersForPortal(),
+		fetchPublishedActiveFestivals(),
+	]);
 
 	const activeFestival =
 		carouselFestivals.find((f) => f.status === "active") ?? null;
@@ -83,14 +87,9 @@ export default async function ParticipantDashboardPage() {
 				<Separator className="mt-4" />
 			</div>
 
-			{carouselFestivals.length > 0 && (
-				<div className="w-full ">
-					<FestivalCarousel
-						festivals={carouselFestivals}
-						profile={currentProfile}
-						activeParticipation={activeParticipation}
-						enrollment={profileEnrollment}
-					/>
+			{marketingBanners.length > 0 && (
+				<div className="w-full mt-4">
+					<MarketingBannerCarousel banners={marketingBanners} />
 				</div>
 			)}
 

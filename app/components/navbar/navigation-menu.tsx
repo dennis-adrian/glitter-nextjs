@@ -17,6 +17,7 @@ import {
 	BoxesIcon,
 	CalendarCheck2Icon,
 	HomeIcon,
+	ImagesIcon,
 	LayoutDashboardIcon,
 	StoreIcon,
 } from "lucide-react";
@@ -96,6 +97,21 @@ const NavbarNavigationMenu = ({
 						</Link>
 					</NavigationMenuLink>
 				</NavigationMenuItem>
+				{profile && profile.role === "festival_admin" && (
+					<NavigationMenuItem>
+						<NavigationMenuLink
+							asChild
+							className={navigationMenuTriggerStyle()}
+						>
+							<Link href="/dashboard/banners">
+								<div className="flex items-center">
+									<ImagesIcon className="w-4 h-4 mr-1" />
+									Carrusel inicio
+								</div>
+							</Link>
+						</NavigationMenuLink>
+					</NavigationMenuItem>
+				)}
 				{profile && profile.role === "admin" && (
 					<NavigationMenuItem>
 						<NavigationMenuTrigger>
@@ -159,6 +175,12 @@ const NavbarNavigationMenu = ({
 									href="/dashboard/live-acts"
 								>
 									Postulaciones de actos en vivo
+								</NavigationMenuListItem>
+								<NavigationMenuListItem
+									title="Carrusel inicio"
+									href="/dashboard/banners"
+								>
+									Banners de la página de inicio y del portal
 								</NavigationMenuListItem>
 							</ul>
 						</NavigationMenuContent>
