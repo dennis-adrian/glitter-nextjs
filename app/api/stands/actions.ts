@@ -363,17 +363,18 @@ export async function renumberStandsSequentially(
 		const { festivalId, standIds, startNumber } = parsed;
 		const uniqueIds = [...new Set(standIds)];
 
-		await db.transaction(async (tx) => {
+		const result = await db.transaction(async (tx) => {
 			const selectedRows = await tx
 				.select()
 				.from(stands)
 				.where(
 					and(eq(stands.festivalId, festivalId), inArray(stands.id, uniqueIds)),
-				);
+				)
+				.for("update");
 
 			if (selectedRows.length !== uniqueIds.length) {
 				return {
-					success: false,
+					success: false as const,
 					message: "Uno o más espacios no pertenecen a este festival.",
 				};
 			}
@@ -396,7 +397,8 @@ export async function renumberStandsSequentially(
 						eq(stands.festivalId, festivalId),
 						not(inArray(stands.id, uniqueIds)),
 					),
-				);
+				)
+				.for("update");
 
 			for (const a of newAssignments) {
 				const aLabel = normalizeStandLabelForCompare(a.label);
@@ -404,7 +406,7 @@ export async function renumberStandsSequentially(
 					if (normalizeStandLabelForCompare(u.label) !== aLabel) continue;
 					if (u.standNumber === a.standNumber) {
 						return {
-							success: false,
+							success: false as const,
 							message: `El número ${a.standNumber} ya está en uso para la etiqueta «${aLabel || "(vacía)"}» en otro espacio.`,
 						};
 					}
@@ -417,7 +419,13 @@ export async function renumberStandsSequentially(
 					.set({ standNumber: a.standNumber, updatedAt: new Date() })
 					.where(eq(stands.id, a.id));
 			}
+
+			return { success: true as const };
 		});
+
+		if (!result.success) {
+			return { success: false, message: result.message };
+		}
 
 		revalidatePath("/dashboard/festivals");
 

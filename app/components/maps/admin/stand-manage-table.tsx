@@ -232,6 +232,9 @@ export default function StandManageTable({
 					toast.error(res.message);
 					onOptimisticStatus([stand.id], stand.status as StandStatus);
 				}
+			} catch {
+				onOptimisticStatus([stand.id], stand.status as StandStatus);
+				toast.error("Error al actualizar el estado");
 			} finally {
 				setPendingQuickStatusId(null);
 			}
@@ -342,11 +345,7 @@ export default function StandManageTable({
 				</CardContent>
 			</Card>
 
-			<Tabs
-				value={activeTab}
-				onValueChange={handleTabChange}
-				className="mb-4"
-			>
+			<Tabs value={activeTab} onValueChange={handleTabChange} className="mb-4">
 				<TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-muted p-1">
 					<TabsTrigger value={ALL_SECTOR_VALUE}>
 						Todos
