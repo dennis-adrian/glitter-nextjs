@@ -60,6 +60,7 @@ type Props = {
 	onDone?: () => void;
 	onOptimisticStatus?: (ids: number[], status: StandStatus) => void;
 	onOptimisticCategory?: (ids: number[], category: StandCategory) => void;
+	onFailure?: () => void;
 };
 
 type DialogKey =
@@ -89,6 +90,7 @@ export default function StandBulkActionsMenu({
 	onDone,
 	onOptimisticStatus,
 	onOptimisticCategory,
+	onFailure,
 }: Props) {
 	const [dialog, setDialog] = useState<DialogKey>(null);
 	const [pending, setPending] = useState(false);
@@ -116,7 +118,11 @@ export default function StandBulkActionsMenu({
 				onDone?.();
 			} else {
 				toast.error(res.message);
+				onFailure?.();
 			}
+		} catch {
+			toast.error("Error al aplicar el cambio. Intenta de nuevo.");
+			onFailure?.();
 		} finally {
 			setPending(false);
 		}

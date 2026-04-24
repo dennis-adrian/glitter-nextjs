@@ -91,20 +91,29 @@ export default function StandEditFormDialog({
 
 	async function onSubmit(values: FormOutput) {
 		if (!stand) return;
-		const res = await updateStand({
-			id: stand.id,
-			label: values.label,
-			standNumber: values.standNumber,
-			status: values.status,
-			price: values.price,
-			standCategory: values.standCategory,
-		});
-		if (res.success) {
-			toast.success(res.message);
-			onOpenChange(false);
-			onSaved?.();
-		} else {
-			toast.error(res.message);
+		try {
+			const res = await updateStand({
+				id: stand.id,
+				label: values.label,
+				standNumber: values.standNumber,
+				status: values.status,
+				price: values.price,
+				standCategory: values.standCategory,
+			});
+			if (res.success) {
+				toast.success(res.message);
+				onOpenChange(false);
+				onSaved?.();
+			} else {
+				toast.error(res.message);
+			}
+		} catch (error) {
+			console.error(error);
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "No se pudo actualizar el espacio. Intenta de nuevo.",
+			);
 		}
 	}
 

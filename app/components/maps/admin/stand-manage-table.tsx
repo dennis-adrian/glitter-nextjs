@@ -3,8 +3,17 @@
 import { ListTree } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useOptimistic,
+	useState,
+	useTransition,
+} from "react";
 import { toast } from "sonner";
+
+import { cn } from "@/lib/utils";
 
 import { bulkUpdateStands } from "@/app/api/stands/actions";
 import {
@@ -87,6 +96,9 @@ export default function StandManageTable({
 			: ALL_SECTOR_VALUE;
 	}, [urlSector, liveSectors]);
 
+	const [isTabPending, startTabTransition] = useTransition();
+	const [optimisticTab, setOptimisticTab] = useOptimistic(activeTab);
+
 	const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 	const [editStand, setEditStand] =
 		useState<StandWithReservationsWithParticipants | null>(null);
@@ -110,10 +122,10 @@ export default function StandManageTable({
 	}, [liveSectors]);
 
 	const rowsForTab = useMemo(() => {
-		if (activeTab === ALL_SECTOR_VALUE) return allRows;
-		const sectorId = Number(activeTab);
+		if (optimisticTab === ALL_SECTOR_VALUE) return allRows;
+		const sectorId = Number(optimisticTab);
 		return allRows.filter((r) => r.sectorId === sectorId);
-	}, [allRows, activeTab]);
+	}, [allRows, optimisticTab]);
 
 	const rowsById = useMemo(() => {
 		const m = new Map<number, StandRow>();
@@ -138,12 +150,16 @@ export default function StandManageTable({
 	);
 
 	function handleTabChange(value: string) {
+		if (value === optimisticTab) return;
 		setSelectedIds(new Set());
-		const params = new URLSearchParams(searchParams.toString());
-		if (value === ALL_SECTOR_VALUE) params.delete("sector");
-		else params.set("sector", value);
-		const query = params.toString();
-		router.replace(query ? `?${query}` : "?", { scroll: false });
+		startTabTransition(() => {
+			setOptimisticTab(value);
+			const params = new URLSearchParams(searchParams.toString());
+			if (value === ALL_SECTOR_VALUE) params.delete("sector");
+			else params.set("sector", value);
+			const query = params.toString();
+			router.replace(query ? `?${query}` : "?", { scroll: false });
+		});
 	}
 
 	const isSelected = useCallback(
@@ -250,7 +266,7 @@ export default function StandManageTable({
 				options: reservation,
 			},
 		];
-		if (activeTab === ALL_SECTOR_VALUE) {
+		if (optimisticTab === ALL_SECTOR_VALUE) {
 			base.unshift({
 				columnId: "sector",
 				label: "Sector",
@@ -261,7 +277,7 @@ export default function StandManageTable({
 			});
 		}
 		return base;
-	}, [liveSectors, activeTab]);
+	}, [liveSectors, optimisticTab]);
 
 	const bulkMenu = (
 		<StandBulkActionsMenu
@@ -275,6 +291,7 @@ export default function StandManageTable({
 			}}
 			onOptimisticStatus={onOptimisticStatus}
 			onOptimisticCategory={onOptimisticCategory}
+			onFailure={() => router.refresh()}
 		/>
 	);
 
@@ -321,7 +338,11 @@ export default function StandManageTable({
 				</CardContent>
 			</Card>
 
-			<Tabs value={activeTab} onValueChange={handleTabChange} className="mb-4">
+			<Tabs
+				value={optimisticTab}
+				onValueChange={handleTabChange}
+				className="mb-4"
+			>
 				<TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-muted p-1">
 					<TabsTrigger value={ALL_SECTOR_VALUE}>
 						Todos
@@ -356,24 +377,31 @@ export default function StandManageTable({
 				</div>
 			)}
 
-			<div className="hidden md:block">
-				<DataTable
-					key={activeTab}
-					columns={columns}
-					data={rowsForTab}
-					columnTitles={columnTitles}
-					filters={tableFilters}
-				/>
-			</div>
+			<div
+				className={cn(
+					"transition-opacity",
+					isTabPending && "opacity-60 pointer-events-none",
+				)}
+			>
+				<div className="hidden md:block">
+					<DataTable
+						key={optimisticTab}
+						columns={columns}
+						data={rowsForTab}
+						columnTitles={columnTitles}
+						filters={tableFilters}
+					/>
+				</div>
 
-			<div className="block pb-32 md:hidden">
-				<StandManageCardList
-					stands={rowsForTab}
-					selectedIds={selectedIds}
-					onToggle={onToggle}
-					onToggleAll={onToggleAll}
-					onEdit={onEdit}
-				/>
+				<div className="block pb-32 md:hidden">
+					<StandManageCardList
+						stands={rowsForTab}
+						selectedIds={selectedIds}
+						onToggle={onToggle}
+						onToggleAll={onToggleAll}
+						onEdit={onEdit}
+					/>
+				</div>
 			</div>
 
 			{selectedIds.size > 0 && (
