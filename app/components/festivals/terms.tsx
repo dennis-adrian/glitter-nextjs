@@ -448,7 +448,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 																<Highlight>
 																	hacer cola junto con el público
 																</Highlight>{" "}
-																para ingresar a las{" "}
+																para ingresar a partir de las{" "}
 																<span className="font-semibold">
 																	{dayOneStartDate.toLocaleString(
 																		DateTime.TIME_24_SIMPLE,
@@ -492,7 +492,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 																se cerrarán las puertas de ingreso y cualquier
 																expositor que llegue después del horario
 																marcado, tendrá que esperar a que se abran las
-																puertas nuevamente para ingresar a las{" "}
+																puertas nuevamente para ingresar a partir de las{" "}
 																<span className="font-semibold">
 																	{dayOneStartDate.toLocaleString(
 																		DateTime.TIME_24_SIMPLE,
@@ -613,26 +613,82 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 												</span>
 											</h4>
 											<div className="ml-2 flex flex-col gap-2">
-												<p>
-													El ingreso de todos los expositores será desde las{" "}
-													<Highlight>
-														{dayTwoStartDate
-															.minus({ hour: 1 })
-															.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
-														hasta las{" "}
-														{dayTwoStartDate.toLocaleString(
-															DateTime.TIME_24_SIMPLE,
+												{mapCategory === "entrepreneurship" && (
+													<section className="flex flex-col gap-2">
+														<p>
+															El ingreso de los expositores será desde las{" "}
+															<Highlight>
+																{dayTwoStartDate
+																	.minus({ hour: 1 })
+																	.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+																hasta las{" "}
+																{dayTwoStartDate.toLocaleString(
+																	DateTime.TIME_24_SIMPLE,
+																)}
+															</Highlight>
+															. Cualquier expositor que llegue después del
+															horario marcado, tendrá que{" "}
+															<Highlight>
+																hacer cola junto con el público
+															</Highlight>{" "}
+															para ingresar. No se harán excepciones.
+														</p>
+														<p>
+															<Highlight>Galería:</Highlight>
+														</p>
+														<p>
+															El ingreso será por la puerta del Teatro CBA en la
+															calle Sucre entre calle Cochabamba y calle Potosí
+														</p>
+														<p>
+															<Highlight>Big Apple:</Highlight>
+														</p>
+														<p>
+															El ingreso será por la puerta de la calle
+															Ballivián entre calle Cochabamba y calle Potosí
+														</p>
+													</section>
+												)}
+												{(mapCategory === "illustration" ||
+													mapCategory === "gastronomy") && (
+													<section className="flex flex-col gap-2">
+														<p>
+															El ingreso de los expositores será desde las{" "}
+															<Highlight>
+																{dayTwoStartDate
+																	.minus({ hour: 1 })
+																	.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+																hasta las{" "}
+																{dayTwoStartDate.toLocaleString(
+																	DateTime.TIME_24_SIMPLE,
+																)}
+															</Highlight>
+															.{" "}
+															{mapCategory === "illustration" && (
+																<span>
+																	Cualquier expositor que llegue después del
+																	horario marcado, tendrá que{" "}
+																	<Highlight>
+																		hacer cola junto con el público
+																	</Highlight>{" "}
+																	para ingresar. No se harán excepciones.
+																</span>
+															)}
+														</p>
+														{mapCategory === "illustration" ? (
+															<p>
+																El ingreso será por la puerta del Teatro CBA en
+																la calle Sucre entre calle Cochabamba y calle
+																Potosí
+															</p>
+														) : (
+															<p>
+																El ingreso será por la puerta de la calle
+																Ballivián entre calle Cochabamba y calle Potosí
+															</p>
 														)}
-													</Highlight>
-													. Cualquier expositor que llegue después del horario
-													marcado, tendrá que{" "}
-													<Highlight>hacer cola junto con el público</Highlight>{" "}
-													para ingresar. No se harán excepciones.
-												</p>
-												<p>
-													El ingreso será por la puerta del Teatro CBA en la
-													calle Sucre entre calle Cochabamba y calle Potosí
-												</p>
+													</section>
+												)}
 											</div>
 										</section>
 									) : null}
@@ -661,6 +717,34 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 													<Highlight>
 														antes de las{" "}
 														{dayOneStartDate.toLocaleString(
+															DateTime.TIME_24_SIMPLE,
+														)}
+													</Highlight>
+													. Sin excepción.
+												</p>
+											</div>
+										</section>
+									) : null}
+									{dayTwoStartDate ? (
+										<section className="text-sm">
+											<h4 className="font-semibold my-2">
+												<span className="capitalize">
+													{dayTwoStartDate.weekdayLong}
+												</span>{" "}
+												<span>
+													{dayTwoStartDate.toLocaleString({
+														month: "long",
+														day: "numeric",
+													})}
+												</span>
+											</h4>
+											<div className="ml-2 flex flex-col gap-2">
+												<p>
+													El expositor deberá asegurarse de que su stand esté en
+													condiciones para recibir al público{" "}
+													<Highlight>
+														antes de las{" "}
+														{dayTwoStartDate.toLocaleString(
 															DateTime.TIME_24_SIMPLE,
 														)}
 													</Highlight>
