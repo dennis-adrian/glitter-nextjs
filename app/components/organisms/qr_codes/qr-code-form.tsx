@@ -60,6 +60,12 @@ export default function QrCodeForm({ qrCode }: Props) {
 
 			if (res.success) {
 				toast.success(res.message);
+				if (
+					"fileDeletionError" in res &&
+					typeof res.fileDeletionError === "string"
+				) {
+					toast.warning(res.fileDeletionError);
+				}
 				router.push("/dashboard/qr_codes");
 				router.refresh();
 			} else {

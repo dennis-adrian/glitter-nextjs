@@ -20,12 +20,19 @@ export default function DeleteQrCodeModal({ qrCode, open, setOpen }: Props) {
 	const form = useForm();
 
 	const action = form.handleSubmit(async () => {
-		const result = await deleteQrCode(qrCode.id);
-		if (result.success) {
-			toast.success(result.message);
-			setOpen(false);
-		} else {
-			toast.error(result.message);
+		try {
+			const result = await deleteQrCode(qrCode.id);
+			if (result.success) {
+				toast.success(result.message);
+				if (result.fileDeletionError) {
+					toast.warning(result.fileDeletionError);
+				}
+				setOpen(false);
+			} else {
+				toast.error(result.message);
+			}
+		} catch {
+			toast.error("Error al eliminar el código QR");
 		}
 	});
 
