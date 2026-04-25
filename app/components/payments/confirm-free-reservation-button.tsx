@@ -8,6 +8,7 @@ import { confirmFreeInvoice } from "@/app/data/invoices/actions";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 import { CheckIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -19,26 +20,31 @@ export default function ConfirmFreeReservationButton({
 	invoice,
 }: ConfirmFreeReservationButtonProps) {
 	const router = useRouter();
+	const [isPending, startTransition] = useTransition();
 	const form = useForm();
 
-	const action: () => void = form.handleSubmit(async () => {
-		const res = await confirmFreeInvoice({
-			invoiceId: invoice.id,
-			reservationId: invoice.reservationId,
-			standId: invoice.reservation.standId,
-		});
-
-		if (res.success) {
-			posthog.capture(POSTHOG_EVENTS.FREE_RESERVATION_CONFIRMED, {
-				invoice_id: invoice.id,
-				reservation_id: invoice.reservationId,
-				stand_id: invoice.reservation.standId,
+	const action: () => void = form.handleSubmit(() => {
+		startTransition(async () => {
+			const res = await confirmFreeInvoice({
+				invoiceId: invoice.id,
+				reservationId: invoice.reservationId,
+				standId: invoice.reservation.standId,
 			});
-			toast.success("Reserva confirmada con éxito.");
-			router.push(`/profiles/${invoice.userId}/invoices/${invoice.id}/success`);
-		} else {
-			toast.error(res.message);
-		}
+
+			if (res.success) {
+				posthog.capture(POSTHOG_EVENTS.FREE_RESERVATION_CONFIRMED, {
+					invoice_id: invoice.id,
+					reservation_id: invoice.reservationId,
+					stand_id: invoice.reservation.standId,
+				});
+				toast.success("Reserva confirmada con éxito.");
+				router.push(
+					`/profiles/${invoice.userId}/invoices/${invoice.id}/success`,
+				);
+			} else {
+				toast.error(res.message);
+			}
+		});
 	});
 
 	return (
@@ -46,9 +52,11 @@ export default function ConfirmFreeReservationButton({
 			<form className="w-full mt-4" onSubmit={action}>
 				<SubmitButton
 					disabled={
-						form.formState.isSubmitting || form.formState.isSubmitSuccessful
+						form.formState.isSubmitting ||
+						form.formState.isSubmitSuccessful ||
+						isPending
 					}
-					loading={form.formState.isSubmitting}
+					loading={form.formState.isSubmitting || isPending}
 				>
 					Confirmar reserva
 					<CheckIcon className="h-4 w-4 ml-2" />

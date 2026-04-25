@@ -2,7 +2,6 @@
 
 import { ArrowRight, Maximize2Icon, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { createStandHold } from "@/app/lib/stands/hold-actions";
@@ -27,6 +26,8 @@ type StandInfoCardProps = {
 	activeHold?: ActiveHold;
 	onHoldChange?: (hold: ActiveHold) => void;
 	onClose: () => void;
+	isPending: boolean;
+	startTransition: (callback: () => void | Promise<void>) => void;
 };
 
 function getStandDimensions(
@@ -92,9 +93,10 @@ export function StandInfoCard({
 	activeHold,
 	onHoldChange,
 	onClose,
+	isPending,
+	startTransition,
 }: StandInfoCardProps) {
 	const router = useRouter();
-	const [isSubmitting, setIsSubmitting] = useState(false);
 
 	const isOwnHold = stand.status === "held" && stand.id === activeHold?.standId;
 
@@ -134,34 +136,34 @@ export function StandInfoCard({
 
 	const dimensions = getStandDimensions(stand.standCategory);
 
-	const handleSelectStand = async () => {
-		if (!canReserve || isSubmitting) return;
-		setIsSubmitting(true);
-
-		try {
-			const res = await createStandHold(stand.id, profile.id, festival.id);
-			if (res.success && res.holdId) {
-				onHoldChange?.({ id: res.holdId, standId: stand.id });
-				onClose();
-				router.replace(
-					`/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${stand.festivalSectorId}/confirm/${res.holdId}`,
-				);
-			} else {
-				toast.error(res.message);
+	const handleSelectStand = () => {
+		if (!canReserve || isPending) return;
+		startTransition(async () => {
+			try {
+				const res = await createStandHold(stand.id, profile.id, festival.id);
+				if (res.success && res.holdId) {
+					onHoldChange?.({ id: res.holdId, standId: stand.id });
+					onClose();
+					router.replace(
+						`/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${stand.festivalSectorId}/confirm/${res.holdId}`,
+					);
+				} else {
+					toast.error(res.message);
+				}
+			} catch {
+				toast.error("No se pudo seleccionar el espacio");
 			}
-		} catch {
-			toast.error("No se pudo seleccionar el espacio");
-		} finally {
-			setIsSubmitting(false);
-		}
+		});
 	};
 
 	const handleContinueToHold = () => {
-		if (!activeHold) return;
-		onClose();
-		router.replace(
-			`/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${stand.festivalSectorId}/confirm/${activeHold.id}`,
-		);
+		if (!activeHold || isPending) return;
+		startTransition(() => {
+			onClose();
+			router.replace(
+				`/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${stand.festivalSectorId}/confirm/${activeHold.id}`,
+			);
+		});
 	};
 
 	return (
@@ -305,7 +307,11 @@ export function StandInfoCard({
 
 					{/* Action button */}
 					{isOwnHold ? (
-						<Button type="button" onClick={handleContinueToHold}>
+						<Button
+							type="button"
+							onClick={handleContinueToHold}
+							disabled={isPending}
+						>
 							<span>Continuar con tu reserva</span>
 							<ArrowRight className="h-4 w-4" />
 						</Button>
@@ -313,7 +319,7 @@ export function StandInfoCard({
 						<Button
 							type="button"
 							onClick={handleSelectStand}
-							disabled={isSubmitting}
+							disabled={isPending}
 						>
 							<span>Seleccionar Stand</span>
 							<ArrowRight className="h-4 w-4" />
