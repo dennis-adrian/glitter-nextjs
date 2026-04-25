@@ -176,6 +176,21 @@ export const ourFileRouter = {
 				imageUrl: (file as { url: string }).url,
 			};
 		}),
+	qrCode: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
+		.middleware(async () => {
+			const user = await currentUser();
+			if (!user) throw new UploadThingError("Debes iniciar sesión");
+
+			const profile = await fetchUserProfile(user.id);
+			if (!profile || profile.role !== "admin") {
+				throw new UploadThingError("No tienes permisos para subir códigos QR");
+			}
+
+			return { userId: user.id };
+		})
+		.onUploadComplete(({ file }) => ({
+			imageUrl: (file as { url: string }).url,
+		})),
 	productImage: f({ image: { maxFileSize: "4MB", maxFileCount: 10 } })
 		.middleware(async ({ req }) => {
 			const user = await currentUser();
