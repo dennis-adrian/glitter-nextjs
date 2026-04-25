@@ -77,14 +77,23 @@ export async function updateQrCode(id: number, data: Partial<NewQrCode>) {
 			return { success: false, message: "Código QR no encontrado." };
 		}
 
-		if (data.qrCodeUrl && data.qrCodeUrl !== existing.qrCodeUrl) {
-			await deleteFile(existing.qrCodeUrl);
-		}
+		const previousQrCodeUrl =
+			data.qrCodeUrl && data.qrCodeUrl !== existing.qrCodeUrl
+				? existing.qrCodeUrl
+				: null;
 
 		await db
 			.update(qrCodes)
 			.set({ ...data, updatedAt: new Date() })
 			.where(eq(qrCodes.id, id));
+
+		if (previousQrCodeUrl) {
+			try {
+				await deleteFile(previousQrCodeUrl);
+			} catch (deleteError) {
+				console.error(deleteError);
+			}
+		}
 	} catch (error) {
 		console.error(error);
 		return { success: false, message: "No se pudo actualizar el código QR." };

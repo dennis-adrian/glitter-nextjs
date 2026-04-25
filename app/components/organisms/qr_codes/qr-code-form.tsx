@@ -37,7 +37,7 @@ export default function QrCodeForm({ qrCode }: Props) {
 		resolver: zodResolver(qrCodeFormSchema),
 		defaultValues: {
 			qrCodeUrl: qrCode?.qrCodeUrl ?? "",
-			amount: qrCode?.amount ?? undefined,
+			amount: qrCode?.amount != null ? String(qrCode.amount) : "",
 			expirationDate: qrCode?.expirationDate
 				? new Date(qrCode.expirationDate)
 				: undefined,
@@ -53,16 +53,25 @@ export default function QrCodeForm({ qrCode }: Props) {
 			expirationDate: data.expirationDate,
 		};
 
-		const res = isEditing
-			? await updateQrCode(qrCode.id, payload)
-			: await createQrCode(payload);
+		try {
+			const res = isEditing
+				? await updateQrCode(qrCode.id, payload)
+				: await createQrCode(payload);
 
-		if (res.success) {
-			toast.success(res.message);
-			router.push("/dashboard/qr_codes");
-			router.refresh();
-		} else {
-			toast.error(res.message);
+			if (res.success) {
+				toast.success(res.message);
+				router.push("/dashboard/qr_codes");
+				router.refresh();
+			} else {
+				toast.error(res.message);
+			}
+		} catch (error) {
+			console.error(error);
+			const message =
+				error instanceof Error
+					? error.message
+					: "No se pudo guardar el código QR.";
+			toast.error(message);
 		}
 	});
 
