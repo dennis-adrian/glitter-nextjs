@@ -58,10 +58,13 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 	const mapCategory =
 		selectedCategory === "new_artist" ? "illustration" : selectedCategory;
 
-	const dayOneStartDate = formatDate(props.festival.festivalDates[0].startDate);
-	const dayOneEndDate = formatDate(props.festival.festivalDates[0].endDate);
-	const dayTwoStartDate = formatDate(props.festival.festivalDates[1].startDate);
-	const dayTwoEndDate = formatDate(props.festival.festivalDates[1].endDate);
+	const festivalDates = props.festival.festivalDates;
+	const dayOne = festivalDates[0];
+	const dayTwo = festivalDates[1];
+	const dayOneStartDate = dayOne ? formatDate(dayOne.startDate) : null;
+	const dayOneEndDate = dayOne ? formatDate(dayOne.endDate) : null;
+	const dayTwoStartDate = dayTwo ? formatDate(dayTwo.startDate) : null;
+	const dayTwoEndDate = dayTwo ? formatDate(dayTwo.endDate) : null;
 
 	return (
 		<div className="container mx-auto py-8 px-4 md:px-6">
@@ -391,222 +394,239 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 									<h3 className="text-base md:text-lg font-semibold text-foreground font-space-grotesk tracking-wide">
 										<Highlight>4.1. Horario de ingreso</Highlight>
 									</h3>
-									<section className="text-sm">
-										<h4 className="font-semibold my-2">
-											<span className="capitalize">
-												{dayOneStartDate.weekdayLong}
-											</span>{" "}
-											<span>
-												{dayOneStartDate.toLocaleString({
-													month: "long",
-													day: "numeric",
-												})}
-											</span>
-										</h4>
-										<div className="ml-2 flex flex-col gap-2">
-											<p>
-												Los expositores podrán ingresar al recinto únicamente{" "}
-												<Highlight>
-													de{" "}
-													{dayOneStartDate
-														.minus({ hour: 2 })
-														.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
-													a{" "}
-													{dayOneStartDate
-														.minus({ hour: 1 })
-														.toLocaleString(DateTime.TIME_24_SIMPLE)}
-												</Highlight>
-											</p>
-											<p>
-												A las{" "}
-												<span className="font-semibold">
-													{dayOneStartDate
-														.minus({ hour: 1 })
-														.toLocaleString(DateTime.TIME_24_SIMPLE)}
+									{dayOneStartDate ? (
+										<section className="text-sm">
+											<h4 className="font-semibold my-2">
+												<span className="capitalize">
+													{dayOneStartDate.weekdayLong}
 												</span>{" "}
-												se cerrarán las puertas de ingreso y cualquier expositor
-												que llegue después del horario marcado, tendrá que{" "}
-												<Highlight>hacer cola junto con el público</Highlight>{" "}
-												para ingresar a las{" "}
-												<span className="font-semibold">
-													{dayOneStartDate.toLocaleString(
-														DateTime.TIME_24_SIMPLE,
-													)}
+												<span>
+													{dayOneStartDate.toLocaleString({
+														month: "long",
+														day: "numeric",
+													})}
 												</span>
-												. No se harán excepciones.
-											</p>
-											<p>
-												El ingreso será por la puerta del Teatro CBA en la calle
-												Sucre entre calle Cochabamba y calle Potosí
-											</p>
-										</div>
-									</section>
-									<section>
-										<h4 className="font-semibold text-sm my-2">
-											<span className="capitalize">
-												{dayTwoStartDate.weekdayLong}
-											</span>{" "}
-											<span>
-												{dayTwoStartDate.toLocaleString({
-													month: "long",
-													day: "numeric",
-												})}
-											</span>
-										</h4>
-										<div className="ml-2 flex flex-col gap-2">
-											<p>
-												El ingreso de los expositores será desde las{" "}
-												<Highlight>
-													{dayTwoStartDate
-														.minus({ hour: 1 })
-														.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
-													hasta las{" "}
-													{dayTwoStartDate.toLocaleString(
-														DateTime.TIME_24_SIMPLE,
-													)}
-												</Highlight>
-												. Cualquier expositor que llegue después del horario
-												marcado, tendrá que{" "}
-												<Highlight>hacer cola junto con el público</Highlight>{" "}
-												para ingresar. No se harán excepciones.
-											</p>
-											<p>
-												El ingreso será por la puerta del Teatro CBA en la calle
-												Sucre entre calle Cochabamba y calle Potosí
-											</p>
-										</div>
-									</section>
+											</h4>
+											<div className="ml-2 flex flex-col gap-2">
+												<p>
+													Los expositores podrán ingresar al recinto únicamente{" "}
+													<Highlight>
+														de{" "}
+														{dayOneStartDate
+															.minus({ hour: 2 })
+															.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+														a{" "}
+														{dayOneStartDate
+															.minus({ hour: 1 })
+															.toLocaleString(DateTime.TIME_24_SIMPLE)}
+													</Highlight>
+												</p>
+												<p>
+													A las{" "}
+													<span className="font-semibold">
+														{dayOneStartDate
+															.minus({ hour: 1 })
+															.toLocaleString(DateTime.TIME_24_SIMPLE)}
+													</span>{" "}
+													se cerrarán las puertas de ingreso y cualquier
+													expositor que llegue después del horario marcado,
+													tendrá que{" "}
+													<Highlight>hacer cola junto con el público</Highlight>{" "}
+													para ingresar a las{" "}
+													<span className="font-semibold">
+														{dayOneStartDate.toLocaleString(
+															DateTime.TIME_24_SIMPLE,
+														)}
+													</span>
+													. No se harán excepciones.
+												</p>
+												<p>
+													El ingreso será por la puerta del Teatro CBA en la
+													calle Sucre entre calle Cochabamba y calle Potosí
+												</p>
+											</div>
+										</section>
+									) : null}
+									{dayTwoStartDate ? (
+										<section>
+											<h4 className="font-semibold text-sm my-2">
+												<span className="capitalize">
+													{dayTwoStartDate.weekdayLong}
+												</span>{" "}
+												<span>
+													{dayTwoStartDate.toLocaleString({
+														month: "long",
+														day: "numeric",
+													})}
+												</span>
+											</h4>
+											<div className="ml-2 flex flex-col gap-2">
+												<p>
+													El ingreso de los expositores será desde las{" "}
+													<Highlight>
+														{dayTwoStartDate
+															.minus({ hour: 1 })
+															.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+														hasta las{" "}
+														{dayTwoStartDate.toLocaleString(
+															DateTime.TIME_24_SIMPLE,
+														)}
+													</Highlight>
+													. Cualquier expositor que llegue después del horario
+													marcado, tendrá que{" "}
+													<Highlight>hacer cola junto con el público</Highlight>{" "}
+													para ingresar. No se harán excepciones.
+												</p>
+												<p>
+													El ingreso será por la puerta del Teatro CBA en la
+													calle Sucre entre calle Cochabamba y calle Potosí
+												</p>
+											</div>
+										</section>
+									) : null}
 								</section>
 								<section>
 									<h3 className="text-base md:text-lg font-semibold text-foreground font-space-grotesk tracking-wide">
 										<Highlight>4.2. Horario de montaje</Highlight>
 									</h3>
-									<section className="text-sm">
-										<h4 className="font-semibold my-2">
-											<span className="capitalize">
-												{dayOneStartDate.weekdayLong}
-											</span>{" "}
-											<span>
-												{dayOneStartDate.toLocaleString({
-													month: "long",
-													day: "numeric",
-												})}
-											</span>
-										</h4>
-										<div className="ml-2 flex flex-col gap-2">
-											<p>
-												El montaje de stands deberá hacerse desde que el
-												expositor ingrese al recinto. Y deberá completarse{" "}
-												<Highlight>
-													antes de las{" "}
-													{dayOneStartDate.toLocaleString(
-														DateTime.TIME_24_SIMPLE,
-													)}
-												</Highlight>
-												. Sin excepción.
-											</p>
-										</div>
-									</section>
+									{dayOneStartDate ? (
+										<section className="text-sm">
+											<h4 className="font-semibold my-2">
+												<span className="capitalize">
+													{dayOneStartDate.weekdayLong}
+												</span>{" "}
+												<span>
+													{dayOneStartDate.toLocaleString({
+														month: "long",
+														day: "numeric",
+													})}
+												</span>
+											</h4>
+											<div className="ml-2 flex flex-col gap-2">
+												<p>
+													El montaje de stands deberá hacerse desde que el
+													expositor ingrese al recinto. Y deberá completarse{" "}
+													<Highlight>
+														antes de las{" "}
+														{dayOneStartDate.toLocaleString(
+															DateTime.TIME_24_SIMPLE,
+														)}
+													</Highlight>
+													. Sin excepción.
+												</p>
+											</div>
+										</section>
+									) : null}
 								</section>
 								<section>
 									<h3 className="text-base md:text-lg font-semibold text-foreground font-space-grotesk tracking-wide">
 										4.3. Horario de apertura y cierre de puertas al público
 									</h3>
-									<p className="mt-1">
-										Ambos días del evento tienen el mismo horario. Las puertas
-										al público se abrirán a las{" "}
-										<span className="font-semibold">
-											{dayOneStartDate.toLocaleString(DateTime.TIME_24_SIMPLE)}
-										</span>{" "}
-										y se cerrarán a las{" "}
-										<span className="font-semibold">
-											{dayOneEndDate.toLocaleString(DateTime.TIME_24_SIMPLE)}
-										</span>
-									</p>
+									{dayOneStartDate && dayOneEndDate ? (
+										<p className="mt-1">
+											Ambos días del evento tienen el mismo horario. Las puertas
+											al público se abrirán a las{" "}
+											<span className="font-semibold">
+												{dayOneStartDate.toLocaleString(
+													DateTime.TIME_24_SIMPLE,
+												)}
+											</span>{" "}
+											y se cerrarán a las{" "}
+											<span className="font-semibold">
+												{dayOneEndDate.toLocaleString(DateTime.TIME_24_SIMPLE)}
+											</span>
+										</p>
+									) : null}
 								</section>
 								<section>
 									<h3 className="text-base md:text-lg font-semibold text-foreground font-space-grotesk tracking-wide">
 										<Highlight>4.4. Horario de desmontaje</Highlight>
 									</h3>
-									<section>
-										<h4 className="font-semibold my-2">
-											<span className="capitalize">
-												{dayOneStartDate.weekdayLong}
-											</span>{" "}
-											<span>
-												{dayOneStartDate.toLocaleString({
-													month: "long",
-													day: "numeric",
-												})}
-											</span>
-										</h4>
-										<div className="ml-2 flex flex-col gap-2">
-											<p>
-												Los expositores tienen permitido dejar sus estructuras
-												armadas para facilitar acomodarse el segundo día del
-												festival.
-											</p>
-											<p>
-												El horario en que los expositores tienen permitido
-												retirarse este día es desde las{" "}
-												{dayOneEndDate.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
-												hasta las{" "}
-												{dayOneEndDate
-													.plus({ minutes: 30 })
-													.toLocaleString(DateTime.TIME_24_SIMPLE)}
-												. Culquier excepción a este horario debe ser previamente
-												autorizado por la organización.
-											</p>
-											<p>
-												El recinto se cerrará a las{" "}
-												<span className="font-semibold">
-													{dayOneEndDate
-														.plus({ minutes: 45 })
-														.toLocaleString(DateTime.TIME_24_SIMPLE)}
+									{dayOneStartDate && dayOneEndDate ? (
+										<section>
+											<h4 className="font-semibold my-2">
+												<span className="capitalize">
+													{dayOneStartDate.weekdayLong}
+												</span>{" "}
+												<span>
+													{dayOneStartDate.toLocaleString({
+														month: "long",
+														day: "numeric",
+													})}
 												</span>
-												.
-											</p>
-										</div>
-									</section>
-									<section>
-										<h4 className="font-semibold my-2">
-											<span className="capitalize">
-												{dayTwoStartDate.weekdayLong}
-											</span>{" "}
-											<span>
-												{dayTwoStartDate.toLocaleString({
-													month: "long",
-													day: "numeric",
-												})}
-											</span>
-										</h4>
-										<div className="ml-2 flex flex-col gap-2">
-											<p>
-												Los expositores tienen permitido desmontar sus stands
-												este día{" "}
-												<Highlight>
-													desde las{" "}
-													{dayTwoEndDate
-														.minus({ minutes: 15 })
-														.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+											</h4>
+											<div className="ml-2 flex flex-col gap-2">
+												<p>
+													Los expositores tienen permitido dejar sus estructuras
+													armadas para facilitar acomodarse el segundo día del
+													festival.
+												</p>
+												<p>
+													El horario en que los expositores tienen permitido
+													retirarse este día es desde las{" "}
+													{dayOneEndDate.toLocaleString(
+														DateTime.TIME_24_SIMPLE,
+													)}{" "}
 													hasta las{" "}
-													{dayTwoEndDate
+													{dayOneEndDate
 														.plus({ minutes: 30 })
 														.toLocaleString(DateTime.TIME_24_SIMPLE)}
-												</Highlight>
-												. Sin excepción.
-											</p>
-											<p>
-												El recinto se cerrará a las{" "}
-												<span className="font-semibold">
-													{dayTwoEndDate
-														.plus({ minutes: 45 })
-														.toLocaleString(DateTime.TIME_24_SIMPLE)}
+													. Cualquier excepción a este horario debe ser
+													previamente autorizado por la organización.
+												</p>
+												<p>
+													El recinto se cerrará a las{" "}
+													<span className="font-semibold">
+														{dayOneEndDate
+															.plus({ minutes: 45 })
+															.toLocaleString(DateTime.TIME_24_SIMPLE)}
+													</span>
+													.
+												</p>
+											</div>
+										</section>
+									) : null}
+									{dayTwoStartDate && dayTwoEndDate ? (
+										<section>
+											<h4 className="font-semibold my-2">
+												<span className="capitalize">
+													{dayTwoStartDate.weekdayLong}
+												</span>{" "}
+												<span>
+													{dayTwoStartDate.toLocaleString({
+														month: "long",
+														day: "numeric",
+													})}
 												</span>
-												.
-											</p>
-										</div>
-									</section>
+											</h4>
+											<div className="ml-2 flex flex-col gap-2">
+												<p>
+													Los expositores tienen permitido desmontar sus stands
+													este día{" "}
+													<Highlight>
+														desde las{" "}
+														{dayTwoEndDate
+															.minus({ minutes: 15 })
+															.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+														hasta las{" "}
+														{dayTwoEndDate
+															.plus({ minutes: 30 })
+															.toLocaleString(DateTime.TIME_24_SIMPLE)}
+													</Highlight>
+													. Sin excepción.
+												</p>
+												<p>
+													El recinto se cerrará a las{" "}
+													<span className="font-semibold">
+														{dayTwoEndDate
+															.plus({ minutes: 45 })
+															.toLocaleString(DateTime.TIME_24_SIMPLE)}
+													</span>
+													.
+												</p>
+											</div>
+										</section>
+									) : null}
 								</section>
 								<div className="flex flex-col gap-2 text-sm">
 									<p>
