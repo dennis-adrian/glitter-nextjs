@@ -13,7 +13,6 @@ import { UseFormReturn } from "react-hook-form";
 import { Loader2Icon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 import type { OurFileRouter } from "@/app/api/uploadthing/core";
-import type { UploadthingComponentProps } from "@uploadthing/react";
 import type { Json } from "@uploadthing/shared";
 import { Button } from "@/app/components/ui/button";
 import { deleteFile } from "@/app/lib/uploadthing/actions";
@@ -34,10 +33,7 @@ export default function FileInput({
 	messagePosition?: "top" | "bottom";
 	name: string;
 	description?: string;
-	endpoint?: UploadthingComponentProps<
-		OurFileRouter,
-		"imageUploader"
-	>["endpoint"];
+	endpoint?: keyof OurFileRouter;
 	onUploading?: (isUploading: boolean) => void;
 }) {
 	return (

@@ -171,6 +171,12 @@ const NavbarNavigationMenu = ({
 									Códigos de descuento para reservas
 								</NavigationMenuListItem>
 								<NavigationMenuListItem
+									title="Códigos QR"
+									href="/dashboard/qr_codes"
+								>
+									Códigos QR para pagos por monto
+								</NavigationMenuListItem>
+								<NavigationMenuListItem
 									title="Presentaciones en vivo"
 									href="/dashboard/live-acts"
 								>

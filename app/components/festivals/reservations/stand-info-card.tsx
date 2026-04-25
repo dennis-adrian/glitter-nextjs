@@ -32,7 +32,7 @@ type StandInfoCardProps = {
 function getStandDimensions(
 	standCategory: StandWithReservationsWithParticipants["standCategory"],
 ): string {
-	if (standCategory === "gastronomy") return "80cm x 100cm";
+	if (standCategory === "gastronomy") return "140cm x 70cm";
 	return "60cm x 120cm";
 }
 
