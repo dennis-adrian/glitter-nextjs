@@ -21,8 +21,8 @@ export function ProductDetails({ festival, invoice }: ProductDetailsProps) {
 			</CardHeader>
 			<CardContent>
 				<div className="flex gap-4">
-					<div className="w-24 h-24 rounded-md overflow-hidden shrink-0">
-						{stand.standCategory === "gastronomy" ? null : (
+					{stand.standCategory !== "gastronomy" && (
+						<div className="w-24 h-24 rounded-md overflow-hidden shrink-0">
 							<Image
 								src="/img/stand-table-half-60x120.svg"
 								alt="Mesa de stand"
@@ -30,8 +30,8 @@ export function ProductDetails({ festival, invoice }: ProductDetailsProps) {
 								height={96}
 								className="w-full h-full object-cover"
 							/>
-						)}
-					</div>
+						</div>
+					)}
 					<div>
 						<h3 className="font-semibold text-lg leading-5 mb-2">
 							1 espacio de {category.toLowerCase()} - {stand.label}
