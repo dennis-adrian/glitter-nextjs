@@ -132,7 +132,11 @@ export async function deleteQrCode(id: number) {
 	}
 
 	if (deletedUrl) {
-		await deleteFile(deletedUrl);
+		try {
+			await deleteFile(deletedUrl);
+		} catch (deleteError) {
+			console.error("Failed to delete file:", deleteError);
+		}
 	}
 
 	revalidatePath("/dashboard/qr_codes");

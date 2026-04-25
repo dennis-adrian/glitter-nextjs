@@ -43,6 +43,12 @@ export default async function ParticipantDashboardPage() {
 	const activeFestival =
 		carouselFestivals.find((f) => f.status === "active") ?? null;
 
+	const participationInActiveFestival = activeFestival
+		? (currentProfile.participations.find(
+				(p) => p.reservation.festivalId === activeFestival.id,
+			) ?? null)
+		: null;
+
 	const activeParticipation = activeFestival
 		? (currentProfile.participations.find(
 				(p) =>
@@ -51,10 +57,28 @@ export default async function ParticipantDashboardPage() {
 			) ?? null)
 		: null;
 
-	const profileEnrollment = await fetchProfileEnrollmentInFestival(
-		currentProfile.id,
-		activeFestival?.id ?? 0,
-	);
+	let profileEnrollment =
+		(await fetchProfileEnrollmentInFestival(
+			currentProfile.id,
+			activeFestival?.id ?? 0,
+		)) ?? null;
+	if (activeFestival && !profileEnrollment) {
+		profileEnrollment =
+			currentProfile.userRequests.find(
+				(r) =>
+					r.type === "festival_participation" &&
+					r.festivalId === activeFestival.id,
+			) ?? null;
+	}
+
+	const rejectedReservationInActiveFestival =
+		participationInActiveFestival?.reservation.status === "rejected";
+	const rejectedEnrollment = profileEnrollment?.status === "rejected";
+	const showMiParticipacionBlock =
+		!!activeFestival &&
+		!!(profileEnrollment || activeParticipation) &&
+		!rejectedReservationInActiveFestival &&
+		!rejectedEnrollment;
 
 	return (
 		<div className="container p-3 md:p-6">
@@ -94,32 +118,28 @@ export default async function ParticipantDashboardPage() {
 			)}
 
 			<div className="flex flex-col gap-6 mt-4">
-				{profileEnrollment &&
-					(activeParticipation
-						? activeParticipation.reservation.status !== "rejected"
-						: true) &&
-					activeFestival && (
-						<>
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-								<div className="flex flex-col gap-2 md:gap-3">
-									<Heading level={2}>Mi participación</Heading>
-									<ReservationCard
-										profile={currentProfile}
-										activeFestival={activeFestival}
-										activeParticipation={activeParticipation}
-										profileEnrollment={profileEnrollment}
-									/>
-								</div>
-							</div>
-
-							{activeParticipation?.reservation.status === "accepted" && (
-								<FestivalActivities
-									festivalId={activeFestival.id}
-									forProfile={currentProfile}
+				{showMiParticipacionBlock && (
+					<>
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+							<div className="flex flex-col gap-2 md:gap-3">
+								<Heading level={2}>Mi participación</Heading>
+								<ReservationCard
+									profile={currentProfile}
+									activeFestival={activeFestival}
+									activeParticipation={activeParticipation}
+									profileEnrollment={profileEnrollment}
 								/>
-							)}
-						</>
-					)}
+							</div>
+						</div>
+
+						{activeParticipation?.reservation.status === "accepted" && (
+							<FestivalActivities
+								festivalId={activeFestival.id}
+								forProfile={currentProfile}
+							/>
+						)}
+					</>
+				)}
 
 				<div className="flex flex-col gap-6">
 					<ParticipationHistoryPreview

@@ -31,7 +31,7 @@ type Props = {
 	profile: ProfileType;
 	activeFestival: FestivalWithDates;
 	activeParticipation: Participation | null | undefined;
-	profileEnrollment: UserRequestBase;
+	profileEnrollment: UserRequestBase | null;
 };
 
 type CardConfig = {
@@ -105,7 +105,7 @@ type CardStatus =
 	| "rejected_reservation";
 
 function getCardStatus(
-	profileEnrollment: UserRequestBase,
+	profileEnrollment: UserRequestBase | null,
 	activeParticipation: Participation | null | undefined,
 	festivalReservationsStartDate: Date,
 ): CardStatus {
@@ -120,6 +120,9 @@ function getCardStatus(
 	}
 	if (activeParticipation?.reservation.status === "rejected") {
 		return "rejected_reservation";
+	}
+	if (!profileEnrollment) {
+		return "pending_enrollment";
 	}
 	if (profileEnrollment.status === "rejected") {
 		return "rejected_enrollment";
@@ -220,6 +223,7 @@ export default function ReservationCard({
 	const nonCardStatuses: CardStatus[] = [
 		"pending_enrollment",
 		"rejected_reservation",
+		"rejected_enrollment",
 	];
 	const nonActionsCardStatuses: CardStatus[] = [
 		"rejected_enrollment",
