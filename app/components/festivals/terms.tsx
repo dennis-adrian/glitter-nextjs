@@ -36,6 +36,7 @@ import { DateTime } from "luxon";
 import Image from "next/image";
 import { useState } from "react";
 import { Highlight } from "@/app/components/ui/highlight";
+import { getCategoryLabel } from "@/app/lib/maps/helpers";
 
 type TermsAndConditionsProps = {
 	festival: FestivalWithDates;
@@ -408,42 +409,193 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 												</span>
 											</h4>
 											<div className="ml-2 flex flex-col gap-2">
-												<p>
-													Los expositores podrán ingresar al recinto únicamente{" "}
-													<Highlight>
-														de{" "}
-														{dayOneStartDate
-															.minus({ hour: 2 })
-															.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
-														a{" "}
-														{dayOneStartDate
-															.minus({ hour: 1 })
-															.toLocaleString(DateTime.TIME_24_SIMPLE)}
-													</Highlight>
-												</p>
-												<p>
-													A las{" "}
-													<span className="font-semibold">
-														{dayOneStartDate
-															.minus({ hour: 1 })
-															.toLocaleString(DateTime.TIME_24_SIMPLE)}
-													</span>{" "}
-													se cerrarán las puertas de ingreso y cualquier
-													expositor que llegue después del horario marcado,
-													tendrá que{" "}
-													<Highlight>hacer cola junto con el público</Highlight>{" "}
-													para ingresar a las{" "}
-													<span className="font-semibold">
-														{dayOneStartDate.toLocaleString(
-															DateTime.TIME_24_SIMPLE,
-														)}
-													</span>
-													. No se harán excepciones.
-												</p>
-												<p>
-													El ingreso será por la puerta del Teatro CBA en la
-													calle Sucre entre calle Cochabamba y calle Potosí
-												</p>
+												{mapCategory === "entrepreneurship" && (
+													<>
+														<p>
+															Dependiendo del sector en el que hagás tu reserva,
+															tomá en cuenta el siguiente horario:
+														</p>
+														<section className="flex flex-col gap-2">
+															<p>
+																<Highlight>Galería:</Highlight>
+															</p>
+															<p>
+																Los expositores de este sector ingresarán al
+																recinto únicamente{" "}
+																<Highlight>
+																	de{" "}
+																	{dayOneStartDate
+																		.minus({ hour: 1, minutes: 30 })
+																		.toLocaleString(
+																			DateTime.TIME_24_SIMPLE,
+																		)}{" "}
+																	a{" "}
+																	{dayOneStartDate
+																		.minus({ hour: 1 })
+																		.toLocaleString(DateTime.TIME_24_SIMPLE)}
+																</Highlight>
+															</p>
+															<p>
+																A las{" "}
+																<span className="font-semibold">
+																	{dayOneStartDate
+																		.minus({ hour: 1 })
+																		.toLocaleString(DateTime.TIME_24_SIMPLE)}
+																</span>{" "}
+																se cerrarán las puertas de ingreso y cualquier
+																expositor que llegue después del horario
+																marcado, tendrá que{" "}
+																<Highlight>
+																	hacer cola junto con el público
+																</Highlight>{" "}
+																para ingresar a las{" "}
+																<span className="font-semibold">
+																	{dayOneStartDate.toLocaleString(
+																		DateTime.TIME_24_SIMPLE,
+																	)}
+																</span>
+																. No se harán excepciones.
+															</p>
+															<p>
+																El ingreso será por la puerta del Teatro CBA en
+																la calle Sucre entre calle Cochabamba y calle
+																Potosí
+															</p>
+														</section>
+														<section className="flex flex-col gap-2">
+															<p>
+																<Highlight>Big Apple:</Highlight>
+															</p>
+															<p>
+																Los expositores de este sector ingresarán al
+																recinto únicamente{" "}
+																<Highlight>
+																	de{" "}
+																	{dayOneStartDate
+																		.minus({ hour: 1, minutes: 10 })
+																		.toLocaleString(
+																			DateTime.TIME_24_SIMPLE,
+																		)}{" "}
+																	a{" "}
+																	{dayOneStartDate
+																		.minus({ minutes: 30 })
+																		.toLocaleString(DateTime.TIME_24_SIMPLE)}
+																</Highlight>
+															</p>
+															<p>
+																A las{" "}
+																<span className="font-semibold">
+																	{dayOneStartDate
+																		.minus({ minutes: 30 })
+																		.toLocaleString(DateTime.TIME_24_SIMPLE)}
+																</span>{" "}
+																se cerrarán las puertas de ingreso y cualquier
+																expositor que llegue después del horario
+																marcado, tendrá que esperar a que se abran las
+																puertas nuevamente para ingresar a las{" "}
+																<span className="font-semibold">
+																	{dayOneStartDate.toLocaleString(
+																		DateTime.TIME_24_SIMPLE,
+																	)}
+																</span>
+																. No se harán excepciones.
+															</p>
+															<p>
+																El ingreso será por la puerta de la calle
+																Ballivián entre calle Cochabamba y calle Potosí
+															</p>
+														</section>
+													</>
+												)}
+												{mapCategory === "illustration" && (
+													<section className="flex flex-col gap-2">
+														<p>
+															Los expositores de la categoría{" "}
+															<Highlight>
+																{getCategoryLabel(mapCategory).toLowerCase()}
+															</Highlight>{" "}
+															ingresarán al recinto únicamente{" "}
+															<Highlight>
+																de{" "}
+																{dayOneStartDate
+																	.minus({ hour: 2 })
+																	.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+																a{" "}
+																{dayOneStartDate
+																	.minus({ hour: 1 })
+																	.toLocaleString(DateTime.TIME_24_SIMPLE)}
+															</Highlight>
+														</p>
+														<p>
+															A las{" "}
+															<span className="font-semibold">
+																{dayOneStartDate
+																	.minus({ hour: 1 })
+																	.toLocaleString(DateTime.TIME_24_SIMPLE)}
+															</span>{" "}
+															se cerrarán las puertas de ingreso y cualquier
+															expositor que llegue después del horario marcado,
+															tendrá que{" "}
+															<Highlight>
+																hacer cola junto con el público
+															</Highlight>{" "}
+															para ingresar a partir de las{" "}
+															<span className="font-semibold">
+																{dayOneStartDate.toLocaleString(
+																	DateTime.TIME_24_SIMPLE,
+																)}
+															</span>
+															. No se harán excepciones.
+														</p>
+														<p>
+															El ingreso será por la puerta del Teatro CBA en la
+															calle Sucre entre calle Cochabamba y calle Potosí
+														</p>
+													</section>
+												)}
+												{mapCategory === "gastronomy" && (
+													<section className="flex flex-col gap-2">
+														<p>
+															Los expositores de la categoría{" "}
+															<Highlight>
+																{getCategoryLabel(mapCategory).toLowerCase()}
+															</Highlight>{" "}
+															ingresarán al recinto únicamente{" "}
+															<Highlight>
+																de{" "}
+																{dayOneStartDate
+																	.minus({ hour: 1, minutes: 10 })
+																	.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+																a{" "}
+																{dayOneStartDate
+																	.minus({ minutes: 30 })
+																	.toLocaleString(DateTime.TIME_24_SIMPLE)}
+															</Highlight>
+														</p>
+														<p>
+															A las{" "}
+															<span className="font-semibold">
+																{dayOneStartDate
+																	.minus({ minutes: 30 })
+																	.toLocaleString(DateTime.TIME_24_SIMPLE)}
+															</span>{" "}
+															se cerrarán las puertas de ingreso y cualquier
+															expositor que llegue después del horario marcado,
+															tendrá que esperar a que se abran las puertas
+															nuevamente para ingresar a las{" "}
+															<span className="font-semibold">
+																{dayOneStartDate.toLocaleString(
+																	DateTime.TIME_24_SIMPLE,
+																)}
+															</span>
+															. No se harán excepciones.
+														</p>
+														<p>
+															El ingreso será por la puerta de la calle
+															Ballivián entre calle Cochabamba y calle Potosí
+														</p>
+													</section>
+												)}
 											</div>
 										</section>
 									) : null}
@@ -462,7 +614,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 											</h4>
 											<div className="ml-2 flex flex-col gap-2">
 												<p>
-													El ingreso de los expositores será desde las{" "}
+													El ingreso de todos los expositores será desde las{" "}
 													<Highlight>
 														{dayTwoStartDate
 															.minus({ hour: 1 })
