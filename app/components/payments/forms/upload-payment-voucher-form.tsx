@@ -26,7 +26,10 @@ export default function UploadPaymentVoucherForm(
 		const payment = props.invoice.payments[props.invoice.payments.length - 1];
 		if (!props.newVoucherUrl) {
 			toast.error("Se necesita un comprobante para confirmar el pago");
-		} else {
+			return;
+		}
+
+		try {
 			const res = await createPayment({
 				payment: {
 					id: payment?.id,
@@ -48,6 +51,9 @@ export default function UploadPaymentVoucherForm(
 			} else {
 				toast.error("Error al enviar el pago");
 			}
+		} catch {
+			toast.error("Error al enviar el pago");
+			return;
 		}
 	});
 
