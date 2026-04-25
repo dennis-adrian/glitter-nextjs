@@ -12,7 +12,7 @@ export default function PaymentProofUpload({
 	onUploadComplete,
 	onUploading,
 	endpoint = "reservationPayment",
-	submitLabel = "Confirmar pago",
+	submitLabel = "Subir comprobante",
 	uploadInput,
 }: {
 	voucherImageUrl?: string;
