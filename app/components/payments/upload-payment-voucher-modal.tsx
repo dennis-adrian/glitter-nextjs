@@ -15,10 +15,13 @@ export default function UploadPaymentVoucherModal(
 	props: UploadPaymentVoucherModalProps,
 ) {
 	const payments = props.invoice.payments;
-	const [isUploadStarted, setIsUploadStarted] = useState(false);
+	const existingVoucherUrl = payments[payments?.length - 1]?.voucherUrl;
+	const [isUploadStarted, setIsUploadStarted] = useState(
+		Boolean(existingVoucherUrl),
+	);
 	const [isUploading, setIsUploading] = useState(false);
 	const [voucherUrl, setVoucherUrl] = useState<string | undefined>(
-		payments[payments?.length - 1]?.voucherUrl,
+		existingVoucherUrl,
 	);
 
 	return (
