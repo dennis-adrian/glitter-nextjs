@@ -41,7 +41,6 @@ export default async function Card({ profile }: { profile: ProfileType }) {
 			if (stand) {
 				return (
 					<ReservedStandCard
-						profile={profile}
 						festival={festival}
 						stand={stand}
 						reservationStatus={reservationStatus}

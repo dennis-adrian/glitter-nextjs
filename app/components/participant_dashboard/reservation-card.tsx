@@ -309,9 +309,7 @@ export default function ReservationCard({
 							size="sm"
 							className="text-muted-foreground"
 						>
-							<Link
-								href={`/profiles/${profile.id}/festivals/${activeFestival.id}/terms`}
-							>
+							<Link href={`/festivals/${activeFestival.id}/terms`}>
 								<FileTextIcon className="w-3.5 h-3.5 shrink-0" />
 								Términos y condiciones
 							</Link>

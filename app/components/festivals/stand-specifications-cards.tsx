@@ -2,7 +2,10 @@
 
 import { UserCategory } from "@/app/api/users/definitions";
 import StandSpecificationsSectorCard from "@/app/components/festivals/stand-specifications-sector-card";
-import { FestivalSectorWithStands, FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
+import {
+	FestivalSectorWithStands,
+	FestivalSectorWithStandsWithReservationsWithParticipants,
+} from "@/app/lib/festival_sectors/definitions";
 import { use } from "react";
 
 export default function StandSpecificationsCards({
@@ -20,9 +23,9 @@ export default function StandSpecificationsCards({
 }) {
 	const festivalSectors = use(festivalSectorsWithAllowedCategoriesPromise);
 
-	const sectorsForProfile = festivalSectors.filter((sector) =>
-		sector.allowedCategories.includes(profileCategory),
-	);
+	const sectorsForProfile = festivalSectors
+		.filter((sector) => sector.allowedCategories.includes(profileCategory))
+		.sort((a, b) => a.orderInFestival - b.orderInFestival);
 
 	return (
 		<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
