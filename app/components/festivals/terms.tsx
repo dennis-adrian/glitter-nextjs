@@ -35,6 +35,7 @@ import { ArrowRightIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import Image from "next/image";
 import { useState } from "react";
+import { Highlight } from "@/app/components/ui/highlight";
 
 type TermsAndConditionsProps = {
 	festival: FestivalWithDates;
@@ -58,6 +59,9 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 		selectedCategory === "new_artist" ? "illustration" : selectedCategory;
 
 	const dayOneStartDate = formatDate(props.festival.festivalDates[0].startDate);
+	const dayOneEndDate = formatDate(props.festival.festivalDates[0].endDate);
+	const dayTwoStartDate = formatDate(props.festival.festivalDates[1].startDate);
+	const dayTwoEndDate = formatDate(props.festival.festivalDates[1].endDate);
 
 	return (
 		<div className="container mx-auto py-8 px-4 md:px-6">
@@ -83,12 +87,12 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 					</div>
 				)}
 
-				<div className="space-y-4 text-left md:text-center mb-4">
+				<div className="text-left md:text-center mb-4">
 					<Heading level={1}>Términos y Condiciones para Expositores</Heading>
-					<p className="text-sm text-muted-foreground">
-						Última actualización: 18 de febrero de 2026
+					<p className="text-xs md:text-sm text-muted-foreground mt-2">
+						Última actualización: 24 de abril de 2026
 					</p>
-					<p className="text-muted-foreground">
+					<p className="text-sm md:text-base mt-3">
 						Por favor, leé estos términos y condiciones cuidadosamente para
 						habilitar tu participación en el festival.
 					</p>
@@ -104,7 +108,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 					/>
 				)}
 
-				<div className="flex flex-col">
+				<div className="flex flex-col gap-3 lg:gap-4">
 					<Heading level={2}>Sectores habilitados para tu categoría</Heading>
 
 					<StandSpecificationsCards
@@ -115,23 +119,31 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						fullSectors={props.festivalSectors}
 					/>
 
-					{mapCategory === "illustration" && (
-						<p className="text-sm text-muted-foreground mt-2">
-							* En el caso de ilustradores que comparten espacio, si en el
-							transcurso de tiempo entre confirmada la reserva y el día del
-							evento una de las partes no puede participar, el otro ilustrador
-							deberá hacerse cargo de ocupar el espacio, sin posibilidades de
-							reemplazar al ilustrador que se dio de baja por otro.
+					<div className="mb-4 text-xs text-muted-foreground">
+						{mapCategory === "illustration" && (
+							<p>
+								* <b>Ilustradores que comparten espacio:</b> Si en el transcurso
+								de tiempo entre confirmada la reserva y el día del evento una de
+								las partes no puede participar, el otro ilustrador deberá
+								hacerse cargo de ocupar el espacio completo, sin posibilidad de
+								reemplazar al ilustrador que se dio de baja.
+							</p>
+						)}
+						<p>
+							** <b>Puntos eléctricos:</b> Se debe comunicar a la organización
+							con al menos 10 días de anticipación si el participante quiere
+							hacer uso de alguno de los puntos eléctricos disponibles en el
+							sector.
 						</p>
-					)}
+					</div>
 				</div>
 
-				<div className="space-y-4 md:space-y-6 border rounded-lg p-6 my-4 md:my-6">
-					<section>
-						<h2 className="text-lg md:text-xl font-semibold mb-4">
+				<div className="flex flex-col gap-3 md:gap-4">
+					<section className="flex flex-col gap-1 md:gap-2">
+						<h2 className="text-lg md:text-xl font-semibold font-space-grotesk tracking-wide">
 							1. Aceptación de Términos
 						</h2>
-						<p className="text-muted-foreground">
+						<p className="text-sm">
 							Al hacer clic en &quot;Acepto los términos y condiciones&quot;
 							estás suscribiendo un acuerdo vinculante con la organización. Al
 							registrarte y participar en el festival como expositor, aceptas
@@ -145,83 +157,86 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 
 					<Separator />
 
-					<section>
-						<h2 className="text-lg md:text-xl font-semibold mb-4 flex items-center flex-wrap gap-2">
+					<section className="flex flex-col gap-1 md:gap-2">
+						<h2 className="text-lg md:text-xl font-semibold font-space-grotesk tracking-wide">
 							2. Participación en el Festival
 						</h2>
-						<p className="text-muted-foreground mb-4">
-							La participación en el festival está sujeta a las siguientes
-							condiciones:
-						</p>
-						<ul className="list-disc pl-6 space-y-2 text-muted-foreground">
-							<li>
-								Los expositores deben tener al menos 16 años de edad. Los
-								expositores menores de 18 años deben estar presentes con un
-								padre, madre o tutor legal durante la totalidad del evento.
-							</li>
-							<li>
-								Todos los participantes deben tener un perfil aprobado en
-								nuestro sitio web, es decir, una cuenta que haya pasado por
-								revisión y esté habilitada por la organización, y una reserva
-								confirmada y pagada para su espacio.
-							</li>
-							<li>
-								La participación en el festival no constituye un derecho
-								adquirido por haber participado en ediciones anteriores. Cada
-								edición es evaluada de manera independiente y está sujeta a un
-								proceso de curaduría interna.
-							</li>
-							<li>
-								La organización podrá evaluar el historial de cumplimiento de
-								normas, la alineación con la identidad del evento, la calidad de
-								la propuesta y otros criterios internos antes de aprobar una
-								participación.
-							</li>
-							<li>
-								Todos los participantes deben cuidar la estética de su stand
-								para que sea atractiva para el público.
-							</li>
-							{props.festival.festivalType === "festicker" && (
+						<div className="text-sm flex flex-col gap-2 md:gap-3">
+							<p>
+								La participación en el festival está sujeta a las siguientes
+								condiciones:
+							</p>
+							<ul className="list-disc pl-6 space-y-2">
 								<li>
-									Los participantes en la categoría de ilustración deben tener
-									al menos el 80% de su stand ocupado con stickers. Otros
-									productos pueden ser comercializados pero deben estar
-									organizados en muestrarios o exhibidores de manera que no
-									signifiquen más del 20% del espacio. El incumplimiento de este
-									requisito puede resultar en penalizaciones para
+									Los expositores deben tener al menos 16 años de edad. Los
+									expositores menores de 18 años deben estar presentes con un
+									padre, madre o tutor legal durante la totalidad del evento.
+								</li>
+								<li>
+									Todos los participantes deben tener un perfil aprobado en
+									nuestro sitio web, es decir, una cuenta que haya pasado por
+									revisión y esté habilitada por la organización, y una reserva
+									confirmada y pagada para su espacio.
+								</li>
+								<li>
+									La participación en el festival no constituye un derecho
+									adquirido por haber participado en ediciones anteriores. Cada
+									edición es evaluada de manera independiente y está sujeta a un
+									proceso de curaduría interna.
+								</li>
+								<li>
+									La organización podrá evaluar el historial de cumplimiento de
+									normas, la alineación con la identidad del evento, la calidad
+									de la propuesta y otros criterios internos antes de aprobar
+									una participación.
+								</li>
+								<li>
+									Todos los participantes deben cuidar la estética de su stand
+									para que sea atractiva para el público.
+								</li>
+								{props.festival.festivalType === "festicker" && (
+									<li>
+										Los participantes en la categoría de ilustración deben tener
+										al menos el 80% de su stand ocupado con stickers. Otros
+										productos pueden ser comercializados pero deben estar
+										organizados en muestrarios o exhibidores de manera que no
+										signifiquen más del 20% del espacio. El incumplimiento de
+										este requisito puede resultar en penalizaciones para
+										participaciones futuras.
+									</li>
+								)}
+								<li>
+									Solo se permite tener a dos personas trabajando en el stand.
+									Cada persona con su credencial correspondiente. Tener a más de
+									dos personas y/o personas sin credencial en el stand sin
+									autorización puede resultar en penalizaciones para
 									participaciones futuras.
 								</li>
-							)}
-							<li>
-								Solo se permite tener a dos personas trabajando en el stand.
-								Cada persona con su credencial correspondiente. Tener a más de
-								dos personas y/o personas sin credencial en el stand sin
-								autorización puede resultar en penalizaciones para
-								participaciones futuras.
-							</li>
-							<li>
-								Los expositores deben cumplir con todas las reglas del festival,
-								regulaciones e instrucciones del personal del festival.
-							</li>
-							<li>
-								El staff del festival hará un recorrido por el recinto para
-								verificar que los expositores cumplen con las reglas del
-								festival.
-							</li>
-							<li>
-								El expositor es responsable de su mercadería y objetos
-								personales. La organización no se responsabiliza por robos,
-								daños o pérdidas ocurridas durante el festival
-							</li>
-						</ul>
+								<li>
+									Los expositores deben cumplir con todas las reglas del
+									festival, regulaciones e instrucciones del personal del
+									festival.
+								</li>
+								<li>
+									El staff del festival hará un recorrido por el recinto para
+									verificar que los expositores cumplen con las reglas del
+									festival.
+								</li>
+								<li>
+									El expositor es responsable de su mercadería y objetos
+									personales. La organización no se responsabiliza por robos,
+									daños o pérdidas ocurridas durante el festival
+								</li>
+							</ul>
+						</div>
 					</section>
 
 					{mapCategory === "gastronomy" && (
-						<section className="ml-4">
-							<h3 className="font-semibold text-lg">
+						<section className="ml-4 text-sm">
+							<h3 className="font-semibold text-base md:text-lg font-space-grotesk tracking-wide">
 								2.1. Sector de gastronomía
 							</h3>
-							<p className="mt-2 text-muted-foreground">
+							<p className="mt-2">
 								El sector gastronómico constituye una categoría especial dentro
 								del festival y está sujeto a un proceso de evaluación previo a
 								la confirmación de participación. Esta evaluación busca mantener
@@ -233,7 +248,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 								participación no está garantizada y solo las postulaciones
 								aprobadas para este evento podrán realizar una reserva.
 							</p>
-							<ul className="list-disc pl-6 space-y-2 text-muted-foreground mt-4">
+							<ul className="list-disc pl-6 space-y-2 mt-4">
 								<li>
 									La organización podrá solicitar fotografías actualizadas del
 									stand y una descripción detallada del menú como parte del
@@ -250,7 +265,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 									discrecional.
 								</li>
 							</ul>
-							<p className="mt-4 text-muted-foreground">
+							<p className="mt-4">
 								<b>Presentación y estética del stand:</b> Todos los stands
 								deberán cumplir con un estándar mínimo de presentación visual y
 								estética acorde a la identidad del evento. No se permitirán
@@ -265,13 +280,17 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 
 					<Separator />
 
-					<Accordion type="multiple" className="w-full">
+					<Accordion
+						type="multiple"
+						className="w-full"
+						defaultValue={["item-1", "item-2", "item-3"]}
+					>
 						<AccordionItem value="item-1">
-							<AccordionTrigger className="text-lg md:text-xl font-semibold">
+							<AccordionTrigger className="text-lg md:text-xl font-semibold font-space-grotesk tracking-wide">
 								3. Reservas, Pagos y Cancelaciones
 							</AccordionTrigger>
-							<AccordionContent className="text-muted-foreground">
-								<ul className="list-disc pl-6 space-y-2">
+							<AccordionContent>
+								<ul className="list-disc pl-6 flex flex-col gap-2">
 									{mapCategory === "illustration" ? (
 										<li>
 											Los ilustradores que quieran compartir espacio deben
@@ -364,62 +383,246 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						</AccordionItem>
 
 						<AccordionItem value="item-2">
-							<AccordionTrigger className="text-lg md:text-xl font-semibold">
+							<AccordionTrigger className="text-lg md:text-xl font-semibold font-space-grotesk tracking-wide">
 								4. Horarios, Montaje y Desmontaje de Stands
 							</AccordionTrigger>
-							<AccordionContent className="text-muted-foreground">
-								<ul className="list-disc pl-6 space-y-2">
-									<li>
-										El montaje debe completarse antes de las{" "}
-										{dayOneStartDate.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
-										ambos días del evento.
-									</li>
-									<li>
-										Los expositores tendrán acceso al recinto para el montaje
-										desde las{" "}
-										{dayOneStartDate
-											.minus({ hour: 1 })
-											.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
-										ambos días del evento.
-									</li>
-									<li>
-										El ingreso del público será a partir de las{" "}
-										{dayOneStartDate.toLocaleString(DateTime.TIME_24_SIMPLE)}.{" "}
-										No se permitirá el ingreso a expositores después de que el
-										público haya ingresado al recinto.
-									</li>
-									<li>
-										No se permite el desmontaje anticipado sin previa
-										autorización y puede resultar en penalizaciones para
-										participaciones futuras.
-									</li>
-									<li>
-										El desmontaje debe completarse antes de las 21:30 el primer
-										día y hasta las 21:45 el segundo día. Los expositores pueden
-										dejar sus stands montados el primer día para ahorrar tiempo
-										de montaje en el segundo día.
-									</li>
-								</ul>
-								<p className="mt-4">
-									No llegar a tiempo o no tener montado el stand hasta la hora
-									indicada puede resultar en penalizaciones para participaciones
-									futuras.
-								</p>
-								<p className="mt-4">
-									<b>Uso de electricidad:</b> El acceso a puntos eléctricos en
-									el recinto depende de la disponibilidad del establecimiento.
-									Los expositores que requieran electricidad para su stand deben
-									comunicarlo a la organización con al menos 20 días de
-									anticipación al evento. La organización hará lo posible por
-									gestionar la solicitud, pero no garantiza su disponibilidad.
-								</p>
+							<AccordionContent className="flex flex-col gap-2">
+								<section>
+									<h3 className="text-base md:text-lg font-semibold text-foreground font-space-grotesk tracking-wide">
+										<Highlight>4.1. Horario de ingreso</Highlight>
+									</h3>
+									<section className="text-sm">
+										<h4 className="font-semibold my-2">
+											<span className="capitalize">
+												{dayOneStartDate.weekdayLong}
+											</span>{" "}
+											<span>
+												{dayOneStartDate.toLocaleString({
+													month: "long",
+													day: "numeric",
+												})}
+											</span>
+										</h4>
+										<div className="ml-2 flex flex-col gap-2">
+											<p>
+												Los expositores podrán ingresar al recinto únicamente{" "}
+												<Highlight>
+													de{" "}
+													{dayOneStartDate
+														.minus({ hour: 2 })
+														.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+													a{" "}
+													{dayOneStartDate
+														.minus({ hour: 1 })
+														.toLocaleString(DateTime.TIME_24_SIMPLE)}
+												</Highlight>
+											</p>
+											<p>
+												A las{" "}
+												<span className="font-semibold">
+													{dayOneStartDate
+														.minus({ hour: 1 })
+														.toLocaleString(DateTime.TIME_24_SIMPLE)}
+												</span>{" "}
+												se cerrarán las puertas de ingreso y cualquier expositor
+												que llegue después del horario marcado, tendrá que{" "}
+												<Highlight>hacer cola junto con el público</Highlight>{" "}
+												para ingresar a las{" "}
+												<span className="font-semibold">
+													{dayOneStartDate.toLocaleString(
+														DateTime.TIME_24_SIMPLE,
+													)}
+												</span>
+												. No se harán excepciones.
+											</p>
+											<p>
+												El ingreso será por la puerta del Teatro CBA en la calle
+												Sucre entre calle Cochabamba y calle Potosí
+											</p>
+										</div>
+									</section>
+									<section>
+										<h4 className="font-semibold text-sm my-2">
+											<span className="capitalize">
+												{dayTwoStartDate.weekdayLong}
+											</span>{" "}
+											<span>
+												{dayTwoStartDate.toLocaleString({
+													month: "long",
+													day: "numeric",
+												})}
+											</span>
+										</h4>
+										<div className="ml-2 flex flex-col gap-2">
+											<p>
+												El ingreso de los expositores será desde las{" "}
+												<Highlight>
+													{dayTwoStartDate
+														.minus({ hour: 1 })
+														.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+													hasta las{" "}
+													{dayTwoStartDate.toLocaleString(
+														DateTime.TIME_24_SIMPLE,
+													)}
+												</Highlight>
+												. Cualquier expositor que llegue después del horario
+												marcado, tendrá que{" "}
+												<Highlight>hacer cola junto con el público</Highlight>{" "}
+												para ingresar. No se harán excepciones.
+											</p>
+											<p>
+												El ingreso será por la puerta del Teatro CBA en la calle
+												Sucre entre calle Cochabamba y calle Potosí
+											</p>
+										</div>
+									</section>
+								</section>
+								<section>
+									<h3 className="text-base md:text-lg font-semibold text-foreground font-space-grotesk tracking-wide">
+										<Highlight>4.2. Horario de montaje</Highlight>
+									</h3>
+									<section className="text-sm">
+										<h4 className="font-semibold my-2">
+											<span className="capitalize">
+												{dayOneStartDate.weekdayLong}
+											</span>{" "}
+											<span>
+												{dayOneStartDate.toLocaleString({
+													month: "long",
+													day: "numeric",
+												})}
+											</span>
+										</h4>
+										<div className="ml-2 flex flex-col gap-2">
+											<p>
+												El montaje de stands deberá hacerse desde que el
+												expositor ingrese al recinto. Y deberá completarse{" "}
+												<Highlight>
+													antes de las{" "}
+													{dayOneStartDate.toLocaleString(
+														DateTime.TIME_24_SIMPLE,
+													)}
+												</Highlight>
+												. Sin excepción.
+											</p>
+										</div>
+									</section>
+								</section>
+								<section>
+									<h3 className="text-base md:text-lg font-semibold text-foreground font-space-grotesk tracking-wide">
+										4.3. Horario de apertura y cierre de puertas al público
+									</h3>
+									<p className="mt-1">
+										Ambos días del evento tienen el mismo horario. Las puertas
+										al público se abrirán a las{" "}
+										<span className="font-semibold">
+											{dayOneStartDate.toLocaleString(DateTime.TIME_24_SIMPLE)}
+										</span>{" "}
+										y se cerrarán a las{" "}
+										<span className="font-semibold">
+											{dayOneEndDate.toLocaleString(DateTime.TIME_24_SIMPLE)}
+										</span>
+									</p>
+								</section>
+								<section>
+									<h3 className="text-base md:text-lg font-semibold text-foreground font-space-grotesk tracking-wide">
+										<Highlight>4.4. Horario de desmontaje</Highlight>
+									</h3>
+									<section>
+										<h4 className="font-semibold my-2">
+											<span className="capitalize">
+												{dayOneStartDate.weekdayLong}
+											</span>{" "}
+											<span>
+												{dayOneStartDate.toLocaleString({
+													month: "long",
+													day: "numeric",
+												})}
+											</span>
+										</h4>
+										<div className="ml-2 flex flex-col gap-2">
+											<p>
+												Los expositores tienen permitido dejar sus estructuras
+												armadas para facilitar acomodarse el segundo día del
+												festival.
+											</p>
+											<p>
+												El horario en que los expositores tienen permitido
+												retirarse este día es desde las{" "}
+												{dayOneEndDate.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+												hasta las{" "}
+												{dayOneEndDate
+													.plus({ minutes: 30 })
+													.toLocaleString(DateTime.TIME_24_SIMPLE)}
+												. Culquier excepción a este horario debe ser previamente
+												autorizado por la organización.
+											</p>
+											<p>
+												El recinto se cerrará a las{" "}
+												<span className="font-semibold">
+													{dayOneEndDate
+														.plus({ minutes: 45 })
+														.toLocaleString(DateTime.TIME_24_SIMPLE)}
+												</span>
+												.
+											</p>
+										</div>
+									</section>
+									<section>
+										<h4 className="font-semibold my-2">
+											<span className="capitalize">
+												{dayTwoStartDate.weekdayLong}
+											</span>{" "}
+											<span>
+												{dayTwoStartDate.toLocaleString({
+													month: "long",
+													day: "numeric",
+												})}
+											</span>
+										</h4>
+										<div className="ml-2 flex flex-col gap-2">
+											<p>
+												Los expositores tienen permitido desmontar sus stands
+												este día{" "}
+												<Highlight>
+													desde las{" "}
+													{dayTwoEndDate
+														.minus({ minutes: 15 })
+														.toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+													hasta las{" "}
+													{dayTwoEndDate
+														.plus({ minutes: 30 })
+														.toLocaleString(DateTime.TIME_24_SIMPLE)}
+												</Highlight>
+												. Sin excepción.
+											</p>
+											<p>
+												El recinto se cerrará a las{" "}
+												<span className="font-semibold">
+													{dayTwoEndDate
+														.plus({ minutes: 45 })
+														.toLocaleString(DateTime.TIME_24_SIMPLE)}
+												</span>
+												.
+											</p>
+										</div>
+									</section>
+								</section>
+								<div className="flex flex-col gap-2 text-sm">
+									<p>
+										<Highlight>
+											Cualquier infracción a estos horarios será registrada en
+											el historial del participante
+										</Highlight>
+									</p>
+								</div>
 							</AccordionContent>
 						</AccordionItem>
 						<AccordionItem value="item-3">
-							<AccordionTrigger className="text-lg md:text-xl font-semibold">
+							<AccordionTrigger className="text-lg md:text-xl font-semibold font-space-grotesk tracking-wide">
 								5. Código de Conducta
 							</AccordionTrigger>
-							<AccordionContent className="text-muted-foreground">
+							<AccordionContent className="text-sm">
 								<p className="mb-4">Se espera que todos los expositores:</p>
 								<ul className="list-disc pl-6 space-y-2">
 									<li>
@@ -451,8 +654,12 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 										ilegales.
 									</li>
 									<li>
-										Mantengan un área de stand limpia y segura durante todo el
-										festival.
+										<Highlight>
+											Mantengan el área de su stand limpia y segura durante todo
+											el festival, no dejen basura o residuos en el stand y en
+											caso de derramar algún líquido o alimento, hacerse cargo
+											de la limpieza del espacio.
+										</Highlight>
 									</li>
 									<li>
 										No publiquen, compartan ni reproduzcan el trabajo, los
@@ -488,10 +695,10 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						</AccordionItem>
 
 						<AccordionItem value="item-4">
-							<AccordionTrigger className="text-lg md:text-xl font-semibold">
+							<AccordionTrigger className="text-lg md:text-xl font-semibold font-space-grotesk tracking-wide">
 								6. Fotografía y Grabación
 							</AccordionTrigger>
-							<AccordionContent className="text-muted-foreground">
+							<AccordionContent className="text-sm">
 								<p className="mb-4">
 									Al participar en el festival, das tu consentimiento para:
 								</p>
@@ -522,10 +729,10 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						</AccordionItem>
 
 						<AccordionItem value="item-5">
-							<AccordionTrigger className="text-lg md:text-xl font-semibold">
+							<AccordionTrigger className="text-lg md:text-xl font-semibold font-space-grotesk tracking-wide">
 								7. Artículos y Actividades Prohibidas
 							</AccordionTrigger>
-							<AccordionContent className="text-muted-foreground">
+							<AccordionContent>
 								<p className="mb-4">
 									Los siguientes artículos y actividades están prohibidos:
 								</p>
@@ -672,10 +879,10 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						</AccordionItem>
 
 						<AccordionItem value="item-6">
-							<AccordionTrigger className="text-lg md:text-xl font-semibold">
+							<AccordionTrigger className="text-lg md:text-xl font-semibold font-space-grotesk tracking-wide">
 								8. Resolución de Conflictos
 							</AccordionTrigger>
-							<AccordionContent className="text-muted-foreground">
+							<AccordionContent>
 								<ul className="list-disc pl-6 space-y-2">
 									<li>
 										Los conflictos entre expositores durante el evento serán
@@ -694,10 +901,10 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						</AccordionItem>
 
 						<AccordionItem value="item-7">
-							<AccordionTrigger className="text-lg md:text-xl font-semibold">
+							<AccordionTrigger className="text-lg md:text-xl font-semibold font-space-grotesk tracking-wide">
 								9. Modificaciones a los Términos
 							</AccordionTrigger>
-							<AccordionContent className="text-muted-foreground">
+							<AccordionContent>
 								<p className="mb-4">
 									La organización se reserva el derecho de actualizar o
 									modificar estos Términos y Condiciones en cualquier momento.
@@ -711,10 +918,10 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
 						</AccordionItem>
 
 						<AccordionItem value="item-8">
-							<AccordionTrigger className="text-lg md:text-xl font-semibold">
+							<AccordionTrigger className="text-lg md:text-xl font-semibold font-space-grotesk tracking-wide">
 								10. Información de Contacto
 							</AccordionTrigger>
-							<AccordionContent className="text-muted-foreground">
+							<AccordionContent>
 								<p>
 									Para preguntas o inquietudes sobre estos Términos y
 									Condiciones, por favor contacte a los organizadores del

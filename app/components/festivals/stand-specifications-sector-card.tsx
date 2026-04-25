@@ -70,7 +70,7 @@ export default function StandSpecificationsSectorCard({
 	let sectorSpecifications = "";
 	if (category === "gastronomy") {
 		sectorSpecifications =
-			"80cm x 100cm (mesa completa). Área final. No puede compartir espacio.";
+			"140cm x 70cm (2 mesas de 70cm x 70cm). Área final. No puede compartir espacio.";
 	} else if (
 		category === "entrepreneurship" &&
 		sector.name.toLowerCase().includes("balliv")
@@ -93,14 +93,14 @@ export default function StandSpecificationsSectorCard({
 		sector.name.toLowerCase().includes("teatro") ||
 		sector.name.toLowerCase().includes("lobby")
 	) {
-		servicesIncluded.push("Puntos de conexión a electricidad");
+		servicesIncluded.push("Puntos de corriente según ubicación del stand**");
 		servicesIncluded.push("Ambiente cerrado con aire acondicionado");
 	}
 	if (sector.name.toLowerCase().includes("apple")) {
 		servicesIncluded.push("Ambiente abierto, techado");
 	}
 	if (sector.name.toLowerCase().includes("balliv")) {
-		servicesIncluded.push("Puntos de conexión a electricidad");
+		servicesIncluded.push("Puntos de corriente según ubicación del stand**");
 		servicesIncluded.push("Ambiente semi-abierto, techado");
 	}
 
@@ -113,6 +113,9 @@ export default function StandSpecificationsSectorCard({
 		servicesIncluded.push(
 			"1 credencial para acompañante en caso de no compartir espacio con otro ilustrador",
 		);
+	} else if (category === "gastronomy") {
+		servicesIncluded.push("1 pin de regalo");
+		servicesIncluded.push("2 credenciales con el nombre del expositor");
 	} else {
 		servicesIncluded.push("1 pin de regalo");
 		servicesIncluded.push("1 credencial para expositor");
@@ -120,29 +123,38 @@ export default function StandSpecificationsSectorCard({
 	}
 	// All categories have these services
 	servicesIncluded.push("2 sillas");
-	servicesIncluded.push("Mesa incluida");
+	servicesIncluded.push(
+		`${category === "gastronomy" ? "Mesas incluidas" : "Mesa incluida"}`,
+	);
 
 	return (
 		<>
 			<Card className="overflow-hidden">
 				<CardContent className="p-0">
-					<div className="bg-primary p-3">
-						<h3 className="font-semibold text-primary-foreground">
-							{sector.name}
-							{category === "entrepreneurship" &&
-								sector.name.toLowerCase().includes("balliv") &&
-								" (Activaciones)"}
-						</h3>
+					<div className="bg-primary p-3 flex justify-between items-center">
+						<div>
+							<h3 className="font-semibold text-primary-foreground">
+								{sector.name}
+								{category === "entrepreneurship" &&
+									sector.name.toLowerCase().includes("balliv") &&
+									" (Activaciones)"}
+							</h3>
+							<p className="text-xs text-primary-foreground">
+								{
+									sector.stands.filter((s) => s.standCategory === category)
+										.length
+								}{" "}
+								espacios
+							</p>
+						</div>
+						<Badge className="text-lg font-semibold text-primary-foreground">
+							<span>Bs.</span> {sectorPrice.toLocaleString()}
+						</Badge>
 					</div>
-					<div className="p-4 space-y-3">
-						<div className="flex justify-between items-start gap-3">
-							<div>
-								<span className="font-medium">Especificaciones:</span>
-								<p className="text-muted-foreground">{sectorSpecifications}</p>
-							</div>
-							<Badge variant="outline" className="text-lg font-semibold">
-								Bs{sectorPrice.toLocaleString()}
-							</Badge>
+					<div className="p-4 space-y-3 text-sm">
+						<div>
+							<span className="font-medium">Especificaciones:</span>
+							<p className="text-muted-foreground">{sectorSpecifications}</p>
 						</div>
 
 						<div>
