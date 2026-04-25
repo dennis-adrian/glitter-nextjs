@@ -92,6 +92,7 @@ export default function MarketingBannerCarousel({ banners }: Props) {
 							href={banner.href}
 							className={linkFrameClass}
 							aria-label={slideAlt(banner)}
+							prefetch={false}
 							{...(banner.openInNewTab
 								? { target: "_blank", rel: "noopener noreferrer" }
 								: {})}
