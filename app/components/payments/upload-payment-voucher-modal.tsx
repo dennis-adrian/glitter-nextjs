@@ -4,7 +4,7 @@ import BaseModal from "@/app/components/modals/base-modal";
 import UploadPaymentVoucherForm from "@/app/components/payments/forms/upload-payment-voucher-form";
 import PaymentProofUpload from "@/app/components/payments/payment-proof-upload";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type UploadPaymentVoucherModalProps = {
 	invoice: InvoiceWithPaymentsAndStand;
@@ -23,6 +23,11 @@ export default function UploadPaymentVoucherModal(
 	const [voucherUrl, setVoucherUrl] = useState<string | undefined>(
 		existingVoucherUrl,
 	);
+
+	useEffect(() => {
+		setIsUploadStarted(Boolean(existingVoucherUrl));
+		setVoucherUrl(existingVoucherUrl);
+	}, [existingVoucherUrl]);
 
 	return (
 		<BaseModal

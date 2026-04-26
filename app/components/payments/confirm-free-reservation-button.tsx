@@ -25,24 +25,33 @@ export default function ConfirmFreeReservationButton({
 
 	const action: () => void = form.handleSubmit(() => {
 		startTransition(async () => {
-			const res = await confirmFreeInvoice({
-				invoiceId: invoice.id,
-				reservationId: invoice.reservationId,
-				standId: invoice.reservation.standId,
-			});
-
-			if (res.success) {
-				posthog.capture(POSTHOG_EVENTS.FREE_RESERVATION_CONFIRMED, {
-					invoice_id: invoice.id,
-					reservation_id: invoice.reservationId,
-					stand_id: invoice.reservation.standId,
+			try {
+				const res = await confirmFreeInvoice({
+					invoiceId: invoice.id,
+					reservationId: invoice.reservationId,
+					standId: invoice.reservation.standId,
 				});
-				toast.success("Reserva confirmada con éxito.");
-				router.push(
-					`/profiles/${invoice.userId}/invoices/${invoice.id}/success`,
+
+				if (res.success) {
+					posthog.capture(POSTHOG_EVENTS.FREE_RESERVATION_CONFIRMED, {
+						invoice_id: invoice.id,
+						reservation_id: invoice.reservationId,
+						stand_id: invoice.reservation.standId,
+					});
+					toast.success("Reserva confirmada con éxito.");
+					router.push(
+						`/profiles/${invoice.userId}/invoices/${invoice.id}/success`,
+					);
+				} else {
+					toast.error(res.message);
+				}
+			} catch (error) {
+				const errorMessage =
+					error instanceof Error ? ` ${error.message}` : "";
+				toast.error(
+					`No se pudo confirmar la reserva. Inténtalo de nuevo.${errorMessage}`,
 				);
-			} else {
-				toast.error(res.message);
+				console.error("Error confirming free reservation:", error);
 			}
 		});
 	});

@@ -4,10 +4,11 @@ import { db } from "@/db";
 import { qrCodes, stands } from "@/db/schema";
 import { and, asc, eq, gt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { ZodError } from "zod";
 
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { deleteFile } from "@/app/lib/uploadthing/actions";
-import { NewQrCode } from "./definitions";
+import { NewQrCode, qrCodeFormSchema } from "./definitions";
 
 export type QrCodeMutationResult = {
 	success: boolean;
@@ -25,6 +26,11 @@ async function deleteFreshUploadOnDbFailure(
 	if (!deleteResult.success) {
 		console.error(logLabel, { url, error: deleteResult.error });
 	}
+}
+
+function getValidationErrorMessage(error: ZodError): string {
+	const firstIssue = error.issues[0];
+	return firstIssue?.message ?? "Datos inválidos.";
 }
 
 export async function getQRCode(amount: number) {
@@ -73,8 +79,19 @@ export async function createQrCode(
 	}
 
 	try {
-		await db.insert(qrCodes).values(data);
+		const parsedData = qrCodeFormSchema.parse(data);
+		await db.insert(qrCodes).values(parsedData);
 	} catch (error) {
+		if (error instanceof ZodError) {
+			await deleteFreshUploadOnDbFailure(
+				data.qrCodeUrl,
+				"Failed to delete new QR file from storage after create validation failure",
+			);
+			return {
+				success: false,
+				message: `No se pudo crear el código QR: ${getValidationErrorMessage(error)}`,
+			};
+		}
 		console.error(error);
 		await deleteFreshUploadOnDbFailure(
 			data.qrCodeUrl,
@@ -107,15 +124,16 @@ export async function updateQrCode(
 			return { success: false, message: "Código QR no encontrado." };
 		}
 		existingBeforeUpdate = { qrCodeUrl: existing.qrCodeUrl };
+		const parsedData = qrCodeFormSchema.partial().parse(data);
 
 		const previousQrCodeUrl =
-			data.qrCodeUrl && data.qrCodeUrl !== existing.qrCodeUrl
+			parsedData.qrCodeUrl && parsedData.qrCodeUrl !== existing.qrCodeUrl
 				? existing.qrCodeUrl
 				: null;
 
 		await db
 			.update(qrCodes)
-			.set({ ...data, updatedAt: new Date() })
+			.set({ ...parsedData, updatedAt: new Date() })
 			.where(eq(qrCodes.id, id));
 
 		if (previousQrCodeUrl) {
@@ -129,6 +147,22 @@ export async function updateQrCode(
 			}
 		}
 	} catch (error) {
+		if (error instanceof ZodError) {
+			if (
+				existingBeforeUpdate &&
+				data.qrCodeUrl &&
+				data.qrCodeUrl !== existingBeforeUpdate.qrCodeUrl
+			) {
+				await deleteFreshUploadOnDbFailure(
+					data.qrCodeUrl,
+					"Failed to delete new QR file from storage after update validation failure",
+				);
+			}
+			return {
+				success: false,
+				message: `No se pudo actualizar el código QR: ${getValidationErrorMessage(error)}`,
+			};
+		}
 		console.error(error);
 		if (
 			existingBeforeUpdate &&

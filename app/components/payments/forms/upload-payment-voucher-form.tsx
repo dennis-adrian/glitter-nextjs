@@ -24,7 +24,7 @@ export default function UploadPaymentVoucherForm(
 	const [isPending, startTransition] = useTransition();
 	const form = useForm();
 
-	const action: () => void = form.handleSubmit(() => {
+	const action = form.handleSubmit(async () => {
 		const payment = props.invoice.payments[props.invoice.payments.length - 1];
 		const voucherUrl = props.newVoucherUrl;
 		if (!voucherUrl) {
@@ -32,33 +32,33 @@ export default function UploadPaymentVoucherForm(
 			return;
 		}
 
-		startTransition(async () => {
-			try {
-				const res = await createPayment({
-					payment: {
-						id: payment?.id,
-						date: new Date(),
-						amount: props.invoice.amount,
-						invoiceId: props.invoice.id,
-						voucherUrl,
-					},
-					oldVoucherUrl: payment?.voucherUrl,
-					reservationId: props.invoice.reservationId,
-					standId: props.invoice.reservation.standId,
-				});
+		try {
+			const res = await createPayment({
+				payment: {
+					id: payment?.id,
+					date: new Date(),
+					amount: props.invoice.amount,
+					invoiceId: props.invoice.id,
+					voucherUrl,
+				},
+				oldVoucherUrl: payment?.voucherUrl,
+				reservationId: props.invoice.reservationId,
+				standId: props.invoice.reservation.standId,
+			});
 
-				if (res.success) {
-					toast.success("Pago enviado con éxito.");
+			if (res.success) {
+				toast.success("Pago enviado con éxito.");
+				startTransition(() => {
 					router.push(
 						`/profiles/${props.invoice.userId}/invoices/${props.invoice.id}/success`,
 					);
-				} else {
-					toast.error("Error al enviar el pago");
-				}
-			} catch {
+				});
+			} else {
 				toast.error("Error al enviar el pago");
 			}
-		});
+		} catch {
+			toast.error("Error al enviar el pago");
+		}
 	});
 
 	if (props.hideSubmitButton) {
@@ -72,7 +72,6 @@ export default function UploadPaymentVoucherForm(
 					<SubmitButton
 						disabled={
 							form.formState.isSubmitting ||
-							form.formState.isSubmitSuccessful ||
 							isPending ||
 							props.disabled ||
 							props.loading
