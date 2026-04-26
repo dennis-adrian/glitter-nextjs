@@ -23,11 +23,18 @@ export default function UploadPaymentVoucherModal(
 	const [voucherUrl, setVoucherUrl] = useState<string | undefined>(
 		existingVoucherUrl,
 	);
+	const [hasUserUploaded, setHasUserUploaded] = useState(false);
 
 	useEffect(() => {
+		if (hasUserUploaded) return;
 		setIsUploadStarted(Boolean(existingVoucherUrl));
 		setVoucherUrl(existingVoucherUrl);
-	}, [existingVoucherUrl]);
+	}, [existingVoucherUrl, hasUserUploaded]);
+
+	useEffect(() => {
+		if (!props.open) return;
+		setHasUserUploaded(false);
+	}, [props.open, props.invoice.id]);
 
 	return (
 		<BaseModal
@@ -38,7 +45,10 @@ export default function UploadPaymentVoucherModal(
 			<div className="mt-4">
 				<PaymentProofUpload
 					voucherImageUrl={voucherUrl}
-					onUploadComplete={setVoucherUrl}
+					onUploadComplete={(newUrl) => {
+						setHasUserUploaded(true);
+						setVoucherUrl(newUrl);
+					}}
 					onUploading={(isUploading) => {
 						setIsUploadStarted(true);
 						setIsUploading(isUploading);
