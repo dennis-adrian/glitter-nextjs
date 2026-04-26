@@ -1,19 +1,19 @@
 import QrCodeForm from "@/app/components/organisms/qr_codes/qr-code-form";
-import ResourceNotFound from "@/app/components/resource-not-found";
 import { fetchQrCode } from "@/app/lib/qr_codes/actions";
+import { notFound } from "next/navigation";
 import { z } from "zod";
 
-const ParamsSchema = z.object({ id: z.coerce.number() });
+const ParamsSchema = z.object({ id: z.coerce.number().int().positive() });
 
 export default async function EditQrCodePage(props: {
 	params: Promise<{ id: string }>;
 }) {
 	const params = await props.params;
 	const validated = ParamsSchema.safeParse(params);
-	if (!validated.success) return <ResourceNotFound />;
+	if (!validated.success) notFound();
 
 	const qrCode = await fetchQrCode(validated.data.id);
-	if (!qrCode) return <ResourceNotFound />;
+	if (!qrCode) notFound();
 
 	return (
 		<div className="container p-4 md:p-6">

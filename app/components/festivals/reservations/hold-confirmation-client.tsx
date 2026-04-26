@@ -169,7 +169,7 @@ export default function HoldConfirmationClient({
 	sectorId,
 }: HoldConfirmationClientProps) {
 	const router = useRouter();
-	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [isSubmitting, startSubmitTransition] = useTransition();
 	const [selectedPartnerId, setSelectedPartnerId] = useState<
 		number | undefined
 	>();
@@ -297,72 +297,70 @@ export default function HoldConfirmationClient({
 			minimumFractionDigits: 2,
 		}).format(price);
 
-	const handleConfirm = async () => {
+	const handleConfirm = () => {
 		if (isSubmitting) return;
-		setIsSubmitting(true);
-		try {
-			const res = await confirmStandHold(
-				hold.id,
-				profile.id,
-				selectedPartnerId,
-			);
-			if (res.success && res.reservationId) {
-				confetti({
-					particleCount: 100,
-					spread: 70,
-					origin: { y: 0.6 },
-				});
-				posthog.capture(POSTHOG_EVENTS.RESERVATION_CONFIRMED, {
+		startSubmitTransition(async () => {
+			try {
+				const res = await confirmStandHold(
+					hold.id,
+					profile.id,
+					selectedPartnerId,
+				);
+				if (res.success && res.reservationId) {
+					confetti({
+						particleCount: 100,
+						spread: 70,
+						origin: { y: 0.6 },
+					});
+					posthog.capture(POSTHOG_EVENTS.RESERVATION_CONFIRMED, {
+						festival_id: festival.id,
+						festival_name: festival.name,
+						stand_id: stand.id,
+						stand_number: stand.standNumber,
+						stand_price: stand.price,
+						profile_category: profile.category,
+						has_partner: !!selectedPartnerId,
+						reservation_id: res.reservationId,
+					});
+					toast.success(res.message);
+					router.replace(
+						`/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.reservationId}/payments`,
+					);
+				} else {
+					toast.info(res.message);
+					router.replace(mapUrl);
+				}
+			} catch {
+				toast.error("Error al confirmar la reserva");
+			}
+		});
+	};
+
+	const handleCancel = () => {
+		if (isSubmitting) return;
+		startSubmitTransition(async () => {
+			try {
+				await cancelStandHold(hold.id, profile.id);
+				posthog.capture(POSTHOG_EVENTS.RESERVATION_CANCELLED, {
 					festival_id: festival.id,
 					festival_name: festival.name,
 					stand_id: stand.id,
 					stand_number: stand.standNumber,
-					stand_price: stand.price,
 					profile_category: profile.category,
-					has_partner: !!selectedPartnerId,
-					reservation_id: res.reservationId,
 				});
-				toast.success(res.message);
-				router.replace(
-					`/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.reservationId}/payments`,
-				);
-			} else {
-				toast.info(res.message);
+				toast.info("Reserva temporal cancelada", {
+					duration: 2000,
+				});
 				router.replace(mapUrl);
+			} catch {
+				toast.error("Error al cancelar");
 			}
-		} catch {
-			toast.error("Error al confirmar la reserva");
-		} finally {
-			setIsSubmitting(false);
-		}
+		});
 	};
 
-	const handleCancel = async () => {
-		if (isSubmitting) return;
-		setIsSubmitting(true);
-		try {
-			await cancelStandHold(hold.id, profile.id);
-			posthog.capture(POSTHOG_EVENTS.RESERVATION_CANCELLED, {
-				festival_id: festival.id,
-				festival_name: festival.name,
-				stand_id: stand.id,
-				stand_number: stand.standNumber,
-				profile_category: profile.category,
-			});
-			toast.info("Reserva temporal cancelada", {
-				duration: 2000,
-			});
-			router.replace(mapUrl);
-		} catch {
-			toast.error("Error al cancelar");
-		} finally {
-			setIsSubmitting(false);
-		}
-	};
-
-	const handleExitConfirm = async () => {
+	const handleExitConfirm = () => {
 		setShowExitDialog(false);
-		await handleCancel();
+		handleCancel();
 	};
 
 	const isExpired = remainingSeconds === 0;
