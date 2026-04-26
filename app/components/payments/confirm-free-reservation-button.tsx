@@ -8,7 +8,7 @@ import { confirmFreeInvoice } from "@/app/data/invoices/actions";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 import { CheckIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -21,9 +21,11 @@ export default function ConfirmFreeReservationButton({
 }: ConfirmFreeReservationButtonProps) {
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
+	const [isConfirming, setIsConfirming] = useState(false);
 	const form = useForm();
 
 	const action: () => void = form.handleSubmit(() => {
+		setIsConfirming(true);
 		startTransition(async () => {
 			try {
 				const res = await confirmFreeInvoice({
@@ -33,6 +35,7 @@ export default function ConfirmFreeReservationButton({
 				});
 
 				if (res.success) {
+					form.reset();
 					posthog.capture(POSTHOG_EVENTS.FREE_RESERVATION_CONFIRMED, {
 						invoice_id: invoice.id,
 						reservation_id: invoice.reservationId,
@@ -46,12 +49,13 @@ export default function ConfirmFreeReservationButton({
 					toast.error(res.message);
 				}
 			} catch (error) {
-				const errorMessage =
-					error instanceof Error ? ` ${error.message}` : "";
+				const errorMessage = error instanceof Error ? ` ${error.message}` : "";
 				toast.error(
 					`No se pudo confirmar la reserva. Inténtalo de nuevo.${errorMessage}`,
 				);
 				console.error("Error confirming free reservation:", error);
+			} finally {
+				setIsConfirming(false);
 			}
 		});
 	});
@@ -60,12 +64,8 @@ export default function ConfirmFreeReservationButton({
 		<Form {...form}>
 			<form className="w-full mt-4" onSubmit={action}>
 				<SubmitButton
-					disabled={
-						form.formState.isSubmitting ||
-						form.formState.isSubmitSuccessful ||
-						isPending
-					}
-					loading={form.formState.isSubmitting || isPending}
+					disabled={form.formState.isSubmitting || isConfirming || isPending}
+					loading={form.formState.isSubmitting || isConfirming || isPending}
 				>
 					Confirmar reserva
 					<CheckIcon className="h-4 w-4 ml-2" />
