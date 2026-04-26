@@ -12,14 +12,15 @@ export default async function EditQrCodePage(props: {
 	const validated = ParamsSchema.safeParse(params);
 	if (!validated.success) notFound();
 
-	const qrCode = await fetchQrCode(validated.data.id);
-	if (!qrCode) notFound();
+	const qrCodeResult = await fetchQrCode(validated.data.id);
+	if ("error" in qrCodeResult) throw qrCodeResult.error;
+	if (!qrCodeResult.found) notFound();
 
 	return (
 		<div className="container p-4 md:p-6">
 			<h1 className="text-2xl font-bold mb-4">Editar código QR</h1>
 			<div className="max-w-lg">
-				<QrCodeForm qrCode={qrCode} />
+				<QrCodeForm qrCode={qrCodeResult.qr} />
 			</div>
 		</div>
 	);

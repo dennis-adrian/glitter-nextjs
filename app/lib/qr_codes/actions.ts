@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { qrCodes, stands } from "@/db/schema";
-import { and, asc, eq, gt } from "drizzle-orm";
+import { and, asc, eq, gt, InferSelectModel } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 
@@ -15,6 +15,12 @@ export type QrCodeMutationResult = {
 	message: string;
 	fileDeletionError?: string;
 };
+
+type QrCodeRecord = InferSelectModel<typeof qrCodes>;
+export type FetchQrCodeResult =
+	| { found: true; qr: QrCodeRecord }
+	| { found: false }
+	| { error: Error };
 
 /** Best-effort cleanup of an upload if a DB write failed; logs failures, does not throw. */
 async function deleteFreshUploadOnDbFailure(
@@ -59,14 +65,23 @@ export async function fetchQrCodes() {
 	}
 }
 
-export async function fetchQrCode(id: number) {
+export async function fetchQrCode(id: number): Promise<FetchQrCodeResult> {
 	try {
-		return await db.query.qrCodes.findFirst({
+		const qr = await db.query.qrCodes.findFirst({
 			where: eq(qrCodes.id, id),
 		});
+		if (!qr) {
+			return { found: false };
+		}
+		return { found: true, qr };
 	} catch (error) {
 		console.error(error);
-		return null;
+		return {
+			error:
+				error instanceof Error
+					? error
+					: new Error("Unexpected error while fetching QR code."),
+		};
 	}
 }
 
@@ -83,10 +98,6 @@ export async function createQrCode(
 		await db.insert(qrCodes).values(parsedData);
 	} catch (error) {
 		if (error instanceof ZodError) {
-			await deleteFreshUploadOnDbFailure(
-				data.qrCodeUrl,
-				"Failed to delete new QR file from storage after create validation failure",
-			);
 			return {
 				success: false,
 				message: `No se pudo crear el código QR: ${getValidationErrorMessage(error)}`,
@@ -148,16 +159,6 @@ export async function updateQrCode(
 		}
 	} catch (error) {
 		if (error instanceof ZodError) {
-			if (
-				existingBeforeUpdate &&
-				data.qrCodeUrl &&
-				data.qrCodeUrl !== existingBeforeUpdate.qrCodeUrl
-			) {
-				await deleteFreshUploadOnDbFailure(
-					data.qrCodeUrl,
-					"Failed to delete new QR file from storage after update validation failure",
-				);
-			}
 			return {
 				success: false,
 				message: `No se pudo actualizar el código QR: ${getValidationErrorMessage(error)}`,
