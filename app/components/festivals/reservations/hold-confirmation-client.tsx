@@ -176,7 +176,6 @@ export default function HoldConfirmationClient({
 		number | undefined
 	>();
 	const [addPartner, setAddPartner] = useState(false);
-	const [showExitDialog, setShowExitDialog] = useState(false);
 	const [isRefreshing, startRefreshTransition] = useTransition();
 	const [isPartnerSearchOpen, setIsPartnerSearchOpen] = useState(false);
 	const [partnerSearchTerm, setPartnerSearchTerm] = useState("");
@@ -371,11 +370,6 @@ export default function HoldConfirmationClient({
 		});
 	};
 
-	const handleExitConfirm = () => {
-		setShowExitDialog(false);
-		handleCancel();
-	};
-
 	const isExpired = remainingSeconds === 0;
 	const selectedPartner = selectedPartnerId
 		? dynamicPartnerOptions.find((o) => o.value === String(selectedPartnerId))
@@ -387,7 +381,7 @@ export default function HoldConfirmationClient({
 				step={2}
 				totalSteps={3}
 				backLabel="Volver al mapa"
-				onBack={() => setShowExitDialog(true)}
+				onBack={() => handleCancel()}
 			/>
 			<div className="flex-1 px-4 py-4 md:py-6">
 				<div className="mx-auto max-w-lg">
@@ -615,24 +609,6 @@ export default function HoldConfirmationClient({
 					</Button>
 				</div>
 			</div>
-
-			{/* Exit confirmation dialog */}
-			<AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>¿Salir de la confirmación?</AlertDialogTitle>
-						<AlertDialogDescription>
-							Se liberará tu espacio temporal y podrás elegir otro stand.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Quedarme</AlertDialogCancel>
-						<Button onClick={handleExitConfirm} disabled={isSubmitting}>
-							Sí, volver al mapa
-						</Button>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
 		</div>
 	);
 }
