@@ -1,4 +1,5 @@
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import { cn } from "@/app/lib/utils";
 import { Loader2 } from "lucide-react";
 import { SyntheticEvent } from "react";
 
@@ -15,73 +16,116 @@ type Props = {
 	options?: SearchOption[];
 	onSelect: (e: SyntheticEvent<HTMLLIElement>) => void;
 	isLoading?: boolean;
+	searchTerm?: string;
+	defaultOptions?: SearchOption[];
 };
 
-const SearchInputContent = (props: Props) => {
-	let items;
-	if (props.isLoading) {
-		items = (
-			<li className="flex items-center gap-2 p-2 text-muted-foreground text-sm">
+const SearchInputContent = ({
+	show,
+	options,
+	onSelect,
+	isLoading,
+	defaultOptions,
+	searchTerm,
+}: Props) => {
+	let content = null;
+
+	const defaultItems =
+		defaultOptions?.map((option) => (
+			<SearchInputContentItem
+				key={option.value}
+				option={option}
+				onSelect={onSelect}
+			/>
+		)) ?? [];
+
+	const searchItems = options?.map((option) => (
+		<SearchInputContentItem
+			key={option.value}
+			option={option}
+			onSelect={onSelect}
+		/>
+	));
+
+	if (isLoading) {
+		content = (
+			<div className="flex items-center gap-2">
 				<Loader2 className="h-4 w-4 animate-spin" />
-				<span>Buscando...</span>
-			</li>
+				<span className="text-sm text-muted-foreground">Buscando...</span>
+			</div>
 		);
-	} else if (!props.options?.length) {
-		items = (
-			<li className="disabled">
-				<span>No se encontraron resultados</span>
-			</li>
+	} else if (defaultItems.length > 0 && !searchItems?.length && !searchTerm) {
+		content = (
+			<>
+				<h2 className="text-sm font-medium mb-2">
+					Compartiste espacio anteriormente
+				</h2>
+				<ul>{defaultItems}</ul>
+			</>
+		);
+	} else if (searchTerm && options?.length === 0) {
+		content = (
+			<p className="text-sm text-muted-foreground">
+				No se encontraron resultados para "{searchTerm}"
+			</p>
 		);
 	} else {
-		items = props.options!.map((option) =>
-			option.disabled ? (
-				<li
-					className="rounded-lg p-2 cursor-not-allowed opacity-50"
-					key={option.value}
-				>
-					<div className="flex justify-between items-center">
-						<div className="flex flex-col">
-							<span>{option.label}</span>
-							{option.disabledReason && (
-								<span className="text-xs text-muted-foreground">
-									{option.disabledReason}
-								</span>
-							)}
-						</div>
-						{option.imageUrl && (
-							<Avatar className="w-6 h-6">
-								<AvatarImage alt="avatar" src={option.imageUrl} />
-							</Avatar>
-						)}
-					</div>
-				</li>
-			) : (
-				<li
-					className="hover:bg-secondary hover:text-secondary-foreground rounded-lg p-2 cursor-pointer"
-					key={option.value}
-					value={option.value}
-					onClick={props.onSelect}
-				>
-					<div className="flex justify-between items-center">
-						<span>{option.label}</span>
-						{option.imageUrl && (
-							<Avatar className="w-6 h-6">
-								<AvatarImage alt="avatar" src={option.imageUrl} />
-							</Avatar>
-						)}
-					</div>
-				</li>
-			),
+		content = (
+			<>
+				<h2 className="text-sm font-medium mb-2">Resultados de la búsqueda</h2>
+				<ul>{searchItems}</ul>
+			</>
 		);
 	}
 
 	return (
-		<div className={`${props.show ? "block" : "hidden"}`}>
-			<ul tabIndex={0} className="p-2 shadow rounded-lg w-full mt-4">
-				{items}
-			</ul>
+		<div
+			className={cn(
+				"absolute top-0 left-0 w-full mt-3 rounded-lg shadow-md bg-card border p-4 min-h-32",
+				show ? "block" : "hidden",
+			)}
+		>
+			{content}
 		</div>
 	);
 };
+
+export function SearchInputContentItem({
+	option,
+	onSelect,
+}: {
+	option: SearchOption;
+	onSelect: (e: SyntheticEvent<HTMLLIElement>) => void;
+}) {
+	return (
+		<li
+			key={option.value}
+			className={cn(
+				"rounded-lg p-2 cursor-pointer",
+				!option.disabled &&
+					"hover:ring-1 hover:ring-ring hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+				option.disabled && "opacity-50 cursor-not-allowed",
+			)}
+			value={option.value}
+			onClick={!option.disabled ? onSelect : undefined}
+		>
+			<div className="flex gap-2 items-center">
+				{option.imageUrl && (
+					<Avatar className="w-10 h-10">
+						<AvatarImage alt="avatar" src={option.imageUrl} />
+					</Avatar>
+				)}
+				<div className="flex flex-col">
+					<span>{option.label}</span>
+					{option.disabledReason && (
+						<span className="text-xs text-muted-foreground">
+							{option.disabledReason}
+						</span>
+					)}
+				</div>
+			</div>
+		</li>
+	);
+}
 
 export default SearchInputContent;

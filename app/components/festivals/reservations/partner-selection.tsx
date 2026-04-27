@@ -119,9 +119,10 @@ export default function PartnerSelection({
 				<SearchInput
 					id="partner-search"
 					options={options}
+					defaultOptions={defaultOptions}
 					placeholder="Ingresa el nombre..."
 					onSearch={onPartnerSearch}
-					isLoading={isSearching}
+					isLoading={isSearching || isRefreshing}
 					onSelect={(id) => {
 						const parsed = typeof id === "string" ? Number(id) : id;
 						onSelectPartner(Number.isFinite(parsed) ? parsed : undefined);

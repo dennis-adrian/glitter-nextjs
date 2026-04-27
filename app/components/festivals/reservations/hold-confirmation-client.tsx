@@ -193,8 +193,8 @@ export default function HoldConfirmationClient({
 				setDynamicPartnerOptions([]);
 				return;
 			}
-			setIsSearching(true);
 			try {
+				setIsSearching(true);
 				const results = await searchPotentialPartners(
 					festival.id,
 					profile.id,

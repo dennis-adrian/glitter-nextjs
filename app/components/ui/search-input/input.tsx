@@ -16,6 +16,7 @@ type Props = {
 	label?: string;
 	labelStyles?: string;
 	options: SearchOption[];
+	defaultOptions?: SearchOption[];
 	placeholder?: string;
 	onSelect: (selectedId: number) => void;
 	onSearch?: (term: string) => void;
@@ -27,6 +28,7 @@ const SearchInput = ({
 	label,
 	labelStyles,
 	options,
+	defaultOptions,
 	placeholder = "Buscar...",
 	onSelect,
 	onSearch,
@@ -35,6 +37,7 @@ const SearchInput = ({
 	const [inputText, setInputText] = useState("");
 	const [searchedOptions, setSearchedOptions] =
 		useState<SearchOption[]>(options);
+	const [isFocused, setIsFocused] = useState(false);
 
 	const inputTextRef = useRef(inputText);
 	const onSearchRef = useRef(onSearch);
@@ -102,15 +105,21 @@ const SearchInput = ({
 					type="search"
 					placeholder={placeholder}
 					value={inputText}
-					onChange={(e) => setInputText(e.target.value)}
+					onChange={(e) => setInputText(e.target.value.trim())}
+					onFocus={() => setIsFocused(true)}
+					onBlur={() => setIsFocused(false)}
 				/>
 			</div>
-			<SearchContent
-				show={!!inputText}
-				options={visibleOptions}
-				onSelect={handleSelect}
-				isLoading={isLoading}
-			/>
+			<div className="relative">
+				<SearchContent
+					defaultOptions={defaultOptions ?? []}
+					show={isFocused}
+					options={visibleOptions}
+					onSelect={handleSelect}
+					searchTerm={inputText}
+					isLoading={isLoading}
+				/>
+			</div>
 		</div>
 	);
 };
