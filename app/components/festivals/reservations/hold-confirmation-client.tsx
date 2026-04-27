@@ -7,10 +7,12 @@ import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
 import { toast } from "sonner";
 import { ArrowRight, RefreshCw, TimerIcon, Trash2Icon } from "lucide-react";
+import { useDebouncedCallback } from "use-debounce";
 
 import { Button } from "@/app/components/ui/button";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import SearchInput from "@/app/components/ui/search-input/input";
+import MobileSearchScreen from "@/app/components/ui/mobile-search-screen";
 import { Label } from "@/app/components/ui/label";
 import MapCanvas from "@/app/components/maps/map-canvas";
 import {
@@ -176,6 +178,8 @@ export default function HoldConfirmationClient({
 	const [addPartner, setAddPartner] = useState(false);
 	const [showExitDialog, setShowExitDialog] = useState(false);
 	const [isRefreshing, startRefreshTransition] = useTransition();
+	const [isPartnerSearchOpen, setIsPartnerSearchOpen] = useState(false);
+	const [partnerSearchTerm, setPartnerSearchTerm] = useState("");
 	const [dynamicPartnerOptions, setDynamicPartnerOptions] = useState<
 		SearchOption[]
 	>([]);
@@ -228,6 +232,15 @@ export default function HoldConfirmationClient({
 			}
 		}, 100);
 	};
+
+	const debouncedPartnerSearch = useDebouncedCallback((term: string) => {
+		handlePartnerSearch(term);
+	}, 300);
+
+	useEffect(() => {
+		if (!isPartnerSearchOpen) return;
+		debouncedPartnerSearch(partnerSearchTerm);
+	}, [partnerSearchTerm, isPartnerSearchOpen, debouncedPartnerSearch]);
 
 	// Countdown timer
 	const [remainingSeconds, setRemainingSeconds] = useState(() => {
@@ -364,6 +377,9 @@ export default function HoldConfirmationClient({
 	};
 
 	const isExpired = remainingSeconds === 0;
+	const selectedPartner = selectedPartnerId
+		? dynamicPartnerOptions.find((o) => o.value === String(selectedPartnerId))
+		: undefined;
 
 	return (
 		<div className="flex min-h-[calc(100dvh-4rem)] flex-col">
@@ -467,48 +483,100 @@ export default function HoldConfirmationClient({
 										)}
 									</div>
 									{selectedPartnerId ? (
-										(() => {
-											const partner = dynamicPartnerOptions.find(
-												(o) => o.value === String(selectedPartnerId),
-											);
-											return (
-												<div className="flex items-center justify-between">
-													<div className="flex items-center gap-3">
-														<Avatar>
-															<AvatarImage
-																src={partner?.imageUrl ?? undefined}
-																alt="avatar"
-															/>
-														</Avatar>
-														<span className="font-medium">
-															{partner?.label}
-														</span>
-													</div>
-													<Button
-														size="icon"
-														onClick={() => setSelectedPartnerId(undefined)}
-														aria-label="Quitar compañero"
-														className="text-destructive bg-card hover:bg-destructive hover:text-destructive-foreground transition-colors"
-													>
-														<Trash2Icon className="h-4 w-4" />
-													</Button>
-												</div>
-											);
-										})()
+										<div className="flex items-center justify-between">
+											<div className="flex items-center gap-3">
+												<Avatar>
+													<AvatarImage
+														src={selectedPartner?.imageUrl ?? undefined}
+														alt="avatar"
+													/>
+												</Avatar>
+												<span className="font-medium">
+													{selectedPartner?.label ?? "Compañero seleccionado"}
+												</span>
+											</div>
+											<Button
+												size="icon"
+												onClick={() => setSelectedPartnerId(undefined)}
+												aria-label="Quitar compañero"
+												className="text-destructive bg-card hover:bg-destructive hover:text-destructive-foreground transition-colors"
+											>
+												<Trash2Icon className="h-4 w-4" />
+											</Button>
+										</div>
 									) : (
-										<SearchInput
-											id="partner-search"
-											options={dynamicPartnerOptions}
-											placeholder="Ingresa el nombre..."
-											onSearch={handlePartnerSearch}
-											isLoading={isSearching}
-											onSelect={(id) => {
-												const parsed = typeof id === "string" ? Number(id) : id;
-												setSelectedPartnerId(
-													Number.isFinite(parsed) ? parsed : undefined,
-												);
-											}}
-										/>
+										<>
+											<div className="md:hidden">
+												<Button
+													type="button"
+													variant="outline"
+													className="w-full justify-start text-muted-foreground"
+													onClick={() => setIsPartnerSearchOpen(true)}
+												>
+													Buscar compañero
+												</Button>
+											</div>
+
+											<div className="hidden md:block">
+												<SearchInput
+													id="partner-search"
+													options={dynamicPartnerOptions}
+													placeholder="Ingresa el nombre..."
+													onSearch={handlePartnerSearch}
+													isLoading={isSearching}
+													onSelect={(id) => {
+														const parsed =
+															typeof id === "string" ? Number(id) : id;
+														setSelectedPartnerId(
+															Number.isFinite(parsed) ? parsed : undefined,
+														);
+													}}
+												/>
+											</div>
+
+											<MobileSearchScreen
+												open={isPartnerSearchOpen}
+												onOpenChange={setIsPartnerSearchOpen}
+												title="Buscar compañero"
+												searchInputId="partner-search-mobile"
+												searchPlaceholder="Ingresa el nombre..."
+												searchValue={partnerSearchTerm}
+												onSearchValueChange={setPartnerSearchTerm}
+												options={
+													partnerSearchTerm.trim() ? dynamicPartnerOptions : []
+												}
+												isLoading={isSearching}
+												headerActions={
+													<Button
+														variant="ghost"
+														size="icon"
+														onClick={handleRefreshPartners}
+														disabled={isRefreshing}
+														aria-label="Actualizar lista"
+													>
+														<RefreshCw
+															className={cn(
+																"h-4 w-4",
+																isRefreshing && "animate-spin",
+															)}
+														/>
+													</Button>
+												}
+												messages={{
+													empty: partnerSearchTerm.trim()
+														? "No se encontraron resultados"
+														: "Ingresa un nombre para buscar",
+												}}
+												onSelect={(value) => {
+													const parsed =
+														typeof value === "string" ? Number(value) : value;
+													setSelectedPartnerId(
+														Number.isFinite(parsed) ? parsed : undefined,
+													);
+													setIsPartnerSearchOpen(false);
+												}}
+											/>
+										</>
 									)}
 								</div>
 							) : (
