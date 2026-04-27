@@ -39,13 +39,14 @@ const SearchInputContent = ({
 			/>
 		)) ?? [];
 
-	const searchItems = options?.map((option) => (
-		<SearchInputContentItem
-			key={option.value}
-			option={option}
-			onSelect={onSelect}
-		/>
-	));
+	const searchItems =
+		options?.map((option) => (
+			<SearchInputContentItem
+				key={option.value}
+				option={option}
+				onSelect={onSelect}
+			/>
+		)) ?? [];
 
 	if (isLoading) {
 		content = (
@@ -54,7 +55,11 @@ const SearchInputContent = ({
 				<span className="text-sm text-muted-foreground">Buscando...</span>
 			</div>
 		);
-	} else if (defaultItems.length > 0 && !searchItems?.length && !searchTerm) {
+	} else if (
+		defaultItems.length > 0 &&
+		searchItems.length === 0 &&
+		!searchTerm
+	) {
 		content = (
 			<>
 				<h2 className="text-sm font-medium mb-2">
@@ -63,7 +68,7 @@ const SearchInputContent = ({
 				<ul>{defaultItems}</ul>
 			</>
 		);
-	} else if (searchTerm && options?.length === 0) {
+	} else if (searchTerm && searchItems.length === 0) {
 		content = (
 			<p className="text-sm text-muted-foreground">
 				No se encontraron resultados para "{searchTerm}"

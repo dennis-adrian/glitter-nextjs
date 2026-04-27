@@ -107,7 +107,7 @@ const SearchInput = ({
 					value={inputText}
 					onChange={(e) => setInputText(e.target.value.trim())}
 					onFocus={() => setIsFocused(true)}
-					onBlur={() => setIsFocused(false)}
+					onBlur={() => setTimeout(() => setIsFocused(false), 150)}
 				/>
 			</div>
 			<div className="relative">
