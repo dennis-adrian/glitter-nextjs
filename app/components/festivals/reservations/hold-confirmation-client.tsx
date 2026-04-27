@@ -1,48 +1,35 @@
 "use client";
 
-import posthog from "posthog-js";
-import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import confetti from "canvas-confetti";
-import { toast } from "sonner";
-import { ArrowRight, RefreshCw, TimerIcon, Trash2Icon } from "lucide-react";
-import { useDebouncedCallback } from "use-debounce";
 
-import { Button } from "@/app/components/ui/button";
-import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
-import SearchInput from "@/app/components/ui/search-input/input";
-import MobileSearchScreen from "@/app/components/ui/mobile-search-screen";
-import { Label } from "@/app/components/ui/label";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
+import confetti from "canvas-confetti";
+import { ArrowRight, TimerIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
+import { toast } from "sonner";
+
+import { UserCategory } from "@/app/api/users/definitions";
+import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
 import MapCanvas from "@/app/components/maps/map-canvas";
 import {
-	STAND_SIZE,
 	getStandFillColor,
 	getStandStrokeColor,
 	getStandTextColor,
 	SELECTED_FILL,
+	SELECTED_RING,
 	SELECTED_STROKE,
 	SELECTED_TEXT,
-	SELECTED_RING,
+	STAND_SIZE,
 } from "@/app/components/maps/map-utils";
-import { UserCategory } from "@/app/api/users/definitions";
-import { cn } from "@/app/lib/utils";
-import {
-	confirmStandHold,
-	cancelStandHold,
-} from "@/app/lib/stands/hold-actions";
-import { searchPotentialPartners } from "@/app/lib/festivals/actions";
+import { Button } from "@/app/components/ui/button";
 import { type SearchOption } from "@/app/components/ui/search-input/search-content";
-import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
+import { searchPotentialPartners } from "@/app/lib/festivals/actions";
 import {
-	AlertDialog,
-	AlertDialogContent,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogCancel,
-} from "@/app/components/ui/alert-dialog";
+	cancelStandHold,
+	confirmStandHold,
+} from "@/app/lib/stands/hold-actions";
+import PartnerSelection from "./partner-selection";
 
 type ThumbnailStand = {
 	id: number;
@@ -175,10 +162,7 @@ export default function HoldConfirmationClient({
 	const [selectedPartnerId, setSelectedPartnerId] = useState<
 		number | undefined
 	>();
-	const [addPartner, setAddPartner] = useState(false);
 	const [isRefreshing, startRefreshTransition] = useTransition();
-	const [isPartnerSearchOpen, setIsPartnerSearchOpen] = useState(false);
-	const [partnerSearchTerm, setPartnerSearchTerm] = useState("");
 	const [dynamicPartnerOptions, setDynamicPartnerOptions] = useState<
 		SearchOption[]
 	>([]);
@@ -231,15 +215,6 @@ export default function HoldConfirmationClient({
 			}
 		}, 100);
 	};
-
-	const debouncedPartnerSearch = useDebouncedCallback((term: string) => {
-		handlePartnerSearch(term);
-	}, 300);
-
-	useEffect(() => {
-		if (!isPartnerSearchOpen) return;
-		debouncedPartnerSearch(partnerSearchTerm);
-	}, [partnerSearchTerm, isPartnerSearchOpen, debouncedPartnerSearch]);
 
 	// Countdown timer
 	const [remainingSeconds, setRemainingSeconds] = useState(() => {
@@ -393,7 +368,7 @@ export default function HoldConfirmationClient({
 								: "bg-amber-50 border border-amber-200"
 						}`}
 					>
-						<p className="text-sm text-muted-foreground">
+						<p className="text-xs md:text-sm text-amber-900">
 							Confirmá tu reserva antes de que expire el tiempo
 						</p>
 						<div className="flex items-center gap-1">
@@ -414,7 +389,7 @@ export default function HoldConfirmationClient({
 
 					{/* Resumen de Reserva */}
 					<h2 className="text-lg font-semibold mb-3">Resumen de Reserva</h2>
-					<div className="rounded-xl border bg-card shadow-sm p-5 mb-6">
+					<div className="rounded-xl border bg-card shadow-sm p-6 mb-3">
 						<div className="flex gap-4">
 							{/* Left: stand info */}
 							<div className="flex-1 space-y-3">
@@ -452,138 +427,16 @@ export default function HoldConfirmationClient({
 					{/* Partner selection (illustration/new_artist only) */}
 					{(profile.category === "illustration" ||
 						profile.category === "new_artist") && (
-						<div className="rounded-xl border bg-card shadow-sm p-6 mb-6">
-							{addPartner ? (
-								<div className="grid gap-2">
-									<div className="flex items-center justify-between">
-										<Label htmlFor="partner-search">
-											Elige a tu compañero de espacio
-										</Label>
-										{!selectedPartnerId && (
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={handleRefreshPartners}
-												disabled={isRefreshing}
-												aria-label="Actualizar lista"
-											>
-												<RefreshCw
-													className={cn(
-														"h-4 w-4",
-														isRefreshing && "animate-spin",
-													)}
-												/>
-											</Button>
-										)}
-									</div>
-									{selectedPartnerId ? (
-										<div className="flex items-center justify-between">
-											<div className="flex items-center gap-3">
-												<Avatar>
-													<AvatarImage
-														src={selectedPartner?.imageUrl ?? undefined}
-														alt="avatar"
-													/>
-												</Avatar>
-												<span className="font-medium">
-													{selectedPartner?.label ?? "Compañero seleccionado"}
-												</span>
-											</div>
-											<Button
-												size="icon"
-												onClick={() => setSelectedPartnerId(undefined)}
-												aria-label="Quitar compañero"
-												className="text-destructive bg-card hover:bg-destructive hover:text-destructive-foreground transition-colors"
-											>
-												<Trash2Icon className="h-4 w-4" />
-											</Button>
-										</div>
-									) : (
-										<>
-											<div className="md:hidden">
-												<Button
-													type="button"
-													variant="outline"
-													className="w-full justify-start text-muted-foreground"
-													onClick={() => setIsPartnerSearchOpen(true)}
-												>
-													Buscar compañero
-												</Button>
-											</div>
-
-											<div className="hidden md:block">
-												<SearchInput
-													id="partner-search"
-													options={dynamicPartnerOptions}
-													placeholder="Ingresa el nombre..."
-													onSearch={handlePartnerSearch}
-													isLoading={isSearching}
-													onSelect={(id) => {
-														const parsed =
-															typeof id === "string" ? Number(id) : id;
-														setSelectedPartnerId(
-															Number.isFinite(parsed) ? parsed : undefined,
-														);
-													}}
-												/>
-											</div>
-
-											<MobileSearchScreen
-												open={isPartnerSearchOpen}
-												onOpenChange={setIsPartnerSearchOpen}
-												title="Buscar compañero"
-												searchInputId="partner-search-mobile"
-												searchPlaceholder="Ingresa el nombre..."
-												searchValue={partnerSearchTerm}
-												onSearchValueChange={setPartnerSearchTerm}
-												options={
-													partnerSearchTerm.trim() ? dynamicPartnerOptions : []
-												}
-												isLoading={isSearching}
-												headerActions={
-													<Button
-														variant="ghost"
-														size="icon"
-														onClick={handleRefreshPartners}
-														disabled={isRefreshing}
-														aria-label="Actualizar lista"
-													>
-														<RefreshCw
-															className={cn(
-																"h-4 w-4",
-																isRefreshing && "animate-spin",
-															)}
-														/>
-													</Button>
-												}
-												messages={{
-													empty: partnerSearchTerm.trim()
-														? "No se encontraron resultados"
-														: "Ingresa un nombre para buscar",
-												}}
-												onSelect={(value) => {
-													const parsed =
-														typeof value === "string" ? Number(value) : value;
-													setSelectedPartnerId(
-														Number.isFinite(parsed) ? parsed : undefined,
-													);
-													setIsPartnerSearchOpen(false);
-												}}
-											/>
-										</>
-									)}
-								</div>
-							) : (
-								<div className="bg-amber-50 rounded-md p-4 md:p-6 border border-amber-200">
-									<div className="flex flex-col md:flex-row items-center gap-1">
-										<span>¿Compartes espacio?</span>
-										<Button variant="link" onClick={() => setAddPartner(true)}>
-											¡Haz click aquí!
-										</Button>
-									</div>
-								</div>
-							)}
-						</div>
+						<PartnerSelection
+							options={dynamicPartnerOptions}
+							isRefreshing={isRefreshing}
+							isSearching={isSearching}
+							onPartnerSearch={handlePartnerSearch}
+							onRefreshPartners={handleRefreshPartners}
+							onSelectPartner={setSelectedPartnerId}
+							selectedPartnerId={selectedPartnerId}
+							selectedPartner={selectedPartner}
+						/>
 					)}
 				</div>
 			</div>

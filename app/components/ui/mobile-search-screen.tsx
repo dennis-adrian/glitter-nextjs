@@ -2,9 +2,8 @@
 
 import { type ReactNode, useEffect, useRef } from "react";
 
-import { Loader2, SearchIcon } from "lucide-react";
+import { Loader2Icon, SearchIcon, XIcon } from "lucide-react";
 
-import Heading from "@/app/components/atoms/heading";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -73,15 +72,20 @@ export default function MobileSearchScreen<T extends string | number>({
 		onSearchValueChange("");
 	};
 
+	const handleSelect = (value: T) => {
+		onSelect(value);
+		onSearchValueChange("");
+	};
+
 	return (
 		<Drawer direction="bottom" open={open} onOpenChange={onOpenChange}>
 			<DrawerContent className="h-dvh p-0 md:hidden data-[vaul-drawer-direction=bottom]:mt-0 data-[vaul-drawer-direction=bottom]:max-h-dvh data-[vaul-drawer-direction=bottom]:rounded-none">
 				<DrawerHeader className="border-b px-4 py-3 text-left space-y-0">
 					<div className="flex items-center justify-between gap-2 pr-8">
 						<DrawerTitle>
-							<h1 className="font-semibold font-space-grotesk text-lg">
+							<span className="font-semibold font-space-grotesk text-lg">
 								{title}
-							</h1>
+							</span>
 						</DrawerTitle>
 					</div>
 					<DrawerDescription className="sr-only">
@@ -97,11 +101,24 @@ export default function MobileSearchScreen<T extends string | number>({
 								ref={inputRef}
 								id={searchInputId}
 								type="search"
-								className="pl-10 text-base"
+								className="pl-10 pr-10 text-base"
 								placeholder={searchPlaceholder}
 								value={searchValue}
 								onChange={(e) => onSearchValueChange(e.target.value)}
 							/>
+							{searchValue ? (
+								<button
+									type="button"
+									aria-label="Limpiar búsqueda"
+									className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+									onClick={() => {
+										onSearchValueChange("");
+										inputRef.current?.focus();
+									}}
+								>
+									<XIcon className="h-4 w-4" />
+								</button>
+							) : null}
 						</div>
 						<Button
 							variant="ghost"
@@ -120,7 +137,7 @@ export default function MobileSearchScreen<T extends string | number>({
 							messages={messages}
 							options={options}
 							renderOption={renderOption}
-							onSelect={onSelect}
+							onSelect={handleSelect}
 						/>
 					</div>
 				</div>
@@ -160,7 +177,7 @@ function MobileSearchScreenContent<T extends string | number>({
 	if (isLoading) {
 		return (
 			<div className="flex items-center gap-2 p-2 text-sm text-muted-foreground">
-				<Loader2 className="h-4 w-4 animate-spin" />
+				<Loader2Icon className="h-4 w-4 animate-spin" />
 				<span>{messages?.loading ?? "Buscando..."}</span>
 			</div>
 		);

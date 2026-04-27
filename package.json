@@ -3,7 +3,7 @@
   "version": "2.28.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "NODE_OPTIONS='--max-old-space-size=4096' next dev --webpack",
     "build": "npm run generate && next build",
     "start": "next start",
     "lint": "next lint",
