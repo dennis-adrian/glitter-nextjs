@@ -135,6 +135,7 @@ export default function MobileSearchScreen<T extends string | number>({
 					<div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
 						{suggestedOptions?.length && !searchValue ? (
 							<MobileSearchScreenSuggestedOptions
+								headerActions={headerActions}
 								options={suggestedOptions ?? []}
 								onSelect={handleSelect}
 							/>
@@ -235,9 +236,11 @@ function MobileSearchScreenContent<T extends string | number>({
 }
 
 function MobileSearchScreenSuggestedOptions<T extends string | number>({
+	headerActions,
 	options,
 	onSelect,
 }: {
+	headerActions?: ReactNode;
 	options: SearchOption[];
 	onSelect: (value: T) => void;
 }) {
@@ -247,6 +250,7 @@ function MobileSearchScreenSuggestedOptions<T extends string | number>({
 				<h3 className="text-sm font-medium">
 					Compartiste espacio anteriormente
 				</h3>
+				{headerActions}
 			</div>
 			<ul role="listbox" className="flex flex-col gap-2 pb-6">
 				{options.map((option) => (

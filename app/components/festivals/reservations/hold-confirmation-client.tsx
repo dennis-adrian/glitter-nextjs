@@ -182,10 +182,6 @@ export default function HoldConfirmationClient({
 		SearchOption[]
 	>([]);
 	const [isSearching, setIsSearching] = useState(false);
-	const [isLoadingDefaultPartnerOptions, setIsLoadingDefaultPartnerOptions] =
-		useState(false);
-	const [hasLoadedDefaultPartnerOptions, setHasLoadedDefaultPartnerOptions] =
-		useState(false);
 	const lastSearchTermRef = useRef("");
 
 	const mapUrl = `/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${sectorId}`;
