@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	useTransition,
+} from "react";
 
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import confetti from "canvas-confetti";
@@ -30,6 +37,12 @@ import {
 	confirmStandHold,
 } from "@/app/lib/stands/hold-actions";
 import PartnerSelection from "./partner-selection";
+import { RecentSharedStandPartner } from "@/app/lib/festivals/definitions";
+
+const TERMS_AND_CONDITIONS_REASON =
+	"No ha aceptado los términos y condiciones del festival";
+const RESERVED_STAND_REASON = "Ya tiene una reserva en este festival";
+const UNAVAILABLE_PARTNER_REASON = "No está disponible para compartir espacio";
 
 type ThumbnailStand = {
 	id: number;
@@ -41,6 +54,7 @@ type ThumbnailStand = {
 };
 
 type HoldConfirmationClientProps = {
+	recentPartners: RecentSharedStandPartner[];
 	hold: {
 		id: number;
 		expiresAt: string;
@@ -148,14 +162,15 @@ function StandMapThumbnail({
 }
 
 export default function HoldConfirmationClient({
+	festival,
 	hold,
-	stand,
+	mapBounds,
+	profile,
+	recentPartners,
+	sectorId,
 	sectorName,
 	sectorStands,
-	mapBounds,
-	festival,
-	profile,
-	sectorId,
+	stand,
 }: HoldConfirmationClientProps) {
 	const router = useRouter();
 	const [isSubmitting, startSubmitTransition] = useTransition();
@@ -167,6 +182,10 @@ export default function HoldConfirmationClient({
 		SearchOption[]
 	>([]);
 	const [isSearching, setIsSearching] = useState(false);
+	const [isLoadingDefaultPartnerOptions, setIsLoadingDefaultPartnerOptions] =
+		useState(false);
+	const [hasLoadedDefaultPartnerOptions, setHasLoadedDefaultPartnerOptions] =
+		useState(false);
 	const lastSearchTermRef = useRef("");
 
 	const mapUrl = `/profiles/${profile.id}/festivals/${festival.id}/reservations/new/sectors/${sectorId}`;
@@ -192,7 +211,7 @@ export default function HoldConfirmationClient({
 						imageUrl: p.imageUrl,
 						disabled: !p.isEligible,
 						disabledReason: !p.isEligible
-							? "No ha aceptado los términos y condiciones del festival"
+							? TERMS_AND_CONDITIONS_REASON
 							: undefined,
 					})),
 				);
@@ -202,6 +221,31 @@ export default function HoldConfirmationClient({
 		},
 		[festival.id, profile.id],
 	);
+
+	const defaultPartnerOptions = useMemo(() => {
+		return recentPartners.map((partner): SearchOption => {
+			const isUnavailableByProfile = !partner.isSelectable;
+			const disabled =
+				partner.isReserved || !partner.isEligible || isUnavailableByProfile;
+			let disabledReason: string | undefined;
+
+			if (partner.isReserved) {
+				disabledReason = RESERVED_STAND_REASON;
+			} else if (!partner.isEligible) {
+				disabledReason = TERMS_AND_CONDITIONS_REASON;
+			} else if (isUnavailableByProfile) {
+				disabledReason = UNAVAILABLE_PARTNER_REASON;
+			}
+
+			return {
+				label: partner.displayName || "Sin nombre",
+				value: String(partner.id),
+				imageUrl: partner.imageUrl,
+				disabled,
+				disabledReason,
+			};
+		});
+	}, [recentPartners]);
 
 	const handleRefreshPartners = () => {
 		startRefreshTransition(() => {
@@ -346,8 +390,17 @@ export default function HoldConfirmationClient({
 	};
 
 	const isExpired = remainingSeconds === 0;
+	const allKnownPartnerOptions = [
+		...defaultPartnerOptions,
+		...dynamicPartnerOptions.filter(
+			(dynamicOption) =>
+				!defaultPartnerOptions.some(
+					(defaultOption) => defaultOption.value === dynamicOption.value,
+				),
+		),
+	];
 	const selectedPartner = selectedPartnerId
-		? dynamicPartnerOptions.find((o) => o.value === String(selectedPartnerId))
+		? allKnownPartnerOptions.find((o) => o.value === String(selectedPartnerId))
 		: undefined;
 
 	return (
@@ -429,12 +482,12 @@ export default function HoldConfirmationClient({
 						profile.category === "new_artist") && (
 						<PartnerSelection
 							options={dynamicPartnerOptions}
+							defaultOptions={defaultPartnerOptions}
 							isRefreshing={isRefreshing}
 							isSearching={isSearching}
 							onPartnerSearch={handlePartnerSearch}
 							onRefreshPartners={handleRefreshPartners}
 							onSelectPartner={setSelectedPartnerId}
-							selectedPartnerId={selectedPartnerId}
 							selectedPartner={selectedPartner}
 						/>
 					)}

@@ -37,6 +37,7 @@ type MobileSearchScreenProps<T extends string | number = string | number> =
 		searchInputId?: string;
 		searchPlaceholder?: string;
 		searchValue: string;
+		suggestedOptions?: SearchOption[];
 		title: string;
 		onOpenChange: (open: boolean) => void;
 		onSearchValueChange: (value: string) => void;
@@ -52,6 +53,7 @@ export default function MobileSearchScreen<T extends string | number>({
 	searchInputId = "mobile-search-input",
 	searchPlaceholder = "Buscar...",
 	searchValue,
+	suggestedOptions,
 	title,
 	onOpenChange,
 	onSearchValueChange,
@@ -131,14 +133,21 @@ export default function MobileSearchScreen<T extends string | number>({
 					</div>
 
 					<div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-						<MobileSearchScreenContent
-							headerActions={headerActions}
-							isLoading={isLoading}
-							messages={messages}
-							options={options}
-							renderOption={renderOption}
-							onSelect={handleSelect}
-						/>
+						{suggestedOptions?.length && !searchValue ? (
+							<MobileSearchScreenSuggestedOptions
+								options={suggestedOptions ?? []}
+								onSelect={handleSelect}
+							/>
+						) : (
+							<MobileSearchScreenContent
+								headerActions={headerActions}
+								isLoading={isLoading}
+								messages={messages}
+								options={options}
+								renderOption={renderOption}
+								onSelect={handleSelect}
+							/>
+						)}
 					</div>
 				</div>
 			</DrawerContent>
@@ -217,6 +226,44 @@ function MobileSearchScreenContent<T extends string | number>({
 							) : (
 								<MobileSearchScreenOption option={option} />
 							)}
+						</button>
+					</li>
+				))}
+			</ul>
+		</div>
+	);
+}
+
+function MobileSearchScreenSuggestedOptions<T extends string | number>({
+	options,
+	onSelect,
+}: {
+	options: SearchOption[];
+	onSelect: (value: T) => void;
+}) {
+	return (
+		<div>
+			<div className="flex items-center justify-between gap-2 mb-2">
+				<h3 className="text-sm font-medium">
+					Compartiste espacio anteriormente
+				</h3>
+			</div>
+			<ul role="listbox" className="flex flex-col gap-2 pb-6">
+				{options.map((option) => (
+					<li key={option.value}>
+						<button
+							type="button"
+							disabled={option.disabled}
+							onClick={() => onSelect(option.value as T)}
+							className={cn(
+								"w-full text-left p-2 rounded-lg transition-colors",
+								"min-h-11",
+								option.disabled
+									? "cursor-not-allowed opacity-60"
+									: "hover:ring-1 hover:ring-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+							)}
+						>
+							<MobileSearchScreenOption option={option} />
 						</button>
 					</li>
 				))}

@@ -2,7 +2,10 @@ import { fetchUserProfileById } from "@/app/api/users/actions";
 import HoldConfirmationClient from "@/app/components/festivals/reservations/hold-confirmation-client";
 import { computeCanvasBounds } from "@/app/components/maps/map-utils";
 import { fetchSectorWithStandsAndReservations } from "@/app/lib/festival_sectors/actions";
-import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import {
+	fetchBaseFestival,
+	fetchRecentSharedStandPartners,
+} from "@/app/lib/festivals/actions";
 import { fetchHoldWithStand } from "@/app/lib/stands/hold-actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound, redirect } from "next/navigation";
@@ -86,8 +89,14 @@ export default async function HoldConfirmationPage(
 				}
 			: computeCanvasBounds(sector.stands);
 
+	const recentPartners = await fetchRecentSharedStandPartners(
+		festival.id,
+		forProfile.id,
+	);
+
 	return (
 		<HoldConfirmationClient
+			recentPartners={recentPartners}
 			hold={{
 				id: hold.id,
 				expiresAt: hold.expiresAt.toISOString(),

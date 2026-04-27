@@ -16,9 +16,9 @@ import { cn } from "@/app/lib/utils";
 
 type PartnerSelectionProps = {
 	options: SearchOption[];
+	defaultOptions: SearchOption[];
 	isRefreshing: boolean;
 	isSearching: boolean;
-	selectedPartnerId?: number;
 	selectedPartner?: SearchOption;
 	onPartnerSearch: (term: string) => void;
 	onRefreshPartners: () => void;
@@ -27,9 +27,9 @@ type PartnerSelectionProps = {
 
 export default function PartnerSelection({
 	options,
+	defaultOptions,
 	isRefreshing,
 	isSearching,
-	selectedPartnerId,
 	selectedPartner,
 	onPartnerSearch,
 	onRefreshPartners,
@@ -153,6 +153,7 @@ export default function PartnerSelection({
 			)}
 
 			<MobileSearchScreen
+				suggestedOptions={defaultOptions}
 				open={isPartnerSearchOpen}
 				onOpenChange={setIsPartnerSearchOpen}
 				title="Buscar compañero"
