@@ -1,7 +1,7 @@
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { cn } from "@/app/lib/utils";
 import { Loader2 } from "lucide-react";
-import { CSSProperties, ReactNode } from "react";
+import { CSSProperties, ReactNode, SyntheticEvent } from "react";
 
 export type SearchOption = {
 	value: string | number;
@@ -14,7 +14,7 @@ export type SearchOption = {
 type Props = {
 	show: boolean;
 	options?: SearchOption[];
-	onSelect: (value: SearchOption["value"]) => void;
+	onSelect: (e: SyntheticEvent<HTMLButtonElement>) => void;
 	isLoading?: boolean;
 	searchTerm?: string;
 	defaultOptions?: SearchOption[];
@@ -116,13 +116,14 @@ export function SearchInputContentItem({
 	onSelect,
 }: {
 	option: SearchOption;
-	onSelect: (value: SearchOption["value"]) => void;
+	onSelect: (e: SyntheticEvent<HTMLButtonElement>) => void;
 }) {
 	return (
 		<li className="list-none">
 			<button
 				type="button"
 				disabled={option.disabled}
+				data-option-value={JSON.stringify(option.value)}
 				className={cn(
 					"w-full rounded-lg p-2 text-left",
 					!option.disabled &&
@@ -134,7 +135,7 @@ export function SearchInputContentItem({
 						e.preventDefault();
 					}
 				}}
-				onClick={() => onSelect(option.value)}
+				onClick={onSelect}
 			>
 				<div className="flex items-center gap-2">
 					{option.imageUrl && (

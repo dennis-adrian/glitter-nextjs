@@ -2,6 +2,7 @@ import {
 	CSSProperties,
 	FocusEvent,
 	ReactNode,
+	SyntheticEvent,
 	useCallback,
 	useEffect,
 	useRef,
@@ -114,11 +115,20 @@ const SearchInput = ({
 		};
 	}, [isFocused, contentViewportBottomOffset]);
 
-	const handleSelect = (value: SearchOption["value"]) => {
+	const handleSelect = (e: SyntheticEvent<HTMLButtonElement>) => {
+		const btn = e.currentTarget;
+		if (btn.disabled) return;
+		const raw = btn.dataset.optionValue;
+		if (raw === undefined) return;
+		let value: SearchOption["value"];
+		try {
+			value = JSON.parse(raw) as SearchOption["value"];
+		} catch {
+			return;
+		}
 		setInputText("");
 		setIsFocused(false);
-		const selectedId =
-			typeof value === "number" ? value : Number(value);
+		const selectedId = typeof value === "number" ? value : Number(value);
 		if (!Number.isFinite(selectedId)) return;
 		onSelect(selectedId);
 	};
