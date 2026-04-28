@@ -95,33 +95,35 @@ export default async function HoldConfirmationPage(
 	);
 
 	return (
-		<HoldConfirmationClient
-			recentPartners={recentPartners}
-			hold={{
-				id: hold.id,
-				expiresAt: hold.expiresAt.toISOString(),
-			}}
-			stand={{
-				id: hold.stand.id,
-				label: hold.stand.label,
-				standNumber: hold.stand.standNumber,
-				standCategory: hold.stand.standCategory,
-				price: hold.stand.price,
-			}}
-			sectorName={sector?.name ?? ""}
-			sectorStands={sectorStands}
-			mapBounds={mapBounds}
-			festival={{
-				id: festival.id,
-				name: festival.name,
-			}}
-			profile={{
-				id: forProfile.id,
-				displayName: forProfile.displayName,
-				category: forProfile.category,
-				imageUrl: forProfile.imageUrl,
-			}}
-			sectorId={props.sectorId}
-		/>
+		<div className="container p-3 md:p-6">
+			<HoldConfirmationClient
+				recentPartners={recentPartners}
+				hold={{
+					id: hold.id,
+					expiresAt: hold.expiresAt.toISOString(),
+				}}
+				stand={{
+					id: hold.stand.id,
+					label: hold.stand.label,
+					standNumber: hold.stand.standNumber,
+					standCategory: hold.stand.standCategory,
+					price: hold.stand.price,
+				}}
+				sectorName={sector?.name ?? ""}
+				sectorStands={sectorStands}
+				mapBounds={mapBounds}
+				festival={{
+					id: festival.id,
+					name: festival.name,
+				}}
+				profile={{
+					id: forProfile.id,
+					displayName: forProfile.displayName,
+					category: forProfile.category,
+					imageUrl: forProfile.imageUrl,
+				}}
+				sectorId={props.sectorId}
+			/>
+		</div>
 	);
 }

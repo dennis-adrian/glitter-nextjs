@@ -2,7 +2,6 @@ import {
 	CSSProperties,
 	FocusEvent,
 	ReactNode,
-	SyntheticEvent,
 	useCallback,
 	useEffect,
 	useRef,
@@ -115,9 +114,13 @@ const SearchInput = ({
 		};
 	}, [isFocused, contentViewportBottomOffset]);
 
-	const handleSelect = (e: SyntheticEvent<HTMLLIElement>) => {
+	const handleSelect = (value: SearchOption["value"]) => {
 		setInputText("");
-		onSelect(e.currentTarget.value);
+		setIsFocused(false);
+		const selectedId =
+			typeof value === "number" ? value : Number(value);
+		if (!Number.isFinite(selectedId)) return;
+		onSelect(selectedId);
 	};
 
 	const handleInputBlur = (e: FocusEvent<HTMLInputElement>) => {

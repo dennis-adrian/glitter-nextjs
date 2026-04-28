@@ -368,18 +368,22 @@ export default function HoldConfirmationClient({
 		if (isSubmitting) return;
 		startSubmitTransition(async () => {
 			try {
-				await cancelStandHold(hold.id, profile.id);
-				posthog.capture(POSTHOG_EVENTS.RESERVATION_CANCELLED, {
-					festival_id: festival.id,
-					festival_name: festival.name,
-					stand_id: stand.id,
-					stand_number: stand.standNumber,
-					profile_category: profile.category,
-				});
-				toast.info("Reserva temporal cancelada", {
-					duration: 2000,
-				});
-				router.replace(mapUrl);
+				const res = await cancelStandHold(hold.id, profile.id);
+				if (res.success) {
+					posthog.capture(POSTHOG_EVENTS.RESERVATION_CANCELLED, {
+						festival_id: festival.id,
+						festival_name: festival.name,
+						stand_id: stand.id,
+						stand_number: stand.standNumber,
+						profile_category: profile.category,
+					});
+					toast.info(res.message, {
+						duration: 2000,
+					});
+					router.replace(mapUrl);
+				} else {
+					toast.error(res.message);
+				}
 			} catch {
 				toast.error("Error al cancelar");
 			}
@@ -387,15 +391,29 @@ export default function HoldConfirmationClient({
 	};
 
 	const isExpired = remainingSeconds === 0;
-	const allKnownPartnerOptions = [
-		...defaultPartnerOptions,
-		...dynamicPartnerOptions.filter(
-			(dynamicOption) =>
-				!defaultPartnerOptions.some(
-					(defaultOption) => defaultOption.value === dynamicOption.value,
-				),
-		),
-	];
+	const allKnownPartnerOptions = useMemo(
+		() => [
+			...defaultPartnerOptions,
+			...dynamicPartnerOptions.filter(
+				(dynamicOption) =>
+					!defaultPartnerOptions.some(
+						(defaultOption) => defaultOption.value === dynamicOption.value,
+					),
+			),
+		],
+		[defaultPartnerOptions, dynamicPartnerOptions],
+	);
+
+	useEffect(() => {
+		if (selectedPartnerId == null) return;
+		const stillPresent = allKnownPartnerOptions.some(
+			(o) => o.value === String(selectedPartnerId),
+		);
+		if (!stillPresent) {
+			setSelectedPartnerId(undefined);
+		}
+	}, [allKnownPartnerOptions, selectedPartnerId]);
+
 	const selectedPartner = selectedPartnerId
 		? allKnownPartnerOptions.find((o) => o.value === String(selectedPartnerId))
 		: undefined;
@@ -409,7 +427,7 @@ export default function HoldConfirmationClient({
 				onBack={() => handleCancel()}
 			/>
 			<div className="flex-1 px-4 py-4 md:py-6">
-				<div>
+				<div className="mx-auto max-w-2xl">
 					{/* Countdown banner */}
 					<div className="flex flex-col items-end">
 						<p

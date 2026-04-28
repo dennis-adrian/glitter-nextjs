@@ -1,7 +1,7 @@
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { cn } from "@/app/lib/utils";
 import { Loader2 } from "lucide-react";
-import { CSSProperties, ReactNode, SyntheticEvent } from "react";
+import { CSSProperties, ReactNode } from "react";
 
 export type SearchOption = {
 	value: string | number;
@@ -14,7 +14,7 @@ export type SearchOption = {
 type Props = {
 	show: boolean;
 	options?: SearchOption[];
-	onSelect: (e: SyntheticEvent<HTMLLIElement>) => void;
+	onSelect: (value: SearchOption["value"]) => void;
 	isLoading?: boolean;
 	searchTerm?: string;
 	defaultOptions?: SearchOption[];
@@ -116,40 +116,42 @@ export function SearchInputContentItem({
 	onSelect,
 }: {
 	option: SearchOption;
-	onSelect: (e: SyntheticEvent<HTMLLIElement>) => void;
+	onSelect: (value: SearchOption["value"]) => void;
 }) {
 	return (
-		<li
-			key={option.value}
-			className={cn(
-				"rounded-lg p-2 cursor-pointer",
-				!option.disabled &&
-					"hover:ring-1 hover:ring-ring hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-				option.disabled && "opacity-50 cursor-not-allowed",
-			)}
-			value={option.value}
-			onMouseDown={(e) => {
-				if (!option.disabled) {
-					e.preventDefault();
-				}
-			}}
-			onClick={!option.disabled ? onSelect : undefined}
-		>
-			<div className="flex gap-2 items-center">
-				{option.imageUrl && (
-					<Avatar className="w-8 h-8">
-						<AvatarImage alt="avatar" src={option.imageUrl} />
-					</Avatar>
+		<li className="list-none">
+			<button
+				type="button"
+				disabled={option.disabled}
+				className={cn(
+					"w-full rounded-lg p-2 text-left",
+					!option.disabled &&
+						"cursor-pointer hover:ring-1 hover:ring-ring hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+					option.disabled && "cursor-not-allowed opacity-50",
 				)}
-				<div className="flex flex-col">
-					<span className="text-sm">{option.label}</span>
-					{option.disabledReason && (
-						<span className="text-xs text-muted-foreground">
-							{option.disabledReason}
-						</span>
+				onMouseDown={(e) => {
+					if (!option.disabled) {
+						e.preventDefault();
+					}
+				}}
+				onClick={() => onSelect(option.value)}
+			>
+				<div className="flex items-center gap-2">
+					{option.imageUrl && (
+						<Avatar className="h-8 w-8">
+							<AvatarImage alt="avatar" src={option.imageUrl} />
+						</Avatar>
 					)}
+					<div className="flex flex-col">
+						<span className="text-sm">{option.label}</span>
+						{option.disabledReason && (
+							<span className="text-xs text-muted-foreground">
+								{option.disabledReason}
+							</span>
+						)}
+					</div>
 				</div>
-			</div>
+			</button>
 		</li>
 	);
 }
