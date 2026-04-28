@@ -1,4 +1,5 @@
 import {
+	CSSProperties,
 	SyntheticEvent,
 	useCallback,
 	useEffect,
@@ -17,6 +18,8 @@ type Props = {
 	labelStyles?: string;
 	options: SearchOption[];
 	defaultOptions?: SearchOption[];
+	contentMaxHeightClassName?: string;
+	contentViewportBottomOffset?: number;
 	placeholder?: string;
 	onSelect: (selectedId: number) => void;
 	onSearch?: (term: string) => void;
@@ -29,6 +32,8 @@ const SearchInput = ({
 	labelStyles,
 	options,
 	defaultOptions,
+	contentMaxHeightClassName,
+	contentViewportBottomOffset = 0,
 	placeholder = "Buscar...",
 	onSelect,
 	onSearch,
@@ -38,9 +43,11 @@ const SearchInput = ({
 	const [searchedOptions, setSearchedOptions] =
 		useState<SearchOption[]>(options);
 	const [isFocused, setIsFocused] = useState(false);
+	const [contentStyle, setContentStyle] = useState<CSSProperties | undefined>();
 
 	const inputTextRef = useRef(inputText);
 	const onSearchRef = useRef(onSearch);
+	const contentAnchorRef = useRef<HTMLDivElement>(null);
 
 	// Sync refs after render so applyFilter/effects see latest values without being in deps
 	useEffect(() => {
@@ -80,6 +87,29 @@ const SearchInput = ({
 		}
 	}, [applyFilter]);
 
+	useEffect(() => {
+		if (!isFocused) return;
+
+		const updateContentMaxHeight = () => {
+			const rect = contentAnchorRef.current?.getBoundingClientRect();
+			if (!rect) return;
+			const availableHeight = Math.floor(
+				window.innerHeight - rect.top - contentViewportBottomOffset,
+			);
+			if (availableHeight <= 0) return;
+			setContentStyle({ maxHeight: `${Math.max(160, availableHeight)}px` });
+		};
+
+		const raf = requestAnimationFrame(updateContentMaxHeight);
+		window.addEventListener("resize", updateContentMaxHeight);
+		window.addEventListener("scroll", updateContentMaxHeight, true);
+		return () => {
+			cancelAnimationFrame(raf);
+			window.removeEventListener("resize", updateContentMaxHeight);
+			window.removeEventListener("scroll", updateContentMaxHeight, true);
+		};
+	}, [isFocused, contentViewportBottomOffset]);
+
 	const handleSelect = (e: SyntheticEvent<HTMLLIElement>) => {
 		setInputText("");
 		onSelect(e.currentTarget.value);
@@ -110,9 +140,11 @@ const SearchInput = ({
 					onBlur={() => setTimeout(() => setIsFocused(false), 150)}
 				/>
 			</div>
-			<div className="relative">
+			<div ref={contentAnchorRef} className="relative">
 				<SearchContent
 					defaultOptions={defaultOptions ?? []}
+					contentMaxHeightClassName={contentMaxHeightClassName}
+					contentStyle={contentStyle}
 					show={isFocused}
 					options={visibleOptions}
 					onSelect={handleSelect}

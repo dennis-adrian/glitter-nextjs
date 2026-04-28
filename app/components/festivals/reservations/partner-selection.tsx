@@ -120,6 +120,7 @@ export default function PartnerSelection({
 					id="partner-search"
 					options={options}
 					defaultOptions={defaultOptions}
+					contentViewportBottomOffset={96}
 					placeholder="Ingresa el nombre..."
 					onSearch={onPartnerSearch}
 					isLoading={isSearching || isRefreshing}

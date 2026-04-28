@@ -1,7 +1,7 @@
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { cn } from "@/app/lib/utils";
 import { Loader2 } from "lucide-react";
-import { SyntheticEvent } from "react";
+import { CSSProperties, SyntheticEvent } from "react";
 
 export type SearchOption = {
 	value: string | number;
@@ -18,6 +18,8 @@ type Props = {
 	isLoading?: boolean;
 	searchTerm?: string;
 	defaultOptions?: SearchOption[];
+	contentMaxHeightClassName?: string;
+	contentStyle?: CSSProperties;
 };
 
 const SearchInputContent = ({
@@ -27,6 +29,8 @@ const SearchInputContent = ({
 	isLoading,
 	defaultOptions,
 	searchTerm,
+	contentMaxHeightClassName,
+	contentStyle,
 }: Props) => {
 	let content = null;
 
@@ -71,7 +75,7 @@ const SearchInputContent = ({
 	} else if (searchTerm && searchItems.length === 0) {
 		content = (
 			<p className="text-sm text-muted-foreground">
-				No se encontraron resultados para "{searchTerm}"
+				No se encontraron resultados para &quot;{searchTerm}&quot;
 			</p>
 		);
 	} else {
@@ -87,8 +91,12 @@ const SearchInputContent = ({
 		<div
 			className={cn(
 				"absolute top-0 left-0 w-full mt-3 rounded-lg shadow-md bg-card border p-4 min-h-32",
+				(contentMaxHeightClassName || contentStyle?.maxHeight) &&
+					"overflow-y-auto",
+				contentMaxHeightClassName,
 				show ? "block" : "hidden",
 			)}
+			style={contentStyle}
 		>
 			{content}
 		</div>
