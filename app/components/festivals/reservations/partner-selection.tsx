@@ -98,29 +98,27 @@ export default function PartnerSelection({
 	if (addPartner && !isMobile) {
 		return (
 			<div className="rounded-xl border bg-card border-primary shadow-sm p-6 mb-6 flex flex-col gap-2">
-				<div className="flex items-center justify-between">
-					<Label htmlFor="partner-search">
-						Elige a tu compañero de espacio
-					</Label>
-					<Button
-						variant="ghost"
-						size="icon"
-						className="shrink-0"
-						onClick={onRefreshPartners}
-						disabled={isRefreshing}
-						aria-label="Actualizar lista"
-					>
-						<RefreshCwIcon
-							className={cn("h-4 w-4", isRefreshing && "animate-spin")}
-						/>
-					</Button>
-				</div>
+				<Label htmlFor="partner-search">Elige a tu compañero de espacio</Label>
 
 				<SearchInput
 					id="partner-search"
 					options={options}
 					defaultOptions={defaultOptions}
 					contentViewportBottomOffset={96}
+					contentHeaderActions={
+						<Button
+							variant="ghost"
+							size="icon"
+							className="shrink-0"
+							onClick={onRefreshPartners}
+							disabled={isRefreshing}
+							aria-label="Actualizar lista"
+						>
+							<RefreshCwIcon
+								className={cn("h-4 w-4", isRefreshing && "animate-spin")}
+							/>
+						</Button>
+					}
 					placeholder="Ingresa el nombre..."
 					onSearch={onPartnerSearch}
 					isLoading={isSearching || isRefreshing}

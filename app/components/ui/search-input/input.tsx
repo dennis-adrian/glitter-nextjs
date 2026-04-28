@@ -1,5 +1,7 @@
 import {
 	CSSProperties,
+	FocusEvent,
+	ReactNode,
 	SyntheticEvent,
 	useCallback,
 	useEffect,
@@ -20,6 +22,7 @@ type Props = {
 	defaultOptions?: SearchOption[];
 	contentMaxHeightClassName?: string;
 	contentViewportBottomOffset?: number;
+	contentHeaderActions?: ReactNode;
 	placeholder?: string;
 	onSelect: (selectedId: number) => void;
 	onSearch?: (term: string) => void;
@@ -34,6 +37,7 @@ const SearchInput = ({
 	defaultOptions,
 	contentMaxHeightClassName,
 	contentViewportBottomOffset = 0,
+	contentHeaderActions,
 	placeholder = "Buscar...",
 	onSelect,
 	onSearch,
@@ -45,6 +49,7 @@ const SearchInput = ({
 	const [isFocused, setIsFocused] = useState(false);
 	const [contentStyle, setContentStyle] = useState<CSSProperties | undefined>();
 
+	const containerRef = useRef<HTMLDivElement>(null);
 	const inputTextRef = useRef(inputText);
 	const onSearchRef = useRef(onSearch);
 	const contentAnchorRef = useRef<HTMLDivElement>(null);
@@ -115,11 +120,29 @@ const SearchInput = ({
 		onSelect(e.currentTarget.value);
 	};
 
+	const handleInputBlur = (e: FocusEvent<HTMLInputElement>) => {
+		const nextFocusedElement = e.relatedTarget;
+		if (
+			nextFocusedElement &&
+			containerRef.current?.contains(nextFocusedElement as Node)
+		) {
+			return;
+		}
+
+		requestAnimationFrame(() => {
+			const activeElement = document.activeElement;
+			if (activeElement && containerRef.current?.contains(activeElement)) {
+				return;
+			}
+			setIsFocused(false);
+		});
+	};
+
 	// When onSearch is provided, show options directly (server already filtered)
 	const visibleOptions = onSearch ? options : searchedOptions;
 
 	return (
-		<div aria-label="search input">
+		<div aria-label="search input" ref={containerRef}>
 			{label && (
 				<label className="label">
 					<span className={`${labelStyles} label-text`}>{label}</span>
@@ -137,7 +160,7 @@ const SearchInput = ({
 					value={inputText}
 					onChange={(e) => setInputText(e.target.value.trim())}
 					onFocus={() => setIsFocused(true)}
-					onBlur={() => setTimeout(() => setIsFocused(false), 150)}
+					onBlur={handleInputBlur}
 				/>
 			</div>
 			<div ref={contentAnchorRef} className="relative">
@@ -145,6 +168,7 @@ const SearchInput = ({
 					defaultOptions={defaultOptions ?? []}
 					contentMaxHeightClassName={contentMaxHeightClassName}
 					contentStyle={contentStyle}
+					headerActions={contentHeaderActions}
 					show={isFocused}
 					options={visibleOptions}
 					onSelect={handleSelect}

@@ -1,7 +1,7 @@
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { cn } from "@/app/lib/utils";
 import { Loader2 } from "lucide-react";
-import { CSSProperties, SyntheticEvent } from "react";
+import { CSSProperties, ReactNode, SyntheticEvent } from "react";
 
 export type SearchOption = {
 	value: string | number;
@@ -20,6 +20,7 @@ type Props = {
 	defaultOptions?: SearchOption[];
 	contentMaxHeightClassName?: string;
 	contentStyle?: CSSProperties;
+	headerActions?: ReactNode;
 };
 
 const SearchInputContent = ({
@@ -31,6 +32,7 @@ const SearchInputContent = ({
 	searchTerm,
 	contentMaxHeightClassName,
 	contentStyle,
+	headerActions,
 }: Props) => {
 	let content = null;
 
@@ -66,9 +68,12 @@ const SearchInputContent = ({
 	) {
 		content = (
 			<>
-				<h2 className="text-sm font-medium mb-2">
-					Compartiste espacio anteriormente
-				</h2>
+				<div className="mb-2 flex items-center justify-between gap-2">
+					<h2 className="text-sm font-medium">
+						Compartiste espacio anteriormente
+					</h2>
+					{headerActions}
+				</div>
 				<ul>{defaultItems}</ul>
 			</>
 		);
@@ -81,7 +86,10 @@ const SearchInputContent = ({
 	} else {
 		content = (
 			<>
-				<h2 className="text-sm font-medium mb-2">Resultados de la búsqueda</h2>
+				<div className="mb-2 flex items-center justify-between gap-2">
+					<h2 className="text-sm font-medium">Resultados de la búsqueda</h2>
+					{headerActions}
+				</div>
 				<ul>{searchItems}</ul>
 			</>
 		);
@@ -120,6 +128,11 @@ export function SearchInputContentItem({
 				option.disabled && "opacity-50 cursor-not-allowed",
 			)}
 			value={option.value}
+			onMouseDown={(e) => {
+				if (!option.disabled) {
+					e.preventDefault();
+				}
+			}}
 			onClick={!option.disabled ? onSelect : undefined}
 		>
 			<div className="flex gap-2 items-center">
