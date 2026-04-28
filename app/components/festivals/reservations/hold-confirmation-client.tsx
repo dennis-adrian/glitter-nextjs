@@ -38,6 +38,7 @@ import {
 } from "@/app/lib/stands/hold-actions";
 import PartnerSelection from "./partner-selection";
 import { RecentSharedStandPartner } from "@/app/lib/festivals/definitions";
+import { cn } from "@/app/lib/utils";
 
 const TERMS_AND_CONDITIONS_REASON =
 	"No ha aceptado los términos y condiciones del festival";
@@ -408,29 +409,25 @@ export default function HoldConfirmationClient({
 				onBack={() => handleCancel()}
 			/>
 			<div className="flex-1 px-4 py-4 md:py-6">
-				<div className="mx-auto max-w-lg">
+				<div>
 					{/* Countdown banner */}
-					<div
-						className={`rounded-lg flex items-start gap-3 p-4 mb-4 md:mb-6 ${
-							remainingSeconds <= 30
-								? "bg-red-50 border border-red-200"
-								: "bg-amber-50 border border-amber-200"
-						}`}
-					>
-						<p className="text-xs md:text-sm text-amber-900">
-							Confirmá tu reserva antes de que expire el tiempo
+					<div className="flex flex-col items-end">
+						<p
+							className={cn(
+								"text-xs text-amber-800",
+								remainingSeconds <= 30 ? "text-destructive" : "text-amber-800",
+							)}
+						>
+							Te quedan
 						</p>
-						<div className="flex items-center gap-1">
-							<TimerIcon
-								className={`h-5 w-5 ${
-									remainingSeconds <= 30 ? "text-red-600" : "text-amber-800"
-								}`}
-							/>
-							<span
-								className={`text-xl font-bold font-mono ${
-									remainingSeconds <= 30 ? "text-red-600" : "text-amber-800"
-								}`}
-							>
+						<div
+							className={cn(
+								"flex items-center gap-1",
+								remainingSeconds <= 30 ? "text-destructive" : "text-amber-800",
+							)}
+						>
+							<TimerIcon className={`h-5 w-5`} />
+							<span className={`text-xl font-bold font-mono`}>
 								{formatTime(remainingSeconds)}
 							</span>
 						</div>

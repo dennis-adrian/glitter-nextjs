@@ -137,12 +137,12 @@ export function SearchInputContentItem({
 		>
 			<div className="flex gap-2 items-center">
 				{option.imageUrl && (
-					<Avatar className="w-10 h-10">
+					<Avatar className="w-8 h-8">
 						<AvatarImage alt="avatar" src={option.imageUrl} />
 					</Avatar>
 				)}
 				<div className="flex flex-col">
-					<span>{option.label}</span>
+					<span className="text-sm">{option.label}</span>
 					{option.disabledReason && (
 						<span className="text-xs text-muted-foreground">
 							{option.disabledReason}

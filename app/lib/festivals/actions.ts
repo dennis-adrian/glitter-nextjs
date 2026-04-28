@@ -961,7 +961,7 @@ export async function searchPotentialPartners(
 						${normalizedQuery}
 					) DESC`,
 				)
-				.limit(10);
+				.limit(5);
 
 			return matchedUsers.map((user) => ({
 				...user,
