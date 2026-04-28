@@ -1,6 +1,7 @@
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import { cn } from "@/app/lib/utils";
 import { Loader2 } from "lucide-react";
-import { SyntheticEvent } from "react";
+import { CSSProperties, ReactNode, SyntheticEvent } from "react";
 
 export type SearchOption = {
 	value: string | number;
@@ -13,75 +14,147 @@ export type SearchOption = {
 type Props = {
 	show: boolean;
 	options?: SearchOption[];
-	onSelect: (e: SyntheticEvent<HTMLLIElement>) => void;
+	onSelect: (e: SyntheticEvent<HTMLButtonElement>) => void;
 	isLoading?: boolean;
+	searchTerm?: string;
+	defaultOptions?: SearchOption[];
+	contentMaxHeightClassName?: string;
+	contentStyle?: CSSProperties;
+	headerActions?: ReactNode;
 };
 
-const SearchInputContent = (props: Props) => {
-	let items;
-	if (props.isLoading) {
-		items = (
-			<li className="flex items-center gap-2 p-2 text-muted-foreground text-sm">
+const SearchInputContent = ({
+	show,
+	options,
+	onSelect,
+	isLoading,
+	defaultOptions,
+	searchTerm,
+	contentMaxHeightClassName,
+	contentStyle,
+	headerActions,
+}: Props) => {
+	let content = null;
+
+	const defaultItems =
+		defaultOptions?.map((option) => (
+			<SearchInputContentItem
+				key={option.value}
+				option={option}
+				onSelect={onSelect}
+			/>
+		)) ?? [];
+
+	const searchItems =
+		options?.map((option) => (
+			<SearchInputContentItem
+				key={option.value}
+				option={option}
+				onSelect={onSelect}
+			/>
+		)) ?? [];
+
+	if (isLoading) {
+		content = (
+			<div className="flex items-center gap-2">
 				<Loader2 className="h-4 w-4 animate-spin" />
-				<span>Buscando...</span>
-			</li>
+				<span className="text-sm text-muted-foreground">Buscando...</span>
+			</div>
 		);
-	} else if (!props.options?.length) {
-		items = (
-			<li className="disabled">
-				<span>No se encontraron resultados</span>
-			</li>
+	} else if (
+		defaultItems.length > 0 &&
+		searchItems.length === 0 &&
+		!searchTerm
+	) {
+		content = (
+			<>
+				<div className="mb-2 flex items-center justify-between gap-2">
+					<h2 className="text-sm font-medium">
+						Compartiste espacio anteriormente
+					</h2>
+					{headerActions}
+				</div>
+				<ul>{defaultItems}</ul>
+			</>
+		);
+	} else if (searchTerm && searchItems.length === 0) {
+		content = (
+			<p className="text-sm text-muted-foreground">
+				No se encontraron resultados para &quot;{searchTerm}&quot;
+			</p>
 		);
 	} else {
-		items = props.options!.map((option) =>
-			option.disabled ? (
-				<li
-					className="rounded-lg p-2 cursor-not-allowed opacity-50"
-					key={option.value}
-				>
-					<div className="flex justify-between items-center">
-						<div className="flex flex-col">
-							<span>{option.label}</span>
-							{option.disabledReason && (
-								<span className="text-xs text-muted-foreground">
-									{option.disabledReason}
-								</span>
-							)}
-						</div>
-						{option.imageUrl && (
-							<Avatar className="w-6 h-6">
-								<AvatarImage alt="avatar" src={option.imageUrl} />
-							</Avatar>
-						)}
-					</div>
-				</li>
-			) : (
-				<li
-					className="hover:bg-secondary hover:text-secondary-foreground rounded-lg p-2 cursor-pointer"
-					key={option.value}
-					value={option.value}
-					onClick={props.onSelect}
-				>
-					<div className="flex justify-between items-center">
-						<span>{option.label}</span>
-						{option.imageUrl && (
-							<Avatar className="w-6 h-6">
-								<AvatarImage alt="avatar" src={option.imageUrl} />
-							</Avatar>
-						)}
-					</div>
-				</li>
-			),
+		content = (
+			<>
+				<div className="mb-2 flex items-center justify-between gap-2">
+					<h2 className="text-sm font-medium">Resultados de la búsqueda</h2>
+					{headerActions}
+				</div>
+				<ul>{searchItems}</ul>
+			</>
 		);
 	}
 
 	return (
-		<div className={`${props.show ? "block" : "hidden"}`}>
-			<ul tabIndex={0} className="p-2 shadow rounded-lg w-full mt-4">
-				{items}
-			</ul>
+		<div
+			className={cn(
+				"absolute top-0 left-0 w-full mt-3 rounded-lg shadow-md bg-card border p-4 min-h-32",
+				(contentMaxHeightClassName || contentStyle?.maxHeight) &&
+					"overflow-y-auto",
+				contentMaxHeightClassName,
+				show ? "block" : "hidden",
+			)}
+			style={contentStyle}
+		>
+			{content}
 		</div>
 	);
 };
+
+export function SearchInputContentItem({
+	option,
+	onSelect,
+}: {
+	option: SearchOption;
+	onSelect: (e: SyntheticEvent<HTMLButtonElement>) => void;
+}) {
+	return (
+		<li className="list-none">
+			<button
+				type="button"
+				disabled={option.disabled}
+				data-option-value={JSON.stringify(option.value)}
+				className={cn(
+					"w-full rounded-lg p-2 text-left",
+					!option.disabled &&
+						"cursor-pointer hover:ring-1 hover:ring-ring hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+					option.disabled && "cursor-not-allowed opacity-50",
+				)}
+				onMouseDown={(e) => {
+					if (!option.disabled) {
+						e.preventDefault();
+					}
+				}}
+				onClick={onSelect}
+			>
+				<div className="flex items-center gap-2">
+					{option.imageUrl && (
+						<Avatar className="h-8 w-8">
+							<AvatarImage alt="avatar" src={option.imageUrl} />
+						</Avatar>
+					)}
+					<div className="flex flex-col">
+						<span className="text-sm">{option.label}</span>
+						{option.disabledReason && (
+							<span className="text-xs text-muted-foreground">
+								{option.disabledReason}
+							</span>
+						)}
+					</div>
+				</div>
+			</button>
+		</li>
+	);
+}
 
 export default SearchInputContent;

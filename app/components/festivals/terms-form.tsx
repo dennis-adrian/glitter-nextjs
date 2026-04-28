@@ -21,6 +21,7 @@ import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useTransition } from "react";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import ConsentFormField from "../molecules/consent-form-field";
 
@@ -41,6 +42,7 @@ export default function TermsForm({
 	festival: FestivalBase;
 }) {
 	const router = useRouter();
+	const [isPending, startTransition] = useTransition();
 	const form = useForm({
 		resolver: zodResolver(FormSchema),
 		defaultValues: {
@@ -48,8 +50,9 @@ export default function TermsForm({
 		},
 	});
 
-	async function onSubmit(data: z.infer<typeof FormSchema>) {
-		if (data.consent) {
+	function onSubmit(data: z.infer<typeof FormSchema>) {
+		if (!data.consent) return;
+		startTransition(async () => {
 			const res = await createUserEnrollment({
 				profileId: profile.id,
 				profileCategory: profile.category,
@@ -82,7 +85,7 @@ export default function TermsForm({
 			} else {
 				toast.error(res.message);
 			}
-		}
+		});
 	}
 
 	const submitButtonLabel =
@@ -99,12 +102,8 @@ export default function TermsForm({
 					description="Si llegaste hasta aquí y estas de acuerdo con todas las normas anteriores, acepta los términos y condiciones y dale clic al botón"
 				/>
 				<div className="flex flex-col sm:flex-row gap-4">
-					<Button
-						disabled={form.formState.isSubmitting}
-						className="flex-1"
-						type="submit"
-					>
-						{form.formState.isSubmitting ? (
+					<Button disabled={isPending} className="flex-1" type="submit">
+						{isPending ? (
 							<>
 								<Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
 								Cargando

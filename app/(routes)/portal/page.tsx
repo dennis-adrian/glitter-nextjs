@@ -57,11 +57,12 @@ export default async function ParticipantDashboardPage() {
 			) ?? null)
 		: null;
 
-	let profileEnrollment =
-		(await fetchProfileEnrollmentInFestival(
-			currentProfile.id,
-			activeFestival?.id ?? 0,
-		)) ?? null;
+	let profileEnrollment = activeFestival
+		? ((await fetchProfileEnrollmentInFestival(
+				currentProfile.id,
+				activeFestival.id,
+			)) ?? null)
+		: null;
 	if (activeFestival && !profileEnrollment) {
 		profileEnrollment =
 			currentProfile.userRequests.find(

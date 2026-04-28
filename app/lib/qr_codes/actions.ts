@@ -2,18 +2,25 @@
 
 import { db } from "@/db";
 import { qrCodes, stands } from "@/db/schema";
-import { and, asc, eq, gt } from "drizzle-orm";
+import { and, asc, eq, gt, InferSelectModel } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { ZodError } from "zod";
 
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { deleteFile } from "@/app/lib/uploadthing/actions";
-import { NewQrCode } from "./definitions";
+import { NewQrCode, qrCodeFormSchema } from "./definitions";
 
 export type QrCodeMutationResult = {
 	success: boolean;
 	message: string;
 	fileDeletionError?: string;
 };
+
+type QrCodeRecord = InferSelectModel<typeof qrCodes>;
+export type FetchQrCodeResult =
+	| { found: true; qr: QrCodeRecord }
+	| { found: false }
+	| { error: Error };
 
 /** Best-effort cleanup of an upload if a DB write failed; logs failures, does not throw. */
 async function deleteFreshUploadOnDbFailure(
@@ -25,6 +32,11 @@ async function deleteFreshUploadOnDbFailure(
 	if (!deleteResult.success) {
 		console.error(logLabel, { url, error: deleteResult.error });
 	}
+}
+
+function getValidationErrorMessage(error: ZodError): string {
+	const firstIssue = error.issues[0];
+	return firstIssue?.message ?? "Datos inválidos.";
 }
 
 export async function getQRCode(amount: number) {
@@ -53,14 +65,23 @@ export async function fetchQrCodes() {
 	}
 }
 
-export async function fetchQrCode(id: number) {
+export async function fetchQrCode(id: number): Promise<FetchQrCodeResult> {
 	try {
-		return await db.query.qrCodes.findFirst({
+		const qr = await db.query.qrCodes.findFirst({
 			where: eq(qrCodes.id, id),
 		});
+		if (!qr) {
+			return { found: false };
+		}
+		return { found: true, qr };
 	} catch (error) {
 		console.error(error);
-		return null;
+		return {
+			error:
+				error instanceof Error
+					? error
+					: new Error("Unexpected error while fetching QR code."),
+		};
 	}
 }
 
@@ -73,8 +94,15 @@ export async function createQrCode(
 	}
 
 	try {
-		await db.insert(qrCodes).values(data);
+		const parsedData = qrCodeFormSchema.parse(data);
+		await db.insert(qrCodes).values(parsedData);
 	} catch (error) {
+		if (error instanceof ZodError) {
+			return {
+				success: false,
+				message: `No se pudo crear el código QR: ${getValidationErrorMessage(error)}`,
+			};
+		}
 		console.error(error);
 		await deleteFreshUploadOnDbFailure(
 			data.qrCodeUrl,
@@ -107,15 +135,16 @@ export async function updateQrCode(
 			return { success: false, message: "Código QR no encontrado." };
 		}
 		existingBeforeUpdate = { qrCodeUrl: existing.qrCodeUrl };
+		const parsedData = qrCodeFormSchema.partial().parse(data);
 
 		const previousQrCodeUrl =
-			data.qrCodeUrl && data.qrCodeUrl !== existing.qrCodeUrl
+			parsedData.qrCodeUrl && parsedData.qrCodeUrl !== existing.qrCodeUrl
 				? existing.qrCodeUrl
 				: null;
 
 		await db
 			.update(qrCodes)
-			.set({ ...data, updatedAt: new Date() })
+			.set({ ...parsedData, updatedAt: new Date() })
 			.where(eq(qrCodes.id, id));
 
 		if (previousQrCodeUrl) {
@@ -129,6 +158,12 @@ export async function updateQrCode(
 			}
 		}
 	} catch (error) {
+		if (error instanceof ZodError) {
+			return {
+				success: false,
+				message: `No se pudo actualizar el código QR: ${getValidationErrorMessage(error)}`,
+			};
+		}
 		console.error(error);
 		if (
 			existingBeforeUpdate &&

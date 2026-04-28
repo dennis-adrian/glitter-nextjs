@@ -1,46 +1,49 @@
 "use client";
 
-import posthog from "posthog-js";
-import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import confetti from "canvas-confetti";
-import { toast } from "sonner";
-import { ArrowRight, RefreshCw, TimerIcon, Trash2Icon } from "lucide-react";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	useTransition,
+} from "react";
 
-import { Button } from "@/app/components/ui/button";
-import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
-import SearchInput from "@/app/components/ui/search-input/input";
-import { Label } from "@/app/components/ui/label";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
+import confetti from "canvas-confetti";
+import { ArrowRight, TimerIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
+import { toast } from "sonner";
+
+import { UserCategory } from "@/app/api/users/definitions";
+import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
 import MapCanvas from "@/app/components/maps/map-canvas";
 import {
-	STAND_SIZE,
 	getStandFillColor,
 	getStandStrokeColor,
 	getStandTextColor,
 	SELECTED_FILL,
+	SELECTED_RING,
 	SELECTED_STROKE,
 	SELECTED_TEXT,
-	SELECTED_RING,
+	STAND_SIZE,
 } from "@/app/components/maps/map-utils";
-import { UserCategory } from "@/app/api/users/definitions";
-import { cn } from "@/app/lib/utils";
-import {
-	confirmStandHold,
-	cancelStandHold,
-} from "@/app/lib/stands/hold-actions";
-import { searchPotentialPartners } from "@/app/lib/festivals/actions";
+import { Button } from "@/app/components/ui/button";
 import { type SearchOption } from "@/app/components/ui/search-input/search-content";
-import StepIndicator from "@/app/components/festivals/reservations/step-indicator";
+import { searchPotentialPartners } from "@/app/lib/festivals/actions";
 import {
-	AlertDialog,
-	AlertDialogContent,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogCancel,
-} from "@/app/components/ui/alert-dialog";
+	cancelStandHold,
+	confirmStandHold,
+} from "@/app/lib/stands/hold-actions";
+import PartnerSelection from "./partner-selection";
+import { RecentSharedStandPartner } from "@/app/lib/festivals/definitions";
+import { cn } from "@/app/lib/utils";
+
+const TERMS_AND_CONDITIONS_REASON =
+	"No ha aceptado los términos y condiciones del festival";
+const RESERVED_STAND_REASON = "Ya tiene una reserva en este festival";
+const UNAVAILABLE_PARTNER_REASON = "No está disponible para compartir espacio";
 
 type ThumbnailStand = {
 	id: number;
@@ -52,6 +55,7 @@ type ThumbnailStand = {
 };
 
 type HoldConfirmationClientProps = {
+	recentPartners: RecentSharedStandPartner[];
 	hold: {
 		id: number;
 		expiresAt: string;
@@ -159,22 +163,21 @@ function StandMapThumbnail({
 }
 
 export default function HoldConfirmationClient({
+	festival,
 	hold,
-	stand,
+	mapBounds,
+	profile,
+	recentPartners,
+	sectorId,
 	sectorName,
 	sectorStands,
-	mapBounds,
-	festival,
-	profile,
-	sectorId,
+	stand,
 }: HoldConfirmationClientProps) {
 	const router = useRouter();
-	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [isSubmitting, startSubmitTransition] = useTransition();
 	const [selectedPartnerId, setSelectedPartnerId] = useState<
 		number | undefined
 	>();
-	const [addPartner, setAddPartner] = useState(false);
-	const [showExitDialog, setShowExitDialog] = useState(false);
 	const [isRefreshing, startRefreshTransition] = useTransition();
 	const [dynamicPartnerOptions, setDynamicPartnerOptions] = useState<
 		SearchOption[]
@@ -191,8 +194,8 @@ export default function HoldConfirmationClient({
 				setDynamicPartnerOptions([]);
 				return;
 			}
-			setIsSearching(true);
 			try {
+				setIsSearching(true);
 				const results = await searchPotentialPartners(
 					festival.id,
 					profile.id,
@@ -205,7 +208,7 @@ export default function HoldConfirmationClient({
 						imageUrl: p.imageUrl,
 						disabled: !p.isEligible,
 						disabledReason: !p.isEligible
-							? "No ha aceptado los términos y condiciones del festival"
+							? TERMS_AND_CONDITIONS_REASON
 							: undefined,
 					})),
 				);
@@ -215,6 +218,31 @@ export default function HoldConfirmationClient({
 		},
 		[festival.id, profile.id],
 	);
+
+	const defaultPartnerOptions = useMemo(() => {
+		return recentPartners.map((partner): SearchOption => {
+			const isUnavailableByProfile = !partner.isSelectable;
+			const disabled =
+				partner.isReserved || !partner.isEligible || isUnavailableByProfile;
+			let disabledReason: string | undefined;
+
+			if (partner.isReserved) {
+				disabledReason = RESERVED_STAND_REASON;
+			} else if (!partner.isEligible) {
+				disabledReason = TERMS_AND_CONDITIONS_REASON;
+			} else if (isUnavailableByProfile) {
+				disabledReason = UNAVAILABLE_PARTNER_REASON;
+			}
+
+			return {
+				label: partner.displayName || "Sin nombre",
+				value: String(partner.id),
+				imageUrl: partner.imageUrl,
+				disabled,
+				disabledReason,
+			};
+		});
+	}, [recentPartners]);
 
 	const handleRefreshPartners = () => {
 		startRefreshTransition(() => {
@@ -297,75 +325,98 @@ export default function HoldConfirmationClient({
 			minimumFractionDigits: 2,
 		}).format(price);
 
-	const handleConfirm = async () => {
+	const handleConfirm = () => {
 		if (isSubmitting) return;
-		setIsSubmitting(true);
-		try {
-			const res = await confirmStandHold(
-				hold.id,
-				profile.id,
-				selectedPartnerId,
-			);
-			if (res.success && res.reservationId) {
-				confetti({
-					particleCount: 100,
-					spread: 70,
-					origin: { y: 0.6 },
-				});
-				posthog.capture(POSTHOG_EVENTS.RESERVATION_CONFIRMED, {
-					festival_id: festival.id,
-					festival_name: festival.name,
-					stand_id: stand.id,
-					stand_number: stand.standNumber,
-					stand_price: stand.price,
-					profile_category: profile.category,
-					has_partner: !!selectedPartnerId,
-					reservation_id: res.reservationId,
-				});
-				toast.success(res.message);
-				router.replace(
-					`/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.reservationId}/payments`,
+		startSubmitTransition(async () => {
+			try {
+				const res = await confirmStandHold(
+					hold.id,
+					profile.id,
+					selectedPartnerId,
 				);
-			} else {
-				toast.info(res.message);
-				router.replace(mapUrl);
+				if (res.success && res.reservationId) {
+					confetti({
+						particleCount: 100,
+						spread: 70,
+						origin: { y: 0.6 },
+					});
+					posthog.capture(POSTHOG_EVENTS.RESERVATION_CONFIRMED, {
+						festival_id: festival.id,
+						festival_name: festival.name,
+						stand_id: stand.id,
+						stand_number: stand.standNumber,
+						stand_price: stand.price,
+						profile_category: profile.category,
+						has_partner: !!selectedPartnerId,
+						reservation_id: res.reservationId,
+					});
+					toast.success(res.message);
+					router.replace(
+						`/profiles/${profile.id}/festivals/${festival.id}/reservations/${res.reservationId}/payments`,
+					);
+				} else {
+					toast.info(res.message);
+					router.replace(mapUrl);
+				}
+			} catch {
+				toast.error("Error al confirmar la reserva");
 			}
-		} catch {
-			toast.error("Error al confirmar la reserva");
-		} finally {
-			setIsSubmitting(false);
-		}
+		});
 	};
 
-	const handleCancel = async () => {
+	const handleCancel = () => {
 		if (isSubmitting) return;
-		setIsSubmitting(true);
-		try {
-			await cancelStandHold(hold.id, profile.id);
-			posthog.capture(POSTHOG_EVENTS.RESERVATION_CANCELLED, {
-				festival_id: festival.id,
-				festival_name: festival.name,
-				stand_id: stand.id,
-				stand_number: stand.standNumber,
-				profile_category: profile.category,
-			});
-			toast.info("Reserva temporal cancelada", {
-				duration: 2000,
-			});
-			router.replace(mapUrl);
-		} catch {
-			toast.error("Error al cancelar");
-		} finally {
-			setIsSubmitting(false);
-		}
-	};
-
-	const handleExitConfirm = async () => {
-		setShowExitDialog(false);
-		await handleCancel();
+		startSubmitTransition(async () => {
+			try {
+				const res = await cancelStandHold(hold.id, profile.id);
+				if (res.success) {
+					posthog.capture(POSTHOG_EVENTS.RESERVATION_CANCELLED, {
+						festival_id: festival.id,
+						festival_name: festival.name,
+						stand_id: stand.id,
+						stand_number: stand.standNumber,
+						profile_category: profile.category,
+					});
+					toast.info(res.message, {
+						duration: 2000,
+					});
+					router.replace(mapUrl);
+				} else {
+					toast.error(res.message);
+				}
+			} catch {
+				toast.error("Error al cancelar");
+			}
+		});
 	};
 
 	const isExpired = remainingSeconds === 0;
+	const allKnownPartnerOptions = useMemo(
+		() => [
+			...defaultPartnerOptions,
+			...dynamicPartnerOptions.filter(
+				(dynamicOption) =>
+					!defaultPartnerOptions.some(
+						(defaultOption) => defaultOption.value === dynamicOption.value,
+					),
+			),
+		],
+		[defaultPartnerOptions, dynamicPartnerOptions],
+	);
+
+	useEffect(() => {
+		if (selectedPartnerId == null) return;
+		const stillPresent = allKnownPartnerOptions.some(
+			(o) => o.value === String(selectedPartnerId),
+		);
+		if (!stillPresent) {
+			setSelectedPartnerId(undefined);
+		}
+	}, [allKnownPartnerOptions, selectedPartnerId]);
+
+	const selectedPartner = selectedPartnerId
+		? allKnownPartnerOptions.find((o) => o.value === String(selectedPartnerId))
+		: undefined;
 
 	return (
 		<div className="flex min-h-[calc(100dvh-4rem)] flex-col">
@@ -373,32 +424,28 @@ export default function HoldConfirmationClient({
 				step={2}
 				totalSteps={3}
 				backLabel="Volver al mapa"
-				onBack={() => setShowExitDialog(true)}
+				onBack={() => handleCancel()}
 			/>
 			<div className="flex-1 px-4 py-4 md:py-6">
-				<div className="mx-auto max-w-lg">
+				<div className="mx-auto max-w-2xl">
 					{/* Countdown banner */}
-					<div
-						className={`rounded-lg flex items-start gap-3 p-4 mb-4 md:mb-6 ${
-							remainingSeconds <= 30
-								? "bg-red-50 border border-red-200"
-								: "bg-amber-50 border border-amber-200"
-						}`}
-					>
-						<p className="text-sm text-muted-foreground">
-							Confirmá tu reserva antes de que expire el tiempo
+					<div className="flex flex-col items-end">
+						<p
+							className={cn(
+								"text-xs text-amber-800",
+								remainingSeconds <= 30 ? "text-destructive" : "text-amber-800",
+							)}
+						>
+							Te quedan
 						</p>
-						<div className="flex items-center gap-1">
-							<TimerIcon
-								className={`h-5 w-5 ${
-									remainingSeconds <= 30 ? "text-red-600" : "text-amber-800"
-								}`}
-							/>
-							<span
-								className={`text-xl font-bold font-mono ${
-									remainingSeconds <= 30 ? "text-red-600" : "text-amber-800"
-								}`}
-							>
+						<div
+							className={cn(
+								"flex items-center gap-1",
+								remainingSeconds <= 30 ? "text-destructive" : "text-amber-800",
+							)}
+						>
+							<TimerIcon className={`h-5 w-5`} />
+							<span className={`text-xl font-bold font-mono`}>
 								{formatTime(remainingSeconds)}
 							</span>
 						</div>
@@ -406,7 +453,7 @@ export default function HoldConfirmationClient({
 
 					{/* Resumen de Reserva */}
 					<h2 className="text-lg font-semibold mb-3">Resumen de Reserva</h2>
-					<div className="rounded-xl border bg-card shadow-sm p-5 mb-6">
+					<div className="rounded-xl border bg-card shadow-sm p-6 mb-3">
 						<div className="flex gap-4">
 							{/* Left: stand info */}
 							<div className="flex-1 space-y-3">
@@ -444,86 +491,16 @@ export default function HoldConfirmationClient({
 					{/* Partner selection (illustration/new_artist only) */}
 					{(profile.category === "illustration" ||
 						profile.category === "new_artist") && (
-						<div className="rounded-xl border bg-card shadow-sm p-6 mb-6">
-							{addPartner ? (
-								<div className="grid gap-2">
-									<div className="flex items-center justify-between">
-										<Label htmlFor="partner-search">
-											Elige a tu compañero de espacio
-										</Label>
-										{!selectedPartnerId && (
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={handleRefreshPartners}
-												disabled={isRefreshing}
-												aria-label="Actualizar lista"
-											>
-												<RefreshCw
-													className={cn(
-														"h-4 w-4",
-														isRefreshing && "animate-spin",
-													)}
-												/>
-											</Button>
-										)}
-									</div>
-									{selectedPartnerId ? (
-										(() => {
-											const partner = dynamicPartnerOptions.find(
-												(o) => o.value === String(selectedPartnerId),
-											);
-											return (
-												<div className="flex items-center justify-between">
-													<div className="flex items-center gap-3">
-														<Avatar>
-															<AvatarImage
-																src={partner?.imageUrl ?? undefined}
-																alt="avatar"
-															/>
-														</Avatar>
-														<span className="font-medium">
-															{partner?.label}
-														</span>
-													</div>
-													<Button
-														size="icon"
-														onClick={() => setSelectedPartnerId(undefined)}
-														aria-label="Quitar compañero"
-														className="text-destructive bg-card hover:bg-destructive hover:text-destructive-foreground transition-colors"
-													>
-														<Trash2Icon className="h-4 w-4" />
-													</Button>
-												</div>
-											);
-										})()
-									) : (
-										<SearchInput
-											id="partner-search"
-											options={dynamicPartnerOptions}
-											placeholder="Ingresa el nombre..."
-											onSearch={handlePartnerSearch}
-											isLoading={isSearching}
-											onSelect={(id) => {
-												const parsed = typeof id === "string" ? Number(id) : id;
-												setSelectedPartnerId(
-													Number.isFinite(parsed) ? parsed : undefined,
-												);
-											}}
-										/>
-									)}
-								</div>
-							) : (
-								<div className="bg-amber-50 rounded-md p-4 md:p-6 border border-amber-200">
-									<div className="flex flex-col md:flex-row items-center gap-1">
-										<span>¿Compartes espacio?</span>
-										<Button variant="link" onClick={() => setAddPartner(true)}>
-											¡Haz click aquí!
-										</Button>
-									</div>
-								</div>
-							)}
-						</div>
+						<PartnerSelection
+							options={dynamicPartnerOptions}
+							defaultOptions={defaultPartnerOptions}
+							isRefreshing={isRefreshing}
+							isSearching={isSearching}
+							onPartnerSearch={handlePartnerSearch}
+							onRefreshPartners={handleRefreshPartners}
+							onSelectPartner={setSelectedPartnerId}
+							selectedPartner={selectedPartner}
+						/>
 					)}
 				</div>
 			</div>
@@ -549,24 +526,6 @@ export default function HoldConfirmationClient({
 					</Button>
 				</div>
 			</div>
-
-			{/* Exit confirmation dialog */}
-			<AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>¿Salir de la confirmación?</AlertDialogTitle>
-						<AlertDialogDescription>
-							Se liberará tu espacio temporal y podrás elegir otro stand.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Quedarme</AlertDialogCancel>
-						<Button onClick={handleExitConfirm} disabled={isSubmitting}>
-							Sí, volver al mapa
-						</Button>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
 		</div>
 	);
 }

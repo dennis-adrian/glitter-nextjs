@@ -91,3 +91,9 @@ export type FestivalWithDatesAndSectors = FestivalBase & {
 	festivalSectors: FestivalSectorWithStands[];
 };
 export type FestivalSector = typeof festivalSectors.$inferSelect;
+
+export type RecentSharedStandPartner = BaseProfile & {
+	isEligible: boolean;
+	isReserved: boolean;
+	isSelectable: boolean;
+};

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { Loader2Icon } from "lucide-react";
 
 import { ProfileType } from "@/app/api/users/definitions";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
@@ -54,6 +55,7 @@ export default function ClientMap({
 	const [activeHold, setActiveHold] = useState<ActiveHold>(
 		initialActiveHold ?? null,
 	);
+	const [isPending, startTransition] = useTransition();
 
 	const handleHoldChange = useCallback((hold: ActiveHold) => {
 		setActiveHold(hold);
@@ -98,23 +100,34 @@ export default function ClientMap({
 
 	const handleStandSelect = useCallback(
 		(stand: StandWithReservationsWithParticipants) => {
+			if (isPending) return;
 			setSelectedStandId(stand.id);
 		},
-		[],
+		[isPending],
 	);
 
 	return (
 		<>
-			<UserMap
-				stands={stands}
-				mapElements={mapElements}
-				mapBounds={mapBounds}
-				profile={profile}
-				selectedStandId={selectedStandId}
-				subcategoryIds={subcategoryIds}
-				onStandClick={handleStandSelect}
-				onStandTouchTap={handleStandSelect}
-			/>
+			<div className="relative">
+				<UserMap
+					stands={stands}
+					mapElements={mapElements}
+					mapBounds={mapBounds}
+					profile={profile}
+					selectedStandId={selectedStandId}
+					subcategoryIds={subcategoryIds}
+					onStandClick={handleStandSelect}
+					onStandTouchTap={handleStandSelect}
+				/>
+				{isPending && (
+					<div
+						className="absolute inset-0 z-10 flex cursor-wait items-center justify-center bg-background/50 backdrop-blur-[1px]"
+						aria-busy="true"
+					>
+						<Loader2Icon className="h-8 w-8 animate-spin text-primary" />
+					</div>
+				)}
+			</div>
 			{selectedStand != null && profile != null && sectorName != null && (
 				<StandInfoCard
 					key={selectedStand.id}
@@ -125,6 +138,8 @@ export default function ClientMap({
 					activeHold={activeHold}
 					onHoldChange={handleHoldChange}
 					onClose={() => setSelectedStandId(null)}
+					isPending={isPending}
+					startTransition={startTransition}
 				/>
 			)}
 		</>
