@@ -62,11 +62,12 @@ const SearchInput = ({
 
 	const applyFilter = useCallback(
 		(term: string) => {
+			const query = term.trim();
 			if (onSearchRef.current) {
-				onSearchRef.current(term);
+				onSearchRef.current(query);
 			} else {
 				const filtered = (options ?? []).filter((option) =>
-					option.label.toLowerCase().includes(term.toLocaleLowerCase()),
+					option.label.toLowerCase().includes(query.toLocaleLowerCase()),
 				);
 				const sorted = [...filtered].sort((a, b) => {
 					if (a.disabled === b.disabled) return 0;
@@ -171,7 +172,7 @@ const SearchInput = ({
 					type="search"
 					placeholder={placeholder}
 					value={inputText}
-					onChange={(e) => setInputText(e.target.value.trim())}
+					onChange={(e) => setInputText(e.target.value)}
 					onFocus={() => setIsFocused(true)}
 					onBlur={handleInputBlur}
 				/>

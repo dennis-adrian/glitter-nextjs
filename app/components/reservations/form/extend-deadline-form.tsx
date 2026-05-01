@@ -24,14 +24,14 @@ function toLocalInputValue(date: Date): string {
 	);
 }
 
-function buildSchema(currentDueDate: Date | null, openedAt: number) {
+function buildSchema(currentDueDate: Date | null) {
 	return z.object({
 		newDueDate: z
 			.string()
 			.min(1, "Requerido")
 			.refine((v) => !Number.isNaN(Date.parse(v)), "Fecha inválida")
 			.refine(
-				(v) => new Date(v).getTime() > openedAt,
+				(v) => new Date(v).getTime() > Date.now(),
 				"Debe ser una fecha futura",
 			)
 			.refine(
@@ -53,7 +53,7 @@ export function ExtendDeadlineForm({
 	onSuccess: () => void;
 }) {
 	const [openedAt] = useState(() => Date.now());
-	const FormSchema = buildSchema(currentDueDate, openedAt);
+	const FormSchema = buildSchema(currentDueDate);
 	const defaultDate = currentDueDate
 		? new Date(currentDueDate.getTime() + 24 * 60 * 60 * 1000)
 		: new Date(openedAt + 24 * 60 * 60 * 1000);

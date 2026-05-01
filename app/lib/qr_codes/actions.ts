@@ -98,6 +98,10 @@ export async function createQrCode(
 		await db.insert(qrCodes).values(parsedData);
 	} catch (error) {
 		if (error instanceof ZodError) {
+			await deleteFreshUploadOnDbFailure(
+				data.qrCodeUrl,
+				"Failed to delete new QR file from storage after validation failure on create",
+			);
 			return {
 				success: false,
 				message: `No se pudo crear el código QR: ${getValidationErrorMessage(error)}`,
@@ -159,6 +163,16 @@ export async function updateQrCode(
 		}
 	} catch (error) {
 		if (error instanceof ZodError) {
+			if (
+				existingBeforeUpdate &&
+				data.qrCodeUrl &&
+				data.qrCodeUrl !== existingBeforeUpdate.qrCodeUrl
+			) {
+				await deleteFreshUploadOnDbFailure(
+					data.qrCodeUrl,
+					"Failed to delete new QR file from storage after validation failure on update",
+				);
+			}
 			return {
 				success: false,
 				message: `No se pudo actualizar el código QR: ${getValidationErrorMessage(error)}`,
