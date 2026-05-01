@@ -19,7 +19,6 @@ const nextConfig: NextConfig = {
 		];
 	},
 	skipTrailingSlashRedirect: true,
-	cacheComponents: true,
 	reactCompiler: true,
 	images: {
 		remotePatterns: [
