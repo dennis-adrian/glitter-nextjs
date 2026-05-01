@@ -237,9 +237,11 @@ export async function extendReservationPaymentDeadline(params: {
 					})
 					.where(eq(scheduledTasks.id, activeTask.id));
 			} else {
+				// When the payment deadline is extended, we send an email to the user
+				// we don't need to send another reminder email
 				await tx.insert(scheduledTasks).values({
 					dueDate: newDueDate,
-					reminderTime: newDueDate,
+					reminderTime: sql`now()`,
 					reminderSentAt: sql`now()`,
 					profileId: creator.id,
 					reservationId: reservation.id,

@@ -67,15 +67,19 @@ export function ExtendDeadlineForm({
 	});
 
 	const action: () => void = form.handleSubmit(async (data) => {
-		const res = await extendReservationPaymentDeadline({
-			reservationId,
-			newDueDate: new Date(data.newDueDate),
-		});
-		if (res.success) {
-			toast.success(res.message);
-			onSuccess();
-		} else {
-			toast.error(res.message);
+		try {
+			const res = await extendReservationPaymentDeadline({
+				reservationId,
+				newDueDate: new Date(data.newDueDate),
+			});
+			if (res.success) {
+				toast.success(res.message);
+				onSuccess();
+			} else {
+				toast.error(res.message);
+			}
+		} catch {
+			toast.error("Error al extender el plazo de pago");
 		}
 	});
 
