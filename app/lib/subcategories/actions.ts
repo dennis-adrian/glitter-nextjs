@@ -7,24 +7,17 @@ import {
 import { db } from "@/db";
 import { subcategories } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { cacheLife, cacheTag, revalidatePath, updateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
+import { cache } from "react";
 
-// react.cache() is not needed here because "use cache" already deduplicates
-// across requests. If "use cache" is ever removed, wrap this in react.cache()
-// for per-request memoization (subcategories are fetched in multiple places
-// on the same page).
-export async function fetchSubcategories(): Promise<Subcategory[]> {
-	"use cache";
-	cacheLife("hours");
-	cacheTag("subcategories");
-
+export const fetchSubcategories = cache(async (): Promise<Subcategory[]> => {
 	try {
 		return await db.query.subcategories.findMany();
 	} catch (error) {
 		console.error("Error fetching subcategories", error);
 		return [];
 	}
-}
+});
 
 export async function createSubcategory(subcategory: NewSubcategory) {
 	try {
@@ -42,7 +35,6 @@ export async function createSubcategory(subcategory: NewSubcategory) {
 	}
 
 	revalidatePath("/dashboard/subcategories");
-	updateTag("subcategories");
 	return {
 		success: true,
 		message: "Subcategoría creada correctamente",
@@ -61,7 +53,6 @@ export async function deleteSubcategory(subcategoryId: number) {
 	}
 
 	revalidatePath("/dashboard/subcategories");
-	updateTag("subcategories");
 	return {
 		success: true,
 		message: "Subcategoría eliminada correctamente",

@@ -4,15 +4,13 @@ import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { marketingBanners } from "@/db/schema";
 import { and, asc, eq, inArray, max, or } from "drizzle-orm";
-import { cacheLife, cacheTag, revalidatePath, updateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type {
 	MarketingBannerAudience,
 	MarketingBannerRow,
 } from "./definitions";
 import { assertValidHref } from "./validate-href";
-
-const CACHE_TAG = "marketing-banners";
 
 function canManageBanners(
 	role: string | null | undefined,
@@ -21,7 +19,6 @@ function canManageBanners(
 }
 
 function invalidateBanners() {
-	updateTag(CACHE_TAG);
 	revalidatePath("/", "page");
 	revalidatePath("/portal", "page");
 	revalidatePath("/dashboard/banners", "layout");
@@ -30,10 +27,6 @@ function invalidateBanners() {
 export async function fetchMarketingBannersForLanding(
 	isAuthenticated: boolean,
 ): Promise<MarketingBannerRow[]> {
-	"use cache";
-	cacheLife("minutes");
-	cacheTag(CACHE_TAG);
-
 	try {
 		if (isAuthenticated) {
 			return await db
@@ -69,10 +62,6 @@ export async function fetchMarketingBannersForLanding(
 export async function fetchMarketingBannersForPortal(): Promise<
 	MarketingBannerRow[]
 > {
-	"use cache";
-	cacheLife("minutes");
-	cacheTag(CACHE_TAG);
-
 	try {
 		return await db
 			.select()
