@@ -5,7 +5,7 @@ import {
 	collaborators,
 	reservationCollaborators,
 	standReservations,
-	stands
+	stands,
 } from "@/db/schema";
 import { Collaborator, NewCollaborator } from "./definitions";
 import { revalidatePath } from "next/cache";
@@ -139,6 +139,7 @@ export async function fetchReservationsByFestivalId(
 						payments: true,
 					},
 				},
+				scheduledTasks: true,
 			},
 		});
 	} catch (error) {
