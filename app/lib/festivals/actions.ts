@@ -42,6 +42,7 @@ import {
 	FestivalWithDatesAndSectors,
 	FestivalWithTicketsAndDates,
 	FullFestival,
+	RecentSharedStandPartner,
 } from "./definitions";
 import { groupVisitorEmails } from "./utils";
 
@@ -348,10 +349,7 @@ export async function updateFestival(
 			data: result,
 		};
 	} catch (error) {
-		if (
-			error instanceof Error &&
-			error.message === "SECTOR_HAS_RESERVATIONS"
-		) {
+		if (error instanceof Error && error.message === "SECTOR_HAS_RESERVATIONS") {
 			return {
 				success: false,
 				message:
@@ -397,7 +395,9 @@ export async function fetchFestivalActivityForReview(
 }
 
 /** Active + published festivals (e.g. dashboard/portal) — not the marketing banner carousel. */
-export async function fetchPublishedActiveFestivals(): Promise<FestivalWithDates[]> {
+export async function fetchPublishedActiveFestivals(): Promise<
+	FestivalWithDates[]
+> {
 	"use cache";
 	cacheLife("minutes");
 	cacheTag("active-festival");
@@ -961,7 +961,7 @@ export async function searchPotentialPartners(
 						${normalizedQuery}
 					) DESC`,
 				)
-				.limit(10);
+				.limit(5);
 
 			return matchedUsers.map((user) => ({
 				...user,
@@ -970,6 +970,139 @@ export async function searchPotentialPartners(
 		});
 	} catch (error) {
 		console.error("Error searching potential partners for festival", error);
+		return [];
+	}
+}
+
+export async function fetchRecentSharedStandPartners(
+	festivalId: number,
+	profileId: number,
+	limit = 3,
+): Promise<RecentSharedStandPartner[]> {
+	if (limit <= 0) return [];
+
+	try {
+		const usersTableColumns = getTableColumns(users);
+
+		return await db.transaction(async (tx) => {
+			const ownParticipations = await tx
+				.select({
+					reservationId: reservationParticipants.reservationId,
+					participatedAt: reservationParticipants.createdAt,
+				})
+				.from(reservationParticipants)
+				.where(eq(reservationParticipants.userId, profileId))
+				.orderBy(desc(reservationParticipants.createdAt));
+
+			if (!ownParticipations.length) return [];
+
+			const reservationParticipationDate = new Map<number, Date>();
+			for (const participation of ownParticipations) {
+				if (!reservationParticipationDate.has(participation.reservationId)) {
+					reservationParticipationDate.set(
+						participation.reservationId,
+						participation.participatedAt,
+					);
+				}
+			}
+
+			const reservationIds = [...reservationParticipationDate.keys()];
+			if (!reservationIds.length) return [];
+
+			const coParticipants = await tx
+				.select({
+					reservationId: reservationParticipants.reservationId,
+					user: usersTableColumns,
+				})
+				.from(reservationParticipants)
+				.leftJoin(users, eq(users.id, reservationParticipants.userId))
+				.where(
+					and(
+						inArray(reservationParticipants.reservationId, reservationIds),
+						not(eq(reservationParticipants.userId, profileId)),
+					),
+				);
+
+			if (!coParticipants.length) return [];
+
+			const uniquePartners = new Map<
+				number,
+				{
+					user: typeof users.$inferSelect;
+					sharedAt: Date;
+				}
+			>();
+
+			for (const row of coParticipants) {
+				if (!row.user) continue;
+				const sharedAt =
+					reservationParticipationDate.get(row.reservationId) ?? new Date(0);
+				const existing = uniquePartners.get(row.user.id);
+
+				if (!existing || sharedAt.getTime() > existing.sharedAt.getTime()) {
+					uniquePartners.set(row.user.id, {
+						user: row.user,
+						sharedAt,
+					});
+				}
+			}
+
+			const recentPartners = [...uniquePartners.values()]
+				.sort((a, b) => b.sharedAt.getTime() - a.sharedAt.getTime())
+				.slice(0, limit)
+				.map((entry) => entry.user);
+
+			if (!recentPartners.length) return [];
+
+			const partnerIds = recentPartners.map((partner) => partner.id);
+
+			const usersWithReservations = await tx
+				.select({ userId: reservationParticipants.userId })
+				.from(reservationParticipants)
+				.leftJoin(
+					standReservations,
+					eq(standReservations.id, reservationParticipants.reservationId),
+				)
+				.where(
+					and(
+						eq(standReservations.festivalId, festivalId),
+						inArray(reservationParticipants.userId, partnerIds),
+					),
+				);
+
+			const reservedUserIds = new Set(
+				usersWithReservations
+					.map((row) => row.userId)
+					.filter((id): id is number => id !== null),
+			);
+
+			const enrolledUsers = await tx
+				.select({ userId: userRequests.userId })
+				.from(userRequests)
+				.where(
+					and(
+						eq(userRequests.festivalId, festivalId),
+						eq(userRequests.status, "accepted"),
+						eq(userRequests.type, "festival_participation"),
+						inArray(userRequests.userId, partnerIds),
+					),
+				);
+
+			const enrolledUserIds = new Set(enrolledUsers.map((row) => row.userId));
+
+			return recentPartners.map((user) => ({
+				...user,
+				isEligible: enrolledUserIds.has(user.id),
+				isReserved: reservedUserIds.has(user.id),
+				isSelectable:
+					user.status === "verified" &&
+					(user.category === "illustration" ||
+						user.category === "new_artist") &&
+					user.role !== "admin",
+			}));
+		});
+	} catch (error) {
+		console.error("Error fetching recent shared stand partners", error);
 		return [];
 	}
 }

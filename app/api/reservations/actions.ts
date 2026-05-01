@@ -55,6 +55,7 @@ export async function fetchReservations(options: {
 						payments: true,
 					},
 				},
+				scheduledTasks: true,
 			},
 			orderBy: desc(standReservations.updatedAt),
 			where: whereClause.queryChunks.length > 0 ? and(whereClause) : undefined,
@@ -155,6 +156,7 @@ export async function fetchReservation(
 						festivalDates: true,
 					},
 				},
+				scheduledTasks: true,
 			},
 		});
 	} catch (error) {

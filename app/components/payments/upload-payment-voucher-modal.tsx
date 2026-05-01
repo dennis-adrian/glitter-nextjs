@@ -4,7 +4,7 @@ import BaseModal from "@/app/components/modals/base-modal";
 import UploadPaymentVoucherForm from "@/app/components/payments/forms/upload-payment-voucher-form";
 import PaymentProofUpload from "@/app/components/payments/payment-proof-upload";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type UploadPaymentVoucherModalProps = {
 	invoice: InvoiceWithPaymentsAndStand;
@@ -15,11 +15,30 @@ export default function UploadPaymentVoucherModal(
 	props: UploadPaymentVoucherModalProps,
 ) {
 	const payments = props.invoice.payments;
-	const [isUploadStarted, setIsUploadStarted] = useState(false);
+	const existingVoucherUrl = payments[payments?.length - 1]?.voucherUrl;
+	const [isUploadStarted, setIsUploadStarted] = useState(
+		Boolean(existingVoucherUrl),
+	);
 	const [isUploading, setIsUploading] = useState(false);
 	const [voucherUrl, setVoucherUrl] = useState<string | undefined>(
-		payments[payments?.length - 1]?.voucherUrl,
+		existingVoucherUrl,
 	);
+	const [hasUserUploaded, setHasUserUploaded] = useState(false);
+	const previousInvoiceIdRef = useRef(props.invoice.id);
+
+	useEffect(() => {
+		if (hasUserUploaded) return;
+		setIsUploadStarted(Boolean(existingVoucherUrl));
+		setVoucherUrl(existingVoucherUrl);
+	}, [existingVoucherUrl, hasUserUploaded]);
+
+	useEffect(() => {
+		const didInvoiceChange = previousInvoiceIdRef.current !== props.invoice.id;
+		if (!props.open && !didInvoiceChange) return;
+		setHasUserUploaded(false);
+		setVoucherUrl(undefined);
+		previousInvoiceIdRef.current = props.invoice.id;
+	}, [props.open, props.invoice.id]);
 
 	return (
 		<BaseModal
@@ -30,7 +49,10 @@ export default function UploadPaymentVoucherModal(
 			<div className="mt-4">
 				<PaymentProofUpload
 					voucherImageUrl={voucherUrl}
-					onUploadComplete={setVoucherUrl}
+					onUploadComplete={(newUrl) => {
+						setHasUserUploaded(true);
+						setVoucherUrl(newUrl);
+					}}
 					onUploading={(isUploading) => {
 						setIsUploadStarted(true);
 						setIsUploading(isUploading);

@@ -2,7 +2,9 @@
 
 import { fetchStandById } from "@/app/api/stands/actions";
 import { fetchBaseProfileById } from "@/app/api/users/actions";
+import ReservationPaymentExtensionTemplate from "@/app/emails/reservation-payment-extension";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import {
 	invoices,
@@ -159,5 +161,156 @@ export async function createAdminReservation(params: {
 			};
 		}
 		return { success: false, message: "Ups! No pudimos crear la reserva" };
+	}
+}
+
+export async function extendReservationPaymentDeadline(params: {
+	reservationId: number;
+	newDueDate: Date;
+}): Promise<{ success: boolean; message: string }> {
+	const { reservationId, newDueDate } = params;
+
+	const currentProfile = await getCurrentUserProfile();
+	if (!currentProfile || currentProfile.role !== "admin") {
+		return {
+			success: false,
+			message: "No tienes permisos para realizar esta acción",
+		};
+	}
+
+	if (!(newDueDate instanceof Date) || Number.isNaN(newDueDate.getTime())) {
+		return { success: false, message: "Fecha inválida" };
+	}
+	if (newDueDate.getTime() <= Date.now()) {
+		return { success: false, message: "La nueva fecha debe ser futura" };
+	}
+
+	try {
+		const outcome = await db.transaction(async (tx) => {
+			const [locked] = await tx
+				.select()
+				.from(standReservations)
+				.where(eq(standReservations.id, reservationId))
+				.limit(1)
+				.for("update");
+
+			if (!locked) {
+				return { ok: false as const, message: "La reserva no existe" };
+			}
+			if (locked.status !== "pending") {
+				return {
+					ok: false as const,
+					message: "Solo puedes extender reservas pendientes de pago",
+				};
+			}
+
+			const reservationRow = await tx.query.standReservations.findFirst({
+				where: eq(standReservations.id, reservationId),
+				with: {
+					stand: true,
+					festival: { with: { festivalDates: true } },
+					participants: { with: { user: true } },
+					scheduledTasks: true,
+				},
+			});
+
+			if (!reservationRow) {
+				return { ok: false as const, message: "La reserva no existe" };
+			}
+
+			const activeTask = reservationRow.scheduledTasks.find(
+				(t) => t.taskType === "stand_reservation" && t.completedAt === null,
+			);
+
+			if (activeTask && newDueDate.getTime() <= activeTask.dueDate.getTime()) {
+				return {
+					ok: false as const,
+					message: "La nueva fecha debe ser posterior a la fecha límite actual",
+				};
+			}
+
+			const creator = reservationRow.participants[0]?.user;
+			if (!creator) {
+				return {
+					ok: false as const,
+					message: "La reserva no tiene un participante asociado",
+				};
+			}
+
+			if (activeTask) {
+				await tx
+					.update(scheduledTasks)
+					.set({
+						dueDate: newDueDate,
+						reminderSentAt: sql`now()`,
+						ranAfterDueDate: false,
+						updatedAt: sql`now()`,
+					})
+					.where(eq(scheduledTasks.id, activeTask.id));
+			} else {
+				// When the payment deadline is extended, we send an email to the user
+				// we don't need to send another reminder email
+				await tx.insert(scheduledTasks).values({
+					dueDate: newDueDate,
+					reminderTime: sql`now()`,
+					reminderSentAt: sql`now()`,
+					profileId: creator.id,
+					reservationId: reservationRow.id,
+					taskType: "stand_reservation",
+				});
+			}
+
+			return { ok: true as const, reservation: reservationRow };
+		});
+
+		if (!outcome.ok) {
+			return { success: false, message: outcome.message };
+		}
+
+		const reservation = outcome.reservation;
+
+		const targets: {
+			to: string;
+			profile: NonNullable<(typeof reservation.participants)[number]["user"]>;
+		}[] = [];
+		for (const p of reservation.participants) {
+			const email = p.user?.email?.trim();
+			if (!email) continue;
+			if (!p.user) continue;
+			targets.push({ to: email, profile: p.user });
+		}
+		const seen = new Set<string>();
+		const uniqueTargets = targets.filter(({ to }) => {
+			const key = to.toLowerCase();
+			if (seen.has(key)) return false;
+			seen.add(key);
+			return true;
+		});
+
+		await Promise.allSettled(
+			uniqueTargets.map(({ to, profile }) =>
+				sendEmail({
+					to: [to],
+					from: "Reservas Glitter <reservas@productoraglitter.com>",
+					subject: "Nueva fecha límite de pago para tu reserva",
+					react: ReservationPaymentExtensionTemplate({
+						profile,
+						reservation,
+						newDueDate,
+					}) as React.ReactElement,
+				}),
+			),
+		);
+
+		revalidatePath("/dashboard/reservations");
+		revalidatePath("/dashboard/payments");
+
+		return { success: true, message: "Plazo de pago extendido" };
+	} catch (error) {
+		console.error("Error extending reservation payment deadline", error);
+		return {
+			success: false,
+			message: "No se pudo extender el plazo de pago",
+		};
 	}
 }

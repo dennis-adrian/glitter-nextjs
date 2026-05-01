@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	CalendarClockIcon,
 	FilePenLineIcon,
 	MoreHorizontalIcon,
 	Trash2Icon,
@@ -21,6 +22,7 @@ import Link from "next/link";
 import { DeleteReservationModal } from "@/app/components/reservations/form/delete-modal";
 import { useState } from "react";
 import { RejectReservationModal } from "@/app/components/reservations/form/reject-modal";
+import { ExtendDeadlineModal } from "@/app/components/reservations/form/extend-deadline-modal";
 
 export function ActionsCell({
 	reservation,
@@ -29,6 +31,9 @@ export function ActionsCell({
 }) {
 	const [openDeleteModal, setOpenDeleteModal] = useState(false);
 	const [openRejectModal, setOpenRejectModal] = useState(false);
+	const [openExtendModal, setOpenExtendModal] = useState(false);
+
+	const canExtend = reservation.status === "pending";
 
 	return (
 		<>
@@ -41,18 +46,18 @@ export function ActionsCell({
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
 					<DropdownMenuLabel>Acciones</DropdownMenuLabel>
-					{/* <DropdownMenuItem asChild>
-            <Link href={`/dashboard/reservations/${reservation.id}/payments`}>
-              <CreditCardIcon className="h-4 w-4 mr-1" />
-              Ver pagos
-            </Link>
-          </DropdownMenuItem> */}
 					<DropdownMenuItem asChild>
 						<Link href={`/dashboard/reservations/${reservation.id}/edit`}>
 							<FilePenLineIcon className="h-4 w-4 mr-1" />
 							Editar
 						</Link>
 					</DropdownMenuItem>
+					{canExtend && (
+						<DropdownMenuItem onClick={() => setOpenExtendModal(true)}>
+							<CalendarClockIcon className="h-4 w-4 mr-1" />
+							Extender plazo de pago
+						</DropdownMenuItem>
+					)}
 					<DropdownMenuItem onClick={() => setOpenRejectModal(true)}>
 						<XCircleIcon className="h-4 w-4 mr-1" />
 						Cancelar
@@ -73,6 +78,13 @@ export function ActionsCell({
 				reservation={reservation}
 				setOpen={setOpenRejectModal}
 			/>
+			{canExtend && (
+				<ExtendDeadlineModal
+					open={openExtendModal}
+					reservation={reservation}
+					setOpen={setOpenExtendModal}
+				/>
+			)}
 		</>
 	);
 }

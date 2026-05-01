@@ -1,13 +1,13 @@
 import EmailFooter from "@/app/emails/email-footer";
 import * as styles from "@/app/emails/styles";
 import {
-  Body,
-  Container,
-  Head,
-  Html,
-  Preview,
-  Section,
-  Text,
+	Body,
+	Container,
+	Head,
+	Html,
+	Preview,
+	Section,
+	Text,
 } from "@react-email/components";
 import { ScheduledTaskWithProfileAndReservation } from "@/app/lib/profile_tasks/definitions";
 import EmailHeader from "@/app/emails/email-header";
@@ -16,16 +16,16 @@ import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 
 type ReservationReminderTemplateProps = {
-  task: ScheduledTaskWithProfileAndReservation;
+	task: ScheduledTaskWithProfileAndReservation;
 };
 
 export default function ReservationReminderTemplate(
-  props: ReservationReminderTemplateProps,
+	props: ReservationReminderTemplateProps,
 ) {
-  const { task } = props;
-  const userName = getUserName(task.profile);
+	const { task } = props;
+	const userName = getUserName(task.profile);
 
-  return (
+	return (
 		<Html>
 			<Head />
 			<Preview>
@@ -50,22 +50,13 @@ export default function ReservationReminderTemplate(
 						<Text style={styles.text}>
 							Tu fecha límite de pago es el{" "}
 							<strong>
-								{formatDate(task.reservation.createdAt)
-									.plus({ days: 5 })
-									.toLocaleString(DateTime.DATE_MED)}
+								{formatDate(task.dueDate).toLocaleString(DateTime.DATE_MED)}
 							</strong>{" "}
 							a las{" "}
 							<strong>
-								{formatDate(task.reservation.createdAt)
-									.plus({ days: 5 })
-									.toLocaleString(DateTime.TIME_SIMPLE)}
+								{formatDate(task.dueDate).toLocaleString(DateTime.TIME_SIMPLE)}
 							</strong>
 							.
-						</Text>
-						<Text style={styles.text}>
-							Como se especifica en los términos y condiciones, toda reserva que
-							no sea confirmada dentro de las 120 horas desde su creación será
-							eliminada automáticamente.
 						</Text>
 						<Text style={styles.text}>
 							Si ya hiciste tu pago, subiste el comprobante a la página web y
@@ -87,19 +78,20 @@ export default function ReservationReminderTemplate(
 }
 
 ReservationReminderTemplate.PreviewProps = {
-  task: {
-    profile: {
-      displayName: "John Doe",
-    },
-    reservation: {
-      festival: {
-        name: "Festival de prueba",
-      },
-      createdAt: new Date("2024-07-02"),
-      stand: {
-        label: "A",
-        standNumber: 2,
-      },
-    },
-  },
+	task: {
+		profile: {
+			displayName: "John Doe",
+		},
+		dueDate: new Date("2024-07-07T18:00:00"),
+		reservation: {
+			festival: {
+				name: "Festival de prueba",
+			},
+			createdAt: new Date("2024-07-02"),
+			stand: {
+				label: "A",
+				standNumber: 2,
+			},
+		},
+	},
 };

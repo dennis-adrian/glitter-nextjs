@@ -6,6 +6,7 @@ import { createPayment } from "@/app/data/invoices/actions";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 import { SendHorizonal } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -20,11 +21,13 @@ export default function UploadPaymentVoucherForm(
 	props: UploadPaymentVoucherFormProps,
 ) {
 	const router = useRouter();
+	const [isPending, startTransition] = useTransition();
 	const form = useForm();
 
-	const action: () => void = form.handleSubmit(async () => {
+	const action = form.handleSubmit(async () => {
 		const payment = props.invoice.payments[props.invoice.payments.length - 1];
-		if (!props.newVoucherUrl) {
+		const voucherUrl = props.newVoucherUrl;
+		if (!voucherUrl) {
 			toast.error("Se necesita un comprobante para confirmar el pago");
 			return;
 		}
@@ -36,7 +39,7 @@ export default function UploadPaymentVoucherForm(
 					date: new Date(),
 					amount: props.invoice.amount,
 					invoiceId: props.invoice.id,
-					voucherUrl: props.newVoucherUrl,
+					voucherUrl,
 				},
 				oldVoucherUrl: payment?.voucherUrl,
 				reservationId: props.invoice.reservationId,
@@ -45,15 +48,16 @@ export default function UploadPaymentVoucherForm(
 
 			if (res.success) {
 				toast.success("Pago enviado con éxito.");
-				router.push(
-					`/profiles/${props.invoice.userId}/invoices/${props.invoice.id}/success`,
-				);
+				startTransition(() => {
+					router.push(
+						`/profiles/${props.invoice.userId}/invoices/${props.invoice.id}/success`,
+					);
+				});
 			} else {
 				toast.error("Error al enviar el pago");
 			}
 		} catch {
 			toast.error("Error al enviar el pago");
-			return;
 		}
 	});
 
@@ -68,11 +72,11 @@ export default function UploadPaymentVoucherForm(
 					<SubmitButton
 						disabled={
 							form.formState.isSubmitting ||
-							form.formState.isSubmitSuccessful ||
+							isPending ||
 							props.disabled ||
 							props.loading
 						}
-						loading={form.formState.isSubmitting || props.loading}
+						loading={form.formState.isSubmitting || isPending || props.loading}
 					>
 						Confirmar pago
 						<SendHorizonal className="h-4 w-4 ml-2" />
