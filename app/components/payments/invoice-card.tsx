@@ -35,7 +35,7 @@ type Props = {
 
 export default function InvoiceCard({ invoice, profileId, festivalId }: Props) {
 	const statusConfig = getInvoiceStatusConfig(invoice.status);
-	const createdAt = formatDate(invoice.date);
+	const createdAt = formatDate(invoice.createdAt);
 	const dueDate = createdAt.plus({ days: PAYMENT_DUE_DAYS });
 	const isPending = invoice.status === "pending";
 	const isOverdue = isPending && DateTime.now() > dueDate;

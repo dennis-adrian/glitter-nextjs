@@ -199,16 +199,26 @@ const getCardConfig = (
 	}
 
 	if (cardStatus === "pending_payment" && activeParticipations.length > 0) {
-		if (reservationCount > 1) {
-			const description =
+		if (outstandingInvoiceCount > 0) {
+			const invoiceLabel =
 				outstandingInvoiceCount === 1
-					? `Tenés ${reservationCount} reservas y 1 pago pendiente.`
-					: `Tenés ${reservationCount} reservas y ${outstandingInvoiceCount} pagos pendientes.`;
+					? "1 pago pendiente"
+					: `${outstandingInvoiceCount} pagos pendientes`;
+			const description =
+				reservationCount > 1
+					? `Tenés ${reservationCount} reservas y ${invoiceLabel}.`
+					: `Tenés ${invoiceLabel}.`;
+			const reservationWord =
+				reservationCount > 1 ? "tus reservas" : "tu reserva";
+			const title =
+				outstandingInvoiceCount === 1
+					? `Hacé tu pago para confirmar ${reservationWord}`
+					: `Completá tus pagos para confirmar ${reservationWord}`;
 
 			return {
 				...STATUS_CONFIG[cardStatus],
 				banner: {
-					title: "Completá tus pagos para confirmar tus reservas",
+					title,
 					description,
 					variant: "warning",
 				},

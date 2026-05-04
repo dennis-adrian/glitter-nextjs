@@ -33,7 +33,7 @@ export default async function Page(props: {
 			<Button asChild variant="link" size="sm" className="px-0 mb-2">
 				<Link href="/portal">
 					<ArrowLeftIcon className="w-3.5 h-3.5 mr-1" />
-					Volver al portal
+					Volver al inicio
 				</Link>
 			</Button>
 
