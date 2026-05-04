@@ -14,6 +14,7 @@ import FestivalActivities from "@/app/components/participant_dashboard/festival-
 import ParticipationHistoryPreview from "@/app/components/participant_dashboard/participation-history-preview";
 import ReservationCard from "@/app/components/participant_dashboard/reservation-card";
 import RestrictedDashboard from "@/app/components/participant_dashboard/restricted-dashboard";
+import { fetchOutstandingInvoiceCountByProfileAndFestival } from "@/app/data/invoices/actions";
 import {
 	fetchProfileEnrollmentInFestival,
 	fetchPublishedActiveFestivals,
@@ -43,19 +44,15 @@ export default async function ParticipantDashboardPage() {
 	const activeFestival =
 		carouselFestivals.find((f) => f.status === "active") ?? null;
 
-	const participationInActiveFestival = activeFestival
-		? (currentProfile.participations.find(
+	const participationsInActiveFestival = activeFestival
+		? currentProfile.participations.filter(
 				(p) => p.reservation.festivalId === activeFestival.id,
-			) ?? null)
-		: null;
+			)
+		: [];
 
-	const activeParticipation = activeFestival
-		? (currentProfile.participations.find(
-				(p) =>
-					p.reservation.festivalId === activeFestival.id &&
-					p.reservation.status !== "rejected",
-			) ?? null)
-		: null;
+	const activeParticipations = participationsInActiveFestival.filter(
+		(p) => p.reservation.status !== "rejected",
+	);
 
 	let profileEnrollment = activeFestival
 		? ((await fetchProfileEnrollmentInFestival(
@@ -72,14 +69,27 @@ export default async function ParticipantDashboardPage() {
 			) ?? null;
 	}
 
-	const rejectedReservationInActiveFestival =
-		participationInActiveFestival?.reservation.status === "rejected";
+	const allReservationsRejected =
+		participationsInActiveFestival.length > 0 &&
+		activeParticipations.length === 0;
 	const rejectedEnrollment = profileEnrollment?.status === "rejected";
 	const showMiParticipacionBlock =
 		!!activeFestival &&
-		!!(profileEnrollment || activeParticipation) &&
-		!rejectedReservationInActiveFestival &&
+		!!(profileEnrollment || activeParticipations.length > 0) &&
+		!allReservationsRejected &&
 		!rejectedEnrollment;
+
+	const invoiceCounts =
+		activeFestival && activeParticipations.length > 0
+			? await fetchOutstandingInvoiceCountByProfileAndFestival(
+					currentProfile.id,
+					activeFestival.id,
+				)
+			: { reservationCount: 0, outstandingInvoiceCount: 0 };
+
+	const hasAcceptedReservation = activeParticipations.some(
+		(p) => p.reservation.status === "accepted",
+	);
 
 	return (
 		<div className="container p-3 md:p-6">
@@ -125,13 +135,17 @@ export default async function ParticipantDashboardPage() {
 								<ReservationCard
 									profile={currentProfile}
 									activeFestival={activeFestival}
-									activeParticipation={activeParticipation}
+									activeParticipations={activeParticipations}
 									profileEnrollment={profileEnrollment}
+									outstandingInvoiceCount={
+										invoiceCounts.outstandingInvoiceCount
+									}
+									reservationCount={invoiceCounts.reservationCount}
 								/>
 							</div>
 						</div>
 
-						{activeParticipation?.reservation.status === "accepted" && (
+						{hasAcceptedReservation && (
 							<FestivalActivities
 								festivalId={activeFestival.id}
 								forProfile={currentProfile}

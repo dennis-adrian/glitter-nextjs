@@ -25,13 +25,14 @@ import { Banner, BannerVariant } from "@/app/components/ui/banner";
 import Heading from "@/app/components/atoms/heading";
 import { UserRequestBase } from "@/app/api/user_requests/definitions";
 import { cn } from "@/app/lib/utils";
-import { ReservationBase } from "@/app/api/reservations/definitions";
 
 type Props = {
 	profile: ProfileType;
 	activeFestival: FestivalWithDates;
-	activeParticipation: Participation | null | undefined;
+	activeParticipations: Participation[];
 	profileEnrollment: UserRequestBase | null;
+	outstandingInvoiceCount: number;
+	reservationCount: number;
 };
 
 type CardConfig = {
@@ -106,20 +107,27 @@ type CardStatus =
 
 function getCardStatus(
 	profileEnrollment: UserRequestBase | null,
-	activeParticipation: Participation | null | undefined,
+	activeParticipations: Participation[],
+	outstandingInvoiceCount: number,
 	festivalReservationsStartDate: Date,
 ): CardStatus {
-	if (activeParticipation?.reservation.status === "pending") {
-		return "pending_payment";
-	}
-	if (activeParticipation?.reservation.status === "verification_payment") {
-		return "pending_payment_approval";
-	}
-	if (activeParticipation?.reservation.status === "accepted") {
-		return "confirmed_reservation";
-	}
-	if (activeParticipation?.reservation.status === "rejected") {
-		return "rejected_reservation";
+	if (activeParticipations.length > 0) {
+		if (outstandingInvoiceCount > 0) {
+			return "pending_payment";
+		}
+		if (
+			activeParticipations.some(
+				(p) => p.reservation.status === "verification_payment",
+			)
+		) {
+			return "pending_payment_approval";
+		}
+		if (activeParticipations.some((p) => p.reservation.status === "accepted")) {
+			return "confirmed_reservation";
+		}
+		if (activeParticipations.some((p) => p.reservation.status === "pending")) {
+			return "pending_payment";
+		}
 	}
 	if (!profileEnrollment) {
 		return "pending_enrollment";
@@ -146,7 +154,9 @@ function getCardStatus(
 const getCardConfig = (
 	cardStatus: CardStatus,
 	reservationsStartDate: Date,
-	reservation?: ReservationBase | null,
+	activeParticipations: Participation[],
+	outstandingInvoiceCount: number,
+	reservationCount: number,
 ): CardConfig => {
 	if (cardStatus === "enrollment_pending_approval") {
 		return {
@@ -188,21 +198,52 @@ const getCardConfig = (
 		};
 	}
 
-	if (reservation && cardStatus === "pending_payment") {
-		const paymentDueDate = formatDate(reservation.createdAt).plus({ days: 5 });
-		const dueDateLabel = paymentDueDate.toLocaleString(DateTime.DATE_MED);
-		const dueDateTimeLabel = paymentDueDate.toLocaleString(
-			DateTime.TIME_SIMPLE,
-		);
+	if (cardStatus === "pending_payment" && activeParticipations.length > 0) {
+		if (outstandingInvoiceCount > 0) {
+			const invoiceLabel =
+				outstandingInvoiceCount === 1
+					? "1 pago pendiente"
+					: `${outstandingInvoiceCount} pagos pendientes`;
+			const description =
+				reservationCount > 1
+					? `Tenés ${reservationCount} reservas y ${invoiceLabel}.`
+					: `Tenés ${invoiceLabel}.`;
+			const reservationWord =
+				reservationCount > 1 ? "tus reservas" : "tu reserva";
+			const title =
+				outstandingInvoiceCount === 1
+					? `Hacé tu pago para confirmar ${reservationWord}`
+					: `Completá tus pagos para confirmar ${reservationWord}`;
 
-		return {
-			...STATUS_CONFIG[cardStatus],
-			banner: {
-				title: "Hacé tu pago para confirmar tu reserva",
-				description: `Hiciste tu reserva pero aún no estás confirmada. Tenés hasta el ${dueDateLabel} a las ${dueDateTimeLabel} para confirmar tu reserva.`,
-				variant: "warning",
-			},
-		};
+			return {
+				...STATUS_CONFIG[cardStatus],
+				banner: {
+					title,
+					description,
+					variant: "warning",
+				},
+			};
+		}
+
+		const reservation = activeParticipations[0]?.reservation;
+		if (reservation) {
+			const paymentDueDate = formatDate(reservation.createdAt).plus({
+				days: 5,
+			});
+			const dueDateLabel = paymentDueDate.toLocaleString(DateTime.DATE_MED);
+			const dueDateTimeLabel = paymentDueDate.toLocaleString(
+				DateTime.TIME_SIMPLE,
+			);
+
+			return {
+				...STATUS_CONFIG[cardStatus],
+				banner: {
+					title: "Hacé tu pago para confirmar tu reserva",
+					description: `Hiciste tu reserva pero aún no estás confirmada. Tenés hasta el ${dueDateLabel} a las ${dueDateTimeLabel} para confirmar tu reserva.`,
+					variant: "warning",
+				},
+			};
+		}
 	}
 
 	return STATUS_CONFIG[cardStatus];
@@ -211,12 +252,15 @@ const getCardConfig = (
 export default function ReservationCard({
 	profile,
 	activeFestival,
-	activeParticipation,
+	activeParticipations,
 	profileEnrollment,
+	outstandingInvoiceCount,
+	reservationCount,
 }: Props) {
 	const cardStatus = getCardStatus(
 		profileEnrollment,
-		activeParticipation,
+		activeParticipations,
+		outstandingInvoiceCount,
 		activeFestival.reservationsStartDate,
 	);
 
@@ -242,14 +286,14 @@ export default function ReservationCard({
 	const cardConfig = getCardConfig(
 		cardStatus,
 		activeFestival.reservationsStartDate,
-		activeParticipation?.reservation,
+		activeParticipations,
+		outstandingInvoiceCount,
+		reservationCount,
 	);
 
 	const actionHref =
 		cardStatus === "pending_payment"
-			? activeParticipation?.reservation?.id != null
-				? `/profiles/${profile.id}/festivals/${activeFestival.id}/reservations/${activeParticipation.reservation.id}/payments`
-				: `/my_participations`
+			? `/profiles/${profile.id}/festivals/${activeFestival.id}/invoices`
 			: hasReservationCardStatuses.includes(cardStatus)
 				? `/my_participations`
 				: `/profiles/${profile.id}/festivals/${activeFestival.id}/reservations/new`;
