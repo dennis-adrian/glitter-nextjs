@@ -35,7 +35,7 @@ export default async function UserProfileBanner({
 	);
 	const festivalId = earliestInvoice.reservation.festivalId;
 	const paymentDueDate = formatDate(
-		DateTime.fromJSDate(earliestInvoice.date).plus({ hours: 120 }).toJSDate(),
+		DateTime.fromJSDate(earliestInvoice.date).plus({ days: 5 }).toJSDate(),
 	);
 
 	return (

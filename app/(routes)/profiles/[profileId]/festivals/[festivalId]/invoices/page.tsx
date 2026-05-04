@@ -1,16 +1,13 @@
 import { ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { Suspense } from "react";
 import { z } from "zod";
 
 import Heading from "@/app/components/atoms/heading";
-import InvoiceCard, {
-	InvoiceWithReservation,
-} from "@/app/components/payments/invoice-card";
+import FestivalInvoicesList from "@/app/components/payments/festival-invoices-list";
+import FestivalInvoicesListSkeleton from "@/app/components/payments/festival-invoices-list-skeleton";
 import { Button } from "@/app/components/ui/button";
-import { Card, CardContent } from "@/app/components/ui/card";
-import { fetchReservationsWithInvoicesByProfileAndFestival } from "@/app/data/invoices/actions";
-import { InvoiceWithPayments } from "@/app/data/invoices/definitions";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 
@@ -18,12 +15,6 @@ const ParamsSchema = z.object({
 	profileId: z.coerce.number(),
 	festivalId: z.coerce.number(),
 });
-
-const STATUS_PRIORITY: Record<InvoiceWithPayments["status"], number> = {
-	pending: 0,
-	paid: 1,
-	cancelled: 2,
-};
 
 export default async function Page(props: {
 	params: Promise<{ profileId: string; festivalId: string }>;
@@ -36,22 +27,6 @@ export default async function Page(props: {
 	const festival = await fetchBaseFestival(validatedParams.data.festivalId);
 	if (!festival || !profile) notFound();
 	await protectRoute(profile, validatedParams.data.profileId);
-
-	const reservations = await fetchReservationsWithInvoicesByProfileAndFestival(
-		validatedParams.data.profileId,
-		validatedParams.data.festivalId,
-	);
-
-	const invoices: InvoiceWithReservation[] = reservations
-		.filter((r) => r.status !== "rejected")
-		.flatMap((reservation) =>
-			reservation.invoices.map((invoice) => ({ ...invoice, reservation })),
-		)
-		.sort((a, b) => {
-			const statusDiff = STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status];
-			if (statusDiff !== 0) return statusDiff;
-			return b.date.getTime() - a.date.getTime();
-		});
 
 	return (
 		<div className="container max-w-3xl p-4 md:p-6">
@@ -67,26 +42,12 @@ export default async function Page(props: {
 				Tus pagos para este festival
 			</p>
 
-			{invoices.length === 0 ? (
-				<Card>
-					<CardContent className="p-6 text-center">
-						<p className="text-sm text-muted-foreground">
-							No tienes facturas en este festival.
-						</p>
-					</CardContent>
-				</Card>
-			) : (
-				<div className="flex flex-col gap-3">
-					{invoices.map((invoice) => (
-						<InvoiceCard
-							key={invoice.id}
-							invoice={invoice}
-							profileId={validatedParams.data.profileId}
-							festivalId={validatedParams.data.festivalId}
-						/>
-					))}
-				</div>
-			)}
+			<Suspense fallback={<FestivalInvoicesListSkeleton />}>
+				<FestivalInvoicesList
+					profileId={validatedParams.data.profileId}
+					festivalId={validatedParams.data.festivalId}
+				/>
+			</Suspense>
 		</div>
 	);
 }
