@@ -24,9 +24,11 @@ export default async function Page(props: {
 	if (!validatedParams.success) redirect("/");
 
 	const profile = await getCurrentUserProfile();
+	if (!profile) notFound();
+	await protectRoute(profile || undefined, validatedParams.data.profileId);
+
 	const festival = await fetchBaseFestival(validatedParams.data.festivalId);
-	if (!festival || !profile) notFound();
-	await protectRoute(profile, validatedParams.data.profileId);
+	if (!festival) notFound();
 
 	return (
 		<div className="container max-w-3xl p-4 md:p-6">
