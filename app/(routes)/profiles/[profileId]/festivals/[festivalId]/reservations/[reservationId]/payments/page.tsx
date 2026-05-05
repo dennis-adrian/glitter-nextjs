@@ -34,6 +34,16 @@ export default async function Page(props: {
 	const invoices = await fetchInvoicesByReservation(
 		validatedParams.data.reservationId,
 	);
+
+	const isInvoiceOwner = invoices.some(
+		(invoice) => invoice.userId === profile.id,
+	);
+	if (!isInvoiceOwner) {
+		redirect(
+			`/profiles/${validatedParams.data.profileId}/festivals/${validatedParams.data.festivalId}/invoices`,
+		);
+	}
+
 	const pendingInvoices = invoices?.filter(
 		(invoice) => invoice.status === "pending",
 	);
@@ -69,7 +79,9 @@ export default async function Page(props: {
 					return (
 						<div key={invoice.id} className="container p-4 md:p-6">
 							<h1 className="text-3xl font-bold mb-8">
-								{invoice.amount === 0 ? "Confirma tu Reserva" : "Completa tu Pago"}
+								{invoice.amount === 0
+									? "Confirma tu Reserva"
+									: "Completa tu Pago"}
 							</h1>
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 								<div className="flex flex-col gap-6">

@@ -15,12 +15,15 @@ export type InvoiceBase = typeof invoices.$inferSelect;
 export type InvoiceWithPayments = InvoiceBase & {
 	payments: (typeof payments.$inferSelect)[];
 };
+export type InvoiceWithPaymentsAndOwner = InvoiceWithPayments & {
+	user: typeof users.$inferSelect;
+};
 export type ReservationWithStandAndInvoicesAndFestival =
 	typeof standReservations.$inferSelect & {
 		stand: StandBase & {
 			festivalSector: typeof festivalSectors.$inferSelect | null;
 		};
-		invoices: InvoiceWithPayments[];
+		invoices: InvoiceWithPaymentsAndOwner[];
 		festival: FestivalWithDates;
 	};
 export type InvoiceWithPaymentsAndStand = InvoiceWithPayments & {
