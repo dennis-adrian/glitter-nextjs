@@ -12,10 +12,12 @@ import Link from "next/link";
 
 import Heading from "@/app/components/atoms/heading";
 import { Badge } from "@/app/components/ui/badge";
+import { Banner } from "@/app/components/ui/banner";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import {
 	InvoiceWithPayments,
+	InvoiceWithPaymentsAndOwner,
 	ReservationWithStandAndInvoicesAndFestival,
 } from "@/app/data/invoices/definitions";
 import { formatDate } from "@/app/lib/formatters";
@@ -23,7 +25,7 @@ import { cn } from "@/app/lib/utils";
 
 const PAYMENT_DUE_DAYS = 5;
 
-export type InvoiceWithReservation = InvoiceWithPayments & {
+export type InvoiceWithReservation = InvoiceWithPaymentsAndOwner & {
 	reservation: ReservationWithStandAndInvoicesAndFestival;
 };
 
@@ -39,6 +41,7 @@ export default function InvoiceCard({ invoice, profileId, festivalId }: Props) {
 	const dueDate = createdAt.plus({ days: PAYMENT_DUE_DAYS });
 	const isPending = invoice.status === "pending";
 	const isOverdue = isPending && DateTime.now() > dueDate;
+	const isOwner = invoice.userId === profileId;
 	const standLabel = `${invoice.reservation.stand.label ?? ""}${invoice.reservation.stand.standNumber}`;
 	const sectorName = invoice.reservation.stand.festivalSector?.name;
 
@@ -88,19 +91,37 @@ export default function InvoiceCard({ invoice, profileId, festivalId }: Props) {
 					)}
 				</div>
 
-				{isPending && (
-					<Button asChild variant="default" size="sm" className="w-full">
-						<Link
-							href={`/profiles/${profileId}/festivals/${festivalId}/reservations/${invoice.reservation.id}/payments`}
-						>
-							{invoice.amount === 0 ? "Confirmar reserva" : "Completar pago"}
-							<ArrowRightIcon className="w-3.5 h-3.5 shrink-0 ml-1" />
-						</Link>
-					</Button>
-				)}
+				{isPending &&
+					(isOwner ? (
+						<Button asChild variant="default" size="sm" className="w-full">
+							<Link
+								href={`/profiles/${profileId}/festivals/${festivalId}/reservations/${invoice.reservation.id}/payments`}
+							>
+								{invoice.amount === 0 ? "Confirmar reserva" : "Completar pago"}
+								<ArrowRightIcon className="w-3.5 h-3.5 shrink-0 ml-1" />
+							</Link>
+						</Button>
+					) : (
+						<Banner variant="info">
+							Contactá al titular de la reserva
+							{getOwnerDisplayName(invoice.user)
+								? `, ${getOwnerDisplayName(invoice.user)},`
+								: ""}{" "}
+							para completar este pago.
+						</Banner>
+					))}
 			</CardContent>
 		</Card>
 	);
+}
+
+function getOwnerDisplayName(
+	user: InvoiceWithPaymentsAndOwner["user"] | null | undefined,
+): string | null {
+	if (!user) return null;
+	if (user.displayName) return user.displayName;
+	const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ");
+	return fullName || null;
 }
 
 function getInvoiceStatusConfig(status: InvoiceWithPayments["status"]) {

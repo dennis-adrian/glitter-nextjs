@@ -303,6 +303,7 @@ export async function fetchReservationsWithInvoicesByProfileAndFestival(
 				invoices: {
 					with: {
 						payments: true,
+						user: true,
 					},
 				},
 			},
