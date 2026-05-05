@@ -23,7 +23,6 @@ import ProfileStatusCell from "@/app/components/users/cells/profile-status";
 import { formatDate } from "@/app/lib/formatters";
 import ParticipationsCell from "../users/cells/participations-cell";
 import ProfileQuickActions from "../user_profile/public_profile/quick-actions";
-import { Button } from "../ui/button";
 import { ScrollArea, ScrollBar } from "../ui/scroll-area";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -104,11 +103,17 @@ export default function MobileUserCard({ user }: MobileUserCardProps) {
 							</p>
 						</div>
 					</div>
-					<ProfileQuickActions profile={user} hideViewProfile>
-						<Button variant="ghost" className="h-8 w-8 p-0 -mr-2">
+					<ProfileQuickActions
+						profile={user}
+						hideViewProfile
+						triggerVariant="ghost"
+						triggerSize="icon"
+						triggerClassName="h-8 w-8 p-0 -mr-2"
+					>
+						<>
 							<span className="sr-only">Open menu</span>
 							<EllipsisVerticalIcon className="w-4 h-4" />
-						</Button>
+						</>
 					</ProfileQuickActions>
 				</div>
 				{socialsWithUsername.length > 0 && (

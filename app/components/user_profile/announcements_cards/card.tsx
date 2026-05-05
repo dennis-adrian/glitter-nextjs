@@ -26,24 +26,27 @@ export default async function Card({ profile }: { profile: ProfileType }) {
 	if (!festival) return null;
 
 	if (isProfileInFestival(festival.id, profile)) {
-		const currentFestivalResevation = profile.participations.find(
-			(participation) => {
-				return participation.reservation.festivalId === festival.id;
-			},
+		const festivalParticipations = profile.participations.filter(
+			(participation) => participation.reservation.festivalId === festival.id,
+		);
+		const nonRejectedParticipations = festivalParticipations.filter(
+			(p) => p.reservation.status !== "rejected",
 		);
 
-		if (currentFestivalResevation) {
-			const reservationStatus = currentFestivalResevation.reservation.status;
-			if (reservationStatus === "rejected") return null;
-
-			const standId = currentFestivalResevation.reservation.standId;
+		if (nonRejectedParticipations.length > 0) {
+			const sortedByMostRecent = [...nonRejectedParticipations].sort(
+				(a, b) =>
+					b.reservation.createdAt.getTime() - a.reservation.createdAt.getTime(),
+			);
+			const representative = sortedByMostRecent[0];
+			const standId = representative.reservation.standId;
 			const stand = await fetchStandById(standId);
 			if (stand) {
 				return (
 					<ReservedStandCard
 						festival={festival}
 						stand={stand}
-						reservationStatus={reservationStatus}
+						reservationStatus={representative.reservation.status}
 					/>
 				);
 			}

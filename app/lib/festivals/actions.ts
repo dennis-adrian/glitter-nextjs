@@ -34,7 +34,7 @@ import {
 	or,
 	sql,
 } from "drizzle-orm";
-import { cacheLife, cacheTag, revalidatePath, updateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 import {
 	FestivalActivityWithDetailsAndParticipants,
 	FestivalBase,
@@ -132,7 +132,6 @@ export async function createFestival(
 		});
 
 		revalidatePath("/dashboard/festivals");
-		updateTag("active-festival");
 		return {
 			success: true,
 			message: "Festival creado exitosamente!",
@@ -159,7 +158,6 @@ export async function deleteFestival(festivalId: number) {
 		};
 	}
 	revalidatePath("/dashboard/festivals");
-	updateTag("active-festival");
 	return {
 		success: true,
 		message: "Festival eliminado correctamente!",
@@ -342,7 +340,6 @@ export async function updateFestival(
 		});
 
 		revalidatePath("/dashboard/festivals");
-		updateTag("active-festival");
 		return {
 			success: true,
 			message: "Festival actualizado correctamente.",
@@ -398,10 +395,6 @@ export async function fetchFestivalActivityForReview(
 export async function fetchPublishedActiveFestivals(): Promise<
 	FestivalWithDates[]
 > {
-	"use cache";
-	cacheLife("minutes");
-	cacheTag("active-festival");
-
 	try {
 		return (await db.query.festivals.findMany({
 			where: or(
@@ -476,10 +469,6 @@ export async function fetchFestivalWithDatesAndSectors(
 }
 
 export async function fetchActiveFestivalWithDates(): Promise<FestivalWithDates | null> {
-	"use cache";
-	cacheLife("hours");
-	cacheTag("active-festival");
-
 	try {
 		const festival = await db.query.festivals.findFirst({
 			where: eq(festivals.status, "active"),
@@ -643,7 +632,6 @@ export async function updateFestivalStatusTemp(festival: FestivalBase) {
 	}
 
 	revalidatePath("/dashboard/festivals");
-	updateTag("active-festival");
 	return { success: true, message: "Festival actualizado con éxito" };
 }
 
@@ -741,7 +729,6 @@ export async function updateFestivalStatus(festival: FestivalBase) {
 	}
 
 	revalidatePath("/dashboard/festivals");
-	updateTag("active-festival");
 	return { success: true, message: "Festival actualizado con éxito" };
 }
 
@@ -776,7 +763,6 @@ export async function updateFestivalRegistration(
 	}
 
 	revalidatePath("/dashboard/festivals");
-	updateTag("active-festival");
 	return { success: true, message: "Festival actualizado con éxito" };
 }
 

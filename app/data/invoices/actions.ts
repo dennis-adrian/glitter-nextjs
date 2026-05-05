@@ -6,14 +6,20 @@ import {
 	InvoiceWithPaymentsAndStand,
 	InvoiceWithPaymentsAndStandAndProfile,
 	NewPayment,
+	ReservationWithStandAndInvoicesAndFestival,
 } from "@/app/data/invoices/definitions";
 import PaymentConfirmationForAdminsEmailTemplate from "@/app/emails/payment-confirmation-for-admins";
 import PaymentConfirmationForUserEmailTemplate from "@/app/emails/payment-confirmation-for-user";
 import { updateReservationStatus } from "@/app/lib/reservations/actions";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
-import { invoices, payments, standReservations } from "@/db/schema";
-import { desc, eq, inArray } from "drizzle-orm";
+import {
+	invoices,
+	payments,
+	reservationParticipants,
+	standReservations,
+} from "@/db/schema";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { UTApi } from "uploadthing/server";
 
 export async function fetchLatestInvoiceByProfileId(
@@ -181,9 +187,7 @@ export async function confirmFreeInvoice(data: {
 	return { success: true, message: "Reserva confirmada" };
 }
 
-export async function fetchInvoices(): Promise<
-	InvoiceWithParticipants[]
-> {
+export async function fetchInvoices(): Promise<InvoiceWithParticipants[]> {
 	try {
 		return await db.query.invoices.findMany({
 			with: {
@@ -267,6 +271,106 @@ export async function fetchInvoice(
 	} catch (error) {
 		console.error(error);
 		return null;
+	}
+}
+
+export async function fetchReservationsWithInvoicesByProfileAndFestival(
+	profileId: number,
+	festivalId: number,
+): Promise<ReservationWithStandAndInvoicesAndFestival[]> {
+	try {
+		const reservationIdsSubquery = db
+			.select({ id: reservationParticipants.reservationId })
+			.from(reservationParticipants)
+			.where(eq(reservationParticipants.userId, profileId));
+
+		return await db.query.standReservations.findMany({
+			where: and(
+				eq(standReservations.festivalId, festivalId),
+				inArray(standReservations.id, reservationIdsSubquery),
+			),
+			with: {
+				stand: {
+					with: {
+						festivalSector: true,
+					},
+				},
+				festival: {
+					with: {
+						festivalDates: true,
+					},
+				},
+				invoices: {
+					with: {
+						payments: true,
+						user: true,
+					},
+				},
+			},
+			orderBy: desc(standReservations.createdAt),
+		});
+	} catch (error) {
+		console.error(
+			"Error fetching reservations with invoices by profile and festival",
+			error,
+		);
+		return [];
+	}
+}
+
+export async function fetchOutstandingInvoiceCountByProfileAndFestival(
+	profileId: number,
+	festivalId: number,
+): Promise<{ reservationCount: number; outstandingInvoiceCount: number }> {
+	const reservations = await fetchReservationsWithInvoicesByProfileAndFestival(
+		profileId,
+		festivalId,
+	);
+	const nonRejectedReservations = reservations.filter(
+		(r) => r.status !== "rejected",
+	);
+	const outstandingInvoiceCount = nonRejectedReservations.reduce(
+		(count, reservation) =>
+			count + reservation.invoices.filter((i) => i.status === "pending").length,
+		0,
+	);
+	return {
+		reservationCount: nonRejectedReservations.length,
+		outstandingInvoiceCount,
+	};
+}
+
+export async function fetchPendingInvoicesByProfile(
+	profileId: number,
+): Promise<InvoiceWithPaymentsAndStand[]> {
+	try {
+		return await db.query.invoices.findMany({
+			where: and(
+				eq(invoices.userId, profileId),
+				eq(invoices.status, "pending"),
+			),
+			with: {
+				payments: true,
+				reservation: {
+					with: {
+						stand: {
+							with: {
+								qrCode: true,
+							},
+						},
+						festival: {
+							with: {
+								festivalDates: true,
+							},
+						},
+					},
+				},
+			},
+			orderBy: desc(invoices.createdAt),
+		});
+	} catch (error) {
+		console.error("Error fetching pending invoices by profile", error);
+		return [];
 	}
 }
 
