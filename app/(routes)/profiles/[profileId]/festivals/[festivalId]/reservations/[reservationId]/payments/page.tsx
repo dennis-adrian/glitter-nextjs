@@ -34,21 +34,21 @@ export default async function Page(props: {
 	const invoices = await fetchInvoicesByReservation(
 		validatedParams.data.reservationId,
 	);
-
-	const isInvoiceOwner = invoices.some(
+	const ownerInvoices = invoices.filter(
 		(invoice) => invoice.userId === profile.id,
 	);
-	if (!isInvoiceOwner) {
+
+	if (ownerInvoices.length === 0) {
 		redirect(
 			`/profiles/${validatedParams.data.profileId}/festivals/${validatedParams.data.festivalId}/invoices`,
 		);
 	}
 
-	const pendingInvoices = invoices?.filter(
+	const pendingInvoices = ownerInvoices.filter(
 		(invoice) => invoice.status === "pending",
 	);
 
-	if (pendingInvoices?.length === 0) {
+	if (pendingInvoices.length === 0) {
 		return (
 			<>
 				<StepIndicator
@@ -74,7 +74,7 @@ export default async function Page(props: {
 				backLabel="Ver mi reserva"
 				backHref="/my_profile"
 			/>
-			{invoices?.map((invoice) => {
+			{ownerInvoices.map((invoice) => {
 				if (invoice && invoice.status === "pending") {
 					return (
 						<div key={invoice.id} className="container p-4 md:p-6">
