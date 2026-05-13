@@ -624,8 +624,6 @@ export const tickets = pgTable("tickets", {
 	id: serial("id").primaryKey(),
 	date: timestamp("date").notNull(),
 	status: ticketStatusEnum("status").default("pending").notNull(),
-	qrcode: text("qr_code"),
-	qrcodeUrl: text("qr_code_url"),
 	visitorId: integer("visitor_id").notNull(),
 	isEventDayCreation: boolean("is_event_day_creation").default(false).notNull(),
 	festivalId: integer("festival_id").notNull(),
