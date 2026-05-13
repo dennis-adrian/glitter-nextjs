@@ -2,8 +2,7 @@
 
 import { and, count, desc, eq, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { uploadQrCode } from "@/app/data/tickets/helpers";
-import { generateQRCode } from "@/app/lib/utils";
+import { generateQrBuffer } from "@/app/lib/utils";
 import { db } from "@/db";
 import { tickets } from "@/db/schema";
 import { VisitorBase, VisitorWithTickets } from "../visitors/actions";
@@ -54,11 +53,6 @@ export async function createTicket(data: {
 					: 0;
 			const ticketNumber = maxTicketNumber + 1;
 
-			const qrcode = await generateQRCode(
-				getTicketCode(festival.festivalCode || "", ticketNumber),
-			);
-			const qrcodeUrl = await uploadQrCode(qrcode.qrCodeUrl);
-
 			return await tx
 				.insert(tickets)
 				.values({
@@ -66,8 +60,6 @@ export async function createTicket(data: {
 					visitorId: visitor.id,
 					festivalId: festival.id,
 					ticketNumber: ticketNumber,
-					qrcode: qrcode.qrCodeUrl,
-					qrcodeUrl: qrcodeUrl,
 					numberOfVisitors: data.numberOfVisitors || 1,
 				})
 				.returning();
@@ -91,6 +83,15 @@ export async function createTicket(data: {
 		};
 	}
 
+	const qrBuffer = await generateQrBuffer(
+		getTicketCode(festival.festivalCode || "", createdTicket.ticketNumber || 0),
+	);
+	const qrAttachment = {
+		filename: "qrcode.png",
+		content: qrBuffer,
+		content_id: "ticket-qrcode",
+	};
+
 	sendEmail({
 		from: "Equipo Glitter <entradas@productoraglitter.com>",
 		to: [visitor.email],
@@ -100,6 +101,7 @@ export async function createTicket(data: {
 			festival,
 			ticket: createdTicket,
 		}) as React.ReactElement,
+		attachments: [qrAttachment],
 	});
 
 	revalidatePath(`/festivals/${festival.id}/registration`);
@@ -110,7 +112,9 @@ export async function createTicket(data: {
 	};
 }
 
-export async function fetchTicket(id: number): Promise<TicketBase | undefined | null> {
+export async function fetchTicket(
+	id: number,
+): Promise<TicketBase | undefined | null> {
 	try {
 		return await db.query.tickets.findFirst({
 			where: eq(tickets.id, id),
@@ -223,41 +227,41 @@ export async function sendTicketEmail(
 }
 
 export async function fetchTicketsByFestival(festivalId: number) {
-  try {
-    return await db.query.tickets.findMany({
-      with: {
-        visitor: true,
-        festival: true,
-      },
-      where: and(
-        eq(tickets.festivalId, festivalId),
-        eq(tickets.status, "checked_in"),
-      ),
-      orderBy: desc(tickets.updatedAt),
-      limit: 50,
-    });
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
+	try {
+		return await db.query.tickets.findMany({
+			with: {
+				visitor: true,
+				festival: true,
+			},
+			where: and(
+				eq(tickets.festivalId, festivalId),
+				eq(tickets.status, "checked_in"),
+			),
+			orderBy: desc(tickets.updatedAt),
+			limit: 50,
+		});
+	} catch (error) {
+		console.error(error);
+		return [];
+	}
 }
 
 export async function fetchVerifiedTicketsByFestivalTotal(festivalId: number) {
-  try {
-    const result = await db
-      .select({
-        total: count(tickets.id),
-      })
-      .from(tickets)
-      .where(
-        and(
-          eq(tickets.festivalId, festivalId),
-          eq(tickets.status, "checked_in"),
-        ),
-      );
-    return result[0].total;
-  } catch (error) {
-    console.error(error);
-    return 0;
-  }
+	try {
+		const result = await db
+			.select({
+				total: count(tickets.id),
+			})
+			.from(tickets)
+			.where(
+				and(
+					eq(tickets.festivalId, festivalId),
+					eq(tickets.status, "checked_in"),
+				),
+			);
+		return result[0].total;
+	} catch (error) {
+		console.error(error);
+		return 0;
+	}
 }
