@@ -35,8 +35,6 @@ const serverSchema = z
 		RESEND_API_KEY: z.string().min(1),
 
 		// File storage
-		EDGE_STORE_ACCESS_KEY: z.string().min(1),
-		EDGE_STORE_SECRET_KEY: z.string().min(1),
 		UPLOADTHING_TOKEN: z.string().min(1),
 
 		// Runtime

@@ -5,7 +5,6 @@ import { Suspense } from "react";
 import { esMX } from "@clerk/localizations";
 import { ClerkProvider } from "@clerk/nextjs";
 
-import { EdgeStoreProvider } from "@/app/lib/edgestore";
 import PostHogAuthIdentify from "@/app/components/providers/posthog-identify";
 
 import { Toaster } from "@/components/ui/sonner";
@@ -43,20 +42,18 @@ export default function RootLayout({
 			<body className={`${inter.variable} ${spaceGrotesk.variable} font-sans`}>
 				<Suspense fallback={<div className="min-h-screen" />}>
 					<ClerkProvider localization={esMX}>
-						<EdgeStoreProvider>
-							<Suspense fallback={<div className="h-16 md:h-20" />}>
-								<Navbar />
-							</Suspense>
-							<main className="min-h-[calc(100vh-64px-180px)] md:min-h-[calc(100vh-80px-290px)]">
-								{children}
-							</main>
-							<Suspense fallback={<div className="h-[180px] md:h-[290px]" />}>
-								<Footer />
-							</Suspense>
-							<PostHogAuthIdentify />
-							<Toaster richColors />
-							<Analytics />
-						</EdgeStoreProvider>
+						<Suspense fallback={<div className="h-16 md:h-20" />}>
+							<Navbar />
+						</Suspense>
+						<main className="min-h-[calc(100vh-64px-180px)] md:min-h-[calc(100vh-80px-290px)]">
+							{children}
+						</main>
+						<Suspense fallback={<div className="h-[180px] md:h-[290px]" />}>
+							<Footer />
+						</Suspense>
+						<PostHogAuthIdentify />
+						<Toaster richColors />
+						<Analytics />
 					</ClerkProvider>
 				</Suspense>
 			</body>
