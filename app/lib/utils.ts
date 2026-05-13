@@ -128,6 +128,9 @@ export function getMissingProfileFields(profile: ProfileType) {
 	const missingFields = [];
 	const socials = profile.userSocials.filter((social) => !!social.username);
 	const subcategories = profile.profileSubcategories;
+	const imageField = requiredProfileFields.find(
+		(field) => field.key === "imageUrl",
+	);
 
 	requiredProfileFields.forEach((field) => {
 		if (!profile[field.key]) missingFields.push(field);
@@ -155,6 +158,14 @@ export function getMissingProfileFields(profile: ProfileType) {
 			label: "Una categoría en la que participar",
 			isPublic: true,
 		});
+	}
+
+	if (
+		imageField &&
+		(profile.imageUrl?.includes("clerk") ||
+			profile.imageUrl?.includes("edgestore"))
+	) {
+		missingFields.push(imageField);
 	}
 
 	return missingFields;
