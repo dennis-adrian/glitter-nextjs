@@ -1,5 +1,5 @@
-@import 'tailwindcss';
-@import 'tw-animate-css';
+@import "tailwindcss";
+@import "tw-animate-css";
 
 @import "uploadthing/tw/v4";
 @source "../node_modules/@uploadthing/react/dist";
@@ -31,7 +31,7 @@
 	--color-background-900: hsl(var(--background-900));
 	--color-background-950: hsl(var(--background-950));
 	--color-foreground: hsl(var(--foreground));
-	--color-primary: hsl(var(--primary));
+	--color-primary: hsl(var(--primary-700));
 	--color-primary-foreground: hsl(var(--primary-foreground));
 	--color-primary-50: hsl(var(--primary-50));
 	--color-primary-100: hsl(var(--primary-100));
@@ -89,8 +89,8 @@
 	--color-glitter-blue-800: hsl(var(--glitter-blue-800));
 	--color-glitter-blue-900: hsl(var(--glitter-blue-900));
 	--color-glitter-blue-950: hsl(var(--glitter-blue-950));
-	--color-festicker: #FB0A76;
-	--color-festicker-foreground: #FFFFFF;
+	--color-festicker: #fb0a76;
+	--color-festicker-foreground: #ffffff;
 
 	/* Border radius */
 	--radius-lg: var(--radius);
@@ -150,7 +150,6 @@
 }
 
 @utility no-scrollbar {
-
 	/* Hide scrollbar for Chrome, Safari and Opera */
 	&::-webkit-scrollbar {
 		display: none;
@@ -171,7 +170,6 @@
 		--card-foreground: 224 100% 17%;
 		--popover: 0 0% 99%;
 		--popover-foreground: 224 100% 17%;
-		--primary: 262 77% 49%;
 		--primary-foreground: 0 0% 98%;
 		--secondary: 308 59% 72%;
 		--secondary-foreground: 0 0% 98%;
@@ -215,17 +213,17 @@
 		--background-900: 0 0% 10%;
 		--background-950: 0 0% 5%;
 
-		--primary-50: 264 77% 95%;
-		--primary-100: 262 76% 90%;
-		--primary-200: 262 76% 80%;
-		--primary-300: 262 76% 70%;
-		--primary-400: 262 77% 60%;
-		--primary-500: 262 77% 50%;
-		--primary-600: 262 77% 40%;
-		--primary-700: 262 76% 30%;
-		--primary-800: 262 76% 20%;
-		--primary-900: 262 76% 10%;
-		--primary-950: 261 77% 5%;
+		--primary-50: 250 85.7% 97.3%;
+		--primary-100: 251.1 87.1% 93.9%;
+		--primary-200: 251.1 87.1% 87.8%;
+		--primary-300: 252.6 87.1% 81.8%;
+		--primary-400: 253.8 87.2% 75.5%;
+		--primary-500: 255.7 87.3% 69%;
+		--primary-600: 258.1 85.8% 61.4%;
+		--primary-700: 261.9 76.8% 51%;
+		--primary-800: 261.6 76.8% 35.5%;
+		--primary-900: 261.6 84.3% 20%;
+		--primary-950: 260.7 88.4% 13.5%;
 
 		--secondary-50: 308 60% 95%;
 		--secondary-100: 308 61% 90%;
@@ -305,5 +303,5 @@
 }
 
 .cl-formButtonPrimary:hover {
-	background-color: hsl(var(--primary) / .9);
+	background-color: hsl(var(--primary) / 0.9);
 }

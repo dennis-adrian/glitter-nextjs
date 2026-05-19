@@ -141,7 +141,7 @@ export default function OrderPaymentSection({
 			</div>
 
 			<div className="flex flex-col gap-4">
-				<div className="bg-primary-50 border border-primary-400 rounded-lg p-4">
+				<div className="bg-primary-50 border border-primary-700 rounded-lg p-4">
 					<Heading className="text-primary mb-2" level={4}>
 						Instrucciones de pago
 					</Heading>

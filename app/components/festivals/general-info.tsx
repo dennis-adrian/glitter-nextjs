@@ -53,7 +53,7 @@ export default function GeneralInfo({ festival }: GeneralInfoProps) {
 							Para ver en detalle los participantes y los sectores del evento
 							visita{" "}
 							<Link
-								className="text-primary-400 hover:underline"
+								className="text-primary-700 hover:underline"
 								href={`/festivals/${festival.id}?tab=sectors`}
 							>
 								Sectores y participantes

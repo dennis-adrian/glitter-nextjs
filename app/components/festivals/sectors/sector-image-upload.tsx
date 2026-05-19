@@ -59,7 +59,7 @@ export default function SectorImageUpload({
 							return "bg-transparent text-xs text-muted-foreground border";
 						}
 						if (isUploading) {
-							return "bg-transparent text-xs text-muted-foreground border after:bg-primary-400/60";
+							return "bg-transparent text-xs text-muted-foreground border after:bg-primary-700/60";
 						}
 						return "bg-transparent text-xs text-foreground border hover:text-primary-500 hover:border-primary-500";
 					},

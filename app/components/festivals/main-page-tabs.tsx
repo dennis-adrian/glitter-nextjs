@@ -16,9 +16,9 @@ function TabItem(props: TabItemProps) {
 			role="tab"
 			aria-selected={props.selected}
 			className={cn(
-				"p-2 text-sm transition duration-500 ease-in-out hover:text-primary-400 hover:border-b",
+				"p-2 text-sm transition duration-500 ease-in-out hover:text-primary-700 hover:border-b",
 				{
-					"border-b-2 border-primary-400 text-primary-400": props.selected,
+					"border-b-2 border-primary-700 text-primary-700": props.selected,
 					"text-muted-foreground": !props.selected,
 				},
 			)}
