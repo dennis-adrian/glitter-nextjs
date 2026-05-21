@@ -5,6 +5,7 @@ import Image from "next/image";
 
 import { Button } from "@/app/components/ui/button";
 import { UploadDropzone } from "@/app/vendors/uploadthing";
+import { toast } from "sonner";
 
 type Props = {
 	value: string | null | undefined;
@@ -15,7 +16,7 @@ export default function CoverImageUploader({ value, onChange }: Props) {
 	if (value) {
 		return (
 			<div className="space-y-2">
-				<div className="relative w-full overflow-hidden rounded-md border bg-muted aspect-[16/9]">
+				<div className="relative w-full overflow-hidden rounded-md border bg-muted aspect-video">
 					<Image
 						src={value}
 						alt="Portada del artículo"
@@ -44,8 +45,7 @@ export default function CoverImageUploader({ value, onChange }: Props) {
 				config={{ mode: "auto" }}
 				content={{
 					label: "Arrastra una imagen o haz clic para subir",
-					button: ({ ready }) =>
-						ready ? "Subir portada" : "Cargando…",
+					button: ({ ready }) => (ready ? "Subir portada" : "Cargando…"),
 				}}
 				appearance={{
 					container:
@@ -60,6 +60,9 @@ export default function CoverImageUploader({ value, onChange }: Props) {
 				}}
 				onUploadError={(err) => {
 					console.error("Cover upload error", err);
+					toast.error(
+						"Error al subir la imagen. Por favor, intentá nuevamente.",
+					);
 				}}
 			/>
 			<p className="text-xs text-muted-foreground">

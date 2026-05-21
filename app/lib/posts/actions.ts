@@ -299,6 +299,7 @@ export async function submitForReview(postId: number): Promise<ActionResult> {
 			.update(posts)
 			.set({
 				status: "submitted",
+				submittedAt: new Date(),
 				reviewerNotes: null,
 				updatedAt: new Date(),
 			})
@@ -483,11 +484,10 @@ export async function archivePost(postId: number): Promise<ActionResult> {
 		where: eq(posts.id, postId),
 	});
 	if (!existing) return { success: false, message: "Artículo no encontrado" };
-	const archivable: PostStatus[] = ["draft", "published"];
-	if (!archivable.includes(existing.status)) {
+	if (existing.status !== "published") {
 		return {
 			success: false,
-			message: "El artículo no se puede archivar en su estado actual",
+			message: "Solo se pueden archivar artículos publicados",
 		};
 	}
 	try {

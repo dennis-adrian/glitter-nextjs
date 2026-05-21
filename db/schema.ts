@@ -1636,6 +1636,7 @@ export const posts = pgTable(
 			.notNull()
 			.references(() => users.id, { onDelete: "restrict" }),
 		status: postStatusEnum("status").default("draft").notNull(),
+		submittedAt: timestamp("submitted_at"),
 		publishedAt: timestamp("published_at"),
 		reviewerId: integer("reviewer_id").references(() => users.id, {
 			onDelete: "set null",
@@ -1647,7 +1648,6 @@ export const posts = pgTable(
 	(t) => [
 		index("posts_status_published_at_idx").on(t.status, t.publishedAt),
 		index("posts_author_idx").on(t.authorId),
-		index("posts_slug_idx").on(t.slug),
 	],
 );
 
@@ -1692,7 +1692,10 @@ export const postCategoriesToPosts = pgTable(
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
-	(t) => [unique().on(t.postId, t.categoryId)],
+	(t) => [
+		unique().on(t.postId, t.categoryId),
+		index("idx_post_categories_to_posts_category_id").on(t.categoryId),
+	],
 );
 
 export const postCategoriesToPostsRelations = relations(
@@ -1734,7 +1737,10 @@ export const postTagsToPosts = pgTable(
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
-	(t) => [unique().on(t.postId, t.tagId)],
+	(t) => [
+		unique().on(t.postId, t.tagId),
+		index("idx_post_tags_to_posts_tag_id").on(t.tagId),
+	],
 );
 
 export const postTagsToPostsRelations = relations(postTagsToPosts, ({ one }) => ({

@@ -1,10 +1,15 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import PostsTable from "@/app/components/blog/posts-table";
 import { Button } from "@/app/components/ui/button";
 import { fetchAllPostsForAdmin } from "@/app/lib/posts/data";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export default async function DashboardBlogPage() {
+	const profile = await getCurrentUserProfile();
+	if (!profile) redirect("/sign_in");
+
 	const posts = await fetchAllPostsForAdmin({});
 
 	return (
@@ -29,7 +34,11 @@ export default async function DashboardBlogPage() {
 				</div>
 			</div>
 
-			<PostsTable posts={posts} surface="dashboard" />
+			<PostsTable
+				posts={posts}
+				surface="dashboard"
+				viewer={{ id: profile.id, role: profile.role }}
+			/>
 		</div>
 	);
 }

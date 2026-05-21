@@ -34,7 +34,8 @@ export default async function DashboardBlogReviewPage() {
 									<div className="flex items-center gap-2 mb-1">
 										<PostStatusBadge status={p.status} />
 										<span className="text-xs text-muted-foreground">
-											Enviado {formatFullDate(p.updatedAt)}
+											Enviado{" "}
+											{formatFullDate(p.submittedAt ?? p.createdAt)}
 										</span>
 									</div>
 									<h3 className="text-lg font-semibold">{p.title}</h3>

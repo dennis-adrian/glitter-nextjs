@@ -26,7 +26,11 @@ export default async function PortalBlogPage() {
 				</Button>
 			</div>
 
-			<PostsTable posts={posts} surface="portal" />
+			<PostsTable
+				posts={posts}
+				surface="portal"
+				viewer={{ id: profile.id, role: profile.role }}
+			/>
 		</div>
 	);
 }

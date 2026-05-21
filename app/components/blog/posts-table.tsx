@@ -14,16 +14,19 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/app/components/ui/select";
+import type { BaseProfile } from "@/app/api/users/definitions";
 import {
 	POST_STATUS_LABELS,
 	type PostStatus,
 	type PostWithRelations,
 } from "@/app/lib/posts/definitions";
+import { canEditPost } from "@/app/lib/posts/helpers";
 import { formatFullDate } from "@/app/lib/formatters";
 
 type Props = {
 	posts: PostWithRelations[];
 	surface: "dashboard" | "portal";
+	viewer: Pick<BaseProfile, "id" | "role">;
 };
 
 const STATUS_OPTIONS: PostStatus[] = [
@@ -35,17 +38,14 @@ const STATUS_OPTIONS: PostStatus[] = [
 	"archived",
 ];
 
-export default function PostsTable({ posts, surface }: Props) {
+export default function PostsTable({ posts, surface, viewer }: Props) {
 	const [q, setQ] = useState("");
 	const [status, setStatus] = useState<PostStatus | "all">("all");
 
 	const filtered = useMemo(() => {
 		return posts.filter((p) => {
 			if (status !== "all" && p.status !== status) return false;
-			if (
-				q.trim() &&
-				!p.title.toLowerCase().includes(q.trim().toLowerCase())
-			) {
+			if (q.trim() && !p.title.toLowerCase().includes(q.trim().toLowerCase())) {
 				return false;
 			}
 			return true;
@@ -58,20 +58,31 @@ export default function PostsTable({ posts, surface }: Props) {
 		<div className="space-y-4">
 			<div className="flex flex-col md:flex-row gap-3 md:items-end">
 				<div className="flex-1">
-					<label className="text-xs text-muted-foreground">Buscar por título</label>
+					<label
+						htmlFor="post-search"
+						className="text-xs text-muted-foreground"
+					>
+						Buscar por título
+					</label>
 					<Input
+						id="post-search"
 						value={q}
 						onChange={(e) => setQ(e.target.value)}
 						placeholder="Buscar…"
 					/>
 				</div>
 				<div className="md:w-56">
-					<label className="text-xs text-muted-foreground">Estado</label>
+					<label
+						htmlFor="post-status"
+						className="text-xs text-muted-foreground"
+					>
+						Estado
+					</label>
 					<Select
 						value={status}
 						onValueChange={(v) => setStatus(v as PostStatus | "all")}
 					>
-						<SelectTrigger>
+						<SelectTrigger id="post-status">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -113,12 +124,14 @@ export default function PostsTable({ posts, surface }: Props) {
 									)}
 								</div>
 								<div className="flex gap-2">
-									<Button asChild variant="outline" size="sm">
-										<Link href={`${editBase}/${p.id}/edit`}>
-											<Edit className="h-4 w-4 mr-1" />
-											Editar
-										</Link>
-									</Button>
+									{canEditPost(viewer, p) && (
+										<Button asChild variant="outline" size="sm">
+											<Link href={`${editBase}/${p.id}/edit`}>
+												<Edit className="h-4 w-4 mr-1" />
+												Editar
+											</Link>
+										</Button>
+									)}
 									{p.status === "published" && (
 										<Button asChild variant="ghost" size="sm">
 											<Link href={`/blog/${p.slug}`} target="_blank">

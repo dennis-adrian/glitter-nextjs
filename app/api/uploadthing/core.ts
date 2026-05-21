@@ -221,7 +221,7 @@ export const ourFileRouter = {
 			}
 			return { imageUrl, imageId: record.id };
 		}),
-	blogImage: f({ image: { maxFileSize: "4MB", maxFileCount: 10 } })
+	blogImage: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
 		.middleware(async () => {
 			const user = await currentUser();
 			if (!user) throw new UploadThingError("Debes iniciar sesión");

@@ -34,10 +34,10 @@ import type {
 import { slugifyName } from "@/app/lib/posts/slug";
 import { postFormSchema } from "@/app/lib/posts/validate";
 
-const PostEditor = dynamic(
-	() => import("@/app/components/blog/post-editor"),
-	{ ssr: false, loading: () => <EditorPlaceholder /> },
-);
+const PostEditor = dynamic(() => import("@/app/components/blog/post-editor"), {
+	ssr: false,
+	loading: () => <EditorPlaceholder />,
+});
 
 function EditorPlaceholder() {
 	return (
@@ -57,9 +57,7 @@ type Props = {
 	canPublish: boolean;
 };
 
-const EMPTY_DOC = [
-	{ type: "paragraph", content: [] },
-];
+const EMPTY_DOC = [{ type: "paragraph", content: [] }];
 
 export default function PostForm({
 	mode,
@@ -73,9 +71,7 @@ export default function PostForm({
 	const [coverUrl, setCoverUrl] = useState<string | null>(
 		post?.coverImageUrl ?? null,
 	);
-	const [content, setContent] = useState<unknown>(
-		post?.content ?? EMPTY_DOC,
-	);
+	const [content, setContent] = useState<unknown>(post?.content ?? EMPTY_DOC);
 	const [contentHtml, setContentHtml] = useState<string>(
 		post?.contentHtml ?? "",
 	);
@@ -233,9 +229,7 @@ export default function PostForm({
 				<div className="flex items-center gap-3">
 					<PostStatusBadge status={status} />
 					{post && (
-						<span className="text-xs text-muted-foreground">
-							ID #{post.id}
-						</span>
+						<span className="text-xs text-muted-foreground">ID #{post.id}</span>
 					)}
 				</div>
 
@@ -284,6 +278,7 @@ export default function PostForm({
 					)}
 					<PostEditor
 						initialContent={post?.content}
+						readOnly={editorReadOnly}
 						onChange={(blocks, html) => {
 							setContent(blocks);
 							setContentHtml(html);
@@ -329,10 +324,7 @@ export default function PostForm({
 				<Separator />
 
 				<div className="flex flex-wrap gap-3 sticky bottom-0 bg-background py-3">
-					<Button
-						type="submit"
-						disabled={submitting || editorReadOnly}
-					>
+					<Button type="submit" disabled={submitting || editorReadOnly}>
 						Guardar borrador
 					</Button>
 
@@ -356,9 +348,7 @@ export default function PostForm({
 							onClick={handlePublish}
 							disabled={submitting}
 						>
-							{post?.status === "submitted"
-								? "Aprobar y publicar"
-								: "Publicar"}
+							{post?.status === "submitted" ? "Aprobar y publicar" : "Publicar"}
 						</Button>
 					)}
 

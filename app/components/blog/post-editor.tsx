@@ -13,9 +13,14 @@ import { useUploadThing } from "@/app/vendors/uploadthing";
 type Props = {
 	initialContent?: unknown;
 	onChange: (blocks: unknown, html: string) => void;
+	readOnly?: boolean;
 };
 
-export default function PostEditor({ initialContent, onChange }: Props) {
+export default function PostEditor({
+	initialContent,
+	onChange,
+	readOnly = false,
+}: Props) {
 	const { startUpload } = useUploadThing("blogImage");
 
 	const uploadFile = useCallback(
@@ -50,8 +55,10 @@ export default function PostEditor({ initialContent, onChange }: Props) {
 		<div className="border rounded-md bg-white min-h-[400px]">
 			<BlockNoteView
 				editor={editor}
+				editable={!readOnly}
 				theme="light"
 				onChange={() => {
+					if (readOnly) return;
 					const blocks = editor.document;
 					const serialized = JSON.stringify(blocks);
 					if (serialized !== lastSerializedRef.current) {
