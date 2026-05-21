@@ -18,6 +18,7 @@ import { Button } from "@/app/components/ui/button";
 import {
 	AlbumIcon,
 	BookImageIcon,
+	BookOpenIcon,
 	BoxesIcon,
 	CalendarCheck2Icon,
 	CalendarIcon,
@@ -118,6 +119,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 						<BoxesIcon className="w-6 h-6 mr-2" />
 						Categorías Glitter
 					</MobileSidebarItem>
+					<MobileSidebarItem href="/blog">
+						<BookOpenIcon className="w-6 h-6 mr-2" />
+						Blog
+					</MobileSidebarItem>
 					{profile && profile.role === "festival_admin" && (
 						<MobileSidebarItem href="/dashboard/banners">
 							<ImagesIcon className="mr-2 h-6 w-6" />
@@ -189,6 +194,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 								<MobileSidebarItem href="/dashboard/banners">
 									<ImagesIcon className="mr-2 h-6 w-6" />
 									Carrusel inicio
+								</MobileSidebarItem>
+								<MobileSidebarItem href="/dashboard/blog">
+									<BookOpenIcon className="mr-2 h-6 w-6" />
+									Blog
 								</MobileSidebarItem>
 							</div>
 						</>

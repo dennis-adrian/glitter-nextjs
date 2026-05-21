@@ -107,6 +107,8 @@ export const usersRelations = relations(users, ({ many }) => ({
 	participantProducts: many(participantProducts),
 	festivalActivityVotes: many(festivalActivityVotes),
 	standHolds: many(standHolds),
+	postsAuthored: many(posts, { relationName: "postsAuthored" }),
+	postsReviewed: many(posts, { relationName: "postsReviewed" }),
 }));
 
 export const tags = pgTable("tags", {
@@ -1607,3 +1609,141 @@ export const liveActs = pgTable("live_acts", {
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const postStatusEnum = pgEnum("post_status", [
+	"draft",
+	"submitted",
+	"approved",
+	"scheduled",
+	"published",
+	"rejected",
+	"archived",
+]);
+
+export const posts = pgTable(
+	"posts",
+	{
+		id: serial("id").primaryKey(),
+		title: text("title").notNull(),
+		slug: text("slug").notNull().unique(),
+		excerpt: text("excerpt"),
+		coverImageUrl: text("cover_image_url"),
+		content: jsonb("content").$type<unknown>().notNull(),
+		contentHtml: text("content_html").notNull(),
+		seoTitle: text("seo_title"),
+		seoDescription: text("seo_description"),
+		authorId: integer("author_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "restrict" }),
+		status: postStatusEnum("status").default("draft").notNull(),
+		publishedAt: timestamp("published_at"),
+		reviewerId: integer("reviewer_id").references(() => users.id, {
+			onDelete: "set null",
+		}),
+		reviewerNotes: text("reviewer_notes"),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => [
+		index("posts_status_published_at_idx").on(t.status, t.publishedAt),
+		index("posts_author_idx").on(t.authorId),
+		index("posts_slug_idx").on(t.slug),
+	],
+);
+
+export const postsRelations = relations(posts, ({ one, many }) => ({
+	author: one(users, {
+		fields: [posts.authorId],
+		references: [users.id],
+		relationName: "postsAuthored",
+	}),
+	reviewer: one(users, {
+		fields: [posts.reviewerId],
+		references: [users.id],
+		relationName: "postsReviewed",
+	}),
+	postCategories: many(postCategoriesToPosts),
+	postTags: many(postTagsToPosts),
+}));
+
+export const postCategories = pgTable("post_categories", {
+	id: serial("id").primaryKey(),
+	name: text("name").notNull(),
+	slug: text("slug").notNull().unique(),
+	description: text("description"),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const postCategoriesRelations = relations(postCategories, ({ many }) => ({
+	postCategories: many(postCategoriesToPosts),
+}));
+
+export const postCategoriesToPosts = pgTable(
+	"post_categories_to_posts",
+	{
+		id: serial("id").primaryKey(),
+		postId: integer("post_id")
+			.notNull()
+			.references(() => posts.id, { onDelete: "cascade" }),
+		categoryId: integer("category_id")
+			.notNull()
+			.references(() => postCategories.id, { onDelete: "cascade" }),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => [unique().on(t.postId, t.categoryId)],
+);
+
+export const postCategoriesToPostsRelations = relations(
+	postCategoriesToPosts,
+	({ one }) => ({
+		post: one(posts, {
+			fields: [postCategoriesToPosts.postId],
+			references: [posts.id],
+		}),
+		category: one(postCategories, {
+			fields: [postCategoriesToPosts.categoryId],
+			references: [postCategories.id],
+		}),
+	}),
+);
+
+export const postTags = pgTable("post_tags", {
+	id: serial("id").primaryKey(),
+	name: text("name").notNull(),
+	slug: text("slug").notNull().unique(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const postTagsRelations = relations(postTags, ({ many }) => ({
+	postTags: many(postTagsToPosts),
+}));
+
+export const postTagsToPosts = pgTable(
+	"post_tags_to_posts",
+	{
+		id: serial("id").primaryKey(),
+		postId: integer("post_id")
+			.notNull()
+			.references(() => posts.id, { onDelete: "cascade" }),
+		tagId: integer("tag_id")
+			.notNull()
+			.references(() => postTags.id, { onDelete: "cascade" }),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(t) => [unique().on(t.postId, t.tagId)],
+);
+
+export const postTagsToPostsRelations = relations(postTagsToPosts, ({ one }) => ({
+	post: one(posts, {
+		fields: [postTagsToPosts.postId],
+		references: [posts.id],
+	}),
+	tag: one(postTags, {
+		fields: [postTagsToPosts.tagId],
+		references: [postTags.id],
+	}),
+}));

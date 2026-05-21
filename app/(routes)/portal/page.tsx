@@ -1,4 +1,4 @@
-import { CakeIcon, CogIcon } from "lucide-react";
+import { BookOpenIcon, CakeIcon, CogIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -19,6 +19,7 @@ import {
 	fetchProfileEnrollmentInFestival,
 	fetchPublishedActiveFestivals,
 } from "@/app/lib/festivals/actions";
+import { canAuthorPosts } from "@/app/lib/posts/eligibility";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -40,6 +41,12 @@ export default async function ParticipantDashboardPage() {
 	}
 
 	const carouselFestivals = await fetchPublishedActiveFestivals();
+	const canWriteBlog = await canAuthorPosts(currentProfile);
+
+	const showBlogCta =
+		canWriteBlog &&
+		currentProfile.role !== "admin" &&
+		currentProfile.role !== "festival_admin";
 
 	const activeFestival =
 		carouselFestivals.find((f) => f.status === "active") ?? null;
@@ -112,12 +119,22 @@ export default async function ParticipantDashboardPage() {
 							</p>
 						)}
 					</div>
-					<Button variant="outline" size="sm" className="flex shrink-0" asChild>
-						<Link href="/my_profile">
-							<CogIcon className="size-4 mr-1" />
-							Configuración
-						</Link>
-					</Button>
+					<div className="flex shrink-0 gap-2">
+						{showBlogCta && (
+							<Button variant="outline" size="sm" asChild>
+								<Link href="/portal/blog">
+									<BookOpenIcon className="size-4 mr-1" />
+									Mis artículos
+								</Link>
+							</Button>
+						)}
+						<Button variant="outline" size="sm" asChild>
+							<Link href="/my_profile">
+								<CogIcon className="size-4 mr-1" />
+								Configuración
+							</Link>
+						</Button>
+					</div>
 				</div>
 				<Separator className="mt-4" />
 			</div>

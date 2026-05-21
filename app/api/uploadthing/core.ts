@@ -5,6 +5,7 @@ import { UploadThingError } from "uploadthing/server";
 import { z } from "zod";
 
 import { fetchUserProfile } from "@/app/api/users/actions";
+import { canAuthorPosts } from "@/app/lib/posts/eligibility";
 import { db } from "@/db";
 import { orders, productImages } from "@/db/schema";
 
@@ -220,6 +221,25 @@ export const ourFileRouter = {
 			}
 			return { imageUrl, imageId: record.id };
 		}),
+	blogImage: f({ image: { maxFileSize: "4MB", maxFileCount: 10 } })
+		.middleware(async () => {
+			const user = await currentUser();
+			if (!user) throw new UploadThingError("Debes iniciar sesión");
+
+			const profile = await fetchUserProfile(user.id);
+			if (!profile) throw new UploadThingError("Perfil no encontrado");
+
+			if (!(await canAuthorPosts(profile))) {
+				throw new UploadThingError(
+					"No tienes permisos para subir imágenes del blog",
+				);
+			}
+
+			return { profileId: profile.id };
+		})
+		.onUploadComplete(({ file }) => ({
+			imageUrl: (file as { url: string }).url,
+		})),
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter;
