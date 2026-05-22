@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import NewDraftSubmitButton from "@/app/components/blog/new-draft-submit-button";
 import PostsTable from "@/app/components/blog/posts-table";
 import { Button } from "@/app/components/ui/button";
 import { startNewDashboardDraft } from "@/app/lib/posts/actions";
@@ -30,7 +31,7 @@ export default async function DashboardBlogPage() {
 						<Link href="/dashboard/blog/review">Cola de revisión</Link>
 					</Button>
 					<form action={startNewDashboardDraft}>
-						<Button type="submit">Nuevo artículo</Button>
+						<NewDraftSubmitButton />
 					</form>
 				</div>
 			</div>

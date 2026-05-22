@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
+import NewDraftSubmitButton from "@/app/components/blog/new-draft-submit-button";
 import PostsTable from "@/app/components/blog/posts-table";
-import { Button } from "@/app/components/ui/button";
 import { startNewPortalDraft } from "@/app/lib/posts/actions";
 import { fetchAuthoredPostsForUser } from "@/app/lib/posts/data";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
@@ -22,7 +22,7 @@ export default async function PortalBlogPage() {
 					</p>
 				</div>
 				<form action={startNewPortalDraft}>
-					<Button type="submit">Nuevo artículo</Button>
+					<NewDraftSubmitButton />
 				</form>
 			</div>
 
