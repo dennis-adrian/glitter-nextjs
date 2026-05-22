@@ -1,0 +1,1 @@
+ALTER TABLE "posts" ADD CONSTRAINT "posts_non_draft_requires_title_check" CHECK ("posts"."status" = 'draft' OR length(btrim("posts"."title")) >= 3);

@@ -19,3 +19,16 @@ export function canEditPost(
 		post.authorId === profile.id && editableStatuses.includes(post.status)
 	);
 }
+
+export function hasMeaningfulContent(content: unknown): boolean {
+	if (!Array.isArray(content) || content.length === 0) return false;
+	for (const block of content) {
+		const inline = (block as { content?: unknown }).content;
+		if (!Array.isArray(inline)) continue;
+		for (const node of inline) {
+			const text = (node as { text?: unknown }).text;
+			if (typeof text === "string" && text.trim().length > 0) return true;
+		}
+	}
+	return false;
+}

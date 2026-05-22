@@ -116,7 +116,9 @@ export default function PostsTable({ posts, surface, viewer }: Props) {
 											Actualizado {formatFullDate(p.updatedAt)}
 										</span>
 									</div>
-									<h3 className="font-medium truncate">{p.title}</h3>
+									<h3 className="font-medium truncate">
+										{p.title || "Sin título"}
+									</h3>
 									{p.excerpt && (
 										<p className="text-sm text-muted-foreground line-clamp-1">
 											{p.excerpt}

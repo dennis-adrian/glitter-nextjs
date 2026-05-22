@@ -28,10 +28,8 @@ export default async function PortalBlogEditPage({
 	if (!canEditPost(profile, post)) redirect("/portal/blog");
 
 	return (
-		<div className="container mx-auto px-4 py-8 max-w-4xl">
-			<h1 className="text-2xl font-bold mb-6">Editar artículo</h1>
+		<div className="container mx-auto px-4 md:px-6 py-8">
 			<PostForm
-				mode="edit"
 				surface="portal"
 				post={post}
 				categoryOptions={categories}

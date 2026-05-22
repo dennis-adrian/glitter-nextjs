@@ -1648,6 +1648,10 @@ export const posts = pgTable(
 	(t) => [
 		index("posts_status_published_at_idx").on(t.status, t.publishedAt),
 		index("posts_author_idx").on(t.authorId),
+		check(
+			"posts_non_draft_requires_title_check",
+			sql`${t.status} = 'draft' OR length(btrim(${t.title})) >= 3`,
+		),
 	],
 );
 

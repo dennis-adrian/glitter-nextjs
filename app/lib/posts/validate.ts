@@ -42,6 +42,34 @@ export const postFormSchema = z.object({
 
 export type PostFormInput = z.infer<typeof postFormSchema>;
 
+export const postAutosaveSchema = z.object({
+	title: z.string().trim().max(200).default(""),
+	slug: z
+		.string()
+		.trim()
+		.max(120)
+		.optional()
+		.or(z.literal("")),
+	excerpt: z
+		.string()
+		.trim()
+		.max(280)
+		.optional()
+		.or(z.literal("")),
+	coverImageUrl: z.string().trim().max(2048).optional().or(z.literal("")),
+	seoTitle: z.string().trim().max(70).optional().or(z.literal("")),
+	seoDescription: z.string().trim().max(200).optional().or(z.literal("")),
+	categoryIds: z.array(z.number().int().positive()).default([]),
+	tagInputs: z
+		.array(z.string().trim().min(1).max(40))
+		.max(20)
+		.default([]),
+	content: z.unknown(),
+	contentHtml: z.string().default(""),
+});
+
+export type PostAutosaveInput = z.infer<typeof postAutosaveSchema>;
+
 export const reviewNotesSchema = z.object({
 	notes: z
 		.string()

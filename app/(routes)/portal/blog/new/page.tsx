@@ -1,17 +1,14 @@
-import PostForm from "@/app/components/blog/post-form";
-import { fetchPostCategories } from "@/app/lib/posts/data";
+import { redirect } from "next/navigation";
+
+import { canAuthorPosts } from "@/app/lib/posts/eligibility";
+import { createBlankDraft } from "@/app/lib/posts/create-draft";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export default async function PortalBlogNewPage() {
-	const categories = await fetchPostCategories();
-	return (
-		<div className="container mx-auto px-4 py-8 max-w-4xl">
-			<h1 className="text-2xl font-bold mb-6">Nuevo artículo</h1>
-			<PostForm
-				mode="create"
-				surface="portal"
-				categoryOptions={categories}
-				canPublish={false}
-			/>
-		</div>
-	);
+	const profile = await getCurrentUserProfile();
+	if (!profile) redirect("/sign_in");
+	if (!(await canAuthorPosts(profile))) redirect("/portal/blog");
+
+	const draft = await createBlankDraft(profile);
+	redirect(`/portal/blog/${draft.id}/edit`);
 }

@@ -4,8 +4,11 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { type PostStatus } from "@/app/lib/posts/definitions";
-import { canAuthorPosts } from "@/app/lib/posts/eligibility";
-import { canEditPost, canPublishPosts } from "@/app/lib/posts/helpers";
+import {
+	canEditPost,
+	canPublishPosts,
+	hasMeaningfulContent,
+} from "@/app/lib/posts/helpers";
 import { sanitizePostHtml } from "@/app/lib/posts/render";
 import {
 	ensureUniquePostCategorySlug,
@@ -14,6 +17,7 @@ import {
 	slugifyName,
 } from "@/app/lib/posts/slug";
 import {
+	postAutosaveSchema,
 	postCategoryFormSchema,
 	postFormSchema,
 	reviewNotesSchema,
@@ -31,6 +35,21 @@ import {
 type ActionResult<T = void> =
 	| ({ success: true } & (T extends void ? unknown : T))
 	| { success: false; message: string };
+
+const PLACEHOLDER_SLUG_RE = /^borrador(-\d+)?$/;
+
+function transitionPrecondition(existing: {
+	title: string;
+	content: unknown;
+}): { ok: true } | { ok: false; message: string } {
+	if (existing.title.trim().length < 3) {
+		return { ok: false, message: "El título es obligatorio para publicar" };
+	}
+	if (!hasMeaningfulContent(existing.content)) {
+		return { ok: false, message: "El contenido es obligatorio para publicar" };
+	}
+	return { ok: true };
+}
 
 function invalidatePosts(opts: { slugs?: string[] } = {}) {
 	revalidatePath("/blog", "layout");
@@ -142,63 +161,6 @@ async function syncPostTags(tx: Tx, postId: number, tagInputs: string[]) {
 	}
 }
 
-export async function createPost(
-	input: unknown,
-): Promise<ActionResult<{ id: number; slug: string }>> {
-	const profile = await getCurrentUserProfile();
-	if (!profile) return { success: false, message: "Debes iniciar sesión" };
-	if (!(await canAuthorPosts(profile))) {
-		return { success: false, message: "No tienes permisos para escribir artículos" };
-	}
-
-	const parsed = postFormSchema.safeParse(input);
-	if (!parsed.success) {
-		return {
-			success: false,
-			message: parsed.error.issues[0]?.message ?? "Datos inválidos",
-		};
-	}
-	const data = parsed.data;
-
-	try {
-		const contentHtml = sanitizePostHtml(data.contentHtml);
-
-		const result = await db.transaction(async (tx) => {
-			const requestedSlug = (data.slug && data.slug.trim()) || data.title;
-			const slug = await ensureUniquePostSlug(tx, slugifyName(requestedSlug));
-
-			const [row] = await tx
-				.insert(posts)
-				.values({
-					title: data.title,
-					slug,
-					excerpt: data.excerpt || null,
-					coverImageUrl: data.coverImageUrl || null,
-					content: data.content,
-					contentHtml,
-					seoTitle: data.seoTitle || null,
-					seoDescription: data.seoDescription || null,
-					authorId: profile.id,
-					status: "draft",
-				})
-				.returning({ id: posts.id, slug: posts.slug });
-
-			if (!row) throw new Error("No se pudo crear el artículo");
-
-			await syncPostCategories(tx, row.id, data.categoryIds);
-			await syncPostTags(tx, row.id, data.tagInputs);
-			return row;
-		});
-
-		invalidatePosts();
-		invalidateTags();
-		return { success: true, id: result.id, slug: result.slug };
-	} catch (error) {
-		console.error("createPost", error);
-		return { success: false, message: "Error al crear el artículo" };
-	}
-}
-
 export async function updatePost(
 	postId: number,
 	input: unknown,
@@ -276,6 +238,73 @@ export async function updatePost(
 	}
 }
 
+export async function autosaveDraft(
+	postId: number,
+	input: unknown,
+): Promise<ActionResult<{ updatedAt: string }>> {
+	const profile = await getCurrentUserProfile();
+	if (!profile) return { success: false, message: "Debes iniciar sesión" };
+
+	const existing = await db.query.posts.findFirst({
+		where: eq(posts.id, postId),
+	});
+	if (!existing) return { success: false, message: "Artículo no encontrado" };
+
+	if (!canEditPost(profile, existing)) {
+		return {
+			success: false,
+			message: "No puedes editar este artículo en su estado actual",
+		};
+	}
+
+	const parsed = postAutosaveSchema.safeParse(input);
+	if (!parsed.success) {
+		return {
+			success: false,
+			message: parsed.error.issues[0]?.message ?? "Datos inválidos",
+		};
+	}
+	const data = parsed.data;
+
+	try {
+		const contentHtml = sanitizePostHtml(data.contentHtml);
+
+		const result = await db.transaction(async (tx) => {
+			const trimmedSlug = data.slug?.trim() ?? "";
+			const slug = trimmedSlug
+				? await ensureUniquePostSlug(tx, slugifyName(trimmedSlug), postId)
+				: existing.slug;
+
+			const [row] = await tx
+				.update(posts)
+				.set({
+					title: data.title,
+					slug,
+					excerpt: data.excerpt || null,
+					coverImageUrl: data.coverImageUrl || null,
+					content: data.content,
+					contentHtml,
+					seoTitle: data.seoTitle || null,
+					seoDescription: data.seoDescription || null,
+					updatedAt: new Date(),
+				})
+				.where(eq(posts.id, postId))
+				.returning({ updatedAt: posts.updatedAt });
+
+			if (!row) throw new Error("No se pudo guardar el artículo");
+
+			await syncPostCategories(tx, postId, data.categoryIds);
+			await syncPostTags(tx, postId, data.tagInputs);
+			return row;
+		});
+
+		return { success: true, updatedAt: result.updatedAt.toISOString() };
+	} catch (error) {
+		console.error("autosaveDraft", error);
+		return { success: false, message: "Error al guardar automáticamente" };
+	}
+}
+
 export async function submitForReview(postId: number): Promise<ActionResult> {
 	const profile = await getCurrentUserProfile();
 	if (!profile) return { success: false, message: "Debes iniciar sesión" };
@@ -294,16 +323,29 @@ export async function submitForReview(postId: number): Promise<ActionResult> {
 		};
 	}
 
+	const precheck = transitionPrecondition(existing);
+	if (!precheck.ok) return { success: false, message: precheck.message };
+
 	try {
-		await db
-			.update(posts)
-			.set({
-				status: "submitted",
-				submittedAt: new Date(),
-				reviewerNotes: null,
-				updatedAt: new Date(),
-			})
-			.where(eq(posts.id, postId));
+		await db.transaction(async (tx) => {
+			const slug = PLACEHOLDER_SLUG_RE.test(existing.slug)
+				? await ensureUniquePostSlug(
+						tx,
+						slugifyName(existing.title),
+						postId,
+					)
+				: existing.slug;
+			await tx
+				.update(posts)
+				.set({
+					status: "submitted",
+					slug,
+					submittedAt: new Date(),
+					reviewerNotes: null,
+					updatedAt: new Date(),
+				})
+				.where(eq(posts.id, postId));
+		});
 		invalidatePosts();
 		return { success: true };
 	} catch (error) {
@@ -331,17 +373,31 @@ export async function approveAndPublish(
 		};
 	}
 
+	const precheck = transitionPrecondition(existing);
+	if (!precheck.ok) return { success: false, message: precheck.message };
+
 	try {
-		await db
-			.update(posts)
-			.set({
-				status: "published",
-				publishedAt: existing.publishedAt ?? new Date(),
-				reviewerId: profile.id,
-				updatedAt: new Date(),
-			})
-			.where(eq(posts.id, postId));
-		invalidatePosts({ slugs: [existing.slug] });
+		const finalSlug = await db.transaction(async (tx) => {
+			const slug = PLACEHOLDER_SLUG_RE.test(existing.slug)
+				? await ensureUniquePostSlug(
+						tx,
+						slugifyName(existing.title),
+						postId,
+					)
+				: existing.slug;
+			await tx
+				.update(posts)
+				.set({
+					status: "published",
+					slug,
+					publishedAt: existing.publishedAt ?? new Date(),
+					reviewerId: profile.id,
+					updatedAt: new Date(),
+				})
+				.where(eq(posts.id, postId));
+			return slug;
+		});
+		invalidatePosts({ slugs: [existing.slug, finalSlug] });
 		return { success: true };
 	} catch (error) {
 		console.error("approveAndPublish", error);
@@ -368,16 +424,30 @@ export async function directPublish(postId: number): Promise<ActionResult> {
 		};
 	}
 
+	const precheck = transitionPrecondition(existing);
+	if (!precheck.ok) return { success: false, message: precheck.message };
+
 	try {
-		await db
-			.update(posts)
-			.set({
-				status: "published",
-				publishedAt: existing.publishedAt ?? new Date(),
-				updatedAt: new Date(),
-			})
-			.where(eq(posts.id, postId));
-		invalidatePosts({ slugs: [existing.slug] });
+		const finalSlug = await db.transaction(async (tx) => {
+			const slug = PLACEHOLDER_SLUG_RE.test(existing.slug)
+				? await ensureUniquePostSlug(
+						tx,
+						slugifyName(existing.title),
+						postId,
+					)
+				: existing.slug;
+			await tx
+				.update(posts)
+				.set({
+					status: "published",
+					slug,
+					publishedAt: existing.publishedAt ?? new Date(),
+					updatedAt: new Date(),
+				})
+				.where(eq(posts.id, postId));
+			return slug;
+		});
+		invalidatePosts({ slugs: [existing.slug, finalSlug] });
 		return { success: true };
 	} catch (error) {
 		console.error("directPublish", error);

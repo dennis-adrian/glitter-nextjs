@@ -22,10 +22,8 @@ export default async function DashboardBlogEditPage({
 	if (!post) notFound();
 
 	return (
-		<div className="container mx-auto px-4 py-8 max-w-4xl">
-			<h1 className="text-2xl font-bold mb-6">Editar artículo</h1>
+		<div className="container mx-auto px-4 md:px-6 py-8">
 			<PostForm
-				mode="edit"
 				surface="dashboard"
 				post={post}
 				categoryOptions={categories}
