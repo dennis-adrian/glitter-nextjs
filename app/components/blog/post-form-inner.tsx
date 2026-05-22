@@ -241,17 +241,19 @@ export default function PostFormInner({
 	}
 
 	useEffect(() => {
-		const emit = () => {
+		const emit = async () => {
 			const blocks = editor.document;
 			const serialized = JSON.stringify(blocks);
 			if (serialized === lastSerializedRef.current) return;
 			lastSerializedRef.current = serialized;
-			const html = editor.blocksToFullHTML(blocks);
+			const html = await editor.blocksToFullHTML(blocks);
 			setContent(blocks);
 			setContentHtml(html);
 		};
-		emit();
-		const off = editor.onChange(() => emit());
+		void emit();
+		const off = editor.onChange(() => {
+			void emit();
+		});
 		return () => {
 			if (typeof off === "function") off();
 		};

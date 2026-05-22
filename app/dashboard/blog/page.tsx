@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import PostsTable from "@/app/components/blog/posts-table";
 import { Button } from "@/app/components/ui/button";
+import { startNewDashboardDraft } from "@/app/lib/posts/actions";
 import { fetchAllPostsForAdmin } from "@/app/lib/posts/data";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
@@ -28,9 +29,9 @@ export default async function DashboardBlogPage() {
 					<Button asChild variant="outline">
 						<Link href="/dashboard/blog/review">Cola de revisión</Link>
 					</Button>
-					<Button asChild>
-						<Link href="/dashboard/blog/new">Nuevo artículo</Link>
-					</Button>
+					<form action={startNewDashboardDraft}>
+						<Button type="submit">Nuevo artículo</Button>
+					</form>
 				</div>
 			</div>
 

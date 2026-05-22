@@ -15,8 +15,28 @@ type Props = {
 
 export default function CoverImageToggle({ value, onChange, disabled }: Props) {
 	const [expanded, setExpanded] = useState(false);
+	const [originalUrl, setOriginalUrl] = useState<string | null>(null);
 
-	if (value) {
+	const handleEditClick = () => {
+		setOriginalUrl(value ?? null);
+		setExpanded(true);
+	};
+
+	const handleUploadChange = (newUrl: string | null) => {
+		if (!newUrl) return;
+		onChange(newUrl);
+		setOriginalUrl(null);
+		setExpanded(false);
+	};
+
+	const handleCancel = () => {
+		if (originalUrl !== null) {
+			onChange(originalUrl);
+		}
+		setExpanded(false);
+	};
+
+	if (value && !expanded) {
 		return (
 			<div className="group relative w-full overflow-hidden rounded-md border bg-muted aspect-video">
 				<Image
@@ -32,10 +52,7 @@ export default function CoverImageToggle({ value, onChange, disabled }: Props) {
 							type="button"
 							variant="secondary"
 							size="sm"
-							onClick={() => {
-								onChange(null);
-								setExpanded(true);
-							}}
+							onClick={handleEditClick}
 						>
 							<Pencil className="mr-1 h-3.5 w-3.5" />
 							Cambiar
@@ -57,13 +74,8 @@ export default function CoverImageToggle({ value, onChange, disabled }: Props) {
 	if (expanded) {
 		return (
 			<div className="space-y-2">
-				<CoverImageUploader value={null} onChange={onChange} />
-				<Button
-					type="button"
-					variant="ghost"
-					size="sm"
-					onClick={() => setExpanded(false)}
-				>
+				<CoverImageUploader value={null} onChange={handleUploadChange} />
+				<Button type="button" variant="ghost" size="sm" onClick={handleCancel}>
 					Cancelar
 				</Button>
 			</div>

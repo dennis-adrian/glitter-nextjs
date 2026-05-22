@@ -2,8 +2,11 @@
 
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
+import { createBlankDraft } from "@/app/lib/posts/create-draft";
 import { type PostStatus } from "@/app/lib/posts/definitions";
+import { canAuthorPosts } from "@/app/lib/posts/eligibility";
 import {
 	canEditPost,
 	canPublishPosts,
@@ -37,6 +40,22 @@ type ActionResult<T = void> =
 	| { success: false; message: string };
 
 const PLACEHOLDER_SLUG_RE = /^borrador(-\d+)?$/;
+
+export async function startNewPortalDraft(): Promise<never> {
+	const profile = await getCurrentUserProfile();
+	if (!profile) redirect("/sign_in");
+	if (!(await canAuthorPosts(profile))) redirect("/portal/blog");
+	const draft = await createBlankDraft(profile);
+	redirect(`/portal/blog/${draft.id}/edit`);
+}
+
+export async function startNewDashboardDraft(): Promise<never> {
+	const profile = await getCurrentUserProfile();
+	if (!profile) redirect("/sign_in");
+	if (!canPublishPosts(profile.role)) redirect("/dashboard/blog");
+	const draft = await createBlankDraft(profile);
+	redirect(`/dashboard/blog/${draft.id}/edit`);
+}
 
 function transitionPrecondition(existing: {
 	title: string;

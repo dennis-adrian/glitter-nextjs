@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import PostsTable from "@/app/components/blog/posts-table";
 import { Button } from "@/app/components/ui/button";
+import { startNewPortalDraft } from "@/app/lib/posts/actions";
 import { fetchAuthoredPostsForUser } from "@/app/lib/posts/data";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
@@ -21,9 +21,9 @@ export default async function PortalBlogPage() {
 						Escribe artículos para el blog y envíalos a revisión.
 					</p>
 				</div>
-				<Button asChild>
-					<Link href="/portal/blog/new">Nuevo artículo</Link>
-				</Button>
+				<form action={startNewPortalDraft}>
+					<Button type="submit">Nuevo artículo</Button>
+				</form>
 			</div>
 
 			<PostsTable
