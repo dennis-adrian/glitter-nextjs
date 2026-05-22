@@ -8,6 +8,8 @@ import { createBlankDraft } from "@/app/lib/posts/create-draft";
 import { type PostStatus } from "@/app/lib/posts/definitions";
 import { canAuthorPosts } from "@/app/lib/posts/eligibility";
 import {
+	canArchivePost,
+	canDeletePost,
 	canEditPost,
 	canPublishPosts,
 	hasMeaningfulContent,
@@ -566,9 +568,7 @@ export async function rejectPost(
 
 export async function archivePost(postId: number): Promise<ActionResult> {
 	const profile = await getCurrentUserProfile();
-	if (!profile || !canPublishPosts(profile.role)) {
-		return { success: false, message: "No tienes permisos" };
-	}
+	if (!profile) return { success: false, message: "Debes iniciar sesión" };
 	const existing = await db.query.posts.findFirst({
 		where: eq(posts.id, postId),
 	});
@@ -578,6 +578,9 @@ export async function archivePost(postId: number): Promise<ActionResult> {
 			success: false,
 			message: "Solo se pueden archivar artículos publicados",
 		};
+	}
+	if (!canArchivePost(profile, existing)) {
+		return { success: false, message: "No puedes archivar este artículo" };
 	}
 	try {
 		await db
@@ -624,7 +627,7 @@ export async function restorePost(postId: number): Promise<ActionResult> {
 	}
 }
 
-export async function deleteDraft(postId: number): Promise<ActionResult> {
+export async function deletePost(postId: number): Promise<ActionResult> {
 	const profile = await getCurrentUserProfile();
 	if (!profile) return { success: false, message: "Debes iniciar sesión" };
 
@@ -632,14 +635,11 @@ export async function deleteDraft(postId: number): Promise<ActionResult> {
 		where: eq(posts.id, postId),
 	});
 	if (!existing) return { success: false, message: "Artículo no encontrado" };
-	if (existing.status !== "draft") {
+	if (!canDeletePost(profile, existing)) {
 		return {
 			success: false,
-			message: "Solo se pueden eliminar borradores",
+			message: "No puedes eliminar un artículo que ya fue publicado",
 		};
-	}
-	if (!canPublishPosts(profile.role) && existing.authorId !== profile.id) {
-		return { success: false, message: "No puedes eliminar este artículo" };
 	}
 
 	try {
@@ -647,8 +647,8 @@ export async function deleteDraft(postId: number): Promise<ActionResult> {
 		invalidatePosts();
 		return { success: true };
 	} catch (error) {
-		console.error("deleteDraft", error);
-		return { success: false, message: "Error al eliminar el borrador" };
+		console.error("deletePost", error);
+		return { success: false, message: "Error al eliminar el artículo" };
 	}
 }
 

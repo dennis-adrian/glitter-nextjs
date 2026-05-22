@@ -4,6 +4,7 @@ import { Edit, Eye } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import PostRowActions from "@/app/components/blog/post-row-actions";
 import PostStatusBadge from "@/app/components/blog/post-status-badge";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
@@ -142,6 +143,7 @@ export default function PostsTable({ posts, surface, viewer }: Props) {
 											</Link>
 										</Button>
 									)}
+									<PostRowActions post={p} viewer={viewer} />
 								</div>
 							</li>
 						))}

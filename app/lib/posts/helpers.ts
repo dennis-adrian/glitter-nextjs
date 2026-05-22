@@ -20,6 +20,22 @@ export function canEditPost(
 	);
 }
 
+export function canDeletePost(
+	profile: Pick<BaseProfile, "id" | "role">,
+	post: Pick<PostRow, "authorId" | "publishedAt">,
+): boolean {
+	if (post.publishedAt !== null) return false;
+	return isStaff(profile.role) || post.authorId === profile.id;
+}
+
+export function canArchivePost(
+	profile: Pick<BaseProfile, "id" | "role">,
+	post: Pick<PostRow, "authorId" | "status">,
+): boolean {
+	if (post.status !== "published") return false;
+	return isStaff(profile.role) || post.authorId === profile.id;
+}
+
 export function hasMeaningfulContent(content: unknown): boolean {
 	if (!Array.isArray(content) || content.length === 0) return false;
 	for (const block of content) {
