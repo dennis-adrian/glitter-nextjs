@@ -40,16 +40,6 @@ type BlockStyle =
 	| "bullet"
 	| "numbered";
 
-const STYLE_LABELS: Record<BlockStyle, string> = {
-	paragraph: "Texto",
-	"heading-1": "Título 1",
-	"heading-2": "Título 2",
-	"heading-3": "Título 3",
-	quote: "Cita",
-	bullet: "Lista",
-	numbered: "Lista numerada",
-};
-
 function readCurrentStyle(editor: BlockNoteEditor<any, any, any>): BlockStyle {
 	const block = editor.getTextCursorPosition().block;
 	if (block.type === "heading") {
@@ -71,6 +61,18 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 	const [blockStyle, setBlockStyle] = useState<BlockStyle>(() =>
 		readCurrentStyle(editor),
 	);
+
+	const slash = editor.dictionary.slash_menu;
+	const tooltips = editor.dictionary.formatting_toolbar;
+	const styleLabels: Record<BlockStyle, string> = {
+		paragraph: slash.paragraph.title,
+		"heading-1": slash.heading.title,
+		"heading-2": slash.heading_2.title,
+		"heading-3": slash.heading_3.title,
+		quote: slash.quote.title,
+		bullet: slash.bullet_list.title,
+		numbered: slash.numbered_list.title,
+	};
 
 	useEditorSelectionChange(() => {
 		setActiveStyles(editor.getActiveStyles());
@@ -163,7 +165,7 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 						>
 							<Type className="h-4 w-4" />
 							<span className="hidden text-xs sm:inline">
-								{STYLE_LABELS[blockStyle]}
+								{styleLabels[blockStyle]}
 							</span>
 							<ChevronDown className="h-3 w-3 opacity-60" />
 						</Button>
@@ -185,7 +187,7 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 								onSelect={() => applyStyle(s)}
 								className={cn(blockStyle === s && "bg-muted")}
 							>
-								{STYLE_LABELS[s]}
+								{styleLabels[s]}
 							</DropdownMenuItem>
 						))}
 					</DropdownMenuContent>
@@ -200,7 +202,7 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 					className={cn(buttonClass, Boolean(activeStyles.bold) && activeClass)}
 					onClick={() => toggleInline("bold")}
 					disabled={readOnly}
-					title="Negrita"
+					title={tooltips.bold.tooltip}
 				>
 					<Bold className="h-4 w-4" />
 				</Button>
@@ -214,7 +216,7 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 					)}
 					onClick={() => toggleInline("italic")}
 					disabled={readOnly}
-					title="Cursiva"
+					title={tooltips.italic.tooltip}
 				>
 					<Italic className="h-4 w-4" />
 				</Button>
@@ -228,7 +230,7 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 					)}
 					onClick={() => toggleInline("strike")}
 					disabled={readOnly}
-					title="Tachado"
+					title={tooltips.strike.tooltip}
 				>
 					<Strikethrough className="h-4 w-4" />
 				</Button>
@@ -239,7 +241,7 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 					className={cn(buttonClass, Boolean(activeStyles.code) && activeClass)}
 					onClick={() => toggleInline("code")}
 					disabled={readOnly}
-					title="Código en línea"
+					title={tooltips.code.tooltip}
 				>
 					<Code className="h-4 w-4" />
 				</Button>
@@ -253,7 +255,7 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 					className={buttonClass}
 					onClick={insertLink}
 					disabled={readOnly}
-					title="Enlace"
+					title={tooltips.link.tooltip}
 				>
 					<LinkIcon className="h-4 w-4" />
 				</Button>
@@ -267,7 +269,7 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 					className={cn(buttonClass, blockStyle === "bullet" && activeClass)}
 					onClick={() => applyStyle("bullet")}
 					disabled={readOnly}
-					title="Lista con viñetas"
+					title={styleLabels.bullet}
 				>
 					<List className="h-4 w-4" />
 				</Button>
@@ -278,7 +280,7 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 					className={cn(buttonClass, blockStyle === "numbered" && activeClass)}
 					onClick={() => applyStyle("numbered")}
 					disabled={readOnly}
-					title="Lista numerada"
+					title={styleLabels.numbered}
 				>
 					<ListOrdered className="h-4 w-4" />
 				</Button>

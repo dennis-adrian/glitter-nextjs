@@ -305,3 +305,44 @@
 .cl-formButtonPrimary:hover {
 	background-color: hsl(var(--primary) / 0.9);
 }
+
+/* BlockNote overrides — keep editor + reader visually consistent with the site.
+ * In the editor, BlockNote puts both .bn-root and .bn-mantine on the same element,
+ * so we need .bn-root.bn-mantine (specificity 0,2,0) to beat BlockNote's own
+ * .bn-root rules (0,1,0). In the reader (post-detail.tsx) only .bn-mantine is
+ * present on the wrapper, so the standalone .bn-mantine rule handles that case. */
+.bn-mantine,
+.bn-root.bn-mantine {
+	--bn-colors-editor-text: hsl(var(--foreground));
+	color: hsl(var(--foreground));
+}
+
+.bn-mantine .bn-editor,
+.bn-root.bn-mantine .bn-editor {
+	color: hsl(var(--foreground));
+}
+
+.bn-mantine [data-content-type="heading"],
+.bn-root.bn-mantine [data-content-type="heading"] {
+	--level: 2em;
+}
+.bn-mantine [data-content-type="heading"][data-level="2"],
+.bn-root.bn-mantine [data-content-type="heading"][data-level="2"] {
+	--level: 1.5em;
+}
+.bn-mantine [data-content-type="heading"][data-level="3"],
+.bn-root.bn-mantine [data-content-type="heading"][data-level="3"] {
+	--level: 1.25em;
+}
+.bn-mantine [data-prev-level="1"],
+.bn-root.bn-mantine [data-prev-level="1"] {
+	--prev-level: 2em;
+}
+.bn-mantine [data-prev-level="2"],
+.bn-root.bn-mantine [data-prev-level="2"] {
+	--prev-level: 1.5em;
+}
+.bn-mantine [data-prev-level="3"],
+.bn-root.bn-mantine [data-prev-level="3"] {
+	--prev-level: 1.25em;
+}
