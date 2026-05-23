@@ -1,8 +1,8 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { es as esDictionary } from "@blocknote/core/locales";
 import { useCreateBlockNote } from "@blocknote/react";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -19,6 +19,7 @@ import ReviewerNotesBanner from "@/app/components/blog/reviewer-notes-banner";
 import SaveIndicator, {
 	type SaveStatus,
 } from "@/app/components/blog/save-indicator";
+import TitleTextarea from "@/app/components/blog/title-textarea";
 import { Button } from "@/app/components/ui/button";
 import { Form } from "@/app/components/ui/form";
 import {
@@ -322,12 +323,10 @@ export default function PostFormInner({
 						disabled={editorReadOnly}
 					/>
 
-					<input
-						type="text"
-						placeholder="Título del artículo"
-						{...form.register("title")}
+					<TitleTextarea
+						register={form.register("title")}
+						value={titleValue}
 						disabled={editorReadOnly}
-						className="w-full border-0 bg-transparent px-[54px] text-3xl font-bold leading-tight outline-none placeholder:text-muted-foreground/30 md:text-4xl"
 					/>
 					{form.formState.errors.title && (
 						<p className="px-[54px] text-sm text-destructive">

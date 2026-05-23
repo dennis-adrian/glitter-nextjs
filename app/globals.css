@@ -324,25 +324,49 @@
 
 .bn-mantine [data-content-type="heading"],
 .bn-root.bn-mantine [data-content-type="heading"] {
-	--level: 2em;
+	--level: 2.25rem;
 }
 .bn-mantine [data-content-type="heading"][data-level="2"],
 .bn-root.bn-mantine [data-content-type="heading"][data-level="2"] {
-	--level: 1.5em;
+	--level: 1.875rem;
 }
 .bn-mantine [data-content-type="heading"][data-level="3"],
 .bn-root.bn-mantine [data-content-type="heading"][data-level="3"] {
-	--level: 1.25em;
+	--level: 1.5rem;
+}
+.bn-mantine [data-content-type="heading"][data-level="4"],
+.bn-root.bn-mantine [data-content-type="heading"][data-level="4"] {
+	--level: 1.25rem;
+}
+.bn-mantine [data-content-type="heading"][data-level="5"],
+.bn-root.bn-mantine [data-content-type="heading"][data-level="5"] {
+	--level: 1.125rem;
+}
+.bn-mantine [data-content-type="heading"][data-level="6"],
+.bn-root.bn-mantine [data-content-type="heading"][data-level="6"] {
+	--level: 1rem;
 }
 .bn-mantine [data-prev-level="1"],
 .bn-root.bn-mantine [data-prev-level="1"] {
-	--prev-level: 2em;
+	--prev-level: 2.25rem;
 }
 .bn-mantine [data-prev-level="2"],
 .bn-root.bn-mantine [data-prev-level="2"] {
-	--prev-level: 1.5em;
+	--prev-level: 1.875rem;
 }
 .bn-mantine [data-prev-level="3"],
 .bn-root.bn-mantine [data-prev-level="3"] {
-	--prev-level: 1.25em;
+	--prev-level: 1.5rem;
+}
+.bn-mantine [data-prev-level="4"],
+.bn-root.bn-mantine [data-prev-level="4"] {
+	--prev-level: 1.25rem;
+}
+.bn-mantine [data-prev-level="5"],
+.bn-root.bn-mantine [data-prev-level="5"] {
+	--prev-level: 1.125rem;
+}
+.bn-mantine [data-prev-level="6"],
+.bn-root.bn-mantine [data-prev-level="6"] {
+	--prev-level: 1rem;
 }
