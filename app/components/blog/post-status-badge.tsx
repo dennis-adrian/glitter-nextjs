@@ -17,31 +17,31 @@ import {
 const STATUS_STYLES: Record<PostStatus, { bg: string; icon: React.ReactNode }> =
 	{
 		draft: {
-			bg: "bg-neutral-500",
+			bg: "bg-neutral-500 hover:bg-neutral-500/90",
 			icon: <FileText className="w-4 h-4 mr-1" />,
 		},
 		submitted: {
-			bg: "bg-amber-500",
+			bg: "bg-amber-500 hover:bg-amber-500/90",
 			icon: <CircleEllipsis className="w-4 h-4 mr-1" />,
 		},
 		approved: {
-			bg: "bg-sky-600",
+			bg: "bg-sky-600 hover:bg-sky-600/90",
 			icon: <CheckCircle2 className="w-4 h-4 mr-1" />,
 		},
 		scheduled: {
-			bg: "bg-violet-600",
+			bg: "bg-violet-600 hover:bg-violet-600/90",
 			icon: <CalendarClock className="w-4 h-4 mr-1" />,
 		},
 		published: {
-			bg: "bg-primary-600 hover:bg-primary/90",
+			bg: "bg-primary-600 hover:bg-primary-600/90",
 			icon: <Eye className="w-4 h-4 mr-1" />,
 		},
 		rejected: {
-			bg: "bg-rose-600",
+			bg: "bg-rose-600 hover:bg-rose-600/90",
 			icon: <XCircle className="w-4 h-4 mr-1" />,
 		},
 		archived: {
-			bg: "bg-zinc-700",
+			bg: "bg-zinc-700 hover:bg-zinc-700/90",
 			icon: <Archive className="w-4 h-4 mr-1" />,
 		},
 	};

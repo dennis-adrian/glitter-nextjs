@@ -128,14 +128,6 @@ export default function PostsTable({ posts, surface, viewer }: Props) {
 									)}
 								</div>
 								<div className="flex gap-2">
-									{canEditPost(viewer, p) && (
-										<Button asChild variant="outline" size="sm">
-											<Link href={`${editBase}/${p.id}/edit`}>
-												<Edit className="h-4 w-4 mr-1" />
-												Editar
-											</Link>
-										</Button>
-									)}
 									{p.status === "published" && (
 										<Button asChild variant="ghost" size="sm">
 											<Link
@@ -145,6 +137,14 @@ export default function PostsTable({ posts, surface, viewer }: Props) {
 											>
 												<Eye className="h-4 w-4 mr-1" />
 												Ver
+											</Link>
+										</Button>
+									)}
+									{canEditPost(viewer, p) && (
+										<Button asChild variant="outline" size="sm">
+											<Link href={`${editBase}/${p.id}/edit`}>
+												<Edit className="h-4 w-4 mr-1" />
+												Editar
 											</Link>
 										</Button>
 									)}
