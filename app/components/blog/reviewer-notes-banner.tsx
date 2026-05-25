@@ -6,16 +6,25 @@ import type { PostStatus } from "@/app/lib/posts/definitions";
 type Props = {
 	status: PostStatus;
 	notes: string | null;
+	scope?: "main" | "working";
 };
 
-export default function ReviewerNotesBanner({ status, notes }: Props) {
+export default function ReviewerNotesBanner({
+	status,
+	notes,
+	scope = "main",
+}: Props) {
 	if (!notes) return null;
-	if (status !== "draft" && status !== "rejected") return null;
+	if (scope === "main" && status !== "draft" && status !== "rejected") {
+		return null;
+	}
 
 	const title =
-		status === "rejected"
-			? "Tu artículo fue rechazado"
-			: "El equipo de revisión solicitó cambios";
+		scope === "working"
+			? "El equipo de revisión solicitó cambios sobre tus ediciones"
+			: status === "rejected"
+				? "Tu artículo fue rechazado"
+				: "El equipo de revisión solicitó cambios";
 
 	return (
 		<Alert className="border-amber-300 bg-amber-50">

@@ -13,11 +13,49 @@ export function canEditPost(
 	profile: Pick<BaseProfile, "id" | "role">,
 	post: Pick<PostRow, "authorId" | "status">,
 ): boolean {
+	if (post.status === "archived") return false;
 	if (isStaff(profile.role)) return true;
-	const editableStatuses: PostStatus[] = ["draft", "rejected"];
+	const editableStatuses: PostStatus[] = [
+		"draft",
+		"submitted",
+		"approved",
+		"published",
+		"rejected",
+	];
 	return (
 		post.authorId === profile.id && editableStatuses.includes(post.status)
 	);
+}
+
+export function usesWorkingCopy(
+	post: Pick<PostRow, "status">,
+): boolean {
+	return (
+		post.status === "submitted" ||
+		post.status === "approved" ||
+		post.status === "published" ||
+		post.status === "rejected"
+	);
+}
+
+export function hasWorking(
+	post: Pick<PostRow, "workingUpdatedAt">,
+): boolean {
+	return post.workingUpdatedAt !== null;
+}
+
+export function workingPendingReview(
+	post: Pick<PostRow, "workingSubmittedAt" | "workingReviewerNotes">,
+): boolean {
+	return (
+		post.workingSubmittedAt !== null && post.workingReviewerNotes === null
+	);
+}
+
+export function workingRejected(
+	post: Pick<PostRow, "workingReviewerNotes">,
+): boolean {
+	return post.workingReviewerNotes !== null;
 }
 
 export function canDeletePost(

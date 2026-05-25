@@ -1642,6 +1642,23 @@ export const posts = pgTable(
 			onDelete: "set null",
 		}),
 		reviewerNotes: text("reviewer_notes"),
+		workingTitle: text("working_title"),
+		workingSlug: text("working_slug"),
+		workingExcerpt: text("working_excerpt"),
+		workingCoverImageUrl: text("working_cover_image_url"),
+		workingContent: jsonb("working_content").$type<unknown>(),
+		workingContentHtml: text("working_content_html"),
+		workingSeoTitle: text("working_seo_title"),
+		workingSeoDescription: text("working_seo_description"),
+		workingCategoryIds: jsonb("working_category_ids").$type<number[]>(),
+		workingTagInputs: jsonb("working_tag_inputs").$type<string[]>(),
+		workingUpdatedAt: timestamp("working_updated_at"),
+		workingSubmittedAt: timestamp("working_submitted_at"),
+		workingReviewerNotes: text("working_reviewer_notes"),
+		workingReviewerId: integer("working_reviewer_id").references(
+			() => users.id,
+			{ onDelete: "set null" },
+		),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
@@ -1679,9 +1696,12 @@ export const postCategories = pgTable("post_categories", {
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const postCategoriesRelations = relations(postCategories, ({ many }) => ({
-	postCategories: many(postCategoriesToPosts),
-}));
+export const postCategoriesRelations = relations(
+	postCategories,
+	({ many }) => ({
+		postCategories: many(postCategoriesToPosts),
+	}),
+);
 
 export const postCategoriesToPosts = pgTable(
 	"post_categories_to_posts",
@@ -1747,13 +1767,16 @@ export const postTagsToPosts = pgTable(
 	],
 );
 
-export const postTagsToPostsRelations = relations(postTagsToPosts, ({ one }) => ({
-	post: one(posts, {
-		fields: [postTagsToPosts.postId],
-		references: [posts.id],
+export const postTagsToPostsRelations = relations(
+	postTagsToPosts,
+	({ one }) => ({
+		post: one(posts, {
+			fields: [postTagsToPosts.postId],
+			references: [posts.id],
+		}),
+		tag: one(postTags, {
+			fields: [postTagsToPosts.tagId],
+			references: [postTags.id],
+		}),
 	}),
-	tag: one(postTags, {
-		fields: [postTagsToPosts.tagId],
-		references: [postTags.id],
-	}),
-}));
+);

@@ -13,6 +13,7 @@ import {
 	canEditPost,
 	canPublishPosts,
 	hasMeaningfulContent,
+	usesWorkingCopy,
 } from "@/app/lib/posts/helpers";
 import { sanitizePostHtml } from "@/app/lib/posts/render";
 import {
@@ -70,6 +71,63 @@ function transitionPrecondition(existing: {
 		return { ok: false, message: "El contenido es obligatorio para publicar" };
 	}
 	return { ok: true };
+}
+
+const CLEAR_WORKING = {
+	workingTitle: null,
+	workingSlug: null,
+	workingExcerpt: null,
+	workingCoverImageUrl: null,
+	workingContent: null,
+	workingContentHtml: null,
+	workingSeoTitle: null,
+	workingSeoDescription: null,
+	workingCategoryIds: null,
+	workingTagInputs: null,
+	workingUpdatedAt: null,
+	workingSubmittedAt: null,
+	workingReviewerNotes: null,
+	workingReviewerId: null,
+} as const;
+
+async function applyWorkingToMain(
+	tx: Tx,
+	existing: typeof posts.$inferSelect,
+): Promise<{ slug: string }> {
+	const desiredSlugInput = existing.workingSlug?.trim() || existing.workingTitle;
+	const slugBase = desiredSlugInput && desiredSlugInput.trim().length > 0
+		? slugifyName(desiredSlugInput)
+		: existing.slug;
+	const slug = PLACEHOLDER_SLUG_RE.test(existing.slug)
+		? await ensureUniquePostSlug(tx, slugBase, existing.id)
+		: existing.workingSlug && existing.workingSlug.trim().length > 0
+			? await ensureUniquePostSlug(tx, slugBase, existing.id)
+			: existing.slug;
+
+	await tx
+		.update(posts)
+		.set({
+			title: existing.workingTitle ?? existing.title,
+			slug,
+			excerpt: existing.workingExcerpt,
+			coverImageUrl: existing.workingCoverImageUrl,
+			content: existing.workingContent ?? existing.content,
+			contentHtml: existing.workingContentHtml ?? existing.contentHtml,
+			seoTitle: existing.workingSeoTitle,
+			seoDescription: existing.workingSeoDescription,
+			updatedAt: new Date(),
+			...CLEAR_WORKING,
+		})
+		.where(eq(posts.id, existing.id));
+
+	if (existing.workingCategoryIds) {
+		await syncPostCategories(tx, existing.id, existing.workingCategoryIds);
+	}
+	if (existing.workingTagInputs) {
+		await syncPostTags(tx, existing.id, existing.workingTagInputs);
+	}
+
+	return { slug };
 }
 
 function invalidatePosts(opts: { slugs?: string[] } = {}) {
@@ -289,8 +347,35 @@ export async function autosaveDraft(
 
 	try {
 		const contentHtml = sanitizePostHtml(data.contentHtml);
+		const stage = usesWorkingCopy(existing);
 
 		const result = await db.transaction(async (tx) => {
+			if (stage) {
+				const now = new Date();
+				const [row] = await tx
+					.update(posts)
+					.set({
+						workingTitle: data.title,
+						workingSlug: data.slug?.trim() || null,
+						workingExcerpt: data.excerpt || null,
+						workingCoverImageUrl: data.coverImageUrl || null,
+						workingContent: data.content,
+						workingContentHtml: contentHtml,
+						workingSeoTitle: data.seoTitle || null,
+						workingSeoDescription: data.seoDescription || null,
+						workingCategoryIds: data.categoryIds,
+						workingTagInputs: data.tagInputs,
+						workingUpdatedAt: now,
+						workingSubmittedAt: null,
+						workingReviewerNotes: null,
+						workingReviewerId: null,
+					})
+					.where(eq(posts.id, postId))
+					.returning({ updatedAt: posts.workingUpdatedAt });
+				if (!row) throw new Error("No se pudo guardar el artículo");
+				return { updatedAt: row.updatedAt ?? now };
+			}
+
 			const trimmedSlug = data.slug?.trim() ?? "";
 			const slug = trimmedSlug
 				? await ensureUniquePostSlug(tx, slugifyName(trimmedSlug), postId)
@@ -334,43 +419,80 @@ export async function submitForReview(postId: number): Promise<ActionResult> {
 		where: eq(posts.id, postId),
 	});
 	if (!existing) return { success: false, message: "Artículo no encontrado" };
-	if (existing.authorId !== profile.id) {
-		return { success: false, message: "Solo el autor puede enviar a revisión" };
+
+	if (existing.status === "draft") {
+		if (existing.authorId !== profile.id) {
+			return {
+				success: false,
+				message: "Solo el autor puede enviar a revisión",
+			};
+		}
+
+		const precheck = transitionPrecondition(existing);
+		if (!precheck.ok) return { success: false, message: precheck.message };
+
+		try {
+			await db.transaction(async (tx) => {
+				const slug = PLACEHOLDER_SLUG_RE.test(existing.slug)
+					? await ensureUniquePostSlug(
+							tx,
+							slugifyName(existing.title),
+							postId,
+						)
+					: existing.slug;
+				await tx
+					.update(posts)
+					.set({
+						status: "submitted",
+						slug,
+						submittedAt: new Date(),
+						reviewerNotes: null,
+						updatedAt: new Date(),
+					})
+					.where(eq(posts.id, postId));
+			});
+			invalidatePosts();
+			return { success: true };
+		} catch (error) {
+			console.error("submitForReview", error);
+			return { success: false, message: "Error al enviar a revisión" };
+		}
 	}
-	if (existing.status !== "draft") {
+
+	if (!canEditPost(profile, existing)) {
 		return {
 			success: false,
-			message: "Solo se pueden enviar borradores a revisión",
+			message: "No puedes enviar este artículo a revisión",
+		};
+	}
+	if (existing.workingUpdatedAt === null) {
+		return {
+			success: false,
+			message: "No hay cambios pendientes para enviar a revisión",
 		};
 	}
 
-	const precheck = transitionPrecondition(existing);
-	if (!precheck.ok) return { success: false, message: precheck.message };
+	const stagedPrecheck = transitionPrecondition({
+		title: existing.workingTitle ?? existing.title,
+		content: existing.workingContent ?? existing.content,
+	});
+	if (!stagedPrecheck.ok) {
+		return { success: false, message: stagedPrecheck.message };
+	}
 
 	try {
-		await db.transaction(async (tx) => {
-			const slug = PLACEHOLDER_SLUG_RE.test(existing.slug)
-				? await ensureUniquePostSlug(
-						tx,
-						slugifyName(existing.title),
-						postId,
-					)
-				: existing.slug;
-			await tx
-				.update(posts)
-				.set({
-					status: "submitted",
-					slug,
-					submittedAt: new Date(),
-					reviewerNotes: null,
-					updatedAt: new Date(),
-				})
-				.where(eq(posts.id, postId));
-		});
+		await db
+			.update(posts)
+			.set({
+				workingSubmittedAt: new Date(),
+				workingReviewerNotes: null,
+				workingReviewerId: null,
+			})
+			.where(eq(posts.id, postId));
 		invalidatePosts();
 		return { success: true };
 	} catch (error) {
-		console.error("submitForReview", error);
+		console.error("submitForReview (working)", error);
 		return { success: false, message: "Error al enviar a revisión" };
 	}
 }
@@ -387,18 +509,39 @@ export async function approveAndPublish(
 		where: eq(posts.id, postId),
 	});
 	if (!existing) return { success: false, message: "Artículo no encontrado" };
-	if (existing.status !== "submitted") {
+
+	const hasStaged = existing.workingUpdatedAt !== null;
+	if (!hasStaged && existing.status !== "submitted") {
 		return {
 			success: false,
 			message: "Solo se pueden aprobar artículos en revisión",
 		};
 	}
 
-	const precheck = transitionPrecondition(existing);
+	const effectiveTitle = existing.workingTitle ?? existing.title;
+	const effectiveContent = existing.workingContent ?? existing.content;
+	const precheck = transitionPrecondition({
+		title: effectiveTitle,
+		content: effectiveContent,
+	});
 	if (!precheck.ok) return { success: false, message: precheck.message };
 
 	try {
 		const finalSlug = await db.transaction(async (tx) => {
+			if (hasStaged) {
+				const { slug } = await applyWorkingToMain(tx, existing);
+				await tx
+					.update(posts)
+					.set({
+						status: "published",
+						publishedAt: existing.publishedAt ?? new Date(),
+						reviewerId: profile.id,
+						updatedAt: new Date(),
+					})
+					.where(eq(posts.id, postId));
+				return slug;
+			}
+
 			const slug = PLACEHOLDER_SLUG_RE.test(existing.slug)
 				? await ensureUniquePostSlug(
 						tx,
@@ -437,19 +580,38 @@ export async function directPublish(postId: number): Promise<ActionResult> {
 	});
 	if (!existing) return { success: false, message: "Artículo no encontrado" };
 
+	const hasStaged = existing.workingUpdatedAt !== null;
 	const allowed: PostStatus[] = ["draft", "approved", "archived"];
-	if (!allowed.includes(existing.status)) {
+	if (!hasStaged && !allowed.includes(existing.status)) {
 		return {
 			success: false,
 			message: "El artículo no se puede publicar en su estado actual",
 		};
 	}
 
-	const precheck = transitionPrecondition(existing);
+	const effectiveTitle = existing.workingTitle ?? existing.title;
+	const effectiveContent = existing.workingContent ?? existing.content;
+	const precheck = transitionPrecondition({
+		title: effectiveTitle,
+		content: effectiveContent,
+	});
 	if (!precheck.ok) return { success: false, message: precheck.message };
 
 	try {
 		const finalSlug = await db.transaction(async (tx) => {
+			if (hasStaged) {
+				const { slug } = await applyWorkingToMain(tx, existing);
+				await tx
+					.update(posts)
+					.set({
+						status: "published",
+						publishedAt: existing.publishedAt ?? new Date(),
+						updatedAt: new Date(),
+					})
+					.where(eq(posts.id, postId));
+				return slug;
+			}
+
 			const slug = PLACEHOLDER_SLUG_RE.test(existing.slug)
 				? await ensureUniquePostSlug(
 						tx,
@@ -496,7 +658,13 @@ export async function requestChanges(
 		where: eq(posts.id, postId),
 	});
 	if (!existing) return { success: false, message: "Artículo no encontrado" };
-	if (existing.status !== "submitted") {
+
+	const stagedPendingReview =
+		existing.workingUpdatedAt !== null &&
+		existing.workingSubmittedAt !== null &&
+		existing.workingReviewerNotes === null;
+
+	if (!stagedPendingReview && existing.status !== "submitted") {
 		return {
 			success: false,
 			message: "Solo se pueden solicitar cambios sobre artículos en revisión",
@@ -504,15 +672,25 @@ export async function requestChanges(
 	}
 
 	try {
-		await db
-			.update(posts)
-			.set({
-				status: "draft",
-				reviewerId: profile.id,
-				reviewerNotes: parsed.data.notes,
-				updatedAt: new Date(),
-			})
-			.where(eq(posts.id, postId));
+		if (stagedPendingReview) {
+			await db
+				.update(posts)
+				.set({
+					workingReviewerId: profile.id,
+					workingReviewerNotes: parsed.data.notes,
+				})
+				.where(eq(posts.id, postId));
+		} else {
+			await db
+				.update(posts)
+				.set({
+					status: "draft",
+					reviewerId: profile.id,
+					reviewerNotes: parsed.data.notes,
+					updatedAt: new Date(),
+				})
+				.where(eq(posts.id, postId));
+		}
 		invalidatePosts();
 		return { success: true };
 	} catch (error) {
@@ -624,6 +802,36 @@ export async function restorePost(postId: number): Promise<ActionResult> {
 	} catch (error) {
 		console.error("restorePost", error);
 		return { success: false, message: "Error al restaurar el artículo" };
+	}
+}
+
+export async function discardWorkingCopy(
+	postId: number,
+): Promise<ActionResult> {
+	const profile = await getCurrentUserProfile();
+	if (!profile) return { success: false, message: "Debes iniciar sesión" };
+
+	const existing = await db.query.posts.findFirst({
+		where: eq(posts.id, postId),
+	});
+	if (!existing) return { success: false, message: "Artículo no encontrado" };
+	if (!canEditPost(profile, existing)) {
+		return { success: false, message: "No puedes descartar estos cambios" };
+	}
+	if (existing.workingUpdatedAt === null) {
+		return { success: true };
+	}
+
+	try {
+		await db
+			.update(posts)
+			.set(CLEAR_WORKING)
+			.where(eq(posts.id, postId));
+		invalidatePosts();
+		return { success: true };
+	} catch (error) {
+		console.error("discardWorkingCopy", error);
+		return { success: false, message: "Error al descartar los cambios" };
 	}
 }
 

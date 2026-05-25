@@ -2,7 +2,7 @@ import "@blocknote/core/fonts/inter.css";
 import "@blocknote/core/style.css";
 import "@blocknote/mantine/style.css";
 
-import { CalendarIcon, UserIcon } from "lucide-react";
+import { CalendarIcon, EyeIcon, UserIcon } from "lucide-react";
 import Image from "next/image";
 
 import CategoryPill from "@/app/components/blog/category-pill";
@@ -18,9 +18,20 @@ function authorName(author: PostWithRelations["author"]): string {
 	);
 }
 
-export default function PostDetail({ post }: { post: PostWithRelations }) {
+type Props = {
+	post: PostWithRelations;
+	previewBanner?: boolean;
+};
+
+export default function PostDetail({ post, previewBanner }: Props) {
 	return (
 		<article className="mx-auto max-w-3xl px-4 py-8">
+			{previewBanner && (
+				<div className="mb-6 flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+					<EyeIcon className="h-4 w-4" />
+					<span>Vista previa — estos cambios aún no se han publicado.</span>
+				</div>
+			)}
 			<header className="space-y-4 mb-8">
 				{post.categories.length > 0 && (
 					<div className="flex flex-wrap gap-2">

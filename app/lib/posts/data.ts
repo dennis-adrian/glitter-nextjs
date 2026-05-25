@@ -175,54 +175,65 @@ export async function countPublishedPosts(
 export async function fetchPostBySlug(
 	slug: string,
 ): Promise<PostWithRelations | null> {
-	try {
-		const row = await db.query.posts.findFirst({
-			where: and(
-				eq(posts.slug, slug),
-				eq(posts.status, "published" as PostStatus),
-			),
-			with: {
-				author: { columns: PUBLIC_AUTHOR_COLUMNS },
-				reviewer: { columns: PUBLIC_AUTHOR_COLUMNS },
-				postCategories: { with: { category: true } },
-				postTags: { with: { tag: true } },
-			},
-		});
-		if (!row) return null;
-		return {
-			...row,
-			categories: row.postCategories.map((pc) => pc.category),
-			tags: row.postTags.map((pt) => pt.tag),
-		};
-	} catch (error) {
-		console.error("fetchPostBySlug", error);
-		return null;
-	}
+	const row = await db.query.posts.findFirst({
+		where: and(
+			eq(posts.slug, slug),
+			eq(posts.status, "published" as PostStatus),
+		),
+		with: {
+			author: { columns: PUBLIC_AUTHOR_COLUMNS },
+			reviewer: { columns: PUBLIC_AUTHOR_COLUMNS },
+			postCategories: { with: { category: true } },
+			postTags: { with: { tag: true } },
+		},
+	});
+	if (!row) return null;
+	return {
+		...row,
+		categories: row.postCategories.map((pc) => pc.category),
+		tags: row.postTags.map((pt) => pt.tag),
+	};
+}
+
+export async function fetchPostBySlugForWorkingPreview(
+	slug: string,
+): Promise<PostWithRelations | null> {
+	const row = await db.query.posts.findFirst({
+		where: eq(posts.slug, slug),
+		with: {
+			author: { columns: PUBLIC_AUTHOR_COLUMNS },
+			reviewer: { columns: PUBLIC_AUTHOR_COLUMNS },
+			postCategories: { with: { category: true } },
+			postTags: { with: { tag: true } },
+		},
+	});
+	if (!row) return null;
+	if (row.workingUpdatedAt === null) return null;
+	return {
+		...row,
+		categories: row.postCategories.map((pc) => pc.category),
+		tags: row.postTags.map((pt) => pt.tag),
+	};
 }
 
 export async function fetchPostByIdForEditor(
 	id: number,
 ): Promise<PostWithRelations | null> {
-	try {
-		const row = await db.query.posts.findFirst({
-			where: eq(posts.id, id),
-			with: {
-				author: { columns: PUBLIC_AUTHOR_COLUMNS },
-				reviewer: { columns: PUBLIC_AUTHOR_COLUMNS },
-				postCategories: { with: { category: true } },
-				postTags: { with: { tag: true } },
-			},
-		});
-		if (!row) return null;
-		return {
-			...row,
-			categories: row.postCategories.map((pc) => pc.category),
-			tags: row.postTags.map((pt) => pt.tag),
-		};
-	} catch (error) {
-		console.error("fetchPostByIdForEditor", error);
-		return null;
-	}
+	const row = await db.query.posts.findFirst({
+		where: eq(posts.id, id),
+		with: {
+			author: { columns: PUBLIC_AUTHOR_COLUMNS },
+			reviewer: { columns: PUBLIC_AUTHOR_COLUMNS },
+			postCategories: { with: { category: true } },
+			postTags: { with: { tag: true } },
+		},
+	});
+	if (!row) return null;
+	return {
+		...row,
+		categories: row.postCategories.map((pc) => pc.category),
+		tags: row.postTags.map((pt) => pt.tag),
+	};
 }
 
 export async function fetchAuthoredPostsForUser(
@@ -308,15 +319,10 @@ export async function fetchSubmittedPostsForReview(): Promise<
 }
 
 export async function fetchPostCategories(): Promise<PostCategoryRow[]> {
-	try {
-		return await db
-			.select()
-			.from(postCategories)
-			.orderBy(asc(postCategories.name));
-	} catch (error) {
-		console.error("fetchPostCategories", error);
-		return [];
-	}
+	return await db
+		.select()
+		.from(postCategories)
+		.orderBy(asc(postCategories.name));
 }
 
 export async function fetchPostCategoryBySlug(
