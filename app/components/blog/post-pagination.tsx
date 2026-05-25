@@ -23,25 +23,27 @@ export default function PostPagination({
 			className="mt-10 flex items-center justify-center gap-3"
 			aria-label="Paginación"
 		>
-			<Button
-				asChild
-				variant="outline"
-				disabled={currentPage <= 1}
-				aria-disabled={currentPage <= 1}
-			>
-				<Link href={buildHref(prev)}>Anterior</Link>
-			</Button>
+			{currentPage <= 1 ? (
+				<Button variant="outline" disabled aria-disabled="true">
+					Anterior
+				</Button>
+			) : (
+				<Button asChild variant="outline">
+					<Link href={buildHref(prev)}>Anterior</Link>
+				</Button>
+			)}
 			<span className="text-sm text-muted-foreground">
 				Página {currentPage} de {totalPages}
 			</span>
-			<Button
-				asChild
-				variant="outline"
-				disabled={currentPage >= totalPages}
-				aria-disabled={currentPage >= totalPages}
-			>
-				<Link href={buildHref(next)}>Siguiente</Link>
-			</Button>
+			{currentPage >= totalPages ? (
+				<Button variant="outline" disabled aria-disabled="true">
+					Siguiente
+				</Button>
+			) : (
+				<Button asChild variant="outline">
+					<Link href={buildHref(next)}>Siguiente</Link>
+				</Button>
+			)}
 		</nav>
 	);
 }

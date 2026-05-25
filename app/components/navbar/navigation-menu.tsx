@@ -62,6 +62,16 @@ const NavbarNavigationMenu = ({
 				</NavigationMenuItem>
 				<NavigationMenuItem>
 					<NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+						<Link href="/blog">
+							<div className="flex items-center">
+								<BookOpenIcon className="w-4 h-4 mr-1" />
+								Blog
+							</div>
+						</Link>
+					</NavigationMenuLink>
+				</NavigationMenuItem>
+				<NavigationMenuItem>
+					<NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
 						<Link href="/store">
 							<div className="flex items-center">
 								<StoreIcon className="w-4 h-4 mr-1" />
@@ -94,16 +104,6 @@ const NavbarNavigationMenu = ({
 							<div className="flex items-center">
 								<BoxesIcon className="w-4 h-4 mr-1" />
 								Categorías Glitter
-							</div>
-						</Link>
-					</NavigationMenuLink>
-				</NavigationMenuItem>
-				<NavigationMenuItem>
-					<NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
-						<Link href="/blog">
-							<div className="flex items-center">
-								<BookOpenIcon className="w-4 h-4 mr-1" />
-								Blog
 							</div>
 						</Link>
 					</NavigationMenuLink>
@@ -199,10 +199,7 @@ const NavbarNavigationMenu = ({
 								>
 									Banners de la página de inicio y del portal
 								</NavigationMenuListItem>
-								<NavigationMenuListItem
-									title="Blog"
-									href="/dashboard/blog"
-								>
+								<NavigationMenuListItem title="Blog" href="/dashboard/blog">
 									Artículos, revisión editorial y categorías
 								</NavigationMenuListItem>
 							</ul>

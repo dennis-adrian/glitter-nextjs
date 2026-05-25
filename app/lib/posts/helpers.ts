@@ -9,47 +9,43 @@ export function canPublishPosts(role: string | null | undefined): boolean {
 	return isStaff(role);
 }
 
+const WORKING_COPY_STATUSES: PostStatus[] = [
+	"submitted",
+	"approved",
+	"scheduled",
+	"published",
+	"rejected",
+];
+
+const AUTHOR_EDITABLE_STATUSES: PostStatus[] = [
+	"draft",
+	...WORKING_COPY_STATUSES,
+];
+
 export function canEditPost(
 	profile: Pick<BaseProfile, "id" | "role">,
 	post: Pick<PostRow, "authorId" | "status">,
 ): boolean {
 	if (post.status === "archived") return false;
 	if (isStaff(profile.role)) return true;
-	const editableStatuses: PostStatus[] = [
-		"draft",
-		"submitted",
-		"approved",
-		"published",
-		"rejected",
-	];
 	return (
-		post.authorId === profile.id && editableStatuses.includes(post.status)
+		post.authorId === profile.id &&
+		AUTHOR_EDITABLE_STATUSES.includes(post.status)
 	);
 }
 
-export function usesWorkingCopy(
-	post: Pick<PostRow, "status">,
-): boolean {
-	return (
-		post.status === "submitted" ||
-		post.status === "approved" ||
-		post.status === "published" ||
-		post.status === "rejected"
-	);
+export function usesWorkingCopy(post: Pick<PostRow, "status">): boolean {
+	return WORKING_COPY_STATUSES.includes(post.status);
 }
 
-export function hasWorking(
-	post: Pick<PostRow, "workingUpdatedAt">,
-): boolean {
+export function hasWorking(post: Pick<PostRow, "workingUpdatedAt">): boolean {
 	return post.workingUpdatedAt !== null;
 }
 
 export function workingPendingReview(
 	post: Pick<PostRow, "workingSubmittedAt" | "workingReviewerNotes">,
 ): boolean {
-	return (
-		post.workingSubmittedAt !== null && post.workingReviewerNotes === null
-	);
+	return post.workingSubmittedAt !== null && post.workingReviewerNotes === null;
 }
 
 export function workingRejected(

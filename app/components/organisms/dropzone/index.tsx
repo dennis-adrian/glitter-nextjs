@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
 	UploadIcon,
 	XIcon,
@@ -55,6 +55,22 @@ export function Dropzone({
 	const [selectedPreviewFile, setSelectedPreviewFile] = useState<File | null>(
 		null,
 	);
+	const [imagePreviewUrls, setImagePreviewUrls] = useState<Map<File, string>>(
+		() => new Map(),
+	);
+
+	useEffect(() => {
+		const next = new Map<File, string>();
+		for (const file of files) {
+			if (file.type.startsWith("image/")) {
+				next.set(file, URL.createObjectURL(file));
+			}
+		}
+		setImagePreviewUrls(next);
+		return () => {
+			next.forEach((url) => URL.revokeObjectURL(url));
+		};
+	}, [files]);
 
 	const { isUploading, routeConfig, startUpload } = useUploadThing(
 		"festivalActivityParticipantProof",
@@ -93,10 +109,14 @@ export function Dropzone({
 
 	const loadImageDimensions = useCallback((file: File) => {
 		const img = new window.Image();
+		const url = URL.createObjectURL(file);
+		const cleanup = () => URL.revokeObjectURL(url);
 		img.onload = () => {
 			setPreviewDimensions({ width: img.width, height: img.height });
+			cleanup();
 		};
-		img.src = URL.createObjectURL(file);
+		img.onerror = cleanup;
+		img.src = url;
 	}, []);
 
 	const handlePreviewClick = useCallback(
@@ -224,13 +244,13 @@ export function Dropzone({
 				key={`${file.name}-${index}`}
 				className="flex items-center gap-2 p-2 rounded-md bg-muted/50"
 			>
-				{file.type.startsWith("image/") ? (
+				{file.type.startsWith("image/") && imagePreviewUrls.get(file) ? (
 					<div
 						className="relative w-6 h-6 object-cover"
 						onClick={() => handlePreviewClick(file)}
 					>
 						<Image
-							src={URL.createObjectURL(file)}
+							src={imagePreviewUrls.get(file) as string}
 							alt={file.name}
 							className="rounded-md"
 							fill

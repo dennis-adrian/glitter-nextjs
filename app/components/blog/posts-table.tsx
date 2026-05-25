@@ -34,6 +34,7 @@ const STATUS_OPTIONS: PostStatus[] = [
 	"draft",
 	"submitted",
 	"approved",
+	"scheduled",
 	"published",
 	"rejected",
 	"archived",
@@ -137,7 +138,11 @@ export default function PostsTable({ posts, surface, viewer }: Props) {
 									)}
 									{p.status === "published" && (
 										<Button asChild variant="ghost" size="sm">
-											<Link href={`/blog/${p.slug}`} target="_blank">
+											<Link
+												href={`/blog/${p.slug}`}
+												target="_blank"
+												rel="noopener noreferrer"
+											>
 												<Eye className="h-4 w-4 mr-1" />
 												Ver
 											</Link>

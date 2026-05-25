@@ -1,5 +1,6 @@
 "use client";
 
+import { BlockNoteSchema, defaultBlockSpecs } from "@blocknote/core";
 import { es as esDictionary } from "@blocknote/core/locales";
 import { useCreateBlockNote } from "@blocknote/react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -60,6 +61,19 @@ export type PostFormProps = {
 };
 
 const EMPTY_DOC = [{ type: "paragraph", content: [] }];
+
+// Hide upload-only blocks we don't yet support (no UploadThing endpoints for
+// video/audio/generic files). Removes them from the slash menu, side menu,
+// and HTML parser automatically.
+const {
+	audio: _bnAudio,
+	video: _bnVideo,
+	file: _bnFile,
+	...allowedBlockSpecs
+} = defaultBlockSpecs;
+const blogEditorSchema = BlockNoteSchema.create({
+	blockSpecs: allowedBlockSpecs,
+});
 
 export default function PostFormInner({
 	surface,
@@ -134,6 +148,7 @@ export default function PostFormInner({
 	);
 
 	const editor = useCreateBlockNote({
+		schema: blogEditorSchema,
 		// biome-ignore lint/suspicious/noExplicitAny: BlockNote initial content is loosely typed
 		initialContent: (effectiveContent as any) ?? undefined,
 		dictionary: esDictionary,
@@ -249,16 +264,23 @@ export default function PostFormInner({
 
 		const timeout = setTimeout(async () => {
 			if (versionRef.current !== version) return;
-			const result = await autosaveDraft(post.id, payload);
-			if (versionRef.current !== version) return;
-			if (result.success) {
-				lastSavedRef.current = serialized;
-				setSaveStatus("saved");
-				setSaveError(undefined);
-				if (usesWorkingCopy(post)) setLocalHasWork(true);
-			} else {
+			try {
+				const result = await autosaveDraft(post.id, payload);
+				if (versionRef.current !== version) return;
+				if (result.success) {
+					lastSavedRef.current = serialized;
+					setSaveStatus("saved");
+					setSaveError(undefined);
+					if (usesWorkingCopy(post)) setLocalHasWork(true);
+				} else {
+					setSaveStatus("error");
+					setSaveError(result.message);
+				}
+			} catch (error) {
+				if (versionRef.current !== version) return;
+				console.error("autosaveDraft", error);
 				setSaveStatus("error");
-				setSaveError(result.message);
+				setSaveError(error instanceof Error ? error.message : String(error));
 			}
 		}, 1500);
 

@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, notExists, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -94,10 +94,12 @@ async function applyWorkingToMain(
 	tx: Tx,
 	existing: typeof posts.$inferSelect,
 ): Promise<{ slug: string }> {
-	const desiredSlugInput = existing.workingSlug?.trim() || existing.workingTitle;
-	const slugBase = desiredSlugInput && desiredSlugInput.trim().length > 0
-		? slugifyName(desiredSlugInput)
-		: existing.slug;
+	const desiredSlugInput =
+		existing.workingSlug?.trim() || existing.workingTitle;
+	const slugBase =
+		desiredSlugInput && desiredSlugInput.trim().length > 0
+			? slugifyName(desiredSlugInput)
+			: existing.slug;
 	const slug = PLACEHOLDER_SLUG_RE.test(existing.slug)
 		? await ensureUniquePostSlug(tx, slugBase, existing.id)
 		: existing.workingSlug && existing.workingSlug.trim().length > 0
@@ -434,11 +436,7 @@ export async function submitForReview(postId: number): Promise<ActionResult> {
 		try {
 			await db.transaction(async (tx) => {
 				const slug = PLACEHOLDER_SLUG_RE.test(existing.slug)
-					? await ensureUniquePostSlug(
-							tx,
-							slugifyName(existing.title),
-							postId,
-						)
+					? await ensureUniquePostSlug(tx, slugifyName(existing.title), postId)
 					: existing.slug;
 				await tx
 					.update(posts)
@@ -497,9 +495,7 @@ export async function submitForReview(postId: number): Promise<ActionResult> {
 	}
 }
 
-export async function approveAndPublish(
-	postId: number,
-): Promise<ActionResult> {
+export async function approveAndPublish(postId: number): Promise<ActionResult> {
 	const profile = await getCurrentUserProfile();
 	if (!profile || !canPublishPosts(profile.role)) {
 		return { success: false, message: "No tienes permisos" };
@@ -543,11 +539,7 @@ export async function approveAndPublish(
 			}
 
 			const slug = PLACEHOLDER_SLUG_RE.test(existing.slug)
-				? await ensureUniquePostSlug(
-						tx,
-						slugifyName(existing.title),
-						postId,
-					)
+				? await ensureUniquePostSlug(tx, slugifyName(existing.title), postId)
 				: existing.slug;
 			await tx
 				.update(posts)
@@ -613,11 +605,7 @@ export async function directPublish(postId: number): Promise<ActionResult> {
 			}
 
 			const slug = PLACEHOLDER_SLUG_RE.test(existing.slug)
-				? await ensureUniquePostSlug(
-						tx,
-						slugifyName(existing.title),
-						postId,
-					)
+				? await ensureUniquePostSlug(tx, slugifyName(existing.title), postId)
 				: existing.slug;
 			await tx
 				.update(posts)
@@ -823,10 +811,7 @@ export async function discardWorkingCopy(
 	}
 
 	try {
-		await db
-			.update(posts)
-			.set(CLEAR_WORKING)
-			.where(eq(posts.id, postId));
+		await db.update(posts).set(CLEAR_WORKING).where(eq(posts.id, postId));
 		invalidatePosts();
 		return { success: true };
 	} catch (error) {
@@ -921,7 +906,7 @@ export async function updatePostCategory(
 				slugifyName(parsed.data.name),
 				id,
 			);
-			await tx
+			const [row] = await tx
 				.update(postCategories)
 				.set({
 					name: parsed.data.name,
@@ -929,7 +914,11 @@ export async function updatePostCategory(
 					description: parsed.data.description || null,
 					updatedAt: new Date(),
 				})
-				.where(eq(postCategories.id, id));
+				.where(eq(postCategories.id, id))
+				.returning({ id: postCategories.id });
+			if (!row) {
+				throw new Error("Categoría no encontrada");
+			}
 		});
 		invalidateCategories();
 		return { success: true };
@@ -945,20 +934,33 @@ export async function deletePostCategory(id: number): Promise<ActionResult> {
 		return { success: false, message: "No tienes permisos" };
 	}
 
-	const [link] = await db
-		.select({ postId: postCategoriesToPosts.postId })
-		.from(postCategoriesToPosts)
-		.where(eq(postCategoriesToPosts.categoryId, id))
-		.limit(1);
-	if (link) {
-		return {
-			success: false,
-			message: "No se puede eliminar: hay artículos asociados a esta categoría",
-		};
-	}
-
 	try {
-		await db.delete(postCategories).where(eq(postCategories.id, id));
+		// Atomic conditional delete: only removes the category row when no
+		// post still links to it. Avoids the TOCTOU race between the prior
+		// "any links?" select and the delete, which the ON DELETE CASCADE
+		// FK on post_categories_to_posts.category_id would otherwise hide
+		// by silently stripping the category from any post that raced in.
+		const deleted = await db
+			.delete(postCategories)
+			.where(
+				and(
+					eq(postCategories.id, id),
+					notExists(
+						db
+							.select({ one: sql`1` })
+							.from(postCategoriesToPosts)
+							.where(eq(postCategoriesToPosts.categoryId, id)),
+					),
+				),
+			)
+			.returning({ id: postCategories.id });
+		if (deleted.length === 0) {
+			return {
+				success: false,
+				message:
+					"No se puede eliminar: hay artículos asociados a esta categoría",
+			};
+		}
 		invalidateCategories();
 		return { success: true };
 	} catch (error) {

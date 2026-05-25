@@ -101,6 +101,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 						<CalendarCheck2Icon className="mr-2 h-6 w-6" />
 						Próximo Evento
 					</MobileSidebarItem>
+					<MobileSidebarItem href="/blog">
+						<BookOpenIcon className="w-6 h-6 mr-2" />
+						Blog
+					</MobileSidebarItem>
 					<MobileSidebarItem href="/store">
 						<StoreIcon className="mr-2 h-6 w-6" />
 						Tiendita
@@ -118,10 +122,6 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 					<MobileSidebarItem href="/festivals/categories">
 						<BoxesIcon className="w-6 h-6 mr-2" />
 						Categorías Glitter
-					</MobileSidebarItem>
-					<MobileSidebarItem href="/blog">
-						<BookOpenIcon className="w-6 h-6 mr-2" />
-						Blog
 					</MobileSidebarItem>
 					{profile && profile.role === "festival_admin" && (
 						<MobileSidebarItem href="/dashboard/banners">

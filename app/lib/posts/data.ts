@@ -2,6 +2,8 @@
 
 import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 
+import { canEditPost } from "@/app/lib/posts/helpers";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
 	postCategories,
@@ -83,7 +85,7 @@ export async function fetchPublishedPosts(
 	filters: ListFilters = {},
 ): Promise<PublicPostListItem[]> {
 	try {
-		const perPage = filters.perPage ?? PAGE_SIZE;
+		const perPage = Math.min(100, Math.max(1, filters.perPage ?? PAGE_SIZE));
 		const offset = offsetFor(filters.page, perPage);
 
 		const conditions = [eq(posts.status, "published" as PostStatus)];
@@ -198,6 +200,14 @@ export async function fetchPostBySlug(
 export async function fetchPostBySlugForWorkingPreview(
 	slug: string,
 ): Promise<PostWithRelations | null> {
+	// Self-gated: a working preview leaks unpublished title/excerpt/cover etc.
+	// to anyone who hits /blog/<slug>?preview=working. The caller used to be
+	// trusted to enforce auth, but generateMetadata bypassed that. Authorize
+	// inside the function using the same `canEditPost` predicate the editor
+	// uses, against the session profile loaded server-side.
+	const profile = await getCurrentUserProfile();
+	if (!profile) return null;
+
 	const row = await db.query.posts.findFirst({
 		where: eq(posts.slug, slug),
 		with: {
@@ -209,6 +219,7 @@ export async function fetchPostBySlugForWorkingPreview(
 	});
 	if (!row) return null;
 	if (row.workingUpdatedAt === null) return null;
+	if (!canEditPost(profile, row)) return null;
 	return {
 		...row,
 		categories: row.postCategories.map((pc) => pc.category),

@@ -35,7 +35,7 @@ function registerExternalLinkHook() {
 	if (hookRegistered) return;
 	hookRegistered = true;
 	DOMPurify.addHook("afterSanitizeAttributes", (node: Element) => {
-		if (node.tagName !== "A") return;
+		if (node.tagName?.toLowerCase() !== "a") return;
 		const href = node.getAttribute("href") ?? "";
 		if (/^https?:\/\//i.test(href)) {
 			node.setAttribute("target", "_blank");

@@ -22,11 +22,11 @@ export const postFormSchema = z.object({
 		.optional()
 		.or(z.literal("")),
 	coverImageUrl: z
-		.string()
-		.trim()
-		.url("La URL de la portada no es válida")
-		.optional()
-		.or(z.literal("")),
+		.union([
+			z.string().trim().url("La URL de la portada no es válida"),
+			z.literal(""),
+		])
+		.optional(),
 	seoTitle: z.string().trim().max(70).optional().or(z.literal("")),
 	seoDescription: z.string().trim().max(200).optional().or(z.literal("")),
 	categoryIds: z.array(z.number().int().positive()).default([]),
@@ -44,26 +44,13 @@ export type PostFormInput = z.infer<typeof postFormSchema>;
 
 export const postAutosaveSchema = z.object({
 	title: z.string().trim().max(200).default(""),
-	slug: z
-		.string()
-		.trim()
-		.max(120)
-		.optional()
-		.or(z.literal("")),
-	excerpt: z
-		.string()
-		.trim()
-		.max(280)
-		.optional()
-		.or(z.literal("")),
+	slug: z.string().trim().max(120).optional().or(z.literal("")),
+	excerpt: z.string().trim().max(280).optional().or(z.literal("")),
 	coverImageUrl: z.string().trim().max(2048).optional().or(z.literal("")),
 	seoTitle: z.string().trim().max(70).optional().or(z.literal("")),
 	seoDescription: z.string().trim().max(200).optional().or(z.literal("")),
 	categoryIds: z.array(z.number().int().positive()).default([]),
-	tagInputs: z
-		.array(z.string().trim().min(1).max(40))
-		.max(20)
-		.default([]),
+	tagInputs: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
 	content: z.unknown(),
 	contentHtml: z.string().default(""),
 });
