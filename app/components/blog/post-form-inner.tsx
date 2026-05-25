@@ -461,113 +461,116 @@ export default function PostFormInner({
 				onSubmit={(e) => e.preventDefault()}
 				className="flex flex-col gap-4 pb-24"
 			>
-				<div className="sticky top-0 z-40 -mx-4 bg-background/95 px-4 py-2 backdrop-blur supports-backdrop-filter:bg-background/70">
-					<div className="flex flex-wrap items-center justify-between gap-2">
-						<div className="flex items-center gap-2">
-							<Button asChild variant="ghost" size="icon" aria-label="Volver">
-								<Link
-									href={
-										surface === "dashboard" ? "/dashboard/blog" : "/portal/blog"
-									}
-								>
-									<ArrowLeft className="h-4 w-4" />
-								</Link>
-							</Button>
-							<PostStatusBadge status={status} />
-							{(workingInReview || workingHasRejection) && (
-								<span
-									className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${workingBadgeClass}`}
-								>
-									{workingBadgeLabel}
-								</span>
-							)}
-							{autosaveEligible && (
-								<SaveIndicator status={saveStatus} errorMessage={saveError} />
-							)}
-						</div>
-						<div className="flex flex-wrap gap-2">
-							{showPreview && (
-								<Button asChild variant="outline">
+				<div className="sticky top-16 md:top-20 z-40 -mx-4 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/70">
+					<div className="px-4 py-2">
+						<div className="flex flex-wrap items-center justify-between gap-2">
+							<div className="flex items-center gap-2">
+								<Button asChild variant="ghost" size="icon" aria-label="Volver">
 									<Link
-										href={`/blog/${post.slug}?preview=working`}
-										target="_blank"
+										href={
+											surface === "dashboard"
+												? "/dashboard/blog"
+												: "/portal/blog"
+										}
 									>
-										<Eye className="mr-1 h-4 w-4" />
-										Vista previa
+										<ArrowLeft className="h-4 w-4" />
 									</Link>
 								</Button>
-							)}
-							{showDiscard && (
-								<AlertDialog>
-									<AlertDialogTrigger asChild>
-										<Button
-											type="button"
-											variant="outline"
-											disabled={submitting}
+								<PostStatusBadge status={status} />
+								{(workingInReview || workingHasRejection) && (
+									<span
+										className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${workingBadgeClass}`}
+									>
+										{workingBadgeLabel}
+									</span>
+								)}
+								{autosaveEligible && (
+									<SaveIndicator status={saveStatus} errorMessage={saveError} />
+								)}
+							</div>
+							<div className="flex flex-wrap gap-2">
+								{showPreview && (
+									<Button asChild variant="outline">
+										<Link
+											href={`/blog/${post.slug}?preview=working`}
+											target="_blank"
 										>
-											<Trash2 className="mr-1 h-4 w-4" />
-											Descartar cambios
-										</Button>
-									</AlertDialogTrigger>
-									<AlertDialogContent>
-										<AlertDialogHeader>
-											<AlertDialogTitle>
-												¿Descartar los cambios sin publicar?
-											</AlertDialogTitle>
-											<AlertDialogDescription>
-												El artículo volverá a su versión actual publicada. Esta
-												acción no se puede deshacer.
-											</AlertDialogDescription>
-										</AlertDialogHeader>
-										<AlertDialogFooter>
-											<AlertDialogCancel disabled={submitting}>
-												Cancelar
-											</AlertDialogCancel>
-											<AlertDialogAction
-												onClick={handleDiscard}
+											<Eye className="mr-1 h-4 w-4" />
+											Vista previa
+										</Link>
+									</Button>
+								)}
+								{showDiscard && (
+									<AlertDialog>
+										<AlertDialogTrigger asChild>
+											<Button
+												type="button"
+												variant="outline"
 												disabled={submitting}
-												className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 											>
-												Descartar
-											</AlertDialogAction>
-										</AlertDialogFooter>
-									</AlertDialogContent>
-								</AlertDialog>
-							)}
-							{showRequestChanges && (
-								<RequestChangesDialog
-									postId={post.id}
-									disabled={submitting}
-									onDone={() => window.location.reload()}
-								/>
-							)}
-							{showSubmitForReview && (
-								<Button
-									type="button"
-									className="bg-amber-600 hover:bg-amber-700"
-									onClick={handleSubmitForReview}
-									disabled={submitting || editorReadOnly || !canTransition}
-									title={transitionDisabledTitle}
-								>
-									{submitLabel}
-								</Button>
-							)}
-							{(showApproveAndPublish || showDirectPublish) && (
-								<Button
-									type="button"
-									className="bg-primary hover:bg-primary/90"
-									onClick={handlePublish}
-									disabled={submitting || !canTransition}
-									title={transitionDisabledTitle}
-								>
-									{publishLabel}
-								</Button>
-							)}
+												<Trash2 className="mr-1 h-4 w-4" />
+												Descartar cambios
+											</Button>
+										</AlertDialogTrigger>
+										<AlertDialogContent>
+											<AlertDialogHeader>
+												<AlertDialogTitle>
+													¿Descartar los cambios sin publicar?
+												</AlertDialogTitle>
+												<AlertDialogDescription>
+													El artículo volverá a su versión actual publicada.
+													Esta acción no se puede deshacer.
+												</AlertDialogDescription>
+											</AlertDialogHeader>
+											<AlertDialogFooter>
+												<AlertDialogCancel disabled={submitting}>
+													Cancelar
+												</AlertDialogCancel>
+												<AlertDialogAction
+													onClick={handleDiscard}
+													disabled={submitting}
+													className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+												>
+													Descartar
+												</AlertDialogAction>
+											</AlertDialogFooter>
+										</AlertDialogContent>
+									</AlertDialog>
+								)}
+								{showRequestChanges && (
+									<RequestChangesDialog
+										postId={post.id}
+										disabled={submitting}
+										onDone={() => window.location.reload()}
+									/>
+								)}
+								{showSubmitForReview && (
+									<Button
+										type="button"
+										className="bg-amber-600 hover:bg-amber-700"
+										onClick={handleSubmitForReview}
+										disabled={submitting || editorReadOnly || !canTransition}
+										title={transitionDisabledTitle}
+									>
+										{submitLabel}
+									</Button>
+								)}
+								{(showApproveAndPublish || showDirectPublish) && (
+									<Button
+										type="button"
+										className="bg-primary hover:bg-primary/90"
+										onClick={handlePublish}
+										disabled={submitting || !canTransition}
+										title={transitionDisabledTitle}
+									>
+										{publishLabel}
+									</Button>
+								)}
+							</div>
 						</div>
 					</div>
+					<EditorTopToolbar editor={editor} readOnly={editorReadOnly} />
 				</div>
-
-				<EditorTopToolbar editor={editor} readOnly={editorReadOnly} />
 
 				{workingHasRejection ? (
 					<ReviewerNotesBanner

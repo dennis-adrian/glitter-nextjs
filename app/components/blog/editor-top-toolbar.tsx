@@ -127,7 +127,7 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 	const activeClass = "bg-muted";
 
 	return (
-		<div className="sticky top-0 z-30 -mx-4 md:mx-0 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/70">
+		<div className="border-t">
 			<div className="flex flex-wrap items-center gap-1 px-4 py-2">
 				<Button
 					type="button"
