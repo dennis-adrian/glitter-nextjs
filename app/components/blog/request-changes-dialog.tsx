@@ -1,6 +1,5 @@
 "use client";
 
-import { MessageSquareWarning } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -11,7 +10,6 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-	DialogTrigger,
 } from "@/app/components/ui/dialog";
 import { Button } from "@/app/components/ui/button";
 import { Textarea } from "@/app/components/ui/textarea";
@@ -19,16 +17,17 @@ import { requestChanges } from "@/app/lib/posts/actions";
 
 type Props = {
 	postId: number;
-	disabled?: boolean;
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
 	onDone?: () => void;
 };
 
 export default function RequestChangesDialog({
 	postId,
-	disabled,
+	open,
+	onOpenChange,
 	onDone,
 }: Props) {
-	const [open, setOpen] = useState(false);
 	const [notes, setNotes] = useState("");
 	const [isPending, startTransition] = useTransition();
 
@@ -37,7 +36,7 @@ export default function RequestChangesDialog({
 			const res = await requestChanges(postId, { notes });
 			if (res.success) {
 				toast.success("Se enviaron los comentarios al autor");
-				setOpen(false);
+				onOpenChange(false);
 				setNotes("");
 				onDone?.();
 			} else {
@@ -47,18 +46,7 @@ export default function RequestChangesDialog({
 	}
 
 	return (
-		<Dialog open={open} onOpenChange={setOpen}>
-			<DialogTrigger asChild>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					disabled={disabled || isPending}
-				>
-					<MessageSquareWarning className="mr-1 h-4 w-4" />
-					Solicitar cambios
-				</Button>
-			</DialogTrigger>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>Solicitar cambios al autor</DialogTitle>
@@ -79,7 +67,7 @@ export default function RequestChangesDialog({
 					<Button
 						type="button"
 						variant="ghost"
-						onClick={() => setOpen(false)}
+						onClick={() => onOpenChange(false)}
 						disabled={isPending}
 					>
 						Cancelar

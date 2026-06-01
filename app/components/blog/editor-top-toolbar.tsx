@@ -36,6 +36,7 @@ type BlockStyle =
 	| "heading-1"
 	| "heading-2"
 	| "heading-3"
+	| "heading-4"
 	| "quote"
 	| "bullet"
 	| "numbered";
@@ -46,7 +47,8 @@ function readCurrentStyle(editor: BlockNoteEditor<any, any, any>): BlockStyle {
 		const level = (block.props as { level?: number }).level ?? 1;
 		if (level === 1) return "heading-1";
 		if (level === 2) return "heading-2";
-		return "heading-3";
+		if (level === 3) return "heading-3";
+		return "heading-4";
 	}
 	if (block.type === "quote") return "quote";
 	if (block.type === "bulletListItem") return "bullet";
@@ -69,6 +71,7 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 		"heading-1": slash.heading.title,
 		"heading-2": slash.heading_2.title,
 		"heading-3": slash.heading_3.title,
+		"heading-4": slash.heading_4.title,
 		quote: slash.quote.title,
 		bullet: slash.bullet_list.title,
 		numbered: slash.numbered_list.title,
@@ -95,6 +98,8 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 				editor.updateBlock(block, { type: "heading", props: { level: 2 } });
 			} else if (style === "heading-3") {
 				editor.updateBlock(block, { type: "heading", props: { level: 3 } });
+			} else if (style === "heading-4") {
+				editor.updateBlock(block, { type: "heading", props: { level: 4 } });
 			} else if (style === "quote") {
 				editor.updateBlock(block, { type: "quote" });
 			} else if (style === "bullet") {
@@ -123,12 +128,12 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 		editor.focus();
 	}, [editor]);
 
-	const buttonClass = "h-8 w-8 p-0";
+	const buttonClass = "h-8 w-8 shrink-0 p-0";
 	const activeClass = "bg-muted";
 
 	return (
 		<div className="border-t">
-			<div className="flex flex-wrap items-center gap-1 px-4 py-2">
+			<div className="flex items-center gap-1 overflow-x-auto px-4 py-2 md:flex-wrap md:overflow-x-visible">
 				<Button
 					type="button"
 					variant="ghost"
@@ -152,7 +157,7 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 					<Redo2 className="h-4 w-4" />
 				</Button>
 
-				<div className="mx-1 h-5 w-px bg-border" />
+				<div className="mx-1 h-5 w-px shrink-0 bg-border" />
 
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
@@ -160,7 +165,7 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 							type="button"
 							variant="ghost"
 							size="sm"
-							className="h-8 gap-1 px-2"
+							className="h-8 shrink-0 gap-1 px-2"
 							disabled={readOnly}
 						>
 							<Type className="h-4 w-4" />
@@ -177,6 +182,7 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 								"heading-1",
 								"heading-2",
 								"heading-3",
+								"heading-4",
 								"quote",
 								"bullet",
 								"numbered",
@@ -193,7 +199,7 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 					</DropdownMenuContent>
 				</DropdownMenu>
 
-				<div className="mx-1 h-5 w-px bg-border" />
+				<div className="mx-1 h-5 w-px shrink-0 bg-border" />
 
 				<Button
 					type="button"
@@ -246,7 +252,7 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 					<Code className="h-4 w-4" />
 				</Button>
 
-				<div className="mx-1 h-5 w-px bg-border" />
+				<div className="mx-1 h-5 w-px shrink-0 bg-border" />
 
 				<Button
 					type="button"
@@ -260,7 +266,7 @@ export default function EditorTopToolbar({ editor, readOnly = false }: Props) {
 					<LinkIcon className="h-4 w-4" />
 				</Button>
 
-				<div className="mx-1 h-5 w-px bg-border" />
+				<div className="mx-1 h-5 w-px shrink-0 bg-border" />
 
 				<Button
 					type="button"

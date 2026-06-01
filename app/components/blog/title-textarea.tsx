@@ -34,7 +34,7 @@ export default function TitleTextarea({ register, value, disabled }: Props) {
 				ref.current = el;
 			}}
 			onInput={(e) => autosize(e.currentTarget)}
-			className="w-full resize-none overflow-hidden border-0 bg-transparent px-[54px] text-3xl font-bold leading-tight outline-none placeholder:text-muted-foreground/30 md:text-4xl"
+			className="w-full resize-none overflow-hidden border-0 bg-transparent px-3 text-2xl font-bold leading-tight outline-none placeholder:text-muted-foreground/30 md:px-[54px] md:text-4xl"
 		/>
 	);
 }

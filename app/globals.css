@@ -323,51 +323,99 @@
 	color: hsl(var(--foreground));
 }
 
-.bn-mantine [data-content-type="heading"],
-.bn-root.bn-mantine [data-content-type="heading"] {
-	--level: 2.25rem;
+/* On mobile, slim the editor's internal horizontal padding so the content
+ * spans the page width with a small inset instead of BlockNote's default 54px,
+ * and bring heading sizes down a notch for better readability on narrow screens. */
+@media (max-width: 767px) {
+	.bn-mantine .bn-editor,
+	.bn-root.bn-mantine .bn-editor {
+		padding-inline: 0.75rem;
+	}
+	/* Title input is text-2xl (1.5rem / 24px) on mobile. Heading scale must
+	 * stay below that so the page title remains the visual top of the hierarchy. */
+	.bn-mantine [data-content-type="heading"],
+	.bn-root.bn-mantine [data-content-type="heading"] {
+		--level: 1.375rem; /* 22px */
+	}
+	.bn-mantine [data-content-type="heading"][data-level="2"],
+	.bn-root.bn-mantine [data-content-type="heading"][data-level="2"] {
+		--level: 1.25rem; /* 20px */
+	}
+	.bn-mantine [data-content-type="heading"][data-level="3"],
+	.bn-root.bn-mantine [data-content-type="heading"][data-level="3"] {
+		--level: 1.125rem; /* 18px */
+	}
+	.bn-mantine [data-content-type="heading"][data-level="4"],
+	.bn-root.bn-mantine [data-content-type="heading"][data-level="4"] {
+		--level: 1rem; /* 16px */
+	}
+	.bn-mantine [data-prev-level="1"],
+	.bn-root.bn-mantine [data-prev-level="1"] {
+		--prev-level: 1.375rem;
+	}
+	.bn-mantine [data-prev-level="2"],
+	.bn-root.bn-mantine [data-prev-level="2"] {
+		--prev-level: 1.25rem;
+	}
+	.bn-mantine [data-prev-level="3"],
+	.bn-root.bn-mantine [data-prev-level="3"] {
+		--prev-level: 1.125rem;
+	}
+	.bn-mantine [data-prev-level="4"],
+	.bn-root.bn-mantine [data-prev-level="4"] {
+		--prev-level: 1rem;
+	}
 }
-.bn-mantine [data-content-type="heading"][data-level="2"],
-.bn-root.bn-mantine [data-content-type="heading"][data-level="2"] {
-	--level: 1.875rem;
-}
-.bn-mantine [data-content-type="heading"][data-level="3"],
-.bn-root.bn-mantine [data-content-type="heading"][data-level="3"] {
-	--level: 1.5rem;
-}
-.bn-mantine [data-content-type="heading"][data-level="4"],
-.bn-root.bn-mantine [data-content-type="heading"][data-level="4"] {
-	--level: 1.25rem;
-}
-.bn-mantine [data-content-type="heading"][data-level="5"],
-.bn-root.bn-mantine [data-content-type="heading"][data-level="5"] {
-	--level: 1.125rem;
-}
-.bn-mantine [data-content-type="heading"][data-level="6"],
-.bn-root.bn-mantine [data-content-type="heading"][data-level="6"] {
-	--level: 1rem;
-}
-.bn-mantine [data-prev-level="1"],
-.bn-root.bn-mantine [data-prev-level="1"] {
-	--prev-level: 2.25rem;
-}
-.bn-mantine [data-prev-level="2"],
-.bn-root.bn-mantine [data-prev-level="2"] {
-	--prev-level: 1.875rem;
-}
-.bn-mantine [data-prev-level="3"],
-.bn-root.bn-mantine [data-prev-level="3"] {
-	--prev-level: 1.5rem;
-}
-.bn-mantine [data-prev-level="4"],
-.bn-root.bn-mantine [data-prev-level="4"] {
-	--prev-level: 1.25rem;
-}
-.bn-mantine [data-prev-level="5"],
-.bn-root.bn-mantine [data-prev-level="5"] {
-	--prev-level: 1.125rem;
-}
-.bn-mantine [data-prev-level="6"],
-.bn-root.bn-mantine [data-prev-level="6"] {
-	--prev-level: 1rem;
+
+/* Desktop heading scale — scoped to >=md so the mobile @media block above
+ * isn't overridden by source order. */
+@media (min-width: 768px) {
+	.bn-mantine [data-content-type="heading"],
+	.bn-root.bn-mantine [data-content-type="heading"] {
+		--level: 2.25rem;
+	}
+	.bn-mantine [data-content-type="heading"][data-level="2"],
+	.bn-root.bn-mantine [data-content-type="heading"][data-level="2"] {
+		--level: 1.875rem;
+	}
+	.bn-mantine [data-content-type="heading"][data-level="3"],
+	.bn-root.bn-mantine [data-content-type="heading"][data-level="3"] {
+		--level: 1.5rem;
+	}
+	.bn-mantine [data-content-type="heading"][data-level="4"],
+	.bn-root.bn-mantine [data-content-type="heading"][data-level="4"] {
+		--level: 1.25rem;
+	}
+	.bn-mantine [data-content-type="heading"][data-level="5"],
+	.bn-root.bn-mantine [data-content-type="heading"][data-level="5"] {
+		--level: 1.125rem;
+	}
+	.bn-mantine [data-content-type="heading"][data-level="6"],
+	.bn-root.bn-mantine [data-content-type="heading"][data-level="6"] {
+		--level: 1rem;
+	}
+	.bn-mantine [data-prev-level="1"],
+	.bn-root.bn-mantine [data-prev-level="1"] {
+		--prev-level: 2.25rem;
+	}
+	.bn-mantine [data-prev-level="2"],
+	.bn-root.bn-mantine [data-prev-level="2"] {
+		--prev-level: 1.875rem;
+	}
+	.bn-mantine [data-prev-level="3"],
+	.bn-root.bn-mantine [data-prev-level="3"] {
+		--prev-level: 1.5rem;
+	}
+	.bn-mantine [data-prev-level="4"],
+	.bn-root.bn-mantine [data-prev-level="4"] {
+		--prev-level: 1.25rem;
+	}
+	.bn-mantine [data-prev-level="5"],
+	.bn-root.bn-mantine [data-prev-level="5"] {
+		--prev-level: 1.125rem;
+	}
+	.bn-mantine [data-prev-level="6"],
+	.bn-root.bn-mantine [data-prev-level="6"] {
+		--prev-level: 1rem;
+	}
 }

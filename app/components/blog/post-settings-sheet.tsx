@@ -27,6 +27,8 @@ type Props = {
 	onCategoryIdsChange: (ids: number[]) => void;
 	tagInputs: string[];
 	onTagInputsChange: (tags: string[]) => void;
+	open?: boolean;
+	onOpenChange?: (open: boolean) => void;
 };
 
 export default function PostSettingsSheet({
@@ -36,8 +38,19 @@ export default function PostSettingsSheet({
 	onCategoryIdsChange,
 	tagInputs,
 	onTagInputsChange,
+	open: controlledOpen,
+	onOpenChange: controlledOnOpenChange,
 }: Props) {
-	const [open, setOpen] = useState(false);
+	const [internalOpen, setInternalOpen] = useState(false);
+	const isControlled = controlledOpen !== undefined;
+	const open = isControlled ? controlledOpen : internalOpen;
+	const setOpen = (next: boolean) => {
+		if (isControlled) {
+			controlledOnOpenChange?.(next);
+		} else {
+			setInternalOpen(next);
+		}
+	};
 
 	return (
 		<>
@@ -45,7 +58,7 @@ export default function PostSettingsSheet({
 				type="button"
 				variant="outline"
 				size="sm"
-				className="fixed bottom-4 right-4 z-30 shadow-md"
+				className="fixed bottom-4 right-4 z-30 hidden shadow-md md:flex"
 				onClick={() => setOpen(true)}
 			>
 				<Settings className="mr-2 h-4 w-4" />

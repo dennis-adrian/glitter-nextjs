@@ -1,10 +1,14 @@
 "use client";
 
-import { BlockNoteSchema, defaultBlockSpecs } from "@blocknote/core";
+import {
+	BlockNoteSchema,
+	createHeadingBlockSpec,
+	defaultBlockSpecs,
+} from "@blocknote/core";
 import { es as esDictionary } from "@blocknote/core/locales";
 import { useCreateBlockNote } from "@blocknote/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Eye, Trash2 } from "lucide-react";
+import { ArrowLeft, Eye, MessageSquareWarning, MoreVertical, Settings, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
@@ -30,9 +34,14 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
-	AlertDialogTrigger,
 } from "@/app/components/ui/alert-dialog";
 import { Button } from "@/app/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/app/components/ui/dropdown-menu";
 import { Form } from "@/app/components/ui/form";
 import {
 	approveAndPublish,
@@ -63,16 +72,21 @@ export type PostFormProps = {
 const EMPTY_DOC = [{ type: "paragraph", content: [] }];
 
 // Hide upload-only blocks we don't yet support (no UploadThing endpoints for
-// video/audio/generic files). Removes them from the slash menu, side menu,
-// and HTML parser automatically.
+// video/audio/generic files) and restrict heading levels to 1–4 — we don't
+// want H5/H6 in the slash menu, side menu, keyboard shortcuts, or markdown
+// input rules. All four channels derive from the schema's heading propSchema.
 const {
 	audio: _bnAudio,
 	video: _bnVideo,
 	file: _bnFile,
-	...allowedBlockSpecs
+	heading: _bnHeading,
+	...nonUploadBlockSpecs
 } = defaultBlockSpecs;
 const blogEditorSchema = BlockNoteSchema.create({
-	blockSpecs: allowedBlockSpecs,
+	blockSpecs: {
+		...nonUploadBlockSpecs,
+		heading: createHeadingBlockSpec({ levels: [1, 2, 3, 4] }),
+	},
 });
 
 export default function PostFormInner({
@@ -82,6 +96,9 @@ export default function PostFormInner({
 	canPublish,
 }: PostFormProps) {
 	const [submitting, setSubmitting] = useState(false);
+	const [discardOpen, setDiscardOpen] = useState(false);
+	const [requestChangesOpen, setRequestChangesOpen] = useState(false);
+	const [settingsOpen, setSettingsOpen] = useState(false);
 
 	const propHasWork = post.workingUpdatedAt !== null;
 	const [localHasWork, setLocalHasWork] = useState(propHasWork);
@@ -459,7 +476,7 @@ export default function PostFormInner({
 		<Form {...form}>
 			<form
 				onSubmit={(e) => e.preventDefault()}
-				className="flex flex-col gap-4 pb-24"
+				className="flex flex-col gap-4 pb-28 md:pb-24"
 			>
 				<div className="sticky top-16 md:top-20 z-40 -mx-4 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/70">
 					<div className="px-4 py-2">
@@ -479,7 +496,7 @@ export default function PostFormInner({
 								<PostStatusBadge status={status} />
 								{(workingInReview || workingHasRejection) && (
 									<span
-										className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${workingBadgeClass}`}
+										className={`hidden md:inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${workingBadgeClass}`}
 									>
 										{workingBadgeLabel}
 									</span>
@@ -488,7 +505,9 @@ export default function PostFormInner({
 									<SaveIndicator status={saveStatus} errorMessage={saveError} />
 								)}
 							</div>
-							<div className="flex flex-wrap gap-2">
+
+							{/* Desktop button bar */}
+							<div className="hidden md:flex flex-wrap gap-2">
 								{showPreview && (
 									<Button asChild variant="outline">
 										<Link
@@ -501,48 +520,27 @@ export default function PostFormInner({
 									</Button>
 								)}
 								{showDiscard && (
-									<AlertDialog>
-										<AlertDialogTrigger asChild>
-											<Button
-												type="button"
-												variant="outline"
-												disabled={submitting}
-											>
-												<Trash2 className="mr-1 h-4 w-4" />
-												Descartar cambios
-											</Button>
-										</AlertDialogTrigger>
-										<AlertDialogContent>
-											<AlertDialogHeader>
-												<AlertDialogTitle>
-													¿Descartar los cambios sin publicar?
-												</AlertDialogTitle>
-												<AlertDialogDescription>
-													El artículo volverá a su versión actual publicada.
-													Esta acción no se puede deshacer.
-												</AlertDialogDescription>
-											</AlertDialogHeader>
-											<AlertDialogFooter>
-												<AlertDialogCancel disabled={submitting}>
-													Cancelar
-												</AlertDialogCancel>
-												<AlertDialogAction
-													onClick={handleDiscard}
-													disabled={submitting}
-													className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-												>
-													Descartar
-												</AlertDialogAction>
-											</AlertDialogFooter>
-										</AlertDialogContent>
-									</AlertDialog>
+									<Button
+										type="button"
+										variant="outline"
+										disabled={submitting}
+										onClick={() => setDiscardOpen(true)}
+									>
+										<Trash2 className="mr-1 h-4 w-4" />
+										Descartar cambios
+									</Button>
 								)}
 								{showRequestChanges && (
-									<RequestChangesDialog
-										postId={post.id}
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
 										disabled={submitting}
-										onDone={() => window.location.reload()}
-									/>
+										onClick={() => setRequestChangesOpen(true)}
+									>
+										<MessageSquareWarning className="mr-1 h-4 w-4" />
+										Solicitar cambios
+									</Button>
 								)}
 								{showSubmitForReview && (
 									<Button
@@ -567,9 +565,83 @@ export default function PostFormInner({
 									</Button>
 								)}
 							</div>
+
+							{/* Mobile button bar: one primary CTA + overflow menu */}
+							<div className="flex items-center gap-1 md:hidden">
+								{showSubmitForReview && (
+									<Button
+										type="button"
+										size="sm"
+										className="bg-amber-600 hover:bg-amber-700"
+										onClick={handleSubmitForReview}
+										disabled={submitting || editorReadOnly || !canTransition}
+										title={transitionDisabledTitle}
+									>
+										{submitLabel}
+									</Button>
+								)}
+								{(showApproveAndPublish || showDirectPublish) && (
+									<Button
+										type="button"
+										size="sm"
+										className="bg-primary hover:bg-primary/90"
+										onClick={handlePublish}
+										disabled={submitting || !canTransition}
+										title={transitionDisabledTitle}
+									>
+										{publishLabel}
+									</Button>
+								)}
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<Button
+											type="button"
+											variant="ghost"
+											size="icon"
+											aria-label="Más acciones"
+										>
+											<MoreVertical className="h-4 w-4" />
+										</Button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent align="end">
+										{showPreview && (
+											<DropdownMenuItem asChild>
+												<Link
+													href={`/blog/${post.slug}?preview=working`}
+													target="_blank"
+												>
+													<Eye className="mr-2 h-4 w-4" />
+													Vista previa
+												</Link>
+											</DropdownMenuItem>
+										)}
+										{showDiscard && (
+											<DropdownMenuItem onSelect={() => setDiscardOpen(true)}>
+												<Trash2 className="mr-2 h-4 w-4" />
+												Descartar cambios
+											</DropdownMenuItem>
+										)}
+										{showRequestChanges && (
+											<DropdownMenuItem
+												onSelect={() => setRequestChangesOpen(true)}
+											>
+												<MessageSquareWarning className="mr-2 h-4 w-4" />
+												Solicitar cambios
+											</DropdownMenuItem>
+										)}
+										<DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
+											<Settings className="mr-2 h-4 w-4" />
+											Ajustes
+										</DropdownMenuItem>
+									</DropdownMenuContent>
+								</DropdownMenu>
+							</div>
 						</div>
 					</div>
-					<EditorTopToolbar editor={editor} readOnly={editorReadOnly} />
+					{/* Desktop toolbar: stacks below the header on >=md */}
+					<div className="hidden md:block">
+						<EditorTopToolbar editor={editor} readOnly={editorReadOnly} />
+					</div>
 				</div>
 
 				{workingHasRejection ? (
@@ -598,7 +670,7 @@ export default function PostFormInner({
 						disabled={editorReadOnly}
 					/>
 					{form.formState.errors.title && (
-						<p className="px-[54px] text-sm text-destructive">
+						<p className="px-3 text-sm text-destructive md:px-[54px]">
 							{form.formState.errors.title.message as string}
 						</p>
 					)}
@@ -613,7 +685,47 @@ export default function PostFormInner({
 					onCategoryIdsChange={setCategoryIds}
 					tagInputs={tagInputs}
 					onTagInputsChange={setTagInputs}
+					open={settingsOpen}
+					onOpenChange={setSettingsOpen}
 				/>
+
+				<AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+					<AlertDialogContent>
+						<AlertDialogHeader>
+							<AlertDialogTitle>
+								¿Descartar los cambios sin publicar?
+							</AlertDialogTitle>
+							<AlertDialogDescription>
+								El artículo volverá a su versión actual publicada. Esta acción
+								no se puede deshacer.
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<AlertDialogFooter>
+							<AlertDialogCancel disabled={submitting}>
+								Cancelar
+							</AlertDialogCancel>
+							<AlertDialogAction
+								onClick={handleDiscard}
+								disabled={submitting}
+								className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							>
+								Descartar
+							</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
+
+				<RequestChangesDialog
+					postId={post.id}
+					open={requestChangesOpen}
+					onOpenChange={setRequestChangesOpen}
+					onDone={() => window.location.reload()}
+				/>
+
+				{/* Mobile bottom toolbar — fixed above the on-screen keyboard */}
+				<div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden">
+					<EditorTopToolbar editor={editor} readOnly={editorReadOnly} />
+				</div>
 			</form>
 		</Form>
 	);
