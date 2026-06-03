@@ -43,6 +43,7 @@ const ACTIVITY_TYPE_OPTIONS = [
 	{ value: "best_stand", label: "Mejor Stand" },
 	{ value: "festival_sticker", label: "Sticker del Festival" },
 	{ value: "coupon_book", label: "Cuponera de Descuentos" },
+	{ value: "sticker_hunt", label: "Cacería de Stickers" },
 ];
 
 const PROOF_TYPE_OPTIONS = [
@@ -100,6 +101,7 @@ const FormSchema = z
 			"best_stand",
 			"festival_sticker",
 			"coupon_book",
+			"sticker_hunt",
 		]),
 		accessLevel: z.enum(["public", "festival_participants_only"]),
 		promotionalArtUrl: z.string().optional(),

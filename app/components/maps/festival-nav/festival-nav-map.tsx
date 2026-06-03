@@ -20,6 +20,7 @@ type FestivalNavMapProps = {
 	couponBookUserIds: number[];
 	couponBookProofs: Record<number, CouponProof[]>;
 	passportUserIds: number[];
+	stickerHuntUserIds: number[];
 };
 
 export default function FestivalNavMap({
@@ -28,6 +29,7 @@ export default function FestivalNavMap({
 	couponBookUserIds,
 	couponBookProofs,
 	passportUserIds,
+	stickerHuntUserIds,
 }: FestivalNavMapProps) {
 	// -1 = "all sectors" view
 	const [activeSectorIndex, setActiveSectorIndex] = useState(-1);
@@ -46,6 +48,11 @@ export default function FestivalNavMap({
 	const passportUserIdSet = useMemo(
 		() => new Set(passportUserIds),
 		[passportUserIds],
+	);
+
+	const stickerHuntUserIdSet = useMemo(
+		() => new Set(stickerHuntUserIds),
+		[stickerHuntUserIds],
 	);
 
 	// Build participant search index across all sectors
@@ -179,6 +186,7 @@ export default function FestivalNavMap({
 										selectedStandId={selectedStand?.id ?? null}
 										couponBookUserIdSet={couponBookUserIdSet}
 										passportUserIdSet={passportUserIdSet}
+										stickerHuntUserIdSet={stickerHuntUserIdSet}
 										sectorName={sector.name}
 										onStandSelect={handleStandSelect}
 									/>
@@ -194,6 +202,7 @@ export default function FestivalNavMap({
 							selectedStandId={selectedStand?.id ?? null}
 							couponBookUserIdSet={couponBookUserIdSet}
 							passportUserIdSet={passportUserIdSet}
+							stickerHuntUserIdSet={stickerHuntUserIdSet}
 							sectorName={activeSector.name}
 							onStandSelect={handleStandSelect}
 						/>
@@ -213,6 +222,7 @@ export default function FestivalNavMap({
 				onOpenChange={setDrawerOpen}
 				couponBookProofs={couponBookProofs}
 				passportUserIdSet={passportUserIdSet}
+				stickerHuntUserIdSet={stickerHuntUserIdSet}
 			/>
 		</div>
 	);

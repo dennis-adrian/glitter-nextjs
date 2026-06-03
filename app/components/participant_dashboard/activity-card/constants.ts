@@ -1,4 +1,4 @@
-import { Stamp, Sticker, Trophy, Sparkles, BookOpen } from "lucide-react";
+import { Stamp, Sticker, Trophy, Sparkles, BookOpen, Search } from "lucide-react";
 
 import { FestivalActivity } from "@/app/lib/festivals/definitions";
 
@@ -8,6 +8,7 @@ export const ACTIVITY_ICONS: Record<FestivalActivity["type"], typeof Stamp> = {
 	best_stand: Trophy,
 	festival_sticker: Sparkles,
 	coupon_book: BookOpen,
+	sticker_hunt: Search,
 };
 
 export const ACTIVITY_LABELS: Record<FestivalActivity["type"], string> = {
@@ -16,4 +17,5 @@ export const ACTIVITY_LABELS: Record<FestivalActivity["type"], string> = {
 	best_stand: "Votación",
 	festival_sticker: "Sticker del Festival",
 	coupon_book: "Descuentos",
+	sticker_hunt: "Cacería de Stickers",
 };

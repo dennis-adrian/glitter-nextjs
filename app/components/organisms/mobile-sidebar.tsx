@@ -74,7 +74,7 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
 	return (
 		<Sheet>
 			<SheetTrigger
-				className="cursor-default hover:bg-primary-100/30 hover:text-primary-500"
+				className="cursor-default hover:bg-primary-200/30 hover:text-primary-700"
 				variant="outline"
 				size="icon"
 			>

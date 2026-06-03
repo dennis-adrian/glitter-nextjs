@@ -30,7 +30,7 @@ export default function ConsentFormField({
 			name={name}
 			render={({ field, fieldState }) => (
 				<FormItem className="flex flex-col gap-2">
-					<div className="flex flex-col gap-1 p-4 bg-primary-50/20 border border-primary-100 rounded-md text-primary-500">
+					<div className="flex flex-col gap-1 p-4 bg-primary-50/20 border border-primary-200 rounded-md text-primary-700">
 						<div className="flex flex-row items-center gap-1">
 							<FormControl>
 								<Checkbox

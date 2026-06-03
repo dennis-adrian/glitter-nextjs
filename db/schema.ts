@@ -756,6 +756,7 @@ export const festivalActivityTypeEnum = pgEnum("festival_activity_type", [
 	"best_stand",
 	"festival_sticker",
 	"coupon_book",
+	"sticker_hunt",
 ]);
 
 export const proofTypeEnum = pgEnum("proof_type", ["image", "text", "both"]);

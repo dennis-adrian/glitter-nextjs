@@ -77,6 +77,21 @@ export default async function FestivalMapPage(props: {
 	}
 	const passportUserIds = Array.from(passportUserIdSet);
 
+	const stickerHuntActivity = activities.find((a) => a.type === "sticker_hunt");
+	const stickerHuntUserIdSet = new Set<number>();
+
+	for (const detail of stickerHuntActivity?.details ?? []) {
+		for (const participant of detail.participants) {
+			const hasApprovedProof = participant.proofs.some(
+				(p) => p.proofStatus === "approved",
+			);
+			if (hasApprovedProof) {
+				stickerHuntUserIdSet.add(participant.user.id);
+			}
+		}
+	}
+	const stickerHuntUserIds = Array.from(stickerHuntUserIdSet);
+
 	return (
 		<FestivalNavMap
 			festivalName={festival.name}
@@ -84,6 +99,7 @@ export default async function FestivalMapPage(props: {
 			couponBookUserIds={couponBookUserIds}
 			couponBookProofs={couponBookProofs}
 			passportUserIds={passportUserIds}
+			stickerHuntUserIds={stickerHuntUserIds}
 		/>
 	);
 }

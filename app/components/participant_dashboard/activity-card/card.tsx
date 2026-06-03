@@ -70,7 +70,7 @@ export default function FestivalActivityCard({
 				</div>
 
 				<div className="p-6 pl-10 space-y-4">
-					<div className="flex items-start justify-between">
+					<div className="flex items-start gap-2 justify-between">
 						<ActivityTypeBadge theme={theme} activityType={activity.type} />
 						{enrollment.isEnrolled && !enrollment.isRemoved && (
 							<EnrolledBadge theme={theme} />

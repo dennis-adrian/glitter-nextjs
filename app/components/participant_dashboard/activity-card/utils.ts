@@ -7,6 +7,7 @@ import {
 	EnrolledConfig,
 } from "@/app/components/participant_dashboard/activity-card/types";
 import type { ProofDisplayState } from "@/app/lib/festival_activites/types";
+import { getMaterialConfig } from "@/app/lib/festival_activites/helpers";
 import { getUserWaitlistEntry } from "@/app/lib/festival_sectors/helpers";
 
 export function isActivityInVotingWindow(
@@ -82,13 +83,14 @@ export function getEnrolledConfig(
 	}
 
 	const isResubmit = proofDisplayState === "rejected_resubmit";
+	const { noun } = getMaterialConfig(activity.type);
 	return {
 		pendingLabel: isResubmit
 			? "Correcciones solicitadas"
-			: "Diseño de sello pendiente",
+			: `Diseño de ${noun} pendiente`,
 		pendingDescription: isResubmit
-			? "Se solicitaron correcciones en el diseño de tu sello"
-			: "Sube el diseño de tu sello personalizado para confirmar tu participación",
+			? `Se solicitaron correcciones en el diseño de tu ${noun}`
+			: `Sube el diseño de tu ${noun} personalizado para confirmar tu participación`,
 		ctaLabel: isResubmit ? "Editar y reenviar" : "Subir Diseño",
 		ctaType: "upload",
 		deadlineDate: activity.proofUploadLimitDate,

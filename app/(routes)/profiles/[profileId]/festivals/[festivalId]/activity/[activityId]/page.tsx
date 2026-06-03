@@ -6,6 +6,7 @@ import BestStandActivitySkeleton from "@/app/components/pages/festival_activitie
 import CouponBookActivityPage from "@/app/components/pages/festival_activities/coupon-book-activity";
 import FestivalStickerActivityPage from "@/app/components/pages/festival_activities/festival-sticker-activity";
 import PassportActivityPage from "@/app/components/pages/festival_activities/passport-activity";
+import StickerHuntActivityPage from "@/app/components/pages/festival_activities/sticker-hunt-activity";
 import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import Image from "next/image";
@@ -53,6 +54,19 @@ export default async function ParticipantsActivityPage({
 		return (
 			<div className="container p-3 md:p-6">
 				<PassportActivityPage
+					activity={activity}
+					currentProfile={currentProfile}
+					forProfile={forProfile}
+					festivalId={festivalId}
+				/>
+			</div>
+		);
+	}
+
+	if (activity.type === "sticker_hunt") {
+		return (
+			<div className="container p-3 md:p-6">
+				<StickerHuntActivityPage
 					activity={activity}
 					currentProfile={currentProfile}
 					forProfile={forProfile}
