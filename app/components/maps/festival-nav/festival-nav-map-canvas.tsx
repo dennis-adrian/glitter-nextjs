@@ -25,6 +25,7 @@ type FestivalNavMapCanvasProps = {
 	selectedStandId: number | null;
 	couponBookUserIdSet: Set<number>;
 	passportUserIdSet: Set<number>;
+	stickerHuntUserIdSet: Set<number>;
 	sectorName: string;
 	onStandSelect: (
 		stand: StandWithReservationsWithParticipants,
@@ -56,11 +57,13 @@ function getNavStandColors(
 	stand: StandWithReservationsWithParticipants,
 	couponBookUserIdSet: Set<number>,
 	passportUserIdSet: Set<number>,
+	stickerHuntUserIdSet: Set<number>,
 ): StandColors {
 	if (!isOccupied(stand)) return getPublicStandColors(stand.status);
 
 	const hasCoupon = hasActivityParticipant(stand, couponBookUserIdSet);
 	const hasPassport = hasActivityParticipant(stand, passportUserIdSet);
+	const hasStickerHunt = hasActivityParticipant(stand, stickerHuntUserIdSet);
 
 	if (hasCoupon) {
 		return {
@@ -80,6 +83,15 @@ function getNavStandColors(
 		};
 	}
 
+	if (hasStickerHunt) {
+		return {
+			fill: "rgba(219, 39, 119, 0.85)",
+			hoverFill: "rgba(190, 24, 93, 0.95)",
+			stroke: "rgba(157, 23, 77, 0.9)",
+			text: "#ffffff",
+		};
+	}
+
 	return getPublicStandColors(stand.status);
 }
 
@@ -90,6 +102,7 @@ export default function FestivalNavMapCanvas({
 	selectedStandId,
 	couponBookUserIdSet,
 	passportUserIdSet,
+	stickerHuntUserIdSet,
 	sectorName,
 	onStandSelect,
 }: FestivalNavMapCanvasProps) {
@@ -111,6 +124,9 @@ export default function FestivalNavMapCanvas({
 	);
 	const passportStands = occupiedStands.filter((s) =>
 		hasActivityParticipant(s, passportUserIdSet),
+	);
+	const stickerHuntStands = occupiedStands.filter((s) =>
+		hasActivityParticipant(s, stickerHuntUserIdSet),
 	);
 
 	const canvasConfig = {
@@ -146,6 +162,7 @@ export default function FestivalNavMapCanvas({
 									stand,
 									couponBookUserIdSet,
 									passportUserIdSet,
+									stickerHuntUserIdSet,
 								)}
 								onTouchTap={handleStandSelect}
 								onClick={handleStandSelect}
@@ -217,6 +234,49 @@ export default function FestivalNavMapCanvas({
 											style={{ userSelect: "none" }}
 										>
 											★
+										</text>
+									</g>
+								);
+							})}
+							{stickerHuntStands.map((stand) => {
+								const { left, top } = getStandPosition(stand);
+								// Shift left of any coupon/passport badges that may already be present
+								const hasCoupon = hasActivityParticipant(
+									stand,
+									couponBookUserIdSet,
+								);
+								const hasPassport = hasActivityParticipant(
+									stand,
+									passportUserIdSet,
+								);
+								const occupiedBadges =
+									(hasCoupon ? 1 : 0) + (hasPassport ? 1 : 0);
+								const cx = STAND_SIZE - 0.8 - occupiedBadges * 2;
+								return (
+									<g
+										key={`sticker-hunt-${stand.id}`}
+										transform={`translate(${left}, ${top})`}
+										style={{ pointerEvents: "none" }}
+									>
+										<circle
+											cx={cx}
+											cy={0.8}
+											r={1.3}
+											fill="#DB2777"
+											stroke="#fff"
+											strokeWidth={0.3}
+										/>
+										<text
+											x={cx}
+											y={0.8}
+											textAnchor="middle"
+											dominantBaseline="central"
+											fontSize={1.4}
+											fontWeight={700}
+											fill="#fff"
+											style={{ userSelect: "none" }}
+										>
+											♦
 										</text>
 									</g>
 								);

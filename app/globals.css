@@ -224,6 +224,7 @@
 		--primary-800: 261.6 76.8% 35.5%;
 		--primary-900: 261.6 84.3% 20%;
 		--primary-950: 260.7 88.4% 13.5%;
+		--primary: var(--primary-700);
 
 		--secondary-50: 308 60% 95%;
 		--secondary-100: 308 61% 90%;

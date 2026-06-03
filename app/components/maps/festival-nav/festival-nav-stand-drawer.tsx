@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { BookOpen, Stamp } from "lucide-react";
+import { BookOpen, Search, Stamp } from "lucide-react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
@@ -27,6 +27,7 @@ type FestivalNavStandDrawerProps = {
 	onOpenChange: (open: boolean) => void;
 	couponBookProofs: Record<number, CouponProof[]>;
 	passportUserIdSet: Set<number>;
+	stickerHuntUserIdSet: Set<number>;
 };
 
 function getCategoryLabel(category: string): string {
@@ -56,6 +57,7 @@ export default function FestivalNavStandDrawer({
 	onOpenChange,
 	couponBookProofs,
 	passportUserIdSet,
+	stickerHuntUserIdSet,
 }: FestivalNavStandDrawerProps) {
 	const [activeTab, setActiveTab] = useState(0);
 
@@ -86,6 +88,11 @@ export default function FestivalNavStandDrawer({
 	const isInPassport =
 		currentParticipant != null
 			? passportUserIdSet.has(currentParticipant.user.id)
+			: false;
+
+	const isInStickerHunt =
+		currentParticipant != null
+			? stickerHuntUserIdSet.has(currentParticipant.user.id)
 			: false;
 
 	return (
@@ -202,6 +209,18 @@ export default function FestivalNavStandDrawer({
 												<Stamp className="h-4 w-4 shrink-0" />
 												<span className="text-xs font-semibold uppercase tracking-wide">
 													Participa en la carrera de sellos
+												</span>
+											</div>
+										</div>
+									)}
+
+									{/* Sticker hunt section */}
+									{isInStickerHunt && (
+										<div className="rounded-lg border border-pink-200 bg-pink-50 p-3">
+											<div className="flex items-center gap-2 text-pink-700">
+												<Search className="h-4 w-4 shrink-0" />
+												<span className="text-xs font-semibold uppercase tracking-wide">
+													Participa en la cacería de stickers
 												</span>
 											</div>
 										</div>
