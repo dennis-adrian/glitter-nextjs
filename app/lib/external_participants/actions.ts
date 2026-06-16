@@ -41,8 +41,8 @@ const ExternalParticipantInputSchema = z.object({
     .refine(isAcceptedExternalParticipantImageUrl, {
       message: "La imagen debe subirse desde el formulario",
     }),
-  websiteUrl: z.string().trim().optional(),
-  instagramUrl: z.string().trim().optional(),
+  websiteUrl: z.url().optional(),
+  instagramUrl: z.url().optional(),
   contactEmail: z
     .email("Ingresá un correo válido")
     .optional()

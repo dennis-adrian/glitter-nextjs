@@ -54,8 +54,8 @@ export function getStandMapParticipants(
       categoryLabel: participant.user.category,
       userId: participant.user.id,
       userSocials: participant.user.userSocials ?? [],
-      links: participant.user.userSocials
-        .filter((social) => !!social.username)
+      links: (participant.user.userSocials ?? [])
+        .filter((social) => !!social.username && social.type in socialsUrls)
         .map((social) => ({
           label: `@${social.username}`,
           href: `${socialsUrls[social.type]}${social.username}`,

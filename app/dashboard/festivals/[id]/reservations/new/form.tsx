@@ -446,9 +446,11 @@ export default function CreateReservationForm({
                         onClientUploadComplete={(res) => {
                           const uploadedUrl =
                             res?.[0]?.serverData?.imageUrl ?? res?.[0]?.url;
-                          if (uploadedUrl) {
+                          if (uploadedUrl && typeof uploadedUrl === "string") {
                             field.onChange(uploadedUrl);
                             toast.success("Imagen subida");
+                          } else {
+                            toast.error("Respuesta de carga inválida");
                           }
                         }}
                         onUploadError={() => {

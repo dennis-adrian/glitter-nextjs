@@ -652,6 +652,9 @@ export const reservationExternalParticipants = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (reservationExternalParticipants) => [
+    index("reservation_external_participants_reservation_id_idx").on(
+      reservationExternalParticipants.reservationId,
+    ),
     unique("reservation_external_participants_unique").on(
       reservationExternalParticipants.externalParticipantId,
       reservationExternalParticipants.reservationId,

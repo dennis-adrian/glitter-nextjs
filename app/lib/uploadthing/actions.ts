@@ -25,6 +25,8 @@ export async function deleteFile(url: string) {
     const key = getUploadThingFileKey(url);
     if (key) {
       await utapi.deleteFiles(key);
+    } else {
+      console.warn("Could not extract UploadThing file key from URL:", url);
     }
     return { success: true };
   } catch (error) {

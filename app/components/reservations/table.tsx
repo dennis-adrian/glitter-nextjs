@@ -1,8 +1,11 @@
 import { fetchReservations } from "@/app/api/reservations/actions";
 import ReservationStatusBadge from "@/app/components/atoms/reservation-status-badge";
+import CategoryBadge from "@/app/components/category-badge";
 import ProfileCell from "@/app/components/common/table/profile-cell";
 import { ActionsCell } from "@/app/components/reservations/cells/actions";
 import PaymentStatus from "@/app/components/reservations/cells/payment-status";
+import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import { Badge } from "@/app/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -12,6 +15,7 @@ import {
   TableRow,
 } from "@/app/components/ui/table";
 import { HeaderCell } from "@/app/components/users/header-cell";
+import { getExternalParticipantCategoryLabel } from "@/app/lib/external_participants/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { DateTime } from "luxon";
 
@@ -30,6 +34,7 @@ export default async function ReservationsTable(props: ReservationsTableProps) {
         <TableRow>
           <HeaderCell value="number" label="#" />
           <HeaderCell value="profile" label="Perfil" />
+          <HeaderCell value="category" label="Categoría" />
           <HeaderCell value="status" label="Estado de la Reserva" />
           <HeaderCell value="stand" label="Espacio" />
           <HeaderCell value="festivalName" label="Festival" />
@@ -51,6 +56,66 @@ export default async function ReservationsTable(props: ReservationsTableProps) {
                       profile={participant.user}
                     />
                   ))}
+                  {reservation.externalParticipants?.map(
+                    ({ externalParticipant }) => (
+                      <div
+                        key={`external-${externalParticipant.id}`}
+                        className="flex gap-2 items-center"
+                      >
+                        <Avatar className="w-8 h-8">
+                          <AvatarImage
+                            src={
+                              externalParticipant.imageUrl ||
+                              "/img/placeholders/avatar-placeholder.png"
+                            }
+                            alt={
+                              externalParticipant.displayName
+                                ? `Imagen de ${externalParticipant.displayName}`
+                                : "Imagen de participante externo"
+                            }
+                          />
+                        </Avatar>
+                        <div className="flex flex-col">
+                          <span>
+                            <span className="text-muted-foreground mr-1">
+                              #{externalParticipant.id}
+                            </span>
+                            <span className="font-semibold mr-1">
+                              {externalParticipant.displayName}
+                            </span>
+                          </span>
+                          {externalParticipant.contactEmail && (
+                            <span className="text-muted-foreground text-sm">
+                              {externalParticipant.contactEmail}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ),
+                  )}
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="flex flex-wrap gap-1">
+                  {reservation.participants.map((participant) => (
+                    <CategoryBadge
+                      key={`participant-category-${participant.id}`}
+                      category={participant.user.category}
+                    />
+                  ))}
+                  {reservation.externalParticipants?.map(
+                    ({ externalParticipant }) => (
+                      <Badge
+                        key={`external-category-${externalParticipant.id}`}
+                        variant="outline"
+                        className="border-teal-600 text-teal-700 font-bold uppercase"
+                      >
+                        {getExternalParticipantCategoryLabel(
+                          externalParticipant,
+                        )}
+                      </Badge>
+                    ),
+                  )}
                 </div>
               </TableCell>
               <TableCell>
@@ -76,7 +141,7 @@ export default async function ReservationsTable(props: ReservationsTableProps) {
           ))
         ) : (
           <TableRow>
-            <TableCell colSpan={8} className="h-24 text-center">
+            <TableCell colSpan={9} className="h-24 text-center">
               Sin resultados
             </TableCell>
           </TableRow>
