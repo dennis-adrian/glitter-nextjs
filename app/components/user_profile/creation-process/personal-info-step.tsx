@@ -12,9 +12,7 @@ export default function PersonalInfoStep(props: PersonalInfoStepProps) {
         title="Datos personales"
         description="Esta información será utilizada para identificar tu cuenta y no será compartida con otros participantes o visitantes."
       />
-      <PersonalInfoForm
-        profile={props.profile}
-      />
+      <PersonalInfoForm profile={props.profile} />
     </>
   );
 }

@@ -7,85 +7,83 @@ import { Button } from "@/components/ui/button";
 import { RefreshCcwIcon } from "lucide-react";
 
 type ParticipantSelectionProps = {
-	participants: ActivityDetailsWithParticipants["participants"];
-	activityId?: number | string;
+  participants: ActivityDetailsWithParticipants["participants"];
+  activityId?: number | string;
 };
 export default function ParticipantSelection({
-	participants,
-	activityId,
+  participants,
+  activityId,
 }: ParticipantSelectionProps) {
-	const [selectedParticipants, setSelectedParticipants] = useState<number[]>(
-		[],
-	);
-	const instanceStorageIdRef = useRef<string>(crypto.randomUUID());
-	const storageIdentifier =
-		participants[0]?.detailsId ?? activityId ?? instanceStorageIdRef.current;
-	const storageKey = `selected-participants-${storageIdentifier}`;
+  const [selectedParticipants, setSelectedParticipants] = useState<number[]>(
+    [],
+  );
+  const instanceStorageIdRef = useRef<string>(crypto.randomUUID());
+  const storageIdentifier =
+    participants[0]?.detailsId ?? activityId ?? instanceStorageIdRef.current;
+  const storageKey = `selected-participants-${storageIdentifier}`;
 
-	// Initialize from localStorage on mount
-	useEffect(() => {
-		const stored = localStorage.getItem(storageKey);
-		if (stored === null) {
-			setSelectedParticipants([]);
-			return;
-		}
+  // Initialize from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem(storageKey);
+    if (stored === null) {
+      setSelectedParticipants([]);
+      return;
+    }
 
-		try {
-			const parsed = JSON.parse(stored);
-			if (Array.isArray(parsed)) {
-				setSelectedParticipants(parsed);
-			} else {
-				setSelectedParticipants([]);
-			}
-		} catch (e) {
-			setSelectedParticipants([]);
-			console.error(
-				"Failed to parse selected participants from localStorage",
-			);
-		}
-	}, [storageKey]);
+    try {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        setSelectedParticipants(parsed);
+      } else {
+        setSelectedParticipants([]);
+      }
+    } catch (e) {
+      setSelectedParticipants([]);
+      console.error("Failed to parse selected participants from localStorage");
+    }
+  }, [storageKey]);
 
-	const handleSelect = useCallback(
-		(participantId: number) => {
-			setSelectedParticipants((prev) => {
-				const newSelection = prev.includes(participantId)
-					? prev.filter((id) => id !== participantId)
-					: [...prev, participantId];
+  const handleSelect = useCallback(
+    (participantId: number) => {
+      setSelectedParticipants((prev) => {
+        const newSelection = prev.includes(participantId)
+          ? prev.filter((id) => id !== participantId)
+          : [...prev, participantId];
 
-				// Update localStorage immediately
-				localStorage.setItem(storageKey, JSON.stringify(newSelection));
-				return newSelection;
-			});
-		},
-		[storageKey],
-	);
+        // Update localStorage immediately
+        localStorage.setItem(storageKey, JSON.stringify(newSelection));
+        return newSelection;
+      });
+    },
+    [storageKey],
+  );
 
-	return (
-		<div className="flex flex-col gap-3 my-2">
-			<div className="flex justify-end">
-				<Button
-					variant="outline"
-					size="sm"
-					onClick={() => {
-						localStorage.removeItem(storageKey);
-						setSelectedParticipants([]);
-					}}
-				>
-					Reiniciar selección
-					<RefreshCcwIcon className="w-4 h-4 ml-1" />
-				</Button>
-			</div>
-			<div className="flex flex-wrap justify-center md:justify-start gap-2">
-				{participants.map((participant, index) => (
-					<ParticipantCard
-						key={participant.id}
-						participant={participant}
-						index={index}
-						selected={selectedParticipants.includes(participant.id)}
-						onSelect={() => handleSelect(participant.id)}
-					/>
-				))}
-			</div>
-		</div>
-	);
+  return (
+    <div className="flex flex-col gap-3 my-2">
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            localStorage.removeItem(storageKey);
+            setSelectedParticipants([]);
+          }}
+        >
+          Reiniciar selección
+          <RefreshCcwIcon className="w-4 h-4 ml-1" />
+        </Button>
+      </div>
+      <div className="flex flex-wrap justify-center md:justify-start gap-2">
+        {participants.map((participant, index) => (
+          <ParticipantCard
+            key={participant.id}
+            participant={participant}
+            index={index}
+            selected={selectedParticipants.includes(participant.id)}
+            onSelect={() => handleSelect(participant.id)}
+          />
+        ))}
+      </div>
+    </div>
+  );
 }

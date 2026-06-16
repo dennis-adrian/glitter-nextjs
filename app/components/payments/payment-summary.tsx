@@ -1,4 +1,9 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/app/components/ui/card";
 import { Separator } from "@/app/components/ui/separator";
 import { InvoiceBase } from "@/app/data/invoices/definitions";
 import DiscountCodeInput from "./discount-code-input";
@@ -9,7 +14,8 @@ type PaymentSummaryProps = {
 };
 
 export function PaymentSummary({ invoice, festivalId }: PaymentSummaryProps) {
-  const hasDiscount = invoice.discountCodeId !== null && invoice.discountAmount > 0;
+  const hasDiscount =
+    invoice.discountCodeId !== null && invoice.discountAmount > 0;
 
   return (
     <Card>
@@ -25,7 +31,9 @@ export function PaymentSummary({ invoice, festivalId }: PaymentSummaryProps) {
           {hasDiscount && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Descuento</span>
-              <span className="text-green-600">-Bs{invoice.discountAmount}</span>
+              <span className="text-green-600">
+                -Bs{invoice.discountAmount}
+              </span>
             </div>
           )}
 

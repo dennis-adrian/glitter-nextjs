@@ -6,41 +6,41 @@ import { BaseProduct } from "@/app/lib/products/definitions";
 import { cn } from "@/app/lib/utils";
 
 export default function SubmitProductOrderButton({
-	className,
-	product,
-	disabled,
-	loading,
+  className,
+  product,
+  disabled,
+  loading,
 }: {
-	className?: string;
-	product: BaseProduct;
-	disabled: boolean;
-	loading: boolean;
+  className?: string;
+  product: BaseProduct;
+  disabled: boolean;
+  loading: boolean;
 }) {
-	if ((product.stock ?? 0) <= 0) {
-		return (
-			<Button
-				className="bg-muted text-muted-foreground hover:bg-muted hover:translate-y-0"
-				disabled
-				type="button"
-			>
-				Agotado
-			</Button>
-		);
-	}
+  if ((product.stock ?? 0) <= 0) {
+    return (
+      <Button
+        className="bg-muted text-muted-foreground hover:bg-muted hover:translate-y-0"
+        disabled
+        type="button"
+      >
+        Agotado
+      </Button>
+    );
+  }
 
-	return (
-		<SubmitButton
-			className={cn(
-				"w-full",
-				product.isPreOrder
-					? "bg-amber-600 hover:bg-amber-700"
-					: "bg-purple-600 hover:bg-purple-700",
-				className,
-			)}
-			disabled={disabled}
-			loading={loading}
-			label="Agregar al carrito"
-			loadingLabel="Agregando..."
-		/>
-	);
+  return (
+    <SubmitButton
+      className={cn(
+        "w-full",
+        product.isPreOrder
+          ? "bg-amber-600 hover:bg-amber-700"
+          : "bg-purple-600 hover:bg-purple-700",
+        className,
+      )}
+      disabled={disabled}
+      loading={loading}
+      label="Agregar al carrito"
+      loadingLabel="Agregando..."
+    />
+  );
 }

@@ -1,8 +1,8 @@
 "use server";
 
 import {
-	BaseProfile,
-	ParticipationWithParticipantWithInfractionsAndReservations,
+  BaseProfile,
+  ParticipationWithParticipantWithInfractionsAndReservations,
 } from "@/app/api/users/definitions";
 import { fetchVisitorsEmails } from "@/app/data/visitors/actions";
 import EmailTemplate from "@/app/emails/festival-activation";
@@ -11,1132 +11,1132 @@ import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/h
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import {
-	festivalActivities,
-	festivalDates,
-	festivals,
-	festivalSectors,
-	profileSubcategories,
-	reservationParticipants,
-	stands,
-	standReservations,
-	userRequests,
-	users,
+  festivalActivities,
+  festivalDates,
+  festivals,
+  festivalSectors,
+  profileSubcategories,
+  reservationParticipants,
+  stands,
+  standReservations,
+  userRequests,
+  users,
 } from "@/db/schema";
 import {
-	and,
-	desc,
-	eq,
-	getTableColumns,
-	ilike,
-	inArray,
-	isNotNull,
-	not,
-	or,
-	sql,
+  and,
+  desc,
+  eq,
+  getTableColumns,
+  ilike,
+  inArray,
+  isNotNull,
+  not,
+  or,
+  sql,
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
-	FestivalActivityWithDetailsAndParticipants,
-	FestivalBase,
-	FestivalWithDates,
-	FestivalWithDatesAndSectors,
-	FestivalWithTicketsAndDates,
-	FullFestival,
-	RecentSharedStandPartner,
+  FestivalActivityWithDetailsAndParticipants,
+  FestivalBase,
+  FestivalWithDates,
+  FestivalWithDatesAndSectors,
+  FestivalWithTicketsAndDates,
+  FullFestival,
+  RecentSharedStandPartner,
 } from "./definitions";
 import { groupVisitorEmails } from "./utils";
 
 export async function createFestival(
-	festivalData: Omit<typeof festivals.$inferInsert, "id"> & {
-		dates?: Array<{
-			date: Date;
-			startTime: string;
-			endTime: string;
-		}>;
-		dateDetails?: Array<{
-			startDate: Date;
-			endDate: Date;
-		}>;
-		festivalSectors?: Array<{
-			name: string;
-			orderInFestival: number;
-			mapUrl?: string | null;
-			mascotUrl?: string | null;
-		}>;
-	},
+  festivalData: Omit<typeof festivals.$inferInsert, "id"> & {
+    dates?: Array<{
+      date: Date;
+      startTime: string;
+      endTime: string;
+    }>;
+    dateDetails?: Array<{
+      startDate: Date;
+      endDate: Date;
+    }>;
+    festivalSectors?: Array<{
+      name: string;
+      orderInFestival: number;
+      mapUrl?: string | null;
+      mascotUrl?: string | null;
+    }>;
+  },
 ) {
-	try {
-		const result = await db.transaction(async (tx) => {
-			const [newFestival] = await tx
-				.insert(festivals)
-				.values({
-					name: festivalData.name,
-					description: festivalData.description || null,
-					address: festivalData.address || null,
-					locationLabel: festivalData.locationLabel || null,
-					locationUrl: festivalData.locationUrl || null,
-					status: festivalData.status || "draft",
-					mapsVersion: festivalData.mapsVersion || "v1",
-					publicRegistration: festivalData.publicRegistration || false,
-					eventDayRegistration: festivalData.eventDayRegistration || false,
-					festivalType: festivalData.festivalType || "glitter",
-					reservationsStartDate:
-						festivalData.reservationsStartDate || new Date(),
-					generalMapUrl: festivalData.generalMapUrl || null,
-					mascotUrl: festivalData.mascotUrl || null,
-					illustrationPaymentQrCodeUrl:
-						festivalData.illustrationPaymentQrCodeUrl || null,
-					gastronomyPaymentQrCodeUrl:
-						festivalData.gastronomyPaymentQrCodeUrl || null,
-					entrepreneurshipPaymentQrCodeUrl:
-						festivalData.entrepreneurshipPaymentQrCodeUrl || null,
-					illustrationStandUrl: festivalData.illustrationStandUrl || null,
-					gastronomyStandUrl: festivalData.gastronomyStandUrl || null,
-					entrepreneurshipStandUrl:
-						festivalData.entrepreneurshipStandUrl || null,
-					festivalCode: festivalData.festivalCode || null,
-					festivalBannerUrl: festivalData.festivalBannerUrl || null,
-					updatedAt: new Date(),
-					createdAt: new Date(),
-				})
-				.returning();
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [newFestival] = await tx
+        .insert(festivals)
+        .values({
+          name: festivalData.name,
+          description: festivalData.description || null,
+          address: festivalData.address || null,
+          locationLabel: festivalData.locationLabel || null,
+          locationUrl: festivalData.locationUrl || null,
+          status: festivalData.status || "draft",
+          mapsVersion: festivalData.mapsVersion || "v1",
+          publicRegistration: festivalData.publicRegistration || false,
+          eventDayRegistration: festivalData.eventDayRegistration || false,
+          festivalType: festivalData.festivalType || "glitter",
+          reservationsStartDate:
+            festivalData.reservationsStartDate || new Date(),
+          generalMapUrl: festivalData.generalMapUrl || null,
+          mascotUrl: festivalData.mascotUrl || null,
+          illustrationPaymentQrCodeUrl:
+            festivalData.illustrationPaymentQrCodeUrl || null,
+          gastronomyPaymentQrCodeUrl:
+            festivalData.gastronomyPaymentQrCodeUrl || null,
+          entrepreneurshipPaymentQrCodeUrl:
+            festivalData.entrepreneurshipPaymentQrCodeUrl || null,
+          illustrationStandUrl: festivalData.illustrationStandUrl || null,
+          gastronomyStandUrl: festivalData.gastronomyStandUrl || null,
+          entrepreneurshipStandUrl:
+            festivalData.entrepreneurshipStandUrl || null,
+          festivalCode: festivalData.festivalCode || null,
+          festivalBannerUrl: festivalData.festivalBannerUrl || null,
+          updatedAt: new Date(),
+          createdAt: new Date(),
+        })
+        .returning();
 
-			if (festivalData.dateDetails && festivalData.dateDetails.length > 0) {
-				for (const dateItem of festivalData.dateDetails) {
-					await tx.insert(festivalDates).values({
-						festivalId: newFestival.id,
-						startDate: dateItem.startDate,
-						endDate: dateItem.endDate,
-						updatedAt: new Date(),
-						createdAt: new Date(),
-					});
-				}
-			}
-			if (
-				festivalData.festivalSectors &&
-				festivalData.festivalSectors.length > 0
-			) {
-				for (const sector of festivalData.festivalSectors) {
-					await tx.insert(festivalSectors).values({
-						festivalId: newFestival.id,
-						name: sector.name,
-						orderInFestival: sector.orderInFestival,
-						mapUrl: sector.mapUrl || null,
-						mascotUrl: sector.mascotUrl || null,
-						updatedAt: new Date(),
-						createdAt: new Date(),
-					});
-				}
-			}
-			return newFestival;
-		});
+      if (festivalData.dateDetails && festivalData.dateDetails.length > 0) {
+        for (const dateItem of festivalData.dateDetails) {
+          await tx.insert(festivalDates).values({
+            festivalId: newFestival.id,
+            startDate: dateItem.startDate,
+            endDate: dateItem.endDate,
+            updatedAt: new Date(),
+            createdAt: new Date(),
+          });
+        }
+      }
+      if (
+        festivalData.festivalSectors &&
+        festivalData.festivalSectors.length > 0
+      ) {
+        for (const sector of festivalData.festivalSectors) {
+          await tx.insert(festivalSectors).values({
+            festivalId: newFestival.id,
+            name: sector.name,
+            orderInFestival: sector.orderInFestival,
+            mapUrl: sector.mapUrl || null,
+            mascotUrl: sector.mascotUrl || null,
+            updatedAt: new Date(),
+            createdAt: new Date(),
+          });
+        }
+      }
+      return newFestival;
+    });
 
-		revalidatePath("/dashboard/festivals");
-		return {
-			success: true,
-			message: "Festival creado exitosamente!",
-			data: result,
-		};
-	} catch (error) {
-		console.error("Error creating festival", error);
-		return {
-			success: false,
-			message: "Failed to create festival",
-		};
-	}
+    revalidatePath("/dashboard/festivals");
+    return {
+      success: true,
+      message: "Festival creado exitosamente!",
+      data: result,
+    };
+  } catch (error) {
+    console.error("Error creating festival", error);
+    return {
+      success: false,
+      message: "Failed to create festival",
+    };
+  }
 }
 
 export async function deleteFestival(festivalId: number) {
-	try {
-		await db.delete(festivals).where(eq(festivals.id, festivalId));
-	} catch (error) {
-		console.error("Error deleting festival:", error);
-		return {
-			success: false,
-			message:
-				"Error al eliminar el festival. Por favor verifica que no haya datos relacionados.",
-		};
-	}
-	revalidatePath("/dashboard/festivals");
-	return {
-		success: true,
-		message: "Festival eliminado correctamente!",
-	};
+  try {
+    await db.delete(festivals).where(eq(festivals.id, festivalId));
+  } catch (error) {
+    console.error("Error deleting festival:", error);
+    return {
+      success: false,
+      message:
+        "Error al eliminar el festival. Por favor verifica que no haya datos relacionados.",
+    };
+  }
+  revalidatePath("/dashboard/festivals");
+  return {
+    success: true,
+    message: "Festival eliminado correctamente!",
+  };
 }
 
 export async function fetchActiveFestivalBase() {
-	try {
-		return await db.query.festivals.findFirst({
-			where: eq(festivals.status, "active"),
-		});
-	} catch (error) {
-		console.error("Error fetching active festival", error);
-		return null;
-	}
+  try {
+    return await db.query.festivals.findFirst({
+      where: eq(festivals.status, "active"),
+    });
+  } catch (error) {
+    console.error("Error fetching active festival", error);
+    return null;
+  }
 }
 
 export async function updateFestival(
-	data: Omit<typeof festivals.$inferInsert, "id"> & {
-		id: number;
-		dates?: Array<{
-			id?: number;
-			date: Date;
-			startTime: string;
-			endTime: string;
-		}>;
-		dateDetails?: Array<{
-			startDate: Date;
-			endDate: Date;
-		}>;
-		festivalSectors?: Array<{
-			id?: number;
-			name: string;
-			orderInFestival: number;
-			mapUrl?: string;
-			mascotUrl?: string;
-		}>;
-		deletedSectorIds?: number[];
-	},
+  data: Omit<typeof festivals.$inferInsert, "id"> & {
+    id: number;
+    dates?: Array<{
+      id?: number;
+      date: Date;
+      startTime: string;
+      endTime: string;
+    }>;
+    dateDetails?: Array<{
+      startDate: Date;
+      endDate: Date;
+    }>;
+    festivalSectors?: Array<{
+      id?: number;
+      name: string;
+      orderInFestival: number;
+      mapUrl?: string;
+      mascotUrl?: string;
+    }>;
+    deletedSectorIds?: number[];
+  },
 ) {
-	try {
-		const result = await db.transaction(async (tx) => {
-			const [updatedFestival] = await tx
-				.update(festivals)
-				.set({
-					name: data.name,
-					description: data.description || null,
-					address: data.address || null,
-					locationLabel: data.locationLabel || null,
-					locationUrl: data.locationUrl || null,
-					status: data.status || "draft",
-					mapsVersion: data.mapsVersion || "v1",
-					publicRegistration: data.publicRegistration || false,
-					eventDayRegistration: data.eventDayRegistration || false,
-					keepStoreOpen: data.keepStoreOpen || false,
-					festivalType: data.festivalType || "glitter",
-					generalMapUrl: data.generalMapUrl || null,
-					mascotUrl: data.mascotUrl || null,
-					illustrationPaymentQrCodeUrl:
-						data.illustrationPaymentQrCodeUrl || null,
-					gastronomyPaymentQrCodeUrl: data.gastronomyPaymentQrCodeUrl || null,
-					entrepreneurshipPaymentQrCodeUrl:
-						data.entrepreneurshipPaymentQrCodeUrl || null,
-					illustrationStandUrl: data.illustrationStandUrl || null,
-					gastronomyStandUrl: data.gastronomyStandUrl || null,
-					entrepreneurshipStandUrl: data.entrepreneurshipStandUrl || null,
-					festivalCode: data.festivalCode || null,
-					festivalBannerUrl: data.festivalBannerUrl || null,
-					updatedAt: new Date(),
-				})
-				.where(eq(festivals.id, data.id))
-				.returning();
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [updatedFestival] = await tx
+        .update(festivals)
+        .set({
+          name: data.name,
+          description: data.description || null,
+          address: data.address || null,
+          locationLabel: data.locationLabel || null,
+          locationUrl: data.locationUrl || null,
+          status: data.status || "draft",
+          mapsVersion: data.mapsVersion || "v1",
+          publicRegistration: data.publicRegistration || false,
+          eventDayRegistration: data.eventDayRegistration || false,
+          keepStoreOpen: data.keepStoreOpen || false,
+          festivalType: data.festivalType || "glitter",
+          generalMapUrl: data.generalMapUrl || null,
+          mascotUrl: data.mascotUrl || null,
+          illustrationPaymentQrCodeUrl:
+            data.illustrationPaymentQrCodeUrl || null,
+          gastronomyPaymentQrCodeUrl: data.gastronomyPaymentQrCodeUrl || null,
+          entrepreneurshipPaymentQrCodeUrl:
+            data.entrepreneurshipPaymentQrCodeUrl || null,
+          illustrationStandUrl: data.illustrationStandUrl || null,
+          gastronomyStandUrl: data.gastronomyStandUrl || null,
+          entrepreneurshipStandUrl: data.entrepreneurshipStandUrl || null,
+          festivalCode: data.festivalCode || null,
+          festivalBannerUrl: data.festivalBannerUrl || null,
+          updatedAt: new Date(),
+        })
+        .where(eq(festivals.id, data.id))
+        .returning();
 
-			// Get existing dates to compare
-			const existingDates = await tx
-				.select()
-				.from(festivalDates)
-				.where(eq(festivalDates.festivalId, data.id));
+      // Get existing dates to compare
+      const existingDates = await tx
+        .select()
+        .from(festivalDates)
+        .where(eq(festivalDates.festivalId, data.id));
 
-			if (data.dateDetails && data.dateDetails.length > 0) {
-				for (let i = 0; i < data.dateDetails.length; i++) {
-					const dateItem = data.dateDetails[i];
-					const originalDateItem = data.dates?.[i];
+      if (data.dateDetails && data.dateDetails.length > 0) {
+        for (let i = 0; i < data.dateDetails.length; i++) {
+          const dateItem = data.dateDetails[i];
+          const originalDateItem = data.dates?.[i];
 
-					if (originalDateItem?.id) {
-						// Update existing date
-						await tx
-							.update(festivalDates)
-							.set({
-								startDate: dateItem.startDate,
-								endDate: dateItem.endDate,
-								updatedAt: new Date(),
-							})
-							.where(eq(festivalDates.id, originalDateItem.id));
-					} else {
-						await tx.insert(festivalDates).values({
-							festivalId: data.id,
-							startDate: dateItem.startDate,
-							endDate: dateItem.endDate,
-							updatedAt: new Date(),
-							createdAt: new Date(),
-						});
-					}
-				}
-				// Delete dates that were removed
-				const datesToKeep =
-					(data.dates?.map((d) => d.id).filter(Boolean) as number[]) || [];
-				const datesToDelete = existingDates
-					.filter((d) => !datesToKeep.includes(d.id))
-					.map((d) => d.id);
+          if (originalDateItem?.id) {
+            // Update existing date
+            await tx
+              .update(festivalDates)
+              .set({
+                startDate: dateItem.startDate,
+                endDate: dateItem.endDate,
+                updatedAt: new Date(),
+              })
+              .where(eq(festivalDates.id, originalDateItem.id));
+          } else {
+            await tx.insert(festivalDates).values({
+              festivalId: data.id,
+              startDate: dateItem.startDate,
+              endDate: dateItem.endDate,
+              updatedAt: new Date(),
+              createdAt: new Date(),
+            });
+          }
+        }
+        // Delete dates that were removed
+        const datesToKeep =
+          (data.dates?.map((d) => d.id).filter(Boolean) as number[]) || [];
+        const datesToDelete = existingDates
+          .filter((d) => !datesToKeep.includes(d.id))
+          .map((d) => d.id);
 
-				if (datesToDelete.length > 0) {
-					await tx
-						.delete(festivalDates)
-						.where(inArray(festivalDates.id, datesToDelete));
-				}
-			}
-			if (data.festivalSectors) {
-				for (const sector of data.festivalSectors) {
-					if (sector.id) {
-						await tx
-							.update(festivalSectors)
-							.set({
-								name: sector.name,
-								orderInFestival: sector.orderInFestival,
-								mapUrl: sector.mapUrl || null,
-								mascotUrl: sector.mascotUrl || null,
-								updatedAt: new Date(),
-							})
-							.where(eq(festivalSectors.id, sector.id));
-					} else {
-						await tx.insert(festivalSectors).values({
-							festivalId: data.id,
-							name: sector.name,
-							orderInFestival: sector.orderInFestival,
-							mapUrl: sector.mapUrl || null,
-							mascotUrl: sector.mascotUrl || null,
-							createdAt: new Date(),
-							updatedAt: new Date(),
-						});
-					}
-				}
-				if (data.deletedSectorIds && data.deletedSectorIds.length > 0) {
-					const reservationsInDeletedSectors = await tx
-						.select({
-							reservationId: standReservations.id,
-							sectorId: stands.festivalSectorId,
-						})
-						.from(standReservations)
-						.innerJoin(stands, eq(standReservations.standId, stands.id))
-						.innerJoin(
-							festivalSectors,
-							eq(stands.festivalSectorId, festivalSectors.id),
-						)
-						.where(
-							and(
-								inArray(stands.festivalSectorId, data.deletedSectorIds),
-								eq(stands.festivalId, data.id),
-								eq(festivalSectors.festivalId, data.id),
-							),
-						)
-						.limit(1);
+        if (datesToDelete.length > 0) {
+          await tx
+            .delete(festivalDates)
+            .where(inArray(festivalDates.id, datesToDelete));
+        }
+      }
+      if (data.festivalSectors) {
+        for (const sector of data.festivalSectors) {
+          if (sector.id) {
+            await tx
+              .update(festivalSectors)
+              .set({
+                name: sector.name,
+                orderInFestival: sector.orderInFestival,
+                mapUrl: sector.mapUrl || null,
+                mascotUrl: sector.mascotUrl || null,
+                updatedAt: new Date(),
+              })
+              .where(eq(festivalSectors.id, sector.id));
+          } else {
+            await tx.insert(festivalSectors).values({
+              festivalId: data.id,
+              name: sector.name,
+              orderInFestival: sector.orderInFestival,
+              mapUrl: sector.mapUrl || null,
+              mascotUrl: sector.mascotUrl || null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+        }
+        if (data.deletedSectorIds && data.deletedSectorIds.length > 0) {
+          const reservationsInDeletedSectors = await tx
+            .select({
+              reservationId: standReservations.id,
+              sectorId: stands.festivalSectorId,
+            })
+            .from(standReservations)
+            .innerJoin(stands, eq(standReservations.standId, stands.id))
+            .innerJoin(
+              festivalSectors,
+              eq(stands.festivalSectorId, festivalSectors.id),
+            )
+            .where(
+              and(
+                inArray(stands.festivalSectorId, data.deletedSectorIds),
+                eq(stands.festivalId, data.id),
+                eq(festivalSectors.festivalId, data.id),
+              ),
+            )
+            .limit(1);
 
-					if (reservationsInDeletedSectors.length > 0) {
-						throw new Error("SECTOR_HAS_RESERVATIONS");
-					}
+          if (reservationsInDeletedSectors.length > 0) {
+            throw new Error("SECTOR_HAS_RESERVATIONS");
+          }
 
-					await tx
-						.delete(festivalSectors)
-						.where(
-							and(
-								inArray(festivalSectors.id, data.deletedSectorIds),
-								eq(festivalSectors.festivalId, data.id),
-							),
-						);
-				}
-			}
+          await tx
+            .delete(festivalSectors)
+            .where(
+              and(
+                inArray(festivalSectors.id, data.deletedSectorIds),
+                eq(festivalSectors.festivalId, data.id),
+              ),
+            );
+        }
+      }
 
-			return updatedFestival;
-		});
+      return updatedFestival;
+    });
 
-		revalidatePath("/dashboard/festivals");
-		return {
-			success: true,
-			message: "Festival actualizado correctamente.",
-			data: result,
-		};
-	} catch (error) {
-		if (error instanceof Error && error.message === "SECTOR_HAS_RESERVATIONS") {
-			return {
-				success: false,
-				message:
-					"No puedes eliminar sectores que tienen stands con reservaciones. Elimina esas reservaciones primero.",
-			};
-		}
-		console.error("Error updating festival:", error);
-		return {
-			success: false,
-			message: "No se pudo actualizar el festival. Inténtalo nuevamente.",
-		};
-	}
+    revalidatePath("/dashboard/festivals");
+    return {
+      success: true,
+      message: "Festival actualizado correctamente.",
+      data: result,
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message === "SECTOR_HAS_RESERVATIONS") {
+      return {
+        success: false,
+        message:
+          "No puedes eliminar sectores que tienen stands con reservaciones. Elimina esas reservaciones primero.",
+      };
+    }
+    console.error("Error updating festival:", error);
+    return {
+      success: false,
+      message: "No se pudo actualizar el festival. Inténtalo nuevamente.",
+    };
+  }
 }
 
 export async function fetchFestivalActivityForReview(
-	festivalId: number,
-	activityId: number,
+  festivalId: number,
+  activityId: number,
 ) {
-	try {
-		return await db.query.festivalActivities.findFirst({
-			where: and(
-				eq(festivalActivities.festivalId, festivalId),
-				eq(festivalActivities.id, activityId),
-			),
-			with: {
-				details: {
-					orderBy: (details, { asc }) => [asc(details.id)],
-					with: {
-						participants: {
-							with: {
-								proofs: true,
-								user: true,
-							},
-						},
-					},
-				},
-			},
-		});
-	} catch (error) {
-		console.error("Error fetching festival activity for review:", error);
-		return null;
-	}
+  try {
+    return await db.query.festivalActivities.findFirst({
+      where: and(
+        eq(festivalActivities.festivalId, festivalId),
+        eq(festivalActivities.id, activityId),
+      ),
+      with: {
+        details: {
+          orderBy: (details, { asc }) => [asc(details.id)],
+          with: {
+            participants: {
+              with: {
+                proofs: true,
+                user: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching festival activity for review:", error);
+    return null;
+  }
 }
 
 /** Active + published festivals (e.g. dashboard/portal) — not the marketing banner carousel. */
 export async function fetchPublishedActiveFestivals(): Promise<
-	FestivalWithDates[]
+  FestivalWithDates[]
 > {
-	try {
-		return (await db.query.festivals.findMany({
-			where: or(
-				eq(festivals.status, "active"),
-				eq(festivals.status, "published"),
-			),
-			with: { festivalDates: true },
-			orderBy: desc(festivals.id),
-		})) as FestivalWithDates[];
-	} catch (error) {
-		console.error("Error fetching published/active festivals", error);
-		return [];
-	}
+  try {
+    return (await db.query.festivals.findMany({
+      where: or(
+        eq(festivals.status, "active"),
+        eq(festivals.status, "published"),
+      ),
+      with: { festivalDates: true },
+      orderBy: desc(festivals.id),
+    })) as FestivalWithDates[];
+  } catch (error) {
+    console.error("Error fetching published/active festivals", error);
+    return [];
+  }
 }
 
 export async function fetchFestivalActivitiesByFestivalId(
-	festivalId: number,
+  festivalId: number,
 ): Promise<FestivalActivityWithDetailsAndParticipants[]> {
-	try {
-		return (await db.query.festivalActivities.findMany({
-			where: eq(festivalActivities.festivalId, festivalId),
-			with: {
-				details: {
-					with: {
-						participants: {
-							with: {
-								proofs: true,
-								user: true,
-							},
-						},
-						votes: true,
-					},
-				},
-				waitlistEntries: { with: { user: true } },
-			},
-		})) as FestivalActivityWithDetailsAndParticipants[];
-	} catch (error) {
-		console.error("Error fetching festival activities by festival id", error);
-		return [];
-	}
+  try {
+    return (await db.query.festivalActivities.findMany({
+      where: eq(festivalActivities.festivalId, festivalId),
+      with: {
+        details: {
+          with: {
+            participants: {
+              with: {
+                proofs: true,
+                user: true,
+              },
+            },
+            votes: true,
+          },
+        },
+        waitlistEntries: { with: { user: true } },
+      },
+    })) as FestivalActivityWithDetailsAndParticipants[];
+  } catch (error) {
+    console.error("Error fetching festival activities by festival id", error);
+    return [];
+  }
 }
 
 export async function fetchFestivalWithDatesAndSectors(
-	id: number,
+  id: number,
 ): Promise<FestivalWithDatesAndSectors | null> {
-	try {
-		const festival = await db.query.festivals.findFirst({
-			where: eq(festivals.id, id),
-			with: {
-				festivalDates: true,
-				festivalSectors: {
-					with: {
-						stands: {
-							with: {
-								reservations: {
-									columns: {
-										id: true,
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		});
+  try {
+    const festival = await db.query.festivals.findFirst({
+      where: eq(festivals.id, id),
+      with: {
+        festivalDates: true,
+        festivalSectors: {
+          with: {
+            stands: {
+              with: {
+                reservations: {
+                  columns: {
+                    id: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
 
-		return festival as FestivalWithDatesAndSectors | null;
-	} catch (error) {
-		console.error("Error fetching festival with dates and sectors", error);
-		return null;
-	}
+    return festival as FestivalWithDatesAndSectors | null;
+  } catch (error) {
+    console.error("Error fetching festival with dates and sectors", error);
+    return null;
+  }
 }
 
 export async function fetchActiveFestivalWithDates(): Promise<FestivalWithDates | null> {
-	try {
-		const festival = await db.query.festivals.findFirst({
-			where: eq(festivals.status, "active"),
-			with: {
-				festivalDates: true,
-			},
-		});
+  try {
+    const festival = await db.query.festivals.findFirst({
+      where: eq(festivals.status, "active"),
+      with: {
+        festivalDates: true,
+      },
+    });
 
-		return festival as FestivalWithDates | null;
-	} catch (error) {
-		console.error("Error fetching active festival base", error);
-		return null;
-	}
+    return festival as FestivalWithDates | null;
+  } catch (error) {
+    console.error("Error fetching active festival base", error);
+    return null;
+  }
 }
 
 export async function fetchFestival({
-	acceptedUsersOnly = false,
-	id,
+  acceptedUsersOnly = false,
+  id,
 }: {
-	acceptedUsersOnly?: boolean;
-	id?: number;
+  acceptedUsersOnly?: boolean;
+  id?: number;
 }): Promise<FullFestival | null | undefined> {
-	const whereCondition = acceptedUsersOnly
-		? { where: eq(userRequests.status, "accepted") }
-		: {};
+  const whereCondition = acceptedUsersOnly
+    ? { where: eq(userRequests.status, "accepted") }
+    : {};
 
-	const festivalWhereCondition = id
-		? { where: eq(festivals.id, id) }
-		: { where: eq(festivals.status, "active") };
+  const festivalWhereCondition = id
+    ? { where: eq(festivals.id, id) }
+    : { where: eq(festivals.status, "active") };
 
-	try {
-		return await db.query.festivals.findFirst({
-			...festivalWhereCondition,
-			with: {
-				festivalDates: true,
-				userRequests: {
-					with: {
-						user: {
-							with: {
-								participations: {
-									with: {
-										reservation: {
-											with: {
-												stand: true,
-												festival: true,
-											},
-										},
-									},
-								},
-								userRequests: true,
-							},
-						},
-					},
-					...whereCondition,
-				},
-				standReservations: true,
-				festivalSectors: {
-					with: {
-						stands: true,
-					},
-				},
-				festivalActivities: {
-					with: {
-						details: {
-							with: {
-								participants: {
-									with: {
-										user: true,
-										proofs: true,
-									},
-								},
-								votes: true,
-							},
-						},
-						waitlistEntries: { with: { user: true } },
-					},
-				},
-			},
-		});
-	} catch (error) {
-		console.error("Error fetching active festival", error);
-		return null;
-	}
+  try {
+    return await db.query.festivals.findFirst({
+      ...festivalWhereCondition,
+      with: {
+        festivalDates: true,
+        userRequests: {
+          with: {
+            user: {
+              with: {
+                participations: {
+                  with: {
+                    reservation: {
+                      with: {
+                        stand: true,
+                        festival: true,
+                      },
+                    },
+                  },
+                },
+                userRequests: true,
+              },
+            },
+          },
+          ...whereCondition,
+        },
+        standReservations: true,
+        festivalSectors: {
+          with: {
+            stands: true,
+          },
+        },
+        festivalActivities: {
+          with: {
+            details: {
+              with: {
+                participants: {
+                  with: {
+                    user: true,
+                    proofs: true,
+                  },
+                },
+                votes: true,
+              },
+            },
+            waitlistEntries: { with: { user: true } },
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching active festival", error);
+    return null;
+  }
 }
 
 export async function fetchFestivalWithTicketsAndDates(
-	id: number,
+  id: number,
 ): Promise<FestivalWithTicketsAndDates | null | undefined> {
-	try {
-		return await db.query.festivals.findFirst({
-			where: eq(festivals.id, id),
-			with: {
-				festivalDates: true,
-				tickets: {
-					with: {
-						visitor: true,
-					},
-				},
-			},
-		});
-	} catch (error) {
-		console.error("Error fetching active festival", error);
-		return null;
-	}
+  try {
+    return await db.query.festivals.findFirst({
+      where: eq(festivals.id, id),
+      with: {
+        festivalDates: true,
+        tickets: {
+          with: {
+            visitor: true,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching active festival", error);
+    return null;
+  }
 }
 
 export async function fetchBaseFestival(
-	id: number,
+  id: number,
 ): Promise<FestivalBase | null | undefined> {
-	try {
-		return await db.query.festivals.findFirst({
-			where: eq(festivals.id, id),
-		});
-	} catch (error) {
-		console.error("Error fetching active festival", error);
-		return null;
-	}
+  try {
+    return await db.query.festivals.findFirst({
+      where: eq(festivals.id, id),
+    });
+  } catch (error) {
+    console.error("Error fetching active festival", error);
+    return null;
+  }
 }
 
 export async function fetchFestivalWithDates(
-	id: number,
+  id: number,
 ): Promise<FestivalWithDates | null | undefined> {
-	try {
-		return await db.query.festivals.findFirst({
-			with: {
-				festivalDates: true,
-			},
-			where: eq(festivals.id, id),
-		});
-	} catch (error) {
-		console.error("Error fetching active festival", error);
-		return null;
-	}
+  try {
+    return await db.query.festivals.findFirst({
+      with: {
+        festivalDates: true,
+      },
+      where: eq(festivals.id, id),
+    });
+  } catch (error) {
+    console.error("Error fetching active festival", error);
+    return null;
+  }
 }
 
 export async function fetchFestivals(): Promise<FestivalWithDates[]> {
-	try {
-		return await db.query.festivals.findMany({
-			with: {
-				festivalDates: true,
-			},
-			orderBy: desc(festivals.id),
-		});
-	} catch (error) {
-		console.error("Error fetching festivals", error);
-		return [];
-	}
+  try {
+    return await db.query.festivals.findMany({
+      with: {
+        festivalDates: true,
+      },
+      orderBy: desc(festivals.id),
+    });
+  } catch (error) {
+    console.error("Error fetching festivals", error);
+    return [];
+  }
 }
 
 // TODO: Improve this by running actions in the background
 // ------ BEGIN
 export async function updateFestivalStatusTemp(festival: FestivalBase) {
-	try {
-		await db
-			.update(festivals)
-			.set({ status: festival.status })
-			.where(eq(festivals.id, festival.id));
-	} catch (error) {
-		console.error(error);
-		return { success: false, message: "Error al actualizar el festival" };
-	}
+  try {
+    await db
+      .update(festivals)
+      .set({ status: festival.status })
+      .where(eq(festivals.id, festival.id));
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al actualizar el festival" };
+  }
 
-	revalidatePath("/dashboard/festivals");
-	return { success: true, message: "Festival actualizado con éxito" };
+  revalidatePath("/dashboard/festivals");
+  return { success: true, message: "Festival actualizado con éxito" };
 }
 
 export async function getFestivalAvailableUsers(festivalId: number) {
-	try {
-		const sectors = await db.query.festivalSectors.findMany({
-			with: {
-				stands: true,
-			},
-			where: eq(festivalSectors.festivalId, festivalId),
-		});
+  try {
+    const sectors = await db.query.festivalSectors.findMany({
+      with: {
+        stands: true,
+      },
+      where: eq(festivalSectors.festivalId, festivalId),
+    });
 
-		const categories = [
-			...new Set(
-				sectors.flatMap((sector) =>
-					getFestivalSectorAllowedCategories(sector, true),
-				),
-			),
-		];
+    const categories = [
+      ...new Set(
+        sectors.flatMap((sector) =>
+          getFestivalSectorAllowedCategories(sector, true),
+        ),
+      ),
+    ];
 
-		return await db
-			.select()
-			.from(users)
-			.where(
-				and(eq(users.status, "verified"), inArray(users.category, categories)),
-			);
-	} catch (error) {
-		console.error(error);
-		return [];
-	}
+    return await db
+      .select()
+      .from(users)
+      .where(
+        and(eq(users.status, "verified"), inArray(users.category, categories)),
+      );
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
 }
 export async function sendUserEmailsTemp(
-	users: BaseProfile[],
-	festivalId: number,
+  users: BaseProfile[],
+  festivalId: number,
 ) {
-	try {
-		const festivalWithDates = await fetchFestivalWithDates(festivalId);
-		await queueEmails<BaseProfile>(users, festivalWithDates!, sendEmailToUsers);
-	} catch (error) {}
+  try {
+    const festivalWithDates = await fetchFestivalWithDates(festivalId);
+    await queueEmails<BaseProfile>(users, festivalWithDates!, sendEmailToUsers);
+  } catch (error) {}
 }
 // ------ END
 
 export async function updateFestivalStatus(festival: FestivalBase) {
-	try {
-		const { status } = festival;
-		const [updatedFestival] = await db
-			.update(festivals)
-			.set({ status })
-			.where(eq(festivals.id, festival.id))
-			.returning();
+  try {
+    const { status } = festival;
+    const [updatedFestival] = await db
+      .update(festivals)
+      .set({ status })
+      .where(eq(festivals.id, festival.id))
+      .returning();
 
-		const festivalWithDates = await fetchFestivalWithDates(updatedFestival.id);
+    const festivalWithDates = await fetchFestivalWithDates(updatedFestival.id);
 
-		if (updatedFestival.status === "active") {
-			const sectors = await db.query.festivalSectors.findMany({
-				with: {
-					stands: true,
-				},
-				where: eq(festivalSectors.festivalId, festival.id),
-			});
+    if (updatedFestival.status === "active") {
+      const sectors = await db.query.festivalSectors.findMany({
+        with: {
+          stands: true,
+        },
+        where: eq(festivalSectors.festivalId, festival.id),
+      });
 
-			const categories = [
-				...new Set(
-					sectors.flatMap((sector) =>
-						getFestivalSectorAllowedCategories(sector, true),
-					),
-				),
-			];
+      const categories = [
+        ...new Set(
+          sectors.flatMap((sector) =>
+            getFestivalSectorAllowedCategories(sector, true),
+          ),
+        ),
+      ];
 
-			const result = await db
-				.select()
-				.from(users)
-				.innerJoin(
-					profileSubcategories,
-					eq(users.id, profileSubcategories.profileId),
-				)
-				.where(
-					and(
-						eq(users.status, "verified"),
-						inArray(users.category, categories),
-					),
-				);
+      const result = await db
+        .select()
+        .from(users)
+        .innerJoin(
+          profileSubcategories,
+          eq(users.id, profileSubcategories.profileId),
+        )
+        .where(
+          and(
+            eq(users.status, "verified"),
+            inArray(users.category, categories),
+          ),
+        );
 
-			const availableUsers = result.map((result) => result.users);
+      const availableUsers = result.map((result) => result.users);
 
-			await queueEmails<BaseProfile>(
-				availableUsers,
-				festivalWithDates!,
-				sendEmailToUsers,
-			);
-		}
-	} catch (error) {
-		console.error("Error activating festival", error);
-		return { success: false, message: "Error al actualizar el festival" };
-	}
+      await queueEmails<BaseProfile>(
+        availableUsers,
+        festivalWithDates!,
+        sendEmailToUsers,
+      );
+    }
+  } catch (error) {
+    console.error("Error activating festival", error);
+    return { success: false, message: "Error al actualizar el festival" };
+  }
 
-	revalidatePath("/dashboard/festivals");
-	return { success: true, message: "Festival actualizado con éxito" };
+  revalidatePath("/dashboard/festivals");
+  return { success: true, message: "Festival actualizado con éxito" };
 }
 
 export async function updateFestivalRegistration(
-	publicRegistrationValue: FestivalBase["publicRegistration"],
-	festivalId: FestivalBase["id"],
+  publicRegistrationValue: FestivalBase["publicRegistration"],
+  festivalId: FestivalBase["id"],
 ) {
-	try {
-		const [updatedFestival] = await db
-			.update(festivals)
-			.set({ publicRegistration: publicRegistrationValue })
-			.where(eq(festivals.id, festivalId))
-			.returning({ festivalId: festivals.id });
+  try {
+    const [updatedFestival] = await db
+      .update(festivals)
+      .set({ publicRegistration: publicRegistrationValue })
+      .where(eq(festivals.id, festivalId))
+      .returning({ festivalId: festivals.id });
 
-		const festivalWithDates = await fetchFestivalWithDates(
-			updatedFestival.festivalId,
-		);
+    const festivalWithDates = await fetchFestivalWithDates(
+      updatedFestival.festivalId,
+    );
 
-		const visitors = await fetchVisitorsEmails();
-		const emailGroups = groupVisitorEmails(visitors);
+    const visitors = await fetchVisitorsEmails();
+    const emailGroups = groupVisitorEmails(visitors);
 
-		if (festivalWithDates?.publicRegistration) {
-			await queueEmails<string[]>(
-				emailGroups,
-				festivalWithDates,
-				sendEmailToVisitors,
-			);
-		}
-	} catch (error) {
-		console.error("Error updating festival registration", error);
-		return { success: false, message: "Error al actualizar el festival" };
-	}
+    if (festivalWithDates?.publicRegistration) {
+      await queueEmails<string[]>(
+        emailGroups,
+        festivalWithDates,
+        sendEmailToVisitors,
+      );
+    }
+  } catch (error) {
+    console.error("Error updating festival registration", error);
+    return { success: false, message: "Error al actualizar el festival" };
+  }
 
-	revalidatePath("/dashboard/festivals");
-	return { success: true, message: "Festival actualizado con éxito" };
+  revalidatePath("/dashboard/festivals");
+  return { success: true, message: "Festival actualizado con éxito" };
 }
 
 export async function queueEmails<T>(
-	entities: T[],
-	festival: FestivalWithDates,
-	callback: (entity: T, festival: FestivalWithDates) => Promise<void>,
+  entities: T[],
+  festival: FestivalWithDates,
+  callback: (entity: T, festival: FestivalWithDates) => Promise<void>,
 ) {
-	let counter = 0;
-	for (const entity of entities) {
-		if (counter % 10 === 0) {
-			await new Promise((resolve) => setTimeout(resolve, 1000));
-		}
-		await callback(entity, festival);
-		counter++;
-	}
+  let counter = 0;
+  for (const entity of entities) {
+    if (counter % 10 === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    await callback(entity, festival);
+    counter++;
+  }
 }
 
 export async function sendEmailToVisitors(
-	emails: string[],
-	festival: FestivalWithDates,
+  emails: string[],
+  festival: FestivalWithDates,
 ) {
-	const { error } = await sendEmail({
-		to: "visitantes@productoraglitter.com",
-		from: "Equipo Glitter <equipo@productoraglitter.com>",
-		bcc: emails,
-		subject: "Pre-registro abierto para nuestro próximo festival",
-		react: RegistrationInvitationEmailTemplate({
-			festival: festival,
-		}) as React.ReactElement,
-		// this might be preventing that the email is sent to all the visitors we need
-		// so i'll comment it for now
-		// headers: {
-		// 	"X-Entity-Ref-ID": new Date().getTime().toString(),
-		// },
-		replyTo: "visitantes@productoraglitter.com",
-	});
-	if (error) {
-		console.error("Error sending email to visitors", error);
-	}
+  const { error } = await sendEmail({
+    to: "visitantes@productoraglitter.com",
+    from: "Equipo Glitter <equipo@productoraglitter.com>",
+    bcc: emails,
+    subject: "Pre-registro abierto para nuestro próximo festival",
+    react: RegistrationInvitationEmailTemplate({
+      festival: festival,
+    }) as React.ReactElement,
+    // this might be preventing that the email is sent to all the visitors we need
+    // so i'll comment it for now
+    // headers: {
+    // 	"X-Entity-Ref-ID": new Date().getTime().toString(),
+    // },
+    replyTo: "visitantes@productoraglitter.com",
+  });
+  if (error) {
+    console.error("Error sending email to visitors", error);
+  }
 }
 
 export async function sendEmailToUsers(
-	user: BaseProfile,
-	festival: FestivalWithDates,
+  user: BaseProfile,
+  festival: FestivalWithDates,
 ) {
-	const { error } = await sendEmail({
-		to: [user.email],
-		from: "Productora Glitter <eventos@productoraglitter.com>",
-		subject: `¡Hola ${user.displayName || ""}! Te invitamos a participar en ${
-			festival.name
-		}`,
-		react: EmailTemplate({
-			profile: user,
-			festival: festival,
-		}) as React.ReactElement,
-	});
-	if (error) {
-		console.error("Error sending email to users", error);
-	}
+  const { error } = await sendEmail({
+    to: [user.email],
+    from: "Productora Glitter <eventos@productoraglitter.com>",
+    subject: `¡Hola ${user.displayName || ""}! Te invitamos a participar en ${
+      festival.name
+    }`,
+    react: EmailTemplate({
+      profile: user,
+      festival: festival,
+    }) as React.ReactElement,
+  });
+  if (error) {
+    console.error("Error sending email to users", error);
+  }
 }
 
 export async function fetchAvailableArtistsInFestival(
-	festivalId: number,
+  festivalId: number,
 ): Promise<BaseProfile[]> {
-	try {
-		const usersTableColumns = getTableColumns(users);
-		return await db.transaction(async (tx) => {
-			const festivalParticipantIds = await tx
-				.select({ participantId: reservationParticipants.userId })
-				.from(reservationParticipants)
-				.leftJoin(
-					standReservations,
-					eq(standReservations.id, reservationParticipants.reservationId),
-				)
-				.where(eq(standReservations.festivalId, festivalId));
+  try {
+    const usersTableColumns = getTableColumns(users);
+    return await db.transaction(async (tx) => {
+      const festivalParticipantIds = await tx
+        .select({ participantId: reservationParticipants.userId })
+        .from(reservationParticipants)
+        .leftJoin(
+          standReservations,
+          eq(standReservations.id, reservationParticipants.reservationId),
+        )
+        .where(eq(standReservations.festivalId, festivalId));
 
-			const participantsWhereCondition = [
-				eq(users.status, "verified"),
-				inArray(users.category, ["illustration", "new_artist"]),
-				not(eq(users.role, "admin")),
-				eq(userRequests.status, "accepted"),
-				eq(userRequests.festivalId, festivalId),
-			];
+      const participantsWhereCondition = [
+        eq(users.status, "verified"),
+        inArray(users.category, ["illustration", "new_artist"]),
+        not(eq(users.role, "admin")),
+        eq(userRequests.status, "accepted"),
+        eq(userRequests.festivalId, festivalId),
+      ];
 
-			if (festivalParticipantIds.length > 0) {
-				participantsWhereCondition.push(
-					not(
-						inArray(
-							users.id,
-							festivalParticipantIds.map(
-								(participant) => participant.participantId,
-							),
-						),
-					),
-				);
-			}
+      if (festivalParticipantIds.length > 0) {
+        participantsWhereCondition.push(
+          not(
+            inArray(
+              users.id,
+              festivalParticipantIds.map(
+                (participant) => participant.participantId,
+              ),
+            ),
+          ),
+        );
+      }
 
-			return await tx
-				.selectDistinctOn([users.id], usersTableColumns)
-				.from(users)
-				.leftJoin(userRequests, eq(userRequests.userId, users.id))
-				.leftJoin(
-					reservationParticipants,
-					eq(reservationParticipants.userId, users.id),
-				)
-				.where(and(...participantsWhereCondition));
-		});
-	} catch (error) {
-		console.error("Error fetching profiles in festival", error);
-		return [];
-	}
+      return await tx
+        .selectDistinctOn([users.id], usersTableColumns)
+        .from(users)
+        .leftJoin(userRequests, eq(userRequests.userId, users.id))
+        .leftJoin(
+          reservationParticipants,
+          eq(reservationParticipants.userId, users.id),
+        )
+        .where(and(...participantsWhereCondition));
+    });
+  } catch (error) {
+    console.error("Error fetching profiles in festival", error);
+    return [];
+  }
 }
 
 export async function searchPotentialPartners(
-	festivalId: number,
-	excludeUserId: number,
-	query: string,
+  festivalId: number,
+  excludeUserId: number,
+  query: string,
 ): Promise<(BaseProfile & { isEligible: boolean })[]> {
-	if (!query.trim()) return [];
-	try {
-		const usersTableColumns = getTableColumns(users);
-		return await db.transaction(async (tx) => {
-			// Users who have any reservation for this festival (excluded entirely)
-			const usersWithReservations = await tx
-				.select({ userId: reservationParticipants.userId })
-				.from(reservationParticipants)
-				.leftJoin(
-					standReservations,
-					eq(standReservations.id, reservationParticipants.reservationId),
-				)
-				.where(eq(standReservations.festivalId, festivalId));
+  if (!query.trim()) return [];
+  try {
+    const usersTableColumns = getTableColumns(users);
+    return await db.transaction(async (tx) => {
+      // Users who have any reservation for this festival (excluded entirely)
+      const usersWithReservations = await tx
+        .select({ userId: reservationParticipants.userId })
+        .from(reservationParticipants)
+        .leftJoin(
+          standReservations,
+          eq(standReservations.id, reservationParticipants.reservationId),
+        )
+        .where(eq(standReservations.festivalId, festivalId));
 
-			const reservedUserIds = usersWithReservations
-				.map((r) => r.userId)
-				.filter((id): id is number => id !== null);
+      const reservedUserIds = usersWithReservations
+        .map((r) => r.userId)
+        .filter((id): id is number => id !== null);
 
-			// Users who have accepted T&C (enrolled in festival)
-			const enrolledUsers = await tx
-				.select({ userId: userRequests.userId })
-				.from(userRequests)
-				.where(
-					and(
-						eq(userRequests.festivalId, festivalId),
-						eq(userRequests.status, "accepted"),
-						eq(userRequests.type, "festival_participation"),
-					),
-				);
+      // Users who have accepted T&C (enrolled in festival)
+      const enrolledUsers = await tx
+        .select({ userId: userRequests.userId })
+        .from(userRequests)
+        .where(
+          and(
+            eq(userRequests.festivalId, festivalId),
+            eq(userRequests.status, "accepted"),
+            eq(userRequests.type, "festival_participation"),
+          ),
+        );
 
-			const enrolledUserIds = new Set(enrolledUsers.map((e) => e.userId));
+      const enrolledUserIds = new Set(enrolledUsers.map((e) => e.userId));
 
-			const normalizedQuery = query.replace(/\s+/g, "").toLowerCase();
+      const normalizedQuery = query.replace(/\s+/g, "").toLowerCase();
 
-			const whereConditions: Parameters<typeof and>[0][] = [
-				eq(users.status, "verified"),
-				inArray(users.category, ["illustration", "new_artist"]),
-				not(eq(users.role, "admin")),
-				not(eq(users.id, excludeUserId)),
-				isNotNull(users.displayName),
-				sql`similarity(
+      const whereConditions: Parameters<typeof and>[0][] = [
+        eq(users.status, "verified"),
+        inArray(users.category, ["illustration", "new_artist"]),
+        not(eq(users.role, "admin")),
+        not(eq(users.id, excludeUserId)),
+        isNotNull(users.displayName),
+        sql`similarity(
 					replace(lower(${users.displayName}), ' ', ''),
 					${normalizedQuery}
 				) > 0.1`,
-			];
+      ];
 
-			if (reservedUserIds.length > 0) {
-				whereConditions.push(not(inArray(users.id, reservedUserIds)));
-			}
+      if (reservedUserIds.length > 0) {
+        whereConditions.push(not(inArray(users.id, reservedUserIds)));
+      }
 
-			const matchedUsers = await tx
-				.select(usersTableColumns)
-				.from(users)
-				.where(and(...whereConditions))
-				.orderBy(
-					// Tier 1: names containing the query as a substring come first
-					sql`CASE WHEN replace(lower(${users.displayName}), ' ', '')
+      const matchedUsers = await tx
+        .select(usersTableColumns)
+        .from(users)
+        .where(and(...whereConditions))
+        .orderBy(
+          // Tier 1: names containing the query as a substring come first
+          sql`CASE WHEN replace(lower(${users.displayName}), ' ', '')
 						LIKE '%' || ${normalizedQuery} || '%'
 					THEN 0 ELSE 1 END`,
-					// Tier 2: within each tier, best trigram similarity first
-					sql`similarity(
+          // Tier 2: within each tier, best trigram similarity first
+          sql`similarity(
 						replace(lower(${users.displayName}), ' ', ''),
 						${normalizedQuery}
 					) DESC`,
-				)
-				.limit(5);
+        )
+        .limit(5);
 
-			return matchedUsers.map((user) => ({
-				...user,
-				isEligible: enrolledUserIds.has(user.id),
-			}));
-		});
-	} catch (error) {
-		console.error("Error searching potential partners for festival", error);
-		return [];
-	}
+      return matchedUsers.map((user) => ({
+        ...user,
+        isEligible: enrolledUserIds.has(user.id),
+      }));
+    });
+  } catch (error) {
+    console.error("Error searching potential partners for festival", error);
+    return [];
+  }
 }
 
 export async function fetchRecentSharedStandPartners(
-	festivalId: number,
-	profileId: number,
-	limit = 3,
+  festivalId: number,
+  profileId: number,
+  limit = 3,
 ): Promise<RecentSharedStandPartner[]> {
-	if (limit <= 0) return [];
+  if (limit <= 0) return [];
 
-	try {
-		const usersTableColumns = getTableColumns(users);
+  try {
+    const usersTableColumns = getTableColumns(users);
 
-		return await db.transaction(async (tx) => {
-			const ownParticipations = await tx
-				.select({
-					reservationId: reservationParticipants.reservationId,
-					participatedAt: reservationParticipants.createdAt,
-				})
-				.from(reservationParticipants)
-				.where(eq(reservationParticipants.userId, profileId))
-				.orderBy(desc(reservationParticipants.createdAt));
+    return await db.transaction(async (tx) => {
+      const ownParticipations = await tx
+        .select({
+          reservationId: reservationParticipants.reservationId,
+          participatedAt: reservationParticipants.createdAt,
+        })
+        .from(reservationParticipants)
+        .where(eq(reservationParticipants.userId, profileId))
+        .orderBy(desc(reservationParticipants.createdAt));
 
-			if (!ownParticipations.length) return [];
+      if (!ownParticipations.length) return [];
 
-			const reservationParticipationDate = new Map<number, Date>();
-			for (const participation of ownParticipations) {
-				if (!reservationParticipationDate.has(participation.reservationId)) {
-					reservationParticipationDate.set(
-						participation.reservationId,
-						participation.participatedAt,
-					);
-				}
-			}
+      const reservationParticipationDate = new Map<number, Date>();
+      for (const participation of ownParticipations) {
+        if (!reservationParticipationDate.has(participation.reservationId)) {
+          reservationParticipationDate.set(
+            participation.reservationId,
+            participation.participatedAt,
+          );
+        }
+      }
 
-			const reservationIds = [...reservationParticipationDate.keys()];
-			if (!reservationIds.length) return [];
+      const reservationIds = [...reservationParticipationDate.keys()];
+      if (!reservationIds.length) return [];
 
-			const coParticipants = await tx
-				.select({
-					reservationId: reservationParticipants.reservationId,
-					user: usersTableColumns,
-				})
-				.from(reservationParticipants)
-				.leftJoin(users, eq(users.id, reservationParticipants.userId))
-				.where(
-					and(
-						inArray(reservationParticipants.reservationId, reservationIds),
-						not(eq(reservationParticipants.userId, profileId)),
-					),
-				);
+      const coParticipants = await tx
+        .select({
+          reservationId: reservationParticipants.reservationId,
+          user: usersTableColumns,
+        })
+        .from(reservationParticipants)
+        .leftJoin(users, eq(users.id, reservationParticipants.userId))
+        .where(
+          and(
+            inArray(reservationParticipants.reservationId, reservationIds),
+            not(eq(reservationParticipants.userId, profileId)),
+          ),
+        );
 
-			if (!coParticipants.length) return [];
+      if (!coParticipants.length) return [];
 
-			const uniquePartners = new Map<
-				number,
-				{
-					user: typeof users.$inferSelect;
-					sharedAt: Date;
-				}
-			>();
+      const uniquePartners = new Map<
+        number,
+        {
+          user: typeof users.$inferSelect;
+          sharedAt: Date;
+        }
+      >();
 
-			for (const row of coParticipants) {
-				if (!row.user) continue;
-				const sharedAt =
-					reservationParticipationDate.get(row.reservationId) ?? new Date(0);
-				const existing = uniquePartners.get(row.user.id);
+      for (const row of coParticipants) {
+        if (!row.user) continue;
+        const sharedAt =
+          reservationParticipationDate.get(row.reservationId) ?? new Date(0);
+        const existing = uniquePartners.get(row.user.id);
 
-				if (!existing || sharedAt.getTime() > existing.sharedAt.getTime()) {
-					uniquePartners.set(row.user.id, {
-						user: row.user,
-						sharedAt,
-					});
-				}
-			}
+        if (!existing || sharedAt.getTime() > existing.sharedAt.getTime()) {
+          uniquePartners.set(row.user.id, {
+            user: row.user,
+            sharedAt,
+          });
+        }
+      }
 
-			const recentPartners = [...uniquePartners.values()]
-				.sort((a, b) => b.sharedAt.getTime() - a.sharedAt.getTime())
-				.slice(0, limit)
-				.map((entry) => entry.user);
+      const recentPartners = [...uniquePartners.values()]
+        .sort((a, b) => b.sharedAt.getTime() - a.sharedAt.getTime())
+        .slice(0, limit)
+        .map((entry) => entry.user);
 
-			if (!recentPartners.length) return [];
+      if (!recentPartners.length) return [];
 
-			const partnerIds = recentPartners.map((partner) => partner.id);
+      const partnerIds = recentPartners.map((partner) => partner.id);
 
-			const usersWithReservations = await tx
-				.select({ userId: reservationParticipants.userId })
-				.from(reservationParticipants)
-				.leftJoin(
-					standReservations,
-					eq(standReservations.id, reservationParticipants.reservationId),
-				)
-				.where(
-					and(
-						eq(standReservations.festivalId, festivalId),
-						inArray(reservationParticipants.userId, partnerIds),
-					),
-				);
+      const usersWithReservations = await tx
+        .select({ userId: reservationParticipants.userId })
+        .from(reservationParticipants)
+        .leftJoin(
+          standReservations,
+          eq(standReservations.id, reservationParticipants.reservationId),
+        )
+        .where(
+          and(
+            eq(standReservations.festivalId, festivalId),
+            inArray(reservationParticipants.userId, partnerIds),
+          ),
+        );
 
-			const reservedUserIds = new Set(
-				usersWithReservations
-					.map((row) => row.userId)
-					.filter((id): id is number => id !== null),
-			);
+      const reservedUserIds = new Set(
+        usersWithReservations
+          .map((row) => row.userId)
+          .filter((id): id is number => id !== null),
+      );
 
-			const enrolledUsers = await tx
-				.select({ userId: userRequests.userId })
-				.from(userRequests)
-				.where(
-					and(
-						eq(userRequests.festivalId, festivalId),
-						eq(userRequests.status, "accepted"),
-						eq(userRequests.type, "festival_participation"),
-						inArray(userRequests.userId, partnerIds),
-					),
-				);
+      const enrolledUsers = await tx
+        .select({ userId: userRequests.userId })
+        .from(userRequests)
+        .where(
+          and(
+            eq(userRequests.festivalId, festivalId),
+            eq(userRequests.status, "accepted"),
+            eq(userRequests.type, "festival_participation"),
+            inArray(userRequests.userId, partnerIds),
+          ),
+        );
 
-			const enrolledUserIds = new Set(enrolledUsers.map((row) => row.userId));
+      const enrolledUserIds = new Set(enrolledUsers.map((row) => row.userId));
 
-			return recentPartners.map((user) => ({
-				...user,
-				isEligible: enrolledUserIds.has(user.id),
-				isReserved: reservedUserIds.has(user.id),
-				isSelectable:
-					user.status === "verified" &&
-					(user.category === "illustration" ||
-						user.category === "new_artist") &&
-					user.role !== "admin",
-			}));
-		});
-	} catch (error) {
-		console.error("Error fetching recent shared stand partners", error);
-		return [];
-	}
+      return recentPartners.map((user) => ({
+        ...user,
+        isEligible: enrolledUserIds.has(user.id),
+        isReserved: reservedUserIds.has(user.id),
+        isSelectable:
+          user.status === "verified" &&
+          (user.category === "illustration" ||
+            user.category === "new_artist") &&
+          user.role !== "admin",
+      }));
+    });
+  } catch (error) {
+    console.error("Error fetching recent shared stand partners", error);
+    return [];
+  }
 }
 
 export async function fetchFestivalParticipants(
-	festivalId: number,
-	confirmedOnly = false,
+  festivalId: number,
+  confirmedOnly = false,
 ): Promise<ParticipationWithParticipantWithInfractionsAndReservations[]> {
-	const whereCondition = confirmedOnly
-		? and(
-				eq(standReservations.festivalId, festivalId),
-				eq(standReservations.status, "accepted"),
-			)
-		: eq(standReservations.festivalId, festivalId);
+  const whereCondition = confirmedOnly
+    ? and(
+        eq(standReservations.festivalId, festivalId),
+        eq(standReservations.status, "accepted"),
+      )
+    : eq(standReservations.festivalId, festivalId);
 
-	try {
-		const participantsWithReservationsSubquery = db
-			.select({ id: standReservations.id })
-			.from(standReservations)
-			.where(whereCondition);
+  try {
+    const participantsWithReservationsSubquery = db
+      .select({ id: standReservations.id })
+      .from(standReservations)
+      .where(whereCondition);
 
-		return await db.query.reservationParticipants.findMany({
-			where: inArray(
-				reservationParticipants.reservationId,
-				participantsWithReservationsSubquery,
-			),
-			with: {
-				user: {
-					with: {
-						infractions: {
-							with: {
-								type: true,
-							},
-						},
-					},
-				},
-				reservation: {
-					with: {
-						stand: true,
-						festival: true,
-					},
-				},
-			},
-		});
-	} catch (error) {
-		console.error("Error fetching festival participants", error);
-		return [];
-	}
+    return await db.query.reservationParticipants.findMany({
+      where: inArray(
+        reservationParticipants.reservationId,
+        participantsWithReservationsSubquery,
+      ),
+      with: {
+        user: {
+          with: {
+            infractions: {
+              with: {
+                type: true,
+              },
+            },
+          },
+        },
+        reservation: {
+          with: {
+            stand: true,
+            festival: true,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching festival participants", error);
+    return [];
+  }
 }
 
 /**
@@ -1145,91 +1145,91 @@ export async function fetchFestivalParticipants(
  * @returns An array of profiles
  */
 export async function fetchEnrolledParticipants(
-	festivalId: number,
+  festivalId: number,
 ): Promise<BaseProfile[]> {
-	try {
-		const participantsWithReservationsSubquery = db
-			.select({ userId: reservationParticipants.userId })
-			.from(reservationParticipants)
-			.leftJoin(
-				standReservations,
-				eq(standReservations.id, reservationParticipants.reservationId),
-			)
-			.where(and(eq(standReservations.festivalId, festivalId)));
+  try {
+    const participantsWithReservationsSubquery = db
+      .select({ userId: reservationParticipants.userId })
+      .from(reservationParticipants)
+      .leftJoin(
+        standReservations,
+        eq(standReservations.id, reservationParticipants.reservationId),
+      )
+      .where(and(eq(standReservations.festivalId, festivalId)));
 
-		const queryResult = await db
-			.selectDistinctOn([userRequests.userId], {
-				users: users,
-			})
-			.from(userRequests)
-			.leftJoin(users, eq(users.id, userRequests.userId))
-			.where(
-				and(
-					eq(userRequests.type, "festival_participation"),
-					eq(userRequests.festivalId, festivalId),
-					not(
-						inArray(
-							userRequests.userId,
-							// --- SQL Query equivalent to the subquery
-							// sql`(
-							//   select participations.user_id from participations
-							//   left join stand_reservations on participations.reservation_id = stand_reservations.id
-							//   where stand_reservations.festival_id = ${festivalId} and stand_reservations.status != 'rejected'
-							// )`,
-							participantsWithReservationsSubquery,
-						),
-					),
-				),
-			);
+    const queryResult = await db
+      .selectDistinctOn([userRequests.userId], {
+        users: users,
+      })
+      .from(userRequests)
+      .leftJoin(users, eq(users.id, userRequests.userId))
+      .where(
+        and(
+          eq(userRequests.type, "festival_participation"),
+          eq(userRequests.festivalId, festivalId),
+          not(
+            inArray(
+              userRequests.userId,
+              // --- SQL Query equivalent to the subquery
+              // sql`(
+              //   select participations.user_id from participations
+              //   left join stand_reservations on participations.reservation_id = stand_reservations.id
+              //   where stand_reservations.festival_id = ${festivalId} and stand_reservations.status != 'rejected'
+              // )`,
+              participantsWithReservationsSubquery,
+            ),
+          ),
+        ),
+      );
 
-		return queryResult
-			.map((userRequest) => userRequest.users)
-			.filter((user): user is NonNullable<typeof user> => user !== null);
-	} catch (error) {
-		console.error(error);
-		return [];
-	}
+    return queryResult
+      .map((userRequest) => userRequest.users)
+      .filter((user): user is NonNullable<typeof user> => user !== null);
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
 }
 
 export async function fetchProfileEnrollmentInFestival(
-	profileId: number,
-	festivalId: number,
+  profileId: number,
+  festivalId: number,
 ) {
-	try {
-		return await db.query.userRequests.findFirst({
-			where: and(
-				eq(userRequests.userId, profileId),
-				eq(userRequests.festivalId, festivalId),
-				eq(userRequests.type, "festival_participation"),
-			),
-		});
-	} catch (error) {
-		console.error("Error fetching profile enrollment in festival", error);
-		return null;
-	}
+  try {
+    return await db.query.userRequests.findFirst({
+      where: and(
+        eq(userRequests.userId, profileId),
+        eq(userRequests.festivalId, festivalId),
+        eq(userRequests.type, "festival_participation"),
+      ),
+    });
+  } catch (error) {
+    console.error("Error fetching profile enrollment in festival", error);
+    return null;
+  }
 }
 
 export async function fetchAllFestivalEnrolledUsers(
-	festivalId: number,
+  festivalId: number,
 ): Promise<BaseProfile[]> {
-	try {
-		const result = await db
-			.selectDistinctOn([userRequests.userId], { user: users })
-			.from(userRequests)
-			.leftJoin(users, eq(users.id, userRequests.userId))
-			.where(
-				and(
-					eq(userRequests.type, "festival_participation"),
-					eq(userRequests.festivalId, festivalId),
-					eq(userRequests.status, "accepted"),
-				),
-			);
+  try {
+    const result = await db
+      .selectDistinctOn([userRequests.userId], { user: users })
+      .from(userRequests)
+      .leftJoin(users, eq(users.id, userRequests.userId))
+      .where(
+        and(
+          eq(userRequests.type, "festival_participation"),
+          eq(userRequests.festivalId, festivalId),
+          eq(userRequests.status, "accepted"),
+        ),
+      );
 
-		return result
-			.map((row) => row.user)
-			.filter((user): user is NonNullable<typeof user> => user !== null);
-	} catch (error) {
-		console.error("Error fetching all festival enrolled users", error);
-		return [];
-	}
+    return result
+      .map((row) => row.user)
+      .filter((user): user is NonNullable<typeof user> => user !== null);
+  } catch (error) {
+    console.error("Error fetching all festival enrolled users", error);
+    return [];
+  }
 }

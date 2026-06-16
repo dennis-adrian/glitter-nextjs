@@ -12,7 +12,7 @@ const PaymentSchema = z.object({
   voucherUrl: z.url(),
   oldVoucherUrl: z.url().optional(),
   reservationId: z.number(),
-  standId: z.number()
+  standId: z.number(),
 });
 
 export type CreatePaymentRequestType = z.infer<typeof PaymentSchema>;

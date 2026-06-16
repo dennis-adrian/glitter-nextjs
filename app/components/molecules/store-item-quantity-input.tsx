@@ -12,157 +12,148 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "../ui/button";
 import {
-	Form,
-	FormControl,
-	FormField,
-	FormItem,
-	FormLabel,
-	FormMessage,
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
 } from "../ui/form";
 import { Input } from "../ui/input";
 import SubmitProductOrderButton from "@/app/components/molecules/submit-product-order-button";
 import { MAX_CART_LINE_QUANTITY } from "@/app/lib/constants";
 
 type StoreItemQuantityInputProps = {
-	product: BaseProductWithImages;
+  product: BaseProductWithImages;
 };
 
 export default function StoreItemQuantityInput({
-	product,
+  product,
 }: StoreItemQuantityInputProps) {
-	const { setItemCount, isAuthenticated, addGuestItem } = useCartContext();
-	const maxQuantity = Math.min(
-		MAX_CART_LINE_QUANTITY,
-		product.stock ?? MAX_CART_LINE_QUANTITY,
-	);
+  const { setItemCount, isAuthenticated, addGuestItem } = useCartContext();
+  const maxQuantity = Math.min(
+    MAX_CART_LINE_QUANTITY,
+    product.stock ?? MAX_CART_LINE_QUANTITY,
+  );
 
-	const formSchema = useMemo(
-		() =>
-			z.object({
-				itemQuantity: z.coerce
-					.number()
-					.min(1, {
-						error: "La cantidad mínima es 1",
-					})
-					.max(maxQuantity, {
-						error: `La cantidad máxima es ${maxQuantity}`,
-					}),
-			}),
-		[maxQuantity],
-	);
+  const formSchema = useMemo(
+    () =>
+      z.object({
+        itemQuantity: z.coerce
+          .number()
+          .min(1, {
+            error: "La cantidad mínima es 1",
+          })
+          .max(maxQuantity, {
+            error: `La cantidad máxima es ${maxQuantity}`,
+          }),
+      }),
+    [maxQuantity],
+  );
 
-	const form = useForm({
-		resolver: zodResolver(formSchema),
-		defaultValues: {
-			itemQuantity: 1,
-		},
-	});
+  const form = useForm({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      itemQuantity: 1,
+    },
+  });
 
-	const handleAddItem = (e: React.MouseEvent<HTMLButtonElement>) => {
-		e.preventDefault();
-		const currentValue = form.getValues("itemQuantity") as number;
-		form.setValue(
-			"itemQuantity",
-			Math.min(maxQuantity, currentValue + 1),
-		);
-	};
+  const handleAddItem = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    const currentValue = form.getValues("itemQuantity") as number;
+    form.setValue("itemQuantity", Math.min(maxQuantity, currentValue + 1));
+  };
 
-	const handleRemoveItem = (e: React.MouseEvent<HTMLButtonElement>) => {
-		e.preventDefault();
-		const value = form.getValues("itemQuantity") as number;
-		if (value <= 1) return;
-		form.setValue("itemQuantity", value - 1);
-	};
+  const handleRemoveItem = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    const value = form.getValues("itemQuantity") as number;
+    if (value <= 1) return;
+    form.setValue("itemQuantity", value - 1);
+  };
 
-	const action: () => void = form.handleSubmit(async (data) => {
-		const quantity = Math.min(data.itemQuantity, maxQuantity);
-		if (isAuthenticated) {
-			const { success, newCount } = await addToCart(product.id, quantity);
+  const action: () => void = form.handleSubmit(async (data) => {
+    const quantity = Math.min(data.itemQuantity, maxQuantity);
+    if (isAuthenticated) {
+      const { success, newCount } = await addToCart(product.id, quantity);
 
-			if (success) {
-				setItemCount(newCount);
-				toast.success("Producto agregado al carrito");
-			} else {
-				toast.error("No se pudo agregar al carrito");
-			}
-		} else {
-			addGuestItem({
-				productId: product.id,
-				quantity,
-				product,
-			});
-			toast.success("Producto agregado al carrito");
-		}
+      if (success) {
+        setItemCount(newCount);
+        toast.success("Producto agregado al carrito");
+      } else {
+        toast.error("No se pudo agregar al carrito");
+      }
+    } else {
+      addGuestItem({
+        productId: product.id,
+        quantity,
+        product,
+      });
+      toast.success("Producto agregado al carrito");
+    }
 
-		form.reset();
-	});
+    form.reset();
+  });
 
-	return (
-		<Form {...form}>
-			<form className="flex flex-col gap-4 mt-4" onSubmit={action}>
-				{(product.stock ?? 0) > 0 && (
-					<FormField
-						control={form.control}
-						name="itemQuantity"
-						render={({ field }) => (
-							<FormItem className="flex flex-col items-end gap-1 self-end">
-								<FormLabel className="self-start">Cantidad</FormLabel>
-								<div className="flex gap-1">
-									<Button
-										variant="outline"
-										size="icon"
-										onClick={handleRemoveItem}
-									>
-										<MinusIcon className="w-4 h-4" />
-									</Button>
-									<FormControl>
-										<Input
-											className="w-16 md:w-16"
-											type="number"
-											value={field.value as string}
-											onChange={(e) => {
-												const n = Number(e.target.value);
-												if (!Number.isFinite(n)) return;
-												field.onChange(
-													Math.max(
-														1,
-														Math.min(maxQuantity, Math.trunc(n)),
-													),
-												);
-											}}
-											onBlur={() => {
-												const n = Number(field.value);
-												field.onChange(
-													Number.isFinite(n)
-														? Math.max(
-																1,
-																Math.min(maxQuantity, Math.trunc(n)),
-															)
-														: 1,
-												);
-												field.onBlur();
-											}}
-										/>
-									</FormControl>
-									<Button variant="outline" size="icon" onClick={handleAddItem}>
-										<PlusIcon className="w-4 h-4" />
-									</Button>
-								</div>
-								<FormMessage />
-								<span className="text-sm">
-									Subtotal Bs
-									{getProductPriceAtPurchase(product) * (field.value as number)}
-								</span>
-							</FormItem>
-						)}
-					/>
-				)}
-				<SubmitProductOrderButton
-					disabled={!form.formState.isValid || form.formState.isSubmitting}
-					loading={form.formState.isSubmitting}
-					product={product}
-				/>
-			</form>
-		</Form>
-	);
+  return (
+    <Form {...form}>
+      <form className="flex flex-col gap-4 mt-4" onSubmit={action}>
+        {(product.stock ?? 0) > 0 && (
+          <FormField
+            control={form.control}
+            name="itemQuantity"
+            render={({ field }) => (
+              <FormItem className="flex flex-col items-end gap-1 self-end">
+                <FormLabel className="self-start">Cantidad</FormLabel>
+                <div className="flex gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleRemoveItem}
+                  >
+                    <MinusIcon className="w-4 h-4" />
+                  </Button>
+                  <FormControl>
+                    <Input
+                      className="w-16 md:w-16"
+                      type="number"
+                      value={field.value as string}
+                      onChange={(e) => {
+                        const n = Number(e.target.value);
+                        if (!Number.isFinite(n)) return;
+                        field.onChange(
+                          Math.max(1, Math.min(maxQuantity, Math.trunc(n))),
+                        );
+                      }}
+                      onBlur={() => {
+                        const n = Number(field.value);
+                        field.onChange(
+                          Number.isFinite(n)
+                            ? Math.max(1, Math.min(maxQuantity, Math.trunc(n)))
+                            : 1,
+                        );
+                        field.onBlur();
+                      }}
+                    />
+                  </FormControl>
+                  <Button variant="outline" size="icon" onClick={handleAddItem}>
+                    <PlusIcon className="w-4 h-4" />
+                  </Button>
+                </div>
+                <FormMessage />
+                <span className="text-sm">
+                  Subtotal Bs
+                  {getProductPriceAtPurchase(product) * (field.value as number)}
+                </span>
+              </FormItem>
+            )}
+          />
+        )}
+        <SubmitProductOrderButton
+          disabled={!form.formState.isValid || form.formState.isSubmitting}
+          loading={form.formState.isSubmitting}
+          product={product}
+        />
+      </form>
+    </Form>
+  );
 }

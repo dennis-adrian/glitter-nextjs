@@ -1,11 +1,11 @@
 "use client";
 
 import {
-	useCallback,
-	useEffect,
-	useLayoutEffect,
-	useRef,
-	useState,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
 } from "react";
 import { createPortal } from "react-dom";
 
@@ -16,145 +16,145 @@ import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { ClockIcon } from "lucide-react";
 
 type AdminOverviewMapTooltipProps = {
-	stand: StandWithReservationsWithParticipants;
-	invoice: InvoiceWithParticipants;
-	anchorRect: DOMRect;
-	dueDate?: Date | null;
-	isOverdue?: boolean;
+  stand: StandWithReservationsWithParticipants;
+  invoice: InvoiceWithParticipants;
+  anchorRect: DOMRect;
+  dueDate?: Date | null;
+  isOverdue?: boolean;
 };
 
 const GAP = 8;
 
 export default function AdminOverviewMapTooltip({
-	stand,
-	invoice,
-	anchorRect,
-	dueDate,
-	isOverdue,
+  stand,
+  invoice,
+  anchorRect,
+  dueDate,
+  isOverdue,
 }: AdminOverviewMapTooltipProps) {
-	const tooltipRef = useRef<HTMLDivElement>(null);
-	const [pos, setPos] = useState<{ top: number; left: number }>({
-		top: 0,
-		left: 0,
-	});
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number }>({
+    top: 0,
+    left: 0,
+  });
 
-	const recomputePosition = useCallback(() => {
-		const el = tooltipRef.current;
-		if (!el) return;
+  const recomputePosition = useCallback(() => {
+    const el = tooltipRef.current;
+    if (!el) return;
 
-		const { width, height } = el.getBoundingClientRect();
-		const vw = window.innerWidth;
-		const vh = window.innerHeight;
+    const { width, height } = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
 
-		// Horizontal: prefer right, flip to left if clipped
-		let left = anchorRect.right + GAP;
-		if (left + width > vw) {
-			left = anchorRect.left - GAP - width;
-		}
-		left = Math.max(GAP, Math.min(left, vw - width - GAP));
+    // Horizontal: prefer right, flip to left if clipped
+    let left = anchorRect.right + GAP;
+    if (left + width > vw) {
+      left = anchorRect.left - GAP - width;
+    }
+    left = Math.max(GAP, Math.min(left, vw - width - GAP));
 
-		// Vertical: center on the anchor, then clamp to viewport
-		let top = anchorRect.top + anchorRect.height / 2 - height / 2;
-		top = Math.max(GAP, Math.min(top, vh - height - GAP));
+    // Vertical: center on the anchor, then clamp to viewport
+    let top = anchorRect.top + anchorRect.height / 2 - height / 2;
+    top = Math.max(GAP, Math.min(top, vh - height - GAP));
 
-		setPos({ top, left });
-	}, [anchorRect]);
+    setPos({ top, left });
+  }, [anchorRect]);
 
-	useLayoutEffect(() => {
-		recomputePosition();
-	}, [recomputePosition]);
+  useLayoutEffect(() => {
+    recomputePosition();
+  }, [recomputePosition]);
 
-	useEffect(() => {
-		const el = tooltipRef.current;
-		if (!el) return;
+  useEffect(() => {
+    const el = tooltipRef.current;
+    if (!el) return;
 
-		window.addEventListener("resize", recomputePosition);
-		const resizeObserver = new ResizeObserver(recomputePosition);
-		resizeObserver.observe(el);
+    window.addEventListener("resize", recomputePosition);
+    const resizeObserver = new ResizeObserver(recomputePosition);
+    resizeObserver.observe(el);
 
-		return () => {
-			window.removeEventListener("resize", recomputePosition);
-			resizeObserver.disconnect();
-		};
-	}, [recomputePosition]);
+    return () => {
+      window.removeEventListener("resize", recomputePosition);
+      resizeObserver.disconnect();
+    };
+  }, [recomputePosition]);
 
-	const coParticipants = invoice.reservation.participants.filter(
-		(p) => p.user.id !== invoice.user.id,
-	);
+  const coParticipants = invoice.reservation.participants.filter(
+    (p) => p.user.id !== invoice.user.id,
+  );
 
-	const tooltip = (
-		<div
-			ref={tooltipRef}
-			className="fixed z-50 rounded-md border bg-popover p-3 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
-			style={{
-				top: pos.top,
-				left: pos.left,
-				pointerEvents: "none",
-			}}
-		>
-			<div className="flex flex-col gap-2 min-w-[180px]">
-				<div className="flex items-center justify-between gap-3">
-					<div>
-						<p className="text-sm font-semibold">
-							Espacio {stand.label}
-							{stand.standNumber}
-						</p>
-						<p className="text-xs text-muted-foreground">
-							Reserva #{invoice.reservation.id}
-						</p>
-					</div>
-					<ReservationStatus reservation={invoice.reservation} />
-				</div>
+  const tooltip = (
+    <div
+      ref={tooltipRef}
+      className="fixed z-50 rounded-md border bg-popover p-3 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
+      style={{
+        top: pos.top,
+        left: pos.left,
+        pointerEvents: "none",
+      }}
+    >
+      <div className="flex flex-col gap-2 min-w-[180px]">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">
+              Espacio {stand.label}
+              {stand.standNumber}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Reserva #{invoice.reservation.id}
+            </p>
+          </div>
+          <ReservationStatus reservation={invoice.reservation} />
+        </div>
 
-				<div className="space-y-1.5">
-					<div className="flex items-center gap-2">
-						<Avatar className="h-7 w-7 shrink-0">
-							<AvatarImage
-								src={invoice.user.imageUrl ?? undefined}
-								alt={invoice.user.displayName ?? ""}
-							/>
-						</Avatar>
-						<span className="text-sm leading-tight">
-							{invoice.user.displayName}{" "}
-							<span className="text-xs text-muted-foreground">(titular)</span>
-						</span>
-					</div>
-					{coParticipants.map((p) => (
-						<div key={p.id} className="flex items-center gap-2">
-							<Avatar className="h-7 w-7 shrink-0">
-								<AvatarImage
-									src={p.user.imageUrl ?? undefined}
-									alt={p.user.displayName ?? ""}
-								/>
-							</Avatar>
-							<span className="text-sm leading-tight">
-								{p.user.displayName}
-							</span>
-						</div>
-					))}
-				</div>
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Avatar className="h-7 w-7 shrink-0">
+              <AvatarImage
+                src={invoice.user.imageUrl ?? undefined}
+                alt={invoice.user.displayName ?? ""}
+              />
+            </Avatar>
+            <span className="text-sm leading-tight">
+              {invoice.user.displayName}{" "}
+              <span className="text-xs text-muted-foreground">(titular)</span>
+            </span>
+          </div>
+          {coParticipants.map((p) => (
+            <div key={p.id} className="flex items-center gap-2">
+              <Avatar className="h-7 w-7 shrink-0">
+                <AvatarImage
+                  src={p.user.imageUrl ?? undefined}
+                  alt={p.user.displayName ?? ""}
+                />
+              </Avatar>
+              <span className="text-sm leading-tight">
+                {p.user.displayName}
+              </span>
+            </div>
+          ))}
+        </div>
 
-				{dueDate && (
-					<div className="flex items-center gap-1.5 pt-1.5 border-t text-xs text-muted-foreground">
-						<ClockIcon className="h-3 w-3 shrink-0" />
-						<span>
-							{isOverdue ? "Venció el " : "Vence el "}
-							<span className="font-medium text-foreground">
-								{new Intl.DateTimeFormat("es-BO", {
-									day: "numeric",
-									month: "short",
-									hour: "2-digit",
-									minute: "2-digit",
-								}).format(dueDate)}
-							</span>
-						</span>
-					</div>
-				)}
-			</div>
-		</div>
-	);
+        {dueDate && (
+          <div className="flex items-center gap-1.5 pt-1.5 border-t text-xs text-muted-foreground">
+            <ClockIcon className="h-3 w-3 shrink-0" />
+            <span>
+              {isOverdue ? "Venció el " : "Vence el "}
+              <span className="font-medium text-foreground">
+                {new Intl.DateTimeFormat("es-BO", {
+                  day: "numeric",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }).format(dueDate)}
+              </span>
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
-	if (typeof document === "undefined") return null;
+  if (typeof document === "undefined") return null;
 
-	return createPortal(tooltip, document.body);
+  return createPortal(tooltip, document.body);
 }

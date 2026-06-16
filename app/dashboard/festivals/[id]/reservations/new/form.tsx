@@ -26,7 +26,11 @@ type Props = {
   sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
 };
 
-export default function CreateReservationForm({ festivalId, users, sectors }: Props) {
+export default function CreateReservationForm({
+  festivalId,
+  users,
+  sectors,
+}: Props) {
   const router = useRouter();
 
   const userOptions = users.map((u) => ({
@@ -64,7 +68,10 @@ export default function CreateReservationForm({ festivalId, users, sectors }: Pr
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="flex flex-col gap-6"
+      >
         <ComboboxInput
           form={form}
           name="userId"
@@ -90,7 +97,9 @@ export default function CreateReservationForm({ festivalId, users, sectors }: Pr
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push(`/dashboard/festivals/${festivalId}/reservations`)}
+            onClick={() =>
+              router.push(`/dashboard/festivals/${festivalId}/reservations`)
+            }
           >
             Cancelar
           </Button>

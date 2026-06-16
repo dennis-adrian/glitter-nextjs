@@ -194,9 +194,7 @@ export default function TemplateExportDialog({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="template-description">
-              Descripción (opcional)
-            </Label>
+            <Label htmlFor="template-description">Descripción (opcional)</Label>
             <Textarea
               id="template-description"
               placeholder="Describe el propósito o características de esta plantilla..."
@@ -245,7 +243,9 @@ export default function TemplateExportDialog({
               ))}
             </div>
             <p className="text-xs text-muted-foreground">
-              {selectedSectorIds.size} sector{selectedSectorIds.size !== 1 && "es"} seleccionado{selectedSectorIds.size !== 1 && "s"} ({totalStands} espacios)
+              {selectedSectorIds.size} sector
+              {selectedSectorIds.size !== 1 && "es"} seleccionado
+              {selectedSectorIds.size !== 1 && "s"} ({totalStands} espacios)
             </p>
           </div>
         </div>
@@ -262,7 +262,11 @@ export default function TemplateExportDialog({
           <Button
             onClick={handleSaveToLibrary}
             disabled={
-              isSaving || isExporting || selectedSectorIds.size === 0 || !name.trim() || !user?.id
+              isSaving ||
+              isExporting ||
+              selectedSectorIds.size === 0 ||
+              !name.trim() ||
+              !user?.id
             }
           >
             <Save className="h-4 w-4 mr-2" />

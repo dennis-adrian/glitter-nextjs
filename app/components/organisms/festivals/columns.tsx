@@ -22,7 +22,7 @@ export const columns: ColumnDef<FestivalWithDates>[] = [
         href={`/dashboard/festivals/${row.original.id}`}
         className="underline"
         target="_blank"
-				rel="noopener noreferrer"
+        rel="noopener noreferrer"
       >
         {row.original.name}
       </Link>

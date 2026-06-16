@@ -11,78 +11,78 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 type UploadPaymentVoucherFormProps = {
-	invoice: InvoiceWithPaymentsAndStand;
-	newVoucherUrl?: string;
-	loading: boolean;
-	disabled: boolean;
-	hideSubmitButton: boolean;
+  invoice: InvoiceWithPaymentsAndStand;
+  newVoucherUrl?: string;
+  loading: boolean;
+  disabled: boolean;
+  hideSubmitButton: boolean;
 };
 export default function UploadPaymentVoucherForm(
-	props: UploadPaymentVoucherFormProps,
+  props: UploadPaymentVoucherFormProps,
 ) {
-	const router = useRouter();
-	const [isPending, startTransition] = useTransition();
-	const form = useForm();
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const form = useForm();
 
-	const action = form.handleSubmit(async () => {
-		const payment = props.invoice.payments[props.invoice.payments.length - 1];
-		const voucherUrl = props.newVoucherUrl;
-		if (!voucherUrl) {
-			toast.error("Se necesita un comprobante para confirmar el pago");
-			return;
-		}
+  const action = form.handleSubmit(async () => {
+    const payment = props.invoice.payments[props.invoice.payments.length - 1];
+    const voucherUrl = props.newVoucherUrl;
+    if (!voucherUrl) {
+      toast.error("Se necesita un comprobante para confirmar el pago");
+      return;
+    }
 
-		try {
-			const res = await createPayment({
-				payment: {
-					id: payment?.id,
-					date: new Date(),
-					amount: props.invoice.amount,
-					invoiceId: props.invoice.id,
-					voucherUrl,
-				},
-				oldVoucherUrl: payment?.voucherUrl,
-				reservationId: props.invoice.reservationId,
-				standId: props.invoice.reservation.standId,
-			});
+    try {
+      const res = await createPayment({
+        payment: {
+          id: payment?.id,
+          date: new Date(),
+          amount: props.invoice.amount,
+          invoiceId: props.invoice.id,
+          voucherUrl,
+        },
+        oldVoucherUrl: payment?.voucherUrl,
+        reservationId: props.invoice.reservationId,
+        standId: props.invoice.reservation.standId,
+      });
 
-			if (res.success) {
-				toast.success("Pago enviado con éxito.");
-				startTransition(() => {
-					router.push(
-						`/profiles/${props.invoice.userId}/invoices/${props.invoice.id}/success`,
-					);
-				});
-			} else {
-				toast.error("Error al enviar el pago");
-			}
-		} catch {
-			toast.error("Error al enviar el pago");
-		}
-	});
+      if (res.success) {
+        toast.success("Pago enviado con éxito.");
+        startTransition(() => {
+          router.push(
+            `/profiles/${props.invoice.userId}/invoices/${props.invoice.id}/success`,
+          );
+        });
+      } else {
+        toast.error("Error al enviar el pago");
+      }
+    } catch {
+      toast.error("Error al enviar el pago");
+    }
+  });
 
-	if (props.hideSubmitButton) {
-		return null;
-	}
+  if (props.hideSubmitButton) {
+    return null;
+  }
 
-	return (
-		<Form {...form}>
-			<form className="w-full max-w-80 mt-4 mx-auto" onSubmit={action}>
-				<div className="flex flex-col gap-4">
-					<SubmitButton
-						disabled={
-							form.formState.isSubmitting ||
-							isPending ||
-							props.disabled ||
-							props.loading
-						}
-						loading={form.formState.isSubmitting || isPending || props.loading}
-					>
-						Confirmar pago
-						<SendHorizonal className="h-4 w-4 ml-2" />
-					</SubmitButton>
-				</div>
-			</form>
-		</Form>
-	);
+  return (
+    <Form {...form}>
+      <form className="w-full max-w-80 mt-4 mx-auto" onSubmit={action}>
+        <div className="flex flex-col gap-4">
+          <SubmitButton
+            disabled={
+              form.formState.isSubmitting ||
+              isPending ||
+              props.disabled ||
+              props.loading
+            }
+            loading={form.formState.isSubmitting || isPending || props.loading}
+          >
+            Confirmar pago
+            <SendHorizonal className="h-4 w-4 ml-2" />
+          </SubmitButton>
+        </div>
+      </form>
+    </Form>
+  );
 }

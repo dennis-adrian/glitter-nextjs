@@ -11,77 +11,77 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 const FormSchema = z.object({
-	displayName: z.string().trim().min(2, {
-		error: "El nombre tiene que tener al menos dos letras",
-	}),
-	bio: z
-		.string()
-		.trim()
-		.min(10, {
-			error: "La bio/descripción tiene que tener al menos 10 letras",
-		})
-		.max(80, {
-			error: "La bio/descripción no puede tener mas de 80 letras",
-		}),
+  displayName: z.string().trim().min(2, {
+    error: "El nombre tiene que tener al menos dos letras",
+  }),
+  bio: z
+    .string()
+    .trim()
+    .min(10, {
+      error: "La bio/descripción tiene que tener al menos 10 letras",
+    })
+    .max(80, {
+      error: "La bio/descripción no puede tener mas de 80 letras",
+    }),
 });
 
 type DisplayNameFormProps = {
-	profile: ProfileType;
-	displayNamePlaceholder?: string;
-	onSubmit: () => void;
+  profile: ProfileType;
+  displayNamePlaceholder?: string;
+  onSubmit: () => void;
 };
 
 export default function DisplayNameForm(props: DisplayNameFormProps) {
-	const form = useForm({
-		resolver: zodResolver(FormSchema),
-		defaultValues: {
-			displayName: props.profile.displayName || "",
-			bio: props.profile.bio || "",
-		},
-	});
+  const form = useForm({
+    resolver: zodResolver(FormSchema),
+    defaultValues: {
+      displayName: props.profile.displayName || "",
+      bio: props.profile.bio || "",
+    },
+  });
 
-	const action: () => void = form.handleSubmit(async (data) => {
-		const res = await updateProfile(props.profile.id, {
-			displayName: data.displayName,
-			bio: data.bio,
-		});
+  const action: () => void = form.handleSubmit(async (data) => {
+    const res = await updateProfile(props.profile.id, {
+      displayName: data.displayName,
+      bio: data.bio,
+    });
 
-		if (res.success) {
-			toast.success(res.message);
-			props.onSubmit();
-		} else {
-			toast.error(res.message);
-		}
-	});
+    if (res.success) {
+      toast.success(res.message);
+      props.onSubmit();
+    } else {
+      toast.error(res.message);
+    }
+  });
 
-	return (
-		<Form {...form}>
-			<form className="w-full flex flex-col gap-4 my-4" onSubmit={action}>
-				<TextInput
-					bottomBorderOnly
-					label="Nombre de tu perfil"
-					name="displayName"
-					placeholder={
-						props.displayNamePlaceholder ||
-						"Nombre de tu negocio o emprendimiento"
-					}
-				/>
-				<TextareaInput
-					formControl={form.control}
-					label="Bio/Descripción"
-					name="bio"
-					placeholder="Danos más detalles"
-				/>
-				<div className="flex justify-end items-center gap-2">
-					<SubmitButton
-						disabled={form.formState.isSubmitting}
-						loading={form.formState.isSubmitting}
-					>
-						<span>Guardar</span>
-						<ArrowDownToLineIcon className="ml-2 w-4 h-4" />
-					</SubmitButton>
-				</div>
-			</form>
-		</Form>
-	);
+  return (
+    <Form {...form}>
+      <form className="w-full flex flex-col gap-4 my-4" onSubmit={action}>
+        <TextInput
+          bottomBorderOnly
+          label="Nombre de tu perfil"
+          name="displayName"
+          placeholder={
+            props.displayNamePlaceholder ||
+            "Nombre de tu negocio o emprendimiento"
+          }
+        />
+        <TextareaInput
+          formControl={form.control}
+          label="Bio/Descripción"
+          name="bio"
+          placeholder="Danos más detalles"
+        />
+        <div className="flex justify-end items-center gap-2">
+          <SubmitButton
+            disabled={form.formState.isSubmitting}
+            loading={form.formState.isSubmitting}
+          >
+            <span>Guardar</span>
+            <ArrowDownToLineIcon className="ml-2 w-4 h-4" />
+          </SubmitButton>
+        </div>
+      </form>
+    </Form>
+  );
 }

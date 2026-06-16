@@ -6,15 +6,15 @@ export type BaseCart = InferSelectModel<typeof carts>;
 export type BaseCartItem = InferSelectModel<typeof cartItems>;
 
 export type CartItemWithProduct = BaseCartItem & {
-	product: BaseProductWithImages;
+  product: BaseProductWithImages;
 };
 
 export type CartWithItems = BaseCart & {
-	items: CartItemWithProduct[];
+  items: CartItemWithProduct[];
 };
 
 export type GuestCartItem = {
-	productId: number;
-	quantity: number;
-	product: BaseProductWithImages;
+  productId: number;
+  quantity: number;
+  product: BaseProductWithImages;
 };

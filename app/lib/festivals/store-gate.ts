@@ -10,19 +10,19 @@ import type { FestivalWithDates } from "./definitions";
  * dynamic-rendering context (e.g. after `await connection()`).
  */
 export function isFestivalHappeningAt(
-	festival: FestivalWithDates | null | undefined,
-	now: Date,
+  festival: FestivalWithDates | null | undefined,
+  now: Date,
 ): boolean {
-	if (!festival?.festivalDates?.length) return false;
+  if (!festival?.festivalDates?.length) return false;
 
-	const nowDT = DateTime.fromJSDate(now, { zone: STORE_TIMEZONE });
-	return festival.festivalDates.some((d) => {
-		const start = DateTime.fromJSDate(d.startDate, {
-			zone: STORE_TIMEZONE,
-		}).startOf("day");
-		const end = DateTime.fromJSDate(d.endDate, {
-			zone: STORE_TIMEZONE,
-		}).endOf("day");
-		return nowDT >= start && nowDT <= end;
-	});
+  const nowDT = DateTime.fromJSDate(now, { zone: STORE_TIMEZONE });
+  return festival.festivalDates.some((d) => {
+    const start = DateTime.fromJSDate(d.startDate, {
+      zone: STORE_TIMEZONE,
+    }).startOf("day");
+    const end = DateTime.fromJSDate(d.endDate, {
+      zone: STORE_TIMEZONE,
+    }).endOf("day");
+    return nowDT >= start && nowDT <= end;
+  });
 }

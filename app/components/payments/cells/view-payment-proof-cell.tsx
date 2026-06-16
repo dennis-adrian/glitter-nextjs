@@ -24,7 +24,7 @@ export default function ViewPaymentProofCell(props: ViewPaymentProofCellProps) {
         ) : (
           "--"
         )}
-      </span> 
+      </span>
       <PaymentProofModal
         invoice={props.invoice}
         imageUrl={payment?.voucherUrl}

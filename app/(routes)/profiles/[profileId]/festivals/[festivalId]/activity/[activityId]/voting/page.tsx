@@ -8,47 +8,47 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 
 const ParamsSchema = z.object({
-	profileId: z.coerce.number(),
-	festivalId: z.coerce.number(),
-	activityId: z.coerce.number(),
+  profileId: z.coerce.number(),
+  festivalId: z.coerce.number(),
+  activityId: z.coerce.number(),
 });
 
 type VotingPageProps = {
-	params: Promise<z.infer<typeof ParamsSchema>>;
+  params: Promise<z.infer<typeof ParamsSchema>>;
 };
 
 export default async function VotingPage({ params }: VotingPageProps) {
-	const validatedParams = ParamsSchema.safeParse(await params);
-	if (!validatedParams.success) return notFound();
+  const validatedParams = ParamsSchema.safeParse(await params);
+  if (!validatedParams.success) return notFound();
 
-	const { profileId, festivalId, activityId } = validatedParams.data;
+  const { profileId, festivalId, activityId } = validatedParams.data;
 
-	const currentProfile = await getCurrentUserProfile();
-	if (!currentProfile) return notFound();
+  const currentProfile = await getCurrentUserProfile();
+  if (!currentProfile) return notFound();
 
-	await protectRoute(currentProfile, profileId);
+  await protectRoute(currentProfile, profileId);
 
-	const activity = await fetchFestivalActivity(activityId);
-	const festivalReservations =
-		await fetchPublicReservationsByFestivalId(festivalId);
-	if (!activity || !activity.allowsVoting) return notFound();
+  const activity = await fetchFestivalActivity(activityId);
+  const festivalReservations =
+    await fetchPublicReservationsByFestivalId(festivalId);
+  if (!activity || !activity.allowsVoting) return notFound();
 
-	return (
-		<div className="container p-3 md:p-6">
-			<Title>Votación para {activity.name}</Title>
-			{activity.type === "best_stand" && (
-				<BestStandActivityVoting
-					activity={activity}
-					currentProfile={currentProfile}
-					reservations={festivalReservations}
-				/>
-			)}
-			{activity.type === "festival_sticker" && (
-				<FestivalStickerVoting
-					activity={activity}
-					currentProfile={currentProfile}
-				/>
-			)}
-		</div>
-	);
+  return (
+    <div className="container p-3 md:p-6">
+      <Title>Votación para {activity.name}</Title>
+      {activity.type === "best_stand" && (
+        <BestStandActivityVoting
+          activity={activity}
+          currentProfile={currentProfile}
+          reservations={festivalReservations}
+        />
+      )}
+      {activity.type === "festival_sticker" && (
+        <FestivalStickerVoting
+          activity={activity}
+          currentProfile={currentProfile}
+        />
+      )}
+    </div>
+  );
 }

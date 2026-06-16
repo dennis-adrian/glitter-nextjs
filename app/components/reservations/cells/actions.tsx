@@ -1,22 +1,22 @@
 "use client";
 
 import {
-	CalendarClockIcon,
-	FilePenLineIcon,
-	MoreHorizontalIcon,
-	Trash2Icon,
-	XCircleIcon,
+  CalendarClockIcon,
+  FilePenLineIcon,
+  MoreHorizontalIcon,
+  Trash2Icon,
+  XCircleIcon,
 } from "lucide-react";
 
 import { ReservationWithParticipantsAndUsersAndStandAndFestival } from "@/app/api/reservations/definitions";
 
 import { Button } from "@/app/components/ui/button";
 import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 import { DeleteReservationModal } from "@/app/components/reservations/form/delete-modal";
@@ -25,66 +25,66 @@ import { RejectReservationModal } from "@/app/components/reservations/form/rejec
 import { ExtendDeadlineModal } from "@/app/components/reservations/form/extend-deadline-modal";
 
 export function ActionsCell({
-	reservation,
+  reservation,
 }: {
-	reservation: ReservationWithParticipantsAndUsersAndStandAndFestival;
+  reservation: ReservationWithParticipantsAndUsersAndStandAndFestival;
 }) {
-	const [openDeleteModal, setOpenDeleteModal] = useState(false);
-	const [openRejectModal, setOpenRejectModal] = useState(false);
-	const [openExtendModal, setOpenExtendModal] = useState(false);
+  const [openDeleteModal, setOpenDeleteModal] = useState(false);
+  const [openRejectModal, setOpenRejectModal] = useState(false);
+  const [openExtendModal, setOpenExtendModal] = useState(false);
 
-	const canExtend = reservation.status === "pending";
+  const canExtend = reservation.status === "pending";
 
-	return (
-		<>
-			<DropdownMenu modal={false}>
-				<DropdownMenuTrigger asChild>
-					<Button variant="ghost" className="h-8 w-8 p-0">
-						<span className="sr-only">Open menu</span>
-						<MoreHorizontalIcon className="h-4 w-4" />
-					</Button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end">
-					<DropdownMenuLabel>Acciones</DropdownMenuLabel>
-					<DropdownMenuItem asChild>
-						<Link href={`/dashboard/reservations/${reservation.id}/edit`}>
-							<FilePenLineIcon className="h-4 w-4 mr-1" />
-							Editar
-						</Link>
-					</DropdownMenuItem>
-					{canExtend && (
-						<DropdownMenuItem onClick={() => setOpenExtendModal(true)}>
-							<CalendarClockIcon className="h-4 w-4 mr-1" />
-							Extender plazo de pago
-						</DropdownMenuItem>
-					)}
-					<DropdownMenuItem onClick={() => setOpenRejectModal(true)}>
-						<XCircleIcon className="h-4 w-4 mr-1" />
-						Cancelar
-					</DropdownMenuItem>
-					<DropdownMenuItem onClick={() => setOpenDeleteModal(true)}>
-						<Trash2Icon className="h-4 w-4 mr-1" />
-						Eliminar
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
-			<DeleteReservationModal
-				open={openDeleteModal}
-				reservation={reservation}
-				setOpen={setOpenDeleteModal}
-			/>
-			<RejectReservationModal
-				open={openRejectModal}
-				reservation={reservation}
-				setOpen={setOpenRejectModal}
-			/>
-			{canExtend && (
-				<ExtendDeadlineModal
-					open={openExtendModal}
-					reservation={reservation}
-					setOpen={setOpenExtendModal}
-				/>
-			)}
-		</>
-	);
+  return (
+    <>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="h-8 w-8 p-0">
+            <span className="sr-only">Open menu</span>
+            <MoreHorizontalIcon className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+          <DropdownMenuItem asChild>
+            <Link href={`/dashboard/reservations/${reservation.id}/edit`}>
+              <FilePenLineIcon className="h-4 w-4 mr-1" />
+              Editar
+            </Link>
+          </DropdownMenuItem>
+          {canExtend && (
+            <DropdownMenuItem onClick={() => setOpenExtendModal(true)}>
+              <CalendarClockIcon className="h-4 w-4 mr-1" />
+              Extender plazo de pago
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onClick={() => setOpenRejectModal(true)}>
+            <XCircleIcon className="h-4 w-4 mr-1" />
+            Cancelar
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setOpenDeleteModal(true)}>
+            <Trash2Icon className="h-4 w-4 mr-1" />
+            Eliminar
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DeleteReservationModal
+        open={openDeleteModal}
+        reservation={reservation}
+        setOpen={setOpenDeleteModal}
+      />
+      <RejectReservationModal
+        open={openRejectModal}
+        reservation={reservation}
+        setOpen={setOpenRejectModal}
+      />
+      {canExtend && (
+        <ExtendDeadlineModal
+          open={openExtendModal}
+          reservation={reservation}
+          setOpen={setOpenExtendModal}
+        />
+      )}
+    </>
+  );
 }
