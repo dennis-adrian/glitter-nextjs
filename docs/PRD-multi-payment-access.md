@@ -177,9 +177,9 @@ Definidos en `app/data/invoices/definitions.ts`:
 type InvoiceWithPayments = InvoiceBase & { payments: PaymentBase[] };
 type InvoiceWithPaymentsAndOwner = InvoiceWithPayments & { user: User };
 type ReservationWithStandAndInvoicesAndFestival = StandReservation & {
-	stand: StandBase & { festivalSector: FestivalSector | null };
-	invoices: InvoiceWithPaymentsAndOwner[];
-	festival: FestivalWithDates;
+  stand: StandBase & { festivalSector: FestivalSector | null };
+  invoices: InvoiceWithPaymentsAndOwner[];
+  festival: FestivalWithDates;
 };
 ```
 

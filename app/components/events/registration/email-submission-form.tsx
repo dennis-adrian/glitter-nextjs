@@ -29,8 +29,8 @@ import SubmitButton from "@/app/components/simple-submit-button";
 
 const FormSchema = z.object({
   email: z.email({
-            error: "El correo electronico no es valido"
-        }),
+    error: "El correo electronico no es valido",
+  }),
 });
 
 export default function EmailSubmissionForm() {

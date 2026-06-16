@@ -25,7 +25,7 @@ export default function PrivateProfileOverview({
   if (profile.birthdate) {
     const birthDate = DateTime.fromJSDate(new Date(profile.birthdate));
     const now = DateTime.now();
-    age = now.diff(birthDate, 'years').years;
+    age = now.diff(birthDate, "years").years;
     age = Math.floor(age); // Round down to get whole years
   }
 

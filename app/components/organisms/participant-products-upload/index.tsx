@@ -11,93 +11,93 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 const ALLOWED_IMAGE_TYPES = [
-	"image/png",
-	"image/jpeg",
-	"image/jpg",
-	"image/gif",
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/gif",
 ];
 const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
 
 export const UploadProductFormSchema = z.object({
-	name: z.string().min(1, {
-        error: "El nombre es requerido"
-    }),
-	description: z.string().optional(),
+  name: z.string().min(1, {
+    error: "El nombre es requerido",
+  }),
+  description: z.string().optional(),
 });
 
 type ParticipantProductsUploadProps = {
-	profile: ProfileType;
-	participation: ReservationParticipant;
+  profile: ProfileType;
+  participation: ReservationParticipant;
 };
 
 export function ParticipantProductsUpload({
-	profile,
-	participation,
+  profile,
+  participation,
 }: ParticipantProductsUploadProps) {
-	const [showProductModal, setShowProductModal] = useState(false);
-	const [currentImage, setCurrentImage] = useState<File | null>(null);
-	const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
-	const form = useForm({
-		resolver: zodResolver(UploadProductFormSchema),
-		defaultValues: {
-			name: "",
-			description: "",
-		},
-	});
-	const maxFileSize = MAX_FILE_SIZE;
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [currentImage, setCurrentImage] = useState<File | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+  const form = useForm({
+    resolver: zodResolver(UploadProductFormSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+    },
+  });
+  const maxFileSize = MAX_FILE_SIZE;
 
-	const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
 
-		if (file) {
-			if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-				toast.error("El archivo debe ser una imagen");
-				return;
-			}
+    if (file) {
+      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+        toast.error("El archivo debe ser una imagen");
+        return;
+      }
 
-			if (file.size > maxFileSize) {
-				toast.error(
-					`El archivo debe ser menor a ${maxFileSize / 1024 / 1024}MB`,
-				);
-				return;
-			}
+      if (file.size > maxFileSize) {
+        toast.error(
+          `El archivo debe ser menor a ${maxFileSize / 1024 / 1024}MB`,
+        );
+        return;
+      }
 
-			setCurrentImage(file);
-			setShowProductModal(true);
-		}
-	};
+      setCurrentImage(file);
+      setShowProductModal(true);
+    }
+  };
 
-	const resetModal = () => {
-		setCurrentImage(null);
-		setUploadedImageUrl(null);
-		form.reset();
-	};
+  const resetModal = () => {
+    setCurrentImage(null);
+    setUploadedImageUrl(null);
+    form.reset();
+  };
 
-	const handleToggleProductModal = (open: boolean) => {
-		setShowProductModal(open);
-		if (!open) resetModal();
-	};
+  const handleToggleProductModal = (open: boolean) => {
+    setShowProductModal(open);
+    if (!open) resetModal();
+  };
 
-	return (
-		<div>
-			<UploadAreaCard
-				handleImageChange={handleImageChange}
-				maxFileSize={maxFileSize}
-			/>
-			<UploadProductModal
-				show={showProductModal}
-				userId={profile.id}
-				participationId={participation.id}
-				currentImage={currentImage}
-				onOpenChange={handleToggleProductModal}
-				onClose={() => {
-					setShowProductModal(false);
-					resetModal();
-				}}
-				uploadedImageUrl={uploadedImageUrl}
-				setUploadedImageUrl={setUploadedImageUrl}
-				form={form}
-			/>
-		</div>
-	);
+  return (
+    <div>
+      <UploadAreaCard
+        handleImageChange={handleImageChange}
+        maxFileSize={maxFileSize}
+      />
+      <UploadProductModal
+        show={showProductModal}
+        userId={profile.id}
+        participationId={participation.id}
+        currentImage={currentImage}
+        onOpenChange={handleToggleProductModal}
+        onClose={() => {
+          setShowProductModal(false);
+          resetModal();
+        }}
+        uploadedImageUrl={uploadedImageUrl}
+        setUploadedImageUrl={setUploadedImageUrl}
+        form={form}
+      />
+    </div>
+  );
 }

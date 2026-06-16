@@ -3,127 +3,127 @@ import HoldConfirmationClient from "@/app/components/festivals/reservations/hold
 import { computeCanvasBounds } from "@/app/components/maps/map-utils";
 import { fetchSectorWithStandsAndReservations } from "@/app/lib/festival_sectors/actions";
 import {
-	fetchBaseFestival,
-	fetchRecentSharedStandPartners,
+  fetchBaseFestival,
+  fetchRecentSharedStandPartners,
 } from "@/app/lib/festivals/actions";
 import { fetchHoldWithStand } from "@/app/lib/stands/hold-actions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound, redirect } from "next/navigation";
 
 type HoldConfirmationPageProps = {
-	profileId: number;
-	festivalId: number;
-	sectorId: number;
-	holdId: number;
+  profileId: number;
+  festivalId: number;
+  sectorId: number;
+  holdId: number;
 };
 
 export default async function HoldConfirmationPage(
-	props: HoldConfirmationPageProps,
+  props: HoldConfirmationPageProps,
 ) {
-	const currentProfile = await getCurrentUserProfile();
-	await protectRoute(currentProfile || undefined, props.profileId);
+  const currentProfile = await getCurrentUserProfile();
+  await protectRoute(currentProfile || undefined, props.profileId);
 
-	const festival = await fetchBaseFestival(props.festivalId);
-	if (!festival) notFound();
+  const festival = await fetchBaseFestival(props.festivalId);
+  if (!festival) notFound();
 
-	const forProfile = await fetchUserProfileById(props.profileId);
-	if (!forProfile) notFound();
+  const forProfile = await fetchUserProfileById(props.profileId);
+  if (!forProfile) notFound();
 
-	// Fetch and validate the hold
-	const hold = await fetchHoldWithStand(
-		props.holdId,
-		props.profileId,
-		props.festivalId,
-	);
+  // Fetch and validate the hold
+  const hold = await fetchHoldWithStand(
+    props.holdId,
+    props.profileId,
+    props.festivalId,
+  );
 
-	if (!hold) {
-		redirect(
-			`/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new`,
-		);
-	}
+  if (!hold) {
+    redirect(
+      `/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new`,
+    );
+  }
 
-	// Check if hold is expired
-	if (new Date() >= hold.expiresAt) {
-		redirect(
-			`/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new`,
-		);
-	}
+  // Check if hold is expired
+  if (new Date() >= hold.expiresAt) {
+    redirect(
+      `/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new`,
+    );
+  }
 
-	if (hold.stand.festivalSectorId === null) {
-		notFound();
-	}
+  if (hold.stand.festivalSectorId === null) {
+    notFound();
+  }
 
-	if (hold.stand.festivalSectorId !== props.sectorId) {
-		redirect(
-			`/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new/sectors/${hold.stand.festivalSectorId}`,
-		);
-	}
+  if (hold.stand.festivalSectorId !== props.sectorId) {
+    redirect(
+      `/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new/sectors/${hold.stand.festivalSectorId}`,
+    );
+  }
 
-	// Fetch sector for name + stands for thumbnail
-	const sector = await fetchSectorWithStandsAndReservations(props.sectorId);
-	if (!sector) {
-		redirect(
-			`/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new`,
-		);
-	}
+  // Fetch sector for name + stands for thumbnail
+  const sector = await fetchSectorWithStandsAndReservations(props.sectorId);
+  if (!sector) {
+    redirect(
+      `/profiles/${props.profileId}/festivals/${props.festivalId}/reservations/new`,
+    );
+  }
 
-	const sectorStands = sector.stands.map((s) => ({
-		id: s.id,
-		status: s.status,
-		positionLeft: s.positionLeft,
-		positionTop: s.positionTop,
-		label: s.label,
-		standNumber: s.standNumber,
-	}));
+  const sectorStands = sector.stands.map((s) => ({
+    id: s.id,
+    status: s.status,
+    positionLeft: s.positionLeft,
+    positionTop: s.positionTop,
+    label: s.label,
+    standNumber: s.standNumber,
+  }));
 
-	const mapBounds =
-		sector?.mapOriginX != null &&
-		sector?.mapOriginY != null &&
-		sector?.mapWidth != null &&
-		sector?.mapHeight != null
-			? {
-					minX: sector.mapOriginX,
-					minY: sector.mapOriginY,
-					width: sector.mapWidth,
-					height: sector.mapHeight,
-				}
-			: computeCanvasBounds(sector.stands);
+  const mapBounds =
+    sector?.mapOriginX != null &&
+    sector?.mapOriginY != null &&
+    sector?.mapWidth != null &&
+    sector?.mapHeight != null
+      ? {
+          minX: sector.mapOriginX,
+          minY: sector.mapOriginY,
+          width: sector.mapWidth,
+          height: sector.mapHeight,
+        }
+      : computeCanvasBounds(sector.stands);
 
-	const recentPartners = await fetchRecentSharedStandPartners(
-		festival.id,
-		forProfile.id,
-	);
+  const recentPartners = await fetchRecentSharedStandPartners(
+    festival.id,
+    forProfile.id,
+  );
 
-	return (
-		<div className="container p-3 md:p-6">
-			<HoldConfirmationClient
-				recentPartners={recentPartners}
-				hold={{
-					id: hold.id,
-					expiresAt: hold.expiresAt.toISOString(),
-				}}
-				stand={{
-					id: hold.stand.id,
-					label: hold.stand.label,
-					standNumber: hold.stand.standNumber,
-					standCategory: hold.stand.standCategory,
-					price: hold.stand.price,
-				}}
-				sectorName={sector?.name ?? ""}
-				sectorStands={sectorStands}
-				mapBounds={mapBounds}
-				festival={{
-					id: festival.id,
-					name: festival.name,
-				}}
-				profile={{
-					id: forProfile.id,
-					displayName: forProfile.displayName,
-					category: forProfile.category,
-					imageUrl: forProfile.imageUrl,
-				}}
-				sectorId={props.sectorId}
-			/>
-		</div>
-	);
+  return (
+    <div className="container p-3 md:p-6">
+      <HoldConfirmationClient
+        recentPartners={recentPartners}
+        hold={{
+          id: hold.id,
+          expiresAt: hold.expiresAt.toISOString(),
+        }}
+        stand={{
+          id: hold.stand.id,
+          label: hold.stand.label,
+          standNumber: hold.stand.standNumber,
+          standCategory: hold.stand.standCategory,
+          price: hold.stand.price,
+        }}
+        sectorName={sector?.name ?? ""}
+        sectorStands={sectorStands}
+        mapBounds={mapBounds}
+        festival={{
+          id: festival.id,
+          name: festival.name,
+        }}
+        profile={{
+          id: forProfile.id,
+          displayName: forProfile.displayName,
+          category: forProfile.category,
+          imageUrl: forProfile.imageUrl,
+        }}
+        sectorId={props.sectorId}
+      />
+    </div>
+  );
 }

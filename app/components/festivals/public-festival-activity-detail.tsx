@@ -4,8 +4,8 @@ import { ReservationWithParticipantsAndUsersAndStand } from "@/app/api/reservati
 import PublicFestivalActivityParticipantCard from "@/app/components/festivals/public-festival-activity-participant-card";
 import { Button } from "@/app/components/ui/button";
 import {
-	ActivityDetailsWithParticipants,
-	FullFestival,
+  ActivityDetailsWithParticipants,
+  FullFestival,
 } from "@/app/lib/festivals/definitions";
 import { RefreshCcwIcon } from "lucide-react";
 import Image from "next/image";
@@ -13,212 +13,212 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 type PublicFestivalActivityDetailProps = {
-	festival: FullFestival;
-	detail: ActivityDetailsWithParticipants;
-	reservations: ReservationWithParticipantsAndUsersAndStand[];
-	searchTerm: string;
-	detailIndex: number;
-	showVariantHeader?: boolean;
+  festival: FullFestival;
+  detail: ActivityDetailsWithParticipants;
+  reservations: ReservationWithParticipantsAndUsersAndStand[];
+  searchTerm: string;
+  detailIndex: number;
+  showVariantHeader?: boolean;
 };
 
 export type ParticipantCardData = {
-	participantId: number;
-	standLabel: string;
-	participantImageUrl: string;
-	participantName: string;
-	standId: number;
-	standNumber: number;
+  participantId: number;
+  standLabel: string;
+  participantImageUrl: string;
+  participantName: string;
+  standId: number;
+  standNumber: number;
 };
 
 export default function PublicFestivalActivityDetail({
-	searchTerm,
-	detail,
-	reservations,
-	festival,
-	detailIndex,
-	showVariantHeader = true,
+  searchTerm,
+  detail,
+  reservations,
+  festival,
+  detailIndex,
+  showVariantHeader = true,
 }: PublicFestivalActivityDetailProps) {
-	const [filteredParticipants, setFilteredParticipants] = useState<
-		ParticipantCardData[]
-	>([]);
-	const [selectedParticipantIds, setSelectedParticipantIds] = useState<
-		number[]
-	>([]);
-	const storageKey = `selected-public-participant-ids-activity-${detail.id}`;
+  const [filteredParticipants, setFilteredParticipants] = useState<
+    ParticipantCardData[]
+  >([]);
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState<
+    number[]
+  >([]);
+  const storageKey = `selected-public-participant-ids-activity-${detail.id}`;
 
-	// Initialize from localStorage on mount
-	useEffect(() => {
-		const stored = localStorage.getItem(storageKey);
-		if (stored) {
-			try {
-				const parsed = JSON.parse(stored);
-				if (Array.isArray(parsed)) {
-					setSelectedParticipantIds(parsed);
-				}
-			} catch (e) {
-				toast.error("Error al cargar los participantes seleccionados.");
-			}
-		}
-	}, [storageKey]);
+  // Initialize from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem(storageKey);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setSelectedParticipantIds(parsed);
+        }
+      } catch (e) {
+        toast.error("Error al cargar los participantes seleccionados.");
+      }
+    }
+  }, [storageKey]);
 
-	/**
-	 * We map the participants and reservations to the ParticipantCardData type.
-	 */
-	const mappedParticipants = useMemo(() => {
-		const participants = detail.participants.map((participant) => {
-			const reservation = reservations.find((reservation) =>
-				reservation.participants.some((p) => p.userId === participant.userId),
-			);
-			const stand = reservation?.stand;
-			const standLabel = `${stand?.label}${stand?.standNumber}`.trim();
+  /**
+   * We map the participants and reservations to the ParticipantCardData type.
+   */
+  const mappedParticipants = useMemo(() => {
+    const participants = detail.participants.map((participant) => {
+      const reservation = reservations.find((reservation) =>
+        reservation.participants.some((p) => p.userId === participant.userId),
+      );
+      const stand = reservation?.stand;
+      const standLabel = `${stand?.label}${stand?.standNumber}`.trim();
 
-			return {
-				participantId: participant.id,
-				standLabel: standLabel ? `Espacio ${standLabel}` : "Sin espacio",
-				participantImageUrl: participant.user.imageUrl || "",
-				participantName: participant.user.displayName || "",
-				standId: stand?.id || 0,
-				standNumber: stand?.standNumber || 0,
-			};
-		});
+      return {
+        participantId: participant.id,
+        standLabel: standLabel ? `Espacio ${standLabel}` : "Sin espacio",
+        participantImageUrl: participant.user.imageUrl || "",
+        participantName: participant.user.displayName || "",
+        standId: stand?.id || 0,
+        standNumber: stand?.standNumber || 0,
+      };
+    });
 
-		// Create a lookup map to group participants by sector order
-		const sectorStandMap = new Map();
-		festival.festivalSectors.forEach((sector) => {
-			sector.stands.forEach((stand) => {
-				sectorStandMap.set(stand.id, sector.orderInFestival || 1000);
-			});
-		});
+    // Create a lookup map to group participants by sector order
+    const sectorStandMap = new Map();
+    festival.festivalSectors.forEach((sector) => {
+      sector.stands.forEach((stand) => {
+        sectorStandMap.set(stand.id, sector.orderInFestival || 1000);
+      });
+    });
 
-		const groupedParticipants = participants.reduce(
-			(acc, participant) => {
-				const sectorOrder = sectorStandMap.get(participant.standId) || 1000;
-				if (!acc[sectorOrder]) {
-					acc[sectorOrder] = [];
-				}
-				acc[sectorOrder].push(participant);
-				return acc;
-			},
-			{} as Record<string, ParticipantCardData[]>,
-		);
+    const groupedParticipants = participants.reduce(
+      (acc, participant) => {
+        const sectorOrder = sectorStandMap.get(participant.standId) || 1000;
+        if (!acc[sectorOrder]) {
+          acc[sectorOrder] = [];
+        }
+        acc[sectorOrder].push(participant);
+        return acc;
+      },
+      {} as Record<string, ParticipantCardData[]>,
+    );
 
-		// Sort participants within each group by stand number
-		Object.values(groupedParticipants).forEach((group) => {
-			group.sort((a, b) => a.standNumber - b.standNumber);
-		});
+    // Sort participants within each group by stand number
+    Object.values(groupedParticipants).forEach((group) => {
+      group.sort((a, b) => a.standNumber - b.standNumber);
+    });
 
-		return Object.values(groupedParticipants).flat();
-	}, [detail.participants, reservations, festival]);
+    return Object.values(groupedParticipants).flat();
+  }, [detail.participants, reservations, festival]);
 
-	/**
-	 * After we get the list of mapped participants, we filter them by the search term and use that list to render the participants.
-	 */
-	useEffect(() => {
-		setFilteredParticipants(
-			mappedParticipants.filter((participant) => {
-				return (
-					participant.participantName
-						.toLowerCase()
-						.includes(searchTerm.toLowerCase()) ||
-					participant.standLabel
-						.toLowerCase()
-						.includes(searchTerm.toLowerCase())
-				);
-			}),
-		);
-	}, [mappedParticipants, searchTerm]);
+  /**
+   * After we get the list of mapped participants, we filter them by the search term and use that list to render the participants.
+   */
+  useEffect(() => {
+    setFilteredParticipants(
+      mappedParticipants.filter((participant) => {
+        return (
+          participant.participantName
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          participant.standLabel
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase())
+        );
+      }),
+    );
+  }, [mappedParticipants, searchTerm]);
 
-	const handleParticipantClick = (participant: ParticipantCardData) => {
-		const newSelection = selectedParticipantIds.includes(
-			participant.participantId,
-		)
-			? selectedParticipantIds.filter((id) => id !== participant.participantId)
-			: [...selectedParticipantIds, participant.participantId];
+  const handleParticipantClick = (participant: ParticipantCardData) => {
+    const newSelection = selectedParticipantIds.includes(
+      participant.participantId,
+    )
+      ? selectedParticipantIds.filter((id) => id !== participant.participantId)
+      : [...selectedParticipantIds, participant.participantId];
 
-		// Update localStorage immediately
-		if (typeof window !== "undefined") {
-			localStorage.setItem(storageKey, JSON.stringify(newSelection));
-		}
-		setSelectedParticipantIds(newSelection);
-	};
+    // Update localStorage immediately
+    if (typeof window !== "undefined") {
+      localStorage.setItem(storageKey, JSON.stringify(newSelection));
+    }
+    setSelectedParticipantIds(newSelection);
+  };
 
-	if (filteredParticipants.length === 0) {
-		return (
-			<div className="flex flex-col gap-2 my-4">
-				{showVariantHeader && (
-					<h3 className="font-medium">Variante {detailIndex + 1}</h3>
-				)}
-				{detail.imageUrl && (
-					<div className="flex flex-col items-center gap-1 mt-2">
-						<Image
-							src={detail.imageUrl}
-							alt="Imagen de la actividad"
-							width={100}
-							height={100}
-							className="rounded-md mx-auto"
-						/>
-						<span className="text-xs text-muted-foreground mx-auto">
-							Imagen de la variante
-						</span>
-					</div>
-				)}
-				<div className="flex flex-col gap-2 border border-border rounded-md p-4 max-w-80 mx-auto">
-					<p className="text-sm text-muted-foreground">
-						No hay participantes para esta actividad.
-					</p>
-				</div>
-			</div>
-		);
-	}
+  if (filteredParticipants.length === 0) {
+    return (
+      <div className="flex flex-col gap-2 my-4">
+        {showVariantHeader && (
+          <h3 className="font-medium">Variante {detailIndex + 1}</h3>
+        )}
+        {detail.imageUrl && (
+          <div className="flex flex-col items-center gap-1 mt-2">
+            <Image
+              src={detail.imageUrl}
+              alt="Imagen de la actividad"
+              width={100}
+              height={100}
+              className="rounded-md mx-auto"
+            />
+            <span className="text-xs text-muted-foreground mx-auto">
+              Imagen de la variante
+            </span>
+          </div>
+        )}
+        <div className="flex flex-col gap-2 border border-border rounded-md p-4 max-w-80 mx-auto">
+          <p className="text-sm text-muted-foreground">
+            No hay participantes para esta actividad.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-	return (
-		<div className="flex flex-col gap-2 my-4">
-			<div className="flex justify-between items-center">
-				{showVariantHeader ? (
-					<h3 className="font-medium">Variante {detailIndex + 1}</h3>
-				) : (
-					<div></div>
-				)}
-				<Button
-					disabled={selectedParticipantIds.length === 0}
-					size="sm"
-					onClick={() => {
-						localStorage.removeItem(storageKey);
-						setSelectedParticipantIds([]);
-					}}
-				>
-					Reiniciar selección
-					<RefreshCcwIcon className="w-4 h-4 ml-1" />
-				</Button>
-			</div>
-			{detail.imageUrl && (
-				<div className="flex flex-col items-center gap-1 mt-2">
-					<Image
-						src={detail.imageUrl}
-						alt="Imagen de la actividad"
-						width={100}
-						height={100}
-						className="rounded-md mx-auto mt-1"
-					/>
-					<span className="text-xs text-muted-foreground mx-auto">
-						Imagen de la variante
-					</span>
-				</div>
-			)}
-			<div className="grid xxs:grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-				{filteredParticipants.map((participant) => {
-					return (
-						<PublicFestivalActivityParticipantCard
-							key={participant.participantId}
-							participant={participant}
-							selected={selectedParticipantIds.includes(
-								participant.participantId,
-							)}
-							onSelect={() => handleParticipantClick(participant)}
-						/>
-					);
-				})}
-			</div>
-		</div>
-	);
+  return (
+    <div className="flex flex-col gap-2 my-4">
+      <div className="flex justify-between items-center">
+        {showVariantHeader ? (
+          <h3 className="font-medium">Variante {detailIndex + 1}</h3>
+        ) : (
+          <div></div>
+        )}
+        <Button
+          disabled={selectedParticipantIds.length === 0}
+          size="sm"
+          onClick={() => {
+            localStorage.removeItem(storageKey);
+            setSelectedParticipantIds([]);
+          }}
+        >
+          Reiniciar selección
+          <RefreshCcwIcon className="w-4 h-4 ml-1" />
+        </Button>
+      </div>
+      {detail.imageUrl && (
+        <div className="flex flex-col items-center gap-1 mt-2">
+          <Image
+            src={detail.imageUrl}
+            alt="Imagen de la actividad"
+            width={100}
+            height={100}
+            className="rounded-md mx-auto mt-1"
+          />
+          <span className="text-xs text-muted-foreground mx-auto">
+            Imagen de la variante
+          </span>
+        </div>
+      )}
+      <div className="grid xxs:grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+        {filteredParticipants.map((participant) => {
+          return (
+            <PublicFestivalActivityParticipantCard
+              key={participant.participantId}
+              participant={participant}
+              selected={selectedParticipantIds.includes(
+                participant.participantId,
+              )}
+              onSelect={() => handleParticipantClick(participant)}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
 }

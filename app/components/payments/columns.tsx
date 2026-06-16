@@ -86,9 +86,7 @@ export const columns: ColumnDef<InvoiceWithParticipants>[] = [
     id: "paymentProof",
     accessorKey: "paymentProof",
     header: columnTitles.paymentProof,
-    cell: ({ row }) => (
-      <ViewPaymentProofCell invoice={row.original} />
-    ),
+    cell: ({ row }) => <ViewPaymentProofCell invoice={row.original} />,
   },
   {
     id: "category",

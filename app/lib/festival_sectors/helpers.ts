@@ -1,49 +1,49 @@
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import {
-	ActivityDetailsWithParticipants,
-	FestivalActivityWithDetailsAndParticipants,
-	WaitlistEntryWithUser,
+  ActivityDetailsWithParticipants,
+  FestivalActivityWithDetailsAndParticipants,
+  WaitlistEntryWithUser,
 } from "@/app/lib/festivals/definitions";
 import { FestivalSectorWithStands } from "@/app/lib/festival_sectors/definitions";
 
 export function getFestivalSectorAllowedCategories(
-	sector: FestivalSectorWithStands,
-	allCategories?: boolean,
+  sector: FestivalSectorWithStands,
+  allCategories?: boolean,
 ): UserCategory[] {
-	const categories = [
-		...new Set(sector.stands.map((stand) => stand.standCategory)),
-	];
+  const categories = [
+    ...new Set(sector.stands.map((stand) => stand.standCategory)),
+  ];
 
-	if (allCategories) return categories;
+  if (allCategories) return categories;
 
-	return categories.filter((category) => category !== "new_artist");
+  return categories.filter((category) => category !== "new_artist");
 }
 
 export function isProfileEnrolledInActivity(
-	profileId: number,
-	activity: FestivalActivityWithDetailsAndParticipants,
+  profileId: number,
+  activity: FestivalActivityWithDetailsAndParticipants,
 ) {
-	return activity.details.some((detail) =>
-		detail.participants.some((participant) => participant.userId === profileId),
-	);
+  return activity.details.some((detail) =>
+    detail.participants.some((participant) => participant.userId === profileId),
+  );
 }
 
 export function getUserWaitlistEntry(
-	userId: number,
-	activity: FestivalActivityWithDetailsAndParticipants,
+  userId: number,
+  activity: FestivalActivityWithDetailsAndParticipants,
 ): WaitlistEntryWithUser | null {
-	return (
-		activity.waitlistEntries.find((entry) => entry.userId === userId) ?? null
-	);
+  return (
+    activity.waitlistEntries.find((entry) => entry.userId === userId) ?? null
+  );
 }
 
 export function isActivityDetailFull(detail: ActivityDetailsWithParticipants) {
-	const activeParticipants = detail.participants.filter(
-		(p) => p.removedAt === null,
-	);
-	return (
-		detail.participationLimit &&
-		detail.participationLimit > 0 &&
-		activeParticipants.length >= detail.participationLimit
-	);
+  const activeParticipants = detail.participants.filter(
+    (p) => p.removedAt === null,
+  );
+  return (
+    detail.participationLimit &&
+    detail.participationLimit > 0 &&
+    activeParticipants.length >= detail.participationLimit
+  );
 }

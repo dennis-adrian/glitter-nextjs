@@ -10,30 +10,30 @@ import { isFestivalHappeningAt } from "@/app/lib/festivals/store-gate";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export default async function StoreLayout({
-	children,
+  children,
 }: {
-	children: React.ReactNode;
+  children: React.ReactNode;
 }) {
-	// Opt into dynamic rendering so we can read the current time below.
-	await connection();
+  // Opt into dynamic rendering so we can read the current time below.
+  await connection();
 
-	const activeFestival = await getActiveFestivalBase();
+  const activeFestival = await getActiveFestivalBase();
 
-	if (
-		!activeFestival?.keepStoreOpen &&
-		isFestivalHappeningAt(activeFestival, new Date())
-	) {
-		return <FestivalHappeningNotice festival={activeFestival} />;
-	}
+  if (
+    !activeFestival?.keepStoreOpen &&
+    isFestivalHappeningAt(activeFestival, new Date())
+  ) {
+    return <FestivalHappeningNotice festival={activeFestival} />;
+  }
 
-	const user = await getCurrentUserProfile();
-	const initialItemCount = user ? await fetchCartItemCount() : 0;
+  const user = await getCurrentUserProfile();
+  const initialItemCount = user ? await fetchCartItemCount() : 0;
 
-	return (
-		<CartProvider initialItemCount={initialItemCount} isAuthenticated={!!user}>
-			<StoreSubheader />
-			<CartSheet />
-			{children}
-		</CartProvider>
-	);
+  return (
+    <CartProvider initialItemCount={initialItemCount} isAuthenticated={!!user}>
+      <StoreSubheader />
+      <CartSheet />
+      {children}
+    </CartProvider>
+  );
 }

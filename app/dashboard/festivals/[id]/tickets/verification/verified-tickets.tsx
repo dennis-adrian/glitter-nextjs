@@ -22,9 +22,8 @@ export default async function VerifiedTickets({
 }) {
   const verifiedTickets = await fetchTicketsByFestival(festivalId);
   const festival = verifiedTickets[0]?.festival;
-  const totalVerifiedTickets = await fetchVerifiedTicketsByFestivalTotal(
-    festivalId,
-  );
+  const totalVerifiedTickets =
+    await fetchVerifiedTicketsByFestivalTotal(festivalId);
 
   return (
     <div>

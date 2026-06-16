@@ -1,69 +1,69 @@
 import { StandBase } from "@/app/api/stands/definitions";
 import {
-	BaseProfile,
-	ProfileSubcategoryWithSubcategory,
-	ProfileWithSocials,
-	UserSocial,
+  BaseProfile,
+  ProfileSubcategoryWithSubcategory,
+  ProfileWithSocials,
+  UserSocial,
 } from "@/app/api/users/definitions";
 import { InvoiceWithPayments } from "@/app/data/invoices/definitions";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { Collaborator } from "@/app/lib/reservations/definitions";
 import {
-	reservationParticipants,
-	scheduledTasks,
-	standReservations,
+  reservationParticipants,
+  scheduledTasks,
+  standReservations,
 } from "@/db/schema";
 
 export type ReservationBase = typeof standReservations.$inferSelect;
 export type ReservationScheduledTask = typeof scheduledTasks.$inferSelect;
 export type ReservationWithStand = ReservationBase & {
-	stand: StandBase;
+  stand: StandBase;
 };
 
 export type Participant = typeof reservationParticipants.$inferSelect & {
-	user: ProfileWithSocials;
+  user: ProfileWithSocials;
 };
 
 export type ReservationWithParticipantsAndUsers =
-	typeof standReservations.$inferSelect & {
-		participants: Participant[];
-	};
+  typeof standReservations.$inferSelect & {
+    participants: Participant[];
+  };
 
 export type ReservationWithParticipantsAndUsersAndStand =
-	ReservationWithParticipantsAndUsers & {
-		stand: StandBase;
-	};
+  ReservationWithParticipantsAndUsers & {
+    stand: StandBase;
+  };
 
 export type ReservationWithParticipantsAndUsersAndStandAndCollaborators =
-	ReservationWithParticipantsAndUsersAndStand & {
-		collaborators: {
-			collaborator: Collaborator;
-		}[];
-	};
+  ReservationWithParticipantsAndUsersAndStand & {
+    collaborators: {
+      collaborator: Collaborator;
+    }[];
+  };
 
 export type ReservationWithParticipantsAndUsersAndStandAndFestival =
-	ReservationWithParticipantsAndUsersAndStand & {
-		festival: FestivalWithDates;
-		scheduledTasks: ReservationScheduledTask[];
-	};
+  ReservationWithParticipantsAndUsersAndStand & {
+    festival: FestivalWithDates;
+    scheduledTasks: ReservationScheduledTask[];
+  };
 
 export type ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments =
-	ReservationWithParticipantsAndUsersAndStandAndFestival & {
-		invoices: InvoiceWithPayments[];
-	};
+  ReservationWithParticipantsAndUsersAndStandAndFestival & {
+    invoices: InvoiceWithPayments[];
+  };
 
 export type FullReservation = ReservationBase & {
-	participants: (typeof reservationParticipants.$inferSelect & {
-		user: BaseProfile & {
-			userSocials: UserSocial[];
-			profileSubcategories: ProfileSubcategoryWithSubcategory[];
-		};
-	})[];
-	stand: StandBase;
-	festival: FestivalWithDates;
-	invoices: InvoiceWithPayments[];
-	collaborators: {
-		collaborator: Collaborator;
-	}[];
-	scheduledTasks: ReservationScheduledTask[];
+  participants: (typeof reservationParticipants.$inferSelect & {
+    user: BaseProfile & {
+      userSocials: UserSocial[];
+      profileSubcategories: ProfileSubcategoryWithSubcategory[];
+    };
+  })[];
+  stand: StandBase;
+  festival: FestivalWithDates;
+  invoices: InvoiceWithPayments[];
+  collaborators: {
+    collaborator: Collaborator;
+  }[];
+  scheduledTasks: ReservationScheduledTask[];
 };

@@ -17,155 +17,153 @@ import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import Image from "next/image";
 
 const ParamsSchema = z.object({
-	orderId: z.coerce.number(),
+  orderId: z.coerce.number(),
 });
 
 const SearchParamsSchema = z.object({
-	token: z.string().optional(),
+  token: z.string().optional(),
 });
 
 export default async function OrderPaymentPage(props: {
-	params: Promise<{ orderId: string }>;
-	searchParams: Promise<{ token?: string }>;
+  params: Promise<{ orderId: string }>;
+  searchParams: Promise<{ token?: string }>;
 }) {
-	const params = await props.params;
-	const searchParams = await props.searchParams;
+  const params = await props.params;
+  const searchParams = await props.searchParams;
 
-	const parsedParams = ParamsSchema.safeParse(params);
-	if (!parsedParams.success) return notFound();
+  const parsedParams = ParamsSchema.safeParse(params);
+  if (!parsedParams.success) return notFound();
 
-	const parsedSearch = SearchParamsSchema.safeParse(searchParams);
-	const tokenFromParam = parsedSearch.success
-		? parsedSearch.data.token
-		: undefined;
+  const parsedSearch = SearchParamsSchema.safeParse(searchParams);
+  const tokenFromParam = parsedSearch.success
+    ? parsedSearch.data.token
+    : undefined;
 
-	const { orderId } = parsedParams.data;
+  const { orderId } = parsedParams.data;
 
-	const user = await getCurrentUserProfile();
+  const user = await getCurrentUserProfile();
 
-	const resolvedToken =
-		tokenFromParam ??
-		(user
-			? undefined
-			: (await cookies()).get(`guest_order_${orderId}`)?.value);
+  const resolvedToken =
+    tokenFromParam ??
+    (user ? undefined : (await cookies()).get(`guest_order_${orderId}`)?.value);
 
-	let order: Awaited<ReturnType<typeof fetchOrder>>;
-	let isGuest = false;
+  let order: Awaited<ReturnType<typeof fetchOrder>>;
+  let isGuest = false;
 
-	if (user) {
-		order = await fetchOrder(orderId);
-		if (!order) return notFound();
-		if (order.userId !== user.id && user.role !== "admin") return notFound();
-	} else {
-		if (!resolvedToken) return notFound();
-		order = await fetchGuestOrder(orderId, resolvedToken);
-		if (!order) return notFound();
-		isGuest = true;
-	}
+  if (user) {
+    order = await fetchOrder(orderId);
+    if (!order) return notFound();
+    if (order.userId !== user.id && user.role !== "admin") return notFound();
+  } else {
+    if (!resolvedToken) return notFound();
+    order = await fetchGuestOrder(orderId, resolvedToken);
+    if (!order) return notFound();
+    isGuest = true;
+  }
 
-	const backHref = isGuest
-		? tokenFromParam
-			? `/orders/${orderId}?token=${resolvedToken}`
-			: `/orders/${orderId}`
-		: `/profiles/${order.userId}/orders/${orderId}`;
+  const backHref = isGuest
+    ? tokenFromParam
+      ? `/orders/${orderId}?token=${resolvedToken}`
+      : `/orders/${orderId}`
+    : `/profiles/${order.userId}/orders/${orderId}`;
 
-	const successRedirectUrl = isGuest ? undefined : "/my_orders";
+  const successRedirectUrl = isGuest ? undefined : "/my_orders";
 
-	return (
-		<div className="container p-3 pb-28 md:p-6 md:pb-6">
-			{isGuest ? <ClearGuestCartOnPaymentMount /> : null}
-			<div className="mb-4">
-				<Link
-					href={backHref}
-					className="text-sm text-muted-foreground flex items-center gap-1 mb-3 hover:text-foreground transition-colors"
-				>
-					<ArrowLeftIcon className="h-3.5 w-3.5" />
-					Ver detalles del pedido
-				</Link>
-				<Heading level={2}>Pagar pedido</Heading>
-			</div>
+  return (
+    <div className="container p-3 pb-28 md:p-6 md:pb-6">
+      {isGuest ? <ClearGuestCartOnPaymentMount /> : null}
+      <div className="mb-4">
+        <Link
+          href={backHref}
+          className="text-sm text-muted-foreground flex items-center gap-1 mb-3 hover:text-foreground transition-colors"
+        >
+          <ArrowLeftIcon className="h-3.5 w-3.5" />
+          Ver detalles del pedido
+        </Link>
+        <Heading level={2}>Pagar pedido</Heading>
+      </div>
 
-			<div className="space-y-4">
-				{order.status === "pending" && order.paymentDueDate && (
-					<div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
-						<CalendarClockIcon className="h-4 w-4 shrink-0" />
-						<span>
-							Fecha límite de pago:{" "}
-							<strong>
-								{formatDate(order.paymentDueDate).toLocaleString({
-									day: "numeric",
-									month: "long",
-									year: "numeric",
-								})}
-							</strong>
-						</span>
-					</div>
-				)}
+      <div className="space-y-4">
+        {order.status === "pending" && order.paymentDueDate && (
+          <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+            <CalendarClockIcon className="h-4 w-4 shrink-0" />
+            <span>
+              Fecha límite de pago:{" "}
+              <strong>
+                {formatDate(order.paymentDueDate).toLocaleString({
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </strong>
+            </span>
+          </div>
+        )}
 
-				<OrderPaymentSection
-					orderId={order.id}
-					totalAmount={order.totalAmount}
-					status={order.status}
-					paymentVoucherUrl={order.paymentVoucherUrl ?? null}
-					guestToken={isGuest ? resolvedToken : undefined}
-					successRedirectUrl={successRedirectUrl}
-				/>
+        <OrderPaymentSection
+          orderId={order.id}
+          totalAmount={order.totalAmount}
+          status={order.status}
+          paymentVoucherUrl={order.paymentVoucherUrl ?? null}
+          guestToken={isGuest ? resolvedToken : undefined}
+          successRedirectUrl={successRedirectUrl}
+        />
 
-				<Card>
-					<CardContent className="p-6">
-						<p className="text-sm font-medium mb-3 flex items-center gap-2 text-muted-foreground">
-							<BoxIcon className="h-3.5 w-3.5" />
-							Resumen del pedido
-						</p>
-						<div className="space-y-3">
-							{order.orderItems.map((item: OrderItemWithRelations) => {
-								const mainImage = item.product.images.find((img) => img.isMain);
-								const imageUrl = mainImage?.imageUrl
-									? mainImage.imageUrl
-									: PLACEHOLDER_IMAGE_URLS["300"];
-								const unitPrice = item.priceAtPurchase;
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-sm font-medium mb-3 flex items-center gap-2 text-muted-foreground">
+              <BoxIcon className="h-3.5 w-3.5" />
+              Resumen del pedido
+            </p>
+            <div className="space-y-3">
+              {order.orderItems.map((item: OrderItemWithRelations) => {
+                const mainImage = item.product.images.find((img) => img.isMain);
+                const imageUrl = mainImage?.imageUrl
+                  ? mainImage.imageUrl
+                  : PLACEHOLDER_IMAGE_URLS["300"];
+                const unitPrice = item.priceAtPurchase;
 
-								return (
-									<div key={item.id} className="flex gap-3 items-center">
-										<div className="shrink-0 w-10 h-10 rounded overflow-hidden bg-muted">
-											<Image
-												src={imageUrl}
-												alt={item.product.name}
-												width={40}
-												height={40}
-												className="w-full h-full object-cover"
-											/>
-										</div>
-										<div className="flex-1 min-w-0">
-											<p className="text-sm font-medium truncate">
-												{item.product.name}
-											</p>
-											<p className="text-xs text-muted-foreground">
-												{item.quantity} × Bs {unitPrice.toFixed(2)}
-											</p>
-										</div>
-										<p className="text-sm font-semibold shrink-0">
-											Bs {(item.priceAtPurchase * item.quantity).toFixed(2)}
-										</p>
-									</div>
-								);
-							})}
-							<div className="flex justify-between font-semibold pt-2 border-t">
-								<span>Total</span>
-								<span>Bs {order.totalAmount.toFixed(2)}</span>
-							</div>
-						</div>
-					</CardContent>
-				</Card>
-			</div>
+                return (
+                  <div key={item.id} className="flex gap-3 items-center">
+                    <div className="shrink-0 w-10 h-10 rounded overflow-hidden bg-muted">
+                      <Image
+                        src={imageUrl}
+                        alt={item.product.name}
+                        width={40}
+                        height={40}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {item.product.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {item.quantity} × Bs {unitPrice.toFixed(2)}
+                      </p>
+                    </div>
+                    <p className="text-sm font-semibold shrink-0">
+                      Bs {(item.priceAtPurchase * item.quantity).toFixed(2)}
+                    </p>
+                  </div>
+                );
+              })}
+              <div className="flex justify-between font-semibold pt-2 border-t">
+                <span>Total</span>
+                <span>Bs {order.totalAmount.toFixed(2)}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-			{order.status === "pending" && (
-				<MobilePaymentBar
-					orderId={order.id}
-					guestToken={isGuest ? resolvedToken : undefined}
-					successRedirectUrl={successRedirectUrl}
-				/>
-			)}
-		</div>
-	);
+      {order.status === "pending" && (
+        <MobilePaymentBar
+          orderId={order.id}
+          guestToken={isGuest ? resolvedToken : undefined}
+          successRedirectUrl={successRedirectUrl}
+        />
+      )}
+    </div>
+  );
 }

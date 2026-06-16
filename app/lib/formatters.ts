@@ -36,28 +36,28 @@ export function getWeekdayFromDate(
 
 export function slugify(input: string): string {
   return input
-    .normalize("NFKD")             // strip accents
+    .normalize("NFKD") // strip accents
     .replace(/[\u0300-\u036f]/g, "") // remove diacritics
-    .replace(/[^a-z0-9]+/gi, "_")   // replace non-alphanumeric with underscores
-    .toLowerCase()                  // convert to lowercase
-    .replace(/^_+|_+$/g, "");       // trim leading/trailing underscores
+    .replace(/[^a-z0-9]+/gi, "_") // replace non-alphanumeric with underscores
+    .toLowerCase() // convert to lowercase
+    .replace(/^_+|_+$/g, ""); // trim leading/trailing underscores
 }
 
 export const getFestivalDateString = (
-	startDate: string | null,
-	endDate: string | null,
+  startDate: string | null,
+  endDate: string | null,
 ) => {
-	if (startDate && !endDate) {
-		return startDate;
-	}
+  if (startDate && !endDate) {
+    return startDate;
+  }
 
-	if (!startDate && endDate) {
-		return endDate;
-	}
+  if (!startDate && endDate) {
+    return endDate;
+  }
 
-	if (startDate === endDate) {
-		return startDate;
-	}
+  if (startDate === endDate) {
+    return startDate;
+  }
 
-	return `${startDate} - ${endDate}`;
+  return `${startDate} - ${endDate}`;
 };

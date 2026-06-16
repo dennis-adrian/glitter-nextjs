@@ -12,28 +12,28 @@ type QRCodeDetailsProps = {
 };
 
 export default async function QRCodeDetails({ invoice }: QRCodeDetailsProps) {
-	const qrCode = await getQRCode(invoice.amount);
+  const qrCode = await getQRCode(invoice.amount);
 
-	return (
-		<div>
-			<Card>
-				<CardContent className="pt-6">
-					<div className="flex flex-col items-center">
-						<h2 className="text-xl font-semibold mb-2">Código QR para Pagar</h2>
-						<p className="text-center text-muted-foreground mb-4">
-							Usa tu app de banco o app de pago para escanear este código
-						</p>
+  return (
+    <div>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col items-center">
+            <h2 className="text-xl font-semibold mb-2">Código QR para Pagar</h2>
+            <p className="text-center text-muted-foreground mb-4">
+              Usa tu app de banco o app de pago para escanear este código
+            </p>
 
-						<PaymentQRCode invoice={invoice} qrCodeUrl={qrCode?.qrCodeUrl} />
-					</div>
-				</CardContent>
-			</Card>
+            <PaymentQRCode invoice={invoice} qrCodeUrl={qrCode?.qrCodeUrl} />
+          </div>
+        </CardContent>
+      </Card>
 
-			<div className="mt-4">
-				<CompletePaymentButton invoice={invoice} />
-			</div>
+      <div className="mt-4">
+        <CompletePaymentButton invoice={invoice} />
+      </div>
 
-			{/* <div className="mt-4 text-center">
+      {/* <div className="mt-4 text-center">
         <p className="text-sm text-muted-foreground">
           ¿Tienes problemas?{" "}
           <Link href="#" className="text-primary hover:underline">
@@ -41,6 +41,6 @@ export default async function QRCodeDetails({ invoice }: QRCodeDetailsProps) {
           </Link>
         </p>
       </div> */}
-		</div>
-	);
+    </div>
+  );
 }

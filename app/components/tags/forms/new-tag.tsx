@@ -11,58 +11,58 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 const FormSchema = z.object({
-	label: z
-		.string()
-		.trim()
-		.min(3, "La etiqueta debe tener al menos 3 caracteres"),
-	category: z.enum(userCategoryEnum.enumValues),
+  label: z
+    .string()
+    .trim()
+    .min(3, "La etiqueta debe tener al menos 3 caracteres"),
+  category: z.enum(userCategoryEnum.enumValues),
 });
 
 type NewTagFormProps = {
-	onSuccess: () => void;
+  onSuccess: () => void;
 };
 export default function NewTagForm(props: NewTagFormProps) {
-	const form = useForm({
-		resolver: zodResolver(FormSchema),
-		defaultValues: {
-			label: "",
-			category: "illustration" as const,
-		},
-	});
+  const form = useForm({
+    resolver: zodResolver(FormSchema),
+    defaultValues: {
+      label: "",
+      category: "illustration" as const,
+    },
+  });
 
-	const action: () => void = form.handleSubmit(async (data) => {
-		const res = await createTag(data);
+  const action: () => void = form.handleSubmit(async (data) => {
+    const res = await createTag(data);
 
-		if (res.success) {
-			toast.success(res.message);
-			props.onSuccess();
-		} else {
-			toast.error(res.message);
-		}
-	});
+    if (res.success) {
+      toast.success(res.message);
+      props.onSuccess();
+    } else {
+      toast.error(res.message);
+    }
+  });
 
-	return (
-		<Form {...form}>
-			<form className="grid gap-4" onSubmit={action}>
-				<TextInput
-					label="Etiqueta"
-					name="label"
-					placeholder="Nombre de la etiqueta"
-				/>
-				<SelectInput
-					formControl={form.control}
-					label="Categoría"
-					name="category"
-					options={userOccupationsLabel}
-					placeholder="Elige una opción"
-				/>
-				<SubmitButton
-					disabled={form.formState.isSubmitting}
-					loading={form.formState.isSubmitting}
-				>
-					Confirmar
-				</SubmitButton>
-			</form>
-		</Form>
-	);
+  return (
+    <Form {...form}>
+      <form className="grid gap-4" onSubmit={action}>
+        <TextInput
+          label="Etiqueta"
+          name="label"
+          placeholder="Nombre de la etiqueta"
+        />
+        <SelectInput
+          formControl={form.control}
+          label="Categoría"
+          name="category"
+          options={userOccupationsLabel}
+          placeholder="Elige una opción"
+        />
+        <SubmitButton
+          disabled={form.formState.isSubmitting}
+          loading={form.formState.isSubmitting}
+        >
+          Confirmar
+        </SubmitButton>
+      </form>
+    </Form>
+  );
 }

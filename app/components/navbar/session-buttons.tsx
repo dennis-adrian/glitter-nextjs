@@ -10,95 +10,95 @@ import { NavbarProfile } from "@/app/api/users/definitions";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { Button } from "@/app/components/ui/button";
 import {
-	Dialog,
-	DialogContent,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/app/components/ui/dialog";
 import UserDropdown from "@/app/components/ui/user-dropdown";
 import { isNoNavigationPage, isStoreFlowPage } from "@/app/lib/utils";
 import { UserDropdownSkeleton } from "@/app/components/user_dropdown/skeleton";
 
 export default function SessionButtons({
-	profile,
+  profile,
 }: {
-	profile?: NavbarProfile | null;
+  profile?: NavbarProfile | null;
 }) {
-	const [open, setOpen] = useState(false);
-	const router = useRouter();
-	const pathname = usePathname();
-	const { isLoaded, isSignedIn } = useUser();
+  const [open, setOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const { isLoaded, isSignedIn } = useUser();
 
-	if (isNoNavigationPage(pathname)) {
-		return null;
-	}
+  if (isNoNavigationPage(pathname)) {
+    return null;
+  }
 
-	if (!isLoaded) {
-		return (
-			<div className="flex min-h-9 items-center justify-end">
-				<UserDropdownSkeleton />
-			</div>
-		);
-	}
+  if (!isLoaded) {
+    return (
+      <div className="flex min-h-9 items-center justify-end">
+        <UserDropdownSkeleton />
+      </div>
+    );
+  }
 
-	const storeFlow = isStoreFlowPage(pathname);
+  const storeFlow = isStoreFlowPage(pathname);
 
-	if (!storeFlow && !isSignedIn) {
-		return (
-			<>
-				<div className="flex gap-1">
-					<Button
-						variant="ghost"
-						size="sm"
-						className="px-1 md:px-2"
-						onClick={() => setOpen(true)}
-					>
-						<UserPlusIcon className="mr-2 h-5 w-5 hidden xl:block" />
-						Crear cuenta
-					</Button>
-					<RedirectButton href="/sign_in" size="sm" variant="outline">
-						<LogInIcon className="mr-1 h-5 w-5 hidden xl:block" />
-						Iniciar sesión
-					</RedirectButton>
-				</div>
-				<Dialog open={open} onOpenChange={setOpen}>
-					<DialogContent className="p-4 md:p-6">
-						<DialogHeader>
-							<DialogTitle className="text-center">
-								¿Quieres crear una cuenta?
-							</DialogTitle>
-						</DialogHeader>
-						<div className="flex flex-col gap-2 my-2 text-center">
-							<InfoIcon className="w-12 h-12 mx-auto text-amber-500" />
-							<p className="leading-5">
-								Al crear una cuenta y completar tu perfil serás considerado para
-								participar como expositor en nuestros eventos
-							</p>
-						</div>
-						<DialogFooter className="flex flex-col-reverse md:flex-row w-full gap-2">
-							<Button
-								className="w-full"
-								variant="outline"
-								onClick={() => setOpen(false)}
-							>
-								Cancelar
-							</Button>
-							<Button
-								className="w-full"
-								onClick={() => {
-									setOpen(false);
-									router.push("/sign_up");
-								}}
-							>
-								Continuar
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
-			</>
-		);
-	}
+  if (!storeFlow && !isSignedIn) {
+    return (
+      <>
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="px-1 md:px-2"
+            onClick={() => setOpen(true)}
+          >
+            <UserPlusIcon className="mr-2 h-5 w-5 hidden xl:block" />
+            Crear cuenta
+          </Button>
+          <RedirectButton href="/sign_in" size="sm" variant="outline">
+            <LogInIcon className="mr-1 h-5 w-5 hidden xl:block" />
+            Iniciar sesión
+          </RedirectButton>
+        </div>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="p-4 md:p-6">
+            <DialogHeader>
+              <DialogTitle className="text-center">
+                ¿Quieres crear una cuenta?
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col gap-2 my-2 text-center">
+              <InfoIcon className="w-12 h-12 mx-auto text-amber-500" />
+              <p className="leading-5">
+                Al crear una cuenta y completar tu perfil serás considerado para
+                participar como expositor en nuestros eventos
+              </p>
+            </div>
+            <DialogFooter className="flex flex-col-reverse md:flex-row w-full gap-2">
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={() => setOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="w-full"
+                onClick={() => {
+                  setOpen(false);
+                  router.push("/sign_up");
+                }}
+              >
+                Continuar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
 
-	return <UserDropdown profile={profile} />;
+  return <UserDropdown profile={profile} />;
 }
