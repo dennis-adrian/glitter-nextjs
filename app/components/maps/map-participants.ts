@@ -3,20 +3,30 @@ import {
   ExternalParticipant,
 } from "@/app/api/reservations/definitions";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { UserSocial } from "@/app/api/users/definitions";
+import { UserCategory, UserSocial } from "@/app/api/users/definitions";
 import { getExternalParticipantCategoryLabel } from "@/app/lib/external_participants/definitions";
 import { socialsUrls } from "@/app/lib/users/utils";
 
-export type MapParticipant = {
+type BaseMapParticipant = {
   id: string;
-  kind: "user" | "external";
   displayName: string;
   imageUrl: string | null;
-  categoryLabel: string;
-  userId?: number;
   userSocials: UserSocial[];
   links: { label: string; href: string }[];
 };
+
+export type UserMapParticipant = BaseMapParticipant & {
+  kind: "user";
+  categoryLabel: UserCategory;
+  userId: number;
+};
+
+export type ExternalMapParticipant = BaseMapParticipant & {
+  kind: "external";
+  categoryLabel: string;
+};
+
+export type MapParticipant = UserMapParticipant | ExternalMapParticipant;
 
 export function getActiveStandReservations(
   stand: StandWithReservationsWithParticipants,
