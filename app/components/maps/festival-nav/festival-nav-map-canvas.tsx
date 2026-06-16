@@ -10,6 +10,7 @@ import {
   STAND_SIZE,
   StandColors,
   computeCanvasBounds,
+  getExternalParticipantStandColors,
   getPublicStandColors,
   getStandPosition,
 } from "@/app/components/maps/map-utils";
@@ -17,6 +18,7 @@ import MapCanvas from "@/app/components/maps/map-canvas";
 import MapStand from "@/app/components/maps/map-stand";
 import MapElement from "@/app/components/maps/map-element";
 import MapTransformWrapper from "@/app/components/maps/map-transform-wrapper";
+import { hasExternalParticipants } from "@/app/components/maps/map-participants";
 
 type FestivalNavMapCanvasProps = {
   stands: StandWithReservationsWithParticipants[];
@@ -60,6 +62,8 @@ function getNavStandColors(
   stickerHuntUserIdSet: Set<number>,
 ): StandColors {
   if (!isOccupied(stand)) return getPublicStandColors(stand.status);
+  if (hasExternalParticipants(stand))
+    return getExternalParticipantStandColors();
 
   const hasCoupon = hasActivityParticipant(stand, couponBookUserIdSet);
   const hasPassport = hasActivityParticipant(stand, passportUserIdSet);

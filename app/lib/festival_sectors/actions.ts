@@ -46,6 +46,11 @@ export async function fetchFestivalSectors(
                     },
                   },
                 },
+                externalParticipants: {
+                  with: {
+                    externalParticipant: true,
+                  },
+                },
               },
             },
             standSubcategories: {
@@ -182,6 +187,11 @@ export async function fetchFestivalSectorsByUserCategory(
                           userSocials: true,
                         },
                       },
+                    },
+                  },
+                  externalParticipants: {
+                    with: {
+                      externalParticipant: true,
                     },
                   },
                 },
@@ -379,7 +389,14 @@ export async function fetchSectorWithStandsAndReservations(sectorId: number) {
         stands: {
           with: {
             reservations: {
-              with: { participants: { with: { user: true } } },
+              with: {
+                participants: { with: { user: true } },
+                externalParticipants: {
+                  with: {
+                    externalParticipant: true,
+                  },
+                },
+              },
             },
           },
         },

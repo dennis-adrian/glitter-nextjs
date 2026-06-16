@@ -168,6 +168,7 @@ export function getAdminOverviewColors(
   standStatus: string,
   reservationStatus?: string | null,
   isOverdue?: boolean,
+  isExternalParticipant?: boolean,
 ): StandColors {
   if (standStatus === "disabled") {
     return {
@@ -193,6 +194,7 @@ export function getAdminOverviewColors(
       text: "#92400E",
     };
   }
+  if (isExternalParticipant) return getExternalParticipantStandColors();
   // For all other stand states, color is driven by reservation status
   if (reservationStatus === "verification_payment") {
     return {
@@ -258,5 +260,14 @@ export function getPublicStandColors(status: string): StandColors {
     hoverFill: "rgba(109, 40, 217, 0.95)", // violet-700 hover
     stroke: "rgba(91, 33, 182, 0.8)", // violet-800
     text: "#ffffff", // white
+  };
+}
+
+export function getExternalParticipantStandColors(): StandColors {
+  return {
+    fill: "rgba(13, 148, 136, 0.82)",
+    hoverFill: "rgba(15, 118, 110, 0.92)",
+    stroke: "rgba(17, 94, 89, 0.9)",
+    text: "#ffffff",
   };
 }

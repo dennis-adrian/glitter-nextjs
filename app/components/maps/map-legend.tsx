@@ -16,6 +16,10 @@ const legendItems = [
     color: "bg-gray-300/50 border-gray-400/60",
   },
   {
+    label: "Externo",
+    color: "bg-teal-600/80 border-teal-800/90",
+  },
+  {
     label: "No disponible",
     color: "bg-gray-200/35 border-gray-300/40",
   },

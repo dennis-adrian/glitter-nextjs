@@ -9,7 +9,9 @@ import { InvoiceWithPayments } from "@/app/data/invoices/definitions";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { Collaborator } from "@/app/lib/reservations/definitions";
 import {
+  externalParticipants,
   reservationParticipants,
+  reservationExternalParticipants,
   scheduledTasks,
   standReservations,
 } from "@/db/schema";
@@ -23,10 +25,16 @@ export type ReservationWithStand = ReservationBase & {
 export type Participant = typeof reservationParticipants.$inferSelect & {
   user: ProfileWithSocials;
 };
+export type ExternalParticipant = typeof externalParticipants.$inferSelect;
+export type ReservationExternalParticipant =
+  typeof reservationExternalParticipants.$inferSelect & {
+    externalParticipant: ExternalParticipant;
+  };
 
 export type ReservationWithParticipantsAndUsers =
   typeof standReservations.$inferSelect & {
     participants: Participant[];
+    externalParticipants?: ReservationExternalParticipant[];
   };
 
 export type ReservationWithParticipantsAndUsersAndStand =
@@ -59,6 +67,7 @@ export type FullReservation = ReservationBase & {
       profileSubcategories: ProfileSubcategoryWithSubcategory[];
     };
   })[];
+  externalParticipants?: ReservationExternalParticipant[];
   stand: StandBase;
   festival: FestivalWithDates;
   invoices: InvoiceWithPayments[];

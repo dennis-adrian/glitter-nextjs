@@ -22,6 +22,7 @@ import AdminOverviewMapTooltip from "@/app/components/maps/admin/admin-overview-
 import { Tabs, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
 import { Switch } from "@/app/components/ui/switch";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
+import { hasExternalParticipants } from "@/app/components/maps/map-participants";
 
 type AdminOverviewMapProps = {
   sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
@@ -70,6 +71,12 @@ const LEGEND_ITEMS = [
     border: "hsl(262, 77%, 35%)",
     label: "Confirmado",
     countKey: "confirmado" as const,
+  },
+  {
+    color: "rgba(13, 148, 136, 0.82)",
+    border: "rgba(17, 94, 89, 0.9)",
+    label: "Externo",
+    countKey: "externo" as const,
   },
 ];
 
@@ -171,6 +178,7 @@ export default function AdminOverviewMap({
       atrasado: 0,
       pagadoPorConfirmar: 0,
       confirmado: 0,
+      externo: 0,
     };
     for (const stand of sector?.stands ?? []) {
       if (stand.status === "disabled") {
@@ -183,6 +191,10 @@ export default function AdminOverviewMap({
       }
       if (stand.status === "held") {
         counts.enEspera++;
+        continue;
+      }
+      if (hasExternalParticipants(stand)) {
+        counts.externo++;
         continue;
       }
       if (getIsOverdue(stand.id)) {
@@ -361,6 +373,7 @@ export default function AdminOverviewMap({
                       stand.status,
                       getReservationStatus(stand.id),
                       getIsOverdue(stand.id),
+                      hasExternalParticipants(stand),
                     )}
                     onClick={handleStandClick}
                     onTouchTap={handleTouchTap}

@@ -1,5 +1,6 @@
 import { FullReservation } from "@/app/api/reservations/definitions";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
+import { externalParticipantTypeOptions } from "@/app/lib/external_participants/definitions";
 import { DisplayPaymentStatus } from "@/app/lib/payments/helpers";
 import { userCategoryOptions } from "@/app/lib/utils";
 import { columns, columnTitles } from "./columns";
@@ -53,9 +54,9 @@ export default function ReservationsTable({
           ],
         },
         {
-          label: "Sector",
-          columnId: "festivalSector",
-          options: [...userCategoryOptions],
+          label: "Categoría",
+          columnId: "participantCategory",
+          options: [...userCategoryOptions, ...externalParticipantTypeOptions],
         },
       ]}
     />

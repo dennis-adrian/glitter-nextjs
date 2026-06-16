@@ -14,7 +14,11 @@ import MapElement from "@/app/components/maps/map-element";
 import MapToolbar from "@/app/components/maps/map-toolbar";
 import MapLegend from "@/app/components/maps/map-legend";
 import MapTransformWrapper from "@/app/components/maps/map-transform-wrapper";
-import { computeCanvasBounds } from "@/app/components/maps/map-utils";
+import {
+  computeCanvasBounds,
+  getExternalParticipantStandColors,
+} from "@/app/components/maps/map-utils";
+import { hasExternalParticipants } from "@/app/components/maps/map-participants";
 
 type UserMapProps = {
   stands: StandWithReservationsWithParticipants[];
@@ -78,6 +82,11 @@ export default function UserMap({
                     stand={stand}
                     canBeReserved={standCanBeReserved}
                     selected={stand.id === selectedStandId}
+                    colors={
+                      hasExternalParticipants(stand)
+                        ? getExternalParticipantStandColors()
+                        : undefined
+                    }
                     onClick={onStandClick}
                     onTouchTap={onStandTouchTap}
                   />

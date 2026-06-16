@@ -14,10 +14,12 @@ import { ActionsCell } from "@/app/components/reservations/cells/actions";
 import PaymentStatus from "@/app/components/reservations/cells/payment-status";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import { Badge } from "@/app/components/ui/badge";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
 import { RESERVATION_EXPIRATION_HOURS } from "@/app/lib/constants";
+import { getExternalParticipantCategoryLabel } from "@/app/lib/external_participants/definitions";
 import { formatDate, formatDateWithTime } from "@/app/lib/formatters";
 import {
   DisplayPaymentStatus,
@@ -34,7 +36,7 @@ export const columnTitles = {
   paymentStatus: "Estado del Pago",
   expiration: "Vencimiento",
   collaborators: "Colaboradores",
-  festivalSector: "Sector",
+  participantCategory: "Categoría",
 };
 
 export const columns: ColumnDef<FullReservation>[] = [
@@ -76,52 +78,123 @@ export const columns: ColumnDef<FullReservation>[] = [
   {
     id: "artists",
     accessorFn: (row) =>
-      row.participants.map((p) => p.user.displayName).join(", "),
+      [
+        ...row.participants.map((p) => p.user.displayName),
+        ...(row.externalParticipants?.map(
+          ({ externalParticipant }) => externalParticipant.displayName,
+        ) ?? []),
+      ].join(", "),
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.artists} />
     ),
-    cell: ({ row }) =>
-      row.original.participants.map(({ user: profile }) => (
-        <TooltipProvider key={profile.id}>
-          <Tooltip>
-            <TooltipTrigger>
-              <Avatar className="w-8 h-8">
-                <AvatarImage
-                  src={
-                    profile?.imageUrl ||
-                    "/img/placeholders/avatar-placeholder.png"
-                  }
-                  alt={profile.displayName || "avatar"}
+    cell: ({ row }) => (
+      <div className="flex flex-wrap gap-1">
+        {row.original.participants.map(({ user: profile }) => (
+          <TooltipProvider key={profile.id}>
+            <Tooltip>
+              <TooltipTrigger>
+                <Avatar className="w-8 h-8">
+                  <AvatarImage
+                    src={
+                      profile?.imageUrl ||
+                      "/img/placeholders/avatar-placeholder.png"
+                    }
+                    alt={profile.displayName || "avatar"}
+                  />
+                </Avatar>
+              </TooltipTrigger>
+              <TooltipContent>
+                <ProfileQuickViewInfo
+                  className="p-4"
+                  profile={profile}
+                  truncateEmail
                 />
-              </Avatar>
-            </TooltipTrigger>
-            <TooltipContent>
-              <ProfileQuickViewInfo
-                className="p-4"
-                profile={profile}
-                truncateEmail
-              />
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )),
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ))}
+        {row.original.externalParticipants?.map(({ externalParticipant }) => (
+          <TooltipProvider key={`external-${externalParticipant.id}`}>
+            <Tooltip>
+              <TooltipTrigger>
+                <Avatar className="w-8 h-8">
+                  <AvatarImage
+                    src={
+                      externalParticipant.imageUrl ||
+                      "/img/placeholders/avatar-placeholder.png"
+                    }
+                    alt={externalParticipant.displayName || "avatar"}
+                  />
+                </Avatar>
+              </TooltipTrigger>
+              <TooltipContent>
+                <div className="flex flex-col gap-1 p-2">
+                  <span className="font-medium">
+                    {externalParticipant.displayName}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {getExternalParticipantCategoryLabel(externalParticipant)}
+                  </span>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ))}
+      </div>
+    ),
   },
   {
-    id: "festivalSector",
-    accessorFn: (row) => row.stand.standCategory,
+    id: "participantCategory",
+    accessorFn: (row) =>
+      [
+        ...row.participants.map((p) => p.user.category),
+        ...(row.externalParticipants?.map(({ externalParticipant }) =>
+          getExternalParticipantCategoryLabel(externalParticipant),
+        ) ?? []),
+      ].join(", "),
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
-        title={columnTitles.festivalSector}
+        title={columnTitles.participantCategory}
       />
     ),
     cell: ({ row }) => (
-      <CategoryBadge category={row.original.stand.standCategory} />
+      <div className="flex flex-wrap gap-1">
+        {row.original.participants.map((participant) => (
+          <CategoryBadge
+            key={`participant-category-${participant.id}`}
+            category={participant.user.category}
+          />
+        ))}
+        {row.original.externalParticipants?.map(({ externalParticipant }) => (
+          <Badge
+            key={`external-category-${externalParticipant.id}`}
+            variant="outline"
+            className="border-teal-600 text-teal-700 font-bold uppercase"
+          >
+            {getExternalParticipantCategoryLabel(externalParticipant)}
+          </Badge>
+        ))}
+      </div>
     ),
-    filterFn: (row, columnId, filterCategories) => {
-      if (filterCategories.length === 0) return true;
-      const category = row.getValue(columnId);
-      return filterCategories.includes(category);
+    filterFn: (row, _columnId, filterCategories) => {
+      if (
+        !filterCategories ||
+        !Array.isArray(filterCategories) ||
+        filterCategories.length === 0
+      )
+        return true;
+      const userCategories = row.original.participants.map(
+        (participant) => participant.user.category,
+      );
+      const externalParticipantTypes =
+        row.original.externalParticipants?.map(
+          ({ externalParticipant }) => externalParticipant.type,
+        ) ?? [];
+
+      return [...userCategories, ...externalParticipantTypes].some(
+        (category) => filterCategories.includes(category),
+      );
     },
   },
   {

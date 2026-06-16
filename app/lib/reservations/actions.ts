@@ -129,6 +129,11 @@ export async function fetchReservationsByFestivalId(
             },
           },
         },
+        externalParticipants: {
+          with: {
+            externalParticipant: true,
+          },
+        },
         collaborators: {
           with: {
             collaborator: true,
@@ -168,6 +173,11 @@ export async function fetchPublicReservationsByFestivalId(
                 userSocials: true,
               },
             },
+          },
+        },
+        externalParticipants: {
+          with: {
+            externalParticipant: true,
           },
         },
       },
