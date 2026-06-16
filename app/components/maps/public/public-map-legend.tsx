@@ -7,6 +7,10 @@ const legendItems = [
 		label: "Ocupado",
 		color: "bg-violet-700/70 border-violet-800/80",
 	},
+	{
+		label: "Externo",
+		color: "bg-teal-600/80 border-teal-800/90",
+	},
 ];
 
 export default function PublicMapLegend() {

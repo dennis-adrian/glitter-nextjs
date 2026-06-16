@@ -44,6 +44,11 @@ export async function fetchReservations(options: {
             },
           },
         },
+        externalParticipants: {
+          with: {
+            externalParticipant: true,
+          },
+        },
         stand: true,
         festival: {
           with: {

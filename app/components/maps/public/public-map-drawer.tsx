@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
+import { getStandMapParticipants } from "@/app/components/maps/map-participants";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
 import { socialsUrls, socialsIcons } from "@/app/lib/users/utils";
@@ -37,11 +38,7 @@ export default function PublicMapStandCard({
 }: PublicMapStandCardProps) {
 	const [activeTab, setActiveTab] = useState(0);
 
-	const participants = stand
-		? (stand.reservations ?? [])
-				.filter((r) => r.status !== "rejected")
-				.flatMap((r) => r.participants)
-		: [];
+	const participants = stand ? getStandMapParticipants(stand) : [];
 
 	const clampedTab = Math.min(activeTab, Math.max(0, participants.length - 1));
 
@@ -49,7 +46,6 @@ export default function PublicMapStandCard({
 	if (participants.length === 0) return null;
 
 	const currentParticipant = participants[clampedTab] ?? participants[0];
-	const { user } = currentParticipant;
 	const standLabel = `${stand.label}${stand.standNumber}`;
 	const categoryLabel = getCategoryLabel(stand.standCategory);
 	const products = stand.standSubcategories.map((sc) => sc.subcategory.label);
@@ -91,12 +87,12 @@ export default function PublicMapStandCard({
 								>
 									<Avatar className="w-6 h-6">
 										<AvatarImage
-											src={p.user.imageUrl ?? undefined}
-											alt={p.user.displayName ?? "Participante"}
+											src={p.imageUrl ?? undefined}
+											alt={p.displayName}
 										/>
 									</Avatar>
 									<span className="text-xs font-medium text-foreground truncate max-w-[100px]">
-										{p.user.displayName ?? "Participante"}
+										{p.displayName}
 									</span>
 								</button>
 							))}
@@ -107,24 +103,34 @@ export default function PublicMapStandCard({
 					<div className="flex items-center gap-3">
 						<Avatar className="w-16 h-16 border-2 border-primary shrink-0">
 							<AvatarImage
-								src={user.imageUrl ?? undefined}
-								alt={user.displayName ?? "Participante"}
+								src={currentParticipant.imageUrl ?? undefined}
+								alt={currentParticipant.displayName}
 							/>
 						</Avatar>
 						<div className="flex-1 min-w-0">
 							<h3 className="text-xl font-bold text-foreground mb-0.5 truncate">
-								{user.displayName ?? "Participante"}
+								{currentParticipant.displayName}
 							</h3>
 							<p className="text-sm text-muted-foreground">
 								Stand #{standLabel}
 								{sectorName ? ` • ${sectorName}` : ""}
 							</p>
+							{currentParticipant.kind === "external" && (
+								<Badge
+									variant="outline"
+									className="mt-2 rounded-full border-teal-600 text-teal-700"
+								>
+									{currentParticipant.categoryLabel}
+								</Badge>
+							)}
 						</div>
 					</div>
 				</div>
 
 				{/* Body */}
-				{(products.length > 0 || user.userSocials.length > 0) && (
+				{(products.length > 0 ||
+					currentParticipant.userSocials.length > 0 ||
+					currentParticipant.links.length > 0) && (
 					<div className="p-4 space-y-3">
 						{/* Products */}
 						{products.length > 0 && (
@@ -145,11 +151,11 @@ export default function PublicMapStandCard({
 						)}
 
 						{/* Social links */}
-						{user.userSocials.length > 0 && (
+						{currentParticipant.userSocials.length > 0 && (
 							<div>
 								<p className="text-xs text-muted-foreground mb-2">Contacto</p>
 								<div className="space-y-2">
-									{user.userSocials.map((social) => (
+									{currentParticipant.userSocials.map((social) => (
 										<a
 											key={social.id}
 											href={`${socialsUrls[social.type]}${social.username}`}
@@ -166,6 +172,24 @@ export default function PublicMapStandCard({
 												icon={socialsIcons[social.type]}
 											/>
 											@{social.username}
+										</a>
+									))}
+								</div>
+							</div>
+						)}
+						{currentParticipant.links.length > 0 && (
+							<div>
+								<p className="text-xs text-muted-foreground mb-2">Contacto</p>
+								<div className="space-y-2">
+									{currentParticipant.links.map((link) => (
+										<a
+											key={link.href}
+											href={link.href}
+											target="_blank"
+											rel="noopener noreferrer"
+											className="flex items-center gap-2 text-sm hover:underline font-medium text-teal-700"
+										>
+											{link.label}
 										</a>
 									))}
 								</div>

@@ -2,18 +2,30 @@ import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { RedirectButton } from "@/app/components/redirect-button";
 import { ProfileType } from "@/app/api/users/definitions";
 import ProfileAvatarGroup from "@/app/components/common/profile-avatar-group";
-import { StandBase } from "@/app/api/stands/definitions";
+import {
+  StandBase,
+  StandWithReservationsWithParticipants,
+} from "@/app/api/stands/definitions";
+import { getStandMapParticipants } from "@/app/components/maps/map-participants";
+import { Badge } from "@/app/components/ui/badge";
 
 type Props = {
   festivalId: number;
   participants?: ProfileType[];
-  stand: StandBase;
+  stand: StandBase | StandWithReservationsWithParticipants;
 };
 
 const StandArtists = ({ festivalId, participants, stand }: Props) => {
   let cardBody;
   let label;
-  if (!participants?.length) {
+  const externalParticipants =
+    "reservations" in stand
+      ? getStandMapParticipants(stand).filter(
+          (participant) => participant.kind === "external",
+        )
+      : [];
+
+  if (!participants?.length && externalParticipants.length === 0) {
     cardBody = (
       <Avatar>
         <AvatarImage src="/img/profile-avatar.png" alt="Espacio Disponible" />
@@ -51,6 +63,36 @@ const StandArtists = ({ festivalId, participants, stand }: Props) => {
         </span>
       );
     }
+  }
+
+  if (!participants?.length && externalParticipants.length > 0) {
+    cardBody = (
+      <div className="flex -space-x-2">
+        {externalParticipants.slice(0, 2).map((participant) => (
+          <Avatar key={participant.id} className="border-2 border-background">
+            <AvatarImage
+              src={participant.imageUrl ?? "/img/profile-avatar.png"}
+              alt={participant.displayName}
+            />
+          </Avatar>
+        ))}
+      </div>
+    );
+    label = (
+      <span className="flex flex-col items-center gap-1">
+        <span>
+          {externalParticipants
+            .map((participant) => participant.displayName)
+            .join(" & ")}
+        </span>
+        <Badge
+          variant="outline"
+          className="rounded-full border-teal-600 text-teal-700"
+        >
+          {externalParticipants[0].categoryLabel}
+        </Badge>
+      </span>
+    );
   }
 
   return (

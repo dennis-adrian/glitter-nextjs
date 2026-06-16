@@ -98,6 +98,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   userRequests: many(userRequests),
   userSocials: many(userSocials),
   participations: many(reservationParticipants),
+  createdExternalParticipants: many(externalParticipants),
   scheduledTasks: many(scheduledTasks),
   invoices: many(invoices),
   profileTags: many(profileTags),
@@ -353,6 +354,19 @@ export const reservationStatusEnum = pgEnum("reservation_status", [
   "accepted",
   "rejected",
 ]);
+export const reservationSourceEnum = pgEnum("reservation_source", [
+  "user_reservation",
+  "admin_assignment",
+]);
+export const externalParticipantTypeEnum = pgEnum("external_participant_type", [
+  "institution",
+  "social_organization",
+  "sponsor",
+  "partner",
+  "public_entity",
+  "invited_brand",
+  "other",
+]);
 
 export const requestTypeEnum = pgEnum("user_request_type", [
   "festival_participation",
@@ -539,6 +553,7 @@ export const standReservations = pgTable("stand_reservations", {
     .references(() => stands.id),
   festivalId: integer("festival_id").notNull(),
   status: reservationStatusEnum("status").default("pending").notNull(),
+  source: reservationSourceEnum("source").default("user_reservation").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -554,6 +569,7 @@ export const standReservationsRelations = relations(
       references: [festivals.id],
     }),
     participants: many(reservationParticipants),
+    externalParticipants: many(reservationExternalParticipants),
     invoices: many(invoices),
     scheduledTasks: many(scheduledTasks),
     collaborators: many(reservationCollaborators),
@@ -582,6 +598,75 @@ export const participationsRelations = relations(
     }),
     reservation: one(standReservations, {
       fields: [reservationParticipants.reservationId],
+      references: [standReservations.id],
+    }),
+  }),
+);
+
+export const externalParticipants = pgTable(
+  "external_participants",
+  {
+    id: serial("id").primaryKey(),
+    displayName: text("display_name").notNull(),
+    type: externalParticipantTypeEnum("type").notNull(),
+    customCategoryLabel: text("custom_category_label"),
+    description: text("description"),
+    imageUrl: text("image_url"),
+    websiteUrl: text("website_url"),
+    instagramUrl: text("instagram_url"),
+    contactEmail: text("contact_email"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (externalParticipants) => [
+    index("external_participants_display_name_idx").on(
+      externalParticipants.displayName,
+    ),
+  ],
+);
+export const externalParticipantsRelations = relations(
+  externalParticipants,
+  ({ one, many }) => ({
+    createdByUser: one(users, {
+      fields: [externalParticipants.createdByUserId],
+      references: [users.id],
+    }),
+    reservations: many(reservationExternalParticipants),
+  }),
+);
+
+export const reservationExternalParticipants = pgTable(
+  "reservation_external_participants",
+  {
+    id: serial("id").primaryKey(),
+    externalParticipantId: integer("external_participant_id")
+      .notNull()
+      .references(() => externalParticipants.id, { onDelete: "cascade" }),
+    reservationId: integer("reservation_id")
+      .notNull()
+      .references(() => standReservations.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (reservationExternalParticipants) => [
+    unique("reservation_external_participants_unique").on(
+      reservationExternalParticipants.externalParticipantId,
+      reservationExternalParticipants.reservationId,
+    ),
+  ],
+);
+export const reservationExternalParticipantsRelations = relations(
+  reservationExternalParticipants,
+  ({ one }) => ({
+    externalParticipant: one(externalParticipants, {
+      fields: [reservationExternalParticipants.externalParticipantId],
+      references: [externalParticipants.id],
+    }),
+    reservation: one(standReservations, {
+      fields: [reservationExternalParticipants.reservationId],
       references: [standReservations.id],
     }),
   }),
