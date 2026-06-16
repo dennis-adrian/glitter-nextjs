@@ -98,15 +98,15 @@ El sistema de actividades de festival permite a los organizadores definir activi
 
 **`festivalActivityParticipantProofs`** — Pruebas asociadas a la inscripción (1..5 filas por inscripción; cada fila contiene un `imageUrl` opcional)
 
-| Campo              | Tipo                              | Descripción                                                                                                           |
-| ------------------ | --------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `id`               | serial PK                         |                                                                                                                       |
+| Campo              | Tipo                              | Descripción                                                                                                                           |
+| ------------------ | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`               | serial PK                         |                                                                                                                                       |
 | `participationId`  | FK → festivalActivityParticipants | 1..5 filas por inscripción (múltiples registros pueden compartir el mismo `participationId`; cada fila modela una prueba individual). |
-| `imageUrl`         | text?                             | 1..5 filas por inscripción (cada fila contiene un `imageUrl` opcional; en `proofType = image` se espera imagen). |
-| `promoDescription` | text?                             | Texto de promoción (flujos `text` / `both`).                                                                          |
-| `promoConditions`  | text?                             | Condiciones de la promoción (opcional).                                                                               |
-| `proofStatus`      | enum                              | `pending_review`, `approved`, `rejected_resubmit`, `rejected_removed`.                                                |
-| `adminFeedback`    | text?                             | Comentario del admin al rechazar; obligatorio en rechazos.                                                            |
+| `imageUrl`         | text?                             | 1..5 filas por inscripción (cada fila contiene un `imageUrl` opcional; en `proofType = image` se espera imagen).                      |
+| `promoDescription` | text?                             | Texto de promoción (flujos `text` / `both`).                                                                                          |
+| `promoConditions`  | text?                             | Condiciones de la promoción (opcional).                                                                                               |
+| `proofStatus`      | enum                              | `pending_review`, `approved`, `rejected_resubmit`, `rejected_removed`.                                                                |
+| `adminFeedback`    | text?                             | Comentario del admin al rechazar; obligatorio en rechazos.                                                                            |
 
 **Nota de cardinalidad:** El tope operativo es **5 imágenes por `participationId`** en los flujos de carga de prueba (validación de UI por `maxFiles` en el modal de upload). Actualmente no existe una restricción equivalente en base de datos (índice/check) que lo fuerce de forma global.
 

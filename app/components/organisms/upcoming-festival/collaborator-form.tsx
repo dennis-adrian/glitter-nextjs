@@ -9,80 +9,80 @@ import { addCollaborator } from "@/app/lib/reservations/actions";
 import { toast } from "sonner";
 
 const FormSchema = z.object({
-	name: z.string().min(3, {
-		error: "El nombre debe tener al menos 3 caracteres",
-	}),
-	last_name: z.string().min(3, {
-		error: "El apellido debe tener al menos 3 caracteres",
-	}),
-	identification_number: z.string().min(5, {
-		error: "El número de carnet debe tener al menos 5 caracteres",
-	}),
+  name: z.string().min(3, {
+    error: "El nombre debe tener al menos 3 caracteres",
+  }),
+  last_name: z.string().min(3, {
+    error: "El apellido debe tener al menos 3 caracteres",
+  }),
+  identification_number: z.string().min(5, {
+    error: "El número de carnet debe tener al menos 5 caracteres",
+  }),
 });
 
 type CollaboratorFormProps = {
-	reservationId: number;
+  reservationId: number;
 };
 
 export default function CollaboratorForm({
-	reservationId,
+  reservationId,
 }: CollaboratorFormProps) {
-	const form = useForm({
-		resolver: zodResolver(FormSchema),
-		defaultValues: {
-			name: "",
-			last_name: "",
-			identification_number: "",
-		},
-	});
+  const form = useForm({
+    resolver: zodResolver(FormSchema),
+    defaultValues: {
+      name: "",
+      last_name: "",
+      identification_number: "",
+    },
+  });
 
-	const action: () => void = form.handleSubmit(async (data) => {
-		const res = await addCollaborator(reservationId, {
-			firstName: data.name,
-			lastName: data.last_name,
-			identificationNumber: data.identification_number,
-		});
+  const action: () => void = form.handleSubmit(async (data) => {
+    const res = await addCollaborator(reservationId, {
+      firstName: data.name,
+      lastName: data.last_name,
+      identificationNumber: data.identification_number,
+    });
 
-		if (res.success) {
-			toast.success(res.message);
-			form.reset();
-		} else {
-			toast.error(res.message);
-		}
-	});
+    if (res.success) {
+      toast.success(res.message);
+      form.reset();
+    } else {
+      toast.error(res.message);
+    }
+  });
 
-	return (
-		<Form {...form}>
-			<form className="grid gap-4 mb-6" onSubmit={action}>
-				<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-					<TextInput
-						label="Nombre(s)"
-						name="name"
-						placeholder="Ej. Juan Carlos"
-						required
-					/>
-					<TextInput
-						label="Apellido(s)"
-						name="last_name"
-						placeholder="Ej. Perez"
-						required
-					/>
-					<TextInput
-						label="Nro de Carnet"
-						name="identification_number"
-						placeholder="Ej. 12345678"
-						required
-					/>
-				</div>
-				<SubmitButton
-					className="w-full bg-[#679F39] hover:bg-[#679F39]/90 text-white"
-					disabled={form.formState.isSubmitting}
-					loading={form.formState.isSubmitting}
-					loadingLabel="Agregando..."
-				>
-					<PlusIcon className="h-4 w-4 mr-2" /> Agregar
-				</SubmitButton>
-			</form>
-		</Form>
-	);
+  return (
+    <Form {...form}>
+      <form className="grid gap-4 mb-6" onSubmit={action}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <TextInput
+            label="Nombre(s)"
+            name="name"
+            placeholder="Ej. Juan Carlos"
+            required
+          />
+          <TextInput
+            label="Apellido(s)"
+            name="last_name"
+            placeholder="Ej. Perez"
+            required
+          />
+          <TextInput
+            label="Nro de Carnet"
+            name="identification_number"
+            placeholder="Ej. 12345678"
+            required
+          />
+        </div>
+        <SubmitButton
+          className="w-full bg-[#679F39] hover:bg-[#679F39]/90 text-white"
+          disabled={form.formState.isSubmitting}
+          loading={form.formState.isSubmitting}
+          loadingLabel="Agregando..."
+        >
+          <PlusIcon className="h-4 w-4 mr-2" /> Agregar
+        </SubmitButton>
+      </form>
+    </Form>
+  );
 }

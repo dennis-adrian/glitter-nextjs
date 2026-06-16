@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { ProfileType } from "@/app/api/users/definitions";
@@ -24,7 +30,10 @@ export default function MapTooltip({
 }: MapTooltipProps) {
   const { label, standNumber, status } = stand;
   const tooltipRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [pos, setPos] = useState<{ top: number; left: number }>({
+    top: 0,
+    left: 0,
+  });
 
   const recomputePosition = useCallback(() => {
     const el = tooltipRef.current;

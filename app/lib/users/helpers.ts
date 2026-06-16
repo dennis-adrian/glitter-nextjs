@@ -2,10 +2,10 @@
 
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import {
-	cachedFetchBaseUserProfileByClerkId,
-	cachedFetchNavbarProfileByClerkId,
-	cachedFetchUserProfileByClerkId,
-	getCurrentClerkUser,
+  cachedFetchBaseUserProfileByClerkId,
+  cachedFetchNavbarProfileByClerkId,
+  cachedFetchUserProfileByClerkId,
+  getCurrentClerkUser,
 } from "@/app/lib/users/actions";
 import { users } from "@/db/schema";
 import { buildWhereClause } from "@/db/utils";
@@ -13,93 +13,93 @@ import { eq, isNotNull, isNull, like, not, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 export async function getCurrentUserProfile() {
-	try {
-		const user = await getCurrentClerkUser();
-		if (!user) return null;
+  try {
+    const user = await getCurrentClerkUser();
+    if (!user) return null;
 
-		// TODO: if the profile is not found, it should log out the user
-		return await cachedFetchUserProfileByClerkId(user.id);
-	} catch (error) {
-		console.error(error);
-		return null;
-	}
+    // TODO: if the profile is not found, it should log out the user
+    return await cachedFetchUserProfileByClerkId(user.id);
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
 }
 
 export async function getCurrentBaseProfile() {
-	try {
-		const user = await getCurrentClerkUser();
-		if (!user) return null;
+  try {
+    const user = await getCurrentClerkUser();
+    if (!user) return null;
 
-		return await cachedFetchBaseUserProfileByClerkId(user.id);
-	} catch (error) {
-		console.error(error);
-		return null;
-	}
+    return await cachedFetchBaseUserProfileByClerkId(user.id);
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
 }
 
 export async function getCurrentNavbarProfile() {
-	try {
-		const user = await getCurrentClerkUser();
-		if (!user) return null;
+  try {
+    const user = await getCurrentClerkUser();
+    if (!user) return null;
 
-		return await cachedFetchNavbarProfileByClerkId(user.id);
-	} catch (error) {
-		console.error(error);
-		return null;
-	}
+    return await cachedFetchNavbarProfileByClerkId(user.id);
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
 }
 
 export async function protectRoute(
-	currentUser?: BaseProfile,
-	profileId?: number,
+  currentUser?: BaseProfile,
+  profileId?: number,
 ) {
-	if (!(currentUser && profileId)) redirect("/");
+  if (!(currentUser && profileId)) redirect("/");
 
-	const canAccessResource =
-		(currentUser.id === profileId || currentUser.role === "admin") &&
-		currentUser.status === "verified";
+  const canAccessResource =
+    (currentUser.id === profileId || currentUser.role === "admin") &&
+    currentUser.status === "verified";
 
-	if (!canAccessResource) redirect("/my_profile");
+  if (!canAccessResource) redirect("/my_profile");
 }
 
 export async function buildWhereClauseForProfileFetching(
-	{
-		includeAdmins,
-		status,
-		category,
-		query,
-		profileCompletion = "incomplete",
-	}: {
-		includeAdmins?: boolean;
-		status?: BaseProfile["status"][];
-		category?: UserCategory[];
-		query?: string;
-		profileCompletion?: "complete" | "incomplete" | "all";
-	},
-	isDrizzleQuery: boolean,
+  {
+    includeAdmins,
+    status,
+    category,
+    query,
+    profileCompletion = "incomplete",
+  }: {
+    includeAdmins?: boolean;
+    status?: BaseProfile["status"][];
+    category?: UserCategory[];
+    query?: string;
+    profileCompletion?: "complete" | "incomplete" | "all";
+  },
+  isDrizzleQuery: boolean,
 ) {
-	const conditions = sql.empty();
-	if (!includeAdmins) buildWhereClause(conditions, sql`${users.role} = 'user'`);
-	if (status) buildWhereClause(conditions, sql`${users.status} in ${status}`);
-	if (category) {
-		buildWhereClause(conditions, sql`${users.category} in ${category}`);
-	}
-	if (query) {
-		buildWhereClause(
-			conditions,
-			sql`(${users.displayName} ilike ${`%${query}%`} OR ${
-				users.firstName
-			} ilike ${`%${query}%`} OR ${users.lastName} ilike ${`%${query}%`} OR ${
-				users.email
-			} ilike ${`%${query}%`} OR ${users.phoneNumber} ilike ${`%${query}%`})`,
-		);
-	}
+  const conditions = sql.empty();
+  if (!includeAdmins) buildWhereClause(conditions, sql`${users.role} = 'user'`);
+  if (status) buildWhereClause(conditions, sql`${users.status} in ${status}`);
+  if (category) {
+    buildWhereClause(conditions, sql`${users.category} in ${category}`);
+  }
+  if (query) {
+    buildWhereClause(
+      conditions,
+      sql`(${users.displayName} ilike ${`%${query}%`} OR ${
+        users.firstName
+      } ilike ${`%${query}%`} OR ${users.lastName} ilike ${`%${query}%`} OR ${
+        users.email
+      } ilike ${`%${query}%`} OR ${users.phoneNumber} ilike ${`%${query}%`})`,
+    );
+  }
 
-	if (isDrizzleQuery) {
-		if (profileCompletion === "complete") {
-			buildWhereClause(
-				conditions,
-				sql`(
+  if (isDrizzleQuery) {
+    if (profileCompletion === "complete") {
+      buildWhereClause(
+        conditions,
+        sql`(
 					${isNotNull(users.bio)}
 					and ${isNotNull(users.imageUrl)}
 					and ${not(like(users.imageUrl, "%clerk%"))}
@@ -124,13 +124,13 @@ export async function buildWhereClauseForProfileFetching(
 						where profile_subcategories.profile_id = ${users.id}
 					)
 				)`,
-			);
-		}
+      );
+    }
 
-		if (profileCompletion === "incomplete") {
-			buildWhereClause(
-				conditions,
-				sql`(
+    if (profileCompletion === "incomplete") {
+      buildWhereClause(
+        conditions,
+        sql`(
 					${isNull(users.bio)}
 					or ${isNull(users.imageUrl)}
 					or ${like(users.imageUrl, "%clerk%")}
@@ -155,13 +155,13 @@ export async function buildWhereClauseForProfileFetching(
 						where profile_subcategories.profile_id = ${users.id}
 					)
 				)`,
-			);
-		}
-	} else {
-		if (profileCompletion === "complete") {
-			buildWhereClause(
-				conditions,
-				sql`(
+      );
+    }
+  } else {
+    if (profileCompletion === "complete") {
+      buildWhereClause(
+        conditions,
+        sql`(
 					${isNotNull(users.bio)}
 					and ${isNotNull(users.imageUrl)}
 					and ${not(like(users.imageUrl, "%clerk%"))}
@@ -186,13 +186,13 @@ export async function buildWhereClauseForProfileFetching(
 						where profile_subcategories.profile_id = ${users.id}
 					)
 				)`,
-			);
-		}
+      );
+    }
 
-		if (profileCompletion === "incomplete") {
-			buildWhereClause(
-				conditions,
-				sql`(
+    if (profileCompletion === "incomplete") {
+      buildWhereClause(
+        conditions,
+        sql`(
 					${isNull(users.bio)}
 					or ${isNull(users.imageUrl)}
 					or ${like(users.imageUrl, "%clerk%")}
@@ -217,9 +217,9 @@ export async function buildWhereClauseForProfileFetching(
 						where profile_subcategories.profile_id = ${users.id}
 					)
 				)`,
-			);
-		}
-	}
+      );
+    }
+  }
 
-	return conditions;
+  return conditions;
 }

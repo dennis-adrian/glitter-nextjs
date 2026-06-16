@@ -10,58 +10,58 @@ import { DateTime } from "luxon";
 import { notFound } from "next/navigation";
 
 type SectorSelectionPageProps = {
-	profileId: number;
-	festivalId: number;
+  profileId: number;
+  festivalId: number;
 };
 
 export default async function SectorSelectionPage(
-	props: SectorSelectionPageProps,
+  props: SectorSelectionPageProps,
 ) {
-	const currentProfile = await getCurrentUserProfile();
-	await protectRoute(currentProfile || undefined, props.profileId);
+  const currentProfile = await getCurrentUserProfile();
+  await protectRoute(currentProfile || undefined, props.profileId);
 
-	const festival = await fetchBaseFestival(props.festivalId);
-	if (!festival) notFound();
+  const festival = await fetchBaseFestival(props.festivalId);
+  if (!festival) notFound();
 
-	const reservationStartDate = formatDate(
-		festival.reservationsStartDate,
-	).toJSDate();
-	const currentTime = DateTime.now().toJSDate();
-	if (currentTime < reservationStartDate && currentProfile?.role !== "admin") {
-		return <ReservationNotAllowed festival={festival} />;
-	}
+  const reservationStartDate = formatDate(
+    festival.reservationsStartDate,
+  ).toJSDate();
+  const currentTime = DateTime.now().toJSDate();
+  if (currentTime < reservationStartDate && currentProfile?.role !== "admin") {
+    return <ReservationNotAllowed festival={festival} />;
+  }
 
-	const forProfile = await fetchUserProfileById(props.profileId);
-	if (!forProfile) notFound();
+  const forProfile = await fetchUserProfileById(props.profileId);
+  if (!forProfile) notFound();
 
-	const inFestival = isProfileInFestival(festival.id, forProfile);
-	if (!inFestival) {
-		return (
-			<div className="text-muted-foreground flex pt-8 justify-center">
-				No estás habilitado para participar en este evento
-			</div>
-		);
-	}
+  const inFestival = isProfileInFestival(festival.id, forProfile);
+  if (!inFestival) {
+    return (
+      <div className="text-muted-foreground flex pt-8 justify-center">
+        No estás habilitado para participar en este evento
+      </div>
+    );
+  }
 
-	const subcategoryIds = forProfile.profileSubcategories.map(
-		(ps) => ps.subcategoryId,
-	);
-	const sectors = await fetchFestivalSectorsByUserCategory(
-		festival.id,
-		forProfile.category,
-		subcategoryIds,
-		forProfile.participationType,
-	);
+  const subcategoryIds = forProfile.profileSubcategories.map(
+    (ps) => ps.subcategoryId,
+  );
+  const sectors = await fetchFestivalSectorsByUserCategory(
+    festival.id,
+    forProfile.category,
+    subcategoryIds,
+    forProfile.participationType,
+  );
 
-	return (
-		<SectorSelectionClient
-			profileId={props.profileId}
-			festivalId={props.festivalId}
-			sectors={sectors}
-			generalMapUrl={festival.generalMapUrl}
-			profileCategory={forProfile.category}
-			subcategoryIds={subcategoryIds}
-			participationType={forProfile.participationType}
-		/>
-	);
+  return (
+    <SectorSelectionClient
+      profileId={props.profileId}
+      festivalId={props.festivalId}
+      sectors={sectors}
+      generalMapUrl={festival.generalMapUrl}
+      profileCategory={forProfile.category}
+      subcategoryIds={subcategoryIds}
+      participationType={forProfile.participationType}
+    />
+  );
 }

@@ -7,13 +7,13 @@ import ReservationCreatedEmailTemplate from "@/app/emails/reservation-created";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { db } from "@/db";
 import {
-	invoices,
-	reservationParticipants,
-	scheduledTasks,
-	standReservations,
-	stands,
-	userRequests,
-	users,
+  invoices,
+  reservationParticipants,
+  scheduledTasks,
+  standReservations,
+  stands,
+  userRequests,
+  users,
 } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
 import { and, eq, not, sql } from "drizzle-orm";
@@ -23,8 +23,8 @@ import FestivalParticipationApprovedEmailTemplate from "@/app/emails/festival-pa
 import FestivalParticipationRejectedEmailTemplate from "@/app/emails/festival-participation-rejected";
 import TermsAcceptanceEmailTemplate from "@/app/emails/terms-acceptance";
 import {
-	FestivalBase,
-	FestivalWithDates,
+  FestivalBase,
+  FestivalWithDates,
 } from "@/app/lib/festivals/definitions";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import ReservationConfirmationEmailTemplate from "@/app/emails/reservation-confirmation";
@@ -32,455 +32,463 @@ import { ReservationParticipantWithUser } from "@/app/data/invoices/definitions"
 import { StandBase } from "@/app/api/stands/definitions";
 
 export async function fetchRequestsByUserId(userId: number) {
-	try {
-		const requests = await db.query.userRequests.findMany({
-			where: eq(userRequests.userId, userId),
-			with: {
-				user: true,
-				festival: true,
-			},
-		});
+  try {
+    const requests = await db.query.userRequests.findMany({
+      where: eq(userRequests.userId, userId),
+      with: {
+        user: true,
+        festival: true,
+      },
+    });
 
-		return requests;
-	} catch (error) {
-		console.error("Error fetching user requests", error);
-		return [];
-	}
+    return requests;
+  } catch (error) {
+    console.error("Error fetching user requests", error);
+    return [];
+  }
 }
 
 export async function updateUserRequest(id: number, data: UserRequest) {
-	const { status, user, type } = data;
-	const userRole = user.role;
-	const newRole = status === "accepted" ? "artist" : "user";
-	try {
-		db.transaction(async (tx) => {
-			await tx
-				.update(userRequests)
-				.set({ status, updatedAt: new Date() })
-				.where(eq(userRequests.id, id));
+  const { status, user, type } = data;
+  const userRole = user.role;
+  const newRole = status === "accepted" ? "artist" : "user";
+  try {
+    db.transaction(async (tx) => {
+      await tx
+        .update(userRequests)
+        .set({ status, updatedAt: new Date() })
+        .where(eq(userRequests.id, id));
 
-			if (userRole !== "admin" && type === "become_artist") {
-				await tx
-					.update(users)
-					.set({ role: newRole, updatedAt: new Date() })
-					.where(eq(users.id, data.userId));
-			}
-		});
-	} catch (error) {
-		console.error("Error updating user request", error);
-		return { message: "Error updating user request" };
-	}
+      if (userRole !== "admin" && type === "become_artist") {
+        await tx
+          .update(users)
+          .set({ role: newRole, updatedAt: new Date() })
+          .where(eq(users.id, data.userId));
+      }
+    });
+  } catch (error) {
+    console.error("Error updating user request", error);
+    return { message: "Error updating user request" };
+  }
 
-	if (status === "accepted" && type === "festival_participation" && data.festival) {
-		await sendEmail({
-			to: [data.user.email],
-			from: "Inscripciones Glitter <inscripciones@productoraglitter.com>",
-			subject: `Tu postulación para ${data.festival.name} fue aprobada`,
-			react: FestivalParticipationApprovedEmailTemplate({
-				profile: data.user,
-				festival: data.festival,
-			}) as React.ReactElement,
-		});
-	}
+  if (
+    status === "accepted" &&
+    type === "festival_participation" &&
+    data.festival
+  ) {
+    await sendEmail({
+      to: [data.user.email],
+      from: "Inscripciones Glitter <inscripciones@productoraglitter.com>",
+      subject: `Tu postulación para ${data.festival.name} fue aprobada`,
+      react: FestivalParticipationApprovedEmailTemplate({
+        profile: data.user,
+        festival: data.festival,
+      }) as React.ReactElement,
+    });
+  }
 
-	if (status === "rejected" && type === "festival_participation" && data.festival) {
-		await sendEmail({
-			to: [data.user.email],
-			from: "Inscripciones Glitter <inscripciones@productoraglitter.com>",
-			subject: `Tu postulación para ${data.festival.name}`,
-			react: FestivalParticipationRejectedEmailTemplate({
-				profile: data.user,
-				festival: data.festival,
-			}) as React.ReactElement,
-		});
-	}
+  if (
+    status === "rejected" &&
+    type === "festival_participation" &&
+    data.festival
+  ) {
+    await sendEmail({
+      to: [data.user.email],
+      from: "Inscripciones Glitter <inscripciones@productoraglitter.com>",
+      subject: `Tu postulación para ${data.festival.name}`,
+      react: FestivalParticipationRejectedEmailTemplate({
+        profile: data.user,
+        festival: data.festival,
+      }) as React.ReactElement,
+    });
+  }
 
-	revalidatePath("/dashboard", "layout");
-	return { success: true };
+  revalidatePath("/dashboard", "layout");
+  return { success: true };
 }
 
 export async function fetchFestivalParticipationRequests(
-	festivalId: number,
+  festivalId: number,
 ): Promise<UserRequest[]> {
-	try {
-		const requests = await db.query.userRequests.findMany({
-			where: and(
-				eq(userRequests.festivalId, festivalId),
-				eq(userRequests.type, "festival_participation"),
-			),
-			with: {
-				user: true,
-				festival: true,
-			},
-			orderBy: (userRequests, { desc }) => [desc(userRequests.createdAt)],
-		});
+  try {
+    const requests = await db.query.userRequests.findMany({
+      where: and(
+        eq(userRequests.festivalId, festivalId),
+        eq(userRequests.type, "festival_participation"),
+      ),
+      with: {
+        user: true,
+        festival: true,
+      },
+      orderBy: (userRequests, { desc }) => [desc(userRequests.createdAt)],
+    });
 
-		return requests;
-	} catch (error) {
-		console.error("Error fetching festival participation requests", error);
-		return [];
-	}
+    return requests;
+  } catch (error) {
+    console.error("Error fetching festival participation requests", error);
+    return [];
+  }
 }
 
 export async function fetchRequests(): Promise<UserRequest[]> {
-	try {
-		const requests = await db.query.userRequests.findMany({
-			with: {
-				user: true,
-				festival: true,
-			},
-		});
+  try {
+    const requests = await db.query.userRequests.findMany({
+      with: {
+        user: true,
+        festival: true,
+      },
+    });
 
-		return requests;
-	} catch (error) {
-		console.error("Error fetching user requests", error);
-		return [];
-	}
+    return requests;
+  } catch (error) {
+    console.error("Error fetching user requests", error);
+    return [];
+  }
 }
 
 // TODO: Move this to its own file
 export type NewStandReservation = typeof standReservations.$inferInsert & {
-	participantIds: number[];
+  participantIds: number[];
 };
 export async function createReservation(
-	reservation: NewStandReservation,
-	price: number,
-	forUser: BaseProfile,
+  reservation: NewStandReservation,
+  price: number,
+  forUser: BaseProfile,
 ) {
-	try {
-		if (forUser.status !== "verified") {
-			return {
-				success: false,
-				message: "No tienes permisos para realizar esta acción",
-			};
-		}
+  try {
+    if (forUser.status !== "verified") {
+      return {
+        success: false,
+        message: "No tienes permisos para realizar esta acción",
+      };
+    }
 
-		const blockingReservations = await db.query.standReservations.findMany({
-			where: and(
-				eq(standReservations.standId, reservation.standId),
-				not(eq(standReservations.status, "rejected")),
-			),
-		});
+    const blockingReservations = await db.query.standReservations.findMany({
+      where: and(
+        eq(standReservations.standId, reservation.standId),
+        not(eq(standReservations.status, "rejected")),
+      ),
+    });
 
-		if (blockingReservations.length > 0) {
-			return {
-				success: false,
-				message: "Ups! Ya hay una reserva para este espacio",
-				description: "Recarga la página e intenta de nuevo",
-			};
-		}
+    if (blockingReservations.length > 0) {
+      return {
+        success: false,
+        message: "Ups! Ya hay una reserva para este espacio",
+        description: "Recarga la página e intenta de nuevo",
+      };
+    }
 
-		const { festivalId, standId, participantIds } = reservation;
-		const newReservation = await db.transaction(async (tx) => {
-			const rows = await tx
-				.insert(standReservations)
-				.values({
-					festivalId,
-					standId,
-				})
-				.returning();
+    const { festivalId, standId, participantIds } = reservation;
+    const newReservation = await db.transaction(async (tx) => {
+      const rows = await tx
+        .insert(standReservations)
+        .values({
+          festivalId,
+          standId,
+        })
+        .returning();
 
-			const reservationId = rows[0].id;
+      const reservationId = rows[0].id;
 
-			const participantValues = participantIds.map((userId) => ({
-				userId,
-				reservationId,
-			}));
+      const participantValues = participantIds.map((userId) => ({
+        userId,
+        reservationId,
+      }));
 
-			await tx.insert(reservationParticipants).values(participantValues);
+      await tx.insert(reservationParticipants).values(participantValues);
 
-			await tx
-				.update(stands)
-				.set({ status: "reserved", updatedAt: new Date() })
-				.where(eq(stands.id, standId));
+      await tx
+        .update(stands)
+        .set({ status: "reserved", updatedAt: new Date() })
+        .where(eq(stands.id, standId));
 
-			await tx.insert(invoices).values({
-				date: new Date(),
-				userId: participantIds[0],
-				reservationId: reservationId,
-				amount: price,
-			});
+      await tx.insert(invoices).values({
+        date: new Date(),
+        userId: participantIds[0],
+        reservationId: reservationId,
+        amount: price,
+      });
 
-			await tx.insert(scheduledTasks).values({
-				dueDate: sql`now() + interval '5 days'`,
-				reminderTime: sql`now() + interval '4 days'`,
-				profileId: participantIds[0],
-				reservationId: reservationId,
-				taskType: "stand_reservation",
-			});
+      await tx.insert(scheduledTasks).values({
+        dueDate: sql`now() + interval '5 days'`,
+        reminderTime: sql`now() + interval '4 days'`,
+        profileId: participantIds[0],
+        reservationId: reservationId,
+        taskType: "stand_reservation",
+      });
 
-			return rows[0];
-		});
+      return rows[0];
+    });
 
-		const festival = await fetchBaseFestival(festivalId);
-		const creator = await fetchBaseProfileById(participantIds[0]);
-		const stand = await fetchStandById(standId);
-		const admins = await fetchAdminUsers();
-		const adminEmails = admins.map((admin) => admin.email);
-		await sendEmail({
-			to: [...adminEmails],
-			from: "Reservas Glitter <reservas@productoraglitter.com>",
-			subject: "Nueva reserva creada",
-			react: ReservationCreatedEmailTemplate({
-				festivalName: festival?.name || "Festival",
-				reservationId: newReservation.id,
-				creatorName: creator?.displayName || "Usuario",
-				standName: `${stand?.label}${stand?.standNumber}` || "sin stand",
-				standCategory: getCategoryOccupationLabel(stand?.standCategory, {
-					singular: false,
-				}),
-			}) as React.ReactElement,
-		});
+    const festival = await fetchBaseFestival(festivalId);
+    const creator = await fetchBaseProfileById(participantIds[0]);
+    const stand = await fetchStandById(standId);
+    const admins = await fetchAdminUsers();
+    const adminEmails = admins.map((admin) => admin.email);
+    await sendEmail({
+      to: [...adminEmails],
+      from: "Reservas Glitter <reservas@productoraglitter.com>",
+      subject: "Nueva reserva creada",
+      react: ReservationCreatedEmailTemplate({
+        festivalName: festival?.name || "Festival",
+        reservationId: newReservation.id,
+        creatorName: creator?.displayName || "Usuario",
+        standName: `${stand?.label}${stand?.standNumber}` || "sin stand",
+        standCategory: getCategoryOccupationLabel(stand?.standCategory, {
+          singular: false,
+        }),
+      }) as React.ReactElement,
+    });
 
-		revalidatePath("profiles");
-		revalidatePath("/my_profile");
+    revalidatePath("profiles");
+    revalidatePath("/my_profile");
 
-		return {
-			success: true,
-			message: "Reserva creada",
-			reservationId: newReservation.id,
-		};
-	} catch (error) {
-		console.error("Error creating reservation", error);
-		return { success: false, message: "Ups! No pudimos crear la reserva" };
-	}
+    return {
+      success: true,
+      message: "Reserva creada",
+      reservationId: newReservation.id,
+    };
+  } catch (error) {
+    console.error("Error creating reservation", error);
+    return { success: false, message: "Ups! No pudimos crear la reserva" };
+  }
 }
 
 export async function updateReservationSimple(
-	id: number,
-	data: ReservationUpdateSimple,
+  id: number,
+  data: ReservationUpdateSimple,
 ) {
-	const { status, standId, partner, stand, participants, festival } = data;
+  const { status, standId, partner, stand, participants, festival } = data;
 
-	const prev = await db.query.standReservations.findFirst({
-		where: eq(standReservations.id, id),
-		columns: { status: true },
-	});
+  const prev = await db.query.standReservations.findFirst({
+    where: eq(standReservations.id, id),
+    columns: { status: true },
+  });
 
-	try {
-		await db.transaction(async (tx) => {
-			await tx
-				.update(standReservations)
-				.set({ status, updatedAt: new Date() })
-				.where(eq(standReservations.id, id));
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(standReservations)
+        .set({ status, updatedAt: new Date() })
+        .where(eq(standReservations.id, id));
 
-			let standStatus: StandStatus = "available";
-			if (status && ["accepted", "verification_payment"].includes(status))
-				standStatus = "confirmed";
-			if (status === "pending") standStatus = "reserved";
+      let standStatus: StandStatus = "available";
+      if (status && ["accepted", "verification_payment"].includes(status))
+        standStatus = "confirmed";
+      if (status === "pending") standStatus = "reserved";
 
-			await tx
-				.update(stands)
-				.set({ status: standStatus, updatedAt: new Date() })
-				.where(eq(stands.id, standId));
+      await tx
+        .update(stands)
+        .set({ status: standStatus, updatedAt: new Date() })
+        .where(eq(stands.id, standId));
 
-			if (partner) {
-				if (partner.participationId) {
-					if (partner.userId) {
-						await tx
-							.update(reservationParticipants)
-							.set({ userId: partner.userId, updatedAt: new Date() })
-							.where(eq(reservationParticipants.id, partner.participationId));
-					} else {
-						await tx
-							.delete(reservationParticipants)
-							.where(eq(reservationParticipants.id, partner.participationId));
-					}
-				} else if (partner.userId) {
-					await tx.insert(reservationParticipants).values({
-						userId: partner.userId,
-						reservationId: id,
-					});
-				}
-			}
-		});
+      if (partner) {
+        if (partner.participationId) {
+          if (partner.userId) {
+            await tx
+              .update(reservationParticipants)
+              .set({ userId: partner.userId, updatedAt: new Date() })
+              .where(eq(reservationParticipants.id, partner.participationId));
+          } else {
+            await tx
+              .delete(reservationParticipants)
+              .where(eq(reservationParticipants.id, partner.participationId));
+          }
+        } else if (partner.userId) {
+          await tx.insert(reservationParticipants).values({
+            userId: partner.userId,
+            reservationId: id,
+          });
+        }
+      }
+    });
 
-		if (prev?.status !== "accepted" && status === "accepted") {
-			const standLabel = `${stand.label ?? ""}${stand.standNumber ?? ""}`;
+    if (prev?.status !== "accepted" && status === "accepted") {
+      const standLabel = `${stand.label ?? ""}${stand.standNumber ?? ""}`;
 
-			const targets = (participants ?? [])
-				.map((p) => p.user)
-				.filter((u): u is typeof users.$inferSelect => !!u && !!u.email?.trim())
-				.map((u) => ({
-					to: u.email!.trim(),
-					normalizedEmail: u.email!.trim().toLowerCase(),
-					user: u,
-				}));
+      const targets = (participants ?? [])
+        .map((p) => p.user)
+        .filter((u): u is typeof users.$inferSelect => !!u && !!u.email?.trim())
+        .map((u) => ({
+          to: u.email!.trim(),
+          normalizedEmail: u.email!.trim().toLowerCase(),
+          user: u,
+        }));
 
-			const seen = new Set<string>();
-			const uniqueTargets = targets.filter(({ normalizedEmail }) => {
-				if (seen.has(normalizedEmail)) return false;
-				seen.add(normalizedEmail);
-				return true;
-			});
+      const seen = new Set<string>();
+      const uniqueTargets = targets.filter(({ normalizedEmail }) => {
+        if (seen.has(normalizedEmail)) return false;
+        seen.add(normalizedEmail);
+        return true;
+      });
 
-			await Promise.allSettled(
-				uniqueTargets.map(({ to, user }) =>
-					sendEmail({
-						to: [to],
-						from: "Reservas Glitter <reservas@productoraglitter.com>",
-						subject: `Reserva confirmada para el festival ${festival.name}`,
-						react: ReservationConfirmationEmailTemplate({
-							profile: user,
-							standLabel,
-							festival: festival,
-						}) as React.ReactElement,
-					}),
-				),
-			);
-		}
-	} catch (error) {
-		console.error(error);
-		return { success: false, message: "Error al actualizar la reserva" };
-	}
+      await Promise.allSettled(
+        uniqueTargets.map(({ to, user }) =>
+          sendEmail({
+            to: [to],
+            from: "Reservas Glitter <reservas@productoraglitter.com>",
+            subject: `Reserva confirmada para el festival ${festival.name}`,
+            react: ReservationConfirmationEmailTemplate({
+              profile: user,
+              standLabel,
+              festival: festival,
+            }) as React.ReactElement,
+          }),
+        ),
+      );
+    }
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al actualizar la reserva" };
+  }
 
-	revalidatePath("/dashboard/reservations");
-	return { success: true, message: "Reserva actualizada" };
+  revalidatePath("/dashboard/reservations");
+  return { success: true, message: "Reserva actualizada" };
 }
 
 // TODO: Move this to its own file once I ƒigure out that 'fs' error
 export type ReservationStatus =
-	(typeof standReservations.$inferSelect)["status"];
+  (typeof standReservations.$inferSelect)["status"];
 export type StandStatus = (typeof stands.$inferSelect)["status"];
 export type ReservationUpdate = typeof standReservations.$inferInsert & {
-	updatedParticipants?: {
-		participationId: number | undefined;
-		userId: number | undefined;
-	}[];
+  updatedParticipants?: {
+    participationId: number | undefined;
+    userId: number | undefined;
+  }[];
 };
 export type ReservationUpdateSimple = typeof standReservations.$inferInsert & {
-	participants: ReservationParticipantWithUser[];
-	stand: StandBase;
-	festival: FestivalWithDates;
-	partner?: {
-		participationId: number | undefined;
-		userId: number | undefined;
-	};
+  participants: ReservationParticipantWithUser[];
+  stand: StandBase;
+  festival: FestivalWithDates;
+  partner?: {
+    participationId: number | undefined;
+    userId: number | undefined;
+  };
 };
 export async function updateReservation(id: number, data: ReservationUpdate) {
-	try {
-		const { status, standId, updatedParticipants } = data;
-		await db.transaction(async (tx) => {
-			await tx
-				.update(standReservations)
-				.set({ status, updatedAt: new Date() })
-				.where(eq(standReservations.id, id));
+  try {
+    const { status, standId, updatedParticipants } = data;
+    await db.transaction(async (tx) => {
+      await tx
+        .update(standReservations)
+        .set({ status, updatedAt: new Date() })
+        .where(eq(standReservations.id, id));
 
-			let standStatus: StandStatus = "available";
-			if (status === "accepted") {
-				standStatus = "confirmed";
-			}
-			if (status === "pending") {
-				standStatus = "reserved";
-			}
-			await tx
-				.update(stands)
-				.set({ status: standStatus, updatedAt: new Date() })
-				.where(eq(stands.id, standId));
+      let standStatus: StandStatus = "available";
+      if (status === "accepted") {
+        standStatus = "confirmed";
+      }
+      if (status === "pending") {
+        standStatus = "reserved";
+      }
+      await tx
+        .update(stands)
+        .set({ status: standStatus, updatedAt: new Date() })
+        .where(eq(stands.id, standId));
 
-			if (updatedParticipants && updatedParticipants?.length > 0) {
-				updatedParticipants.forEach(async (participant) => {
-					if (participant.participationId) {
-						if (participant.userId) {
-							await tx
-								.update(reservationParticipants)
-								.set({ userId: participant.userId, updatedAt: new Date() })
-								.where(
-									eq(reservationParticipants.id, participant.participationId),
-								);
-						} else {
-							await tx
-								.delete(reservationParticipants)
-								.where(
-									eq(reservationParticipants.id, participant.participationId),
-								);
-						}
-					} else {
-						if (participant.userId) {
-							await tx.insert(reservationParticipants).values({
-								userId: participant.userId,
-								reservationId: id,
-							});
-						}
-					}
-				});
-			}
-		});
-	} catch (error) {
-		console.error(error);
-		return { success: false, message: "Error al actualizar la reserva" };
-	}
+      if (updatedParticipants && updatedParticipants?.length > 0) {
+        updatedParticipants.forEach(async (participant) => {
+          if (participant.participationId) {
+            if (participant.userId) {
+              await tx
+                .update(reservationParticipants)
+                .set({ userId: participant.userId, updatedAt: new Date() })
+                .where(
+                  eq(reservationParticipants.id, participant.participationId),
+                );
+            } else {
+              await tx
+                .delete(reservationParticipants)
+                .where(
+                  eq(reservationParticipants.id, participant.participationId),
+                );
+            }
+          } else {
+            if (participant.userId) {
+              await tx.insert(reservationParticipants).values({
+                userId: participant.userId,
+                reservationId: id,
+              });
+            }
+          }
+        });
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al actualizar la reserva" };
+  }
 
-	revalidatePath("/dashboard/reservations");
-	return { success: true, message: "Reserva actualizada" };
+  revalidatePath("/dashboard/reservations");
+  return { success: true, message: "Reserva actualizada" };
 }
 
 export async function createUserEnrollment(params: {
-	profileId: BaseProfile["id"];
-	profileCategory: BaseProfile["category"];
-	profileDisplayName: BaseProfile["displayName"];
-	festivalId: FestivalBase["id"];
-	festivalName: FestivalBase["name"];
-	festivalReservationsStartDate: FestivalBase["reservationsStartDate"];
+  profileId: BaseProfile["id"];
+  profileCategory: BaseProfile["category"];
+  profileDisplayName: BaseProfile["displayName"];
+  festivalId: FestivalBase["id"];
+  festivalName: FestivalBase["name"];
+  festivalReservationsStartDate: FestivalBase["reservationsStartDate"];
 }) {
-	const {
-		profileId,
-		profileCategory,
-		profileDisplayName,
-		festivalId,
-		festivalName,
-		festivalReservationsStartDate,
-	} = params;
+  const {
+    profileId,
+    profileCategory,
+    profileDisplayName,
+    festivalId,
+    festivalName,
+    festivalReservationsStartDate,
+  } = params;
 
-	try {
-		const existing = await db.query.userRequests.findFirst({
-			where: and(
-				eq(userRequests.userId, profileId),
-				eq(userRequests.festivalId, festivalId),
-				eq(userRequests.type, "festival_participation"),
-			),
-		});
+  try {
+    const existing = await db.query.userRequests.findFirst({
+      where: and(
+        eq(userRequests.userId, profileId),
+        eq(userRequests.festivalId, festivalId),
+        eq(userRequests.type, "festival_participation"),
+      ),
+    });
 
-		if (existing) {
-			return {
-				success: true,
-				message: "Ya tenés una solicitud de participación.",
-			};
-		}
+    if (existing) {
+      return {
+        success: true,
+        message: "Ya tenés una solicitud de participación.",
+      };
+    }
 
-		await db.insert(userRequests).values({
-			userId: profileId,
-			festivalId: festivalId,
-			status: profileCategory === "gastronomy" ? "pending" : "accepted",
-			type: "festival_participation",
-		});
+    await db.insert(userRequests).values({
+      userId: profileId,
+      festivalId: festivalId,
+      status: profileCategory === "gastronomy" ? "pending" : "accepted",
+      type: "festival_participation",
+    });
 
-		const admins = await fetchAdminUsers();
-		const adminEmails = admins.map((admin) => admin.email);
-		if (admins.length > 0) {
-			await sendEmail({
-				to: [...adminEmails],
-				from: "Inscripciones Glitter <inscripciones@productoraglitter.com>",
-				subject: `${profileDisplayName || "Usuario"} se ha inscrito a ${festivalName || "Festival"}`,
-				react: TermsAcceptanceEmailTemplate({
-					profile: {
-						id: profileId,
-						displayName: profileDisplayName || "Usuario",
-						category: profileCategory,
-					},
-					festival: {
-						id: festivalId,
-						name: festivalName,
-						reservationsStartDate: festivalReservationsStartDate,
-					},
-				}) as React.ReactElement,
-			});
-		}
-	} catch (error) {
-		console.error(error);
-		return { success: false, message: "Error al solicitar participación" };
-	}
+    const admins = await fetchAdminUsers();
+    const adminEmails = admins.map((admin) => admin.email);
+    if (admins.length > 0) {
+      await sendEmail({
+        to: [...adminEmails],
+        from: "Inscripciones Glitter <inscripciones@productoraglitter.com>",
+        subject: `${profileDisplayName || "Usuario"} se ha inscrito a ${festivalName || "Festival"}`,
+        react: TermsAcceptanceEmailTemplate({
+          profile: {
+            id: profileId,
+            displayName: profileDisplayName || "Usuario",
+            category: profileCategory,
+          },
+          festival: {
+            id: festivalId,
+            name: festivalName,
+            reservationsStartDate: festivalReservationsStartDate,
+          },
+        }) as React.ReactElement,
+      });
+    }
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al solicitar participación" };
+  }
 
-	// revalidatePath("/");
-	return { success: true, message: "Ya estás habilitado para participar." };
+  // revalidatePath("/");
+  return { success: true, message: "Ya estás habilitado para participar." };
 }

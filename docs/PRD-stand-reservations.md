@@ -208,12 +208,12 @@ Retorna el estado actual de todos los stands de un sector. Usado por el polling.
 
 ```json
 {
-	"stands": [
-		{ "id": 1, "status": "available" },
-		{ "id": 2, "status": "held" },
-		{ "id": 3, "status": "reserved" }
-	],
-	"timestamp": 1708200000000
+  "stands": [
+    { "id": 1, "status": "available" },
+    { "id": 2, "status": "held" },
+    { "id": 3, "status": "reserved" }
+  ],
+  "timestamp": 1708200000000
 }
 ```
 

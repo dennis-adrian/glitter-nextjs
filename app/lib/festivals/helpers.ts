@@ -6,24 +6,24 @@ import { FestivalBase, FestivalWithDates, FullFestival } from "./definitions";
 import { fetchActiveFestivalWithDates, fetchFestival } from "./actions";
 
 export const getActiveFestival = cache(async () => {
-	return await fetchFestival({});
+  return await fetchFestival({});
 });
 
 export const getActiveFestivalBase = cache(
-	async (): Promise<FestivalWithDates | null> => {
-		return await fetchActiveFestivalWithDates();
-	},
+  async (): Promise<FestivalWithDates | null> => {
+    return await fetchActiveFestivalWithDates();
+  },
 );
 
 export const getFestivalById = cache(
-	async (festivalId: number): Promise<FullFestival | undefined | null> => {
-		return await fetchFullFestivalById(festivalId);
-	},
+  async (festivalId: number): Promise<FullFestival | undefined | null> => {
+    return await fetchFullFestivalById(festivalId);
+  },
 );
 
 export async function getFestivalsOptions(festivals: FestivalBase[]) {
-	return festivals.map((festival) => ({
-		label: festival.name,
-		value: festival.id.toString(),
-	}));
+  return festivals.map((festival) => ({
+    label: festival.name,
+    value: festival.id.toString(),
+  }));
 }

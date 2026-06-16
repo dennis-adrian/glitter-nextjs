@@ -35,7 +35,9 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
         <Avatar className="w-28 h-28">
           <AvatarImage
             alt="avatar"
-            src={profile?.imageUrl || "/img/placeholders/avatar-placeholder.png"}
+            src={
+              profile?.imageUrl || "/img/placeholders/avatar-placeholder.png"
+            }
           />
         </Avatar>
         <div className="flex flex-col items-center text-center gap-2">

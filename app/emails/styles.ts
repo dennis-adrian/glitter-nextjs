@@ -29,9 +29,9 @@ export const text = {
 };
 
 export const textSmall = {
-	margin: "0 0 10px 0",
-	textAlign: "left" as const,
-	fontSize: "12px",
+  margin: "0 0 10px 0",
+  textAlign: "left" as const,
+  fontSize: "12px",
 };
 
 export const button = {

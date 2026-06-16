@@ -4,5 +4,5 @@ import { InferSelectModel } from "drizzle-orm";
 export type BaseProduct = InferSelectModel<typeof products>;
 export type BaseProductImage = InferSelectModel<typeof productImages>;
 export type BaseProductWithImages = BaseProduct & {
-	images: BaseProductImage[];
+  images: BaseProductImage[];
 };

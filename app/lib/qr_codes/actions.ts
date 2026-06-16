@@ -11,239 +11,239 @@ import { deleteFile } from "@/app/lib/uploadthing/actions";
 import { NewQrCode, qrCodeFormSchema } from "./definitions";
 
 export type QrCodeMutationResult = {
-	success: boolean;
-	message: string;
-	fileDeletionError?: string;
+  success: boolean;
+  message: string;
+  fileDeletionError?: string;
 };
 
 type QrCodeRecord = InferSelectModel<typeof qrCodes>;
 export type FetchQrCodeResult =
-	| { found: true; qr: QrCodeRecord }
-	| { found: false }
-	| { error: Error };
+  | { found: true; qr: QrCodeRecord }
+  | { found: false }
+  | { error: Error };
 
 /** Best-effort cleanup of an upload if a DB write failed; logs failures, does not throw. */
 async function deleteFreshUploadOnDbFailure(
-	url: string | null | undefined,
-	logLabel: string,
+  url: string | null | undefined,
+  logLabel: string,
 ) {
-	if (!url) return;
-	const deleteResult = await deleteFile(url);
-	if (!deleteResult.success) {
-		console.error(logLabel, { url, error: deleteResult.error });
-	}
+  if (!url) return;
+  const deleteResult = await deleteFile(url);
+  if (!deleteResult.success) {
+    console.error(logLabel, { url, error: deleteResult.error });
+  }
 }
 
 function getValidationErrorMessage(error: ZodError): string {
-	const firstIssue = error.issues[0];
-	return firstIssue?.message ?? "Datos inválidos.";
+  const firstIssue = error.issues[0];
+  return firstIssue?.message ?? "Datos inválidos.";
 }
 
 export async function getQRCode(amount: number) {
-	try {
-		return await db.query.qrCodes.findFirst({
-			where: and(
-				eq(qrCodes.amount, amount),
-				gt(qrCodes.expirationDate, new Date()),
-			),
-			orderBy: [asc(qrCodes.expirationDate)],
-		});
-	} catch (error) {
-		console.error(error);
-		return null;
-	}
+  try {
+    return await db.query.qrCodes.findFirst({
+      where: and(
+        eq(qrCodes.amount, amount),
+        gt(qrCodes.expirationDate, new Date()),
+      ),
+      orderBy: [asc(qrCodes.expirationDate)],
+    });
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
 }
 
 export async function fetchQrCodes() {
-	try {
-		return await db.query.qrCodes.findMany({
-			orderBy: [asc(qrCodes.expirationDate)],
-		});
-	} catch (error) {
-		console.error(error);
-		return [];
-	}
+  try {
+    return await db.query.qrCodes.findMany({
+      orderBy: [asc(qrCodes.expirationDate)],
+    });
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
 }
 
 export async function fetchQrCode(id: number): Promise<FetchQrCodeResult> {
-	try {
-		const qr = await db.query.qrCodes.findFirst({
-			where: eq(qrCodes.id, id),
-		});
-		if (!qr) {
-			return { found: false };
-		}
-		return { found: true, qr };
-	} catch (error) {
-		console.error(error);
-		return {
-			error:
-				error instanceof Error
-					? error
-					: new Error("Unexpected error while fetching QR code."),
-		};
-	}
+  try {
+    const qr = await db.query.qrCodes.findFirst({
+      where: eq(qrCodes.id, id),
+    });
+    if (!qr) {
+      return { found: false };
+    }
+    return { found: true, qr };
+  } catch (error) {
+    console.error(error);
+    return {
+      error:
+        error instanceof Error
+          ? error
+          : new Error("Unexpected error while fetching QR code."),
+    };
+  }
 }
 
 export async function createQrCode(
-	data: NewQrCode,
+  data: NewQrCode,
 ): Promise<QrCodeMutationResult> {
-	const currentProfile = await getCurrentUserProfile();
-	if (!currentProfile || currentProfile.role !== "admin") {
-		return { success: false, message: "No tienes permisos para esta acción." };
-	}
+  const currentProfile = await getCurrentUserProfile();
+  if (!currentProfile || currentProfile.role !== "admin") {
+    return { success: false, message: "No tienes permisos para esta acción." };
+  }
 
-	try {
-		const parsedData = qrCodeFormSchema.parse(data);
-		await db.insert(qrCodes).values(parsedData);
-	} catch (error) {
-		if (error instanceof ZodError) {
-			await deleteFreshUploadOnDbFailure(
-				data.qrCodeUrl,
-				"Failed to delete new QR file from storage after validation failure on create",
-			);
-			return {
-				success: false,
-				message: `No se pudo crear el código QR: ${getValidationErrorMessage(error)}`,
-			};
-		}
-		console.error(error);
-		await deleteFreshUploadOnDbFailure(
-			data.qrCodeUrl,
-			"Failed to delete new QR file from storage after create failure",
-		);
-		return { success: false, message: "No se pudo crear el código QR." };
-	}
+  try {
+    const parsedData = qrCodeFormSchema.parse(data);
+    await db.insert(qrCodes).values(parsedData);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      await deleteFreshUploadOnDbFailure(
+        data.qrCodeUrl,
+        "Failed to delete new QR file from storage after validation failure on create",
+      );
+      return {
+        success: false,
+        message: `No se pudo crear el código QR: ${getValidationErrorMessage(error)}`,
+      };
+    }
+    console.error(error);
+    await deleteFreshUploadOnDbFailure(
+      data.qrCodeUrl,
+      "Failed to delete new QR file from storage after create failure",
+    );
+    return { success: false, message: "No se pudo crear el código QR." };
+  }
 
-	revalidatePath("/dashboard/qr_codes");
-	return { success: true, message: "Código QR creado correctamente." };
+  revalidatePath("/dashboard/qr_codes");
+  return { success: true, message: "Código QR creado correctamente." };
 }
 
 export async function updateQrCode(
-	id: number,
-	data: Partial<NewQrCode>,
+  id: number,
+  data: Partial<NewQrCode>,
 ): Promise<QrCodeMutationResult> {
-	const currentProfile = await getCurrentUserProfile();
-	if (!currentProfile || currentProfile.role !== "admin") {
-		return { success: false, message: "No tienes permisos para esta acción." };
-	}
+  const currentProfile = await getCurrentUserProfile();
+  if (!currentProfile || currentProfile.role !== "admin") {
+    return { success: false, message: "No tienes permisos para esta acción." };
+  }
 
-	let fileDeletionError: string | undefined;
-	let existingBeforeUpdate: { qrCodeUrl: string } | null = null;
+  let fileDeletionError: string | undefined;
+  let existingBeforeUpdate: { qrCodeUrl: string } | null = null;
 
-	try {
-		const existing = await db.query.qrCodes.findFirst({
-			where: eq(qrCodes.id, id),
-		});
-		if (!existing) {
-			return { success: false, message: "Código QR no encontrado." };
-		}
-		existingBeforeUpdate = { qrCodeUrl: existing.qrCodeUrl };
-		const parsedData = qrCodeFormSchema.partial().parse(data);
+  try {
+    const existing = await db.query.qrCodes.findFirst({
+      where: eq(qrCodes.id, id),
+    });
+    if (!existing) {
+      return { success: false, message: "Código QR no encontrado." };
+    }
+    existingBeforeUpdate = { qrCodeUrl: existing.qrCodeUrl };
+    const parsedData = qrCodeFormSchema.partial().parse(data);
 
-		const previousQrCodeUrl =
-			parsedData.qrCodeUrl && parsedData.qrCodeUrl !== existing.qrCodeUrl
-				? existing.qrCodeUrl
-				: null;
+    const previousQrCodeUrl =
+      parsedData.qrCodeUrl && parsedData.qrCodeUrl !== existing.qrCodeUrl
+        ? existing.qrCodeUrl
+        : null;
 
-		await db
-			.update(qrCodes)
-			.set({ ...parsedData, updatedAt: new Date() })
-			.where(eq(qrCodes.id, id));
+    await db
+      .update(qrCodes)
+      .set({ ...parsedData, updatedAt: new Date() })
+      .where(eq(qrCodes.id, id));
 
-		if (previousQrCodeUrl) {
-			const deleteResult = await deleteFile(previousQrCodeUrl);
-			if (!deleteResult.success) {
-				console.error("Failed to delete previous QR file from storage", {
-					url: previousQrCodeUrl,
-					error: deleteResult.error,
-				});
-				fileDeletionError = deleteResult.error;
-			}
-		}
-	} catch (error) {
-		if (error instanceof ZodError) {
-			if (
-				existingBeforeUpdate &&
-				data.qrCodeUrl &&
-				data.qrCodeUrl !== existingBeforeUpdate.qrCodeUrl
-			) {
-				await deleteFreshUploadOnDbFailure(
-					data.qrCodeUrl,
-					"Failed to delete new QR file from storage after validation failure on update",
-				);
-			}
-			return {
-				success: false,
-				message: `No se pudo actualizar el código QR: ${getValidationErrorMessage(error)}`,
-			};
-		}
-		console.error(error);
-		if (
-			existingBeforeUpdate &&
-			data.qrCodeUrl &&
-			data.qrCodeUrl !== existingBeforeUpdate.qrCodeUrl
-		) {
-			await deleteFreshUploadOnDbFailure(
-				data.qrCodeUrl,
-				"Failed to delete new QR file from storage after update failure",
-			);
-		}
-		return { success: false, message: "No se pudo actualizar el código QR." };
-	}
+    if (previousQrCodeUrl) {
+      const deleteResult = await deleteFile(previousQrCodeUrl);
+      if (!deleteResult.success) {
+        console.error("Failed to delete previous QR file from storage", {
+          url: previousQrCodeUrl,
+          error: deleteResult.error,
+        });
+        fileDeletionError = deleteResult.error;
+      }
+    }
+  } catch (error) {
+    if (error instanceof ZodError) {
+      if (
+        existingBeforeUpdate &&
+        data.qrCodeUrl &&
+        data.qrCodeUrl !== existingBeforeUpdate.qrCodeUrl
+      ) {
+        await deleteFreshUploadOnDbFailure(
+          data.qrCodeUrl,
+          "Failed to delete new QR file from storage after validation failure on update",
+        );
+      }
+      return {
+        success: false,
+        message: `No se pudo actualizar el código QR: ${getValidationErrorMessage(error)}`,
+      };
+    }
+    console.error(error);
+    if (
+      existingBeforeUpdate &&
+      data.qrCodeUrl &&
+      data.qrCodeUrl !== existingBeforeUpdate.qrCodeUrl
+    ) {
+      await deleteFreshUploadOnDbFailure(
+        data.qrCodeUrl,
+        "Failed to delete new QR file from storage after update failure",
+      );
+    }
+    return { success: false, message: "No se pudo actualizar el código QR." };
+  }
 
-	revalidatePath("/dashboard/qr_codes");
-	return {
-		success: true,
-		message: "Código QR actualizado correctamente.",
-		...(fileDeletionError != null ? { fileDeletionError } : {}),
-	};
+  revalidatePath("/dashboard/qr_codes");
+  return {
+    success: true,
+    message: "Código QR actualizado correctamente.",
+    ...(fileDeletionError != null ? { fileDeletionError } : {}),
+  };
 }
 
 export async function deleteQrCode(id: number): Promise<QrCodeMutationResult> {
-	const currentProfile = await getCurrentUserProfile();
-	if (!currentProfile || currentProfile.role !== "admin") {
-		return { success: false, message: "No tienes permisos para esta acción." };
-	}
+  const currentProfile = await getCurrentUserProfile();
+  if (!currentProfile || currentProfile.role !== "admin") {
+    return { success: false, message: "No tienes permisos para esta acción." };
+  }
 
-	let deletedUrl: string | null = null;
+  let deletedUrl: string | null = null;
 
-	try {
-		await db.transaction(async (tx) => {
-			const existing = await tx.query.qrCodes.findFirst({
-				where: eq(qrCodes.id, id),
-			});
-			if (!existing) throw new Error("Código QR no encontrado");
-			deletedUrl = existing.qrCodeUrl;
+  try {
+    await db.transaction(async (tx) => {
+      const existing = await tx.query.qrCodes.findFirst({
+        where: eq(qrCodes.id, id),
+      });
+      if (!existing) throw new Error("Código QR no encontrado");
+      deletedUrl = existing.qrCodeUrl;
 
-			await tx
-				.update(stands)
-				.set({ qrCodeId: null })
-				.where(eq(stands.qrCodeId, id));
+      await tx
+        .update(stands)
+        .set({ qrCodeId: null })
+        .where(eq(stands.qrCodeId, id));
 
-			await tx.delete(qrCodes).where(eq(qrCodes.id, id));
-		});
-	} catch (error) {
-		console.error(error);
-		return { success: false, message: "No se pudo eliminar el código QR." };
-	}
+      await tx.delete(qrCodes).where(eq(qrCodes.id, id));
+    });
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "No se pudo eliminar el código QR." };
+  }
 
-	let fileDeletionError: string | undefined;
-	if (deletedUrl) {
-		const deleteResult = await deleteFile(deletedUrl);
-		if (!deleteResult.success) {
-			console.error("Failed to delete QR file from storage", {
-				url: deletedUrl,
-				error: deleteResult.error,
-			});
-			fileDeletionError = deleteResult.error;
-		}
-	}
+  let fileDeletionError: string | undefined;
+  if (deletedUrl) {
+    const deleteResult = await deleteFile(deletedUrl);
+    if (!deleteResult.success) {
+      console.error("Failed to delete QR file from storage", {
+        url: deletedUrl,
+        error: deleteResult.error,
+      });
+      fileDeletionError = deleteResult.error;
+    }
+  }
 
-	revalidatePath("/dashboard/qr_codes");
-	return {
-		success: true,
-		message: "Código QR eliminado correctamente.",
-		...(fileDeletionError != null ? { fileDeletionError } : {}),
-	};
+  revalidatePath("/dashboard/qr_codes");
+  return {
+    success: true,
+    message: "Código QR eliminado correctamente.",
+    ...(fileDeletionError != null ? { fileDeletionError } : {}),
+  };
 }

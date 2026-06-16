@@ -1,77 +1,77 @@
 import {
-	FormControl,
-	FormField,
-	FormItem,
-	FormLabel,
-	FormMessage,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
 } from "@/app/components/ui/form";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-	SelectVariants,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  SelectVariants,
 } from "@/app/components/ui/select";
 import { cn } from "@/app/lib/utils";
 import { Control, FieldValues, Path } from "react-hook-form";
 
 export default function SelectInput<
-	T extends FieldValues,
-	TContext = unknown,
-	TTransformedValues extends FieldValues | undefined = undefined,
+  T extends FieldValues,
+  TContext = unknown,
+  TTransformedValues extends FieldValues | undefined = undefined,
 >({
-	className,
-	formControl,
-	label,
-	name,
-	options,
-	placeholder,
-	variant,
-	side,
-	required,
+  className,
+  formControl,
+  label,
+  name,
+  options,
+  placeholder,
+  variant,
+  side,
+  required,
 }: {
-	className?: string;
-	formControl: Control<T, TContext, TTransformedValues>;
-	label?: string;
-	name: Path<T>;
-	options: { value: string; label: string | React.ReactNode }[];
-	placeholder?: string;
-	side?: "top" | "bottom" | "left" | "right";
-	required?: boolean;
+  className?: string;
+  formControl: Control<T, TContext, TTransformedValues>;
+  label?: string;
+  name: Path<T>;
+  options: { value: string; label: string | React.ReactNode }[];
+  placeholder?: string;
+  side?: "top" | "bottom" | "left" | "right";
+  required?: boolean;
 } & SelectVariants) {
-	return (
-		<FormField
-			control={formControl as unknown as Control<T>}
-			name={name}
-			render={({ field }) => (
-				<FormItem className={cn("grid gap-2", className)}>
-					{label && (
-						<FormLabel>
-							{label}
-							{required && <span className="text-destructive ml-0.5">*</span>}
-						</FormLabel>
-					)}
-					{variant === "quiet" && <FormMessage />}
-					<FormControl>
-						<Select onValueChange={field.onChange} {...field}>
-							<FormControl>
-								<SelectTrigger variant={variant}>
-									<SelectValue placeholder={placeholder} />
-								</SelectTrigger>
-							</FormControl>
-							<SelectContent side={side}>
-								{options.map((option) => (
-									<SelectItem key={option.value} value={option.value}>
-										{option.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</FormControl>
-					{variant !== "quiet" && <FormMessage />}
-				</FormItem>
-			)}
-		/>
-	);
+  return (
+    <FormField
+      control={formControl as unknown as Control<T>}
+      name={name}
+      render={({ field }) => (
+        <FormItem className={cn("grid gap-2", className)}>
+          {label && (
+            <FormLabel>
+              {label}
+              {required && <span className="text-destructive ml-0.5">*</span>}
+            </FormLabel>
+          )}
+          {variant === "quiet" && <FormMessage />}
+          <FormControl>
+            <Select onValueChange={field.onChange} {...field}>
+              <FormControl>
+                <SelectTrigger variant={variant}>
+                  <SelectValue placeholder={placeholder} />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent side={side}>
+                {options.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormControl>
+          {variant !== "quiet" && <FormMessage />}
+        </FormItem>
+      )}
+    />
+  );
 }

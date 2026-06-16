@@ -7,15 +7,15 @@ import { SearchIcon } from "lucide-react";
 
 import type { Table as TableInstance } from "@tanstack/react-table";
 import {
-	ColumnDef,
-	ColumnFiltersState,
-	RowSelectionState,
-	SortingState,
-	getCoreRowModel,
-	getFilteredRowModel,
-	getPaginationRowModel,
-	getSortedRowModel,
-	useReactTable,
+  ColumnDef,
+  ColumnFiltersState,
+  RowSelectionState,
+  SortingState,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
 } from "@tanstack/react-table";
 
 import { DataTableViewOptions } from "@/app/components/ui/data_table/column-toggle";
@@ -29,141 +29,145 @@ import { Input } from "@/components/ui/input";
 import { Table } from "@/components/ui/table";
 
 interface DataTableFiltersProps {
-	label?: string;
-	options: { value: string; label: string }[];
-	columnId: string;
+  label?: string;
+  options: { value: string; label: string }[];
+  columnId: string;
 }
 
 export interface DataTableInitialState {
-	columnVisibility?: Record<string, boolean>;
-	columnPinning?: Record<string, string[]>;
-	columnFilters?: ColumnFiltersState;
+  columnVisibility?: Record<string, boolean>;
+  columnPinning?: Record<string, string[]>;
+  columnFilters?: ColumnFiltersState;
 }
 
 interface DataTableProps<TData, TValue> {
-	columns: ColumnDef<TData, TValue>[];
-	data: TData[];
-	columnTitles: Record<string, string>;
-	filters?: DataTableFiltersProps[];
-	initialState?: DataTableInitialState;
-	actions?: ReactNode | ((table: TableInstance<TData>) => ReactNode);
-	selectable?: boolean;
+  columns: ColumnDef<TData, TValue>[];
+  data: TData[];
+  columnTitles: Record<string, string>;
+  filters?: DataTableFiltersProps[];
+  initialState?: DataTableInitialState;
+  actions?: ReactNode | ((table: TableInstance<TData>) => ReactNode);
+  selectable?: boolean;
 }
 
 const selectColumn = {
-	id: "select",
-	header: ({ table }: { table: TableInstance<unknown> }) => (
-		<Checkbox
-			checked={
-				table.getIsAllPageRowsSelected() ||
-				(table.getIsSomePageRowsSelected() && "indeterminate")
-			}
-			onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-			aria-label="Seleccionar todos"
-		/>
-	),
-	cell: ({ row }: { row: { getIsSelected: () => boolean; toggleSelected: (v: boolean) => void } }) => (
-		<Checkbox
-			checked={row.getIsSelected()}
-			onCheckedChange={(value) => row.toggleSelected(!!value)}
-			aria-label="Seleccionar fila"
-		/>
-	),
-	enableSorting: false,
-	enableHiding: false,
+  id: "select",
+  header: ({ table }: { table: TableInstance<unknown> }) => (
+    <Checkbox
+      checked={
+        table.getIsAllPageRowsSelected() ||
+        (table.getIsSomePageRowsSelected() && "indeterminate")
+      }
+      onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+      aria-label="Seleccionar todos"
+    />
+  ),
+  cell: ({
+    row,
+  }: {
+    row: { getIsSelected: () => boolean; toggleSelected: (v: boolean) => void };
+  }) => (
+    <Checkbox
+      checked={row.getIsSelected()}
+      onCheckedChange={(value) => row.toggleSelected(!!value)}
+      aria-label="Seleccionar fila"
+    />
+  ),
+  enableSorting: false,
+  enableHiding: false,
 };
 
 export function DataTable<TData, TValue>({
-	columns,
-	columnTitles,
-	data,
-	filters = [],
-	initialState,
-	actions,
-	selectable = false,
+  columns,
+  columnTitles,
+  data,
+  filters = [],
+  initialState,
+  actions,
+  selectable = false,
 }: DataTableProps<TData, TValue>) {
-	const [sorting, setSorting] = useState<SortingState>([]);
-	const [searchFilter, setSearchFilter] = useState<string>("");
-	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
-		initialState?.columnFilters || [],
-	);
-	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [searchFilter, setSearchFilter] = useState<string>("");
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
+    initialState?.columnFilters || [],
+  );
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-	const allColumns = selectable
-		? [selectColumn as ColumnDef<TData, TValue>, ...columns]
-		: columns;
+  const allColumns = selectable
+    ? [selectColumn as ColumnDef<TData, TValue>, ...columns]
+    : columns;
 
-	// eslint-disable-next-line -- TanStack Table API incompatible with React Compiler
-	const table = useReactTable({
-		data,
-		columns: allColumns,
-		getCoreRowModel: getCoreRowModel(),
-		getPaginationRowModel: getPaginationRowModel(),
-		onSortingChange: setSorting,
-		getSortedRowModel: getSortedRowModel(),
-		getFilteredRowModel: getFilteredRowModel(),
-		onColumnFiltersChange: setColumnFilters,
-		...(selectable && { onRowSelectionChange: setRowSelection }),
-		state: {
-			sorting,
-			columnFilters,
-			globalFilter: searchFilter,
-			...(selectable && { rowSelection }),
-		},
-		initialState: {
-			columnPinning: {
-				right: ["actions"],
-			},
-			pagination: {
-				pageSize: 100,
-			},
-			...initialState,
-		},
-	});
+  // eslint-disable-next-line -- TanStack Table API incompatible with React Compiler
+  const table = useReactTable({
+    data,
+    columns: allColumns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    onSortingChange: setSorting,
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnFiltersChange: setColumnFilters,
+    ...(selectable && { onRowSelectionChange: setRowSelection }),
+    state: {
+      sorting,
+      columnFilters,
+      globalFilter: searchFilter,
+      ...(selectable && { rowSelection }),
+    },
+    initialState: {
+      columnPinning: {
+        right: ["actions"],
+      },
+      pagination: {
+        pageSize: 100,
+      },
+      ...initialState,
+    },
+  });
 
-	return (
-		<div>
-			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-2">
-					<div className="flex min-w-60 items-center py-2 sm:min-w-80">
-						<span className="relative left-3 top-1/2 w-0">
-							<SearchIcon className="h-4 w-4 text-gray-500" />
-						</span>
-						<Input
-							placeholder={"Buscar..."}
-							value={searchFilter}
-							onChange={(e) => setSearchFilter(e.target.value)}
-							className="max-w-sm pl-10"
-						/>
-					</div>
-					{filters.length > 0 && (
-						<DataTableFilters>
-							{filters.map(({ columnId, options, label }, index) => (
-								<DataTableFilter
-									key={index}
-									columnId={columnId}
-									label={label}
-									options={options}
-									table={table}
-								/>
-							))}
-						</DataTableFilters>
-					)}
-				</div>
-				<div className="flex items-center gap-2">
-					{typeof actions === "function" ? actions(table) : actions}
-					<DataTableViewOptions table={table} columnTitles={columnTitles} />
-				</div>
-			</div>
-			<div className="mb-4 rounded-md border">
-				<Table wrapperClassName="max-h-[calc(100dvh-16rem)]">
-					<DataTableHeader table={table} />
-					<DataTableBody table={table} columns={allColumns} />
-				</Table>
-			</div>
-			<div className="mb-4">
-				<DataTablePagination table={table} />
-			</div>
-		</div>
-	);
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="flex min-w-60 items-center py-2 sm:min-w-80">
+            <span className="relative left-3 top-1/2 w-0">
+              <SearchIcon className="h-4 w-4 text-gray-500" />
+            </span>
+            <Input
+              placeholder={"Buscar..."}
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              className="max-w-sm pl-10"
+            />
+          </div>
+          {filters.length > 0 && (
+            <DataTableFilters>
+              {filters.map(({ columnId, options, label }, index) => (
+                <DataTableFilter
+                  key={index}
+                  columnId={columnId}
+                  label={label}
+                  options={options}
+                  table={table}
+                />
+              ))}
+            </DataTableFilters>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {typeof actions === "function" ? actions(table) : actions}
+          <DataTableViewOptions table={table} columnTitles={columnTitles} />
+        </div>
+      </div>
+      <div className="mb-4 rounded-md border">
+        <Table wrapperClassName="max-h-[calc(100dvh-16rem)]">
+          <DataTableHeader table={table} />
+          <DataTableBody table={table} columns={allColumns} />
+        </Table>
+      </div>
+      <div className="mb-4">
+        <DataTablePagination table={table} />
+      </div>
+    </div>
+  );
 }

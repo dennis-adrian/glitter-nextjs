@@ -7,11 +7,11 @@ import { MapPin } from "lucide-react";
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { MapElementBase } from "@/app/lib/map_elements/definitions";
 import {
-	STAND_SIZE,
-	StandColors,
-	computeCanvasBounds,
-	getPublicStandColors,
-	getStandPosition,
+  STAND_SIZE,
+  StandColors,
+  computeCanvasBounds,
+  getPublicStandColors,
+  getStandPosition,
 } from "@/app/components/maps/map-utils";
 import MapCanvas from "@/app/components/maps/map-canvas";
 import MapStand from "@/app/components/maps/map-stand";
@@ -19,280 +19,280 @@ import MapElement from "@/app/components/maps/map-element";
 import MapTransformWrapper from "@/app/components/maps/map-transform-wrapper";
 
 type FestivalNavMapCanvasProps = {
-	stands: StandWithReservationsWithParticipants[];
-	mapElements: MapElementBase[];
-	mapBounds?: { minX: number; minY: number; width: number; height: number };
-	selectedStandId: number | null;
-	couponBookUserIdSet: Set<number>;
-	passportUserIdSet: Set<number>;
-	stickerHuntUserIdSet: Set<number>;
-	sectorName: string;
-	onStandSelect: (
-		stand: StandWithReservationsWithParticipants,
-		sectorName: string,
-	) => void;
+  stands: StandWithReservationsWithParticipants[];
+  mapElements: MapElementBase[];
+  mapBounds?: { minX: number; minY: number; width: number; height: number };
+  selectedStandId: number | null;
+  couponBookUserIdSet: Set<number>;
+  passportUserIdSet: Set<number>;
+  stickerHuntUserIdSet: Set<number>;
+  sectorName: string;
+  onStandSelect: (
+    stand: StandWithReservationsWithParticipants,
+    sectorName: string,
+  ) => void;
 };
 
 function isOccupied(stand: StandWithReservationsWithParticipants): boolean {
-	return stand.status === "reserved" || stand.status === "confirmed";
+  return stand.status === "reserved" || stand.status === "confirmed";
 }
 
 function getStandParticipantUserIds(
-	stand: StandWithReservationsWithParticipants,
+  stand: StandWithReservationsWithParticipants,
 ): number[] {
-	return stand.reservations
-		.filter((r) => r.status !== "rejected")
-		.flatMap((r) => r.participants)
-		.map((p) => p.user.id);
+  return stand.reservations
+    .filter((r) => r.status !== "rejected")
+    .flatMap((r) => r.participants)
+    .map((p) => p.user.id);
 }
 
 function hasActivityParticipant(
-	stand: StandWithReservationsWithParticipants,
-	userIdSet: Set<number>,
+  stand: StandWithReservationsWithParticipants,
+  userIdSet: Set<number>,
 ): boolean {
-	return getStandParticipantUserIds(stand).some((id) => userIdSet.has(id));
+  return getStandParticipantUserIds(stand).some((id) => userIdSet.has(id));
 }
 
 function getNavStandColors(
-	stand: StandWithReservationsWithParticipants,
-	couponBookUserIdSet: Set<number>,
-	passportUserIdSet: Set<number>,
-	stickerHuntUserIdSet: Set<number>,
+  stand: StandWithReservationsWithParticipants,
+  couponBookUserIdSet: Set<number>,
+  passportUserIdSet: Set<number>,
+  stickerHuntUserIdSet: Set<number>,
 ): StandColors {
-	if (!isOccupied(stand)) return getPublicStandColors(stand.status);
+  if (!isOccupied(stand)) return getPublicStandColors(stand.status);
 
-	const hasCoupon = hasActivityParticipant(stand, couponBookUserIdSet);
-	const hasPassport = hasActivityParticipant(stand, passportUserIdSet);
-	const hasStickerHunt = hasActivityParticipant(stand, stickerHuntUserIdSet);
+  const hasCoupon = hasActivityParticipant(stand, couponBookUserIdSet);
+  const hasPassport = hasActivityParticipant(stand, passportUserIdSet);
+  const hasStickerHunt = hasActivityParticipant(stand, stickerHuntUserIdSet);
 
-	if (hasCoupon) {
-		return {
-			fill: "rgba(217, 119, 6, 0.85)",
-			hoverFill: "rgba(180, 83, 9, 0.95)",
-			stroke: "rgba(146, 64, 14, 0.9)",
-			text: "#ffffff",
-		};
-	}
+  if (hasCoupon) {
+    return {
+      fill: "rgba(217, 119, 6, 0.85)",
+      hoverFill: "rgba(180, 83, 9, 0.95)",
+      stroke: "rgba(146, 64, 14, 0.9)",
+      text: "#ffffff",
+    };
+  }
 
-	if (hasPassport) {
-		return {
-			fill: "rgba(5, 150, 105, 0.85)",
-			hoverFill: "rgba(4, 120, 87, 0.95)",
-			stroke: "rgba(6, 95, 70, 0.9)",
-			text: "#ffffff",
-		};
-	}
+  if (hasPassport) {
+    return {
+      fill: "rgba(5, 150, 105, 0.85)",
+      hoverFill: "rgba(4, 120, 87, 0.95)",
+      stroke: "rgba(6, 95, 70, 0.9)",
+      text: "#ffffff",
+    };
+  }
 
-	if (hasStickerHunt) {
-		return {
-			fill: "rgba(219, 39, 119, 0.85)",
-			hoverFill: "rgba(190, 24, 93, 0.95)",
-			stroke: "rgba(157, 23, 77, 0.9)",
-			text: "#ffffff",
-		};
-	}
+  if (hasStickerHunt) {
+    return {
+      fill: "rgba(219, 39, 119, 0.85)",
+      hoverFill: "rgba(190, 24, 93, 0.95)",
+      stroke: "rgba(157, 23, 77, 0.9)",
+      text: "#ffffff",
+    };
+  }
 
-	return getPublicStandColors(stand.status);
+  return getPublicStandColors(stand.status);
 }
 
 export default function FestivalNavMapCanvas({
-	stands,
-	mapElements,
-	mapBounds,
-	selectedStandId,
-	couponBookUserIdSet,
-	passportUserIdSet,
-	stickerHuntUserIdSet,
-	sectorName,
-	onStandSelect,
+  stands,
+  mapElements,
+  mapBounds,
+  selectedStandId,
+  couponBookUserIdSet,
+  passportUserIdSet,
+  stickerHuntUserIdSet,
+  sectorName,
+  onStandSelect,
 }: FestivalNavMapCanvasProps) {
-	const visibleStands = stands.filter((s) => s.status !== "disabled");
-	const canvasBounds =
-		mapBounds ?? computeCanvasBounds(visibleStands, mapElements);
+  const visibleStands = stands.filter((s) => s.status !== "disabled");
+  const canvasBounds =
+    mapBounds ?? computeCanvasBounds(visibleStands, mapElements);
 
-	const handleStandSelect = useCallback(
-		(stand: StandWithReservationsWithParticipants) => {
-			if (!isOccupied(stand)) return;
-			onStandSelect(stand, sectorName);
-		},
-		[onStandSelect, sectorName],
-	);
+  const handleStandSelect = useCallback(
+    (stand: StandWithReservationsWithParticipants) => {
+      if (!isOccupied(stand)) return;
+      onStandSelect(stand, sectorName);
+    },
+    [onStandSelect, sectorName],
+  );
 
-	const occupiedStands = visibleStands.filter(isOccupied);
-	const couponStands = occupiedStands.filter((s) =>
-		hasActivityParticipant(s, couponBookUserIdSet),
-	);
-	const passportStands = occupiedStands.filter((s) =>
-		hasActivityParticipant(s, passportUserIdSet),
-	);
-	const stickerHuntStands = occupiedStands.filter((s) =>
-		hasActivityParticipant(s, stickerHuntUserIdSet),
-	);
+  const occupiedStands = visibleStands.filter(isOccupied);
+  const couponStands = occupiedStands.filter((s) =>
+    hasActivityParticipant(s, couponBookUserIdSet),
+  );
+  const passportStands = occupiedStands.filter((s) =>
+    hasActivityParticipant(s, passportUserIdSet),
+  );
+  const stickerHuntStands = occupiedStands.filter((s) =>
+    hasActivityParticipant(s, stickerHuntUserIdSet),
+  );
 
-	const canvasConfig = {
-		minX: canvasBounds.minX,
-		minY: canvasBounds.minY,
-		width: canvasBounds.width,
-		height: canvasBounds.height,
-	};
+  const canvasConfig = {
+    minX: canvasBounds.minX,
+    minY: canvasBounds.minY,
+    width: canvasBounds.width,
+    height: canvasBounds.height,
+  };
 
-	return (
-		<div className="relative w-full border rounded-lg overflow-hidden">
-			<MapTransformWrapper
-				initialScale={1}
-				minScale={1}
-				maxScale={4}
-				centerOnInit
-			>
-				<TransformComponent
-					wrapperStyle={{ width: "100%" }}
-					contentStyle={{ width: "100%" }}
-				>
-					<MapCanvas config={canvasConfig}>
-						{mapElements.map((element) => (
-							<MapElement key={`el-${element.id}`} element={element} />
-						))}
-						{visibleStands.map((stand) => (
-							<MapStand
-								key={stand.id}
-								stand={stand}
-								canBeReserved={false}
-								selected={stand.id === selectedStandId}
-								colors={getNavStandColors(
-									stand,
-									couponBookUserIdSet,
-									passportUserIdSet,
-									stickerHuntUserIdSet,
-								)}
-								onTouchTap={handleStandSelect}
-								onClick={handleStandSelect}
-							/>
-						))}
-						{/* Activity badge overlay — painted after stands */}
-						<g aria-hidden="true">
-							{couponStands.map((stand) => {
-								const { left, top } = getStandPosition(stand);
-								return (
-									<g
-										key={`coupon-${stand.id}`}
-										transform={`translate(${left}, ${top})`}
-										style={{ pointerEvents: "none" }}
-									>
-										<circle
-											cx={STAND_SIZE - 0.8}
-											cy={0.8}
-											r={1.3}
-											fill="#F59E0B"
-											stroke="#fff"
-											strokeWidth={0.3}
-										/>
-										<text
-											x={STAND_SIZE - 0.8}
-											y={0.8}
-											textAnchor="middle"
-											dominantBaseline="central"
-											fontSize={1.4}
-											fontWeight={700}
-											fill="#fff"
-											style={{ userSelect: "none" }}
-										>
-											%
-										</text>
-									</g>
-								);
-							})}
-							{passportStands.map((stand) => {
-								const { left, top } = getStandPosition(stand);
-								// If stand also has a coupon badge, shift the passport badge left
-								const hasCoupon = hasActivityParticipant(
-									stand,
-									couponBookUserIdSet,
-								);
-								const cx = hasCoupon ? STAND_SIZE - 2.8 : STAND_SIZE - 0.8;
-								return (
-									<g
-										key={`passport-${stand.id}`}
-										transform={`translate(${left}, ${top})`}
-										style={{ pointerEvents: "none" }}
-									>
-										<circle
-											cx={cx}
-											cy={0.8}
-											r={1.3}
-											fill="#059669"
-											stroke="#fff"
-											strokeWidth={0.3}
-										/>
-										<text
-											x={cx}
-											y={0.8}
-											textAnchor="middle"
-											dominantBaseline="central"
-											fontSize={1.4}
-											fontWeight={700}
-											fill="#fff"
-											style={{ userSelect: "none" }}
-										>
-											★
-										</text>
-									</g>
-								);
-							})}
-							{stickerHuntStands.map((stand) => {
-								const { left, top } = getStandPosition(stand);
-								// Shift left of any coupon/passport badges that may already be present
-								const hasCoupon = hasActivityParticipant(
-									stand,
-									couponBookUserIdSet,
-								);
-								const hasPassport = hasActivityParticipant(
-									stand,
-									passportUserIdSet,
-								);
-								const occupiedBadges =
-									(hasCoupon ? 1 : 0) + (hasPassport ? 1 : 0);
-								const cx = STAND_SIZE - 0.8 - occupiedBadges * 2;
-								return (
-									<g
-										key={`sticker-hunt-${stand.id}`}
-										transform={`translate(${left}, ${top})`}
-										style={{ pointerEvents: "none" }}
-									>
-										<circle
-											cx={cx}
-											cy={0.8}
-											r={1.3}
-											fill="#DB2777"
-											stroke="#fff"
-											strokeWidth={0.3}
-										/>
-										<text
-											x={cx}
-											y={0.8}
-											textAnchor="middle"
-											dominantBaseline="central"
-											fontSize={1.4}
-											fontWeight={700}
-											fill="#fff"
-											style={{ userSelect: "none" }}
-										>
-											♦
-										</text>
-									</g>
-								);
-							})}
-						</g>
-					</MapCanvas>
-				</TransformComponent>
+  return (
+    <div className="relative w-full border rounded-lg overflow-hidden">
+      <MapTransformWrapper
+        initialScale={1}
+        minScale={1}
+        maxScale={4}
+        centerOnInit
+      >
+        <TransformComponent
+          wrapperStyle={{ width: "100%" }}
+          contentStyle={{ width: "100%" }}
+        >
+          <MapCanvas config={canvasConfig}>
+            {mapElements.map((element) => (
+              <MapElement key={`el-${element.id}`} element={element} />
+            ))}
+            {visibleStands.map((stand) => (
+              <MapStand
+                key={stand.id}
+                stand={stand}
+                canBeReserved={false}
+                selected={stand.id === selectedStandId}
+                colors={getNavStandColors(
+                  stand,
+                  couponBookUserIdSet,
+                  passportUserIdSet,
+                  stickerHuntUserIdSet,
+                )}
+                onTouchTap={handleStandSelect}
+                onClick={handleStandSelect}
+              />
+            ))}
+            {/* Activity badge overlay — painted after stands */}
+            <g aria-hidden="true">
+              {couponStands.map((stand) => {
+                const { left, top } = getStandPosition(stand);
+                return (
+                  <g
+                    key={`coupon-${stand.id}`}
+                    transform={`translate(${left}, ${top})`}
+                    style={{ pointerEvents: "none" }}
+                  >
+                    <circle
+                      cx={STAND_SIZE - 0.8}
+                      cy={0.8}
+                      r={1.3}
+                      fill="#F59E0B"
+                      stroke="#fff"
+                      strokeWidth={0.3}
+                    />
+                    <text
+                      x={STAND_SIZE - 0.8}
+                      y={0.8}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fontSize={1.4}
+                      fontWeight={700}
+                      fill="#fff"
+                      style={{ userSelect: "none" }}
+                    >
+                      %
+                    </text>
+                  </g>
+                );
+              })}
+              {passportStands.map((stand) => {
+                const { left, top } = getStandPosition(stand);
+                // If stand also has a coupon badge, shift the passport badge left
+                const hasCoupon = hasActivityParticipant(
+                  stand,
+                  couponBookUserIdSet,
+                );
+                const cx = hasCoupon ? STAND_SIZE - 2.8 : STAND_SIZE - 0.8;
+                return (
+                  <g
+                    key={`passport-${stand.id}`}
+                    transform={`translate(${left}, ${top})`}
+                    style={{ pointerEvents: "none" }}
+                  >
+                    <circle
+                      cx={cx}
+                      cy={0.8}
+                      r={1.3}
+                      fill="#059669"
+                      stroke="#fff"
+                      strokeWidth={0.3}
+                    />
+                    <text
+                      x={cx}
+                      y={0.8}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fontSize={1.4}
+                      fontWeight={700}
+                      fill="#fff"
+                      style={{ userSelect: "none" }}
+                    >
+                      ★
+                    </text>
+                  </g>
+                );
+              })}
+              {stickerHuntStands.map((stand) => {
+                const { left, top } = getStandPosition(stand);
+                // Shift left of any coupon/passport badges that may already be present
+                const hasCoupon = hasActivityParticipant(
+                  stand,
+                  couponBookUserIdSet,
+                );
+                const hasPassport = hasActivityParticipant(
+                  stand,
+                  passportUserIdSet,
+                );
+                const occupiedBadges =
+                  (hasCoupon ? 1 : 0) + (hasPassport ? 1 : 0);
+                const cx = STAND_SIZE - 0.8 - occupiedBadges * 2;
+                return (
+                  <g
+                    key={`sticker-hunt-${stand.id}`}
+                    transform={`translate(${left}, ${top})`}
+                    style={{ pointerEvents: "none" }}
+                  >
+                    <circle
+                      cx={cx}
+                      cy={0.8}
+                      r={1.3}
+                      fill="#DB2777"
+                      stroke="#fff"
+                      strokeWidth={0.3}
+                    />
+                    <text
+                      x={cx}
+                      y={0.8}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fontSize={1.4}
+                      fontWeight={700}
+                      fill="#fff"
+                      style={{ userSelect: "none" }}
+                    >
+                      ♦
+                    </text>
+                  </g>
+                );
+              })}
+            </g>
+          </MapCanvas>
+        </TransformComponent>
 
-				{/* Zoom hint (mobile only) */}
-				<div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-10 md:hidden pointer-events-none">
-					<div className="flex items-center gap-1.5 rounded-full bg-gray-900/80 px-3 py-1.5 text-white backdrop-blur-sm">
-						<MapPin className="h-3 w-3" />
-						<span className="text-xs font-medium">Pellizca para ampliar</span>
-					</div>
-				</div>
-			</MapTransformWrapper>
-		</div>
-	);
+        {/* Zoom hint (mobile only) */}
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-10 md:hidden pointer-events-none">
+          <div className="flex items-center gap-1.5 rounded-full bg-gray-900/80 px-3 py-1.5 text-white backdrop-blur-sm">
+            <MapPin className="h-3 w-3" />
+            <span className="text-xs font-medium">Pellizca para ampliar</span>
+          </div>
+        </div>
+      </MapTransformWrapper>
+    </div>
+  );
 }

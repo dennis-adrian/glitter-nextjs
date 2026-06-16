@@ -19,44 +19,44 @@ import { getEnvLabel } from "./lib/config";
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
 export const metadata: Metadata = {
-	title: {
-		template: `${getEnvLabel()} %s | Productora Glitter`,
-		default: `${getEnvLabel()} Productora Glitter`,
-	},
-	description: "Creamos festivales para que los artistas brillen",
-	keywords: ["festival", "glitter", "artistas", "ilustración", "arte"],
-	metadataBase: new URL(baseUrl || "https://www.productoraglitter.com"),
-	openGraph: {
-		title: "Productora Glitter",
-		description: "Creamos festivales para que los artistas brillen",
-	},
+  title: {
+    template: `${getEnvLabel()} %s | Productora Glitter`,
+    default: `${getEnvLabel()} Productora Glitter`,
+  },
+  description: "Creamos festivales para que los artistas brillen",
+  keywords: ["festival", "glitter", "artistas", "ilustración", "arte"],
+  metadataBase: new URL(baseUrl || "https://www.productoraglitter.com"),
+  openGraph: {
+    title: "Productora Glitter",
+    description: "Creamos festivales para que los artistas brillen",
+  },
 };
 
 export default function RootLayout({
-	children,
+  children,
 }: {
-	children: React.ReactNode;
+  children: React.ReactNode;
 }) {
-	return (
-		<html lang="es">
-			<body className={`${inter.variable} ${spaceGrotesk.variable} font-sans`}>
-				<Suspense fallback={<div className="min-h-screen" />}>
-					<ClerkProvider localization={esMX}>
-						<Suspense fallback={<div className="h-16 md:h-20" />}>
-							<Navbar />
-						</Suspense>
-						<main className="min-h-[calc(100vh-64px-180px)] md:min-h-[calc(100vh-80px-290px)]">
-							{children}
-						</main>
-						<Suspense fallback={<div className="h-[180px] md:h-[290px]" />}>
-							<Footer />
-						</Suspense>
-						<PostHogAuthIdentify />
-						<Toaster richColors />
-						<Analytics />
-					</ClerkProvider>
-				</Suspense>
-			</body>
-		</html>
-	);
+  return (
+    <html lang="es">
+      <body className={`${inter.variable} ${spaceGrotesk.variable} font-sans`}>
+        <Suspense fallback={<div className="min-h-screen" />}>
+          <ClerkProvider localization={esMX}>
+            <Suspense fallback={<div className="h-16 md:h-20" />}>
+              <Navbar />
+            </Suspense>
+            <main className="min-h-[calc(100vh-64px-180px)] md:min-h-[calc(100vh-80px-290px)]">
+              {children}
+            </main>
+            <Suspense fallback={<div className="h-[180px] md:h-[290px]" />}>
+              <Footer />
+            </Suspense>
+            <PostHogAuthIdentify />
+            <Toaster richColors />
+            <Analytics />
+          </ClerkProvider>
+        </Suspense>
+      </body>
+    </html>
+  );
 }
