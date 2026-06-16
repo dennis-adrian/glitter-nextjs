@@ -21,8 +21,10 @@ export default async function NewReservationPage({
   ]);
 
   return (
-    <div className="container max-w-2xl py-8">
-      <h1 className="text-2xl font-bold mb-6">Agregar reserva</h1>
+    <div className="container p-4 md:p-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">Agregar reserva</h1>
+      </div>
       <CreateReservationForm
         festivalId={id}
         users={enrolledUsers}

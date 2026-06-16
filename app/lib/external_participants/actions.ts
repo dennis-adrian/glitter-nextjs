@@ -13,12 +13,34 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+function isAcceptedExternalParticipantImageUrl(value?: string) {
+  if (!value) return true;
+
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      (url.hostname === "utfs.io" ||
+        url.hostname === "ufs.sh" ||
+        url.hostname.endsWith(".ufs.sh"))
+    );
+  } catch {
+    return false;
+  }
+}
+
 const ExternalParticipantInputSchema = z.object({
   displayName: z.string().trim().min(2, "El nombre es requerido"),
   type: z.enum(externalParticipantTypeEnum.enumValues),
   customCategoryLabel: z.string().trim().optional(),
   description: z.string().trim().optional(),
-  imageUrl: z.string().trim().optional(),
+  imageUrl: z
+    .string()
+    .trim()
+    .optional()
+    .refine(isAcceptedExternalParticipantImageUrl, {
+      message: "La imagen debe subirse desde el formulario",
+    }),
   websiteUrl: z.string().trim().optional(),
   instagramUrl: z.string().trim().optional(),
   contactEmail: z

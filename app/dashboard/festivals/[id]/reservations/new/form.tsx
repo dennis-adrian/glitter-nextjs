@@ -5,7 +5,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Building2Icon, UserIcon } from "lucide-react";
+import { Building2Icon, Loader2Icon, UserIcon } from "lucide-react";
+import { twMerge } from "tailwind-merge";
 
 import { BaseProfile } from "@/app/api/users/definitions";
 import ComboboxInput from "@/app/components/form/fields/combobox";
@@ -22,6 +23,7 @@ import {
 import { Input } from "@/app/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
 import { Textarea } from "@/app/components/ui/textarea";
+import { UploadButton } from "@/app/vendors/uploadthing";
 import {
   ExternalParticipant,
   externalParticipantTypeOptions,
@@ -29,6 +31,7 @@ import {
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import { createAdminReservation } from "@/app/lib/reservations/admin-actions";
 import { createExternalParticipantReservation } from "@/app/lib/external_participants/actions";
+import { deleteFile } from "@/app/lib/uploadthing/actions";
 
 const FormSchema = z.object({
   mode: z.enum(["user", "external"]),
@@ -114,6 +117,7 @@ export default function CreateReservationForm({
 
   const mode = form.watch("mode");
   const externalMode = form.watch("externalMode");
+  const externalImageUrl = form.watch("imageUrl");
 
   async function onSubmit(data: FormValues) {
     if (data.mode === "user") {
@@ -294,11 +298,7 @@ export default function CreateReservationForm({
                   label="Etiqueta de categoría"
                   placeholder="Ej. Refugio animal"
                 />
-                <TextField
-                  name="imageUrl"
-                  label="Imagen o logo"
-                  placeholder="https://..."
-                />
+                <ExternalParticipantImageField imageUrl={externalImageUrl} />
                 <TextField
                   name="websiteUrl"
                   label="Sitio web"
@@ -379,6 +379,106 @@ export default function CreateReservationForm({
             <FormLabel>{label}</FormLabel>
             <FormControl>
               <Input placeholder={placeholder} {...field} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    );
+  }
+
+  function ExternalParticipantImageField({ imageUrl }: { imageUrl?: string }) {
+    return (
+      <FormField
+        control={form.control}
+        name="imageUrl"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Imagen o logo</FormLabel>
+            <FormControl>
+              <div className="grid gap-3">
+                <div className="flex items-center gap-3 rounded-md border border-dashed p-3">
+                  <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt="Vista previa"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <Building2Icon className="size-7 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <UploadButton
+                        config={{ cn: twMerge }}
+                        endpoint="externalParticipantImage"
+                        content={{
+                          button({ ready, isUploading, uploadProgress }) {
+                            if (isUploading && uploadProgress === 100) {
+                              return (
+                                <Loader2Icon className="size-4 animate-spin text-primary-500" />
+                              );
+                            }
+                            if (isUploading)
+                              return <span>{uploadProgress}%</span>;
+                            if (ready) return <span>Subir imagen</span>;
+                            return "Cargando...";
+                          },
+                          allowedContent({ ready, isUploading }) {
+                            if (!ready) return null;
+                            if (isUploading) return "Subiendo imagen...";
+                            return "Imagen hasta 4MB";
+                          },
+                        }}
+                        appearance={{
+                          button: ({ ready, isUploading }) => {
+                            if (!ready) {
+                              return "bg-transparent text-xs text-muted-foreground border";
+                            }
+                            if (isUploading) {
+                              return "bg-transparent text-xs text-muted-foreground border after:bg-primary-700/60";
+                            }
+                            return "bg-transparent text-xs text-foreground border hover:text-primary-500 hover:border-primary-500";
+                          },
+                        }}
+                        onClientUploadComplete={(res) => {
+                          const uploadedUrl =
+                            res?.[0]?.serverData?.imageUrl ?? res?.[0]?.url;
+                          if (uploadedUrl) {
+                            field.onChange(uploadedUrl);
+                            toast.success("Imagen subida");
+                          }
+                        }}
+                        onUploadError={() => {
+                          toast.error("Error al subir la imagen");
+                        }}
+                      />
+                      {imageUrl && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={async () => {
+                            const result = await deleteFile(imageUrl);
+                            if (result.success) {
+                              field.onChange("");
+                              toast.success("Imagen eliminada");
+                            } else {
+                              toast.error(
+                                result.error || "Error al eliminar la imagen",
+                              );
+                            }
+                          }}
+                        >
+                          Quitar
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </FormControl>
             <FormMessage />
           </FormItem>
