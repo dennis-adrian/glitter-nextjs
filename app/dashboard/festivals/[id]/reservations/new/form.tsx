@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -58,6 +58,34 @@ type Props = {
   sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
   externalParticipants: ExternalParticipant[];
 };
+
+function TextField({
+  form,
+  name,
+  label,
+  placeholder,
+}: {
+  form: UseFormReturn<FormValues>;
+  name: keyof FormValues;
+  label: string;
+  placeholder?: string;
+}) {
+  return (
+    <FormField
+      control={form.control}
+      name={name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{label}</FormLabel>
+          <FormControl>
+            <Input placeholder={placeholder} {...field} />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+}
 
 export default function CreateReservationForm({
   festivalId,
@@ -282,6 +310,7 @@ export default function CreateReservationForm({
             ) : (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <TextField
+                  form={form}
                   name="displayName"
                   label="Nombre"
                   placeholder="Nombre de la institución"
@@ -294,22 +323,26 @@ export default function CreateReservationForm({
                   options={externalParticipantTypeOptions}
                 />
                 <TextField
+                  form={form}
                   name="customCategoryLabel"
                   label="Etiqueta de categoría"
                   placeholder="Ej. Refugio animal"
                 />
                 <ExternalParticipantImageField imageUrl={externalImageUrl} />
                 <TextField
+                  form={form}
                   name="websiteUrl"
                   label="Sitio web"
                   placeholder="https://..."
                 />
                 <TextField
+                  form={form}
                   name="instagramUrl"
                   label="Instagram"
                   placeholder="https://instagram.com/..."
                 />
                 <TextField
+                  form={form}
                   name="contactEmail"
                   label="Correo de contacto"
                   placeholder="contacto@..."
@@ -360,32 +393,6 @@ export default function CreateReservationForm({
       </form>
     </Form>
   );
-
-  function TextField({
-    name,
-    label,
-    placeholder,
-  }: {
-    name: keyof FormValues;
-    label: string;
-    placeholder?: string;
-  }) {
-    return (
-      <FormField
-        control={form.control}
-        name={name}
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>{label}</FormLabel>
-            <FormControl>
-              <Input placeholder={placeholder} {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-    );
-  }
 
   function ExternalParticipantImageField({ imageUrl }: { imageUrl?: string }) {
     return (

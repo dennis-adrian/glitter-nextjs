@@ -5,7 +5,6 @@ import {
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { UserCategory, UserSocial } from "@/app/api/users/definitions";
 import { getExternalParticipantCategoryLabel } from "@/app/lib/external_participants/definitions";
-import { socialsUrls } from "@/app/lib/users/utils";
 
 type BaseMapParticipant = {
   id: string;
@@ -54,12 +53,7 @@ export function getStandMapParticipants(
       categoryLabel: participant.user.category,
       userId: participant.user.id,
       userSocials: participant.user.userSocials ?? [],
-      links: (participant.user.userSocials ?? [])
-        .filter((social) => !!social.username && social.type in socialsUrls)
-        .map((social) => ({
-          label: `@${social.username}`,
-          href: `${socialsUrls[social.type]}${social.username}`,
-        })),
+      links: [],
     }));
 
     const externalParticipants =

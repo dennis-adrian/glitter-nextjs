@@ -27,6 +27,7 @@ export async function deleteFile(url: string) {
       await utapi.deleteFiles(key);
     } else {
       console.warn("Could not extract UploadThing file key from URL:", url);
+      return { success: false, error: "No se pudo identificar el archivo" };
     }
     return { success: true };
   } catch (error) {

@@ -178,7 +178,12 @@ export const columns: ColumnDef<FullReservation>[] = [
       </div>
     ),
     filterFn: (row, _columnId, filterCategories) => {
-      if (filterCategories.length === 0) return true;
+      if (
+        !filterCategories ||
+        !Array.isArray(filterCategories) ||
+        filterCategories.length === 0
+      )
+        return true;
       const userCategories = row.original.participants.map(
         (participant) => participant.user.category,
       );
