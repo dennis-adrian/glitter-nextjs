@@ -8,6 +8,7 @@ import { Switch } from "@/app/components/ui/switch";
 import { Label } from "@/app/components/ui/label";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
 import { toggleProductVisibility } from "@/app/lib/products/actions";
+import { getProductEffectiveStock } from "@/app/lib/products/variants";
 import { cn } from "@/lib/utils";
 import { EditIcon, EyeOffIcon, StarIcon, Trash2Icon } from "lucide-react";
 import Image from "next/image";
@@ -27,7 +28,8 @@ function ProductCard({ product }: { product: BaseProductWithImages }) {
   const [togglingVisibility, setTogglingVisibility] = useState(false);
   const mainImage = product.images.find((img) => img.isMain);
   const imageUrl = mainImage?.imageUrl ?? product.images[0]?.imageUrl;
-  const stock = product.stock ?? 0;
+  const stock = getProductEffectiveStock(product);
+  const hasVariants = (product.variants?.length ?? 0) > 0;
 
   async function handleVisibilityToggle(checked: boolean) {
     const prev = visible;
@@ -94,7 +96,9 @@ function ProductCard({ product }: { product: BaseProductWithImages }) {
                     : "border-green-300 text-green-600",
               )}
             >
-              {stock} unid.
+              {hasVariants
+                ? `${stock} unid. / ${product.variants?.length ?? 0} variantes`
+                : `${stock} unid.`}
             </Badge>
           </div>
           <Badge variant="outline" className="self-start text-xs">

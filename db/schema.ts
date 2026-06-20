@@ -14,6 +14,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const userRoleEnum = pgEnum("user_role", [
@@ -1230,6 +1231,11 @@ export const productStatusEnum = pgEnum("product_status", [
   "sale",
 ]);
 
+export const productOptionSelectorDisplayEnum = pgEnum(
+  "product_option_selector_display",
+  ["dropdown", "image", "button"],
+);
+
 export const products = pgTable("products", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -1253,10 +1259,156 @@ export const products = pgTable("products", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 export const productsRelations = relations(products, ({ many }) => ({
+  options: many(productOptions),
+  variants: many(productVariants),
   orderItems: many(orderItems),
   images: many(productImages),
   cartItems: many(cartItems),
 }));
+
+export const productOptions = pgTable(
+  "product_options",
+  {
+    id: serial("id").primaryKey(),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    selectorDisplay: productOptionSelectorDisplayEnum("selector_display")
+      .default("dropdown")
+      .notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("product_options_product_id_idx").on(t.productId),
+    unique("product_options_product_name_unique").on(t.productId, t.name),
+  ],
+);
+
+export const productOptionsRelations = relations(
+  productOptions,
+  ({ one, many }) => ({
+    product: one(products, {
+      fields: [productOptions.productId],
+      references: [products.id],
+    }),
+    values: many(productOptionValues),
+    variantSelections: many(productVariantOptionValues),
+  }),
+);
+
+export const productOptionValues = pgTable(
+  "product_option_values",
+  {
+    id: serial("id").primaryKey(),
+    optionId: integer("option_id")
+      .notNull()
+      .references(() => productOptions.id, { onDelete: "cascade" }),
+    value: text("value").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("product_option_values_option_id_idx").on(t.optionId),
+    unique("product_option_values_option_value_unique").on(t.optionId, t.value),
+  ],
+);
+
+export const productOptionValuesRelations = relations(
+  productOptionValues,
+  ({ one, many }) => ({
+    option: one(productOptions, {
+      fields: [productOptionValues.optionId],
+      references: [productOptions.id],
+    }),
+    variantSelections: many(productVariantOptionValues),
+  }),
+);
+
+export const productVariants = pgTable(
+  "product_variants",
+  {
+    id: serial("id").primaryKey(),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    price: real("price"),
+    stock: integer("stock").notNull().default(0),
+    imageUrl: text("image_url"),
+    isVisible: boolean("is_visible").default(true).notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("product_variants_product_id_idx").on(t.productId),
+    index("product_variants_visible_idx").on(t.isVisible),
+  ],
+);
+
+export const productVariantsRelations = relations(
+  productVariants,
+  ({ one, many }) => ({
+    product: one(products, {
+      fields: [productVariants.productId],
+      references: [products.id],
+    }),
+    selections: many(productVariantOptionValues),
+    orderItems: many(orderItems),
+    cartItems: many(cartItems),
+  }),
+);
+
+export const productVariantOptionValues = pgTable(
+  "product_variant_option_values",
+  {
+    id: serial("id").primaryKey(),
+    variantId: integer("variant_id")
+      .notNull()
+      .references(() => productVariants.id, { onDelete: "cascade" }),
+    optionId: integer("option_id")
+      .notNull()
+      .references(() => productOptions.id, { onDelete: "cascade" }),
+    optionValueId: integer("option_value_id")
+      .notNull()
+      .references(() => productOptionValues.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("product_variant_option_values_variant_id_idx").on(t.variantId),
+    index("product_variant_option_values_option_id_idx").on(t.optionId),
+    index("product_variant_option_values_option_value_id_idx").on(
+      t.optionValueId,
+    ),
+    unique("product_variant_option_unique").on(t.variantId, t.optionId),
+    unique("product_variant_option_value_unique").on(
+      t.variantId,
+      t.optionValueId,
+    ),
+  ],
+);
+
+export const productVariantOptionValuesRelations = relations(
+  productVariantOptionValues,
+  ({ one }) => ({
+    variant: one(productVariants, {
+      fields: [productVariantOptionValues.variantId],
+      references: [productVariants.id],
+    }),
+    option: one(productOptions, {
+      fields: [productVariantOptionValues.optionId],
+      references: [productOptions.id],
+    }),
+    optionValue: one(productOptionValues, {
+      fields: [productVariantOptionValues.optionValueId],
+      references: [productOptionValues.id],
+    }),
+  }),
+);
 
 export const orderStatusEnum = pgEnum("order_status", [
   /** Initial state when an order is first created but not yet processed/accepted */
@@ -1334,6 +1486,11 @@ export const orderItems = pgTable(
     productId: integer("product_id")
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
+    productVariantId: integer("product_variant_id").references(
+      () => productVariants.id,
+      { onDelete: "restrict" },
+    ),
+    productVariantLabel: text("product_variant_label"),
     quantity: integer("quantity").notNull(),
     priceAtPurchase: real("price_at_purchase").notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -1352,6 +1509,10 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
   product: one(products, {
     fields: [orderItems.productId],
     references: [products.id],
+  }),
+  variant: one(productVariants, {
+    fields: [orderItems.productVariantId],
+    references: [productVariants.id],
   }),
 }));
 
@@ -1379,6 +1540,10 @@ export const cartItems = pgTable(
     productId: integer("product_id")
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
+    productVariantId: integer("product_variant_id").references(
+      () => productVariants.id,
+      { onDelete: "cascade" },
+    ),
     quantity: integer("quantity").notNull().default(1),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -1386,7 +1551,13 @@ export const cartItems = pgTable(
   (t) => [
     index("cart_items_cart_id_idx").on(t.cartId),
     index("cart_items_product_id_idx").on(t.productId),
-    unique("cart_items_cart_product_unique").on(t.cartId, t.productId),
+    index("cart_items_product_variant_id_idx").on(t.productVariantId),
+    uniqueIndex("cart_items_cart_product_base_unique")
+      .on(t.cartId, t.productId)
+      .where(sql`${t.productVariantId} IS NULL`),
+    uniqueIndex("cart_items_cart_product_variant_unique")
+      .on(t.cartId, t.productId, t.productVariantId)
+      .where(sql`${t.productVariantId} IS NOT NULL`),
     check("cart_items_quantity_positive", sql`${t.quantity} > 0`),
   ],
 );
@@ -1395,6 +1566,10 @@ export const cartItemsRelations = relations(cartItems, ({ one }) => ({
   product: one(products, {
     fields: [cartItems.productId],
     references: [products.id],
+  }),
+  variant: one(productVariants, {
+    fields: [cartItems.productVariantId],
+    references: [productVariants.id],
   }),
 }));
 

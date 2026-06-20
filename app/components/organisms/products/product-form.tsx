@@ -6,47 +6,216 @@ import TextInput from "@/app/components/form/fields/text";
 import TextareaInput from "@/app/components/form/fields/textarea";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Button } from "@/app/components/ui/button";
-import { Form } from "@/app/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/app/components/ui/form";
 import { Label } from "@/app/components/ui/label";
 import { Progress } from "@/app/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/app/components/ui/select";
 import { Switch } from "@/app/components/ui/switch";
 import { useUploadThing } from "@/app/vendors/uploadthing";
 import { createProduct, updateProduct } from "@/app/lib/products/actions";
 import { deleteProductImage } from "@/app/lib/products/image-actions";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { PlusIcon, StarIcon, XIcon } from "lucide-react";
+import { PlusIcon, StarIcon, Trash2Icon, XIcon } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useForm, type UseFormReturn } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-const FormSchema = z.object({
-  name: z.string().trim().min(1, "El nombre es requerido"),
-  description: z.string().trim().optional(),
-  price: z
-    .string()
-    .trim()
-    .min(1, "El precio es requerido")
-    .transform(Number)
-    .pipe(z.number().min(0, "El precio debe ser mayor o igual a 0")),
-  stock: z
-    .string()
-    .trim()
-    .min(1, "El stock es requerido")
-    .transform(Number)
-    .pipe(z.number().int().min(0, "El stock debe ser mayor o igual a 0")),
-  status: z.enum(["available", "presale", "sale"]),
-  discount: z.string().transform(Number).pipe(z.number().min(0)).optional(),
-  discountUnit: z.enum(["percentage", "amount"]),
-  isPreOrder: z.boolean(),
-  availableDate: z.string().optional().nullable(),
-  isFeatured: z.boolean(),
-  isNew: z.boolean(),
+const VARIANT_KEY_SEPARATOR = "\u001f";
+
+const VariantOptionValueFormSchema = z.object({
+  id: z.number().optional(),
+  value: z.string().trim().optional(),
+});
+
+const VariantOptionFormSchema = z.object({
+  id: z.number().optional(),
+  name: z.string().trim().optional(),
+  selectorDisplay: z.enum(["dropdown", "image", "button"]),
+  values: z.array(VariantOptionValueFormSchema),
+});
+
+const VariantFormSchema = z.object({
+  id: z.number().optional(),
+  optionValues: z.array(z.string().trim()),
+  price: z.string().trim().optional(),
+  stock: z.string().trim().optional(),
+  imageId: z.string().trim().optional(),
   isVisible: z.boolean(),
 });
+
+const FormSchema = z
+  .object({
+    name: z.string().trim().min(1, "El nombre es requerido"),
+    description: z.string().trim().optional(),
+    price: z.string().trim().min(1, "El precio es requerido"),
+    stock: z.string().trim().min(1, "El stock es requerido"),
+    status: z.enum(["available", "presale", "sale"]),
+    discount: z.string().trim().optional(),
+    discountUnit: z.enum(["percentage", "amount"]),
+    isPreOrder: z.boolean(),
+    availableDate: z.string().optional().nullable(),
+    isFeatured: z.boolean(),
+    isNew: z.boolean(),
+    isVisible: z.boolean(),
+    hasVariants: z.boolean(),
+    variantOptions: z.array(VariantOptionFormSchema),
+    variants: z.array(VariantFormSchema),
+  })
+  .superRefine((values, ctx) => {
+    if (!Number.isFinite(Number(values.price)) || Number(values.price) < 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "El precio debe ser mayor o igual a 0",
+        path: ["price"],
+      });
+    }
+
+    if (
+      values.discount &&
+      (!Number.isFinite(Number(values.discount)) || Number(values.discount) < 0)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "El descuento debe ser mayor o igual a 0",
+        path: ["discount"],
+      });
+    }
+
+    if (!values.hasVariants) {
+      if (!Number.isInteger(Number(values.stock)) || Number(values.stock) < 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "El stock debe ser mayor o igual a 0",
+          path: ["stock"],
+        });
+      }
+      return;
+    }
+
+    if (values.variantOptions.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Agrega al menos una opción",
+        path: ["variantOptions"],
+      });
+    }
+
+    const seenOptionNames = new Set<string>();
+    values.variantOptions.forEach((option, optionIndex) => {
+      const optionName = option.name?.trim() ?? "";
+      if (!optionName) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "El nombre de la opción es requerido",
+          path: ["variantOptions", optionIndex, "name"],
+        });
+      } else if (seenOptionNames.has(optionName.toLowerCase())) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Esta opción ya fue agregada",
+          path: ["variantOptions", optionIndex, "name"],
+        });
+      } else {
+        seenOptionNames.add(optionName.toLowerCase());
+      }
+
+      if (option.values.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Agrega al menos un valor",
+          path: ["variantOptions", optionIndex, "values"],
+        });
+      }
+
+      const seenValues = new Set<string>();
+      option.values.forEach((value, valueIndex) => {
+        const optionValue = value.value?.trim() ?? "";
+        if (!optionValue) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "El valor es requerido",
+            path: [
+              "variantOptions",
+              optionIndex,
+              "values",
+              valueIndex,
+              "value",
+            ],
+          });
+        } else if (seenValues.has(optionValue.toLowerCase())) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Este valor ya fue agregado",
+            path: [
+              "variantOptions",
+              optionIndex,
+              "values",
+              valueIndex,
+              "value",
+            ],
+          });
+        } else {
+          seenValues.add(optionValue.toLowerCase());
+        }
+      });
+    });
+
+    if (values.variants.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Agrega al menos una combinación",
+        path: ["variants"],
+      });
+    }
+
+    values.variants.forEach((variant, index) => {
+      if (variant.optionValues.length !== values.variantOptions.length) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "La combinación no coincide con las opciones",
+          path: ["variants", index, "optionValues"],
+        });
+      }
+
+      if (
+        !Number.isInteger(Number(variant.stock)) ||
+        Number(variant.stock) < 0
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "El stock debe ser mayor o igual a 0",
+          path: ["variants", index, "stock"],
+        });
+      }
+
+      if (
+        variant.price &&
+        (!Number.isFinite(Number(variant.price)) || Number(variant.price) < 0)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "El precio debe ser mayor o igual a 0",
+          path: ["variants", index, "price"],
+        });
+      }
+    });
+  });
 
 const MAX_IMAGE_SIZE_MB = 4;
 const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
@@ -82,6 +251,235 @@ type UploadingItem = {
 type ProductFormProps = {
   product?: BaseProductWithImages;
 };
+
+type ProductFormValues = z.infer<typeof FormSchema>;
+type VariantOptionFormValue = ProductFormValues["variantOptions"][number];
+type VariantFormValue = ProductFormValues["variants"][number];
+
+function getImageOptionLabel(image: ImageItem): string {
+  return `Imagen ${image.id}`;
+}
+
+function ImageOptionPreview({
+  image,
+  label,
+}: {
+  image: ImageItem | null;
+  label: string;
+}) {
+  return (
+    <span className="flex min-w-0 items-center gap-3">
+      <span className="relative flex h-10 w-10 shrink-0 overflow-hidden rounded-md border bg-muted">
+        {image ? (
+          <Image
+            src={image.url}
+            alt={label}
+            fill
+            sizes="40px"
+            className="object-cover"
+          />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center text-[10px] font-medium text-muted-foreground">
+            Sin imagen
+          </span>
+        )}
+      </span>
+      <span className="flex min-w-0 flex-col text-left leading-tight">
+        <span className="truncate text-sm font-medium">{label}</span>
+        {image?.isMain && (
+          <span className="text-xs text-muted-foreground">Principal</span>
+        )}
+      </span>
+    </span>
+  );
+}
+
+function VariantImageSelect({
+  form,
+  images,
+  index,
+}: {
+  form: UseFormReturn<ProductFormValues>;
+  images: ImageItem[];
+  index: number;
+}) {
+  const mainImage = images.find((image) => image.isMain) ?? images[0] ?? null;
+
+  return (
+    <FormField
+      control={form.control}
+      name={`variants.${index}.imageId`}
+      render={({ field }) => {
+        const selectedValue = field.value || "__none__";
+        const selectedImage =
+          selectedValue === "__none__"
+            ? mainImage
+            : (images.find((image) => String(image.id) === selectedValue) ??
+              null);
+        const selectedLabel =
+          selectedValue === "__none__"
+            ? "Usar imagen principal"
+            : selectedImage
+              ? getImageOptionLabel(selectedImage)
+              : "Imagen no encontrada";
+
+        return (
+          <FormItem className="grid gap-2">
+            <FormLabel>Imagen</FormLabel>
+            <Select
+              value={selectedValue}
+              onValueChange={(value) => field.onChange(value)}
+            >
+              <FormControl>
+                <SelectTrigger className="h-14 px-3">
+                  <ImageOptionPreview
+                    image={selectedImage}
+                    label={selectedLabel}
+                  />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value="__none__" className="py-2">
+                  <ImageOptionPreview
+                    image={mainImage}
+                    label="Usar imagen principal"
+                  />
+                </SelectItem>
+                {images.map((image) => (
+                  <SelectItem
+                    key={image.id}
+                    value={String(image.id)}
+                    className="py-2"
+                  >
+                    <ImageOptionPreview
+                      image={image}
+                      label={getImageOptionLabel(image)}
+                    />
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        );
+      }}
+    />
+  );
+}
+
+function createEmptyOption(): VariantOptionFormValue {
+  return {
+    name: "",
+    selectorDisplay: "dropdown",
+    values: [{ value: "" }],
+  };
+}
+
+function createEmptyVariant(optionValues: string[]): VariantFormValue {
+  return {
+    optionValues,
+    price: "",
+    stock: "0",
+    imageId: "__none__",
+    isVisible: true,
+  };
+}
+
+function normalizeKeyPart(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function getCombinationKey(optionValues: string[]): string {
+  return optionValues.map(normalizeKeyPart).join(VARIANT_KEY_SEPARATOR);
+}
+
+function getOptionCombinations(options: VariantOptionFormValue[]): string[][] {
+  const normalizedValues = options.map((option) =>
+    option.values
+      .map((value) => value.value?.trim() ?? "")
+      .filter((value) => value.length > 0),
+  );
+
+  if (
+    normalizedValues.length === 0 ||
+    normalizedValues.some((values) => values.length === 0)
+  ) {
+    return [];
+  }
+
+  return normalizedValues.reduce<string[][]>(
+    (combinations, values) =>
+      combinations.flatMap((combination) =>
+        values.map((value) => [...combination, value]),
+      ),
+    [[]],
+  );
+}
+
+function getVariantLabel(optionValues: string[]): string {
+  return optionValues.join(" / ");
+}
+
+function buildProductFormValues(
+  product: BaseProductWithImages | undefined,
+  availableImages: ImageItem[],
+): ProductFormValues {
+  const variantOptions: VariantOptionFormValue[] =
+    product?.options?.map((option) => ({
+      id: option.id,
+      name: option.name,
+      selectorDisplay: option.selectorDisplay,
+      values:
+        option.values.map((value) => ({
+          id: value.id,
+          value: value.value,
+        })) ?? [],
+    })) ?? [];
+
+  const variants: VariantFormValue[] =
+    product?.variants?.map((variant) => {
+      const optionValues = variantOptions.map((option) => {
+        const selection = variant.selections.find(
+          (entry) => entry.option.id === option.id,
+        );
+        return selection?.optionValue.value ?? "";
+      });
+
+      return {
+        id: variant.id,
+        optionValues,
+        price: variant.price != null ? String(variant.price) : "",
+        stock: String(variant.stock),
+        imageId:
+          availableImages.find((image) => image.url === variant.imageUrl)?.id !=
+          null
+            ? String(
+                availableImages.find((image) => image.url === variant.imageUrl)
+                  ?.id,
+              )
+            : "__none__",
+        isVisible: variant.isVisible,
+      };
+    }) ?? [];
+
+  return {
+    name: product?.name ?? "",
+    description: product?.description ?? "",
+    price: String(product?.price ?? 0),
+    stock: String(product?.stock ?? 0),
+    status: product?.status ?? "available",
+    discount: product?.discount !== undefined ? String(product.discount) : "0",
+    discountUnit: product?.discountUnit ?? "percentage",
+    isPreOrder: product?.isPreOrder ?? false,
+    availableDate: toLocalDateString(product?.availableDate ?? null),
+    isFeatured: product?.isFeatured ?? false,
+    isNew: product?.isNew ?? true,
+    isVisible: product?.isVisible ?? true,
+    hasVariants: variants.length > 0,
+    variantOptions,
+    variants,
+  };
+}
 
 export default function ProductForm({ product }: ProductFormProps) {
   const router = useRouter();
@@ -158,49 +556,108 @@ export default function ProductForm({ product }: ProductFormProps) {
     startUploadRef.current?.([next]);
   }, [currentlyUploading, uploadQueue]);
 
-  const form = useForm<
-    z.input<typeof FormSchema>,
-    unknown,
-    z.output<typeof FormSchema>
-  >({
+  const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
-    defaultValues: {
-      name: product?.name ?? "",
-      description: product?.description ?? "",
-      price: String(product?.price ?? 0),
-      stock: String(product?.stock ?? 0),
-      status: product?.status ?? "available",
-      discount:
-        product?.discount !== undefined ? String(product.discount) : "0",
-      discountUnit: product?.discountUnit ?? "percentage",
-      isPreOrder: product?.isPreOrder ?? false,
-      availableDate: toLocalDateString(product?.availableDate ?? null),
-      isFeatured: product?.isFeatured ?? false,
-      isNew: product?.isNew ?? true,
-      isVisible: product?.isVisible ?? true,
-    },
+    defaultValues: buildProductFormValues(product, initialImages),
   });
 
   // Reset form to new product values when product identity changes (e.g. switching products without remount)
   useEffect(() => {
-    form.reset({
-      name: product?.name ?? "",
-      description: product?.description ?? "",
-      price: String(product?.price ?? 0),
-      stock: String(product?.stock ?? 0),
-      status: product?.status ?? "available",
-      discount:
-        product?.discount !== undefined ? String(product.discount) : "0",
-      discountUnit: product?.discountUnit ?? "percentage",
-      isPreOrder: product?.isPreOrder ?? false,
-      availableDate: toLocalDateString(product?.availableDate ?? null),
-      isFeatured: product?.isFeatured ?? false,
-      isNew: product?.isNew ?? true,
-      isVisible: product?.isVisible ?? true,
-    });
+    const nextImages: ImageItem[] =
+      product?.images
+        ?.filter((img) => img.uploadStatus === "active")
+        .map((img) => ({
+          id: img.id,
+          url: img.imageUrl,
+          isMain: img.isMain,
+        })) ?? [];
+
+    form.reset(buildProductFormValues(product, nextImages));
   }, [product?.id]);
 
   const isPreOrder = form.watch("isPreOrder");
+  const hasVariants = form.watch("hasVariants");
+  const variantOptions = form.watch("variantOptions");
+  const variants = form.watch("variants");
+  const hasVisibleVariant = variants.some((variant) => variant.isVisible);
+  const variantOptionSignature = useMemo(
+    () =>
+      JSON.stringify(
+        variantOptions.map((option) => ({
+          name: option.name,
+          values: option.values.map((value) => value.value),
+        })),
+      ),
+    [variantOptions],
+  );
+
+  useEffect(() => {
+    if (!hasVariants) return;
+
+    const currentOptions = form.getValues("variantOptions");
+    if (currentOptions.length === 0) {
+      form.setValue("variantOptions", [createEmptyOption()], {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
+  }, [form, hasVariants]);
+
+  useEffect(() => {
+    if (!hasVariants) return;
+
+    const combinations = getOptionCombinations(
+      form.getValues("variantOptions"),
+    );
+    const currentVariants = form.getValues("variants");
+    const variantByKey = new Map(
+      currentVariants.map((variant) => [
+        getCombinationKey(variant.optionValues),
+        variant,
+      ]),
+    );
+    const nextVariants = combinations.map((optionValues) => {
+      const existing = variantByKey.get(getCombinationKey(optionValues));
+      return existing
+        ? {
+            ...existing,
+            optionValues,
+          }
+        : createEmptyVariant(optionValues);
+    });
+
+    const currentKey = currentVariants
+      .map((variant) => getCombinationKey(variant.optionValues))
+      .join("|");
+    const nextKey = nextVariants
+      .map((variant) => getCombinationKey(variant.optionValues))
+      .join("|");
+
+    if (currentKey !== nextKey) {
+      form.setValue("variants", nextVariants, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
+  }, [form, hasVariants, variantOptionSignature]);
+
+  function setVariantOptions(nextOptions: VariantOptionFormValue[]) {
+    form.setValue("variantOptions", nextOptions, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }
+
+  function updateVariantOption(
+    index: number,
+    updater: (option: VariantOptionFormValue) => VariantOptionFormValue,
+  ) {
+    const nextOptions = [...form.getValues("variantOptions")];
+    const current = nextOptions[index];
+    if (!current) return;
+    nextOptions[index] = updater(current);
+    setVariantOptions(nextOptions);
+  }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -280,11 +737,53 @@ export default function ProductForm({ product }: ProductFormProps) {
       imagePayloads[0].isMain = true;
     }
 
+    const imageUrlById = new Map(
+      images.map((img) => [String(img.id), img.url]),
+    );
+    const normalizedVariants = data.hasVariants
+      ? data.variants.map((variant, index) => ({
+          id: variant.id,
+          optionValues: variant.optionValues.map((value) => value.trim()),
+          price: variant.price?.trim() ? Number(variant.price) : null,
+          stock: Number(variant.stock),
+          imageUrl: variant.imageId
+            ? (imageUrlById.get(variant.imageId) ?? null)
+            : null,
+          isVisible: variant.isVisible,
+          sortOrder: index,
+        }))
+      : [];
+    const normalizedVariantOptions = data.hasVariants
+      ? data.variantOptions.map((option, optionIndex) => ({
+          id: option.id,
+          name: option.name?.trim() ?? "",
+          selectorDisplay: option.selectorDisplay,
+          sortOrder: optionIndex,
+          values: option.values.map((value, valueIndex) => ({
+            id: value.id,
+            value: value.value?.trim() ?? "",
+            sortOrder: valueIndex,
+          })),
+        }))
+      : [];
+
     const payload = {
-      ...data,
+      name: data.name.trim(),
+      description: data.description?.trim() || "",
+      price: Number(data.price),
+      stock: data.hasVariants ? 0 : Number(data.stock),
+      status: data.status,
+      discount: data.discount?.trim() ? Number(data.discount) : 0,
+      discountUnit: data.discountUnit,
+      isPreOrder: data.isPreOrder,
       availableDate:
         data.isPreOrder && data.availableDate ? data.availableDate : null,
+      isFeatured: data.isFeatured,
+      isNew: data.isNew,
+      isVisible: data.isVisible,
       imagePayloads,
+      variantOptions: normalizedVariantOptions,
+      variants: normalizedVariants,
     };
 
     const res = isEditing
@@ -425,20 +924,245 @@ export default function ProductForm({ product }: ProductFormProps) {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <TextInput
-            label="Precio (Bs.)"
+            label="Precio base (Bs.)"
             name="price"
             type="number"
             inputMode="decimal"
             min={0}
             step={0.01}
           />
-          <TextInput
-            label="Stock"
-            name="stock"
-            type="number"
-            inputMode="numeric"
-            min={0}
-          />
+          {!hasVariants && (
+            <TextInput
+              label="Stock"
+              name="stock"
+              type="number"
+              inputMode="numeric"
+              min={0}
+            />
+          )}
+        </div>
+
+        <div className="flex flex-col gap-4 rounded-lg border p-4">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="hasVariants"
+              checked={hasVariants}
+              onCheckedChange={(value) => {
+                if (!value) {
+                  const variantStockTotal = form
+                    .getValues("variants")
+                    .reduce(
+                      (sum, variant) => sum + (Number(variant.stock) || 0),
+                      0,
+                    );
+                  form.setValue("stock", String(variantStockTotal), {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  });
+                }
+                form.setValue("hasVariants", value, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+              }}
+            />
+            <Label
+              htmlFor="hasVariants"
+              className="text-muted-foreground cursor-pointer"
+            >
+              Este producto tiene variantes
+            </Label>
+          </div>
+
+          {hasVariants && (
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-3">
+                {variantOptions.map((option, optionIndex) => (
+                  <div
+                    key={option.id ?? optionIndex}
+                    className="rounded-lg border border-border/70 p-4"
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium">
+                        Opción {optionIndex + 1}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() =>
+                          setVariantOptions(
+                            variantOptions.filter(
+                              (_, index) => index !== optionIndex,
+                            ),
+                          )
+                        }
+                        disabled={variantOptions.length === 1}
+                        aria-label={`Eliminar opción ${optionIndex + 1}`}
+                      >
+                        <Trash2Icon className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <TextInput
+                        label="Nombre"
+                        name={`variantOptions.${optionIndex}.name`}
+                        placeholder="Ej: Color"
+                      />
+                      <SelectInput
+                        formControl={form.control}
+                        label="Selector en tienda"
+                        name={`variantOptions.${optionIndex}.selectorDisplay`}
+                        options={[
+                          { value: "dropdown", label: "Lista desplegable" },
+                          { value: "button", label: "Botones" },
+                          { value: "image", label: "Imágenes" },
+                        ]}
+                      />
+                    </div>
+
+                    <div className="mt-4 flex flex-col gap-2">
+                      <Label className="text-muted-foreground">Valores</Label>
+                      {option.values.map((_, valueIndex) => (
+                        <div key={valueIndex} className="flex items-end gap-2">
+                          <TextInput
+                            className="flex-1"
+                            label={valueIndex === 0 ? "Valor" : undefined}
+                            name={`variantOptions.${optionIndex}.values.${valueIndex}.value`}
+                            placeholder="Ej: Azul"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="mb-0.5 h-9 w-9 text-muted-foreground hover:text-destructive"
+                            onClick={() =>
+                              updateVariantOption(optionIndex, (current) => ({
+                                ...current,
+                                values: current.values.filter(
+                                  (_, index) => index !== valueIndex,
+                                ),
+                              }))
+                            }
+                            disabled={option.values.length === 1}
+                            aria-label={`Eliminar valor ${valueIndex + 1}`}
+                          >
+                            <Trash2Icon className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-fit"
+                        onClick={() =>
+                          updateVariantOption(optionIndex, (current) => ({
+                            ...current,
+                            values: [...current.values, { value: "" }],
+                          }))
+                        }
+                      >
+                        <PlusIcon className="mr-2 h-4 w-4" />
+                        Agregar valor
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-fit"
+                onClick={() =>
+                  setVariantOptions([...variantOptions, createEmptyOption()])
+                }
+              >
+                <PlusIcon className="mr-2 h-4 w-4" />
+                Agregar opción
+              </Button>
+
+              {variants.length > 0 && !hasVisibleVariant && (
+                <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  Ninguna combinación está visible para compradores.
+                </p>
+              )}
+
+              {variants.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Combinaciones</p>
+                    <p className="text-xs text-muted-foreground">
+                      Cada combinación es una variante con su propio stock,
+                      precio e imagen opcional.
+                    </p>
+                  </div>
+
+                  {variants.map((variant, index) => (
+                    <div
+                      key={getCombinationKey(variant.optionValues)}
+                      className="rounded-lg border border-border/70 p-4"
+                    >
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium">
+                          {getVariantLabel(variant.optionValues)}
+                        </p>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <TextInput
+                          label="Stock"
+                          name={`variants.${index}.stock`}
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                        />
+                        <TextInput
+                          label="Precio especial (opcional)"
+                          name={`variants.${index}.price`}
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          step={0.01}
+                          placeholder="Usar precio base"
+                        />
+                        <VariantImageSelect
+                          form={form}
+                          images={images}
+                          index={index}
+                        />
+                      </div>
+
+                      <div className="mt-4 flex items-center gap-3">
+                        <Switch
+                          id={`variants.${index}.isVisible`}
+                          checked={form.watch(`variants.${index}.isVisible`)}
+                          onCheckedChange={(value) =>
+                            form.setValue(
+                              `variants.${index}.isVisible`,
+                              value,
+                              {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              },
+                            )
+                          }
+                        />
+                        <Label
+                          htmlFor={`variants.${index}.isVisible`}
+                          className="text-muted-foreground cursor-pointer"
+                        >
+                          Visible para compradores
+                        </Label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <SelectInput
