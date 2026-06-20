@@ -293,12 +293,9 @@ async function resolveOrderLines(
       unitPrice = getProductPriceAtPurchase(product, variant);
     } else {
       if (productsWithVariants.has(product.id)) {
-        throw new Error(
-          `Product ${product.name} requires a variant selection`,
-          {
-            cause: "variant_required",
-          },
-        );
+        throw new Error(`${product.name} - selecciona una variante`, {
+          cause: "variant_required",
+        });
       }
     }
 

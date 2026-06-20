@@ -29,7 +29,9 @@ export default function OrdersTotals(props: OrdersTotalsProps) {
           const totalQuantity = curr.totalQuantity;
 
           acc[key] = {
-            productName: curr.productName,
+            productName: curr.productVariantLabel
+              ? `${curr.productName} (${curr.productVariantLabel})`
+              : curr.productName,
             totals: {
               ...acc[key]?.totals,
               [status]: totalQuantity,

@@ -7,8 +7,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import { fetchOrder } from "@/app/lib/orders/actions";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
+import { fetchOrder } from "@/app/lib/orders/actions";
+import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 import {
   AlertTriangleIcon,
   ArrowLeftIcon,
@@ -135,14 +137,12 @@ export default async function OrderDetailPage({
             </CardHeader>
             <CardContent className="space-y-4">
               {order.orderItems.map((item) => {
-                const imageUrl =
-                  item.variant?.imageUrl ??
-                  item.product.images.find((i) => i.isMain)?.imageUrl ??
-                  item.product.images[0]?.imageUrl;
+                const imageUrl = getProductVariantImageUrl(
+                  item.product,
+                  item.variant,
+                );
                 const subtotal = item.quantity * item.priceAtPurchase;
-                const productName = item.productVariantLabel
-                  ? `${item.product.name} (${item.productVariantLabel})`
-                  : item.product.name;
+                const productName = getOrderItemDisplayName(item);
 
                 return (
                   <div key={item.id} className="flex items-center gap-3">
