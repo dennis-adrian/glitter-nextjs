@@ -2,6 +2,8 @@ import { Badge } from "@/app/components/ui/badge";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { formatDate } from "@/app/lib/formatters";
 import { OrderItemWithRelations } from "@/app/lib/orders/definitions";
+import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 import Image from "next/image";
 
 export default function OrderItemOverview({
@@ -9,10 +11,9 @@ export default function OrderItemOverview({
 }: {
   item: OrderItemWithRelations;
 }) {
-  const mainImage = item.product.images.find((img) => img.isMain);
-  const imageUrl = mainImage?.imageUrl
-    ? mainImage.imageUrl
-    : PLACEHOLDER_IMAGE_URLS["300"];
+  const imageUrl =
+    getProductVariantImageUrl(item.product, item.variant) ??
+    PLACEHOLDER_IMAGE_URLS["300"];
 
   return (
     <div className="flex gap-3">
@@ -33,7 +34,7 @@ export default function OrderItemOverview({
       </div>
       <div>
         <p className="text-card-foreground font-semibold text-sm">
-          {item.product.name}
+          {getOrderItemDisplayName(item)}
         </p>
         <p className="text-card-foreground text-xs">
           Bs{item.priceAtPurchase.toFixed(2)}

@@ -6,7 +6,10 @@ import SocialMediaBadge from "@/app/components/social-media-badge";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
-import { getOrderStatusLabel } from "@/app/lib/orders/utils";
+import {
+  getOrderItemDisplayName,
+  getOrderStatusLabel,
+} from "@/app/lib/orders/utils";
 import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
 import { Input } from "@/app/components/ui/input";
 import { useOrdersDateFilter } from "@/app/hooks/use-orders-date-filter";
@@ -87,7 +90,9 @@ function exportOrdersToCsv(orders: OrderWithRelations[]) {
     sanitizeCsvCell(o.customer?.displayName ?? o.guestName ?? "Invitado"),
     sanitizeCsvCell(o.customer?.phoneNumber ?? o.guestPhone ?? ""),
     sanitizeCsvCell(
-      o.orderItems.map((i) => `${i.quantity}x ${i.product.name}`).join(", "),
+      o.orderItems
+        .map((i) => `${i.quantity}x ${getOrderItemDisplayName(i)}`)
+        .join(", "),
     ),
     sanitizeCsvCell(o.totalAmount.toFixed(2)),
     sanitizeCsvCell(getOrderStatusLabel(o.status)),
@@ -140,7 +145,7 @@ function OrderCard({
 
   const itemsPreview = order.orderItems
     .slice(0, 2)
-    .map((item) => `${item.quantity}× ${item.product.name}`)
+    .map((item) => `${item.quantity}× ${getOrderItemDisplayName(item)}`)
     .join(", ");
   const extraItems =
     order.orderItems.length > 2 ? ` +${order.orderItems.length - 2} más` : "";

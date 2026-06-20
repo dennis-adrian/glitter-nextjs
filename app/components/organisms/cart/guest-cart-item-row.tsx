@@ -16,6 +16,11 @@ import {
   PLACEHOLDER_IMAGE_URLS,
 } from "@/app/lib/constants";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import {
+  getProductVariantImageUrl,
+  getProductVariantStock,
+  getVariantLabel,
+} from "@/app/lib/products/variants";
 
 type GuestCartItemRowProps = {
   item: GuestCartItem;
@@ -27,12 +32,18 @@ export default function GuestCartItemRow({
   stockIssue,
 }: GuestCartItemRowProps) {
   const { removeGuestItem, updateGuestItemQuantity } = useCartContext();
+  const variantLabel =
+    item.productVariantLabel ?? getVariantLabel(item.variant);
+  const productName = variantLabel
+    ? `${item.product.name} (${variantLabel})`
+    : item.product.name;
 
   const stockCap = Math.max(
     1,
     Math.min(
       MAX_CART_LINE_QUANTITY,
-      item.product.stock ?? MAX_CART_LINE_QUANTITY,
+      getProductVariantStock(item.product, item.variant) ??
+        MAX_CART_LINE_QUANTITY,
     ),
   );
   const sanitizedQuantity = Math.max(
@@ -40,18 +51,17 @@ export default function GuestCartItemRow({
     Math.min(MAX_CART_LINE_QUANTITY, Number(item.quantity) || 1),
   );
   const maxQty = Math.max(stockCap, sanitizedQuantity);
-  const unitPrice = getProductPriceAtPurchase(item.product);
+  const unitPrice = getProductPriceAtPurchase(item.product, item.variant);
   const subtotal = unitPrice * item.quantity;
 
-  const mainImage = item.product.images.find((img) => img.isMain);
-  const imageUrl = mainImage?.imageUrl
-    ? mainImage.imageUrl
-    : PLACEHOLDER_IMAGE_URLS["300"];
+  const imageUrl =
+    getProductVariantImageUrl(item.product, item.variant) ??
+    PLACEHOLDER_IMAGE_URLS["300"];
 
   return (
     <CartLineRowLayout
       imageUrl={imageUrl}
-      productName={item.product.name}
+      productName={productName}
       unitPrice={unitPrice}
       subtotal={subtotal}
       warnings={
@@ -66,23 +76,24 @@ export default function GuestCartItemRow({
               Solo quedan {stockIssue.stock} disponibles
             </span>
           )}
-          {!stockIssue && (item.product.stock ?? 0) === 0 && (
-            <span className="inline-block text-xs text-destructive font-medium mt-1">
-              Sin stock
-            </span>
-          )}
+          {!stockIssue &&
+            getProductVariantStock(item.product, item.variant) === 0 && (
+              <span className="inline-block text-xs text-destructive font-medium mt-1">
+                Sin stock
+              </span>
+            )}
         </>
       }
       quantityControl={
         <Select
           value={String(sanitizedQuantity)}
           onValueChange={(v) =>
-            updateGuestItemQuantity(item.productId, Number(v))
+            updateGuestItemQuantity(item.lineKey, Number(v))
           }
         >
           <SelectTrigger
             className="h-7 w-16 text-sm"
-            aria-label={`Cantidad de ${item.product.name}`}
+            aria-label={`Cantidad de ${productName}`}
           >
             <SelectValue />
           </SelectTrigger>
@@ -95,7 +106,7 @@ export default function GuestCartItemRow({
           </SelectContent>
         </Select>
       }
-      onRemove={() => removeGuestItem(item.productId)}
+      onRemove={() => removeGuestItem(item.lineKey)}
     />
   );
 }

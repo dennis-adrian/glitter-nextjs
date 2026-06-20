@@ -19,6 +19,11 @@ import {
   PLACEHOLDER_IMAGE_URLS,
 } from "@/app/lib/constants";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import {
+  getProductVariantImageUrl,
+  getProductVariantStock,
+  getVariantLabel,
+} from "@/app/lib/products/variants";
 
 type CartItemRowProps = {
   item: CartItemWithProduct;
@@ -37,21 +42,24 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
   }, [item.quantity]);
 
   const warnings = getCartItemWarnings(item);
+  const variantLabel = getVariantLabel(item.variant);
+  const productName = variantLabel
+    ? `${item.product.name} (${variantLabel})`
+    : item.product.name;
   const stockCap = Math.max(
     1,
     Math.min(
       MAX_CART_LINE_QUANTITY,
-      item.product.stock ?? MAX_CART_LINE_QUANTITY,
+      getProductVariantStock(item.product, item.variant),
     ),
   );
   const maxQty = Math.max(stockCap, localQty);
-  const unitPrice = getProductPriceAtPurchase(item.product);
+  const unitPrice = getProductPriceAtPurchase(item.product, item.variant);
   const subtotal = unitPrice * localQty;
 
-  const mainImage = item.product.images.find((img) => img.isMain);
-  const imageUrl = mainImage?.imageUrl
-    ? mainImage.imageUrl
-    : PLACEHOLDER_IMAGE_URLS["300"];
+  const imageUrl =
+    getProductVariantImageUrl(item.product, item.variant) ??
+    PLACEHOLDER_IMAGE_URLS["300"];
 
   async function handleQuantitySelect(value: string) {
     const newQty = Number(value);
@@ -60,7 +68,7 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
     const generation = ++updateGenerationRef.current;
     setPending(true);
     try {
-      const result = await updateCartItemQuantity(item.productId, newQty);
+      const result = await updateCartItemQuantity(item.id, newQty);
       if (generation !== updateGenerationRef.current) return;
       if (result.success) {
         previousCommittedQtyRef.current = newQty;
@@ -82,7 +90,7 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
   async function handleRemove() {
     setPending(true);
     try {
-      const result = await removeFromCart(item.productId);
+      const result = await removeFromCart(item.id);
       if (result.success) {
         await onCartUpdate();
       } else {
@@ -101,7 +109,7 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
   return (
     <CartLineRowLayout
       imageUrl={imageUrl}
-      productName={item.product.name}
+      productName={productName}
       unitPrice={unitPrice}
       subtotal={subtotal}
       warnings={
@@ -119,7 +127,7 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
         </>
       }
       quantityControl={
-        item.product.stock === 0 ? (
+        getProductVariantStock(item.product, item.variant) === 0 ? (
           <span className="text-xs text-muted-foreground">
             Cantidad: {localQty}
           </span>
@@ -131,7 +139,7 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
           >
             <SelectTrigger
               className="h-7 w-16 text-sm"
-              aria-label={`Cantidad de ${item.product.name}`}
+              aria-label={`Cantidad de ${productName}`}
             >
               <SelectValue />
             </SelectTrigger>

@@ -9,8 +9,12 @@ import { ArrowLeftIcon, MinusIcon, PlusIcon, Trash2Icon } from "lucide-react";
 
 import { updateOrder, UpdateOrderItemInput } from "@/app/lib/orders/actions";
 import { OrderWithRelations } from "@/app/lib/orders/definitions";
-import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import {
+  getOrderItemDisplayName,
+  getProductPriceAtPurchase,
+} from "@/app/lib/orders/utils";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
+import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 
 import { Alert, AlertDescription } from "@/app/components/ui/alert";
 import { Button } from "@/app/components/ui/button";
@@ -37,17 +41,15 @@ type EditableItem = {
 
 function initItems(order: OrderWithRelations): EditableItem[] {
   return order.orderItems.map((item) => {
-    const currentPrice = getProductPriceAtPurchase(item.product);
-    const mainImage = item.product.images.find((img) => img.isMain);
+    const currentPrice = getProductPriceAtPurchase(item.product, item.variant);
     const imageUrl =
-      mainImage?.imageUrl ??
-      item.product.images[0]?.imageUrl ??
+      getProductVariantImageUrl(item.product, item.variant) ??
       PLACEHOLDER_IMAGE_URLS["300"];
 
     return {
       orderItemId: item.id,
       productId: item.productId,
-      productName: item.product.name,
+      productName: getOrderItemDisplayName(item),
       imageUrl,
       priceAtPurchase: item.priceAtPurchase,
       isReadOnly: Math.abs(currentPrice - item.priceAtPurchase) > 0.001,

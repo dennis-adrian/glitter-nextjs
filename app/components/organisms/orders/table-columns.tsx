@@ -6,6 +6,7 @@ import SocialMediaBadge from "@/app/components/social-media-badge";
 import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
 import { OrderWithRelations } from "@/app/lib/orders/definitions";
+import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
 import { cn } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
 import { AlertTriangleIcon } from "lucide-react";
@@ -87,7 +88,7 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
   {
     id: "items",
     accessorFn: (row) => {
-      const items = row.orderItems.map((item) => item.product.name);
+      const items = row.orderItems.map((item) => getOrderItemDisplayName(item));
       return items.join(", ");
     },
     header: ({ column }) => (
@@ -98,7 +99,7 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
         <ul className="flex flex-col gap-2">
           {row.original.orderItems.map((item) => (
             <li key={item.id}>
-              {item.quantity} x {item.product.name}
+              {item.quantity} x {getOrderItemDisplayName(item)}
             </li>
           ))}
         </ul>

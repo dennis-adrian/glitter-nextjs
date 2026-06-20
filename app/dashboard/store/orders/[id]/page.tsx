@@ -135,10 +135,14 @@ export default async function OrderDetailPage({
             </CardHeader>
             <CardContent className="space-y-4">
               {order.orderItems.map((item) => {
-                const mainImage = item.product.images.find((i) => i.isMain);
                 const imageUrl =
-                  mainImage?.imageUrl ?? item.product.images[0]?.imageUrl;
+                  item.variant?.imageUrl ??
+                  item.product.images.find((i) => i.isMain)?.imageUrl ??
+                  item.product.images[0]?.imageUrl;
                 const subtotal = item.quantity * item.priceAtPurchase;
+                const productName = item.productVariantLabel
+                  ? `${item.product.name} (${item.productVariantLabel})`
+                  : item.product.name;
 
                 return (
                   <div key={item.id} className="flex items-center gap-3">
@@ -158,7 +162,7 @@ export default async function OrderDetailPage({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium leading-tight">
-                        {item.product.name}
+                        {productName}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {item.quantity} × {formatCurrency(item.priceAtPurchase)}

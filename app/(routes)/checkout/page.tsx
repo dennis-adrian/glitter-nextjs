@@ -6,6 +6,7 @@ import { CheckoutPageLayout } from "@/app/components/organisms/checkout/checkout
 import GuestCheckoutView from "@/app/components/organisms/checkout/guest-checkout-view";
 import { fetchCartWithItems } from "@/app/lib/cart/actions";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import { getVariantLabel } from "@/app/lib/products/variants";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export default async function CheckoutPage() {
@@ -30,13 +31,16 @@ export default async function CheckoutPage() {
   const orderLines: CheckoutLineItem[] = cart.items.map((i) => ({
     key: i.id,
     product: i.product,
+    variant: i.variant,
+    productVariantLabel: getVariantLabel(i.variant),
     quantity: i.quantity,
   }));
   const presaleLines = orderLines.filter((l) => l.product.isPreOrder);
   const availableItems = cart.items.filter((i) => !i.product.isPreOrder);
 
   const total = cart.items.reduce(
-    (sum, i) => sum + getProductPriceAtPurchase(i.product) * i.quantity,
+    (sum, i) =>
+      sum + getProductPriceAtPurchase(i.product, i.variant) * i.quantity,
     0,
   );
 

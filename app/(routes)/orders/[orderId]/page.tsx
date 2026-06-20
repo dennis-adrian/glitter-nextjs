@@ -4,9 +4,12 @@ import Link from "next/link";
 import { z } from "zod";
 import { BoxIcon, ClockIcon, CreditCardIcon } from "lucide-react";
 import { fetchGuestOrder } from "@/app/lib/orders/actions";
-import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
-import { getOrderStatusLabel } from "@/app/lib/orders/utils";
+import {
+  getOrderItemDisplayName,
+  getOrderStatusLabel,
+} from "@/app/lib/orders/utils";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
+import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import Heading from "@/app/components/atoms/heading";
@@ -74,10 +77,9 @@ export default async function GuestOrderPage(props: {
             </Heading>
             <div className="divide-y">
               {order.orderItems.map((item) => {
-                const mainImage = item.product.images.find((img) => img.isMain);
-                const imageUrl = mainImage?.imageUrl
-                  ? mainImage.imageUrl
-                  : PLACEHOLDER_IMAGE_URLS["300"];
+                const imageUrl =
+                  getProductVariantImageUrl(item.product, item.variant) ??
+                  PLACEHOLDER_IMAGE_URLS["300"];
 
                 return (
                   <div key={item.id} className="flex gap-3 py-3">
@@ -92,7 +94,7 @@ export default async function GuestOrderPage(props: {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">
-                        {item.product.name}
+                        {getOrderItemDisplayName(item)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {item.quantity} × Bs {item.priceAtPurchase.toFixed(2)}

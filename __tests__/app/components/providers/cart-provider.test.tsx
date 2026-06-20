@@ -5,6 +5,7 @@ import {
   useCartContext,
 } from "@/app/components/providers/cart-provider";
 import { GuestCartItem } from "@/app/lib/cart/definitions";
+import { buildCartLineKey } from "@/app/lib/cart/utils";
 import { GUEST_CART_KEY, MAX_CART_LINE_QUANTITY } from "@/app/lib/constants";
 
 // ---------------------------------------------------------------------------
@@ -35,7 +36,15 @@ function buildGuestCartItem(
   quantity: number,
   stock: number | null = 10,
 ): GuestCartItem {
-  return { productId, quantity, product: buildProduct(productId, stock) };
+  return {
+    lineKey: buildCartLineKey(productId, null),
+    productId,
+    productVariantId: null,
+    productVariantLabel: null,
+    quantity,
+    product: buildProduct(productId, stock),
+    variant: null,
+  };
 }
 
 /** Renders a child component that exposes cart context values via data-testid attributes. */
@@ -56,19 +65,23 @@ function TestConsumer() {
         add 1
       </button>
       <button
-        onClick={() => ctx.removeGuestItem(1)}
+        onClick={() => ctx.removeGuestItem(buildCartLineKey(1, null))}
         data-testid="remove-item-1"
       >
         remove 1
       </button>
       <button
-        onClick={() => ctx.updateGuestItemQuantity(1, 3)}
+        onClick={() =>
+          ctx.updateGuestItemQuantity(buildCartLineKey(1, null), 3)
+        }
         data-testid="update-qty-3"
       >
         update qty 3
       </button>
       <button
-        onClick={() => ctx.updateGuestItemQuantity(1, 0)}
+        onClick={() =>
+          ctx.updateGuestItemQuantity(buildCartLineKey(1, null), 0)
+        }
         data-testid="update-qty-0"
       >
         update qty 0
@@ -404,7 +417,10 @@ describe("CartProvider — updateGuestItemQuantity", () => {
           <span data-testid="hqc-items">{JSON.stringify(ctx.guestItems)}</span>
           <button
             onClick={() =>
-              ctx.updateGuestItemQuantity(1, MAX_CART_LINE_QUANTITY + 10)
+              ctx.updateGuestItemQuantity(
+                buildCartLineKey(1, null),
+                MAX_CART_LINE_QUANTITY + 10,
+              )
             }
             data-testid="hqc-update"
           >
@@ -439,7 +455,9 @@ describe("CartProvider — updateGuestItemQuantity", () => {
         <div>
           <span data-testid="scc-items">{JSON.stringify(ctx.guestItems)}</span>
           <button
-            onClick={() => ctx.updateGuestItemQuantity(1, 4)}
+            onClick={() =>
+              ctx.updateGuestItemQuantity(buildCartLineKey(1, null), 4)
+            }
             data-testid="scc-update"
           >
             update

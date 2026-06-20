@@ -7,6 +7,7 @@ import Heading from "@/app/components/atoms/heading";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 
 import type { CheckoutLineItem } from "./checkout-line-item";
 
@@ -28,13 +29,16 @@ export function CheckoutOrderSummary({
         </Heading>
         <div className="divide-y">
           {items.map((item) => {
-            const images = item.product.images;
-            const mainImage = images.find((img) => img.isMain) ?? images[0];
             const imageUrl =
-              images.length === 0
-                ? PLACEHOLDER_IMAGE_URLS["300"]
-                : mainImage!.imageUrl;
-            const unitPrice = getProductPriceAtPurchase(item.product);
+              getProductVariantImageUrl(item.product, item.variant) ??
+              PLACEHOLDER_IMAGE_URLS["300"];
+            const unitPrice = getProductPriceAtPurchase(
+              item.product,
+              item.variant,
+            );
+            const productName = item.productVariantLabel
+              ? `${item.product.name} (${item.productVariantLabel})`
+              : item.product.name;
 
             return (
               <div key={item.key} className="flex gap-3 py-3">
@@ -48,9 +52,7 @@ export function CheckoutOrderSummary({
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">
-                    {item.product.name}
-                  </p>
+                  <p className="font-medium text-sm truncate">{productName}</p>
                   <p className="text-xs text-muted-foreground">
                     {item.quantity} × Bs {unitPrice.toFixed(2)}
                   </p>

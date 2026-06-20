@@ -1,22 +1,24 @@
 "use client";
 
-import SubmitButton from "@/app/components/simple-submit-button";
 import { Button } from "@/app/components/ui/button";
-import { BaseProduct } from "@/app/lib/products/definitions";
 import { cn } from "@/app/lib/utils";
 
 export default function SubmitProductOrderButton({
   className,
-  product,
+  inStock,
+  isPreOrder,
   disabled,
   loading,
+  onClick,
 }: {
   className?: string;
-  product: BaseProduct;
+  inStock: boolean;
+  isPreOrder: boolean;
   disabled: boolean;
   loading: boolean;
+  onClick?: () => void;
 }) {
-  if ((product.stock ?? 0) <= 0) {
+  if (!inStock) {
     return (
       <Button
         className="bg-muted text-muted-foreground hover:bg-muted hover:translate-y-0"
@@ -29,18 +31,19 @@ export default function SubmitProductOrderButton({
   }
 
   return (
-    <SubmitButton
+    <Button
+      type="button"
       className={cn(
         "w-full",
-        product.isPreOrder
+        isPreOrder
           ? "bg-amber-600 hover:bg-amber-700"
           : "bg-purple-600 hover:bg-purple-700",
         className,
       )}
-      disabled={disabled}
-      loading={loading}
-      label="Agregar al carrito"
-      loadingLabel="Agregando..."
-    />
+      disabled={disabled || loading}
+      onClick={onClick}
+    >
+      {loading ? "Agregando..." : "Agregar al carrito"}
+    </Button>
   );
 }

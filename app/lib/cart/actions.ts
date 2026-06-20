@@ -1,64 +1,54 @@
 "use server";
 
-import { db } from "@/db";
-import { cartItems, carts, products } from "@/db/schema";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+
 import { guestCheckoutContactSchema } from "@/app/components/form/input-validators";
-import {
-  createOrderInTx,
-  createGuestOrderInTx,
-  sendOrderEmails,
-  sendGuestOrderEmails,
-} from "@/app/lib/orders/actions";
-import { BaseCart, CartWithItems } from "@/app/lib/cart/definitions";
-import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
-import { fetchProduct } from "@/app/lib/products/actions";
 import { MAX_CART_LINE_QUANTITY } from "@/app/lib/constants";
+import { BaseCart, CartWithItems } from "@/app/lib/cart/definitions";
+import {
+  createGuestOrderInTx,
+  createOrderInTx,
+  sendGuestOrderEmails,
+  sendOrderEmails,
+  type OrderLineInput,
+} from "@/app/lib/orders/actions";
+import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import { fetchProduct } from "@/app/lib/products/actions";
+import { getProductVariantStock } from "@/app/lib/products/variants";
+import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
+import { db } from "@/db";
+import { cartItems, carts } from "@/db/schema";
 
 export type GuestCartItemInput = {
+  lineKey: string;
   productId: number;
+  productVariantId: number | null;
   quantity: number;
 };
 
 export type GuestStockValidationResult = {
+  lineKey: string;
   productId: number;
-  stock: number | null;
+  productVariantId: number | null;
+  stock: number;
   isOutOfStock: boolean;
   quantityExceedsStock: boolean;
 };
-
-export async function validateGuestCartStock(
-  items: GuestCartItemInput[],
-): Promise<GuestStockValidationResult[]> {
-  if (!items.length) return [];
-
-  const productIds = items.map((i) => i.productId);
-  const rows = await db
-    .select({ id: products.id, stock: products.stock })
-    .from(products)
-    .where(inArray(products.id, productIds));
-
-  const stockMap = new Map(rows.map((r) => [r.id, r.stock]));
-
-  return items.map((item) => {
-    const stock = stockMap.get(item.productId) ?? null;
-    return {
-      productId: item.productId,
-      stock,
-      isOutOfStock: stock === 0,
-      quantityExceedsStock:
-        typeof stock === "number" && stock > 0 && item.quantity > stock,
-    };
-  });
-}
 
 type CartTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type CartCheckoutSnapshot = {
   cartId: number;
-  items: { productId: number; quantity: number }[];
+  items: {
+    cartItemId: number;
+    productId: number;
+    productVariantId: number | null;
+    quantity: number;
+  }[];
 };
+
+export type CartLineInput = OrderLineInput;
 
 async function getOrCreateCart(userId: number): Promise<BaseCart> {
   const [cart] = await db
@@ -70,6 +60,77 @@ async function getOrCreateCart(userId: number): Promise<BaseCart> {
     })
     .returning();
   return cart;
+}
+
+async function resolveProductLine(input: CartLineInput) {
+  const product = await fetchProduct(input.productId);
+  if (!product) return null;
+
+  const variant =
+    input.productVariantId == null
+      ? null
+      : ((product.variants ?? []).find(
+          (entry) => entry.id === input.productVariantId && entry.isVisible,
+        ) ?? null);
+
+  if (input.productVariantId != null && !variant) {
+    return null;
+  }
+
+  if (input.productVariantId == null && (product.variants?.length ?? 0) > 0) {
+    return null;
+  }
+
+  return { product, variant };
+}
+
+function buildCartItemWhere(
+  cartId: number,
+  productId: number,
+  productVariantId: number | null,
+) {
+  return productVariantId == null
+    ? and(
+        eq(cartItems.cartId, cartId),
+        eq(cartItems.productId, productId),
+        isNull(cartItems.productVariantId),
+      )
+    : and(
+        eq(cartItems.cartId, cartId),
+        eq(cartItems.productId, productId),
+        eq(cartItems.productVariantId, productVariantId),
+      );
+}
+
+export async function validateGuestCartStock(
+  items: GuestCartItemInput[],
+): Promise<GuestStockValidationResult[]> {
+  if (!items.length) return [];
+
+  const results = await Promise.all(
+    items.map(async (item) => {
+      const resolved = await resolveProductLine({
+        productId: item.productId,
+        productVariantId: item.productVariantId,
+        quantity: item.quantity,
+      });
+
+      const stock = resolved
+        ? getProductVariantStock(resolved.product, resolved.variant)
+        : 0;
+
+      return {
+        lineKey: item.lineKey,
+        productId: item.productId,
+        productVariantId: item.productVariantId,
+        stock,
+        isOutOfStock: stock === 0,
+        quantityExceedsStock: stock > 0 && item.quantity > stock,
+      };
+    }),
+  );
+
+  return results;
 }
 
 export async function fetchCartWithItems(): Promise<{
@@ -84,10 +145,37 @@ export async function fetchCartWithItems(): Promise<{
       where: eq(carts.userId, user.id),
       with: {
         items: {
-          orderBy: (cartItems, { asc }) => [asc(cartItems.id)],
+          orderBy: (items, { asc }) => [asc(items.id)],
           with: {
             product: {
-              with: { images: true },
+              with: {
+                images: true,
+                options: {
+                  with: {
+                    values: true,
+                  },
+                },
+                variants: {
+                  with: {
+                    selections: {
+                      with: {
+                        option: true,
+                        optionValue: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            variant: {
+              with: {
+                selections: {
+                  with: {
+                    option: true,
+                    optionValue: true,
+                  },
+                },
+              },
             },
           },
         },
@@ -117,20 +205,27 @@ export async function fetchCartItemCount(): Promise<number> {
 }
 
 export async function addToCart(
-  productId: number,
-  quantity: number,
+  input: CartLineInput,
 ): Promise<{ success: boolean; newCount: number }> {
   try {
     const user = await getCurrentBaseProfile();
     if (!user) return { success: false, newCount: 0 };
 
-    if (quantity <= 0) {
+    if (input.quantity <= 0) {
       const currentCount = await fetchCartItemCount();
       return { success: false, newCount: currentCount };
     }
 
-    const product = await fetchProduct(productId);
-    const availableStock = product?.stock ?? 0;
+    const resolved = await resolveProductLine(input);
+    if (!resolved) {
+      const currentCount = await fetchCartItemCount();
+      return { success: false, newCount: currentCount };
+    }
+
+    const availableStock = getProductVariantStock(
+      resolved.product,
+      resolved.variant,
+    );
     if (availableStock <= 0) {
       const currentCount = await fetchCartItemCount();
       return { success: false, newCount: currentCount };
@@ -138,7 +233,7 @@ export async function addToCart(
 
     const cart = await getOrCreateCart(user.id);
     const cappedQuantity = Math.min(
-      quantity,
+      input.quantity,
       MAX_CART_LINE_QUANTITY,
       availableStock,
     );
@@ -147,20 +242,31 @@ export async function addToCart(
       return { success: false, newCount: currentCount };
     }
 
-    await db
-      .insert(cartItems)
-      .values({
+    const where = buildCartItemWhere(
+      cart.id,
+      input.productId,
+      input.productVariantId ?? null,
+    );
+    const existing = await db.query.cartItems.findFirst({ where });
+
+    if (existing) {
+      const nextQuantity = Math.min(
+        existing.quantity + cappedQuantity,
+        MAX_CART_LINE_QUANTITY,
+        availableStock,
+      );
+      await db
+        .update(cartItems)
+        .set({ quantity: nextQuantity, updatedAt: new Date() })
+        .where(eq(cartItems.id, existing.id));
+    } else {
+      await db.insert(cartItems).values({
         cartId: cart.id,
-        productId,
+        productId: input.productId,
+        productVariantId: input.productVariantId ?? null,
         quantity: cappedQuantity,
-      })
-      .onConflictDoUpdate({
-        target: [cartItems.cartId, cartItems.productId],
-        set: {
-          quantity: sql`least(${cartItems.quantity} + excluded.quantity, ${availableStock}, 5)`,
-          updatedAt: new Date(),
-        },
       });
+    }
 
     revalidatePath("/store");
     const newCount = await fetchCartItemCount();
@@ -173,7 +279,7 @@ export async function addToCart(
 }
 
 export async function updateCartItemQuantity(
-  productId: number,
+  cartItemId: number,
   quantity: number,
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -185,35 +291,43 @@ export async function updateCartItemQuantity(
     });
     if (!cart) return { success: true };
 
-    const capped = Math.min(quantity, MAX_CART_LINE_QUANTITY);
+    const item = await db.query.cartItems.findFirst({
+      where: and(eq(cartItems.id, cartItemId), eq(cartItems.cartId, cart.id)),
+      with: {
+        product: {
+          with: {
+            images: true,
+          },
+        },
+        variant: {
+          with: {
+            selections: {
+              with: {
+                option: true,
+                optionValue: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!item) return { success: true };
 
+    const capped = Math.min(quantity, MAX_CART_LINE_QUANTITY);
     if (capped > 0) {
-      const product = await fetchProduct(productId);
-      const availableStock = product?.stock ?? 0;
+      const availableStock = getProductVariantStock(item.product, item.variant);
       if (capped > availableStock) {
         return { success: false, error: "stock_insufficient" };
       }
     }
 
     if (capped <= 0) {
-      await db
-        .delete(cartItems)
-        .where(
-          and(
-            eq(cartItems.cartId, cart.id),
-            eq(cartItems.productId, productId),
-          ),
-        );
+      await db.delete(cartItems).where(eq(cartItems.id, item.id));
     } else {
       await db
         .update(cartItems)
         .set({ quantity: capped, updatedAt: new Date() })
-        .where(
-          and(
-            eq(cartItems.cartId, cart.id),
-            eq(cartItems.productId, productId),
-          ),
-        );
+        .where(eq(cartItems.id, item.id));
     }
 
     revalidatePath("/store");
@@ -225,7 +339,7 @@ export async function updateCartItemQuantity(
 }
 
 export async function removeFromCart(
-  productId: number,
+  cartItemId: number,
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const user = await getCurrentBaseProfile();
@@ -238,9 +352,7 @@ export async function removeFromCart(
 
     await db
       .delete(cartItems)
-      .where(
-        and(eq(cartItems.cartId, cart.id), eq(cartItems.productId, productId)),
-      );
+      .where(and(eq(cartItems.cartId, cart.id), eq(cartItems.id, cartItemId)));
 
     revalidatePath("/store");
     return { success: true };
@@ -275,7 +387,6 @@ export async function clearCart(): Promise<{
   }
 }
 
-/** Locks the user's cart and cart_items in the current transaction. Returns null if no cart. DB-only; no auth/profile I/O. */
 export async function fetchCartWithItemsForCheckout(
   tx: CartTx,
   userId: number,
@@ -288,18 +399,27 @@ export async function fetchCartWithItemsForCheckout(
   if (!cart) return null;
 
   const rows = await tx
-    .select({ productId: cartItems.productId, quantity: cartItems.quantity })
+    .select({
+      cartItemId: cartItems.id,
+      productId: cartItems.productId,
+      productVariantId: cartItems.productVariantId,
+      quantity: cartItems.quantity,
+    })
     .from(cartItems)
     .where(eq(cartItems.cartId, cart.id))
     .for("update");
 
   return {
     cartId: cart.id,
-    items: rows.map((r) => ({ productId: r.productId, quantity: r.quantity })),
+    items: rows.map((row) => ({
+      cartItemId: row.cartItemId,
+      productId: row.productId,
+      productVariantId: row.productVariantId,
+      quantity: row.quantity,
+    })),
   };
 }
 
-/** Deletes all items for the given cart inside the current transaction. */
 export async function clearCartInTx(tx: CartTx, cartId: number): Promise<void> {
   await tx.delete(cartItems).where(eq(cartItems.cartId, cartId));
 }
@@ -331,13 +451,13 @@ export async function checkoutCart(): Promise<{
         throw new Error("empty_cart");
       }
 
-      const orderItemsMap = new Map<number, number>(
-        snapshot.items.map((item) => [item.productId, item.quantity]),
-      );
-
       const result = await createOrderInTx(
         tx,
-        orderItemsMap,
+        snapshot.items.map((item) => ({
+          productId: item.productId,
+          productVariantId: item.productVariantId,
+          quantity: item.quantity,
+        })),
         userId,
         customerEmail,
         customerName,
@@ -378,6 +498,17 @@ export async function checkoutCart(): Promise<{
         };
       }
       if (err.cause === "stock_insufficient") {
+        return {
+          success: false,
+          message: err.message,
+          orderId: null,
+          profileId: null,
+        };
+      }
+      if (
+        err.cause === "variant_required" ||
+        err.cause === "variant_unavailable"
+      ) {
         return {
           success: false,
           message: err.message,
@@ -428,14 +559,14 @@ export async function checkoutGuestCart(
   } = contactParsed.data;
 
   try {
-    const orderItemsMap = new Map<number, number>(
-      items.map((i) => [i.productId, i.quantity]),
-    );
-
     const orderResult = await db.transaction((tx) =>
       createGuestOrderInTx(
         tx,
-        orderItemsMap,
+        items.map((item) => ({
+          productId: item.productId,
+          productVariantId: item.productVariantId,
+          quantity: item.quantity,
+        })),
         nameTrimmed,
         emailTrimmed,
         phoneTrimmed,
@@ -464,6 +595,12 @@ export async function checkoutGuestCart(
   } catch (err) {
     console.error("checkoutGuestCart error:", err);
     if (err instanceof Error && err.cause === "stock_insufficient") {
+      return { success: false, message: err.message };
+    }
+    if (
+      err instanceof Error &&
+      (err.cause === "variant_required" || err.cause === "variant_unavailable")
+    ) {
       return { success: false, message: err.message };
     }
     return { success: false, message: "Error al procesar el pedido." };
