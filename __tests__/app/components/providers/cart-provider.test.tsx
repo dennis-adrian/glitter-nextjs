@@ -198,6 +198,33 @@ describe("CartProvider — initial state", () => {
     expect(screen.getByTestId("item-count").textContent).toBe("0");
   });
 
+  it("drops cart lines with missing or malformed product data", () => {
+    // ARRANGE: valid line plus entries missing product or with wrong shape
+    localStorage.setItem(
+      GUEST_CART_KEY,
+      JSON.stringify([
+        buildGuestCartItem(1, 2),
+        { productId: 2, quantity: 1 },
+        { productId: 3, quantity: 1, product: { id: 3, name: "No price" } },
+        {
+          productId: 4,
+          quantity: 1,
+          product: { id: 99, name: "Mismatched id", price: 100, images: [] },
+        },
+      ]),
+    );
+
+    // ACT
+    renderProvider(0, false);
+
+    // ASSERT: only the valid line is kept
+    const items = JSON.parse(screen.getByTestId("guest-items").textContent!);
+    expect(items).toHaveLength(1);
+    expect(items[0].productId).toBe(1);
+    expect(items[0].quantity).toBe(2);
+    expect(screen.getByTestId("item-count").textContent).toBe("2");
+  });
+
   it("starts with isOpen false", () => {
     // ARRANGE & ACT
     renderProvider();

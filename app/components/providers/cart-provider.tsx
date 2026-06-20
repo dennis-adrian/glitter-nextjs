@@ -37,10 +37,37 @@ export function useCartContext() {
   return cartContext;
 }
 
+function isValidGuestCartProduct(
+  product: unknown,
+): product is GuestCartItem["product"] {
+  if (
+    typeof product !== "object" ||
+    product === null ||
+    Array.isArray(product)
+  ) {
+    return false;
+  }
+
+  const candidate = product as Record<string, unknown>;
+  return (
+    typeof candidate.id === "number" &&
+    typeof candidate.name === "string" &&
+    typeof candidate.price === "number" &&
+    Array.isArray(candidate.images)
+  );
+}
+
 function normalizeGuestCartItem(
   item: Partial<GuestCartItem>,
 ): GuestCartItem | null {
   if (typeof item.productId !== "number" || typeof item.quantity !== "number") {
+    return null;
+  }
+
+  if (
+    !isValidGuestCartProduct(item.product) ||
+    item.product.id !== item.productId
+  ) {
     return null;
   }
 
@@ -53,7 +80,7 @@ function normalizeGuestCartItem(
     productVariantId,
     productVariantLabel: item.productVariantLabel ?? null,
     quantity: item.quantity,
-    product: item.product as GuestCartItem["product"],
+    product: item.product,
     variant: (item.variant as GuestCartItem["variant"]) ?? null,
   };
 }
