@@ -132,7 +132,6 @@ export default function StoreProductImages({
     const selectedIndex = imageUrls.indexOf(selectedImageUrl);
     if (selectedIndex >= 0) {
       api.scrollTo(selectedIndex);
-      setCurrentImageIndex(selectedIndex);
     }
   }, [api, imageUrls, imageUrlsKey, selectedImageUrl]);
 
