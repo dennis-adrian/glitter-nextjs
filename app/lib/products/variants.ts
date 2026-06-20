@@ -46,7 +46,7 @@ export function getProductEffectiveStock(
 
   return (product.variants ?? [])
     .filter((variant) => variant.isVisible)
-    .reduce((sum, variant) => sum + Math.max(variant.stock, 0), 0);
+    .reduce((sum, variant) => sum + Math.max(variant.stock ?? 0, 0), 0);
 }
 
 export function getProductVariantStock(

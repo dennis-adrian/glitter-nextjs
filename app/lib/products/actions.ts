@@ -1,6 +1,9 @@
 "use server";
 
 import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import type { AnyColumn } from "drizzle-orm/column";
+import type { OrderByOperators } from "drizzle-orm/relations";
+import type { SQLWrapper } from "drizzle-orm/sql/sql";
 import { revalidatePath } from "next/cache";
 
 import { ensureUniqueSlug, slugifyName } from "@/app/lib/products/slug";
@@ -408,6 +411,17 @@ async function syncProductVariants(
   }
 }
 
+type SortableRelationFields = {
+  sortOrder: SQLWrapper | AnyColumn;
+  id: SQLWrapper | AnyColumn;
+};
+
+function relationalOrderBy<T extends SortableRelationFields>(
+  fn: (fields: T, operators: OrderByOperators) => ReturnType<typeof asc>[],
+) {
+  return fn;
+}
+
 function buildProductQuery(visibleOnly = false) {
   return {
     where: visibleOnly ? eq(products.isVisible, true) : undefined,
@@ -416,16 +430,16 @@ function buildProductQuery(visibleOnly = false) {
       options: {
         with: {
           values: {
-            orderBy: (values: any, { asc: orderAsc }: any) => [
+            orderBy: relationalOrderBy((values, { asc: orderAsc }) => [
               orderAsc(values.sortOrder),
               orderAsc(values.id),
-            ],
+            ]),
           },
         },
-        orderBy: (options: any, { asc: orderAsc }: any) => [
+        orderBy: relationalOrderBy((options, { asc: orderAsc }) => [
           orderAsc(options.sortOrder),
           orderAsc(options.id),
-        ],
+        ]),
       },
       variants: {
         where: visibleOnly ? eq(productVariants.isVisible, true) : undefined,
@@ -437,10 +451,10 @@ function buildProductQuery(visibleOnly = false) {
             },
           },
         },
-        orderBy: (variants: any, { asc: orderAsc }: any) => [
+        orderBy: relationalOrderBy((variants, { asc: orderAsc }) => [
           orderAsc(variants.sortOrder),
           orderAsc(variants.id),
-        ],
+        ]),
       },
     },
   } as const;
