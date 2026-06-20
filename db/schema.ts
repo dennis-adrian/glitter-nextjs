@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -1313,6 +1314,10 @@ export const productOptionValues = pgTable(
   },
   (t) => [
     index("product_option_values_option_id_idx").on(t.optionId),
+    uniqueIndex("product_option_values_option_id_id_unique").on(
+      t.optionId,
+      t.id,
+    ),
     unique("product_option_values_option_value_unique").on(t.optionId, t.value),
   ],
 );
@@ -1346,6 +1351,7 @@ export const productVariants = pgTable(
   (t) => [
     index("product_variants_product_id_idx").on(t.productId),
     index("product_variants_visible_idx").on(t.isVisible),
+    uniqueIndex("product_variants_id_product_id_unique").on(t.id, t.productId),
   ],
 );
 
@@ -1389,6 +1395,11 @@ export const productVariantOptionValues = pgTable(
       t.variantId,
       t.optionValueId,
     ),
+    foreignKey({
+      name: "product_variant_option_values_option_value_pair_fk",
+      columns: [t.optionId, t.optionValueId],
+      foreignColumns: [productOptionValues.optionId, productOptionValues.id],
+    }).onDelete("cascade"),
   ],
 );
 
@@ -1486,10 +1497,7 @@ export const orderItems = pgTable(
     productId: integer("product_id")
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
-    productVariantId: integer("product_variant_id").references(
-      () => productVariants.id,
-      { onDelete: "restrict" },
-    ),
+    productVariantId: integer("product_variant_id"),
     productVariantLabel: text("product_variant_label"),
     quantity: integer("quantity").notNull(),
     priceAtPurchase: real("price_at_purchase").notNull(),
@@ -1499,6 +1507,11 @@ export const orderItems = pgTable(
   (orderItems) => ({
     orderIdIdx: index("order_items_order_id_idx").on(orderItems.orderId),
     productIdIdx: index("order_items_product_id_idx").on(orderItems.productId),
+    variantProductFk: foreignKey({
+      name: "order_items_product_variant_product_fk",
+      columns: [orderItems.productVariantId, orderItems.productId],
+      foreignColumns: [productVariants.id, productVariants.productId],
+    }).onDelete("restrict"),
   }),
 );
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({
@@ -1540,10 +1553,7 @@ export const cartItems = pgTable(
     productId: integer("product_id")
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
-    productVariantId: integer("product_variant_id").references(
-      () => productVariants.id,
-      { onDelete: "cascade" },
-    ),
+    productVariantId: integer("product_variant_id"),
     quantity: integer("quantity").notNull().default(1),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -1558,6 +1568,11 @@ export const cartItems = pgTable(
     uniqueIndex("cart_items_cart_product_variant_unique")
       .on(t.cartId, t.productId, t.productVariantId)
       .where(sql`${t.productVariantId} IS NOT NULL`),
+    foreignKey({
+      name: "cart_items_product_variant_product_fk",
+      columns: [t.productVariantId, t.productId],
+      foreignColumns: [productVariants.id, productVariants.productId],
+    }).onDelete("cascade"),
     check("cart_items_quantity_positive", sql`${t.quantity} > 0`),
   ],
 );
