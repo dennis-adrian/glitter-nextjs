@@ -13,11 +13,11 @@ import {
 } from "@/app/lib/products/actions";
 import type { Table } from "@tanstack/react-table";
 import { EyeIcon, EyeOffIcon, Trash2Icon } from "lucide-react";
-import { use, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 type ProductsTableProps = {
-  productsPromise: Promise<BaseProductWithImages[]>;
+  products: BaseProductWithImages[];
 };
 
 function BulkActionsToolbar({
@@ -103,9 +103,7 @@ function BulkActionsToolbar({
   );
 }
 
-export default function ProductsTable({ productsPromise }: ProductsTableProps) {
-  const products = use(productsPromise);
-
+export default function ProductsTable({ products }: ProductsTableProps) {
   return (
     <DataTable
       columns={columns}

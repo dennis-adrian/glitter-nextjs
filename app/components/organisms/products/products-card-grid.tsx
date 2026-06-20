@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { EditIcon, EyeOffIcon, StarIcon, Trash2Icon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { use, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -153,13 +153,10 @@ function ProductCard({ product }: { product: BaseProductWithImages }) {
 }
 
 type ProductsCardGridProps = {
-  productsPromise: Promise<BaseProductWithImages[]>;
+  products: BaseProductWithImages[];
 };
 
-export default function ProductsCardGrid({
-  productsPromise,
-}: ProductsCardGridProps) {
-  const products = use(productsPromise);
+export default function ProductsCardGrid({ products }: ProductsCardGridProps) {
 
   if (products.length === 0) {
     return (
