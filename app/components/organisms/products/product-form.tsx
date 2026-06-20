@@ -32,7 +32,7 @@ import { PlusIcon, StarIcon, Trash2Icon, XIcon } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useForm, type UseFormReturn } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -255,117 +255,6 @@ type ProductFormProps = {
 type ProductFormValues = z.infer<typeof FormSchema>;
 type VariantOptionFormValue = ProductFormValues["variantOptions"][number];
 type VariantFormValue = ProductFormValues["variants"][number];
-
-function getImageOptionLabel(image: ImageItem): string {
-  return `Imagen ${image.id}`;
-}
-
-function ImageOptionPreview({
-  image,
-  label,
-}: {
-  image: ImageItem | null;
-  label: string;
-}) {
-  return (
-    <span className="flex min-w-0 items-center gap-3">
-      <span className="relative flex h-10 w-10 shrink-0 overflow-hidden rounded-md border bg-muted">
-        {image ? (
-          <Image
-            src={image.url}
-            alt={label}
-            fill
-            sizes="40px"
-            className="object-cover"
-          />
-        ) : (
-          <span className="flex h-full w-full items-center justify-center text-[10px] font-medium text-muted-foreground">
-            Sin imagen
-          </span>
-        )}
-      </span>
-      <span className="flex min-w-0 flex-col text-left leading-tight">
-        <span className="truncate text-sm font-medium">{label}</span>
-        {image?.isMain && (
-          <span className="text-xs text-muted-foreground">Principal</span>
-        )}
-      </span>
-    </span>
-  );
-}
-
-function VariantImageSelect({
-  form,
-  images,
-  index,
-}: {
-  form: UseFormReturn<ProductFormValues>;
-  images: ImageItem[];
-  index: number;
-}) {
-  const mainImage = images.find((image) => image.isMain) ?? images[0] ?? null;
-
-  return (
-    <FormField
-      control={form.control}
-      name={`variants.${index}.imageId`}
-      render={({ field }) => {
-        const selectedValue = field.value || "__none__";
-        const selectedImage =
-          selectedValue === "__none__"
-            ? mainImage
-            : (images.find((image) => String(image.id) === selectedValue) ??
-              null);
-        const selectedLabel =
-          selectedValue === "__none__"
-            ? "Usar imagen principal"
-            : selectedImage
-              ? getImageOptionLabel(selectedImage)
-              : "Imagen no encontrada";
-
-        return (
-          <FormItem className="grid gap-2">
-            <FormLabel>Imagen</FormLabel>
-            <Select
-              value={selectedValue}
-              onValueChange={(value) => field.onChange(value)}
-            >
-              <FormControl>
-                <SelectTrigger className="h-14 px-3">
-                  <ImageOptionPreview
-                    image={selectedImage}
-                    label={selectedLabel}
-                  />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                <SelectItem value="__none__" className="py-2">
-                  <ImageOptionPreview
-                    image={mainImage}
-                    label="Usar imagen principal"
-                  />
-                </SelectItem>
-                {images.map((image) => (
-                  <SelectItem
-                    key={image.id}
-                    value={String(image.id)}
-                    className="py-2"
-                  >
-                    <ImageOptionPreview
-                      image={image}
-                      label={getImageOptionLabel(image)}
-                    />
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        );
-      }}
-    />
-  );
-}
 
 function createEmptyOption(): VariantOptionFormValue {
   return {
@@ -960,6 +849,7 @@ export default function ProductForm({ product }: ProductFormProps) {
                     shouldValidate: true,
                   });
                 }
+
                 form.setValue("hasVariants", value, {
                   shouldDirty: true,
                   shouldValidate: true,
@@ -1128,10 +1018,108 @@ export default function ProductForm({ product }: ProductFormProps) {
                           step={0.01}
                           placeholder="Usar precio base"
                         />
-                        <VariantImageSelect
-                          form={form}
-                          images={images}
-                          index={index}
+                        <FormField
+                          control={form.control}
+                          name={`variants.${index}.imageId`}
+                          render={({ field }) => {
+                            const mainImage =
+                              images.find((image) => image.isMain) ??
+                              images[0] ??
+                              null;
+                            const selectedImage =
+                              images.find(
+                                (image) => String(image.id) === field.value,
+                              ) ?? null;
+                            const triggerImage =
+                              field.value === "__none__"
+                                ? mainImage
+                                : selectedImage;
+                            const triggerLabel =
+                              field.value === "__none__"
+                                ? "Usar imagen principal"
+                                : selectedImage?.isMain
+                                  ? `Imagen ${selectedImage.id} (principal)`
+                                  : selectedImage
+                                    ? `Imagen ${selectedImage.id}`
+                                    : "Selecciona una imagen";
+
+                            return (
+                              <FormItem className="grid gap-2">
+                                <FormLabel>Imagen</FormLabel>
+                                <Select
+                                  value={field.value ?? "__none__"}
+                                  onValueChange={field.onChange}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger className="h-10">
+                                      <div className="flex min-w-0 items-center gap-2">
+                                        {triggerImage ? (
+                                          <span className="relative h-7 w-7 shrink-0 overflow-hidden rounded border bg-muted">
+                                            <Image
+                                              src={triggerImage.url}
+                                              alt=""
+                                              fill
+                                              sizes="28px"
+                                              className="object-cover"
+                                            />
+                                          </span>
+                                        ) : (
+                                          <span className="h-7 w-7 shrink-0 rounded border bg-muted" />
+                                        )}
+                                        <span className="truncate">
+                                          {triggerLabel}
+                                        </span>
+                                      </div>
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="__none__">
+                                      <div className="flex items-center gap-2">
+                                        {mainImage ? (
+                                          <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded border bg-muted">
+                                            <Image
+                                              src={mainImage.url}
+                                              alt=""
+                                              fill
+                                              sizes="36px"
+                                              className="object-cover"
+                                            />
+                                          </span>
+                                        ) : (
+                                          <span className="h-9 w-9 shrink-0 rounded border bg-muted" />
+                                        )}
+                                        <span>Usar imagen principal</span>
+                                      </div>
+                                    </SelectItem>
+                                    {images.map((image) => (
+                                      <SelectItem
+                                        key={image.id}
+                                        value={String(image.id)}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded border bg-muted">
+                                            <Image
+                                              src={image.url}
+                                              alt=""
+                                              fill
+                                              sizes="36px"
+                                              className="object-cover"
+                                            />
+                                          </span>
+                                          <span>
+                                            {image.isMain
+                                              ? `Imagen ${image.id} (principal)`
+                                              : `Imagen ${image.id}`}
+                                          </span>
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            );
+                          }}
                         />
                       </div>
 

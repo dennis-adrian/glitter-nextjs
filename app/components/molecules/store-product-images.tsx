@@ -27,6 +27,7 @@ type StoreProductImagesProps = {
   productName: string;
   stock: number;
   images: BaseProductImage[];
+  selectedImageUrl?: string | null;
   interactive?: boolean;
   autoPlay?: boolean;
 };
@@ -34,6 +35,7 @@ export default function StoreProductImages({
   productName,
   stock,
   images,
+  selectedImageUrl,
   interactive = true,
   autoPlay = false,
 }: StoreProductImagesProps) {
@@ -102,18 +104,37 @@ export default function StoreProductImages({
     return () => observer.disconnect();
   }, [autoPlay]);
 
-  const mainImage = images.find((img) => img.isMain);
-  const secondaryImages = images.filter((img) => !img.isMain);
-  const imageUrls: string[] = [];
+  const imageUrls = useMemo(() => {
+    const mainImage = images.find((img) => img.isMain);
+    const secondaryImages = images.filter((img) => !img.isMain);
+    const urls: string[] = [];
 
-  if (!mainImage && secondaryImages.length === 0) {
-    imageUrls.push(PLACEHOLDER_IMAGE_URLS["1200"]);
-  } else if (!mainImage) {
-    imageUrls.push(...secondaryImages.map((img) => img.imageUrl));
-  } else {
-    imageUrls.push(mainImage.imageUrl);
-    imageUrls.push(...secondaryImages.map((img) => img.imageUrl));
-  }
+    if (!mainImage && secondaryImages.length === 0) {
+      urls.push(PLACEHOLDER_IMAGE_URLS["1200"]);
+    } else if (!mainImage) {
+      urls.push(...secondaryImages.map((img) => img.imageUrl));
+    } else {
+      urls.push(mainImage.imageUrl);
+      urls.push(...secondaryImages.map((img) => img.imageUrl));
+    }
+
+    if (selectedImageUrl && !urls.includes(selectedImageUrl)) {
+      urls.unshift(selectedImageUrl);
+    }
+
+    return urls;
+  }, [images, selectedImageUrl]);
+  const imageUrlsKey = imageUrls.join("\u001f");
+
+  useEffect(() => {
+    if (!api || !selectedImageUrl) return;
+
+    const selectedIndex = imageUrls.indexOf(selectedImageUrl);
+    if (selectedIndex >= 0) {
+      api.scrollTo(selectedIndex);
+      setCurrentImageIndex(selectedIndex);
+    }
+  }, [api, imageUrls, imageUrlsKey, selectedImageUrl]);
 
   const openModal = (e?: React.MouseEvent) => {
     e?.preventDefault();
