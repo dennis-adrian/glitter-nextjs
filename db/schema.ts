@@ -1573,15 +1573,32 @@ export const orderItems = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (orderItems) => ({
-    orderIdIdx: index("order_items_order_id_idx").on(orderItems.orderId),
-    productIdIdx: index("order_items_product_id_idx").on(orderItems.productId),
-    variantProductFk: foreignKey({
+  (t) => [
+    index("order_items_order_id_idx").on(t.orderId),
+    index("order_items_product_id_idx").on(t.productId),
+    foreignKey({
       name: "order_items_product_variant_product_fk",
-      columns: [orderItems.productVariantId, orderItems.productId],
+      columns: [t.productVariantId, t.productId],
       foreignColumns: [productVariants.id, productVariants.productId],
     }).onDelete("restrict"),
-  }),
+    check(
+      "order_items_rental_context_required",
+      sql`(
+        ${t.transactionType} != 'rental'
+        AND ${t.rentalContentSectionsSnapshot} IS NULL
+        AND ${t.rentalStockModeSnapshot} IS NULL
+        AND ${t.rentalFestivalId} IS NULL
+        AND ${t.rentalReservationId} IS NULL
+        AND ${t.rentalReturnedQuantity} = 0
+      ) OR (
+        ${t.rentalFestivalId} IS NOT NULL AND ${t.rentalReservationId} IS NOT NULL
+      )`,
+    ),
+    check(
+      "order_items_rental_returned_quantity_valid",
+      sql`${t.rentalReturnedQuantity} <= ${t.quantity}`,
+    ),
+  ],
 );
 export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
   order: one(orders, {
@@ -1654,10 +1671,23 @@ export const cartItems = pgTable(
     index("cart_items_rental_festival_id_idx").on(t.rentalFestivalId),
     index("cart_items_rental_reservation_id_idx").on(t.rentalReservationId),
     uniqueIndex("cart_items_cart_product_base_unique")
-      .on(t.cartId, t.productId, t.transactionType)
+      .on(
+        t.cartId,
+        t.productId,
+        t.transactionType,
+        t.rentalFestivalId,
+        t.rentalReservationId,
+      )
       .where(sql`${t.productVariantId} IS NULL`),
     uniqueIndex("cart_items_cart_product_variant_unique")
-      .on(t.cartId, t.productId, t.productVariantId, t.transactionType)
+      .on(
+        t.cartId,
+        t.productId,
+        t.productVariantId,
+        t.transactionType,
+        t.rentalFestivalId,
+        t.rentalReservationId,
+      )
       .where(sql`${t.productVariantId} IS NOT NULL`),
     foreignKey({
       name: "cart_items_product_variant_product_fk",
@@ -1955,6 +1985,10 @@ export const rentalReturnLogs = pgTable(
     check(
       "rental_return_logs_stock_restored_non_negative",
       sql`${t.stockRestored} >= 0`,
+    ),
+    check(
+      "rental_return_logs_stock_restored_lte_quantity",
+      sql`${t.stockRestored} <= ${t.quantityReturned}`,
     ),
   ],
 );

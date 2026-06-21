@@ -65,7 +65,10 @@ export default async function CurrentRentalsPage() {
                   <div className="text-sm text-muted-foreground">
                     <p>
                       Cliente:{" "}
-                      {rental.orderGuestName ?? `Usuario #${rental.orderUserId}`}
+                      {rental.orderGuestName ??
+                        (rental.orderUserId != null
+                          ? `Usuario #${rental.orderUserId}`
+                          : "Usuario desconocido")}
                     </p>
                     <p>
                       {formatDate(rental.rentedAt).toLocaleString({

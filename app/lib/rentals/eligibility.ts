@@ -92,7 +92,17 @@ export async function assertRentalEligibility(
     };
   }
 
-  if (rentalFestivalId != null && rentalReservationId != null) {
+  const hasRentalFestivalId = rentalFestivalId != null;
+  const hasRentalReservationId = rentalReservationId != null;
+  if (hasRentalFestivalId !== hasRentalReservationId) {
+    return {
+      eligible: false,
+      error: "invalid_rental_context",
+      message: "El contexto de alquiler seleccionado ya no es válido.",
+    };
+  }
+
+  if (hasRentalFestivalId && hasRentalReservationId) {
     const match = contexts.find(
       (context) =>
         context.festivalId === rentalFestivalId &&

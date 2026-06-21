@@ -55,9 +55,8 @@ export default function StoreItemCard({
   const inStock = canTransact;
   const isPresale = product.status === "presale";
   const showRentalBadge = product.isRentable && rentalEligible && rentalInStock;
-  const rentalOnly = !product.isPurchasable && product.isRentable;
   const needsRentalContextPicker =
-    rentalInStock && rentalOnly && rentalContexts.length > 1;
+    rentalInStock && !purchaseInStock && rentalContexts.length > 1;
   const shouldOpenModal = shouldUseQuickAddModal || needsRentalContextPicker;
 
   const effectivePrices = hasVariants

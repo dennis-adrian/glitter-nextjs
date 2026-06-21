@@ -16,6 +16,7 @@ import {
   productVariants,
   products,
   rentalReturnLogs,
+  users,
 } from "@/db/schema";
 
 type OrderTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -211,12 +212,21 @@ export async function markRentalOrderItemReturned(
 
       const [order] = await tx
         .select({
-          customerName: orders.guestName,
-          userId: orders.userId,
+          guestName: orders.guestName,
+          userDisplayName: users.displayName,
+          userFirstName: users.firstName,
+          userLastName: users.lastName,
         })
         .from(orders)
+        .leftJoin(users, eq(orders.userId, users.id))
         .where(eq(orders.id, item.orderId))
         .limit(1);
+
+      const customerName =
+        order?.guestName?.trim() ||
+        order?.userDisplayName ||
+        `${order?.userFirstName || ""} ${order?.userLastName || ""}`.trim() ||
+        null;
 
       const [product] = await tx
         .select({ name: products.name })
@@ -239,7 +249,7 @@ export async function markRentalOrderItemReturned(
         newReturnedQuantity,
         productNameSnapshot: product?.name ?? null,
         variantLabelSnapshot: item.productVariantLabel,
-        customerNameSnapshot: order?.customerName ?? null,
+        customerNameSnapshot: customerName,
       });
 
       return {

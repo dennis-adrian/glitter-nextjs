@@ -206,7 +206,7 @@ Rules:
 
 Order items preserve the transaction mode and rental terms at checkout:
 
-- `fulfillmentType`: `purchase` or `rental`.
+- `transaction_type`: `purchase` or `rental`.
 - `priceAtPurchase`: stores the charged unit price, using rental price for rental lines.
 - `rentalContentSectionsSnapshot`: nullable JSON copied from rental-visible product sections at order creation.
 - `rentalStockModeSnapshot`: `shared` or `separate`, copied from product at order creation.
