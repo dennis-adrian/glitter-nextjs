@@ -129,10 +129,6 @@ export default function StoreItemQuantityInput({
       ) ?? null)
     : null;
 
-  useEffect(() => {
-    onSelectedVariantChange?.(selectedVariant);
-  }, [onSelectedVariantChange, selectedVariant]);
-
   const selectedVariantLabel = selectedVariant
     ? getVariantLabel(selectedVariant)
     : null;
@@ -149,6 +145,20 @@ export default function StoreItemQuantityInput({
 
   function clampQuantity(nextValue: number) {
     return Math.max(1, Math.min(maxQuantity, Math.trunc(nextValue) || 1));
+  }
+
+  function handleOptionValueChange(optionId: number, optionValueId: number) {
+    const nextSelection = {
+      ...selectedOptionValueIds,
+      [optionId]: optionValueId,
+    };
+    setSelectedOptionValueIds(nextSelection);
+    setQuantity(1);
+    onSelectedVariantChange?.(
+      variants.find((variant) =>
+        variantMatchesSelection(variant, nextSelection),
+      ) ?? null,
+    );
   }
 
   function getImageVariantForOptionValue(
@@ -243,11 +253,7 @@ export default function StoreItemQuantityInput({
                         key={value.id}
                         type="button"
                         onClick={() => {
-                          setSelectedOptionValueIds((current) => ({
-                            ...current,
-                            [option.id]: value.id,
-                          }));
-                          setQuantity(1);
+                          handleOptionValueChange(option.id, value.id);
                         }}
                         className={cn(
                           "relative h-16 w-16 overflow-hidden rounded-md border bg-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
@@ -289,11 +295,7 @@ export default function StoreItemQuantityInput({
                         size="sm"
                         className="min-h-10 whitespace-normal px-3 py-2 text-left leading-tight"
                         onClick={() => {
-                          setSelectedOptionValueIds((current) => ({
-                            ...current,
-                            [option.id]: value.id,
-                          }));
-                          setQuantity(1);
+                          handleOptionValueChange(option.id, value.id);
                         }}
                       >
                         {value.value}
@@ -309,11 +311,7 @@ export default function StoreItemQuantityInput({
                       : undefined
                   }
                   onValueChange={(value) => {
-                    setSelectedOptionValueIds((current) => ({
-                      ...current,
-                      [option.id]: Number(value),
-                    }));
-                    setQuantity(1);
+                    handleOptionValueChange(option.id, Number(value));
                   }}
                 >
                   <SelectTrigger>
