@@ -6,14 +6,14 @@ import { cn } from "@/app/lib/utils";
 export default function SubmitProductOrderButton({
   className,
   inStock,
-  isPreOrder,
+  isPresale,
   disabled,
   loading,
   onClick,
 }: {
   className?: string;
   inStock: boolean;
-  isPreOrder: boolean;
+  isPresale: boolean;
   disabled: boolean;
   loading: boolean;
   onClick?: () => void;
@@ -35,7 +35,7 @@ export default function SubmitProductOrderButton({
       type="button"
       className={cn(
         "w-full",
-        isPreOrder
+        isPresale
           ? "bg-amber-600 hover:bg-amber-700"
           : "bg-purple-600 hover:bg-purple-700",
         className,

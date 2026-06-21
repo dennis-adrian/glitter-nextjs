@@ -39,10 +39,13 @@ export default function OrderItemOverview({
         <p className="text-card-foreground text-xs">
           Bs{item.priceAtPurchase.toFixed(2)}
         </p>
-        {item.product.availableDate && (
+        {item.product.status === "presale" && (
           <p className="text-xs text-amber-600">
-            Disponible el{" "}
-            {formatDate(item.product.availableDate).toLocaleString()}
+            {item.product.availableDate
+              ? `Disponible el ${formatDate(
+                  item.product.availableDate,
+                ).toLocaleString()}`
+              : "Disponible próximamente"}
           </p>
         )}
       </div>

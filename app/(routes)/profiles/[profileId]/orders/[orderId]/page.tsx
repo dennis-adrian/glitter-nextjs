@@ -44,10 +44,10 @@ export default async function UserOrderPage(props: {
   const { profileId, orderId } = validatedParams.data;
   const canPay = order.status === "pending";
   const hasAvailableItems = order.orderItems.some(
-    (item: OrderItemWithRelations) => !item.product.isPreOrder,
+    (item: OrderItemWithRelations) => item.product.status !== "presale",
   );
   const hasPresaleItems = order.orderItems.some(
-    (item: OrderItemWithRelations) => item.product.isPreOrder,
+    (item: OrderItemWithRelations) => item.product.status === "presale",
   );
 
   return (

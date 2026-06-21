@@ -379,7 +379,7 @@ export default function StoreItemQuantityInput({
         disabled={submitting || (hasVariants && !selectedVariant)}
         loading={submitting}
         inStock={inStock}
-        isPreOrder={product.isPreOrder}
+        isPresale={product.status === "presale"}
         onClick={handleAddToCart}
       />
     </div>

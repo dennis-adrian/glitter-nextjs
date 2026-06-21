@@ -35,8 +35,10 @@ export default async function CheckoutPage() {
     productVariantLabel: getVariantLabel(i.variant),
     quantity: i.quantity,
   }));
-  const presaleLines = orderLines.filter((l) => l.product.isPreOrder);
-  const availableItems = cart.items.filter((i) => !i.product.isPreOrder);
+  const presaleLines = orderLines.filter((l) => l.product.status === "presale");
+  const availableItems = cart.items.filter(
+    (i) => i.product.status !== "presale",
+  );
 
   const total = cart.items.reduce(
     (sum, i) =>

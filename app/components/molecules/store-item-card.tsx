@@ -32,6 +32,7 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
   );
   const hasVariants = variants.length > 0;
   const inStock = getProductEffectiveStock(product) > 0;
+  const isPresale = product.status === "presale";
 
   const effectivePrices = hasVariants
     ? variants.map((variant) => ({
@@ -96,13 +97,15 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
               )}
             </div>
 
-            {product.isPreOrder && product.availableDate && (
+            {isPresale && (
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <ClockIcon className="w-3 h-3" />
-                {formatDate(product.availableDate).toLocaleString({
-                  month: "short",
-                  day: "numeric",
-                })}
+                {product.availableDate
+                  ? formatDate(product.availableDate).toLocaleString({
+                      month: "short",
+                      day: "numeric",
+                    })
+                  : "Disponible próximamente"}
               </p>
             )}
           </CardContent>
@@ -113,7 +116,7 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
             size="sm"
             className={
               inStock
-                ? product.isPreOrder
+                ? isPresale
                   ? "w-full bg-amber-600 hover:bg-amber-700"
                   : "w-full bg-purple-600 hover:bg-purple-700"
                 : "w-full bg-muted text-muted-foreground hover:bg-muted"

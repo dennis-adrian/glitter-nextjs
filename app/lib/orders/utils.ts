@@ -10,10 +10,10 @@ export function getOrderItemCount(order: OrderWithRelations): number {
 }
 
 export function hasPreorders(order: OrderWithRelations): boolean {
-  const preOrderItems = order.orderItems.find(
-    (item) => item.product.isPreOrder,
+  const presaleItems = order.orderItems.find(
+    (item) => item.product.status === "presale",
   );
-  return !!preOrderItems;
+  return !!presaleItems;
 }
 
 export function getOrderStatusLabel(status: OrderStatus): string {

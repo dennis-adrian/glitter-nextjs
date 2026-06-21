@@ -1248,7 +1248,6 @@ export const products = pgTable("products", {
   imageUrl: text("image_url"),
   isNew: boolean("is_new").default(true).notNull(),
   isFeatured: boolean("is_featured").default(false).notNull(),
-  isPreOrder: boolean("is_pre_order").default(false).notNull(),
   isVisible: boolean("is_visible").default(true).notNull(),
   availableDate: timestamp("available_date"),
   discount: real("discount").default(0),

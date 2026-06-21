@@ -31,15 +31,15 @@ export function CheckoutPresaleNotice({ items }: CheckoutPresaleNoticeProps) {
                   ? `${item.product.name} (${item.productVariantLabel})`
                   : item.product.name}
               </span>
-              {item.product.availableDate && (
-                <span className="text-amber-700">
-                  {" "}
-                  - disponible desde el{" "}
-                  {formatDate(item.product.availableDate).toLocaleString(
-                    DateTime.DATE_FULL,
-                  )}
-                </span>
-              )}
+              <span className="text-amber-700">
+                {" "}
+                -{" "}
+                {item.product.availableDate
+                  ? `disponible desde el ${formatDate(
+                      item.product.availableDate,
+                    ).toLocaleString(DateTime.DATE_FULL)}`
+                  : "disponible próximamente"}
+              </span>
             </li>
           ))}
         </ul>

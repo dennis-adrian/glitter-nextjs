@@ -51,7 +51,6 @@ type NewProductData = {
   status?: "available" | "presale" | "sale";
   discount?: number | null;
   discountUnit?: "percentage" | "amount";
-  isPreOrder?: boolean;
   availableDate?: Date | string | null;
   isFeatured?: boolean;
   isNew?: boolean;

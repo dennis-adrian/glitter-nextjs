@@ -49,7 +49,7 @@ export async function sendOrderEmails(emailData: {
     name: string;
     quantity: number;
     price: number;
-    isPreOrder: boolean;
+    status: "available" | "presale" | "sale";
     availableDate: Date | null;
   }[];
   total: number;
@@ -96,7 +96,7 @@ export type CreateOrderInTxResult = {
     name: string;
     quantity: number;
     price: number;
-    isPreOrder: boolean;
+    status: "available" | "presale" | "sale";
     availableDate: Date | null;
   }[];
   totalAmount: number;
@@ -430,7 +430,7 @@ export async function createOrderInTx(
     }),
     quantity: line.quantity,
     price: line.unitPrice,
-    isPreOrder: !!line.product.isPreOrder,
+    status: line.product.status,
     availableDate: line.product.availableDate || null,
   }));
 
@@ -498,7 +498,7 @@ export async function createGuestOrderInTx(
     }),
     quantity: line.quantity,
     price: line.unitPrice,
-    isPreOrder: !!line.product.isPreOrder,
+    status: line.product.status,
     availableDate: line.product.availableDate || null,
   }));
 
@@ -520,7 +520,7 @@ export async function sendGuestOrderEmails(emailData: {
     name: string;
     quantity: number;
     price: number;
-    isPreOrder: boolean;
+    status: "available" | "presale" | "sale";
     availableDate: Date | null;
   }[];
   total: number;

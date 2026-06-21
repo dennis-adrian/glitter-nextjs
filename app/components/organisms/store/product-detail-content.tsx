@@ -38,6 +38,7 @@ export default function ProductDetailContent({
     () => (product.variants ?? []).filter((variant) => variant.isVisible),
     [product.variants],
   );
+  const isPresale = product.status === "presale";
   const [selectedVariant, setSelectedVariant] =
     useState<ProductVariantWithSelections | null>(visibleVariants[0] ?? null);
 
@@ -90,15 +91,18 @@ export default function ProductDetailContent({
           )}
         </div>
 
-        {product.isPreOrder && product.availableDate && (
+        {isPresale && (
           <p className="text-sm text-muted-foreground flex items-center gap-1">
             <ClockIcon className="w-4 h-4" />
-            Disponible el{" "}
-            {formatDate(product.availableDate).toLocaleString({
-              month: "long",
-              day: "numeric",
-              year: "numeric",
-            })}
+            {product.availableDate
+              ? `Disponible el ${formatDate(
+                  product.availableDate,
+                ).toLocaleString({
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}`
+              : "Disponible próximamente"}
           </p>
         )}
 

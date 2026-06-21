@@ -68,7 +68,6 @@ const FormSchema = z
     status: z.enum(["available", "presale", "sale"]),
     discount: z.string().trim().optional(),
     discountUnit: z.enum(["percentage", "amount"]),
-    isPreOrder: z.boolean(),
     availableDate: z.string().optional().nullable(),
     isFeatured: z.boolean(),
     isNew: z.boolean(),
@@ -359,7 +358,6 @@ function buildProductFormValues(
     status: product?.status ?? "available",
     discount: product?.discount !== undefined ? String(product.discount) : "0",
     discountUnit: product?.discountUnit ?? "percentage",
-    isPreOrder: product?.isPreOrder ?? false,
     availableDate: toLocalDateString(product?.availableDate ?? null),
     isFeatured: product?.isFeatured ?? false,
     isNew: product?.isNew ?? true,
@@ -464,7 +462,7 @@ export default function ProductForm({ product }: ProductFormProps) {
     form.reset(buildProductFormValues(product, nextImages));
   }, [product?.id]);
 
-  const isPreOrder = form.watch("isPreOrder");
+  const status = form.watch("status");
   const hasVariants = form.watch("hasVariants");
   const variantOptions = form.watch("variantOptions");
   const variants = form.watch("variants");
@@ -664,9 +662,10 @@ export default function ProductForm({ product }: ProductFormProps) {
       status: data.status,
       discount: data.discount?.trim() ? Number(data.discount) : 0,
       discountUnit: data.discountUnit,
-      isPreOrder: data.isPreOrder,
       availableDate:
-        data.isPreOrder && data.availableDate ? data.availableDate : null,
+        data.status === "presale" && data.availableDate
+          ? data.availableDate
+          : null,
       isFeatured: data.isFeatured,
       isNew: data.isNew,
       isVisible: data.isVisible,
@@ -1185,25 +1184,7 @@ export default function ProductForm({ product }: ProductFormProps) {
         </div>
 
         <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-3">
-            <Switch
-              id="isPreOrder"
-              checked={isPreOrder}
-              onCheckedChange={(v) =>
-                form.setValue("isPreOrder", v, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-            />
-            <Label
-              htmlFor="isPreOrder"
-              className="text-muted-foreground cursor-pointer"
-            >
-              Es pre-venta
-            </Label>
-          </div>
-          {isPreOrder && (
+          {status === "presale" && (
             <DateInput
               formControl={form.control}
               label="Fecha de disponibilidad"

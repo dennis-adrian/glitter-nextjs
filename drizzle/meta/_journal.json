@@ -1275,6 +1275,13 @@
       "when": 1781928583930,
       "tag": "0181_marvelous_vulcan",
       "breakpoints": true
+    },
+    {
+      "idx": 182,
+      "version": "7",
+      "when": 1782003994602,
+      "tag": "0182_chief_rhino",
+      "breakpoints": true
     }
   ]
 }

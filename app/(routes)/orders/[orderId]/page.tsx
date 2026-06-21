@@ -99,7 +99,7 @@ export default async function GuestOrderPage(props: {
                       <p className="text-xs text-muted-foreground">
                         {item.quantity} × Bs {item.priceAtPurchase.toFixed(2)}
                       </p>
-                      {item.product.isPreOrder && (
+                      {item.product.status === "presale" && (
                         <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-medium mt-0.5">
                           <ClockIcon className="w-3 h-3" />
                           Pre-venta

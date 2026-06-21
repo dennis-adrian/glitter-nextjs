@@ -26,7 +26,7 @@ export default function GuestCheckoutView() {
     productVariantLabel: i.productVariantLabel ?? getVariantLabel(i.variant),
     quantity: i.quantity,
   }));
-  const presaleLines = orderLines.filter((l) => l.product.isPreOrder);
+  const presaleLines = orderLines.filter((l) => l.product.status === "presale");
 
   const total = guestItems.reduce(
     (sum, i) =>
