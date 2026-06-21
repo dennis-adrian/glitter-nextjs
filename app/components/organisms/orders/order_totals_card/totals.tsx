@@ -8,6 +8,8 @@ type OrdersTotalsProps = {
   ordersTotalsPromise: Promise<
     {
       productId: number;
+      productVariantId: number | null;
+      productVariantLabel: string | null;
       productName: string;
       status: OrderStatus;
       totalQuantity: number;
@@ -22,22 +24,24 @@ export default function OrdersTotals(props: OrdersTotalsProps) {
     () =>
       ordersTotals.reduce(
         (acc, curr) => {
-          const productId = curr.productId;
+          const key = `${curr.productId}:${curr.productVariantId ?? "base"}`;
           const status = curr.status;
           const totalQuantity = curr.totalQuantity;
 
-          acc[productId] = {
-            productName: curr.productName,
+          acc[key] = {
+            productName: curr.productVariantLabel
+              ? `${curr.productName} (${curr.productVariantLabel})`
+              : curr.productName,
             totals: {
-              ...acc[productId]?.totals,
+              ...acc[key]?.totals,
               [status]: totalQuantity,
             },
-            allTotalsSum: (acc[productId]?.allTotalsSum || 0) + totalQuantity,
+            allTotalsSum: (acc[key]?.allTotalsSum || 0) + totalQuantity,
           };
           return acc;
         },
         {} as Record<
-          number,
+          string,
           {
             productName: string;
             totals: Partial<Record<OrderStatus, number>>;

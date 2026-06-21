@@ -6,6 +6,7 @@ import type { CheckoutLineItem } from "@/app/components/organisms/checkout/check
 import { GuestCheckoutForm } from "@/app/components/organisms/checkout/guest-checkout-form";
 import { useCartContext } from "@/app/components/providers/cart-provider";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import { getVariantLabel } from "@/app/lib/products/variants";
 
 export default function GuestCheckoutView() {
   const { guestItems, guestCartHydrated } = useCartContext();
@@ -19,14 +20,17 @@ export default function GuestCheckoutView() {
   }
 
   const orderLines: CheckoutLineItem[] = guestItems.map((i) => ({
-    key: i.productId,
+    key: i.lineKey,
     product: i.product,
+    variant: i.variant,
+    productVariantLabel: i.productVariantLabel ?? getVariantLabel(i.variant),
     quantity: i.quantity,
   }));
-  const presaleLines = orderLines.filter((l) => l.product.isPreOrder);
+  const presaleLines = orderLines.filter((l) => l.product.status === "presale");
 
   const total = guestItems.reduce(
-    (sum, i) => sum + getProductPriceAtPurchase(i.product) * i.quantity,
+    (sum, i) =>
+      sum + getProductPriceAtPurchase(i.product, i.variant) * i.quantity,
     0,
   );
 

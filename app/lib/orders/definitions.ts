@@ -1,6 +1,9 @@
 import { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import { orderItems, orders } from "@/db/schema";
-import { BaseProductWithImages } from "@/app/lib/products/definitions";
+import {
+  BaseProductWithImages,
+  ProductVariantWithSelections,
+} from "@/app/lib/products/definitions";
 import {
   BaseProfile,
   ProfileSubcategoryWithSubcategory,
@@ -14,6 +17,7 @@ export type BaseOrderItem = InferSelectModel<typeof orderItems>;
 
 export type OrderItemWithRelations = BaseOrderItem & {
   product: BaseProductWithImages;
+  variant: ProductVariantWithSelections | null;
 };
 
 export type OrderWithRelations = BaseOrder & {

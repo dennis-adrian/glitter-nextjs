@@ -11,7 +11,6 @@ import {
 } from "@/app/components/ui/carousel";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { BaseProductImage } from "@/app/lib/products/definitions";
-import Autoplay from "embla-carousel-autoplay";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -27,15 +26,15 @@ type StoreProductImagesProps = {
   productName: string;
   stock: number;
   images: BaseProductImage[];
+  selectedImageUrl?: string | null;
   interactive?: boolean;
-  autoPlay?: boolean;
 };
 export default function StoreProductImages({
   productName,
   stock,
   images,
+  selectedImageUrl,
   interactive = true,
-  autoPlay = false,
 }: StoreProductImagesProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
@@ -52,9 +51,6 @@ export default function StoreProductImages({
 
   const [api, setApi] = useState<CarouselApi>();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isInView, setIsInView] = useState(false);
 
   useEffect(() => {
     if (!api) {
@@ -89,31 +85,36 @@ export default function StoreProductImages({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isModalOpen]);
 
-  // IntersectionObserver — track when card enters the viewport
+  const imageUrls = useMemo(() => {
+    const mainImage = images.find((img) => img.isMain);
+    const secondaryImages = images.filter((img) => !img.isMain);
+    const urls: string[] = [];
+
+    if (!mainImage && secondaryImages.length === 0) {
+      urls.push(PLACEHOLDER_IMAGE_URLS["1200"]);
+    } else if (!mainImage) {
+      urls.push(...secondaryImages.map((img) => img.imageUrl));
+    } else {
+      urls.push(mainImage.imageUrl);
+      urls.push(...secondaryImages.map((img) => img.imageUrl));
+    }
+
+    if (selectedImageUrl && !urls.includes(selectedImageUrl)) {
+      urls.unshift(selectedImageUrl);
+    }
+
+    return urls;
+  }, [images, selectedImageUrl]);
+  const imageUrlsKey = imageUrls.join("\u001f");
+
   useEffect(() => {
-    if (!autoPlay) return;
-    const el = containerRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsInView(entry.isIntersecting),
-      { threshold: 0.5 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [autoPlay]);
+    if (!api || !selectedImageUrl) return;
 
-  const mainImage = images.find((img) => img.isMain);
-  const secondaryImages = images.filter((img) => !img.isMain);
-  const imageUrls: string[] = [];
-
-  if (!mainImage && secondaryImages.length === 0) {
-    imageUrls.push(PLACEHOLDER_IMAGE_URLS["1200"]);
-  } else if (!mainImage) {
-    imageUrls.push(...secondaryImages.map((img) => img.imageUrl));
-  } else {
-    imageUrls.push(mainImage.imageUrl);
-    imageUrls.push(...secondaryImages.map((img) => img.imageUrl));
-  }
+    const selectedIndex = imageUrls.indexOf(selectedImageUrl);
+    if (selectedIndex >= 0) {
+      api.scrollTo(selectedIndex);
+    }
+  }, [api, imageUrls, imageUrlsKey, selectedImageUrl]);
 
   const openModal = (e?: React.MouseEvent) => {
     e?.preventDefault();
@@ -130,7 +131,6 @@ export default function StoreProductImages({
     setIsZoomed(false);
     setPanPosition({ x: 0, y: 0 }); // Reset pan on close
     panPositionRef.current = { x: 0, y: 0 }; // reset ref
-    api?.scrollTo(0);
   };
 
   const toggleZoom = (e: React.MouseEvent) => {
@@ -241,34 +241,9 @@ export default function StoreProductImages({
     }
   };
 
-  const autoplayPlugin = useMemo(
-    () =>
-      Autoplay({
-        delay: 7000,
-        playOnInit: false,
-      }),
-    [],
-  );
-
-  const carouselPlugins = useMemo(
-    () => (autoPlay ? [autoplayPlugin] : []),
-    [autoPlay, autoplayPlugin],
-  );
-
-  useEffect(() => {
-    if (!autoPlay) {
-      autoplayPlugin.stop();
-      return;
-    }
-    if (isInView && !isModalOpen) autoplayPlugin.play();
-    else autoplayPlugin.stop();
-
-    return () => autoplayPlugin.stop();
-  }, [autoPlay, isInView, isModalOpen, autoplayPlugin]);
-
   return (
-    <div ref={containerRef}>
-      <Carousel setApi={setApi} plugins={carouselPlugins}>
+    <div>
+      <Carousel setApi={setApi}>
         <CarouselContent
           {...(canOpenModal
             ? {
@@ -322,7 +297,11 @@ export default function StoreProductImages({
                     ? "bg-white scale-110"
                     : "bg-white/50 hover:bg-white/75"
                 }`}
-                onClick={() => api?.scrollTo(idx)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  api?.scrollTo(idx);
+                }}
               />
             ))}
           </div>
@@ -331,12 +310,22 @@ export default function StoreProductImages({
           <CarouselPrevious
             variant="ghost"
             className="absolute left-2 top-1/2 -translate-y-1/2 hover:-translate-y-1/2 bg-black/50 hover:bg-black/70 text-white hover:text-white"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              api?.scrollPrev();
+            }}
           />
         )}
         {currentImageIndex < imageUrls.length - 1 && imageUrls.length > 1 && (
           <CarouselNext
             variant="ghost"
             className="absolute right-2 top-1/2 -translate-y-1/2 hover:-translate-y-1/2 bg-black/50 hover:bg-black/70 text-white hover:text-white"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              api?.scrollNext();
+            }}
           />
         )}
       </Carousel>

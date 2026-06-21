@@ -11,6 +11,7 @@ import {
   toggleProductVisibility,
   updateProductStock,
 } from "@/app/lib/products/actions";
+import { getProductEffectiveStock } from "@/app/lib/products/variants";
 import { cn } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
 import { EditIcon, StarIcon, Trash2Icon } from "lucide-react";
@@ -70,11 +71,20 @@ function VisibilityToggle({ product }: { product: BaseProductWithImages }) {
 }
 
 function StockCell({ product }: { product: BaseProductWithImages }) {
-  const [stock, setStock] = useState(product.stock ?? 0);
+  const hasVariants = (product.variants?.length ?? 0) > 0;
+  const [stock, setStock] = useState(getProductEffectiveStock(product));
   const [editing, setEditing] = useState(false);
   const [inputValue, setInputValue] = useState(String(stock));
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  if (hasVariants) {
+    return (
+      <Badge variant="outline" className="border-sky-300 text-sky-700">
+        {stock} unid. / {product.variants?.length ?? 0} variantes
+      </Badge>
+    );
+  }
 
   function handleBadgeClick() {
     setInputValue(String(stock));

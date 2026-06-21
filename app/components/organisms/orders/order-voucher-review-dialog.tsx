@@ -27,6 +27,7 @@ import {
 } from "@/app/components/ui/dialog";
 import { formatDateWithTime } from "@/app/lib/formatters";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
+import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
 
 type OrderVoucherReviewDialogProps = {
   order: OrderWithRelations;
@@ -133,7 +134,7 @@ export default function OrderVoucherReviewDialog({
                         className="flex items-center justify-between gap-3"
                       >
                         <p className="text-muted-foreground">
-                          {item.quantity}x {item.product.name}
+                          {item.quantity}x {getOrderItemDisplayName(item)}
                         </p>
                         <p className="font-medium">
                           {formatCurrency(item.quantity * item.priceAtPurchase)}

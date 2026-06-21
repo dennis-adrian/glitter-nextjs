@@ -6,7 +6,7 @@ import OrderPaymentWarningTemplate from "@/app/emails/order-payment-warning";
 import { queueEmails } from "@/app/lib/emails/helpers";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
-import { orders, products } from "@/db/schema";
+import { orders, products, productVariants } from "@/db/schema";
 import {
   and,
   eq,
@@ -425,7 +425,11 @@ export async function handleOrderPaymentReminders(): Promise<{
 
 export async function handleOrderCancellations(): Promise<number> {
   type CancelledOrder = OrderWithUser & {
-    orderItems: { productId: number; quantity: number }[];
+    orderItems: {
+      productId: number;
+      productVariantId: number | null;
+      quantity: number;
+    }[];
   };
 
   let cancelledOrders: CancelledOrder[] = [];
@@ -464,12 +468,21 @@ export async function handleOrderCancellations(): Promise<number> {
       // Restore stock for each cancelled order's items
       for (const order of cancelledOrders) {
         for (const item of order.orderItems) {
-          await tx
-            .update(products)
-            .set({
-              stock: sql`COALESCE(${products.stock}, 0) + ${item.quantity}`,
-            })
-            .where(eq(products.id, item.productId));
+          if (item.productVariantId != null) {
+            await tx
+              .update(productVariants)
+              .set({
+                stock: sql`COALESCE(${productVariants.stock}, 0) + ${item.quantity}`,
+              })
+              .where(eq(productVariants.id, item.productVariantId));
+          } else {
+            await tx
+              .update(products)
+              .set({
+                stock: sql`COALESCE(${products.stock}, 0) + ${item.quantity}`,
+              })
+              .where(eq(products.id, item.productId));
+          }
         }
       }
 

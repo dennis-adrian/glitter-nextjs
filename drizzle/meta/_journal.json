@@ -1261,6 +1261,34 @@
       "when": 1781620801931,
       "tag": "0179_gray_white_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 180,
+      "version": "7",
+      "when": 1781752252334,
+      "tag": "0180_fine_may_parker",
+      "breakpoints": true
+    },
+    {
+      "idx": 181,
+      "version": "7",
+      "when": 1781928583930,
+      "tag": "0181_marvelous_vulcan",
+      "breakpoints": true
+    },
+    {
+      "idx": 182,
+      "version": "7",
+      "when": 1782003994602,
+      "tag": "0182_chief_rhino",
+      "breakpoints": true
+    },
+    {
+      "idx": 183,
+      "version": "7",
+      "when": 1782008802538,
+      "tag": "0183_narrow_daredevil",
+      "breakpoints": true
     }
   ]
 }

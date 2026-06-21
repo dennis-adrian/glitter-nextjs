@@ -6,12 +6,15 @@ import { z } from "zod";
 
 import Heading from "@/app/components/atoms/heading";
 import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
+import OrderDeliveryInfo from "@/app/components/molecules/order-delivery-info";
 import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
+import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { formatDate } from "@/app/lib/formatters";
-import OrderDeliveryInfo from "@/app/components/molecules/order-delivery-info";
 import { fetchOrder } from "@/app/lib/orders/actions";
 import { OrderItemWithRelations } from "@/app/lib/orders/definitions";
+import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 
 const ParamsSchema = z.object({
@@ -41,10 +44,10 @@ export default async function UserOrderPage(props: {
   const { profileId, orderId } = validatedParams.data;
   const canPay = order.status === "pending";
   const hasAvailableItems = order.orderItems.some(
-    (item: OrderItemWithRelations) => !item.product.isPreOrder,
+    (item: OrderItemWithRelations) => item.product.status !== "presale",
   );
   const hasPresaleItems = order.orderItems.some(
-    (item: OrderItemWithRelations) => item.product.isPreOrder,
+    (item: OrderItemWithRelations) => item.product.status === "presale",
   );
 
   return (
@@ -75,7 +78,8 @@ export default async function UserOrderPage(props: {
                   <div className="h-20 w-20 rounded-md overflow-hidden bg-gray-100 shrink-0">
                     <Image
                       src={
-                        item.product.images[0]?.imageUrl || "/placeholder.svg"
+                        getProductVariantImageUrl(item.product, item.variant) ??
+                        PLACEHOLDER_IMAGE_URLS["300"]
                       }
                       alt={item.product.name}
                       width={80}
@@ -85,7 +89,9 @@ export default async function UserOrderPage(props: {
                   </div>
                   <div className="flex-1">
                     <div className="flex justify-between">
-                      <h3 className="font-medium">{item.product.name}</h3>
+                      <h3 className="font-medium">
+                        {getOrderItemDisplayName(item)}
+                      </h3>
                       <p className="font-medium">
                         Bs{(item.priceAtPurchase * item.quantity).toFixed(2)}
                       </p>

@@ -192,8 +192,8 @@ export const columns: ColumnDef<FullReservation>[] = [
           ({ externalParticipant }) => externalParticipant.type,
         ) ?? [];
 
-      return [...userCategories, ...externalParticipantTypes].some(
-        (category) => filterCategories.includes(category),
+      return [...userCategories, ...externalParticipantTypes].some((category) =>
+        filterCategories.includes(category),
       );
     },
   },

@@ -94,12 +94,11 @@ export default function CartSheet() {
   if (!isAuthenticated) {
     const guestTotal = guestItems.reduce(
       (sum, item) =>
-        sum + getProductPriceAtPurchase(item.product) * item.quantity,
+        sum +
+        getProductPriceAtPurchase(item.product, item.variant) * item.quantity,
       0,
     );
-    const stockIssuesMap = new Map(
-      guestStockIssues.map((s) => [s.productId, s]),
-    );
+    const stockIssuesMap = new Map(guestStockIssues.map((s) => [s.lineKey, s]));
     const hasStockIssues = guestStockIssues.some(
       (s) => s.isOutOfStock || s.quantityExceedsStock,
     );
@@ -110,7 +109,9 @@ export default function CartSheet() {
       try {
         const results = await validateGuestCartStock(
           guestItems.map((i) => ({
+            lineKey: i.lineKey,
             productId: i.productId,
+            productVariantId: i.productVariantId,
             quantity: i.quantity,
           })),
         );
@@ -142,9 +143,9 @@ export default function CartSheet() {
               <div>
                 {guestItems.map((item) => (
                   <GuestCartItemRow
-                    key={item.productId}
+                    key={item.lineKey}
                     item={item}
-                    stockIssue={stockIssuesMap.get(item.productId)}
+                    stockIssue={stockIssuesMap.get(item.lineKey)}
                   />
                 ))}
               </div>
@@ -174,7 +175,10 @@ export default function CartSheet() {
 
   const total =
     cartData?.items.reduce((sum, item) => {
-      return sum + getProductPriceAtPurchase(item.product) * item.quantity;
+      return (
+        sum +
+        getProductPriceAtPurchase(item.product, item.variant) * item.quantity
+      );
     }, 0) ?? 0;
 
   const showAuthFooter =
