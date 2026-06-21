@@ -1591,7 +1591,9 @@ export const orderItems = pgTable(
         AND ${t.rentalReservationId} IS NULL
         AND ${t.rentalReturnedQuantity} = 0
       ) OR (
-        ${t.rentalFestivalId} IS NOT NULL AND ${t.rentalReservationId} IS NOT NULL
+        ${t.transactionType} = 'rental'
+        AND ${t.rentalFestivalId} IS NOT NULL
+        AND ${t.rentalReservationId} IS NOT NULL
       )`,
     ),
     check(
@@ -1678,7 +1680,14 @@ export const cartItems = pgTable(
         t.rentalFestivalId,
         t.rentalReservationId,
       )
-      .where(sql`${t.productVariantId} IS NULL`),
+      .where(
+        sql`${t.productVariantId} IS NULL AND ${t.rentalFestivalId} IS NOT NULL AND ${t.rentalReservationId} IS NOT NULL`,
+      ),
+    uniqueIndex("cart_items_cart_product_base_purchase_unique")
+      .on(t.cartId, t.productId, t.transactionType)
+      .where(
+        sql`${t.productVariantId} IS NULL AND ${t.rentalFestivalId} IS NULL AND ${t.rentalReservationId} IS NULL`,
+      ),
     uniqueIndex("cart_items_cart_product_variant_unique")
       .on(
         t.cartId,
@@ -1688,7 +1697,14 @@ export const cartItems = pgTable(
         t.rentalFestivalId,
         t.rentalReservationId,
       )
-      .where(sql`${t.productVariantId} IS NOT NULL`),
+      .where(
+        sql`${t.productVariantId} IS NOT NULL AND ${t.rentalFestivalId} IS NOT NULL AND ${t.rentalReservationId} IS NOT NULL`,
+      ),
+    uniqueIndex("cart_items_cart_product_variant_purchase_unique")
+      .on(t.cartId, t.productId, t.productVariantId, t.transactionType)
+      .where(
+        sql`${t.productVariantId} IS NOT NULL AND ${t.rentalFestivalId} IS NULL AND ${t.rentalReservationId} IS NULL`,
+      ),
     foreignKey({
       name: "cart_items_product_variant_product_fk",
       columns: [t.productVariantId, t.productId],
