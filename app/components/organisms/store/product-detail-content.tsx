@@ -1,7 +1,7 @@
 "use client";
 
 import { ClockIcon } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Heading from "@/app/components/atoms/heading";
 import StoreItemQuantityInput from "@/app/components/molecules/store-item-quantity-input";
@@ -41,6 +41,10 @@ export default function ProductDetailContent({
   const isPresale = product.status === "presale";
   const [selectedVariant, setSelectedVariant] =
     useState<ProductVariantWithSelections | null>(visibleVariants[0] ?? null);
+
+  useEffect(() => {
+    setSelectedVariant(visibleVariants[0] ?? null);
+  }, [visibleVariants]);
 
   const hasVariants = visibleVariants.length > 0;
   const price =

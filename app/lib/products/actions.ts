@@ -392,6 +392,7 @@ async function syncProductVariants(
       }
 
       await tx.insert(productVariantOptionValues).values({
+        productId,
         variantId,
         optionId,
         optionValueId,

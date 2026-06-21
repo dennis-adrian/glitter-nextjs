@@ -60,7 +60,12 @@ function isValidGuestCartProduct(
 function normalizeGuestCartItem(
   item: Partial<GuestCartItem>,
 ): GuestCartItem | null {
-  if (typeof item.productId !== "number" || typeof item.quantity !== "number") {
+  if (
+    typeof item.productId !== "number" ||
+    typeof item.quantity !== "number" ||
+    !Number.isFinite(item.quantity) ||
+    item.quantity <= 0
+  ) {
     return null;
   }
 

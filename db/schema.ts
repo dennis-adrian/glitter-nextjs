@@ -1283,6 +1283,7 @@ export const productOptions = pgTable(
   },
   (t) => [
     index("product_options_product_id_idx").on(t.productId),
+    uniqueIndex("product_options_id_product_id_unique").on(t.id, t.productId),
     unique("product_options_product_name_unique").on(t.productId, t.name),
   ],
 );
@@ -1371,6 +1372,9 @@ export const productVariantOptionValues = pgTable(
   "product_variant_option_values",
   {
     id: serial("id").primaryKey(),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
     variantId: integer("variant_id")
       .notNull()
       .references(() => productVariants.id, { onDelete: "cascade" }),
@@ -1384,6 +1388,7 @@ export const productVariantOptionValues = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
+    index("product_variant_option_values_product_id_idx").on(t.productId),
     index("product_variant_option_values_variant_id_idx").on(t.variantId),
     index("product_variant_option_values_option_id_idx").on(t.optionId),
     index("product_variant_option_values_option_value_id_idx").on(
@@ -1399,6 +1404,16 @@ export const productVariantOptionValues = pgTable(
       columns: [t.optionId, t.optionValueId],
       foreignColumns: [productOptionValues.optionId, productOptionValues.id],
     }).onDelete("cascade"),
+    foreignKey({
+      name: "product_variant_option_values_variant_product_fk",
+      columns: [t.variantId, t.productId],
+      foreignColumns: [productVariants.id, productVariants.productId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "product_variant_option_values_option_product_fk",
+      columns: [t.optionId, t.productId],
+      foreignColumns: [productOptions.id, productOptions.productId],
+    }).onDelete("cascade"),
   ],
 );
 
@@ -1408,6 +1423,10 @@ export const productVariantOptionValuesRelations = relations(
     variant: one(productVariants, {
       fields: [productVariantOptionValues.variantId],
       references: [productVariants.id],
+    }),
+    product: one(products, {
+      fields: [productVariantOptionValues.productId],
+      references: [products.id],
     }),
     option: one(productOptions, {
       fields: [productVariantOptionValues.optionId],

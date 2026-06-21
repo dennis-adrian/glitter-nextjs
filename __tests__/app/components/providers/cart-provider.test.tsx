@@ -211,6 +211,10 @@ describe("CartProvider — initial state", () => {
           quantity: 1,
           product: { id: 99, name: "Mismatched id", price: 100, images: [] },
         },
+        { ...buildGuestCartItem(5, 1), quantity: NaN },
+        { ...buildGuestCartItem(6, 1), quantity: Infinity },
+        { ...buildGuestCartItem(7, 1), quantity: -1 },
+        { ...buildGuestCartItem(8, 1), quantity: 0 },
       ]),
     );
 
