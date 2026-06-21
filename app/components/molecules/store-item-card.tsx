@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ClockIcon } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import StoreItemQuantityInput from "@/app/components/molecules/store-item-quantity-input";
 import StoreProductImages from "@/app/components/molecules/store-product-images";
@@ -15,10 +16,16 @@ import {
   DialogTitle,
 } from "@/app/components/ui/dialog";
 import { Button } from "@/app/components/ui/button";
+import { useCartContext } from "@/app/components/providers/cart-provider";
+import { addToCart } from "@/app/lib/cart/actions";
+import { buildCartLineKey } from "@/app/lib/cart/utils";
 import { formatDate } from "@/app/lib/formatters";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
-import { getProductEffectiveStock } from "@/app/lib/products/variants";
+import {
+  getProductEffectiveStock,
+  getVariantLabel,
+} from "@/app/lib/products/variants";
 import { ProductStatusBadge } from "@/components/molecules/ProductStatusBadge";
 
 type StoreItemCardProps = {
@@ -26,11 +33,15 @@ type StoreItemCardProps = {
 };
 
 export default function StoreItemCard({ product }: StoreItemCardProps) {
+  const { setItemCount, isAuthenticated, addGuestItem } = useCartContext();
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const variants = (product.variants ?? []).filter(
     (variant) => variant.isVisible,
   );
   const hasVariants = variants.length > 0;
+  const shouldUseQuickAddModal = variants.length > 1;
+  const singleVariant = variants.length === 1 ? variants[0] : null;
   const inStock = getProductEffectiveStock(product) > 0;
   const isPresale = product.status === "presale";
 
@@ -56,6 +67,52 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
     Math.abs(lowestOriginalPrice - lowestCurrentPrice) > 0.001
       ? lowestOriginalPrice
       : null;
+
+  async function handleQuickAdd() {
+    if (shouldUseQuickAddModal) {
+      setQuickAddOpen(true);
+      return;
+    }
+
+    const productVariantId = singleVariant?.id ?? null;
+    setSubmitting(true);
+    try {
+      if (isAuthenticated) {
+        const { success, newCount } = await addToCart({
+          productId: product.id,
+          productVariantId,
+          quantity: 1,
+        });
+
+        if (!success) {
+          toast.error("No se pudo agregar al carrito");
+          return;
+        }
+
+        setItemCount(newCount);
+      } else {
+        addGuestItem({
+          lineKey: buildCartLineKey(product.id, productVariantId),
+          productId: product.id,
+          productVariantId,
+          productVariantLabel: singleVariant
+            ? getVariantLabel(singleVariant)
+            : null,
+          quantity: 1,
+          product,
+          variant: singleVariant,
+        });
+      }
+
+      toast.success("Producto agregado al carrito");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Error desconocido";
+      toast.error(`No se pudo agregar al carrito. ${message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <>
@@ -121,14 +178,14 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
                   : "w-full bg-purple-600 hover:bg-purple-700"
                 : "w-full bg-muted text-muted-foreground hover:bg-muted"
             }
-            disabled={!inStock}
-            onClick={() => setQuickAddOpen(true)}
-            aria-label={`${hasVariants ? "Elegir opcion para" : "Agregar"} ${product.name}`}
+            disabled={!inStock || submitting}
+            onClick={handleQuickAdd}
+            aria-label={`Agregar al carrito ${product.name}`}
           >
             {!inStock ? (
               <span className="text-xs md:text-sm">Agotado</span>
-            ) : hasVariants ? (
-              <span className="text-xs md:text-sm">Elegir opcion</span>
+            ) : submitting ? (
+              <span className="text-xs md:text-sm">Agregando...</span>
             ) : (
               <span className="text-xs md:text-sm">Agregar al carrito</span>
             )}
@@ -136,23 +193,23 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
         </div>
       </Card>
 
-      <Dialog open={quickAddOpen} onOpenChange={setQuickAddOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{product.name}</DialogTitle>
-            <DialogDescription>
-              {hasVariants
-                ? "Selecciona una variante para agregarla al carrito."
-                : "Agrega este producto al carrito."}
-            </DialogDescription>
-          </DialogHeader>
-          <StoreItemQuantityInput
-            product={product}
-            compact
-            onAdded={() => setQuickAddOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
+      {shouldUseQuickAddModal && (
+        <Dialog open={quickAddOpen} onOpenChange={setQuickAddOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{product.name}</DialogTitle>
+              <DialogDescription>
+                Selecciona una variante para agregarla al carrito.
+              </DialogDescription>
+            </DialogHeader>
+            <StoreItemQuantityInput
+              product={product}
+              compact
+              onAdded={() => setQuickAddOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }
