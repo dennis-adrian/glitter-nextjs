@@ -1,5 +1,8 @@
 import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
 import OrderDetailActions from "@/app/components/organisms/orders/order-detail-actions";
+import RentalReturnForm from "@/app/components/organisms/orders/rental-return-form";
+import ProductContentSectionsDisplay from "@/app/components/molecules/product-content-sections-display";
+import { Badge } from "@/app/components/ui/badge";
 import { OrdersActionsCell } from "@/app/components/organisms/orders/table-actions-cell";
 import {
   Card,
@@ -10,6 +13,12 @@ import {
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
 import { fetchOrder } from "@/app/lib/orders/actions";
 import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import { fetchRentalReturnLogs } from "@/app/lib/rentals/return-actions";
+import type { RentalContentSectionSnapshot } from "@/app/lib/rentals/types";
+import {
+  deriveRentalStatus,
+  getRentalStatusLabel,
+} from "@/app/lib/rentals/status";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 import {
   AlertTriangleIcon,
@@ -66,6 +75,8 @@ export default async function OrderDetailPage({
 
   const order = await fetchOrder(orderId);
   if (!order) notFound();
+
+  const returnLogs = await fetchRentalReturnLogs({ orderId });
 
   const customerName =
     order.customer?.displayName ?? order.guestName ?? "Invitado";
@@ -143,37 +154,92 @@ export default async function OrderDetailPage({
                 );
                 const subtotal = item.quantity * item.priceAtPurchase;
                 const productName = getOrderItemDisplayName(item);
+                const rentalStatus = deriveRentalStatus({
+                  transactionType: item.transactionType,
+                  quantity: item.quantity,
+                  rentalReturnedQuantity: item.rentalReturnedQuantity,
+                });
 
                 return (
-                  <div key={item.id} className="flex items-center gap-3">
-                    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md border bg-muted">
-                      {imageUrl ? (
-                        <Image
-                          src={imageUrl}
-                          alt={item.product.name}
-                          fill
-                          className="object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                          —
+                  <div key={item.id} className="space-y-3 border-b pb-4 last:border-b-0">
+                    <div className="flex items-center gap-3">
+                      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md border bg-muted">
+                        {imageUrl ? (
+                          <Image
+                            src={imageUrl}
+                            alt={item.product.name}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                            —
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-medium leading-tight">
+                            {productName}
+                          </p>
+                          {item.transactionType === "rental" && (
+                            <Badge variant="secondary">Alquiler</Badge>
+                          )}
+                          {rentalStatus !== "not_applicable" && (
+                            <Badge variant="outline">
+                              {getRentalStatusLabel(rentalStatus)}
+                            </Badge>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium leading-tight">
-                        {productName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {item.quantity} × {formatCurrency(item.priceAtPurchase)}
+                        <p className="text-xs text-muted-foreground">
+                          {item.quantity} × {formatCurrency(item.priceAtPurchase)}
+                        </p>
+                      </div>
+                      <p className="text-sm font-semibold shrink-0">
+                        {formatCurrency(subtotal)}
                       </p>
                     </div>
-                    <p className="text-sm font-semibold shrink-0">
-                      {formatCurrency(subtotal)}
-                    </p>
+
+                    {Array.isArray(item.rentalContentSectionsSnapshot) &&
+                      item.rentalContentSectionsSnapshot.length > 0 && (
+                      <ProductContentSectionsDisplay
+                        sections={
+                          item.rentalContentSectionsSnapshot as RentalContentSectionSnapshot[]
+                        }
+                      />
+                    )}
+
+                    {item.transactionType === "rental" && (
+                      <RentalReturnForm
+                        orderItemId={item.id}
+                        quantity={item.quantity}
+                        rentalReturnedQuantity={item.rentalReturnedQuantity}
+                      />
+                    )}
                   </div>
                 );
               })}
+              {returnLogs.length > 0 && (
+                <div className="space-y-2 border-t pt-4">
+                  <p className="text-sm font-medium">Historial de devoluciones</p>
+                  {returnLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="rounded-md border p-3 text-xs text-muted-foreground"
+                    >
+                      <p>
+                        {log.quantityReturned} unidad(es) · {log.conditionStatus}
+                      </p>
+                      {log.notes && <p>{log.notes}</p>}
+                      <p>
+                        {formatDate(log.createdAt).toLocaleString(
+                          DateTime.DATETIME_MED,
+                        )}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="border-t pt-3 flex justify-between text-sm font-semibold">
                 <span>Total</span>
                 <span>{formatCurrency(order.totalAmount)}</span>

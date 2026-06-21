@@ -10,6 +10,7 @@ export default function SubmitProductOrderButton({
   disabled,
   loading,
   onClick,
+  label,
 }: {
   className?: string;
   inStock: boolean;
@@ -17,6 +18,7 @@ export default function SubmitProductOrderButton({
   disabled: boolean;
   loading: boolean;
   onClick?: () => void;
+  label?: string;
 }) {
   if (!inStock) {
     return (
@@ -43,7 +45,7 @@ export default function SubmitProductOrderButton({
       disabled={disabled || loading}
       onClick={onClick}
     >
-      {loading ? "Agregando..." : "Agregar al carrito"}
+      {loading ? "Agregando..." : (label ?? "Agregar al carrito")}
     </Button>
   );
 }

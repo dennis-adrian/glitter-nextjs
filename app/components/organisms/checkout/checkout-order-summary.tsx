@@ -6,7 +6,7 @@ import { BoxIcon } from "lucide-react";
 import Heading from "@/app/components/atoms/heading";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
-import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import { getLineUnitPrice } from "@/app/lib/orders/utils";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 
 import type { CheckoutLineItem } from "./checkout-line-item";
@@ -32,9 +32,10 @@ export function CheckoutOrderSummary({
             const imageUrl =
               getProductVariantImageUrl(item.product, item.variant) ??
               PLACEHOLDER_IMAGE_URLS["300"];
-            const unitPrice = getProductPriceAtPurchase(
+            const unitPrice = getLineUnitPrice(
               item.product,
               item.variant,
+              item.transactionType ?? "purchase",
             );
             const productName = item.productVariantLabel
               ? `${item.product.name} (${item.productVariantLabel})`
@@ -55,6 +56,7 @@ export function CheckoutOrderSummary({
                   <p className="font-medium text-sm truncate">{productName}</p>
                   <p className="text-xs text-muted-foreground">
                     {item.quantity} × Bs {unitPrice.toFixed(2)}
+                    {item.transactionType === "rental" ? " (alquiler)" : ""}
                   </p>
                   {item.product.status === "presale" && (
                     <span className="inline-block text-xs text-amber-600 font-medium mt-0.5">

@@ -11,6 +11,10 @@ import { useOrdersDateFilter } from "@/app/hooks/use-orders-date-filter";
 import { formatDate } from "@/app/lib/formatters";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
 import { getOrderStatusLabel } from "@/app/lib/orders/utils";
+import {
+  getRentalOrderFilterLabel,
+  type RentalOrderFilter,
+} from "@/app/lib/rentals/order-filters";
 import { cn } from "@/lib/utils";
 import type { Table } from "@tanstack/react-table";
 import { DownloadIcon } from "lucide-react";
@@ -23,7 +27,16 @@ type ActiveStatus = OrderStatus | "all" | "needs_attention";
 type OrdersTableProps = {
   ordersPromise: Promise<OrderWithRelations[]>;
   activeStatus: ActiveStatus;
+  activeRentalFilter: RentalOrderFilter;
 };
+
+const RENTAL_FILTER_OPTIONS: { value: RentalOrderFilter; label: string }[] = [
+  { value: "all", label: getRentalOrderFilterLabel("all") },
+  { value: "has_rental", label: getRentalOrderFilterLabel("has_rental") },
+  { value: "out", label: getRentalOrderFilterLabel("out") },
+  { value: "partially_returned", label: getRentalOrderFilterLabel("partially_returned") },
+  { value: "returned", label: getRentalOrderFilterLabel("returned") },
+];
 
 const STATUS_OPTIONS: { value: ActiveStatus; label: string }[] = [
   { value: "all", label: "Todos" },
@@ -91,11 +104,14 @@ function OrdersExportButton({ table }: { table: Table<OrderWithRelations> }) {
 export default function OrdersTable({
   ordersPromise,
   activeStatus,
+  activeRentalFilter,
 }: OrdersTableProps) {
   const orders = use(ordersPromise);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [optimisticStatus, setOptimisticStatus] = useOptimistic(activeStatus);
+  const [optimisticRentalFilter, setOptimisticRentalFilter] =
+    useOptimistic(activeRentalFilter);
 
   const {
     period,
@@ -111,7 +127,18 @@ export default function OrdersTable({
   function handleStatusChange(value: ActiveStatus) {
     startTransition(() => {
       setOptimisticStatus(value);
-      router.push(`/dashboard/store/orders?status=${value}`);
+      router.push(
+        `/dashboard/store/orders?status=${value}&rental=${optimisticRentalFilter}`,
+      );
+    });
+  }
+
+  function handleRentalFilterChange(value: RentalOrderFilter) {
+    startTransition(() => {
+      setOptimisticRentalFilter(value);
+      router.push(
+        `/dashboard/store/orders?status=${optimisticStatus}&rental=${value}`,
+      );
     });
   }
 
@@ -135,6 +162,26 @@ export default function OrdersTable({
                 isActive
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300",
+              )}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex gap-1 overflow-x-auto mb-4 [&::-webkit-scrollbar]:hidden">
+        {RENTAL_FILTER_OPTIONS.map((opt) => {
+          const isActive = optimisticRentalFilter === opt.value;
+          return (
+            <button
+              key={opt.value}
+              onClick={() => handleRentalFilterChange(opt.value)}
+              className={cn(
+                "shrink-0 px-3 py-1.5 text-xs font-medium rounded-full border transition-colors",
+                isActive
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:text-foreground",
               )}
             >
               {opt.label}

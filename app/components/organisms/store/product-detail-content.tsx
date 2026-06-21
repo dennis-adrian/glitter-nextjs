@@ -13,12 +13,14 @@ import {
   ProductVariantWithSelections,
 } from "@/app/lib/products/definitions";
 import {
-  getProductEffectiveStock,
+  getProductStoreAvailability,
   getProductVariantImageUrl,
 } from "@/app/lib/products/variants";
 
 type ProductDetailContentProps = {
   product: BaseProductWithImages;
+  rentalEligible?: boolean;
+  rentalContexts?: import("@/app/lib/rentals/types").RentalEligibilityContext[];
 };
 
 function getLowestVisibleVariantPrice(product: BaseProductWithImages) {
@@ -33,6 +35,8 @@ function getLowestVisibleVariantPrice(product: BaseProductWithImages) {
 
 export default function ProductDetailContent({
   product,
+  rentalEligible = false,
+  rentalContexts = [],
 }: ProductDetailContentProps) {
   const visibleVariants = useMemo(
     () => (product.variants ?? []).filter((variant) => variant.isVisible),
@@ -69,11 +73,17 @@ export default function ProductDetailContent({
     [],
   );
 
+  const { purchaseInStock, rentalInStock } = getProductStoreAvailability(
+    product,
+    rentalEligible,
+  );
+  const imageStockSignal = purchaseInStock || rentalInStock ? 1 : 0;
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
       <StoreProductImages
         productName={product.name}
-        stock={getProductEffectiveStock(product)}
+        stock={imageStockSignal}
         images={product.images}
         selectedImageUrl={selectedImageUrl}
       />
@@ -113,6 +123,8 @@ export default function ProductDetailContent({
 
         <StoreItemQuantityInput
           product={product}
+          rentalEligible={rentalEligible}
+          rentalContexts={rentalContexts}
           onSelectedVariantChange={handleSelectedVariantChange}
         />
       </div>

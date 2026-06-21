@@ -19,7 +19,7 @@ import {
 } from "@/app/lib/cart/actions";
 import { CartWithItems } from "@/app/lib/cart/definitions";
 import { getCartItemWarnings } from "@/app/lib/cart/utils";
-import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import { getLineUnitPrice, getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import CartItemSkeleton from "./cart-item-skeleton";
 
 export default function CartSheet() {
@@ -169,7 +169,7 @@ export default function CartSheet() {
 
   // ── Authenticated cart ────────────────────────────────────────────────────
   const hasWarnings = cartData?.items.some((item) => {
-    const w = getCartItemWarnings(item);
+    const w = getCartItemWarnings(item, cartData.items);
     return w.isOutOfStock || w.quantityExceedsStock;
   });
 
@@ -177,7 +177,8 @@ export default function CartSheet() {
     cartData?.items.reduce((sum, item) => {
       return (
         sum +
-        getProductPriceAtPurchase(item.product, item.variant) * item.quantity
+        getLineUnitPrice(item.product, item.variant, item.transactionType) *
+          item.quantity
       );
     }, 0) ?? 0;
 
@@ -218,6 +219,7 @@ export default function CartSheet() {
                 <CartItemRow
                   key={item.id}
                   item={item}
+                  allItems={cartData.items}
                   onCartUpdate={() => loadCart(true)}
                 />
               ))}

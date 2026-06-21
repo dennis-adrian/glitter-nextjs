@@ -21,6 +21,7 @@ interface Product {
   price: number;
   status: "available" | "presale" | "sale";
   availableDate: Date | null;
+  transactionType?: "purchase" | "rental";
 }
 interface OrderConfirmationForUsersEmailTemplateProps {
   customerName: string;
@@ -90,7 +91,8 @@ export default function OrderConfirmationForUsersEmailTemplate(
                           marginBottom: p.status === "presale" ? "2px" : "10px",
                         }}
                       >
-                        {p.name}{" "}
+                        {p.name}
+                        {p.transactionType === "rental" && " (Alquiler)"}{" "}
                       </div>
                       {p.status === "presale" && (
                         <div style={{ ...styles.textSmall }}>

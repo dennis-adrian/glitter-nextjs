@@ -27,6 +27,7 @@ import { useUploadThing } from "@/app/vendors/uploadthing";
 import { createProduct, updateProduct } from "@/app/lib/products/actions";
 import { deleteProductImage } from "@/app/lib/products/image-actions";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
+import { validateProductRentalSettings } from "@/app/lib/rentals/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PlusIcon, StarIcon, Trash2Icon, XIcon } from "lucide-react";
 import Image from "next/image";
@@ -55,6 +56,7 @@ const VariantFormSchema = z.object({
   optionValues: z.array(z.string().trim()),
   price: z.string().trim().optional(),
   stock: z.string().trim().optional(),
+  rentalStock: z.string().trim().optional(),
   imageId: z.string().trim().optional(),
   isVisible: z.boolean(),
 });
@@ -72,6 +74,11 @@ const FormSchema = z
     isFeatured: z.boolean(),
     isNew: z.boolean(),
     isVisible: z.boolean(),
+    isPurchasable: z.boolean(),
+    isRentable: z.boolean(),
+    rentalPrice: z.string().trim().optional(),
+    rentalStockMode: z.enum(["shared", "separate"]),
+    rentalStock: z.string().trim().optional(),
     hasVariants: z.boolean(),
     variantOptions: z.array(VariantOptionFormSchema),
     variants: z.array(VariantFormSchema),
@@ -93,6 +100,31 @@ const FormSchema = z
         code: z.ZodIssueCode.custom,
         message: "El descuento debe ser mayor o igual a 0",
         path: ["discount"],
+      });
+    }
+
+    const rentalValidationError = validateProductRentalSettings({
+      isPurchasable: values.isPurchasable,
+      isRentable: values.isRentable,
+      rentalPrice: values.rentalPrice?.trim()
+        ? Number(values.rentalPrice)
+        : null,
+      rentalStockMode: values.rentalStockMode,
+      rentalStock: values.rentalStock?.trim()
+        ? Number(values.rentalStock)
+        : null,
+      hasVariants: values.hasVariants,
+      variantRentalStocks: values.hasVariants
+        ? values.variants.map((variant) =>
+            variant.rentalStock?.trim() ? Number(variant.rentalStock) : null,
+          )
+        : [],
+    });
+    if (rentalValidationError) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: rentalValidationError,
+        path: ["isRentable"],
       });
     }
 
@@ -338,6 +370,8 @@ function buildProductFormValues(
         optionValues,
         price: variant.price != null ? String(variant.price) : "",
         stock: String(variant.stock),
+        rentalStock:
+          variant.rentalStock != null ? String(variant.rentalStock) : "",
         imageId:
           availableImages.find((image) => image.url === variant.imageUrl)?.id !=
           null
@@ -362,6 +396,13 @@ function buildProductFormValues(
     isFeatured: product?.isFeatured ?? false,
     isNew: product?.isNew ?? true,
     isVisible: product?.isVisible ?? true,
+    isPurchasable: product?.isPurchasable ?? true,
+    isRentable: product?.isRentable ?? false,
+    rentalPrice:
+      product?.rentalPrice != null ? String(product.rentalPrice) : "",
+    rentalStockMode: product?.rentalStockMode ?? "shared",
+    rentalStock:
+      product?.rentalStock != null ? String(product.rentalStock) : "",
     hasVariants: variants.length > 0,
     variantOptions,
     variants,
@@ -633,6 +674,12 @@ export default function ProductForm({ product }: ProductFormProps) {
           optionValues: variant.optionValues.map((value) => value.trim()),
           price: variant.price?.trim() ? Number(variant.price) : null,
           stock: Number(variant.stock),
+          rentalStock:
+            data.isRentable &&
+            data.rentalStockMode === "separate" &&
+            variant.rentalStock?.trim()
+              ? Number(variant.rentalStock)
+              : null,
           imageUrl: variant.imageId
             ? (imageUrlById.get(variant.imageId) ?? null)
             : null,
@@ -669,6 +716,17 @@ export default function ProductForm({ product }: ProductFormProps) {
       isFeatured: data.isFeatured,
       isNew: data.isNew,
       isVisible: data.isVisible,
+      isPurchasable: data.isPurchasable,
+      isRentable: data.isRentable,
+      rentalPrice: data.rentalPrice?.trim() ? Number(data.rentalPrice) : null,
+      rentalStockMode: data.rentalStockMode,
+      rentalStock:
+        data.isRentable &&
+        data.rentalStockMode === "separate" &&
+        !data.hasVariants &&
+        data.rentalStock?.trim()
+          ? Number(data.rentalStock)
+          : null,
       imagePayloads,
       variantOptions: normalizedVariantOptions,
       variants: normalizedVariants,
@@ -680,7 +738,13 @@ export default function ProductForm({ product }: ProductFormProps) {
 
     if (res.success) {
       toast.success(res.message);
-      router.push("/dashboard/store/products");
+      if (isEditing) {
+        router.push("/dashboard/store/products");
+      } else if ("productId" in res && res.productId != null) {
+        router.push(`/dashboard/store/products/${res.productId}/edit`);
+      } else {
+        router.push("/dashboard/store/products");
+      }
     } else {
       toast.error(res.message);
     }
@@ -1008,6 +1072,16 @@ export default function ProductForm({ product }: ProductFormProps) {
                           inputMode="numeric"
                           min={0}
                         />
+                        {form.watch("isRentable") &&
+                          form.watch("rentalStockMode") === "separate" && (
+                            <TextInput
+                              label="Stock de alquiler"
+                              name={`variants.${index}.rentalStock`}
+                              type="number"
+                              inputMode="numeric"
+                              min={0}
+                            />
+                          )}
                         <TextInput
                           label="Precio especial (opcional)"
                           name={`variants.${index}.price`}
@@ -1245,6 +1319,71 @@ export default function ProductForm({ product }: ProductFormProps) {
               Visible en la tienda
             </Label>
           </div>
+        </div>
+
+        <div className="rounded-lg border p-4 space-y-4">
+          <p className="text-sm font-medium">Alquiler</p>
+          <div className="flex items-center gap-3">
+            <Switch
+              id="isPurchasable"
+              checked={form.watch("isPurchasable")}
+              onCheckedChange={(v) =>
+                form.setValue("isPurchasable", v, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+            />
+            <Label htmlFor="isPurchasable" className="text-muted-foreground">
+              Disponible para compra
+            </Label>
+          </div>
+          <div className="flex items-center gap-3">
+            <Switch
+              id="isRentable"
+              checked={form.watch("isRentable")}
+              onCheckedChange={(v) =>
+                form.setValue("isRentable", v, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+            />
+            <Label htmlFor="isRentable" className="text-muted-foreground">
+              Disponible para alquiler
+            </Label>
+          </div>
+          {form.watch("isRentable") && (
+            <>
+              <TextInput
+                label="Precio de alquiler (Bs.)"
+                name="rentalPrice"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step={0.01}
+              />
+              <SelectInput
+                formControl={form.control}
+                label="Stock de alquiler"
+                name="rentalStockMode"
+                options={[
+                  { value: "shared", label: "Compartido con ventas" },
+                  { value: "separate", label: "Stock separado" },
+                ]}
+              />
+              {form.watch("rentalStockMode") === "separate" &&
+                !form.watch("hasVariants") && (
+                  <TextInput
+                    label="Stock de alquiler"
+                    name="rentalStock"
+                    type="number"
+                    min={0}
+                    step={1}
+                  />
+                )}
+            </>
+          )}
         </div>
 
         <div className="fixed bottom-0 left-0 right-0 border-t bg-background p-4 md:static md:border-0 md:bg-transparent md:p-0">

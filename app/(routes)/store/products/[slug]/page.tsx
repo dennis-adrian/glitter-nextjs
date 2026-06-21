@@ -7,6 +7,7 @@ import { z } from "zod";
 import ProductDetailContent from "@/app/components/organisms/store/product-detail-content";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { fetchProduct, fetchProductBySlug } from "@/app/lib/products/actions";
+import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 
 const ParamsSchema = z.object({
@@ -100,6 +101,8 @@ export default async function ProductDetailPage(props: {
     return permanentRedirect(`/store/products/${redirectSlug}`);
   }
 
+  const rentalEligibility = await getRentalEligibilityForCurrentUser();
+
   return (
     <div className="container px-3 py-6">
       <Link
@@ -110,7 +113,13 @@ export default async function ProductDetailPage(props: {
         Volver a la tienda
       </Link>
 
-      <ProductDetailContent product={product} />
+      <ProductDetailContent
+        product={product}
+        rentalEligible={rentalEligibility.eligible}
+        rentalContexts={
+          rentalEligibility.eligible ? rentalEligibility.contexts : []
+        }
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import {
   BaseProductWithImages,
   ProductVariantWithSelections,
 } from "@/app/lib/products/definitions";
+import { getAvailableStockForTransaction } from "@/app/lib/rentals/stock";
 
 export function productHasVariants(
   product: Pick<BaseProductWithImages, "variants">,
@@ -47,6 +48,56 @@ export function getProductEffectiveStock(
   return (product.variants ?? [])
     .filter((variant) => variant.isVisible)
     .reduce((sum, variant) => sum + Math.max(variant.stock ?? 0, 0), 0);
+}
+
+export function getProductEffectiveRentalStock(
+  product: Pick<
+    BaseProductWithImages,
+    "stock" | "rentalStock" | "rentalStockMode" | "variants"
+  >,
+): number {
+  if (!productHasVariants(product)) {
+    return getAvailableStockForTransaction(product, null, "rental");
+  }
+
+  return (product.variants ?? [])
+    .filter((variant) => variant.isVisible)
+    .reduce(
+      (sum, variant) =>
+        sum +
+        getAvailableStockForTransaction(product, variant, "rental"),
+      0,
+    );
+}
+
+export function getProductStoreAvailability(
+  product: Pick<
+    BaseProductWithImages,
+    | "stock"
+    | "rentalStock"
+    | "rentalStockMode"
+    | "variants"
+    | "isPurchasable"
+    | "isRentable"
+  >,
+  rentalEligible: boolean,
+): {
+  purchaseInStock: boolean;
+  rentalInStock: boolean;
+  canTransact: boolean;
+} {
+  const purchaseInStock =
+    product.isPurchasable && getProductEffectiveStock(product) > 0;
+  const rentalInStock =
+    product.isRentable &&
+    rentalEligible &&
+    getProductEffectiveRentalStock(product) > 0;
+
+  return {
+    purchaseInStock,
+    rentalInStock,
+    canTransact: purchaseInStock || rentalInStock,
+  };
 }
 
 export function getProductVariantStock(

@@ -12,4 +12,5 @@ export type CheckoutLineItem = {
   variant: ProductVariantWithSelections | null;
   productVariantLabel: string | null;
   quantity: number;
+  transactionType?: "purchase" | "rental";
 };
