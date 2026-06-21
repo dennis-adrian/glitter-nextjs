@@ -135,7 +135,6 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
             stock={getProductEffectiveStock(product)}
             images={product.images}
             interactive={false}
-            autoPlay={true}
           />
 
           <CardContent className="p-3 flex flex-col gap-2">

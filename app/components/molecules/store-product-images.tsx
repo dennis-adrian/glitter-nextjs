@@ -11,7 +11,6 @@ import {
 } from "@/app/components/ui/carousel";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { BaseProductImage } from "@/app/lib/products/definitions";
-import Autoplay from "embla-carousel-autoplay";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -29,7 +28,6 @@ type StoreProductImagesProps = {
   images: BaseProductImage[];
   selectedImageUrl?: string | null;
   interactive?: boolean;
-  autoPlay?: boolean;
 };
 export default function StoreProductImages({
   productName,
@@ -37,7 +35,6 @@ export default function StoreProductImages({
   images,
   selectedImageUrl,
   interactive = true,
-  autoPlay = false,
 }: StoreProductImagesProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
@@ -54,9 +51,6 @@ export default function StoreProductImages({
 
   const [api, setApi] = useState<CarouselApi>();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isInView, setIsInView] = useState(false);
 
   useEffect(() => {
     if (!api) {
@@ -90,19 +84,6 @@ export default function StoreProductImages({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isModalOpen]);
-
-  // IntersectionObserver — track when card enters the viewport
-  useEffect(() => {
-    if (!autoPlay) return;
-    const el = containerRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsInView(entry.isIntersecting),
-      { threshold: 0.5 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [autoPlay]);
 
   const imageUrls = useMemo(() => {
     const mainImage = images.find((img) => img.isMain);
@@ -150,7 +131,6 @@ export default function StoreProductImages({
     setIsZoomed(false);
     setPanPosition({ x: 0, y: 0 }); // Reset pan on close
     panPositionRef.current = { x: 0, y: 0 }; // reset ref
-    api?.scrollTo(0);
   };
 
   const toggleZoom = (e: React.MouseEvent) => {
@@ -261,34 +241,9 @@ export default function StoreProductImages({
     }
   };
 
-  const autoplayPlugin = useMemo(
-    () =>
-      Autoplay({
-        delay: 7000,
-        playOnInit: false,
-      }),
-    [],
-  );
-
-  const carouselPlugins = useMemo(
-    () => (autoPlay ? [autoplayPlugin] : []),
-    [autoPlay, autoplayPlugin],
-  );
-
-  useEffect(() => {
-    if (!autoPlay) {
-      autoplayPlugin.stop();
-      return;
-    }
-    if (isInView && !isModalOpen) autoplayPlugin.play();
-    else autoplayPlugin.stop();
-
-    return () => autoplayPlugin.stop();
-  }, [autoPlay, isInView, isModalOpen, autoplayPlugin]);
-
   return (
-    <div ref={containerRef}>
-      <Carousel setApi={setApi} plugins={carouselPlugins}>
+    <div>
+      <Carousel setApi={setApi}>
         <CarouselContent
           {...(canOpenModal
             ? {
@@ -342,7 +297,11 @@ export default function StoreProductImages({
                     ? "bg-white scale-110"
                     : "bg-white/50 hover:bg-white/75"
                 }`}
-                onClick={() => api?.scrollTo(idx)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  api?.scrollTo(idx);
+                }}
               />
             ))}
           </div>
@@ -351,12 +310,22 @@ export default function StoreProductImages({
           <CarouselPrevious
             variant="ghost"
             className="absolute left-2 top-1/2 -translate-y-1/2 hover:-translate-y-1/2 bg-black/50 hover:bg-black/70 text-white hover:text-white"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              api?.scrollPrev();
+            }}
           />
         )}
         {currentImageIndex < imageUrls.length - 1 && imageUrls.length > 1 && (
           <CarouselNext
             variant="ghost"
             className="absolute right-2 top-1/2 -translate-y-1/2 hover:-translate-y-1/2 bg-black/50 hover:bg-black/70 text-white hover:text-white"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              api?.scrollNext();
+            }}
           />
         )}
       </Carousel>

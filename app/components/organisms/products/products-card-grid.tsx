@@ -157,7 +157,6 @@ type ProductsCardGridProps = {
 };
 
 export default function ProductsCardGrid({ products }: ProductsCardGridProps) {
-
   if (products.length === 0) {
     return (
       <p className="text-center text-sm text-muted-foreground py-12">
