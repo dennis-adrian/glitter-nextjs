@@ -99,7 +99,7 @@ const DraftCouponBookSchema = z.object({
   sourceDetailId: z.number().int().positive(),
   headerImageUrl: z.string().nullable(),
   variantCouponCount: z.number().int().positive(),
-  pageIds: z.array(z.string().min(1)),
+  pageIds: z.array(z.string().min(1)).min(1),
 });
 
 const CouponBookDraftGlobalSettingsSchema = z.object({
@@ -123,6 +123,26 @@ export const CouponBookDraftSchema = z
     pages: z.record(z.string(), DraftCouponPageSchema),
   })
   .superRefine((draft, ctx) => {
+    for (const [key, entry] of Object.entries(draft.entries)) {
+      if (key !== entry.id) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Entry key "${key}" does not match entry id "${entry.id}"`,
+          path: ["entries", key, "id"],
+        });
+      }
+    }
+
+    for (const [key, page] of Object.entries(draft.pages)) {
+      if (key !== page.id) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Page key "${key}" does not match page id "${page.id}"`,
+          path: ["pages", key, "id"],
+        });
+      }
+    }
+
     const courtesy = draft.entries[draft.courtesyCouponId];
     if (!courtesy || courtesy.type !== "courtesy") {
       ctx.addIssue({
@@ -188,5 +208,19 @@ export type ParsedCouponBookDraft = z.infer<typeof CouponBookDraftSchema>;
 
 export function parseCouponBookDraft(value: unknown): ParsedCouponBookDraft | null {
   const result = CouponBookDraftSchema.safeParse(value);
+  return result.success ? result.data : null;
+}
+
+export function parseCouponTextLayoutConfig(
+  value: unknown,
+): z.infer<typeof CouponTextLayoutConfigSchema> | null {
+  const result = CouponTextLayoutConfigSchema.safeParse(value);
+  return result.success ? result.data : null;
+}
+
+export function parsePdfCanvasConfig(
+  value: unknown,
+): z.infer<typeof PdfCanvasConfigSchema> | null {
+  const result = PdfCanvasConfigSchema.safeParse(value);
   return result.success ? result.data : null;
 }

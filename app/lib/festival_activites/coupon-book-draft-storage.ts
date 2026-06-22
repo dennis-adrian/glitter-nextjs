@@ -4,7 +4,11 @@ import {
   CouponBookEditorUiState,
   migrateStoredDraft,
 } from "@/app/lib/festival_activites/coupon-book-draft";
-import { parseCouponBookDraft } from "@/app/lib/festival_activites/coupon-book-draft-schema";
+import {
+  parseCouponBookDraft,
+  parseCouponTextLayoutConfig,
+  parsePdfCanvasConfig,
+} from "@/app/lib/festival_activites/coupon-book-draft-schema";
 
 export type StoredCouponBookEditorState = {
   draft: CouponBookDraft;
@@ -110,15 +114,22 @@ function migrateLegacyLayoutOnlyState(
       textLayoutConfig?: CouponBookDraft["globalSettings"]["globalLayout"];
       pdfCanvasConfig?: CouponBookDraft["globalSettings"]["pdfCanvas"];
     };
+    const globalLayout =
+      (parsed.textLayoutConfig != null
+        ? parseCouponTextLayoutConfig(parsed.textLayoutConfig)
+        : null) ?? fallbackDraft.globalSettings.globalLayout;
+    const pdfCanvas =
+      (parsed.pdfCanvasConfig != null
+        ? parsePdfCanvasConfig(parsed.pdfCanvasConfig)
+        : null) ?? fallbackDraft.globalSettings.pdfCanvas;
+
     return {
       draft: {
         ...fallbackDraft,
         globalSettings: {
           ...fallbackDraft.globalSettings,
-          globalLayout:
-            parsed.textLayoutConfig ?? fallbackDraft.globalSettings.globalLayout,
-          pdfCanvas:
-            parsed.pdfCanvasConfig ?? fallbackDraft.globalSettings.pdfCanvas,
+          globalLayout,
+          pdfCanvas,
         },
       },
     };

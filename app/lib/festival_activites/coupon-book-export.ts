@@ -14,6 +14,20 @@ import {
   resolvePdfCanvasConfig,
 } from "@/app/lib/festival_activites/coupon-book-print-config";
 
+const ALLOWED_ORIGINS = [
+  "http://localhost:8080",
+  "https://game.glitter.com.bo",
+];
+
+function resolveTrustedOrigin(request: NextRequest): string {
+  const canonicalOrigin = (
+    process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"
+  ).replace(/\/$/, "");
+  const allowedOrigins = new Set([...ALLOWED_ORIGINS, canonicalOrigin]);
+  const requestOrigin = request.nextUrl.origin;
+  return allowedOrigins.has(requestOrigin) ? requestOrigin : canonicalOrigin;
+}
+
 function parseCookieHeaderForOrigin(cookieHeader: string, origin: string) {
   let originUrl: string;
   try {
@@ -51,10 +65,11 @@ export async function generateCouponBookPdf(input: {
   fileNameSuffix: string;
 }): Promise<Response> {
   const pdfCanvas = resolvePdfCanvasConfig(input.searchParams);
+  const trustedOrigin = resolveTrustedOrigin(input.request);
 
   const printUrl = new URL(
     `/couponbook-print/${input.festivalId}/${input.activityId}`,
-    input.request.nextUrl.origin,
+    trustedOrigin,
   );
   printUrl.search = input.searchParams.toString();
 
@@ -93,9 +108,10 @@ export async function generateDraftCouponBookPdf(input: {
     draft: input.draft,
     exportScope: input.exportScope,
   });
+  const trustedOrigin = resolveTrustedOrigin(input.request);
   const printUrl = new URL(
     `/couponbook-print/draft/${sessionId}`,
-    input.request.nextUrl.origin,
+    trustedOrigin,
   );
   printUrl.search = searchParams.toString();
 
@@ -142,7 +158,7 @@ export async function renderCouponBookPdf(input: {
     if (cookieHeader) {
       const cookies = parseCookieHeaderForOrigin(
         cookieHeader,
-        input.request.nextUrl.origin,
+        resolveTrustedOrigin(input.request),
       );
       if (cookies.length > 0) {
         await browserContext.addCookies(cookies);

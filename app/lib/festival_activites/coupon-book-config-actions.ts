@@ -171,16 +171,40 @@ export async function saveCouponBookConfig(input: {
     return { ok: true, revision: nextRevision };
   }
 
-  const [inserted] = await db
-    .insert(festivalActivityCouponBookConfigs)
-    .values({
-      activityId: input.activityId,
-      payload: sanitized,
-      revision: 1,
-      createdByUserId: input.userId,
-      updatedByUserId: input.userId,
-    })
-    .returning({ revision: festivalActivityCouponBookConfigs.revision });
+  try {
+    const [inserted] = await db
+      .insert(festivalActivityCouponBookConfigs)
+      .values({
+        activityId: input.activityId,
+        payload: sanitized,
+        revision: 1,
+        createdByUserId: input.userId,
+        updatedByUserId: input.userId,
+      })
+      .returning({ revision: festivalActivityCouponBookConfigs.revision });
 
-  return { ok: true, revision: inserted.revision };
+    return { ok: true, revision: inserted.revision };
+  } catch (error: unknown) {
+    const code =
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      typeof (error as { code: string }).code === "string"
+        ? (error as { code: string }).code
+        : "";
+    if (code !== "23505") {
+      throw error;
+    }
+
+    const current = await db.query.festivalActivityCouponBookConfigs.findFirst({
+      where: eq(festivalActivityCouponBookConfigs.activityId, input.activityId),
+    });
+    return {
+      ok: false,
+      error:
+        "La configuración fue modificada por otro usuario. Recarga la página e intenta de nuevo.",
+      status: 409,
+      currentRevision: current?.revision ?? 1,
+    };
+  }
 }

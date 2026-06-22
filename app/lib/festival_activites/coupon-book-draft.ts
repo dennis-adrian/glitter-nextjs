@@ -803,10 +803,48 @@ export function reconcileDraftWithSource(
   };
 }
 
+function reconcileDraftStructureWithSource(
+  draft: CouponBookDraft,
+  sourceDraft: CouponBookDraft,
+): Pick<CouponBookDraft, "books" | "pages"> {
+  const draftBooksById = new Map(draft.books.map((book) => [book.id, book]));
+  const nextPages: Record<string, DraftCouponPage> = {};
+
+  const nextBooks = sourceDraft.books.map((sourceBook) => {
+    const existing = draftBooksById.get(sourceBook.id);
+    if (existing) {
+      for (const pageId of existing.pageIds) {
+        const page = draft.pages[pageId];
+        if (page) nextPages[pageId] = page;
+      }
+      return {
+        ...existing,
+        label: sourceBook.label,
+        sourceDetailId: sourceBook.sourceDetailId,
+        headerImageUrl: sourceBook.headerImageUrl,
+      };
+    }
+
+    for (const pageId of sourceBook.pageIds) {
+      const page = sourceDraft.pages[pageId];
+      if (page) nextPages[pageId] = page;
+    }
+    return { ...sourceBook };
+  });
+
+  return {
+    books: nextBooks.map((book) => ({
+      ...book,
+      pageIds: book.pageIds.filter((pageId) => Boolean(nextPages[pageId])),
+    })),
+    pages: nextPages,
+  };
+}
+
 export function mergeDraftWithSource(
   draft: CouponBookDraft,
   sourceDraft: CouponBookDraft,
-  variants: CouponBookVariant[],
+  _variants: CouponBookVariant[],
 ): CouponBookDraft {
   const reconciliation = reconcileDraftWithSource(draft, sourceDraft);
   const nextEntries: Record<string, DraftCouponEntry> = { ...draft.entries };
@@ -829,10 +867,14 @@ export function mergeDraftWithSource(
     };
   }
 
+  const { books, pages } = reconcileDraftStructureWithSource(draft, sourceDraft);
+
   const mergedDraft: CouponBookDraft = {
     ...draft,
     updatedAt: new Date().toISOString(),
     entries: nextEntries,
+    books,
+    pages,
   };
 
   return reflowDraftFromVariantLimits(mergedDraft);

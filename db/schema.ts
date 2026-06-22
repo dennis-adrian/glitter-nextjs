@@ -1009,6 +1009,7 @@ export const festivalActivityCouponBookConfigs = pgTable(
       .notNull()
       .references(() => festivalActivities.id, { onDelete: "cascade" })
       .unique(),
+    // Validated at write time via CouponBookDraftSchema (coupon-book-draft-schema.ts).
     payload: jsonb("payload").notNull(),
     revision: integer("revision").default(1).notNull(),
     createdByUserId: integer("created_by_user_id").references(() => users.id, {
@@ -1020,6 +1021,12 @@ export const festivalActivityCouponBookConfigs = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
+  (t) => [
+    check(
+      "festival_activity_coupon_book_configs_revision_positive",
+      sql`${t.revision} >= 1`,
+    ),
+  ],
 );
 
 export const festivalActivityCouponBookConfigsRelations = relations(

@@ -233,6 +233,127 @@ describe("coupon-book-draft", () => {
     });
   });
 
+  it("adds books from source when new variants appear", () => {
+    const draft = buildInitialCouponBookDraft({
+      festivalId: 1,
+      activityId: 2,
+      variants: sampleVariants,
+    });
+    const sourceDraft = buildInitialCouponBookDraft({
+      festivalId: 1,
+      activityId: 2,
+      variants: [
+        ...sampleVariants,
+        {
+          detailId: 11,
+          detailLabel: "Variante B",
+          headerImageUrl: null,
+          participationLimit: null,
+          entries: [
+            {
+              participationId: 3,
+              participantName: "Gamma",
+              standLabels: ["C3"],
+              sectorName: "Este",
+              promoHighlight: "",
+              promoDescription: "Promo gamma",
+              promoConditions: null,
+              imageUrl: null,
+              proofStatus: "approved" as const,
+            },
+          ],
+        },
+      ],
+    });
+
+    const merged = mergeDraftWithSource(draft, sourceDraft, sampleVariants);
+
+    expect(merged.books).toHaveLength(2);
+    expect(merged.books.map((book) => book.id)).toEqual([
+      "book-10",
+      "book-11",
+    ]);
+    expect(merged.entries["participant-3"]?.participantName).toBe("Gamma");
+  });
+
+  it("removes books that no longer exist in source", () => {
+    const twoVariantDraft = buildInitialCouponBookDraft({
+      festivalId: 1,
+      activityId: 2,
+      variants: [
+        ...sampleVariants,
+        {
+          detailId: 11,
+          detailLabel: "Variante B",
+          headerImageUrl: null,
+          participationLimit: null,
+          entries: [
+            {
+              participationId: 3,
+              participantName: "Gamma",
+              standLabels: ["C3"],
+              sectorName: "Este",
+              promoHighlight: "",
+              promoDescription: "Promo gamma",
+              promoConditions: null,
+              imageUrl: null,
+              proofStatus: "approved" as const,
+            },
+          ],
+        },
+      ],
+    });
+    const sourceDraft = buildInitialCouponBookDraft({
+      festivalId: 1,
+      activityId: 2,
+      variants: sampleVariants,
+    });
+
+    const merged = mergeDraftWithSource(
+      twoVariantDraft,
+      sourceDraft,
+      sampleVariants,
+    );
+
+    expect(merged.books).toHaveLength(1);
+    expect(merged.books[0].id).toBe("book-10");
+    expect(merged.entries["participant-3"]).toBeUndefined();
+  });
+
+  it("updates book metadata from source while preserving variant coupon count", () => {
+    const draft = buildInitialCouponBookDraft({
+      festivalId: 1,
+      activityId: 2,
+      variants: sampleVariants,
+    });
+    const resized = updateVariantCouponCount(draft, draft.books[0].id, 10);
+    const sourceDraft = buildInitialCouponBookDraft({
+      festivalId: 1,
+      activityId: 2,
+      variants: [
+        {
+          ...sampleVariants[0],
+          detailLabel: "Variante Renombrada",
+          headerImageUrl: "https://example.com/header.png",
+        },
+      ],
+    });
+
+    const merged = mergeDraftWithSource(resized, sourceDraft, [
+      {
+        ...sampleVariants[0],
+        detailLabel: "Variante Renombrada",
+        headerImageUrl: "https://example.com/header.png",
+      },
+    ]);
+
+    expect(merged.books[0].label).toBe("Variante Renombrada");
+    expect(merged.books[0].headerImageUrl).toBe(
+      "https://example.com/header.png",
+    );
+    expect(merged.books[0].variantCouponCount).toBe(10);
+  });
+
   it("moves coupons between pages in draft only", () => {
     const draft = buildInitialCouponBookDraft({
       festivalId: 1,
