@@ -71,15 +71,35 @@ export type CouponBookVariant = {
   detailId: number;
   detailLabel: string;
   headerImageUrl: string | null;
+  participationLimit: number | null;
   entries: CouponBookEntry[];
 };
 
 export type CouponBookPage = {
   pageNumber: number;
   totalPages: number;
+  dynamicSlotCount: number;
   headerDynamicEntry: CouponBookEntry | null;
   bodyEntries: Array<CouponBookEntry | null>;
 };
+
+export function computeCouponBookGridLayout(dynamicSlotCount: number): {
+  columns: number;
+  bodySlotCount: number;
+  bodyRows: number;
+  totalRows: number;
+} {
+  const normalized = Math.max(0, Math.round(dynamicSlotCount));
+  const bodySlotCount = Math.max(0, normalized - 1);
+  const bodyRows =
+    bodySlotCount === 0 ? 0 : Math.ceil(bodySlotCount / COUPON_BOOK_COLUMNS);
+  return {
+    columns: COUPON_BOOK_COLUMNS,
+    bodySlotCount,
+    bodyRows,
+    totalRows: 1 + bodyRows,
+  };
+}
 
 type ActivityProof = {
   imageUrl: string | null;
@@ -110,6 +130,7 @@ type ActivityDetailForCouponBook = {
   description: string | null;
   imageUrl?: string | null;
   couponBookHeaderImageUrl?: string | null;
+  participationLimit?: number | null;
   participants: ActivityParticipant[];
 };
 
@@ -181,6 +202,7 @@ export function buildCouponBookVariants(
       headerImageUrl: resolveCouponBookHeaderImageUrl(
         detail.couponBookHeaderImageUrl ?? null,
       ),
+      participationLimit: detail.participationLimit ?? null,
       entries,
     };
   });
@@ -188,23 +210,28 @@ export function buildCouponBookVariants(
 
 export function paginateCouponBookEntries(
   entries: CouponBookEntry[],
+  dynamicCouponsPerPage: number = COUPON_BOOK_DYNAMIC_SLOTS_PER_PAGE,
 ): CouponBookPage[] {
+  const slotsPerPage = Number.isFinite(dynamicCouponsPerPage)
+    ? dynamicCouponsPerPage
+    : COUPON_BOOK_DYNAMIC_SLOTS_PER_PAGE;
+  const perPage = Math.min(
+    COUPON_BOOK_DYNAMIC_SLOTS_PER_PAGE,
+    Math.max(1, Math.round(slotsPerPage)),
+  );
   const pages: CouponBookPage[] = [];
   for (
     let start = 0, pageNumber = 1;
     start < entries.length || pageNumber === 1;
-    start += COUPON_BOOK_DYNAMIC_SLOTS_PER_PAGE, pageNumber++
+    start += perPage, pageNumber++
   ) {
-    const chunk = entries.slice(
-      start,
-      start + COUPON_BOOK_DYNAMIC_SLOTS_PER_PAGE,
-    );
+    const chunk = entries.slice(start, start + perPage);
     const headerDynamicEntry = chunk[0] ?? null;
     const bodyEntries: Array<CouponBookEntry | null> = chunk.slice(1);
-    while (bodyEntries.length < COUPON_BOOK_BODY_SLOTS) bodyEntries.push(null);
     pages.push({
       pageNumber,
-      totalPages: 0, // set later
+      totalPages: 0,
+      dynamicSlotCount: chunk.length,
       headerDynamicEntry,
       bodyEntries,
     });
