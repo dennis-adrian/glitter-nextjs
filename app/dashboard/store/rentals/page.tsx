@@ -1,3 +1,5 @@
+"use server";
+
 import Link from "next/link";
 
 import { Badge } from "@/app/components/ui/badge";
@@ -60,7 +62,9 @@ export default async function CurrentRentalsPage() {
                   </div>
                   <div className="text-sm">
                     <p>{rental.quantityOut} en alquiler</p>
-                    <Badge variant="outline">{getRentalStatusLabel(status)}</Badge>
+                    <Badge variant="outline">
+                      {getRentalStatusLabel(status)}
+                    </Badge>
                   </div>
                   <div className="text-sm text-muted-foreground">
                     <p>
