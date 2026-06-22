@@ -1,7 +1,7 @@
 import { ArrowLeftIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, permanentRedirect } from "next/navigation";
+import { notFound, permanentRedirect, redirect } from "next/navigation";
 import { z } from "zod";
 
 import ProductDetailContent from "@/app/components/organisms/store/product-detail-content";
@@ -109,7 +109,7 @@ export default async function ProductDetailPage(props: {
 
   const profile = await getCurrentUserProfile();
   if (product.storeCategory === "supplies" && profile?.status !== "verified") {
-    return permanentRedirect("/merch");
+    return redirect("/merch");
   }
 
   const rentalEligibility = await getRentalEligibilityForCurrentUser();
