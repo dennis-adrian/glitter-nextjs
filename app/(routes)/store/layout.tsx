@@ -9,6 +9,8 @@ import { getActiveFestivalBase } from "@/app/lib/festivals/helpers";
 import { isFestivalHappeningAt } from "@/app/lib/festivals/store-gate";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
+export const dynamic = "force-dynamic";
+
 export default async function StoreLayout({
   children,
 }: {

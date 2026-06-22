@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-export default function RoutesLayout({
+export default function MyParticipationsLayout({
   children,
 }: {
   children: React.ReactNode;

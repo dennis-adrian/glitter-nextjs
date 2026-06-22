@@ -23,6 +23,8 @@ import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
+export const dynamic = "force-dynamic";
+
 export default async function ParticipantDashboardPage() {
   const currentProfile = await getCurrentUserProfile();
 
