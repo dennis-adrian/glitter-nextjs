@@ -1,54 +1,49 @@
 import { NextRequest } from "next/server";
-import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
-import {
-  cmToInches,
-  resolvePdfCanvasConfig,
-} from "@/app/lib/festival_activites/coupon-book-print-config";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { z } from "zod";
+import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
+import { fetchFestivalActivityForReview } from "@/app/lib/festivals/actions";
+import { isCouponBookDraft } from "@/app/lib/festival_activites/coupon-book-draft";
+import {
+  MAX_DRAFT_BYTES,
+  sanitizeCouponBookDraft,
+} from "@/app/lib/festival_activites/coupon-book-config-actions";
+import {
+  generateDraftCouponBookPdf,
+  generateCouponBookPdf,
+} from "@/app/lib/festival_activites/coupon-book-export";
+import { resolvePdfCanvasConfig } from "@/app/lib/festival_activites/coupon-book-print-config";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 const ParamsSchema = z.object({
   activityId: z.coerce.number(),
 });
 
-function parseCookieHeaderForOrigin(cookieHeader: string, origin: string) {
-  let originUrl: string;
-  try {
-    originUrl = new URL(origin).toString();
-  } catch {
-    return [];
-  }
+const PostBodySchema = z.object({
+  draft: z.unknown(),
+  exportScope: z.union([
+    z.object({ type: z.literal("all") }),
+    z.object({ type: z.literal("book"), bookId: z.string().min(1) }),
+  ]),
+});
 
-  return cookieHeader
-    .split(";")
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .map((entry) => {
-      const separatorIndex = entry.indexOf("=");
-      if (separatorIndex < 1) return null;
-
-      const name = entry.slice(0, separatorIndex).trim();
-      const value = entry.slice(separatorIndex + 1).trim();
-      if (!name) return null;
-
-      return {
-        url: originUrl,
-        name,
-        value,
-      };
-    })
-    .filter((cookie) => cookie !== null);
-}
-
-export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ activityId: string }> },
-) {
+async function requireAdmin() {
   const profile = await getCurrentUserProfile();
   if (
     !profile ||
     (profile.role !== "admin" && profile.role !== "festival_admin")
   ) {
+    return null;
+  }
+  return profile;
+}
+
+/** @deprecated Use POST with the editor draft. GET rebuilds from live DB state only. */
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ activityId: string }> },
+) {
+  const profile = await requireAdmin();
+  if (!profile) {
     return new Response("No autorizado", { status: 401 });
   }
 
@@ -78,107 +73,86 @@ export async function GET(
     return new Response("Variante no encontrada", { status: 404 });
   }
 
-  const pdfCanvas = resolvePdfCanvasConfig(searchParams);
+  resolvePdfCanvasConfig(searchParams);
 
-  const printUrl = new URL(
-    `/couponbook-print/${activity.festivalId}/${activityId}`,
-    request.nextUrl.origin,
-  );
-  printUrl.search = searchParams.toString();
+  const suffix =
+    detailId !== null ? `variante-${detailId}` : "todas-las-variantes";
 
-  let playwrightModule: typeof import("playwright");
-  try {
-    playwrightModule = await import("playwright");
-  } catch (_error) {
-    return new Response(
-      "La exportación PDF requiere instalar la dependencia playwright",
-      { status: 500 },
-    );
-  }
-
-  const browser = await playwrightModule.chromium.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  return generateCouponBookPdf({
+    request,
+    festivalId: activity.festivalId,
+    activityId,
+    searchParams,
+    fileNameSuffix: suffix,
   });
-  let browserContext: Awaited<ReturnType<typeof browser.newContext>> | null =
-    null;
+}
 
-  try {
-    browserContext = await browser.newContext();
-    const cookieHeader = request.headers.get("cookie");
-    if (cookieHeader) {
-      const cookies = parseCookieHeaderForOrigin(cookieHeader, printUrl.origin);
-      if (cookies.length > 0) {
-        await browserContext.addCookies(cookies);
-      }
-    }
-    const page = await browserContext.newPage();
-    await page.goto(printUrl.toString(), { waitUntil: "networkidle" });
-    await page.waitForSelector("[data-couponbook-print-ready='true']", {
-      timeout: 10000,
-    });
-    await page.evaluate(() => {
-      // Isolate printable content in case app layouts inject nav/footer wrappers.
-      const printableRoot = document.querySelector<HTMLElement>(
-        "[data-couponbook-print-ready='true']",
-      );
-      if (printableRoot) {
-        printableRoot.remove();
-        document.body.innerHTML = "";
-        document.body.style.margin = "0";
-        document.body.style.padding = "0";
-        document.body.style.background = "#fff";
-        document.body.appendChild(printableRoot);
-      }
-
-      const nodes = document.querySelectorAll<HTMLElement>(
-        "[data-fit-text='true']",
-      );
-      nodes.forEach((el) => {
-        const min = Number(el.dataset.fitMinPx ?? 8);
-        const max = Number(el.dataset.fitMaxPx ?? 18);
-        const step = Number(el.dataset.fitStepPx ?? 0.5);
-        const singleLine = el.dataset.fitSingleLine === "true";
-        const safeStep = Number.isFinite(step) && step > 0 ? step : 0.5;
-
-        el.style.fontSize = `${max}px`;
-        el.style.whiteSpace = singleLine ? "nowrap" : "normal";
-
-        let size = max;
-        while (size > min) {
-          const overWidth = el.scrollWidth - 0.5 > el.clientWidth;
-          const overHeight = el.scrollHeight - 0.5 > el.clientHeight;
-          if (!overWidth && !overHeight) break;
-          size -= safeStep;
-          el.style.fontSize = `${size}px`;
-        }
-        if (size < min) {
-          el.style.fontSize = `${min}px`;
-        }
-      });
-    });
-    const pdf = await page.pdf({
-      width: cmToInches(pdfCanvas.widthCm),
-      height: cmToInches(pdfCanvas.heightCm),
-      printBackground: true,
-      margin: { top: "0", right: "0", bottom: "0", left: "0" },
-    });
-
-    const suffix =
-      detailId !== null ? `variante-${detailId}` : "todas-las-variantes";
-    const fileName = `cuponera-${activityId}-${suffix}.pdf`;
-
-    return new Response(new Uint8Array(pdf), {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${fileName}"`,
-        "Cache-Control": "no-store",
-      },
-    });
-  } finally {
-    if (browserContext) {
-      await browserContext.close();
-    }
-    await browser.close();
+export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ activityId: string }> },
+) {
+  const profile = await requireAdmin();
+  if (!profile) {
+    return new Response("No autorizado", { status: 401 });
   }
+
+  const validatedParams = ParamsSchema.safeParse(await context.params);
+  if (!validatedParams.success) {
+    return new Response("Parámetros inválidos", { status: 400 });
+  }
+
+  let rawBody: unknown;
+  try {
+    rawBody = await request.json();
+  } catch {
+    return new Response("Cuerpo inválido", { status: 400 });
+  }
+
+  const serialized = JSON.stringify(rawBody);
+  if (serialized.length > MAX_DRAFT_BYTES) {
+    return new Response("El borrador de exportación es demasiado grande.", {
+      status: 413,
+    });
+  }
+
+  let body: z.infer<typeof PostBodySchema>;
+  try {
+    body = PostBodySchema.parse(rawBody);
+  } catch {
+    return new Response("Cuerpo inválido", { status: 400 });
+  }
+
+  if (!isCouponBookDraft(body.draft)) {
+    return new Response("Borrador inválido", { status: 400 });
+  }
+
+  const { activityId } = validatedParams.data;
+  if (body.draft.activityId !== activityId) {
+    return new Response("El borrador no corresponde a esta actividad", {
+      status: 400,
+    });
+  }
+
+  const activity = await fetchFestivalActivityForReview(
+    body.draft.festivalId,
+    activityId,
+  );
+  if (!activity) {
+    return new Response("Actividad no encontrada", { status: 404 });
+  }
+
+  const sanitizedDraft = sanitizeCouponBookDraft(body.draft);
+
+  const suffix =
+    body.exportScope.type === "all"
+      ? "todas-las-variantes"
+      : `libro-${body.exportScope.bookId}`;
+
+  return generateDraftCouponBookPdf({
+    request,
+    activityId,
+    draft: sanitizedDraft,
+    exportScope: body.exportScope,
+    fileNameSuffix: suffix,
+  });
 }

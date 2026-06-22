@@ -188,23 +188,25 @@ export function buildCouponBookVariants(
 
 export function paginateCouponBookEntries(
   entries: CouponBookEntry[],
+  dynamicCouponsPerPage: number = COUPON_BOOK_DYNAMIC_SLOTS_PER_PAGE,
 ): CouponBookPage[] {
+  const perPage = Math.min(
+    COUPON_BOOK_DYNAMIC_SLOTS_PER_PAGE,
+    Math.max(1, Math.round(dynamicCouponsPerPage)),
+  );
   const pages: CouponBookPage[] = [];
   for (
     let start = 0, pageNumber = 1;
     start < entries.length || pageNumber === 1;
-    start += COUPON_BOOK_DYNAMIC_SLOTS_PER_PAGE, pageNumber++
+    start += perPage, pageNumber++
   ) {
-    const chunk = entries.slice(
-      start,
-      start + COUPON_BOOK_DYNAMIC_SLOTS_PER_PAGE,
-    );
+    const chunk = entries.slice(start, start + perPage);
     const headerDynamicEntry = chunk[0] ?? null;
     const bodyEntries: Array<CouponBookEntry | null> = chunk.slice(1);
     while (bodyEntries.length < COUPON_BOOK_BODY_SLOTS) bodyEntries.push(null);
     pages.push({
       pageNumber,
-      totalPages: 0, // set later
+      totalPages: 0,
       headerDynamicEntry,
       bodyEntries,
     });

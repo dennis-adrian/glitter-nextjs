@@ -1001,6 +1001,45 @@ export const festivalActivityParticipantProofsRelations = relations(
   }),
 );
 
+export const festivalActivityCouponBookConfigs = pgTable(
+  "festival_activity_coupon_book_configs",
+  {
+    id: serial("id").primaryKey(),
+    activityId: integer("activity_id")
+      .notNull()
+      .references(() => festivalActivities.id, { onDelete: "cascade" })
+      .unique(),
+    payload: jsonb("payload").notNull(),
+    revision: integer("revision").default(1).notNull(),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+);
+
+export const festivalActivityCouponBookConfigsRelations = relations(
+  festivalActivityCouponBookConfigs,
+  ({ one }) => ({
+    activity: one(festivalActivities, {
+      fields: [festivalActivityCouponBookConfigs.activityId],
+      references: [festivalActivities.id],
+    }),
+    createdBy: one(users, {
+      fields: [festivalActivityCouponBookConfigs.createdByUserId],
+      references: [users.id],
+    }),
+    updatedBy: one(users, {
+      fields: [festivalActivityCouponBookConfigs.updatedByUserId],
+      references: [users.id],
+    }),
+  }),
+);
+
 export const votableTypeEnum = pgEnum("votable_type", ["participant", "stand"]);
 
 export const festivalActivityVotes = pgTable(
@@ -2006,7 +2045,10 @@ export const rentalReturnLogs = pgTable(
     index("rental_return_logs_order_id_idx").on(t.orderId),
     index("rental_return_logs_product_id_idx").on(t.productId),
     index("rental_return_logs_created_at_idx").on(t.createdAt),
-    check("rental_return_logs_quantity_positive", sql`${t.quantityReturned} > 0`),
+    check(
+      "rental_return_logs_quantity_positive",
+      sql`${t.quantityReturned} > 0`,
+    ),
     check(
       "rental_return_logs_stock_restored_non_negative",
       sql`${t.stockRestored} >= 0`,

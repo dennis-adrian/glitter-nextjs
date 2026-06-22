@@ -3,24 +3,65 @@ import {
   COUPON_BOOK_PAGE_HEIGHT_CM,
   COUPON_BOOK_PAGE_WIDTH_CM,
   COURTESY_COUPON_ENTRY,
+  CouponBookEntry,
   CouponBookPage,
   CouponTextLayoutConfig,
   DEFAULT_COUPON_TEXT_LAYOUT_CONFIG,
 } from "@/app/lib/festival_activites/coupon-book-builder";
+import type { CSSProperties } from "react";
 
 type CouponBookPrintPageProps = {
   page: CouponBookPage;
   textLayoutConfig?: CouponTextLayoutConfig;
+  courtesyEntry?: CouponBookEntry;
+  courtesyCouponId?: string;
+  headerDynamicCouponId?: string | null;
+  bodyCouponIds?: (string | null)[];
+  resolveLayout?: (couponId: string | null) => CouponTextLayoutConfig;
   headerImageUrl?: string | null;
   headerImageScalePct?: number;
+  selectedCouponId?: string | null;
+  onSelectCoupon?: (couponId: string) => void;
 };
+
+function layoutForSlot(
+  couponId: string | null | undefined,
+  fallback: CouponTextLayoutConfig,
+  resolveLayout?: (couponId: string | null) => CouponTextLayoutConfig,
+): CouponTextLayoutConfig {
+  if (!resolveLayout) return fallback;
+  return resolveLayout(couponId ?? null);
+}
+
+function slotShellStyle(input: {
+  selected: boolean;
+  onClick?: () => void;
+}): CSSProperties {
+  return {
+    minWidth: 0,
+    minHeight: 0,
+    zIndex: 1,
+    cursor: input.onClick ? "pointer" : undefined,
+    outline: input.selected ? "2px solid #2563eb" : undefined,
+    outlineOffset: input.selected ? "-2px" : undefined,
+  };
+}
 
 export default function CouponBookPrintPage({
   page,
   textLayoutConfig = DEFAULT_COUPON_TEXT_LAYOUT_CONFIG,
+  courtesyEntry,
+  courtesyCouponId,
+  headerDynamicCouponId,
+  bodyCouponIds,
+  resolveLayout,
   headerImageUrl = null,
   headerImageScalePct = DEFAULT_COUPON_TEXT_LAYOUT_CONFIG.headerImageScalePct,
+  selectedCouponId = null,
+  onSelectCoupon,
 }: CouponBookPrintPageProps) {
+  const resolvedCourtesy = courtesyEntry ?? COURTESY_COUPON_ENTRY;
+
   return (
     <div
       style={{
@@ -38,7 +79,6 @@ export default function CouponBookPrintPage({
         isolation: "isolate",
       }}
     >
-      {/* Header image area (3 columns) */}
       <div
         style={{
           gridColumn: "1 / span 3",
@@ -116,7 +156,6 @@ export default function CouponBookPrintPage({
         )}
       </div>
 
-      {/* Header slot A: fixed courtesy sample */}
       <div
         style={{
           gridColumn: "4",
@@ -124,41 +163,88 @@ export default function CouponBookPrintPage({
           padding: "1.2mm",
           borderBottom: "2px dashed #111",
           borderRight: "2px solid #111",
-          minWidth: 0,
-          minHeight: 0,
-          zIndex: 1,
+          ...slotShellStyle({
+            selected: selectedCouponId === courtesyCouponId,
+            onClick: courtesyCouponId ? () => onSelectCoupon?.(courtesyCouponId) : undefined,
+          }),
         }}
+        onClick={
+          courtesyCouponId
+            ? () => onSelectCoupon?.(courtesyCouponId)
+            : undefined
+        }
+        onKeyDown={
+          courtesyCouponId
+            ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelectCoupon?.(courtesyCouponId);
+                }
+              }
+            : undefined
+        }
+        role={courtesyCouponId ? "button" : undefined}
+        tabIndex={courtesyCouponId ? 0 : undefined}
       >
-        <CouponBookCardPrint
-          entry={COURTESY_COUPON_ENTRY}
-          textLayoutConfig={textLayoutConfig}
-        />
+        {resolvedCourtesy ? (
+          <CouponBookCardPrint
+            entry={resolvedCourtesy}
+            textLayoutConfig={layoutForSlot(
+              courtesyCouponId ?? null,
+              textLayoutConfig,
+              resolveLayout,
+            )}
+          />
+        ) : null}
       </div>
 
-      {/* Header slot B: first dynamic coupon */}
       <div
         style={{
           gridColumn: "5",
           gridRow: "1",
           padding: "1.2mm",
           borderBottom: "2px dashed #111",
-          minWidth: 0,
-          minHeight: 0,
-          zIndex: 1,
+          ...slotShellStyle({
+            selected: selectedCouponId === headerDynamicCouponId,
+            onClick: headerDynamicCouponId
+              ? () => onSelectCoupon?.(headerDynamicCouponId)
+              : undefined,
+          }),
         }}
+        onClick={
+          headerDynamicCouponId
+            ? () => onSelectCoupon?.(headerDynamicCouponId)
+            : undefined
+        }
+        onKeyDown={
+          headerDynamicCouponId
+            ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelectCoupon?.(headerDynamicCouponId);
+                }
+              }
+            : undefined
+        }
+        role={headerDynamicCouponId ? "button" : undefined}
+        tabIndex={headerDynamicCouponId ? 0 : undefined}
       >
         {page.headerDynamicEntry ? (
           <CouponBookCardPrint
             entry={page.headerDynamicEntry}
-            textLayoutConfig={textLayoutConfig}
+            textLayoutConfig={layoutForSlot(
+              headerDynamicCouponId ?? null,
+              textLayoutConfig,
+              resolveLayout,
+            )}
           />
         ) : null}
       </div>
 
-      {/* Body grid */}
       {page.bodyEntries.map((entry, index) => {
-        const row = Math.floor(index / 5) + 2; // rows 2..6
+        const row = Math.floor(index / 5) + 2;
         const col = (index % 5) + 1;
+        const couponId = bodyCouponIds?.[index] ?? null;
         return (
           <div
             key={`body-slot-${index}`}
@@ -168,15 +254,33 @@ export default function CouponBookPrintPage({
               padding: "1.2mm",
               borderBottom: row < 6 ? "2px dashed #111" : undefined,
               borderRight: col < 5 ? "2px dashed #111" : undefined,
-              zIndex: 1,
-              minWidth: 0,
-              minHeight: 0,
+              ...slotShellStyle({
+                selected: couponId !== null && selectedCouponId === couponId,
+                onClick: couponId ? () => onSelectCoupon?.(couponId) : undefined,
+              }),
             }}
+            onClick={couponId ? () => onSelectCoupon?.(couponId) : undefined}
+            onKeyDown={
+              couponId
+                ? (event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onSelectCoupon?.(couponId);
+                    }
+                  }
+                : undefined
+            }
+            role={couponId ? "button" : undefined}
+            tabIndex={couponId ? 0 : undefined}
           >
             {entry ? (
               <CouponBookCardPrint
                 entry={entry}
-                textLayoutConfig={textLayoutConfig}
+                textLayoutConfig={layoutForSlot(
+                  couponId,
+                  textLayoutConfig,
+                  resolveLayout,
+                )}
               />
             ) : null}
           </div>
