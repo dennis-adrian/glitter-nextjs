@@ -1,13 +1,14 @@
 import { NextRequest } from "next/server";
-import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import type { Page } from "playwright";
 
-import CouponBookDraftPrintDocument from "@/app/components/festivals/festival_activities/coupon-book-draft-print-document";
 import {
   CouponBookDraft,
   CouponBookExportScope,
 } from "@/app/lib/festival_activites/coupon-book-draft";
+import {
+  createCouponBookPrintSession,
+  deleteCouponBookPrintSession,
+} from "@/app/lib/festival_activites/coupon-book-print-session";
 import {
   cmToInches,
   resolvePdfCanvasConfig,
@@ -88,26 +89,31 @@ export async function generateDraftCouponBookPdf(input: {
     input.draft.globalSettings.pdfCanvas.orientation,
   );
   const pdfCanvas = resolvePdfCanvasConfig(searchParams);
-  const body = renderToStaticMarkup(
-    React.createElement(CouponBookDraftPrintDocument, {
-      draft: input.draft,
-      pdfCanvas,
-      exportScope: input.exportScope,
-    }),
-  );
-  const html = `<!doctype html><html><head><meta charset="utf-8"><base href="${input.request.nextUrl.origin}/"></head><body>${body}</body></html>`;
-
-  return renderCouponBookPdf({
-    request: input.request,
-    pdfCanvas,
-    fileName: `cuponera-${input.activityId}-${input.fileNameSuffix}.pdf`,
-    loadPage: async (page) => {
-      await page.setContent(html, { waitUntil: "networkidle" });
-    },
+  const sessionId = createCouponBookPrintSession({
+    draft: input.draft,
+    exportScope: input.exportScope,
   });
+  const printUrl = new URL(
+    `/couponbook-print/draft/${sessionId}`,
+    input.request.nextUrl.origin,
+  );
+  printUrl.search = searchParams.toString();
+
+  try {
+    return await renderCouponBookPdf({
+      request: input.request,
+      pdfCanvas,
+      fileName: `cuponera-${input.activityId}-${input.fileNameSuffix}.pdf`,
+      loadPage: async (page) => {
+        await page.goto(printUrl.toString(), { waitUntil: "networkidle" });
+      },
+    });
+  } finally {
+    deleteCouponBookPrintSession(sessionId);
+  }
 }
 
-async function renderCouponBookPdf(input: {
+export async function renderCouponBookPdf(input: {
   request: NextRequest;
   pdfCanvas: ReturnType<typeof resolvePdfCanvasConfig>;
   fileName: string;

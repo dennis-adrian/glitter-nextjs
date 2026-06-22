@@ -8,8 +8,8 @@ import {
   sanitizeCouponBookDraft,
 } from "@/app/lib/festival_activites/coupon-book-config-actions";
 import {
-  generateDraftCouponBookPdf,
   generateCouponBookPdf,
+  generateDraftCouponBookPdf,
 } from "@/app/lib/festival_activites/coupon-book-export";
 import { resolvePdfCanvasConfig } from "@/app/lib/festival_activites/coupon-book-print-config";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
