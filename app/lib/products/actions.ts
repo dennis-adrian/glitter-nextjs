@@ -50,6 +50,7 @@ type NewProductData = {
   description?: string | null;
   price: number;
   stock?: number | null;
+  storeCategory?: "merch" | "supplies";
   status?: "available" | "presale" | "sale";
   discount?: number | null;
   discountUnit?: "percentage" | "amount";
@@ -76,6 +77,12 @@ export type LowStockEntry = {
 };
 
 type ProductTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+function revalidateStorefrontPaths() {
+  revalidatePath("/store");
+  revalidatePath("/merch");
+  revalidatePath("/supplies");
+}
 
 function normalizeAvailableDate(
   date: Date | string | null | undefined,
@@ -447,9 +454,35 @@ function relationalOrderBy<T extends SortableRelationFields>(
   return fn;
 }
 
-function buildProductQuery(visibleOnly = false) {
+function buildProductWhere({
+  visibleOnly = false,
+  storeCategory,
+}: {
+  visibleOnly?: boolean;
+  storeCategory?: "merch" | "supplies";
+} = {}) {
+  const conditions = [];
+  if (visibleOnly) {
+    conditions.push(eq(products.isVisible, true));
+  }
+  if (storeCategory) {
+    conditions.push(eq(products.storeCategory, storeCategory));
+  }
+
+  if (conditions.length === 0) return undefined;
+  if (conditions.length === 1) return conditions[0];
+  return and(...conditions);
+}
+
+function buildProductQuery({
+  visibleOnly = false,
+  storeCategory,
+}: {
+  visibleOnly?: boolean;
+  storeCategory?: "merch" | "supplies";
+} = {}) {
   return {
-    where: visibleOnly ? eq(products.isVisible, true) : undefined,
+    where: buildProductWhere({ visibleOnly, storeCategory }),
     with: {
       images: true,
       options: {
@@ -566,7 +599,7 @@ export async function createProduct(data: NewProductData) {
   if (createdSlug) {
     revalidatePath(`/store/products/${createdSlug}`);
   }
-  revalidatePath("/store");
+  revalidateStorefrontPaths();
   return {
     success: true,
     message: "Producto creado correctamente.",
@@ -663,7 +696,7 @@ export async function updateProduct(id: number, data: NewProductData) {
   if (nextSlug && nextSlug !== previousSlug) {
     revalidatePath(`/store/products/${nextSlug}`);
   }
-  revalidatePath("/store");
+  revalidateStorefrontPaths();
   return { success: true, message: "Producto actualizado correctamente." };
 }
 
@@ -694,7 +727,7 @@ export async function deleteProduct(id: number) {
   if (deletedSlug) {
     revalidatePath(`/store/products/${deletedSlug}`);
   }
-  revalidatePath("/store");
+  revalidateStorefrontPaths();
   return { success: true, message: "Producto eliminado correctamente." };
 }
 
@@ -707,13 +740,16 @@ export async function deleteProduct(id: number) {
 
 export async function fetchProducts(
   sort: "default" | "updatedAt" = "default",
-  options: { visibleOnly?: boolean } = {},
+  options: {
+    visibleOnly?: boolean;
+    storeCategory?: "merch" | "supplies";
+  } = {},
 ) {
-  const { visibleOnly = false } = options;
+  const { visibleOnly = false, storeCategory } = options;
 
   try {
     const rows = await db.query.products.findMany({
-      ...buildProductQuery(visibleOnly),
+      ...buildProductQuery({ visibleOnly, storeCategory }),
       orderBy:
         sort === "updatedAt"
           ? [desc(products.updatedAt)]
@@ -742,7 +778,7 @@ export async function fetchProducts(
 export async function fetchProduct(id: number) {
   try {
     return await db.query.products.findFirst({
-      ...buildProductQuery(false),
+      ...buildProductQuery(),
       where: eq(products.id, id),
     });
   } catch (error) {
@@ -759,7 +795,7 @@ export async function fetchProductBySlug(
 
   try {
     return await db.query.products.findFirst({
-      ...buildProductQuery(visibleOnly),
+      ...buildProductQuery({ visibleOnly }),
       where: visibleOnly
         ? and(eq(products.slug, slug), eq(products.isVisible, true))
         : eq(products.slug, slug),
@@ -800,7 +836,7 @@ export async function toggleProductVisibility(
   }
 
   revalidatePath("/dashboard/store/products");
-  revalidatePath("/store");
+  revalidateStorefrontPaths();
   return {
     success: true,
     message: isVisible ? "Producto visible." : "Producto oculto.",
@@ -857,7 +893,7 @@ export async function updateProductStock(
     revalidatePath(`/store/products/${updated.slug}`);
     revalidatePath("/dashboard/store/products");
     revalidatePath("/dashboard/store/analytics");
-    revalidatePath("/store");
+    revalidateStorefrontPaths();
     return { success: true, message: "Stock actualizado." };
   } catch (error) {
     console.error(error);
@@ -915,7 +951,7 @@ export async function bulkToggleProductVisibility(
   }
 
   revalidatePath("/dashboard/store/products");
-  revalidatePath("/store");
+  revalidateStorefrontPaths();
   for (const slug of slugs) {
     revalidatePath(`/store/products/${slug}`);
   }
@@ -963,7 +999,7 @@ export async function bulkDeleteProducts(
   for (const slug of deletedSlugs) {
     revalidatePath(`/store/products/${slug}`);
   }
-  revalidatePath("/store");
+  revalidateStorefrontPaths();
   return { success: true, message: `${deletedCount} productos eliminados.` };
 }
 
@@ -972,7 +1008,7 @@ export async function fetchLowStockProducts(
 ): Promise<LowStockEntry[]> {
   try {
     const allProducts = await db.query.products.findMany({
-      ...buildProductQuery(false),
+      ...buildProductQuery(),
       orderBy: [asc(products.name)],
     });
 
@@ -1017,7 +1053,7 @@ export async function fetchLowStockProducts(
 export async function fetchFeaturedProducts() {
   try {
     return await db.query.products.findMany({
-      ...buildProductQuery(true),
+      ...buildProductQuery({ visibleOnly: true }),
       where: and(eq(products.isFeatured, true), eq(products.isVisible, true)),
       orderBy: [desc(products.createdAt)],
     });

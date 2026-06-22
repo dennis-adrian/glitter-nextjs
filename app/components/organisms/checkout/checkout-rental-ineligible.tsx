@@ -20,7 +20,7 @@ export default function CheckoutRentalIneligible({
       <h1 className="text-xl font-semibold">No podés completar el checkout</h1>
       <p className="text-muted-foreground">{message}</p>
       <div className="flex flex-col sm:flex-row gap-2 justify-center">
-        <Button variant="outline" onClick={() => router.push("/store")}>
+        <Button variant="outline" onClick={() => router.push("/merch")}>
           Volver a la tienda
         </Button>
         <Button onClick={() => openCart()}>

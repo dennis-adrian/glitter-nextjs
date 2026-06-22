@@ -457,6 +457,8 @@ export async function addToCart(
     }
 
     revalidatePath("/store");
+    revalidatePath("/merch");
+    revalidatePath("/supplies");
     const newCount = await fetchCartItemCount();
     return { success: true, newCount };
   } catch (error) {
@@ -525,6 +527,8 @@ export async function updateCartItemQuantity(
     }
 
     revalidatePath("/store");
+    revalidatePath("/merch");
+    revalidatePath("/supplies");
     return { success: true };
   } catch (error) {
     console.error(error);
@@ -549,6 +553,8 @@ export async function removeFromCart(
       .where(and(eq(cartItems.cartId, cart.id), eq(cartItems.id, cartItemId)));
 
     revalidatePath("/store");
+    revalidatePath("/merch");
+    revalidatePath("/supplies");
     return { success: true };
   } catch (error) {
     console.error(error);
@@ -574,6 +580,8 @@ export async function clearCart(): Promise<{
 
     await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));
     revalidatePath("/store");
+    revalidatePath("/merch");
+    revalidatePath("/supplies");
     return { success: true };
   } catch (error) {
     console.error(error);
@@ -760,6 +768,8 @@ export async function checkoutCart(input?: {
     }
 
     revalidatePath("/store", "layout");
+    revalidatePath("/merch", "layout");
+    revalidatePath("/supplies", "layout");
     return {
       success: true,
       message: "Orden creada correctamente.",

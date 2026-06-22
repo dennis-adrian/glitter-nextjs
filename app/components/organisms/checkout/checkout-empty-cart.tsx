@@ -10,7 +10,7 @@ export function CheckoutEmptyCart() {
       <p className="text-muted-foreground text-sm">
         Agregá productos a tu carrito para continuar con la compra.
       </p>
-      <RedirectButton href="/store" className="mt-4">
+      <RedirectButton href="/merch" className="mt-4">
         Ir a la tienda
       </RedirectButton>
     </div>

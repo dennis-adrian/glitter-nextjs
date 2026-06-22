@@ -31,6 +31,7 @@ const NavbarNavigationMenu = ({
   profile?: NavbarProfile | null;
 }) => {
   const pathname = usePathname();
+  const canViewSupplies = profile?.status === "verified";
 
   if (isNoNavigationPage(pathname)) {
     return null;
@@ -59,16 +60,40 @@ const NavbarNavigationMenu = ({
             </Link>
           </NavigationMenuLink>
         </NavigationMenuItem>
-        <NavigationMenuItem>
-          <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
-            <Link href="/store">
+        {canViewSupplies ? (
+          <NavigationMenuItem>
+            <NavigationMenuTrigger>
               <div className="flex items-center">
                 <StoreIcon className="w-4 h-4 mr-1" />
                 Tiendita
               </div>
-            </Link>
-          </NavigationMenuLink>
-        </NavigationMenuItem>
+            </NavigationMenuTrigger>
+            <NavigationMenuContent>
+              <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2">
+                <NavigationMenuListItem title="Merch" href="/merch">
+                  Mercha oficial de nuestros festivales
+                </NavigationMenuListItem>
+                <NavigationMenuListItem title="Insumos" href="/supplies">
+                  Productos útiles para mejorar la presentación de tu stand
+                </NavigationMenuListItem>
+              </ul>
+            </NavigationMenuContent>
+          </NavigationMenuItem>
+        ) : (
+          <NavigationMenuItem>
+            <NavigationMenuLink
+              asChild
+              className={navigationMenuTriggerStyle()}
+            >
+              <Link href="/merch">
+                <div className="flex items-center">
+                  <StoreIcon className="w-4 h-4 mr-1" />
+                  Tiendita
+                </div>
+              </Link>
+            </NavigationMenuLink>
+          </NavigationMenuItem>
+        )}
         <NavigationMenuItem>
           <NavigationMenuTrigger>
             <div className="flex items-center">

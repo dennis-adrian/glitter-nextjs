@@ -45,7 +45,7 @@ export default function QuickActions({ profile }: Props) {
           {
             icon: ShoppingBagIcon,
             label: "Tienda",
-            href: "/store",
+            href: "/merch",
             color: "bg-green-100 text-green-600 group-hover:bg-green-200",
           },
         ]
