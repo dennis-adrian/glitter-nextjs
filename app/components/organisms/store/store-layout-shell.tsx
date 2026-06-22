@@ -2,7 +2,6 @@ import { connection } from "next/server";
 
 import CartSheet from "@/app/components/organisms/cart/cart-sheet";
 import { CartProvider } from "@/app/components/providers/cart-provider";
-import { StoreCategoryProvider } from "@/app/components/providers/store-category-provider";
 import FestivalHappeningNotice from "@/app/components/organisms/store/festival-happening-notice";
 import StoreSubheader from "@/app/components/organisms/store/store-subheader";
 import { fetchCartItemCount } from "@/app/lib/cart/actions";
@@ -31,15 +30,10 @@ export default async function StoreLayoutShell({
   const initialItemCount = user ? await fetchCartItemCount() : 0;
 
   return (
-    <StoreCategoryProvider>
-      <CartProvider
-        initialItemCount={initialItemCount}
-        isAuthenticated={!!user}
-      >
-        <StoreSubheader />
-        <CartSheet />
-        {children}
-      </CartProvider>
-    </StoreCategoryProvider>
+    <CartProvider initialItemCount={initialItemCount} isAuthenticated={!!user}>
+      <StoreSubheader />
+      <CartSheet />
+      {children}
+    </CartProvider>
   );
 }

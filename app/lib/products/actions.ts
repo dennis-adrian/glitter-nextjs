@@ -777,9 +777,12 @@ export async function fetchProducts(
 
 export async function fetchProduct(id: number) {
   try {
+    const query = buildProductQuery();
     return await db.query.products.findFirst({
-      ...buildProductQuery(),
-      where: eq(products.id, id),
+      ...query,
+      where: query.where
+        ? and(query.where, eq(products.id, id))
+        : eq(products.id, id),
     });
   } catch (error) {
     console.error(error);
@@ -794,10 +797,11 @@ export async function fetchProductBySlug(
   const { visibleOnly = false } = options;
 
   try {
+    const query = buildProductQuery({ visibleOnly });
     return await db.query.products.findFirst({
-      ...buildProductQuery({ visibleOnly }),
-      where: visibleOnly
-        ? and(eq(products.slug, slug), eq(products.isVisible, true))
+      ...query,
+      where: query.where
+        ? and(query.where, eq(products.slug, slug))
         : eq(products.slug, slug),
     });
   } catch (error) {
@@ -1052,9 +1056,12 @@ export async function fetchLowStockProducts(
 
 export async function fetchFeaturedProducts() {
   try {
+    const query = buildProductQuery({ visibleOnly: true });
     return await db.query.products.findMany({
-      ...buildProductQuery({ visibleOnly: true }),
-      where: and(eq(products.isFeatured, true), eq(products.isVisible, true)),
+      ...query,
+      where: query.where
+        ? and(query.where, eq(products.isFeatured, true))
+        : eq(products.isFeatured, true),
       orderBy: [desc(products.createdAt)],
     });
   } catch (error) {

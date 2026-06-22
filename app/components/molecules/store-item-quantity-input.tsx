@@ -21,7 +21,10 @@ import {
 import { addToCart, fetchCartWithItems } from "@/app/lib/cart/actions";
 import { buildCartLineKey } from "@/app/lib/cart/utils";
 import { MAX_CART_LINE_QUANTITY } from "@/app/lib/constants";
-import { getProductPriceAtPurchase, getRentalPriceAtPurchase } from "@/app/lib/orders/utils";
+import {
+  getProductPriceAtPurchase,
+  getRentalPriceAtPurchase,
+} from "@/app/lib/orders/utils";
 import {
   BaseProductWithImages,
   ProductOptionWithValues,
@@ -32,6 +35,7 @@ import type {
   ProductTransactionType,
   RentalEligibilityContext,
 } from "@/app/lib/rentals/types";
+import { rentalContextIncludesReservation } from "@/app/lib/rentals/rental-context";
 import {
   getAvailableStockForTransaction,
   getTransactionPoolRemainingStock,
@@ -218,13 +222,7 @@ export default function StoreItemQuantityInput({
         productVariantId: variantId,
       },
     );
-  }, [
-    cartItems,
-    isAuthenticated,
-    product,
-    selectedVariant,
-    transactionType,
-  ]);
+  }, [cartItems, isAuthenticated, product, selectedVariant, transactionType]);
 
   const maxQuantity = Math.max(
     1,
@@ -242,9 +240,10 @@ export default function StoreItemQuantityInput({
     selectedVariant?.id ?? null,
   );
   const selectedRentalContext =
-    rentalContexts.find(
-      (context) => context.reservationId === selectedReservationId,
-    ) ?? rentalContexts[0] ??
+    rentalContexts.find((context) =>
+      rentalContextIncludesReservation(context, selectedReservationId),
+    ) ??
+    rentalContexts[0] ??
     null;
 
   useEffect(() => {
@@ -299,7 +298,7 @@ export default function StoreItemQuantityInput({
     try {
       if (transactionType === "rental") {
         if (!selectedRentalContext) {
-          toast.error("Selecciona un festival/reserva para alquilar.");
+          toast.error("Selecciona un festival para alquilar.");
           return;
         }
 

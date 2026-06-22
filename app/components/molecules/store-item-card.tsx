@@ -59,8 +59,7 @@ export default function StoreItemCard({
   const isPresale = product.status === "presale";
   const showRentalBadge = product.isRentable && rentalEligible && rentalInStock;
   const isRentalOnly = rentalInStock && !purchaseInStock;
-  const needsRentalContextPicker =
-    isRentalOnly && rentalContexts.length > 1;
+  const needsRentalContextPicker = isRentalOnly && rentalContexts.length > 1;
   const shouldOpenModal = shouldUseQuickAddModal || needsRentalContextPicker;
 
   const effectivePrices = isRentalOnly
@@ -151,7 +150,7 @@ export default function StoreItemCard({
       if (rentalInStock) {
         const [rentalContext] = rentalContexts;
         if (!rentalContext) {
-          toast.error("Selecciona un festival/reserva para alquilar.");
+          toast.error("Selecciona un festival para alquilar.");
           return;
         }
 
@@ -278,7 +277,7 @@ export default function StoreItemCard({
               <DialogDescription>
                 {shouldUseQuickAddModal
                   ? "Selecciona una variante para agregarla al carrito."
-                  : "Selecciona el festival/reserva para alquilar."}
+                  : "Selecciona el festival para alquilar."}
               </DialogDescription>
             </DialogHeader>
             <StoreItemQuantityInput

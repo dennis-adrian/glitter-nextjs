@@ -45,7 +45,7 @@ Without this, admins have to track rentals manually, which makes stock unreliabl
 
 ## 5) Users & Roles
 
-- Verified active festival participant: can select rent vs buy for eligible products, choose an eligible active festival/reservation when needed, review rental-relevant product sections, and place rental orders while they have an accepted reservation in the selected active festival.
+- Verified active festival participant: can select rent vs buy for eligible products, choose an eligible active festival when needed, review rental-relevant product sections, and place rental orders while they have at least one accepted reservation in the selected active festival.
 - Customer / guest customer: can purchase eligible products through the existing sale flow, but cannot rent products.
 - Admin / store admin: can configure rental availability, product content sections, review rental orders, mark items as returned, and read return logs.
 - System: validates stock, decreases stock on rental checkout, restores stock on returns, and records audit metadata.
@@ -54,26 +54,26 @@ Without this, admins have to track rentals manually, which makes stock unreliabl
 
 ### Customer
 
-| ID | Story | Acceptance Criteria |
-| --- | --- | --- |
-| US-01 | As a customer, I can see whether a product is available to buy, rent, or both when I am eligible for those modes. | Product cards/details show rental indicators/options only when the product is rentable and the viewer is eligible to rent. |
-| US-02 | As a verified active festival participant, I can choose "Rent" for a rentable product before adding it to my cart. | Cart line records the selected mode and keeps rent/buy lines separate. |
-| US-03 | As a customer, I can read product-specific detail sections before checkout. | Configured sections appear on the product detail page; rental-relevant sections also appear in cart/checkout summary and order confirmation for rental lines. |
-| US-04 | As a verified active festival participant, I can complete checkout with a mix of purchased and rented products. | Order creation validates eligibility and stock across all lines and creates order items with their selected mode. |
-| US-05 | As a customer, I can see which items in my order are rented and whether they have been returned. | Order detail labels rental items and shows return status/quantity. |
-| US-06 | As a guest, unverified user, or user without active participation, I do not see rental options. | Rental indicators/options are not rendered for ineligible users, and server actions reject rental attempts. |
+| ID    | Story                                                                                                              | Acceptance Criteria                                                                                                                                           |
+| ----- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| US-01 | As a customer, I can see whether a product is available to buy, rent, or both when I am eligible for those modes.  | Product cards/details show rental indicators/options only when the product is rentable and the viewer is eligible to rent.                                    |
+| US-02 | As a verified active festival participant, I can choose "Rent" for a rentable product before adding it to my cart. | Cart line records the selected mode and keeps rent/buy lines separate.                                                                                        |
+| US-03 | As a customer, I can read product-specific detail sections before checkout.                                        | Configured sections appear on the product detail page; rental-relevant sections also appear in cart/checkout summary and order confirmation for rental lines. |
+| US-04 | As a verified active festival participant, I can complete checkout with a mix of purchased and rented products.    | Order creation validates eligibility and stock across all lines and creates order items with their selected mode.                                             |
+| US-05 | As a customer, I can see which items in my order are rented and whether they have been returned.                   | Order detail labels rental items and shows return status/quantity.                                                                                            |
+| US-06 | As a guest, unverified user, or user without active participation, I do not see rental options.                    | Rental indicators/options are not rendered for ineligible users, and server actions reject rental attempts.                                                   |
 
 ### Admin
 
-| ID | Story | Acceptance Criteria |
-| --- | --- | --- |
-| US-07 | As an admin, I can configure whether a product can be bought, rented, or both. | Product create/edit supports rental availability without breaking existing products. |
-| US-08 | As an admin, I can choose whether rental stock is shared with sales or tracked separately. | Product create/edit exposes stock mode and rental stock fields when applicable. |
-| US-09 | As an admin, I can add configurable detail sections per product. | Product sections are editable in product admin, support free text or bullet lists, and can be shown for all purchases or rental-only contexts. |
-| US-10 | As an admin, I can mark a rented order item as returned. | Admin can return all or part of the outstanding rental quantity. Stock increases by the returned quantity in the correct stock pool. |
-| US-11 | As an admin, I can document the condition of returned items. | Return action requires or strongly prompts for condition notes and supports optional issue flags. |
-| US-12 | As an admin, I can review return history for an order item. | Return logs show date, admin, quantity, condition/status, notes, and stock impact. |
-| US-13 | As an admin, I cannot accidentally restore stock twice for the same rented units. | System tracks returned quantity and blocks returns above the outstanding rented quantity. |
+| ID    | Story                                                                                      | Acceptance Criteria                                                                                                                            |
+| ----- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| US-07 | As an admin, I can configure whether a product can be bought, rented, or both.             | Product create/edit supports rental availability without breaking existing products.                                                           |
+| US-08 | As an admin, I can choose whether rental stock is shared with sales or tracked separately. | Product create/edit exposes stock mode and rental stock fields when applicable.                                                                |
+| US-09 | As an admin, I can add configurable detail sections per product.                           | Product sections are editable in product admin, support free text or bullet lists, and can be shown for all purchases or rental-only contexts. |
+| US-10 | As an admin, I can mark a rented order item as returned.                                   | Admin can return all or part of the outstanding rental quantity. Stock increases by the returned quantity in the correct stock pool.           |
+| US-11 | As an admin, I can document the condition of returned items.                               | Return action requires or strongly prompts for condition notes and supports optional issue flags.                                              |
+| US-12 | As an admin, I can review return history for an order item.                                | Return logs show date, admin, quantity, condition/status, notes, and stock impact.                                                             |
+| US-13 | As an admin, I cannot accidentally restore stock twice for the same rented units.          | System tracks returned quantity and blocks returns above the outstanding rented quantity.                                                      |
 
 ## 7) Functional Requirements
 
@@ -158,10 +158,11 @@ Rules:
 - UI checks prevent ineligible users from seeing rental options; server actions remain the source of truth.
 - A user who becomes ineligible after adding a rental line cannot checkout until rental lines are removed or eligibility is restored.
 - Purchase lines remain available to guests/unverified users according to the existing store rules.
-- If the user has exactly one eligible active-festival reservation, the system may auto-select it as the rental context.
-- If the user has more than one eligible active-festival reservation, the user must choose which festival/reservation they are renting for before adding rental lines or before checkout.
-- The selected rental context must be consistent for all rental lines in the same order in v1. Mixing rental lines for multiple festivals in one checkout is out of scope.
-- If the selected festival/reservation becomes inactive or no longer accepted before checkout, checkout blocks rental lines until the user chooses a valid rental context or removes rental lines.
+- If the user has accepted reservations in exactly one eligible active festival, the system may auto-select that festival as the rental context.
+- If the user has accepted reservations across more than one eligible active festival, the user must choose which festival they are renting for before adding rental lines or before checkout.
+- Multiple accepted reservations in the same active festival are one festival participation for rental eligibility. The eligibility response should collapse them into one festival context and may include all underlying stand/reservation details for display and validation.
+- The selected rental context must be consistent by festival for all rental lines in the same order in v1. Mixing rental lines for multiple festivals in one checkout is out of scope.
+- If the selected festival becomes inactive or the user loses all accepted reservations in that festival before checkout, checkout blocks rental lines until the user chooses a valid rental context or removes rental lines.
 
 ### 7.4 Product Discovery & Detail UX
 
@@ -319,17 +320,17 @@ Source of truth:
 
 Admin "Current Rentals" view:
 
-| Column | Source |
-| --- | --- |
-| Product | `order_items.productId -> products.name` |
-| Variant | `order_items.productVariantId` + `productVariantLabel` |
-| Quantity out | `order_items.quantity - order_items.rentalReturnedQuantity` |
-| Rented to | `orders.userId -> users` or guest fields if ever allowed by admin override |
-| Order | `orders.id` |
-| Festival | `order_items.rentalFestivalId -> festivals` |
-| Reservation / stand | `order_items.rentalReservationId -> stand_reservations -> stands` |
-| Rented at | `order_items.createdAt` |
-| Return status | derived from returned vs ordered quantity |
+| Column              | Source                                                                     |
+| ------------------- | -------------------------------------------------------------------------- |
+| Product             | `order_items.productId -> products.name`                                   |
+| Variant             | `order_items.productVariantId` + `productVariantLabel`                     |
+| Quantity out        | `order_items.quantity - order_items.rentalReturnedQuantity`                |
+| Rented to           | `orders.userId -> users` or guest fields if ever allowed by admin override |
+| Order               | `orders.id`                                                                |
+| Festival            | `order_items.rentalFestivalId -> festivals`                                |
+| Reservation / stand | `order_items.rentalReservationId -> stand_reservations -> stands`          |
+| Rented at           | `order_items.createdAt`                                                    |
+| Return status       | derived from returned vs ordered quantity                                  |
 
 Product-level summary:
 
@@ -350,43 +351,47 @@ Rules:
 ### 8.1 Enums
 
 ```ts
-product_transaction_type: "purchase" | "rental"
-product_rental_stock_mode: "shared" | "separate"
-product_content_section_format: "free_text" | "bullet_list"
-product_content_section_display_context: "all" | "purchase" | "rental"
-rental_return_condition: "good" | "damaged" | "missing_parts" | "lost" | "other"
+product_transaction_type: "purchase" | "rental";
+product_rental_stock_mode: "shared" | "separate";
+product_content_section_format: "free_text" | "bullet_list";
+product_content_section_display_context: "all" | "purchase" | "rental";
+rental_return_condition: "good" |
+  "damaged" |
+  "missing_parts" |
+  "lost" |
+  "other";
 ```
 
 ### 8.2 Products
 
 Add columns to `products`:
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `is_purchasable` | boolean not null default true | Backwards compatible with current behavior. |
-| `is_rentable` | boolean not null default false | Enables rental mode. |
-| `rental_price` | numeric/real nullable | Required by validation when rentable. |
-| `rental_stock_mode` | enum not null default `shared` | `shared` uses existing stock; `separate` uses rental stock. |
-| `rental_stock` | integer nullable | Required when product is rentable, has no variants, and uses separate rental stock. |
+| Field               | Type                           | Notes                                                                               |
+| ------------------- | ------------------------------ | ----------------------------------------------------------------------------------- |
+| `is_purchasable`    | boolean not null default true  | Backwards compatible with current behavior.                                         |
+| `is_rentable`       | boolean not null default false | Enables rental mode.                                                                |
+| `rental_price`      | numeric/real nullable          | Required by validation when rentable.                                               |
+| `rental_stock_mode` | enum not null default `shared` | `shared` uses existing stock; `separate` uses rental stock.                         |
+| `rental_stock`      | integer nullable               | Required when product is rentable, has no variants, and uses separate rental stock. |
 
 ### 8.3 Product Content Sections
 
 Create `product_content_sections`:
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `id` | serial PK | |
-| `product_id` | FK -> `products.id` | Cascade delete with product. |
+| Field                | Type                                 | Notes                                                                   |
+| -------------------- | ------------------------------------ | ----------------------------------------------------------------------- |
+| `id`                 | serial PK                            |                                                                         |
+| `product_id`         | FK -> `products.id`                  | Cascade delete with product.                                            |
 | `product_variant_id` | FK -> `product_variants.id` nullable | Null means product-level section; non-null means variant-level section. |
-| `title` | text not null | Section heading, e.g. `Warranty`, `Use instructions`, `Rental process`. |
-| `format` | enum not null | `free_text` or `bullet_list`. |
-| `body` | text nullable | Required when `format = free_text`. |
-| `items` | jsonb nullable | Ordered string array; required when `format = bullet_list`. |
-| `display_context` | enum not null default `all` | `all`, `purchase`, or `rental`. |
-| `is_visible` | boolean not null default true | Allows hiding without deletion. |
-| `sort_order` | integer not null default 0 | Controls display order. |
-| `created_at` | timestamp not null default now | |
-| `updated_at` | timestamp not null default now | |
+| `title`              | text not null                        | Section heading, e.g. `Warranty`, `Use instructions`, `Rental process`. |
+| `format`             | enum not null                        | `free_text` or `bullet_list`.                                           |
+| `body`               | text nullable                        | Required when `format = free_text`.                                     |
+| `items`              | jsonb nullable                       | Ordered string array; required when `format = bullet_list`.             |
+| `display_context`    | enum not null default `all`          | `all`, `purchase`, or `rental`.                                         |
+| `is_visible`         | boolean not null default true        | Allows hiding without deletion.                                         |
+| `sort_order`         | integer not null default 0           | Controls display order.                                                 |
+| `created_at`         | timestamp not null default now       |                                                                         |
+| `updated_at`         | timestamp not null default now       |                                                                         |
 
 Indexes:
 
@@ -400,16 +405,16 @@ Indexes:
 
 Add column to `product_variants`:
 
-| Field | Type | Notes |
-| --- | --- | --- |
+| Field          | Type             | Notes                                                                    |
+| -------------- | ---------------- | ------------------------------------------------------------------------ |
 | `rental_stock` | integer nullable | Required when parent product is rentable and uses separate rental stock. |
 
 ### 8.5 Cart Items
 
 Add column to `cart_items`:
 
-| Field | Type | Notes |
-| --- | --- | --- |
+| Field              | Type                             | Notes                             |
+| ------------------ | -------------------------------- | --------------------------------- |
 | `transaction_type` | enum not null default `purchase` | Included in cart line uniqueness. |
 
 Update uniqueness:
@@ -421,14 +426,14 @@ Update uniqueness:
 
 Add columns to `order_items`:
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `transaction_type` | enum not null default `purchase` | Determines purchase vs rental behavior. |
-| `rental_content_sections_snapshot` | jsonb nullable | Ordered snapshot of visible `all` + `rental` product-level and selected variant-level content sections at checkout. |
-| `rental_stock_mode_snapshot` | enum nullable | Copied from product at checkout for rental stock restoration. |
-| `rental_festival_id` | FK -> `festivals.id` nullable | Required for rental order items. |
-| `rental_reservation_id` | FK -> `stand_reservations.id` nullable | Required for rental order items. |
-| `rental_returned_quantity` | integer not null default 0 | Must stay between 0 and `quantity`. |
+| Field                              | Type                                   | Notes                                                                                                               |
+| ---------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `transaction_type`                 | enum not null default `purchase`       | Determines purchase vs rental behavior.                                                                             |
+| `rental_content_sections_snapshot` | jsonb nullable                         | Ordered snapshot of visible `all` + `rental` product-level and selected variant-level content sections at checkout. |
+| `rental_stock_mode_snapshot`       | enum nullable                          | Copied from product at checkout for rental stock restoration.                                                       |
+| `rental_festival_id`               | FK -> `festivals.id` nullable          | Required for rental order items.                                                                                    |
+| `rental_reservation_id`            | FK -> `stand_reservations.id` nullable | Required for rental order items.                                                                                    |
+| `rental_returned_quantity`         | integer not null default 0             | Must stay between 0 and `quantity`.                                                                                 |
 
 Derived status:
 
@@ -441,20 +446,20 @@ Derived status:
 
 Create `rental_return_logs`:
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `id` | serial PK | |
-| `order_item_id` | FK -> `order_items.id` | Restrict/cascade based on existing order-item deletion policy. |
-| `order_id` | FK -> `orders.id` | Denormalized for easier querying. |
-| `product_id` | FK -> `products.id` | Snapshot relation. |
-| `product_variant_id` | FK -> `product_variants.id` nullable | Snapshot relation. |
-| `quantity_returned` | integer not null | Check `> 0`. |
-| `condition_status` | enum not null | |
-| `notes` | text nullable | Required in app validation for non-good conditions. |
-| `stock_restored` | integer not null | Usually equals `quantity_returned`; explicit for audit clarity. |
-| `stock_pool` | text/enum not null | `shared` or `rental`; copied from the order item snapshot. |
-| `processed_by_user_id` | FK -> `users.id` | Admin who processed return. |
-| `created_at` | timestamp not null default now | |
+| Field                  | Type                                 | Notes                                                           |
+| ---------------------- | ------------------------------------ | --------------------------------------------------------------- |
+| `id`                   | serial PK                            |                                                                 |
+| `order_item_id`        | FK -> `order_items.id`               | Restrict/cascade based on existing order-item deletion policy.  |
+| `order_id`             | FK -> `orders.id`                    | Denormalized for easier querying.                               |
+| `product_id`           | FK -> `products.id`                  | Snapshot relation.                                              |
+| `product_variant_id`   | FK -> `product_variants.id` nullable | Snapshot relation.                                              |
+| `quantity_returned`    | integer not null                     | Check `> 0`.                                                    |
+| `condition_status`     | enum not null                        |                                                                 |
+| `notes`                | text nullable                        | Required in app validation for non-good conditions.             |
+| `stock_restored`       | integer not null                     | Usually equals `quantity_returned`; explicit for audit clarity. |
+| `stock_pool`           | text/enum not null                   | `shared` or `rental`; copied from the order item snapshot.      |
+| `processed_by_user_id` | FK -> `users.id`                     | Admin who processed return.                                     |
+| `created_at`           | timestamp not null default now       |                                                                 |
 
 Indexes:
 
@@ -481,17 +486,17 @@ Product configured as rentable
 
 ### 9.2 Stock Restoration Rules
 
-| Event | Stock Impact |
-| --- | --- |
-| Purchase order created | Decrease by quantity. |
-| Rental order created with shared stock | Decrease existing product/variant `stock` by quantity. |
-| Rental order created with separate stock | Decrease product/variant `rentalStock` by quantity. |
-| Purchase order cancelled | Increase by quantity according to existing rules. |
-| Rental order cancelled before return | Increase outstanding quantity in the rental order item's original stock pool. |
-| Rental item partially returned | Increase the order item's stock pool by `stockRestored`; increase `rentalReturnedQuantity` by `quantityReturned`. |
-| Rental item fully returned | Same as partial return; item becomes fully returned when `rentalReturnedQuantity` reaches `quantity`. |
-| Non-good return (`damaged`, `lost`, etc.) with `stockRestored = 0` | No stock change; return log and `rentalReturnedQuantity` still update. |
-| Attempted duplicate return | Blocked; no stock change. |
+| Event                                                              | Stock Impact                                                                                                      |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Purchase order created                                             | Decrease by quantity.                                                                                             |
+| Rental order created with shared stock                             | Decrease existing product/variant `stock` by quantity.                                                            |
+| Rental order created with separate stock                           | Decrease product/variant `rentalStock` by quantity.                                                               |
+| Purchase order cancelled                                           | Increase by quantity according to existing rules.                                                                 |
+| Rental order cancelled before return                               | Increase outstanding quantity in the rental order item's original stock pool.                                     |
+| Rental item partially returned                                     | Increase the order item's stock pool by `stockRestored`; increase `rentalReturnedQuantity` by `quantityReturned`. |
+| Rental item fully returned                                         | Same as partial return; item becomes fully returned when `rentalReturnedQuantity` reaches `quantity`.             |
+| Non-good return (`damaged`, `lost`, etc.) with `stockRestored = 0` | No stock change; return log and `rentalReturnedQuantity` still update.                                            |
+| Attempted duplicate return                                         | Blocked; no stock change.                                                                                         |
 
 ### 9.3 Concurrency
 
@@ -509,7 +514,7 @@ Suggested server actions:
 - `deleteProductContentSection(sectionId)`
 - `addToCart(productId, quantity, productVariantId, transactionType)`
 - `updateCartItemQuantity(cartItemId, quantity)` with combined stock validation by product/variant across transaction types.
-- `getRentalEligibilityForCurrentUser()` returning eligible festival/reservation contexts.
+- `getRentalEligibilityForCurrentUser()` returning eligible festival contexts with underlying reservation/stand details.
 - `assertRentalEligibility(userId, rentalFestivalId, rentalReservationId)`
 - `markRentalOrderItemReturned(orderItemId, payload)`
 - `fetchRentalReturnLogs(orderItemId | orderId)`
@@ -524,10 +529,17 @@ type RentalEligibilityResult =
       contexts: Array<{
         festivalId: number;
         festivalName: string;
-        reservationId: number;
-        standId: number;
+        reservationId: number; // representative reservation for current DB constraints
+        standId: number; // representative stand for current DB constraints
         standLabel: string | null;
         standNumber: number;
+        reservationIds: number[];
+        stands: Array<{
+          reservationId: number;
+          standId: number;
+          standLabel: string | null;
+          standNumber: number;
+        }>;
       }>;
     }
   | {
@@ -564,7 +576,7 @@ type MarkRentalReturnResult =
 
 - Rental mode selection must be explicit when both modes are available.
 - Rental CTAs and rental card indicators are only rendered for eligible verified active participants.
-- When more than one active festival/reservation is eligible, the user must select the rental festival before adding or checking out rental lines.
+- When more than one active festival is eligible, the user must select the rental festival before adding or checking out rental lines.
 - Ineligible users should not see rental options on product cards or product pages.
 - If an ineligible user reaches a rental action through stale UI, direct URL, localStorage tampering, or a crafted request, the server must reject it.
 - Rental lines must be visually distinguishable from purchase lines in cart, checkout, order details, and admin order views.
@@ -585,7 +597,7 @@ type MarkRentalReturnResult =
 6. Product cards do not render rental indicators for ineligible users.
 7. Product detail pages do not render rental mode controls or rental CTAs for ineligible users.
 8. Server actions reject rental lines for ineligible users even if a rental request is crafted manually.
-9. Verified user with multiple accepted reservations across active festivals must select which festival/reservation the rental is for.
+9. Verified user with accepted reservations across multiple active festivals must select which festival the rental is for; multiple reservations in the same active festival are treated as one participation.
 10. Rental order items snapshot the selected `rental_festival_id` and `rental_reservation_id`.
 11. Customer can add the same product/variant as both purchase and rental lines, and the lines remain separate.
 12. Shared-stock products validate combined purchase/rental quantity against existing stock.
@@ -595,7 +607,7 @@ type MarkRentalReturnResult =
 16. Product content sections support both free text and bullet list formats.
 17. Product content sections can be shown for all modes, purchase only, or rental only.
 18. Product-level sections show for the whole listing; variant-level sections show only when the matching variant is selected.
-19. Order item stores `transaction_type = rental`, rental unit price, rental stock mode snapshot, rental festival/reservation context, and rental-visible product/variant content section snapshot.
+19. Order item stores `transaction_type = rental`, rental unit price, rental stock mode snapshot, rental festival plus representative reservation/stand context, and rental-visible product/variant content section snapshot.
 20. Admin can return a partial rental quantity; `rentalReturnedQuantity` increases by the returned quantity and stock increases in the correct pool by the admin-specified `stockRestored` (default: returned quantity when condition is `good`, otherwise `0`).
 21. Admin can return the remaining rental quantity later and the item becomes fully returned, with the same `stockRestored` rules.
 22. Admin cannot return more than the outstanding quantity.
@@ -616,8 +628,9 @@ type MarkRentalReturnResult =
 - Product changes from shared to separate stock after checkout: order item stock mode snapshot determines where returns are restored.
 - Guest checkout: rental lines are not allowed; guest purchase lines continue through the existing guest checkout flow.
 - User had an accepted reservation when adding to cart but loses it before checkout: checkout blocks rental lines.
-- User has multiple active-festival reservations: user must choose one rental context; v1 checkout does not mix rental contexts in the same order.
-- Active festival changes before checkout: checkout revalidates against the selected rental festival/reservation and blocks stale rental lines if that context is no longer valid.
+- User has multiple active-festival reservations in the same festival: the UI treats them as one festival participation and does not force a stand/reservation choice.
+- User has accepted reservations in multiple active festivals: user must choose one rental festival; v1 checkout does not mix festivals in the same order.
+- Active festival changes before checkout: checkout revalidates against the selected rental festival and the user's accepted reservations, then blocks stale rental lines if that context is no longer valid.
 - Product deleted after order: order item and return logs should preserve enough snapshot data to remain understandable.
 - Admin processes two returns at the same time: transaction/conditional update prevents over-return.
 - Rental line has condition `lost` or other non-good condition: admin records `quantityReturned` to close the rental line, sets `stockRestored` to `0` by default (may increase up to `quantityReturned` if the unit should re-enter inventory), and provides required notes. A return log is always created; only `stockRestored > 0` increases inventory.
@@ -686,16 +699,16 @@ type MarkRentalReturnResult =
 
 ## 17) Risks & Mitigations
 
-| Risk | Impact | Mitigation |
-| --- | --- | --- |
-| Stock is restored twice for the same rental units. | Inventory becomes inaccurate. | Track returned quantity on order item and enforce outstanding quantity inside a transaction. |
-| Return restores to the wrong stock pool after product settings change. | Sale/rental stock becomes inaccurate. | Snapshot rental stock mode on the order item and use that for returns/cancellations. |
-| Rental and purchase cart lines collapse into one line. | Wrong pricing and fulfillment mode. | Include transaction type in cart uniqueness and line keys. |
-| Ineligible users can rent through a stale UI or tampered request. | Rentals happen outside the event participation use case. | Revalidate eligibility in add-to-cart and checkout server actions. |
-| Multiple active festivals create ambiguous eligibility. | Rentals may attach to the wrong event. | Require the user to select an eligible festival/reservation and snapshot it on rental order items. |
-| Product content sections change after checkout. | Customer/admin lose the details shown at rental time. | Snapshot rental-visible content sections on the order item. |
-| Damaged/lost returns should not always increase sellable stock. | Inventory may overstate usable stock. | v1 uses admin-controlled `stockRestored` with non-good defaults to `0`; return logs record both `quantityReturned` and `stockRestored` for audit. |
-| Existing checkout regressions. | Purchase flow breaks. | Defaults keep all existing products purchase-only; add focused regression tests. |
+| Risk                                                                   | Impact                                                   | Mitigation                                                                                                                                        |
+| ---------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stock is restored twice for the same rental units.                     | Inventory becomes inaccurate.                            | Track returned quantity on order item and enforce outstanding quantity inside a transaction.                                                      |
+| Return restores to the wrong stock pool after product settings change. | Sale/rental stock becomes inaccurate.                    | Snapshot rental stock mode on the order item and use that for returns/cancellations.                                                              |
+| Rental and purchase cart lines collapse into one line.                 | Wrong pricing and fulfillment mode.                      | Include transaction type in cart uniqueness and line keys.                                                                                        |
+| Ineligible users can rent through a stale UI or tampered request.      | Rentals happen outside the event participation use case. | Revalidate eligibility in add-to-cart and checkout server actions.                                                                                |
+| Multiple active festivals create ambiguous eligibility.                | Rentals may attach to the wrong event.                   | Require the user to select an eligible festival and snapshot the festival plus representative reservation on rental order items.                  |
+| Product content sections change after checkout.                        | Customer/admin lose the details shown at rental time.    | Snapshot rental-visible content sections on the order item.                                                                                       |
+| Damaged/lost returns should not always increase sellable stock.        | Inventory may overstate usable stock.                    | v1 uses admin-controlled `stockRestored` with non-good defaults to `0`; return logs record both `quantityReturned` and `stockRestored` for audit. |
+| Existing checkout regressions.                                         | Purchase flow breaks.                                    | Defaults keep all existing products purchase-only; add focused regression tests.                                                                  |
 
 ## 18) Future Enhancements
 
