@@ -7,21 +7,24 @@ import { useEffect, useState } from "react";
 export function useNavbarProfile() {
   const { isLoaded, isSignedIn, user } = useUser();
   const [profile, setProfile] = useState<NavbarProfile | null>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
+
+  const isLoadingProfile =
+    isSignedIn &&
+    isLoaded &&
+    user?.id != null &&
+    profileUserId !== user.id;
 
   useEffect(() => {
-    if (!isLoaded) {
+    if (!isLoaded || !isSignedIn || !user?.id) {
       return;
     }
 
-    if (!isSignedIn) {
-      setProfile(null);
-      setIsLoadingProfile(false);
+    if (profileUserId === user.id) {
       return;
     }
 
     let isCurrent = true;
-    setIsLoadingProfile(true);
 
     fetch("/api/users/navbar-profile", { cache: "no-store" })
       .then((response) => {
@@ -34,6 +37,7 @@ export function useNavbarProfile() {
       .then((data) => {
         if (isCurrent) {
           setProfile(data);
+          setProfileUserId(user.id);
         }
       })
       .catch((error) => {
@@ -41,20 +45,16 @@ export function useNavbarProfile() {
         if (isCurrent) {
           setProfile(null);
         }
-      })
-      .finally(() => {
-        if (isCurrent) {
-          setIsLoadingProfile(false);
-        }
       });
 
     return () => {
       isCurrent = false;
     };
-  }, [isLoaded, isSignedIn, user?.id]);
+  }, [isLoaded, isSignedIn, user?.id, profileUserId]);
 
   return {
-    profile,
+    profile:
+      isSignedIn && profileUserId === user?.id ? profile : null,
     isLoading: !isLoaded || isLoadingProfile,
   };
 }
