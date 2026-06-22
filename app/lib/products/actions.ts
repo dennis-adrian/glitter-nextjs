@@ -819,31 +819,31 @@ export async function updateProductStock(
     };
   }
 
-  const variantCount = await db
-    .select({ id: productVariants.id })
-    .from(productVariants)
-    .where(eq(productVariants.productId, id))
-    .limit(1);
-  if (variantCount.length > 0) {
-    return {
-      success: false,
-      message:
-        "Este producto usa variantes. Edita el stock desde sus variantes.",
-    };
-  }
-
-  let validatedStock: number | null = stock;
-  if (stock !== null) {
-    if (!Number.isFinite(stock) || !Number.isInteger(stock) || stock < 0) {
+  try {
+    const variantCount = await db
+      .select({ id: productVariants.id })
+      .from(productVariants)
+      .where(eq(productVariants.productId, id))
+      .limit(1);
+    if (variantCount.length > 0) {
       return {
         success: false,
-        message: "El stock debe ser un numero entero mayor o igual a 0.",
+        message:
+          "Este producto usa variantes. Edita el stock desde sus variantes.",
       };
     }
-    validatedStock = stock;
-  }
 
-  try {
+    let validatedStock: number | null = stock;
+    if (stock !== null) {
+      if (!Number.isFinite(stock) || !Number.isInteger(stock) || stock < 0) {
+        return {
+          success: false,
+          message: "El stock debe ser un numero entero mayor o igual a 0.",
+        };
+      }
+      validatedStock = stock;
+    }
+
     const [updated] = await db
       .update(products)
       .set({ stock: validatedStock, updatedAt: new Date() })

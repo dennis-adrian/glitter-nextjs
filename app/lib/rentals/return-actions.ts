@@ -21,10 +21,23 @@ import {
 
 type OrderTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+async function requireAdminOrFestivalAdminProfile() {
+  const profile = await getCurrentUserProfile();
+  if (
+    !profile ||
+    (profile.role !== "admin" && profile.role !== "festival_admin")
+  ) {
+    throw new Error("No autorizado.");
+  }
+  return profile;
+}
+
 export async function fetchRentalReturnLogs(input: {
   orderItemId?: number;
   orderId?: number;
 }) {
+  await requireAdminOrFestivalAdminProfile();
+
   if (input.orderItemId != null) {
     return db.query.rentalReturnLogs.findMany({
       where: eq(rentalReturnLogs.orderItemId, input.orderItemId),
@@ -301,6 +314,8 @@ export async function markRentalOrderItemReturned(
 }
 
 export async function fetchCurrentRentals() {
+  await requireAdminOrFestivalAdminProfile();
+
   const rows = await db
     .select({
       orderItemId: orderItems.id,

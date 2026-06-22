@@ -1,6 +1,3 @@
-import {
-  deriveRentalStatus,
-} from "@/app/lib/rentals/status";
 import type { RentalStatus } from "@/app/lib/rentals/types";
 
 export type RentalOrderFilter =
@@ -34,14 +31,8 @@ export function orderMatchesRentalFilter(
     return rentalItems.length > 0;
   }
 
-  return rentalItems.some((item) => {
-    const status = deriveRentalStatus({
-      transactionType: item.transactionType,
-      quantity: item.quantity,
-      rentalReturnedQuantity: item.rentalReturnedQuantity,
-    });
-    return status === filter;
-  });
+  const orderStatus = getOrderRentalSummary(order);
+  return orderStatus === filter;
 }
 
 export function getRentalOrderFilterLabel(filter: RentalOrderFilter): string {
@@ -65,19 +56,14 @@ export function getOrderRentalSummary(order: RentalFilterOrder): RentalStatus | 
   );
   if (rentalItems.length === 0) return null;
 
-  const statuses = rentalItems.map((item) =>
-    deriveRentalStatus({
-      transactionType: item.transactionType,
-      quantity: item.quantity,
-      rentalReturnedQuantity: item.rentalReturnedQuantity,
-    }),
+  const hasAnyReturn = rentalItems.some(
+    (item) => item.rentalReturnedQuantity > 0,
+  );
+  const hasAnyOutstanding = rentalItems.some(
+    (item) => item.rentalReturnedQuantity < item.quantity,
   );
 
-  if (statuses.every((status) => status === "returned")) return "returned";
-  if (statuses.every((status) => status === "out")) return "out";
-  if (statuses.some((status) => status === "partially_returned")) {
-    return "partially_returned";
-  }
-  if (statuses.some((status) => status === "out")) return "out";
+  if (!hasAnyReturn) return "out";
+  if (!hasAnyOutstanding) return "returned";
   return "partially_returned";
 }

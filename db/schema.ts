@@ -548,17 +548,23 @@ export const standHoldsRelations = relations(standHolds, ({ one }) => ({
   }),
 }));
 
-export const standReservations = pgTable("stand_reservations", {
-  id: serial("id").primaryKey(),
-  standId: integer("stand_id")
-    .notNull()
-    .references(() => stands.id),
-  festivalId: integer("festival_id").notNull(),
-  status: reservationStatusEnum("status").default("pending").notNull(),
-  source: reservationSourceEnum("source").default("user_reservation").notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const standReservations = pgTable(
+  "stand_reservations",
+  {
+    id: serial("id").primaryKey(),
+    standId: integer("stand_id")
+      .notNull()
+      .references(() => stands.id),
+    festivalId: integer("festival_id").notNull(),
+    status: reservationStatusEnum("status").default("pending").notNull(),
+    source: reservationSourceEnum("source").default("user_reservation").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("stand_reservations_id_festival_id_unique").on(t.id, t.festivalId),
+  ],
+);
 export const standReservationsRelations = relations(
   standReservations,
   ({ one, many }) => ({
@@ -1045,6 +1051,17 @@ export const festivalActivityCouponBookConfigsRelations = relations(
       references: [users.id],
     }),
   }),
+);
+
+export const couponBookPrintSessions = pgTable(
+  "coupon_book_print_sessions",
+  {
+    id: text("id").primaryKey(),
+    payload: jsonb("payload").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("coupon_book_print_sessions_expires_at_idx").on(t.expiresAt)],
 );
 
 export const votableTypeEnum = pgEnum("votable_type", ["participant", "stand"]);
@@ -1605,14 +1622,8 @@ export const orderItems = pgTable(
     rentalStockModeSnapshot: productRentalStockModeEnum(
       "rental_stock_mode_snapshot",
     ),
-    rentalFestivalId: integer("rental_festival_id").references(
-      () => festivals.id,
-      { onDelete: "restrict" },
-    ),
-    rentalReservationId: integer("rental_reservation_id").references(
-      () => standReservations.id,
-      { onDelete: "restrict" },
-    ),
+    rentalFestivalId: integer("rental_festival_id"),
+    rentalReservationId: integer("rental_reservation_id"),
     rentalReturnedQuantity: integer("rental_returned_quantity")
       .default(0)
       .notNull(),
@@ -1626,6 +1637,11 @@ export const orderItems = pgTable(
       name: "order_items_product_variant_product_fk",
       columns: [t.productVariantId, t.productId],
       foreignColumns: [productVariants.id, productVariants.productId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "order_items_rental_reservation_festival_fk",
+      columns: [t.rentalReservationId, t.rentalFestivalId],
+      foreignColumns: [standReservations.id, standReservations.festivalId],
     }).onDelete("restrict"),
     check(
       "order_items_rental_context_required",
@@ -1702,14 +1718,8 @@ export const cartItems = pgTable(
     transactionType: productTransactionTypeEnum("transaction_type")
       .default("purchase")
       .notNull(),
-    rentalFestivalId: integer("rental_festival_id").references(
-      () => festivals.id,
-      { onDelete: "restrict" },
-    ),
-    rentalReservationId: integer("rental_reservation_id").references(
-      () => standReservations.id,
-      { onDelete: "restrict" },
-    ),
+    rentalFestivalId: integer("rental_festival_id"),
+    rentalReservationId: integer("rental_reservation_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -1757,6 +1767,11 @@ export const cartItems = pgTable(
       columns: [t.productVariantId, t.productId],
       foreignColumns: [productVariants.id, productVariants.productId],
     }).onDelete("cascade"),
+    foreignKey({
+      name: "cart_items_rental_reservation_festival_fk",
+      columns: [t.rentalReservationId, t.rentalFestivalId],
+      foreignColumns: [standReservations.id, standReservations.festivalId],
+    }).onDelete("restrict"),
     check("cart_items_quantity_positive", sql`${t.quantity} > 0`),
     check(
       "cart_items_rental_context_required",
@@ -2028,10 +2043,7 @@ export const rentalReturnLogs = pgTable(
     productId: integer("product_id")
       .notNull()
       .references(() => products.id, { onDelete: "restrict" }),
-    productVariantId: integer("product_variant_id").references(
-      () => productVariants.id,
-      { onDelete: "restrict" },
-    ),
+    productVariantId: integer("product_variant_id"),
     quantityReturned: integer("quantity_returned").notNull(),
     conditionStatus: rentalReturnConditionEnum("condition_status").notNull(),
     notes: text("notes"),
@@ -2064,6 +2076,11 @@ export const rentalReturnLogs = pgTable(
       "rental_return_logs_stock_restored_lte_quantity",
       sql`${t.stockRestored} <= ${t.quantityReturned}`,
     ),
+    foreignKey({
+      name: "rental_return_logs_product_variant_product_fk",
+      columns: [t.productVariantId, t.productId],
+      foreignColumns: [productVariants.id, productVariants.productId],
+    }).onDelete("restrict"),
   ],
 );
 

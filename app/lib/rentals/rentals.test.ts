@@ -248,6 +248,19 @@ describe("rental product validation", () => {
       }),
     ).toMatch(/precio de alquiler/i);
   });
+
+  it("requires variant rental stocks in separate mode", () => {
+    expect(
+      validateProductRentalSettings({
+        isPurchasable: true,
+        isRentable: true,
+        rentalPrice: 10,
+        rentalStockMode: "separate",
+        hasVariants: true,
+        variantRentalStocks: [],
+      }),
+    ).toMatch(/stock de alquiler/i);
+  });
 });
 
 describe("rental order filters", () => {
@@ -270,6 +283,29 @@ describe("rental order filters", () => {
     expect(orderMatchesRentalFilter(sampleOrder, "has_rental")).toBe(true);
     expect(orderMatchesRentalFilter(sampleOrder, "out")).toBe(true);
     expect(orderMatchesRentalFilter(sampleOrder, "returned")).toBe(false);
+  });
+
+  it("uses order-level status for mixed rental orders", () => {
+    const mixedOrder = {
+      orderItems: [
+        {
+          transactionType: "rental" as const,
+          quantity: 2,
+          rentalReturnedQuantity: 0,
+        },
+        {
+          transactionType: "rental" as const,
+          quantity: 1,
+          rentalReturnedQuantity: 1,
+        },
+      ],
+    };
+
+    expect(orderMatchesRentalFilter(mixedOrder, "out")).toBe(false);
+    expect(orderMatchesRentalFilter(mixedOrder, "partially_returned")).toBe(
+      true,
+    );
+    expect(orderMatchesRentalFilter(mixedOrder, "returned")).toBe(false);
   });
 });
 

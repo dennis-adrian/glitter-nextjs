@@ -16,6 +16,7 @@ import {
   MIN_VARIANT_COUPON_COUNT,
   ParticipantInclusionMode,
   getEffectiveLayoutForCoupon,
+  mergeLayoutWithOverride,
 } from "@/app/lib/festival_activites/coupon-book-draft";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
@@ -105,19 +106,48 @@ function setBoxValueOnLayout(
   return { ...layout, [boxKey]: next };
 }
 
+function boxNumericFieldMin(field: BoxNumericField): number {
+  if (field === "widthPct") return 10;
+  if (field === "heightPct") return 5;
+  return 0;
+}
+
 function updateOverrideBox(
   override: CouponLayoutOverride | null | undefined,
+  globalLayout: CouponTextLayoutConfig,
   boxKey: BoxKey,
   field: BoxNumericField,
   value: string,
 ): CouponLayoutOverride {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return override ?? {};
-  const current = override?.[boxKey] ?? {};
-  return {
-    ...override,
-    [boxKey]: { ...current, [field]: parsed },
-  };
+
+  const effectiveLayout = mergeLayoutWithOverride(globalLayout, override);
+  const nextLayout = setBoxValueOnLayout(
+    effectiveLayout,
+    boxKey,
+    field,
+    value,
+    boxNumericFieldMin(field),
+    100,
+  );
+
+  const globalBox = globalLayout[boxKey];
+  const nextBox = nextLayout[boxKey];
+  const boxOverride: Partial<CouponTextBoxConfig> = {};
+  for (const key of ["xPct", "yPct", "widthPct", "heightPct"] as const) {
+    if (nextBox[key] !== globalBox[key]) {
+      boxOverride[key] = nextBox[key];
+    }
+  }
+
+  const next: CouponLayoutOverride = { ...(override ?? {}) };
+  if (Object.keys(boxOverride).length > 0) {
+    next[boxKey] = boxOverride;
+  } else {
+    delete next[boxKey];
+  }
+  return next;
 }
 
 export default function CouponBookEditorPanel({
@@ -229,6 +259,7 @@ export default function CouponBookEditorPanel({
     onUpdateCoupon(selectedCouponId, {
       layoutOverride: updateOverrideBox(
         selectedCoupon?.layoutOverride,
+        textLayoutConfig,
         boxKey,
         field,
         value,
@@ -702,12 +733,7 @@ export default function CouponBookEditorPanel({
                                   key,
                                   field,
                                   event.target.value,
-                                  field.includes("Pct") && field.startsWith("w")
-                                    ? 10
-                                    : field.includes("Pct") &&
-                                        field.startsWith("h")
-                                      ? 5
-                                      : 0,
+                                  boxNumericFieldMin(field),
                                   100,
                                 )
                           }

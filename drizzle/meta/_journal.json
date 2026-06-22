@@ -1345,6 +1345,13 @@
       "when": 1782100576519,
       "tag": "0191_melodic_psylocke",
       "breakpoints": true
+    },
+    {
+      "idx": 192,
+      "version": "7",
+      "when": 1782140319482,
+      "tag": "0192_handy_pestilence",
+      "breakpoints": true
     }
   ]
 }

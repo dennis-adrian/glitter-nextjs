@@ -104,7 +104,7 @@ export async function generateDraftCouponBookPdf(input: {
     input.draft.globalSettings.pdfCanvas.orientation,
   );
   const pdfCanvas = resolvePdfCanvasConfig(searchParams);
-  const sessionId = createCouponBookPrintSession({
+  const sessionId = await createCouponBookPrintSession({
     draft: input.draft,
     exportScope: input.exportScope,
   });
@@ -125,7 +125,7 @@ export async function generateDraftCouponBookPdf(input: {
       },
     });
   } finally {
-    deleteCouponBookPrintSession(sessionId);
+    await deleteCouponBookPrintSession(sessionId);
   }
 }
 

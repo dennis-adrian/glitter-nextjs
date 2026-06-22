@@ -110,10 +110,13 @@ export function validateProductRentalSettings(input: {
 
   if (input.rentalStockMode === "separate") {
     if (input.hasVariants) {
-      const invalidVariant = (input.variantRentalStocks ?? []).some(
-        (stock) => stock == null || !Number.isFinite(stock) || stock < 0,
-      );
-      if (invalidVariant) {
+      const variantRentalStocks = input.variantRentalStocks ?? [];
+      if (
+        variantRentalStocks.length === 0 ||
+        variantRentalStocks.some(
+          (stock) => stock == null || !Number.isFinite(stock) || stock < 0,
+        )
+      ) {
         return "Cada variante alquilable necesita stock de alquiler.";
       }
     } else if (

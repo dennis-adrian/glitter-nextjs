@@ -354,6 +354,44 @@ describe("coupon-book-draft", () => {
     expect(merged.books[0].variantCouponCount).toBe(10);
   });
 
+  it("does not grow a short full page when moving a coupon without target slot", () => {
+    const draft = buildInitialCouponBookDraft({
+      festivalId: 1,
+      activityId: 2,
+      variants: [
+        {
+          ...sampleVariants[0],
+          participationLimit: 5,
+          entries: Array.from({ length: 5 }, (_, index) => ({
+            participationId: index + 1,
+            participantName: `P${index + 1}`,
+            standLabels: [],
+            sectorName: null,
+            promoHighlight: "",
+            promoDescription: `Promo ${index + 1}`,
+            promoConditions: null,
+            imageUrl: null,
+            proofStatus: "approved" as const,
+          })),
+        },
+      ],
+      dynamicCouponsPerPage: 3,
+    });
+    const pages = getDraftBookPages(draft, draft.books[0].id);
+    expect(pages).toHaveLength(2);
+    expect(pages[1].slotCouponIds).toHaveLength(2);
+    expect(pages[1].slotCouponIds.every((id) => id !== null)).toBe(true);
+
+    const moved = moveCouponBetweenPages({
+      draft,
+      couponId: "participant-1",
+      targetPageId: pages[1].id,
+    });
+    const lastPage = getDraftBookPages(moved, moved.books[0].id)[1];
+    expect(lastPage.slotCouponIds).toHaveLength(2);
+    expect(lastPage.slotCouponIds).toContain("participant-1");
+  });
+
   it("moves coupons between pages in draft only", () => {
     const draft = buildInitialCouponBookDraft({
       festivalId: 1,

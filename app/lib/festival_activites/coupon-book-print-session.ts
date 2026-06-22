@@ -5,70 +5,86 @@ import {
   CouponBookExportScope,
   isCouponBookDraft,
 } from "@/app/lib/festival_activites/coupon-book-draft";
+import { db } from "@/db";
+import { couponBookPrintSessions } from "@/db/schema";
+import { eq, lt } from "drizzle-orm";
 
 const SESSION_TTL_MS = 5 * 60 * 1000;
 
-type CouponBookPrintSession = {
+type CouponBookPrintSessionPayload = {
   draft: CouponBookDraft;
   exportScope: CouponBookExportScope;
-  expiresAt: number;
 };
 
-const globalForSessions = globalThis as unknown as {
-  couponBookPrintSessions?: Map<string, CouponBookPrintSession>;
-};
-
-function getSessionStore(): Map<string, CouponBookPrintSession> {
-  if (!globalForSessions.couponBookPrintSessions) {
-    globalForSessions.couponBookPrintSessions = new Map();
-  }
-  return globalForSessions.couponBookPrintSessions;
+async function purgeExpiredSessions() {
+  await db
+    .delete(couponBookPrintSessions)
+    .where(lt(couponBookPrintSessions.expiresAt, new Date()));
 }
 
-function purgeExpiredSessions(store: Map<string, CouponBookPrintSession>) {
-  const now = Date.now();
-  for (const [sessionId, session] of store.entries()) {
-    if (session.expiresAt <= now) {
-      store.delete(sessionId);
-    }
-  }
-}
-
-export function createCouponBookPrintSession(input: {
+export async function createCouponBookPrintSession(input: {
   draft: CouponBookDraft;
   exportScope: CouponBookExportScope;
-}): string {
-  const store = getSessionStore();
-  purgeExpiredSessions(store);
+}): Promise<string> {
+  await purgeExpiredSessions();
   const sessionId = crypto.randomUUID();
-  store.set(sessionId, {
-    draft: input.draft,
-    exportScope: input.exportScope,
-    expiresAt: Date.now() + SESSION_TTL_MS,
+  await db.insert(couponBookPrintSessions).values({
+    id: sessionId,
+    payload: {
+      draft: input.draft,
+      exportScope: input.exportScope,
+    },
+    expiresAt: new Date(Date.now() + SESSION_TTL_MS),
   });
   return sessionId;
 }
 
-export function getCouponBookPrintSession(
+export async function getCouponBookPrintSession(
   sessionId: string,
-): { draft: CouponBookDraft; exportScope: CouponBookExportScope } | null {
-  const store = getSessionStore();
-  purgeExpiredSessions(store);
-  const session = store.get(sessionId);
-  if (!session || session.expiresAt <= Date.now()) {
-    store.delete(sessionId);
+): Promise<{ draft: CouponBookDraft; exportScope: CouponBookExportScope } | null> {
+  await purgeExpiredSessions();
+  const row = await db.query.couponBookPrintSessions.findFirst({
+    where: eq(couponBookPrintSessions.id, sessionId),
+  });
+  if (!row || row.expiresAt <= new Date()) {
+    if (row) {
+      await db
+        .delete(couponBookPrintSessions)
+        .where(eq(couponBookPrintSessions.id, sessionId));
+    }
     return null;
   }
-  if (!isCouponBookDraft(session.draft)) {
-    store.delete(sessionId);
+
+  const payload = row.payload;
+  if (
+    payload == null ||
+    typeof payload !== "object" ||
+    !("draft" in payload)
+  ) {
+    await db
+      .delete(couponBookPrintSessions)
+      .where(eq(couponBookPrintSessions.id, sessionId));
     return null;
   }
+
+  const typedPayload = payload as CouponBookPrintSessionPayload;
+  if (!isCouponBookDraft(typedPayload.draft)) {
+    await db
+      .delete(couponBookPrintSessions)
+      .where(eq(couponBookPrintSessions.id, sessionId));
+    return null;
+  }
+
   return {
-    draft: session.draft,
-    exportScope: session.exportScope,
+    draft: typedPayload.draft,
+    exportScope: typedPayload.exportScope,
   };
 }
 
-export function deleteCouponBookPrintSession(sessionId: string): void {
-  getSessionStore().delete(sessionId);
+export async function deleteCouponBookPrintSession(
+  sessionId: string,
+): Promise<void> {
+  await db
+    .delete(couponBookPrintSessions)
+    .where(eq(couponBookPrintSessions.id, sessionId));
 }

@@ -53,7 +53,12 @@ export async function generateMetadata(props: {
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-  const imageUrl = `${baseUrl}${getProductVariantImageUrl(product, null) ?? PLACEHOLDER_IMAGE_URLS["1200"]}`;
+  const rawImageUrl =
+    getProductVariantImageUrl(product, null) ?? PLACEHOLDER_IMAGE_URLS["1200"];
+  const imageUrl =
+    rawImageUrl.startsWith("http://") || rawImageUrl.startsWith("https://")
+      ? rawImageUrl
+      : `${baseUrl}${rawImageUrl}`;
   const description = product.description ?? undefined;
 
   return {
