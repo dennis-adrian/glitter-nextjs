@@ -4,6 +4,7 @@ import { fetchFestivalActivity } from "@/app/lib/festival_activites/actions";
 import { fetchFestivalActivityForReview } from "@/app/lib/festivals/actions";
 import { isCouponBookDraft } from "@/app/lib/festival_activites/coupon-book-draft";
 import {
+  findInvalidDraftParticipationId,
   MAX_DRAFT_BYTES,
   sanitizeCouponBookDraft,
 } from "@/app/lib/festival_activites/coupon-book-config-actions";
@@ -139,6 +140,26 @@ export async function POST(
   );
   if (!activity) {
     return new Response("Actividad no encontrada", { status: 404 });
+  }
+
+  const validParticipationIds = new Set<number>();
+  for (const detail of activity.details) {
+    for (const participant of detail.participants) {
+      if (participant.removedAt === null) {
+        validParticipationIds.add(participant.id);
+      }
+    }
+  }
+
+  const invalidParticipationId = findInvalidDraftParticipationId(
+    body.draft,
+    validParticipationIds,
+  );
+  if (invalidParticipationId !== null) {
+    return new Response(
+      `Participación inválida en el borrador: ${invalidParticipationId}`,
+      { status: 400 },
+    );
   }
 
   const sanitizedDraft = sanitizeCouponBookDraft(body.draft);

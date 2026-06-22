@@ -294,7 +294,7 @@ export default function CouponBookPreviewClient({
       }
       applyDraft(resolved);
     },
-    [applyDraft, draft.globalSettings, variants],
+    [applyDraft, draft.globalSettings],
   );
 
   const handleSave = async () => {
@@ -684,6 +684,7 @@ export default function CouponBookPreviewClient({
                         headerImageScalePct={
                           draft.globalSettings.globalLayout.headerImageScalePct
                         }
+                        interactive
                         selectedCouponId={selectedCouponId}
                         onSelectCoupon={setSelectedCouponId}
                       />

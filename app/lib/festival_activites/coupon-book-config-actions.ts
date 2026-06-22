@@ -18,6 +18,19 @@ function sanitizeImageUrl(value: string | null | undefined): string | null {
   return resolveCouponBookHeaderImageUrl(value) ?? null;
 }
 
+export function findInvalidDraftParticipationId(
+  draft: CouponBookDraft,
+  validParticipationIds: Set<number>,
+): number | null {
+  for (const entry of Object.values(draft.entries)) {
+    if (entry.type !== "participant" || entry.participationId === null) continue;
+    if (!validParticipationIds.has(entry.participationId)) {
+      return entry.participationId;
+    }
+  }
+  return null;
+}
+
 export function sanitizeCouponBookDraft(draft: CouponBookDraft): CouponBookDraft {
   const entries = Object.fromEntries(
     Object.entries(draft.entries).map(([id, entry]) => [
@@ -72,13 +85,13 @@ export async function saveCouponBookConfig(input: {
   draft: CouponBookDraft;
   userId: number;
   validParticipationIds: Set<number>;
-  expectedRevision?: number | null;
+  expectedRevision: number | null;
 }): Promise<
   | { ok: true; revision: number }
   | { ok: false; error: string; status?: number; currentRevision?: number }
 > {
   const serialized = JSON.stringify(input.draft);
-  if (serialized.length > MAX_DRAFT_BYTES) {
+  if (Buffer.byteLength(serialized, "utf8") > MAX_DRAFT_BYTES) {
     return { ok: false, error: "La configuración de cuponera es demasiado grande." };
   }
 
@@ -86,14 +99,15 @@ export async function saveCouponBookConfig(input: {
     return { ok: false, error: "Versión de borrador no soportada." };
   }
 
-  for (const entry of Object.values(input.draft.entries)) {
-    if (entry.type !== "participant" || entry.participationId === null) continue;
-    if (!input.validParticipationIds.has(entry.participationId)) {
-      return {
-        ok: false,
-        error: `Participación inválida en el borrador: ${entry.participationId}`,
-      };
-    }
+  const invalidParticipationId = findInvalidDraftParticipationId(
+    input.draft,
+    input.validParticipationIds,
+  );
+  if (invalidParticipationId !== null) {
+    return {
+      ok: false,
+      error: `Participación inválida en el borrador: ${invalidParticipationId}`,
+    };
   }
 
   const sanitized = sanitizeCouponBookDraft({
@@ -107,8 +121,7 @@ export async function saveCouponBookConfig(input: {
 
   if (existing) {
     if (
-      input.expectedRevision !== undefined &&
-      input.expectedRevision !== null &&
+      input.expectedRevision === null ||
       existing.revision !== input.expectedRevision
     ) {
       return {

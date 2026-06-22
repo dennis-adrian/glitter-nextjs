@@ -619,7 +619,7 @@ export function moveCouponBetweenPages(input: {
   let slotIndex =
     input.targetSlotIndex ??
     targetPage.slotCouponIds.findIndex((id) => id === null);
-  if (slotIndex < 0) slotIndex = perPage - 1;
+  if (slotIndex < 0) slotIndex = targetPage.slotCouponIds.length;
   slotIndex = Math.min(Math.max(slotIndex, 0), perPage - 1);
 
   const nextSlotIds = [...targetPage.slotCouponIds];

@@ -21,7 +21,7 @@ const ParamsSchema = z.object({
 
 const PutBodySchema = z.object({
   draft: z.unknown(),
-  expectedRevision: z.number().int().positive().nullable().optional(),
+  expectedRevision: z.number().int().positive().nullable(),
 });
 
 async function requireAdmin() {

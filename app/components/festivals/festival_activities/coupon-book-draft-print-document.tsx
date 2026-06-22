@@ -21,6 +21,25 @@ type CouponBookDraftPrintDocumentProps = {
   exportScope?: CouponBookExportScope;
 };
 
+function buildLayoutByCouponId(
+  draft: CouponBookDraft,
+  slotCouponIds: (string | null)[],
+): Record<string, CouponTextLayoutConfig> {
+  const layoutByCouponId: Record<string, CouponTextLayoutConfig> = {
+    [draft.courtesyCouponId]: getEffectiveLayoutForCoupon(
+      draft,
+      draft.courtesyCouponId,
+    ),
+  };
+
+  for (const couponId of slotCouponIds) {
+    if (!couponId || layoutByCouponId[couponId]) continue;
+    layoutByCouponId[couponId] = getEffectiveLayoutForCoupon(draft, couponId);
+  }
+
+  return layoutByCouponId;
+}
+
 export default function CouponBookDraftPrintDocument({
   draft,
   pdfCanvas,
@@ -96,9 +115,7 @@ export default function CouponBookDraftPrintDocument({
                 headerDynamicCouponId={headerDynamicCouponId}
                 bodyCouponIds={bodyCouponIds}
                 textLayoutConfig={draft.globalSettings.globalLayout}
-                resolveLayout={(couponId) =>
-                  getEffectiveLayoutForCoupon(draft, couponId)
-                }
+                layoutByCouponId={buildLayoutByCouponId(draft, page.slotCouponIds)}
                 headerImageUrl={book.headerImageUrl}
                 headerImageScalePct={
                   draft.globalSettings.globalLayout.headerImageScalePct
@@ -131,5 +148,5 @@ export type CouponSlotLayoutContext = {
   courtesyCouponId: string;
   headerDynamicCouponId: string | null;
   bodyCouponIds: (string | null)[];
-  resolveLayout: (couponId: string | null) => CouponTextLayoutConfig;
+  layoutByCouponId: Record<string, CouponTextLayoutConfig>;
 };

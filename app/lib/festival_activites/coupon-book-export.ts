@@ -63,7 +63,7 @@ export async function generateCouponBookPdf(input: {
     pdfCanvas,
     fileName: `cuponera-${input.activityId}-${input.fileNameSuffix}.pdf`,
     loadPage: async (page) => {
-      await page.goto(printUrl.toString(), { waitUntil: "networkidle" });
+      await page.goto(printUrl.toString(), { waitUntil: "load" });
     },
   });
 }
@@ -105,7 +105,7 @@ export async function generateDraftCouponBookPdf(input: {
       pdfCanvas,
       fileName: `cuponera-${input.activityId}-${input.fileNameSuffix}.pdf`,
       loadPage: async (page) => {
-        await page.goto(printUrl.toString(), { waitUntil: "networkidle" });
+        await page.goto(printUrl.toString(), { waitUntil: "load" });
       },
     });
   } finally {
