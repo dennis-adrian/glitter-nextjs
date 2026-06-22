@@ -5,6 +5,7 @@ import {
   COUPON_BOOK_PAGE_HEIGHT_CM,
   COUPON_BOOK_PAGE_WIDTH_CM,
   buildCouponBookVariants,
+  computeCouponBookGridLayout,
   paginateCouponBookEntries,
 } from "@/app/lib/festival_activites/coupon-book-builder";
 
@@ -164,6 +165,23 @@ describe("coupon-book-builder", () => {
     expect(pages[0].headerDynamicEntry?.participantName).toBe("P1");
     expect(pages[0].bodyEntries).toHaveLength(25);
     expect(pages[1].headerDynamicEntry?.participantName).toBe("P27");
+    expect(pages[1].bodyEntries).toHaveLength(2);
+    expect(pages[1].dynamicSlotCount).toBe(3);
     expect(pages[1].totalPages).toBe(2);
+  });
+
+  it("computes a shorter grid when fewer coupons are on the page", () => {
+    expect(computeCouponBookGridLayout(18)).toEqual({
+      columns: 5,
+      bodySlotCount: 17,
+      bodyRows: 4,
+      totalRows: 5,
+    });
+    expect(computeCouponBookGridLayout(26)).toEqual({
+      columns: 5,
+      bodySlotCount: 25,
+      bodyRows: 5,
+      totalRows: 6,
+    });
   });
 });

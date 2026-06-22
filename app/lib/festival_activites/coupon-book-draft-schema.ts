@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { COUPON_BOOK_DYNAMIC_SLOTS_PER_PAGE } from "@/app/lib/festival_activites/coupon-book-builder";
 
-const COUPON_BOOK_DRAFT_SCHEMA_VERSION = 1;
+const COUPON_BOOK_DRAFT_SCHEMA_VERSION = 2;
 const MAX_DYNAMIC_COUPONS_PER_PAGE = COUPON_BOOK_DYNAMIC_SLOTS_PER_PAGE;
 
 const CouponTextBoxConfigSchema = z.object({
@@ -56,10 +56,8 @@ const DraftCouponEntrySnapshotSchema = z.object({
   proofStatus: z.enum(["approved", "pending_review"]),
 });
 
-const DraftCouponEntrySchema = z.object({
+const DraftCouponEntrySharedSchema = {
   id: z.string().min(1),
-  participationId: z.number().nullable(),
-  type: z.enum(["courtesy", "participant"]),
   participantName: z.string(),
   standLabels: z.array(z.string()),
   sectorName: z.string().nullable(),
@@ -70,7 +68,20 @@ const DraftCouponEntrySchema = z.object({
   proofStatus: z.enum(["approved", "pending_review"]),
   layoutOverride: CouponLayoutOverrideSchema,
   sourceSnapshot: DraftCouponEntrySnapshotSchema.optional(),
-});
+} as const;
+
+const DraftCouponEntrySchema = z.discriminatedUnion("type", [
+  z.object({
+    ...DraftCouponEntrySharedSchema,
+    type: z.literal("courtesy"),
+    participationId: z.null(),
+  }),
+  z.object({
+    ...DraftCouponEntrySharedSchema,
+    type: z.literal("participant"),
+    participationId: z.number(),
+  }),
+]);
 
 const DraftCouponPageSchema = z.object({
   id: z.string().min(1),
@@ -78,6 +89,7 @@ const DraftCouponPageSchema = z.object({
   pageNumber: z.number().int().positive(),
   slotCouponIds: z
     .array(z.string().min(1).nullable())
+    .min(1)
     .max(MAX_DYNAMIC_COUPONS_PER_PAGE),
 });
 
@@ -86,6 +98,7 @@ const DraftCouponBookSchema = z.object({
   label: z.string(),
   sourceDetailId: z.number().int().positive(),
   headerImageUrl: z.string().nullable(),
+  variantCouponCount: z.number().int().positive(),
   pageIds: z.array(z.string().min(1)),
 });
 
@@ -140,7 +153,17 @@ export const CouponBookDraftSchema = z
       }
     }
 
+    const perPage = draft.globalSettings.dynamicCouponsPerPage;
+
     for (const page of Object.values(draft.pages)) {
+      if (page.slotCouponIds.length > perPage) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Page ${page.id} exceeds ${perPage} slot entries`,
+          path: ["pages", page.id, "slotCouponIds"],
+        });
+      }
+
       for (const couponId of page.slotCouponIds) {
         if (!couponId) continue;
         const entry = draft.entries[couponId];

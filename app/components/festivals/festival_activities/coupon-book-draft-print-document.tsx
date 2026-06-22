@@ -86,9 +86,6 @@ export default function CouponBookDraftPrintDocument({
             const couponBookPage = draftPageToCouponBookPage(draft, page);
             const headerDynamicCouponId = page.slotCouponIds[0] ?? null;
             const bodyCouponIds = page.slotCouponIds.slice(1);
-            while (bodyCouponIds.length < couponBookPage.bodyEntries.length) {
-              bodyCouponIds.push(null);
-            }
 
             return (
               <CouponBookPrintPage

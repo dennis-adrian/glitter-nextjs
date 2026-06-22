@@ -13,6 +13,8 @@ import {
   restoreDraftCouponFromSource,
   setParticipantInclusionMode,
   updateDraftCouponEntry,
+  updateVariantCouponCount,
+  partitionParticipantsAcrossBooks,
 } from "@/app/lib/festival_activites/coupon-book-draft";
 import { isCouponBookDraft } from "@/app/lib/festival_activites/coupon-book-draft";
 import { DEFAULT_COUPON_TEXT_LAYOUT_CONFIG } from "@/app/lib/festival_activites/coupon-book-builder";
@@ -22,6 +24,7 @@ const sampleVariants = [
     detailId: 10,
     detailLabel: "Variante A",
     headerImageUrl: null,
+    participationLimit: null,
     entries: [
       {
         participationId: 1,
@@ -129,6 +132,7 @@ describe("coupon-book-draft", () => {
           detailId: 99,
           detailLabel: "Grande",
           headerImageUrl: null,
+          participationLimit: null,
           entries: manyEntries,
         },
       ],
@@ -155,8 +159,7 @@ describe("coupon-book-draft", () => {
     const narrowed = setParticipantInclusionMode(draft, "approved_only");
     const reflowed = reflowDraftPages(
       narrowed,
-      narrowed.globalSettings.dynamicCouponsPerPage,
-      sampleVariants,
+      2,
     );
     const pages = getDraftBookPages(reflowed, reflowed.books[0].id);
     expect(pages).toHaveLength(1);
@@ -173,7 +176,6 @@ describe("coupon-book-draft", () => {
     const narrowed = reflowDraftPages(
       setParticipantInclusionMode(draft, "approved_only"),
       2,
-      sampleVariants,
     );
     const page = getDraftBookPages(narrowed, narrowed.books[0].id)[0];
     expect(countEmptySlotsOnPage(narrowed, page)).toBe(1);
@@ -249,6 +251,108 @@ describe("coupon-book-draft", () => {
     const secondPage = getDraftBookPages(moved, moved.books[0].id)[1];
     expect(firstPage.slotCouponIds[0]).toBe("participant-2");
     expect(secondPage.slotCouponIds[0]).toBe("participant-1");
+  });
+
+  it("initializes variant coupon count from participation limit", () => {
+    const draft = buildInitialCouponBookDraft({
+      festivalId: 1,
+      activityId: 2,
+      variants: [
+        {
+          ...sampleVariants[0],
+          participationLimit: 26,
+        },
+      ],
+    });
+    expect(draft.books[0].variantCouponCount).toBe(26);
+  });
+
+  it("sizes book pages to the configured variant coupon count", () => {
+    const draft = buildInitialCouponBookDraft({
+      festivalId: 1,
+      activityId: 2,
+      variants: [
+        {
+          ...sampleVariants[0],
+          participationLimit: 26,
+          entries: Array.from({ length: 9 }, (_, index) => ({
+            participationId: index + 1,
+            participantName: `P${index + 1}`,
+            standLabels: [],
+            sectorName: null,
+            promoHighlight: "",
+            promoDescription: `Promo ${index + 1}`,
+            promoConditions: null,
+            imageUrl: null,
+            proofStatus: "approved" as const,
+          })),
+        },
+      ],
+    });
+    const resized = updateVariantCouponCount(draft, draft.books[0].id, 18);
+    const page = getDraftBookPages(resized, resized.books[0].id)[0];
+    expect(page.slotCouponIds).toHaveLength(18);
+    const rendered = draftPageToCouponBookPage(resized, page);
+    expect(rendered.dynamicSlotCount).toBe(18);
+    expect(rendered.bodyEntries).toHaveLength(17);
+  });
+
+  it("redistributes participants across variants when limits change", () => {
+    const variantOneEntries = Array.from({ length: 26 }, (_, index) => ({
+      participationId: index + 1,
+      participantName: `V1-${index + 1}`,
+      standLabels: [],
+      sectorName: null,
+      promoHighlight: "",
+      promoDescription: `Promo ${index + 1}`,
+      promoConditions: null,
+      imageUrl: null,
+      proofStatus: "approved" as const,
+    }));
+    const variantTwoEntries = Array.from({ length: 9 }, (_, index) => ({
+      participationId: 27 + index,
+      participantName: `V2-${index + 1}`,
+      standLabels: [],
+      sectorName: null,
+      promoHighlight: "",
+      promoDescription: `Promo ${27 + index}`,
+      promoConditions: null,
+      imageUrl: null,
+      proofStatus: "approved" as const,
+    }));
+
+    const draft = buildInitialCouponBookDraft({
+      festivalId: 1,
+      activityId: 2,
+      variants: [
+        {
+          detailId: 10,
+          detailLabel: "Variante 1",
+          headerImageUrl: null,
+          participationLimit: 26,
+          entries: variantOneEntries,
+        },
+        {
+          detailId: 11,
+          detailLabel: "Variante 2",
+          headerImageUrl: null,
+          participationLimit: 26,
+          entries: variantTwoEntries,
+        },
+      ],
+    });
+
+    const redistributed = updateVariantCouponCount(draft, draft.books[0].id, 18);
+    const assignments = partitionParticipantsAcrossBooks(redistributed);
+
+    expect(redistributed.books[0].variantCouponCount).toBe(18);
+    expect(redistributed.books[1].variantCouponCount).toBe(26);
+    expect(assignments[redistributed.books[0].id]).toHaveLength(18);
+    expect(assignments[redistributed.books[0].id][0]).toBe("participant-1");
+    expect(assignments[redistributed.books[0].id][17]).toBe("participant-18");
+    expect(assignments[redistributed.books[1].id]).toHaveLength(17);
+    expect(assignments[redistributed.books[1].id][0]).toBe("participant-19");
+    expect(assignments[redistributed.books[1].id][16]).toBe("participant-35");
   });
 
   it("merges per-coupon layout overrides on top of global template", () => {

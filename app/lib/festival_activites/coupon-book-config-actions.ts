@@ -2,11 +2,12 @@ import {
   COUPON_BOOK_DRAFT_SCHEMA_VERSION,
   CouponBookDraft,
   isCouponBookDraft,
+  normalizeCouponBookDraftPayload,
 } from "@/app/lib/festival_activites/coupon-book-draft";
 import { resolveCouponBookHeaderImageUrl } from "@/app/lib/festival_activites/coupon-book-header-image";
 import { db } from "@/db";
 import { festivalActivityCouponBookConfigs } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 const MAX_DRAFT_BYTES = 2 * 1024 * 1024;
 
@@ -50,12 +51,15 @@ export async function fetchSavedCouponBookConfig(activityId: number): Promise<{
     return { draft: null, revision: null, updatedAt: null };
   }
   const payload = row.payload as unknown;
-  if (!isCouponBookDraft(payload)) {
+  const draft =
+    normalizeCouponBookDraftPayload(payload) ??
+    (isCouponBookDraft(payload) ? payload : null);
+  if (!draft) {
     return { draft: null, revision: row.revision, updatedAt: row.updatedAt };
   }
   return {
     draft: sanitizeCouponBookDraft({
-      ...payload,
+      ...draft,
       savedRevision: row.revision,
     }),
     revision: row.revision,
@@ -117,7 +121,7 @@ export async function saveCouponBookConfig(input: {
     }
 
     const nextRevision = existing.revision + 1;
-    await db
+    const updated = await db
       .update(festivalActivityCouponBookConfigs)
       .set({
         payload: sanitized,
@@ -125,7 +129,32 @@ export async function saveCouponBookConfig(input: {
         updatedByUserId: input.userId,
         updatedAt: new Date(),
       })
-      .where(eq(festivalActivityCouponBookConfigs.id, existing.id));
+      .where(
+        and(
+          eq(festivalActivityCouponBookConfigs.id, existing.id),
+          eq(festivalActivityCouponBookConfigs.revision, existing.revision),
+        ),
+      )
+      .returning({ revision: festivalActivityCouponBookConfigs.revision });
+
+    if (updated.length === 0) {
+      const current = await db.query.festivalActivityCouponBookConfigs.findFirst(
+        {
+          where: eq(
+            festivalActivityCouponBookConfigs.activityId,
+            input.activityId,
+          ),
+        },
+      );
+      return {
+        ok: false,
+        error:
+          "La configuración fue modificada por otro usuario. Recarga la página e intenta de nuevo.",
+        status: 409,
+        currentRevision: current?.revision ?? existing.revision,
+      };
+    }
+
     return { ok: true, revision: nextRevision };
   }
 

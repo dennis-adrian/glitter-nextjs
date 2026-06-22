@@ -2,7 +2,7 @@
 
 ## 1) Overview
 
-The Coupon Book feature enables festival admins to compose, edit, preview, save, and print coupon books for `coupon_book` festival activities. The editor starts from approved and, optionally, pending-review participant promotion proofs, then lets admins adjust the coupon book before printing: edit the default courtesy coupon, edit any participant coupon, configure coupon count per page, move participants between coupon book pages, tune global layout, and apply per-coupon overrides where needed.
+The Coupon Book feature enables festival admins to compose, edit, preview, save, and print coupon books for `coupon_book` festival activities. The editor starts from approved and, optionally, pending-review participant promotion proofs, then lets admins adjust the coupon book before printing: edit the default courtesy coupon, edit any participant coupon, configure the coupon count per variant, configure coupon count per page, move participants between coupon book pages, tune global layout, and apply per-coupon overrides where needed.
 
 The printable version must follow the editor's current state, including unsaved local draft changes. Preview and PDF export target near-WYSIWYG parity (<=2px layout tolerance); QA passes only when corresponding element bounds between preview and exported PDF differ by no more than 2px and text fit behavior is identical.
 
@@ -12,19 +12,21 @@ The printable version must follow the editor's current state, including unsaved 
 - Builder: `app/lib/festival_activites/coupon-book-builder.ts` creates one `CouponBookVariant` per activity detail. Participant coupons come from text proofs with `approved` or `pending_review` status, excluding removed participants.
 - Courtesy coupon: `COURTESY_COUPON_ENTRY` is a hard-coded default coupon rendered in the first top-right header slot of every printed page.
 - Pagination: `paginateCouponBookEntries` uses a fixed 26 dynamic coupons per coupon book page: one header dynamic slot plus 25 body slots. This is independent of the activity participant limit today, but it is not admin configurable.
+- Variant capacity: each coupon book variant is built from one activity detail and initially includes that detail's enrolled participants. The activity detail `participationLimit` is not editable from the coupon book preview page today, and changing how many coupons belong in each variant's book is not supported.
 - Preview state: `coupon-book-preview-client.tsx` stores only global text layout and PDF canvas settings in local storage. It does not store coupon content edits, courtesy coupon edits, coupon page assignments, coupon count per page, or per-coupon layout overrides.
 - Print/export state: the print route (`app/couponbook-print/[id]/[activityId]/page.tsx`) rebuilds variants from database data and query-string layout config. Because it does not receive the full editor draft, unsaved edits and participant moves cannot be reflected in printable output today.
 - Export endpoint: `POST /api/festival_activities/[activityId]/couponbook/export` accepts the editor draft and uses Playwright to generate a PDF. Legacy `GET` on the same path rebuilds from live DB state only and does not reflect saved or local editor changes.
 
 ## 3) Problem Statement
 
-Admins need to produce complete, print-ready coupon books even when activity variants have uneven or incomplete participation. The current workflow is too rigid because coupon page composition is derived directly from activity details, the default coupon is fixed, participant coupons cannot be edited in the review workflow, and printable output can only represent database state plus a small set of layout query params.
+Admins need to produce complete, print-ready coupon books even when activity variants have uneven or incomplete participation. For example, an activity may define two variants with a `participationLimit` of 26 each, but only 35 participants may actually sign up (26 in the first variant and 9 in the second). Admins still need to rebalance how those 35 coupons are split across the printed variant books without rewriting enrollment records. The current workflow is too rigid because coupon page composition is derived directly from activity details, per-variant coupon counts cannot be adjusted in the review workflow, the default coupon is fixed, participant coupons cannot be edited in the review workflow, and printable output can only represent database state plus a small set of layout query params.
 
 ## 4) Goals
 
 - Let admins edit the default courtesy coupon.
 - Let admins edit every participant promotion/coupon entry before printing.
 - Let admins toggle the coupon book preview between approved participants only and approved + pending-review participants.
+- Let admins configure the coupon count per variant from the coupon book preview page, redistributing participant coupons across variant books when limits change.
 - Let admins configure dynamic coupons per coupon book page regardless of the activity's participant limit.
 - Let admins move participant coupons between coupon book pages without writing to the database during editing.
 - Persist all editor settings and draft edits in local storage to survive page reloads.
@@ -36,7 +38,7 @@ Admins need to produce complete, print-ready coupon books even when activity var
 ## 5) Non-Goals
 
 - End-user/self-service coupon generation.
-- Changing activity enrollment, participant approval, proof status, or activity variant membership when a coupon is moved between coupon book pages.
+- Changing activity enrollment, participant approval, proof status, activity variant membership, or activity detail `participationLimit` when editing coupon book drafts (including per-variant coupon counts and page moves).
 - A generic document designer for arbitrary layouts outside coupon books.
 - Automatic balancing that changes the source activity details or participant records.
 - Server-side collaborative editing or real-time multi-admin conflict resolution in this iteration.
@@ -52,6 +54,7 @@ Admins need to produce complete, print-ready coupon books even when activity var
 - As an admin, I can edit any coupon's displayed name, stand labels, sector, image/avatar, highlight, description, and conditions/validity text.
 - As an admin, I can preview and export only approved participant coupons when pending-review coupons should be excluded.
 - As an admin, I can include pending-review participant coupons when preparing a fuller draft before final approval.
+- As an admin, I can change how many participant coupons belong in each variant book so uneven signups can be rebalanced for printing.
 - As an admin, I can choose how many participant coupons fit in one coupon book page.
 - As an admin, I can move coupons between coupon book pages to fill incomplete books without changing participant records.
 - As an admin, I can use a global layout template so most coupons remain consistent.
@@ -67,6 +70,7 @@ Admins need to produce complete, print-ready coupon books even when activity var
 
 - On first load, generate an initial coupon book draft from current activity data:
   - One initial group/variant per activity detail.
+  - Initialize each variant book's coupon count from the activity detail `participationLimit` when present.
   - Include participant text proofs according to the selected review-status filter.
   - Exclude removed participants.
   - Hydrate coupon display data with participant name, stand labels, sector, avatar/logo, promo highlight, promo description, and promo conditions.
@@ -92,6 +96,7 @@ Required draft fields:
   - Stable page/book ID.
   - Label.
   - Source activity detail ID when applicable.
+  - Editable variant coupon count for that book.
   - Ordered coupon slot IDs.
   - Header image URL.
 - Coupon entries:
@@ -126,23 +131,36 @@ Required draft fields:
 - When pending-review coupons are hidden, their draft edits and per-coupon overrides should be preserved so they can reappear if the admin toggles pending-review coupons back on.
 - The UI must clearly display the active inclusion mode and the count of included/hidden coupons.
 
-### 8.6 Coupon Count Per Page
+### 8.6 Per-Variant Coupon Count
+
+- Admins must be able to edit the coupon count for each variant book from the coupon book preview page at `app/dashboard/festivals/[id]/festival_activities/[activityId]/review/couponbook/page.tsx`.
+- On first load, each variant book's coupon count should initialize from the source activity detail `participationLimit` when present. When a detail has no limit, the initial count should reflect the number of included participant coupons for that detail.
+- Changing a variant's coupon count must update only the editor draft until Save.
+- Changing variant coupon counts must redistribute included participant coupons across variant books using a stable global order across all included participants (default: ascending `participationId`).
+- Redistribution must fill earlier variant books up to their configured coupon count before assigning remaining participants to later variant books.
+- Example: an activity has two variants that each start with a `participationLimit` of 26, but only 35 participant coupons exist in total (26 assigned to the first variant and 9 to the second by enrollment). If the admin sets each variant book to 18 coupons, the draft should place participants 1-18 in the first variant book and participants 19-35 in the second variant book.
+- Redistribution must not change activity enrollment, proof status, or the participant's source activity detail membership in the database.
+- Manual coupon moves between pages within a variant book should be preserved when possible. If a variant-limit change conflicts with manual page assignments, the editor should reflow predictably and surface the resulting composition in preview.
+- The UI must show, per variant: configured coupon count, assigned participant coupon count, and any unused capacity.
+- Variant coupon count edits must affect preview, page counts, local storage draft state, Save, and PDF export.
+
+### 8.7 Coupon Count Per Page
 
 - Admins must be able to configure the number of dynamic participant coupons per coupon book page.
-- This setting must not be coupled to the activity's participant limit or activity detail capacity.
+- This setting must not be coupled to the activity's participant limit, activity detail capacity, or per-variant coupon count.
 - The UI must show the resulting page count and empty slot count.
 - Changing the coupon count per page must reflow coupons predictably while preserving manual ordering as much as possible.
 - The courtesy coupon remains separate from the dynamic participant coupon count unless the UI explicitly adds a future option to include it in capacity.
 
-### 8.7 Moving Coupons Between Coupon Book Pages
+### 8.8 Moving Coupons Between Coupon Book Pages
 
 - Admins must be able to move participant coupons from one coupon book page to another.
 - Supported interactions should include at least explicit move controls; drag-and-drop can be added if accessible keyboard alternatives exist.
 - Moving a coupon changes only the draft assignment/order.
 - Moving a coupon must not update activity detail membership, participation records, proof records, or any database row until Save.
-- Save commits the edited coupon book composition/configuration, not the participant's source activity variant.
+- Save commits the edited coupon book composition/configuration, including per-variant coupon counts, not the participant's source activity variant or activity detail limits.
 
-### 8.8 Global Layout & Per-Coupon Overrides
+### 8.9 Global Layout & Per-Coupon Overrides
 
 - All coupons inherit a global layout template by default:
   - Left column width.
@@ -157,12 +175,13 @@ Required draft fields:
 - The editor must make inheritance clear: unset values use the global template; overridden values affect only that coupon.
 - Reset all settings removes per-coupon overrides and restores global defaults.
 
-### 8.9 Local Storage Persistence
+### 8.10 Local Storage Persistence
 
 - All editor state must persist in local storage:
   - Global layout settings.
   - PDF canvas settings.
   - Participant inclusion mode.
+  - Per-variant coupon counts.
   - Coupon count per page.
   - Courtesy coupon edits.
   - Participant coupon edits.
@@ -173,17 +192,17 @@ Required draft fields:
 - The editor must tolerate malformed or older local storage data by migrating when possible or falling back safely.
 - The Reset button must reset all local editor settings and draft edits, not only layout controls.
 
-### 8.10 Save Behavior
+### 8.11 Save Behavior
 
 - Provide an explicit Save action.
 - Before Save, changes remain local draft state and must not mutate the database.
 - On Save, persist the coupon book configuration needed to reproduce the current editor state.
-- Saved state should include coupon composition, content overrides, global settings, per-coupon overrides, and print/export settings.
+- Saved state should include coupon composition, per-variant coupon counts, content overrides, global settings, per-coupon overrides, and print/export settings.
 - Saved state should include the selected participant inclusion mode.
 - Save should not rewrite source participant/proof data unless a future, separate action explicitly supports that.
 - The UI must indicate unsaved changes and Save success/failure.
 
-### 8.11 Preview & Printable Output
+### 8.12 Preview & Printable Output
 
 - Preview must render from the editor draft state.
 - Printable route/export must render from the same draft state currently shown in preview.
@@ -195,13 +214,13 @@ Required draft fields:
   - Another equivalent mechanism that avoids rebuilding print output only from database state.
 - The print renderer should continue to share visual components with preview wherever possible.
 
-### 8.12 PDF Export
+### 8.13 PDF Export
 
 - Export one selected coupon book/page group or all coupon books from the current draft.
 - PDF canvas dimensions and orientation remain configurable.
 - Packing algorithm computes coupon book pages per physical sheet from canvas dimensions.
 - Export must include only coupon book content, with no app chrome.
-- Export must use the current draft, including coupon moves, content edits, courtesy coupon edits, coupon count per page, and per-coupon overrides.
+- Export must use the current draft, including per-variant coupon counts, coupon moves, content edits, courtesy coupon edits, coupon count per page, and per-coupon overrides.
 - Export must respect whether the admin selected approved-only or approved + pending-review coupons.
 
 ## 9) UX Requirements
@@ -211,11 +230,13 @@ Required draft fields:
 - The editor panel must include sections for:
   - PDF settings.
   - Participant status filter.
+  - Variant coupon counts.
   - Coupon book/page settings.
   - Global coupon layout.
   - Selected coupon content.
   - Selected coupon layout overrides.
 - The preview should allow selecting a coupon so its content and override controls can be edited.
+- Variant controls should show configured coupon count, assigned coupon count, and unused capacity.
 - Page navigation should show page count, coupon count, configured coupons per page, and empty slots.
 - The status filter control should show included and hidden coupon counts.
 - Moving coupons should be understandable without relying only on drag-and-drop.
@@ -224,6 +245,7 @@ Required draft fields:
 ## 10) Technical Design Summary
 
 - Introduce a serializable `CouponBookDraft` domain model shared by preview, print, save, and export.
+- Store an editable per-variant coupon count on each draft book and redistribute participant coupons across books when those limits change.
 - Refactor pagination to accept `dynamicCouponsPerPage` and ordered coupon IDs instead of using only `COUPON_BOOK_DYNAMIC_SLOTS_PER_PAGE`.
 - Refactor `CouponBookPrintPage` and `CouponBookCardPrint` to accept effective coupon config per entry: global template plus per-coupon override.
 - Replace hard-coded courtesy coupon rendering with a courtesy coupon entry from the draft.
@@ -269,18 +291,20 @@ Alternative: keep the current `GET /export` route only for saved-state export, a
 2. Admin can edit every participant coupon's displayed promotion fields.
 3. Admin can toggle between approved-only coupons and approved + pending-review coupons.
 4. The active participant status filter affects preview, page counts, Save, and PDF export.
-5. Admin can configure dynamic coupons per coupon book page independently from participant limits.
-6. Admin can move participant coupons between coupon book pages without changing activity detail membership or participant/proof records.
-7. Before Save, reload restores all draft edits from local storage.
-8. Reset clears all local draft edits/settings and restores generated defaults or saved defaults according to the chosen reset mode.
-9. Save persists the coupon book configuration and reloads use the saved state as the starting point.
-10. Global coupon layout applies to all coupons by default.
-11. Individual coupon layout overrides affect only that coupon.
-12. Preview and PDF export reflect the current editor draft, including unsaved local changes.
-13. Exported PDF includes only coupon book content and keeps the existing no-chrome behavior.
-14. Text fitting remains consistent between preview and PDF with no clipping/ellipsis regressions.
-15. Empty validity conditions render fallback validity text consistently.
-16. Malformed local storage data does not break the editor.
+5. Admin can edit the coupon count for each variant book from the preview page and see participant coupons redistribute across variants according to the configured limits.
+6. Changing per-variant coupon counts updates only the draft until Save and does not mutate enrollment or source activity detail membership.
+7. Admin can configure dynamic coupons per coupon book page independently from participant limits and per-variant coupon counts.
+8. Admin can move participant coupons between coupon book pages without changing activity detail membership or participant/proof records.
+9. Before Save, reload restores all draft edits from local storage.
+10. Reset clears all local draft edits/settings and restores generated defaults or saved defaults according to the chosen reset mode.
+11. Save persists the coupon book configuration, including per-variant coupon counts, and reloads use the saved state as the starting point.
+12. Global coupon layout applies to all coupons by default.
+13. Individual coupon layout overrides affect only that coupon.
+14. Preview and PDF export reflect the current editor draft, including unsaved local changes.
+15. Exported PDF includes only coupon book content and keeps the existing no-chrome behavior.
+16. Text fitting remains consistent between preview and PDF with no clipping/ellipsis regressions.
+17. Empty validity conditions render fallback validity text consistently.
+18. Malformed local storage data does not break the editor.
 
 ## 14) Risks & Mitigations
 

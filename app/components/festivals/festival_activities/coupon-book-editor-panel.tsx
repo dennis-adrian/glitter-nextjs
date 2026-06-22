@@ -13,6 +13,7 @@ import {
   DraftCouponEntry,
   MAX_DYNAMIC_COUPONS_PER_PAGE,
   MIN_DYNAMIC_COUPONS_PER_PAGE,
+  MIN_VARIANT_COUPON_COUNT,
   ParticipantInclusionMode,
   getEffectiveLayoutForCoupon,
 } from "@/app/lib/festival_activites/coupon-book-draft";
@@ -55,6 +56,14 @@ type CouponBookEditorPanelProps = {
   onRestoreCoupon: (couponId: string) => void;
   onClearCouponOverride: (couponId: string) => void;
   onMoveCoupon: (targetPageId: string) => void;
+  onUpdateVariantCouponCount: (
+    bookId: string,
+    variantCouponCount: number,
+  ) => void;
+  getAssignedParticipantCount: (
+    draft: CouponBookDraft,
+    bookId: string,
+  ) => number;
   moveTargetPages: Array<{ id: string; label: string }>;
 };
 
@@ -125,6 +134,8 @@ export default function CouponBookEditorPanel({
   onRestoreCoupon,
   onClearCouponOverride,
   onMoveCoupon,
+  onUpdateVariantCouponCount,
+  getAssignedParticipantCount,
   moveTargetPages,
 }: CouponBookEditorPanelProps) {
   const pdfCanvas = draft.globalSettings.pdfCanvas;
@@ -268,6 +279,54 @@ export default function CouponBookEditorPanel({
           <p className="text-xs text-muted-foreground">
             Incluidos: {includedCount} · Ocultos: {hiddenCount}
           </p>
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Cupones por variante
+          </p>
+          <div className="space-y-3">
+            {draft.books.map((book) => {
+              const assigned = getAssignedParticipantCount(draft, book.id);
+              const unused = Math.max(0, book.variantCouponCount - assigned);
+              return (
+                <div key={book.id} className="space-y-1 rounded-md border p-3">
+                  <Label
+                    htmlFor={`variant-coupon-count-${book.id}`}
+                    className="text-xs"
+                  >
+                    {book.label}
+                  </Label>
+                  <Input
+                    id={`variant-coupon-count-${book.id}`}
+                    type="number"
+                    min={MIN_VARIANT_COUPON_COUNT}
+                    value={book.variantCouponCount}
+                    onChange={(event) => {
+                      const parsed = Number(event.target.value);
+                      if (!Number.isFinite(parsed)) return;
+                      const clamped = clamp(
+                        parsed,
+                        MIN_VARIANT_COUPON_COUNT,
+                        9999,
+                      );
+                      if (clamped === book.variantCouponCount) return;
+                      if (clamped < assigned) {
+                        const confirmed = window.confirm(
+                          `El cupo de cupones (${clamped}) es menor que los participantes asignados (${assigned}). Los participantes excedentes se redistribuirán a otras variantes o quedarán fuera de la cuponera. ¿Continuar?`,
+                        );
+                        if (!confirmed) return;
+                      }
+                      onUpdateVariantCouponCount(book.id, clamped);
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Asignados: {assigned} · Sin usar: {unused}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         <div className="space-y-3">

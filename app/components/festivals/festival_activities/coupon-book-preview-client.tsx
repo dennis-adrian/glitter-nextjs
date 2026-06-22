@@ -36,6 +36,8 @@ import {
   restoreDraftCouponFromSource,
   setParticipantInclusionMode,
   updateDraftCouponEntry,
+  updateVariantCouponCount,
+  countAssignedParticipantsForBook,
 } from "@/app/lib/festival_activites/coupon-book-draft";
 import {
   clearStoredCouponBookEditorState,
@@ -175,6 +177,12 @@ export default function CouponBookPreviewClient({
     [draft, selectedBook],
   );
 
+  useEffect(() => {
+    if (selectedPageIndex >= pages.length) {
+      setSelectedPageIndex(Math.max(0, pages.length - 1));
+    }
+  }, [pages.length, selectedPageIndex]);
+
   const selectedPage = pages[selectedPageIndex] ?? pages[0] ?? null;
   const selectedCoupon = selectedCouponId
     ? (draft.entries[selectedCouponId] ?? null)
@@ -277,17 +285,11 @@ export default function CouponBookPreviewClient({
           resolved,
           next.globalSettings.participantInclusionMode,
         );
-        resolved = reflowDraftPages(
-          resolved,
-          resolved.globalSettings.dynamicCouponsPerPage,
-          variants,
-        );
       }
       if (perPageChanged) {
         resolved = reflowDraftPages(
           resolved,
           next.globalSettings.dynamicCouponsPerPage,
-          variants,
         );
       }
       applyDraft(resolved);
@@ -454,6 +456,10 @@ export default function CouponBookPreviewClient({
           }),
         );
       }}
+      onUpdateVariantCouponCount={(bookId, variantCouponCount) =>
+        applyDraft(updateVariantCouponCount(draft, bookId, variantCouponCount))
+      }
+      getAssignedParticipantCount={countAssignedParticipantsForBook}
       moveTargetPages={moveTargetPages}
     />
   );
@@ -592,15 +598,21 @@ export default function CouponBookPreviewClient({
                 </span>
               </div>
               <div className="flex justify-between">
+                <span>Cupones en variante:</span>
+                <span className="font-medium text-foreground">
+                  {selectedBook?.variantCouponCount ?? 0}
+                </span>
+              </div>
+              <div className="flex justify-between">
                 <span>Páginas:</span>
                 <span className="font-medium text-foreground">
                   {pages.length}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span>Cupones por página:</span>
+                <span>Cupones en página:</span>
                 <span className="font-medium text-foreground">
-                  {draft.globalSettings.dynamicCouponsPerPage} (+ 1 cortesía)
+                  {selectedPage?.slotCouponIds.length ?? 0} (+ 1 cortesía)
                 </span>
               </div>
             </div>

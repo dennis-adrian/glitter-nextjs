@@ -2,6 +2,7 @@ import CouponBookCardPrint from "@/app/components/festivals/festival_activities/
 import {
   COUPON_BOOK_PAGE_HEIGHT_CM,
   COUPON_BOOK_PAGE_WIDTH_CM,
+  computeCouponBookGridLayout,
   COURTESY_COUPON_ENTRY,
   CouponBookEntry,
   CouponBookPage,
@@ -61,6 +62,10 @@ export default function CouponBookPrintPage({
   onSelectCoupon,
 }: CouponBookPrintPageProps) {
   const resolvedCourtesy = courtesyEntry ?? COURTESY_COUPON_ENTRY;
+  const dynamicSlotCount =
+    page.dynamicSlotCount ?? 1 + page.bodyEntries.length;
+  const { totalRows, bodyRows } = computeCouponBookGridLayout(dynamicSlotCount);
+  const lastBodyRow = bodyRows === 0 ? 1 : 1 + bodyRows;
 
   return (
     <div
@@ -74,7 +79,7 @@ export default function CouponBookPrintPage({
         border: "1px solid #111",
         display: "grid",
         gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-        gridTemplateRows: "repeat(6, minmax(0, 1fr))",
+        gridTemplateRows: `repeat(${totalRows}, minmax(0, 1fr))`,
         fontFamily: "Arial, Helvetica, sans-serif",
         isolation: "isolate",
       }}
@@ -252,7 +257,7 @@ export default function CouponBookPrintPage({
               gridRow: row,
               gridColumn: col,
               padding: "1.2mm",
-              borderBottom: row < 6 ? "2px dashed #111" : undefined,
+              borderBottom: row < lastBodyRow ? "2px dashed #111" : undefined,
               borderRight: col < 5 ? "2px dashed #111" : undefined,
               ...slotShellStyle({
                 selected: couponId !== null && selectedCouponId === couponId,

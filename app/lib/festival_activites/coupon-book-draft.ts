@@ -1,5 +1,4 @@
 import {
-  COUPON_BOOK_BODY_SLOTS,
   COUPON_BOOK_DYNAMIC_SLOTS_PER_PAGE,
   COURTESY_COUPON_ENTRY,
   CouponBookEntry,
@@ -15,7 +14,7 @@ import {
   resolvePdfCanvasConfig,
 } from "@/app/lib/festival_activites/coupon-book-print-config";
 
-export const COUPON_BOOK_DRAFT_SCHEMA_VERSION = 1;
+export const COUPON_BOOK_DRAFT_SCHEMA_VERSION = 2;
 export const DEFAULT_DYNAMIC_COUPONS_PER_PAGE =
   COUPON_BOOK_DYNAMIC_SLOTS_PER_PAGE;
 export const MAX_DYNAMIC_COUPONS_PER_PAGE = COUPON_BOOK_DYNAMIC_SLOTS_PER_PAGE;
@@ -58,6 +57,7 @@ export type DraftCouponBook = {
   label: string;
   sourceDetailId: number;
   headerImageUrl: string | null;
+  variantCouponCount: number;
   pageIds: string[];
 };
 
@@ -106,6 +106,128 @@ export type CouponBookExportScope =
 
 function participantCouponId(participationId: number): string {
   return `participant-${participationId}`;
+}
+
+export const MIN_VARIANT_COUPON_COUNT = 1;
+
+function clampVariantCouponCount(value: number): number {
+  if (!Number.isFinite(value)) return MIN_VARIANT_COUPON_COUNT;
+  return Math.max(MIN_VARIANT_COUPON_COUNT, Math.round(value));
+}
+
+function resolveInitialVariantCouponCount(
+  variant: CouponBookVariant,
+  includedCount: number,
+): number {
+  if (
+    variant.participationLimit !== null &&
+    variant.participationLimit > 0
+  ) {
+    return variant.participationLimit;
+  }
+  return Math.max(MIN_VARIANT_COUPON_COUNT, includedCount);
+}
+
+export function getGloballyOrderedIncludedParticipantIds(
+  draft: CouponBookDraft,
+): string[] {
+  return getIncludedParticipantEntries(draft)
+    .sort((a, b) => (a.participationId ?? 0) - (b.participationId ?? 0))
+    .map((entry) => entry.id);
+}
+
+export function partitionParticipantsAcrossBooks(
+  draft: CouponBookDraft,
+): Record<string, string[]> {
+  const globalIds = getGloballyOrderedIncludedParticipantIds(draft);
+  const assignments: Record<string, string[]> = {};
+  let offset = 0;
+
+  for (const book of draft.books) {
+    const limit = clampVariantCouponCount(book.variantCouponCount);
+    assignments[book.id] = globalIds.slice(offset, offset + limit);
+    offset += limit;
+  }
+
+  return assignments;
+}
+
+function getOrderedParticipantIdsFromBookPages(
+  draft: CouponBookDraft,
+  bookId: string,
+): string[] {
+  const mode = draft.globalSettings.participantInclusionMode;
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+
+  for (const page of getDraftBookPages(draft, bookId)) {
+    for (const couponId of page.slotCouponIds) {
+      if (!couponId || seen.has(couponId)) continue;
+      const entry = draft.entries[couponId];
+      if (!entry || entry.type !== "participant") continue;
+      if (!isEntryIncluded(entry, mode)) continue;
+      seen.add(couponId);
+      ordered.push(couponId);
+    }
+  }
+
+  return ordered;
+}
+
+export function countAssignedParticipantsForBook(
+  draft: CouponBookDraft,
+  bookId: string,
+): number {
+  return getOrderedParticipantIdsFromBookPages(draft, bookId).length;
+}
+
+export function reflowDraftFromVariantLimits(
+  draft: CouponBookDraft,
+): CouponBookDraft {
+  const perPage = clampDynamicCouponsPerPage(
+    draft.globalSettings.dynamicCouponsPerPage,
+  );
+  const assignments = partitionParticipantsAcrossBooks(draft);
+  const nextPages: Record<string, DraftCouponPage> = {};
+  const nextBooks = draft.books.map((book) => {
+    const bookPages = distributeCouponsToPages(
+      assignments[book.id] ?? [],
+      perPage,
+      book.id,
+      book.variantCouponCount,
+    );
+    for (const page of bookPages) {
+      nextPages[page.id] = page;
+    }
+    return {
+      ...book,
+      variantCouponCount: clampVariantCouponCount(book.variantCouponCount),
+      pageIds: bookPages.map((page) => page.id),
+    };
+  });
+
+  return {
+    ...draft,
+    updatedAt: new Date().toISOString(),
+    books: nextBooks,
+    pages: nextPages,
+  };
+}
+
+export function updateVariantCouponCount(
+  draft: CouponBookDraft,
+  bookId: string,
+  variantCouponCount: number,
+): CouponBookDraft {
+  const nextBooks = draft.books.map((book) =>
+    book.id === bookId
+      ? { ...book, variantCouponCount: clampVariantCouponCount(variantCouponCount) }
+      : book,
+  );
+  return reflowDraftFromVariantLimits({
+    ...draft,
+    books: nextBooks,
+  });
 }
 
 function clampDynamicCouponsPerPage(value: number): number {
@@ -226,38 +348,50 @@ export function countCouponVisibility(draft: CouponBookDraft): {
   return { included, hidden: participants.length - included };
 }
 
+function buildBookSlotIds(
+  assignedCouponIds: string[],
+  variantCouponCount: number,
+): (string | null)[] {
+  const capacity = clampVariantCouponCount(variantCouponCount);
+  const slots: (string | null)[] = assignedCouponIds
+    .slice(0, capacity)
+    .map((id) => id);
+  while (slots.length < capacity) {
+    slots.push(null);
+  }
+  return slots;
+}
+
 function distributeCouponsToPages(
-  couponIds: string[],
+  assignedCouponIds: string[],
   dynamicCouponsPerPage: number,
   bookId: string,
+  variantCouponCount: number,
 ): DraftCouponPage[] {
   const perPage = clampDynamicCouponsPerPage(dynamicCouponsPerPage);
+  const allSlots = buildBookSlotIds(assignedCouponIds, variantCouponCount);
   const pages: DraftCouponPage[] = [];
-  if (couponIds.length === 0) {
+
+  if (allSlots.length === 0) {
     pages.push({
       id: crypto.randomUUID(),
       bookId,
       pageNumber: 1,
-      slotCouponIds: Array.from({ length: perPage }, () => null),
+      slotCouponIds: [],
     });
     return pages;
   }
 
   for (
     let start = 0, pageNumber = 1;
-    start < couponIds.length;
+    start < allSlots.length;
     start += perPage, pageNumber++
   ) {
-    const chunk = couponIds.slice(start, start + perPage);
-    const slotCouponIds = Array.from(
-      { length: perPage },
-      (_, index) => chunk[index] ?? null,
-    );
     pages.push({
       id: crypto.randomUUID(),
       bookId,
       pageNumber,
-      slotCouponIds,
+      slotCouponIds: allSlots.slice(start, start + perPage),
     });
   }
   return pages;
@@ -301,10 +435,15 @@ export function buildInitialCouponBookDraft(input: {
       }
     }
 
+    const variantCouponCount = resolveInitialVariantCouponCount(
+      variant,
+      participantIds.length,
+    );
     const bookPages = distributeCouponsToPages(
       participantIds,
       dynamicCouponsPerPage,
       bookId,
+      variantCouponCount,
     );
     for (const page of bookPages) {
       pages[page.id] = page;
@@ -315,6 +454,7 @@ export function buildInitialCouponBookDraft(input: {
       label: variant.detailLabel,
       sourceDetailId: variant.detailId,
       headerImageUrl: variant.headerImageUrl ?? null,
+      variantCouponCount,
       pageIds: bookPages.map((page) => page.id),
     });
   }
@@ -343,29 +483,24 @@ export function draftPageToCouponBookPage(
   draft: CouponBookDraft,
   page: DraftCouponPage,
 ): CouponBookPage {
-  const perPage = clampDynamicCouponsPerPage(
-    draft.globalSettings.dynamicCouponsPerPage,
-  );
   const mode = draft.globalSettings.participantInclusionMode;
-  const slotEntries = page.slotCouponIds.slice(0, perPage).map((id) => {
+  const slotEntries = page.slotCouponIds.map((id) => {
     if (!id) return null;
     const entry = draft.entries[id];
     if (!entry || entry.type !== "participant") return null;
     if (!isEntryIncluded(entry, mode)) return null;
     return draftEntryToCouponBookEntry(entry);
   });
-  while (slotEntries.length < perPage) slotEntries.push(null);
 
   const headerDynamicEntry = slotEntries[0] ?? null;
   const bodyEntries: Array<CouponBookEntry | null> = slotEntries.slice(1);
-  while (bodyEntries.length < COUPON_BOOK_BODY_SLOTS) bodyEntries.push(null);
-
   const bookPages = getDraftBookPages(draft, page.bookId);
   const totalPages = bookPages.length;
 
   return {
     pageNumber: page.pageNumber,
     totalPages,
+    dynamicSlotCount: slotEntries.length,
     headerDynamicEntry,
     bodyEntries,
   };
@@ -399,52 +534,33 @@ export function countEmptySlotsOnPage(
 function participantCouponIdsForBook(
   draft: CouponBookDraft,
   book: DraftCouponBook,
-  variants?: CouponBookVariant[],
 ): string[] {
-  const onPages = getDraftBookPages(draft, book.id).flatMap((draftPage) =>
-    draftPage.slotCouponIds.filter((id): id is string => id !== null),
-  );
-  if (!variants) return onPages;
-
-  const variant = variants.find((item) => item.detailId === book.sourceDetailId);
-  if (!variant) return onPages;
-
-  const variantIds = variant.entries
-    .filter((entry) => entry.participationId !== null)
-    .map((entry) => participantCouponId(entry.participationId as number));
-
-  const seen = new Set<string>();
-  const merged: string[] = [];
-  for (const id of [...onPages, ...variantIds]) {
-    if (seen.has(id)) continue;
-    seen.add(id);
-    merged.push(id);
-  }
-  return merged;
+  return getOrderedParticipantIdsFromBookPages(draft, book.id);
 }
 
 function collectIncludedCouponIdsForBook(
   draft: CouponBookDraft,
   book: DraftCouponBook,
-  variants?: CouponBookVariant[],
 ): string[] {
-  const mode = draft.globalSettings.participantInclusionMode;
-  return participantCouponIdsForBook(draft, book, variants).filter((id) => {
-    const entry = draft.entries[id];
-    return entry && isEntryIncluded(entry, mode);
-  });
+  return participantCouponIdsForBook(draft, book);
 }
 
 export function reflowDraftPages(
   draft: CouponBookDraft,
-  newDynamicCouponsPerPage: number,
-  variants?: CouponBookVariant[],
+  newDynamicCouponsPerPage?: number,
 ): CouponBookDraft {
-  const perPage = clampDynamicCouponsPerPage(newDynamicCouponsPerPage);
+  const perPage = clampDynamicCouponsPerPage(
+    newDynamicCouponsPerPage ?? draft.globalSettings.dynamicCouponsPerPage,
+  );
   const nextPages: Record<string, DraftCouponPage> = {};
   const nextBooks = draft.books.map((book) => {
-    const includedIds = collectIncludedCouponIdsForBook(draft, book, variants);
-    const bookPages = distributeCouponsToPages(includedIds, perPage, book.id);
+    const includedIds = collectIncludedCouponIdsForBook(draft, book);
+    const bookPages = distributeCouponsToPages(
+      includedIds,
+      perPage,
+      book.id,
+      book.variantCouponCount,
+    );
     for (const page of bookPages) {
       nextPages[page.id] = page;
     }
@@ -597,7 +713,7 @@ export function setParticipantInclusionMode(
   mode: ParticipantInclusionMode,
 ): CouponBookDraft {
   if (draft.globalSettings.participantInclusionMode === mode) return draft;
-  return {
+  const nextDraft = {
     ...draft,
     updatedAt: new Date().toISOString(),
     globalSettings: {
@@ -605,6 +721,7 @@ export function setParticipantInclusionMode(
       participantInclusionMode: mode,
     },
   };
+  return reflowDraftFromVariantLimits(nextDraft);
 }
 
 export function resetDraftToDefaults(input: {
@@ -718,11 +835,7 @@ export function mergeDraftWithSource(
     entries: nextEntries,
   };
 
-  return reflowDraftPages(
-    mergedDraft,
-    mergedDraft.globalSettings.dynamicCouponsPerPage,
-    variants,
-  );
+  return reflowDraftFromVariantLimits(mergedDraft);
 }
 
 export function touchDraftRevision(draft: CouponBookDraft): CouponBookDraft {
@@ -736,17 +849,70 @@ export function isCouponBookDraft(value: unknown): value is CouponBookDraft {
   return parseCouponBookDraft(value) !== null;
 }
 
+export function normalizeCouponBookDraftPayload(
+  value: unknown,
+): CouponBookDraft | null {
+  if (!value || typeof value !== "object") return null;
+  const parsed = value as Partial<CouponBookDraft>;
+  if (!Array.isArray(parsed.books) || parsed.books.length === 0) return null;
+  if (!parsed.pages || !parsed.entries) return null;
+
+  const books = parsed.books.map((book) => {
+    const assigned = (book.pageIds ?? []).reduce((count, pageId) => {
+      const page = parsed.pages?.[pageId];
+      if (!page) return count;
+      return (
+        count +
+        page.slotCouponIds.filter((id): id is string => Boolean(id)).length
+      );
+    }, 0);
+    return {
+      ...book,
+      variantCouponCount: clampVariantCouponCount(
+        book.variantCouponCount && book.variantCouponCount > 0
+          ? book.variantCouponCount
+          : Math.max(MIN_VARIANT_COUPON_COUNT, assigned),
+      ),
+    };
+  });
+
+  return parseCouponBookDraft({
+    ...parsed,
+    schemaVersion: COUPON_BOOK_DRAFT_SCHEMA_VERSION,
+    books,
+  });
+}
+
 export function migrateStoredDraft(
   raw: unknown,
   fallback: CouponBookDraft,
 ): CouponBookDraft {
   if (!raw || typeof raw !== "object") return fallback;
   const parsed = raw as Partial<CouponBookDraft>;
-  if (
-    parsed.schemaVersion === COUPON_BOOK_DRAFT_SCHEMA_VERSION &&
-    isCouponBookDraft(parsed)
-  ) {
-    return parsed;
+  if (!Array.isArray(parsed.books) || parsed.books.length === 0) {
+    return fallback;
+  }
+
+  const books = parsed.books.map((book) => {
+    const fallbackBook = fallback.books.find((item) => item.id === book.id);
+    return {
+      ...book,
+      variantCouponCount: clampVariantCouponCount(
+        book.variantCouponCount && book.variantCouponCount > 0
+          ? book.variantCouponCount
+          : (fallbackBook?.variantCouponCount ?? MIN_VARIANT_COUPON_COUNT),
+      ),
+    };
+  });
+
+  const candidate = {
+    ...parsed,
+    schemaVersion: COUPON_BOOK_DRAFT_SCHEMA_VERSION,
+    books,
+  } as CouponBookDraft;
+
+  if (isCouponBookDraft(candidate)) {
+    return candidate;
   }
   return fallback;
 }
