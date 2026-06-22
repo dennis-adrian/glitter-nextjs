@@ -129,6 +129,57 @@ export async function fetchReservationsByFestivalId(
             },
           },
         },
+        externalParticipants: {
+          with: {
+            externalParticipant: true,
+          },
+        },
+        collaborators: {
+          with: {
+            collaborator: true,
+          },
+        },
+        invoices: {
+          with: {
+            payments: true,
+          },
+        },
+        scheduledTasks: true,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+  try {
+    return await db.query.standReservations.findMany({
+      where: eq(standReservations.festivalId, festivalId),
+      with: {
+        stand: true,
+        festival: {
+          with: {
+            festivalDates: true,
+          },
+        },
+        participants: {
+          with: {
+            user: {
+              with: {
+                userSocials: true,
+                profileSubcategories: {
+                  with: {
+                    subcategory: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        externalParticipants: {
+          with: {
+            externalParticipant: true,
+          },
+        },
         collaborators: {
           with: {
             collaborator: true,
@@ -168,6 +219,36 @@ export async function fetchPublicReservationsByFestivalId(
                 userSocials: true,
               },
             },
+          },
+        },
+        externalParticipants: {
+          with: {
+            externalParticipant: true,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+  try {
+    return await db.query.standReservations.findMany({
+      where: eq(standReservations.festivalId, festivalId),
+      with: {
+        stand: true,
+        participants: {
+          with: {
+            user: {
+              with: {
+                userSocials: true,
+              },
+            },
+          },
+        },
+        externalParticipants: {
+          with: {
+            externalParticipant: true,
           },
         },
       },

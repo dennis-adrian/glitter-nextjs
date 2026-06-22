@@ -13,19 +13,28 @@ import {
 } from "@/app/components/ui/select";
 import { removeFromCart, updateCartItemQuantity } from "@/app/lib/cart/actions";
 import { CartItemWithProduct } from "@/app/lib/cart/definitions";
-import { getCartItemWarnings } from "@/app/lib/cart/utils";
+import { getCartItemAvailableStock, getCartItemWarnings } from "@/app/lib/cart/utils";
 import {
   MAX_CART_LINE_QUANTITY,
   PLACEHOLDER_IMAGE_URLS,
 } from "@/app/lib/constants";
-import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import { getLineUnitPrice } from "@/app/lib/orders/utils";
+import {
+  getProductVariantImageUrl,
+  getVariantLabel,
+} from "@/app/lib/products/variants";
 
 type CartItemRowProps = {
   item: CartItemWithProduct;
+  allItems: CartItemWithProduct[];
   onCartUpdate: () => Promise<void>;
 };
 
-export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
+export default function CartItemRow({
+  item,
+  allItems,
+  onCartUpdate,
+}: CartItemRowProps) {
   const [pending, setPending] = useState(false);
   const [localQty, setLocalQty] = useState(item.quantity);
   const updateGenerationRef = useRef(0);
@@ -36,22 +45,27 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
     previousCommittedQtyRef.current = item.quantity;
   }, [item.quantity]);
 
-  const warnings = getCartItemWarnings(item);
+  const warnings = getCartItemWarnings(item, allItems);
+  const variantLabel = getVariantLabel(item.variant);
+  const productName = variantLabel
+    ? `${item.product.name} (${variantLabel})`
+    : item.product.name;
+  const availableStock = getCartItemAvailableStock(item, allItems);
   const stockCap = Math.max(
     1,
-    Math.min(
-      MAX_CART_LINE_QUANTITY,
-      item.product.stock ?? MAX_CART_LINE_QUANTITY,
-    ),
+    Math.min(MAX_CART_LINE_QUANTITY, availableStock),
   );
   const maxQty = Math.max(stockCap, localQty);
-  const unitPrice = getProductPriceAtPurchase(item.product);
+  const unitPrice = getLineUnitPrice(
+    item.product,
+    item.variant,
+    item.transactionType,
+  );
   const subtotal = unitPrice * localQty;
 
-  const mainImage = item.product.images.find((img) => img.isMain);
-  const imageUrl = mainImage?.imageUrl
-    ? mainImage.imageUrl
-    : PLACEHOLDER_IMAGE_URLS["300"];
+  const imageUrl =
+    getProductVariantImageUrl(item.product, item.variant) ??
+    PLACEHOLDER_IMAGE_URLS["300"];
 
   async function handleQuantitySelect(value: string) {
     const newQty = Number(value);
@@ -60,7 +74,7 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
     const generation = ++updateGenerationRef.current;
     setPending(true);
     try {
-      const result = await updateCartItemQuantity(item.productId, newQty);
+      const result = await updateCartItemQuantity(item.id, newQty);
       if (generation !== updateGenerationRef.current) return;
       if (result.success) {
         previousCommittedQtyRef.current = newQty;
@@ -82,7 +96,7 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
   async function handleRemove() {
     setPending(true);
     try {
-      const result = await removeFromCart(item.productId);
+      const result = await removeFromCart(item.id);
       if (result.success) {
         await onCartUpdate();
       } else {
@@ -101,9 +115,10 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
   return (
     <CartLineRowLayout
       imageUrl={imageUrl}
-      productName={item.product.name}
+      productName={productName}
       unitPrice={unitPrice}
       subtotal={subtotal}
+      lineLabel={item.transactionType === "rental" ? "Alquiler" : null}
       warnings={
         <>
           {warnings.isOutOfStock && (
@@ -119,7 +134,7 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
         </>
       }
       quantityControl={
-        item.product.stock === 0 ? (
+        availableStock === 0 ? (
           <span className="text-xs text-muted-foreground">
             Cantidad: {localQty}
           </span>
@@ -131,7 +146,7 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
           >
             <SelectTrigger
               className="h-7 w-16 text-sm"
-              aria-label={`Cantidad de ${item.product.name}`}
+              aria-label={`Cantidad de ${productName}`}
             >
               <SelectValue />
             </SelectTrigger>

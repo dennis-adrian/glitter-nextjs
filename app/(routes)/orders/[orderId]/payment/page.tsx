@@ -12,6 +12,8 @@ import { Card, CardContent } from "@/app/components/ui/card";
 import { fetchOrder, fetchGuestOrder } from "@/app/lib/orders/actions";
 import { OrderItemWithRelations } from "@/app/lib/orders/definitions";
 import { formatDate } from "@/app/lib/formatters";
+import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import Image from "next/image";
@@ -117,10 +119,9 @@ export default async function OrderPaymentPage(props: {
             </p>
             <div className="space-y-3">
               {order.orderItems.map((item: OrderItemWithRelations) => {
-                const mainImage = item.product.images.find((img) => img.isMain);
-                const imageUrl = mainImage?.imageUrl
-                  ? mainImage.imageUrl
-                  : PLACEHOLDER_IMAGE_URLS["300"];
+                const imageUrl =
+                  getProductVariantImageUrl(item.product, item.variant) ??
+                  PLACEHOLDER_IMAGE_URLS["300"];
                 const unitPrice = item.priceAtPurchase;
 
                 return (
@@ -136,7 +137,7 @@ export default async function OrderPaymentPage(props: {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">
-                        {item.product.name}
+                        {getOrderItemDisplayName(item)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {item.quantity} × Bs {unitPrice.toFixed(2)}

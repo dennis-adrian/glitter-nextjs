@@ -48,7 +48,9 @@ export function GuestCheckoutForm({ guestItems }: GuestCheckoutFormProps) {
     try {
       const result = await checkoutGuestCart(
         guestItems.map((i) => ({
+          lineKey: i.lineKey,
           productId: i.productId,
+          productVariantId: i.productVariantId,
           quantity: i.quantity,
         })),
         values.name,

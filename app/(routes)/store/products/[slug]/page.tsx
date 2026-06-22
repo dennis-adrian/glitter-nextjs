@@ -1,21 +1,91 @@
-import { ArrowLeftIcon, ClockIcon } from "lucide-react";
+import { ArrowLeftIcon } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { z } from "zod";
 
-import Heading from "@/app/components/atoms/heading";
-import StoreItemQuantityInput from "@/app/components/molecules/store-item-quantity-input";
-import StoreProductImages from "@/app/components/molecules/store-product-images";
-import { formatDate } from "@/app/lib/formatters";
-import { validatedDiscount } from "@/app/lib/orders/utils";
+import ProductDetailContent from "@/app/components/organisms/store/product-detail-content";
+import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { fetchProduct, fetchProductBySlug } from "@/app/lib/products/actions";
+import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
+import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 
 const ParamsSchema = z.object({
   slug: z.string().min(1),
 });
 
+type ProductDetailParams = z.infer<typeof ParamsSchema>;
+
+async function resolvePublicProduct(slug: string) {
+  const raw = decodeURIComponent(slug);
+  const product = await fetchProductBySlug(raw, { visibleOnly: true });
+
+  if (product) {
+    return { product, redirectSlug: null };
+  }
+
+  if (/^\d+$/.test(raw)) {
+    const byId = await fetchProduct(Number(raw));
+    if (!byId || !byId.isVisible) {
+      return { product: null, redirectSlug: null };
+    }
+
+    return { product: byId, redirectSlug: byId.slug };
+  }
+
+  return { product: null, redirectSlug: null };
+}
+
+export async function generateMetadata(props: {
+  params: Promise<ProductDetailParams>;
+}): Promise<Metadata> {
+  const params = await props.params;
+  const validatedParams = ParamsSchema.safeParse(params);
+
+  if (!validatedParams.success) {
+    return {};
+  }
+
+  const { product } = await resolvePublicProduct(validatedParams.data.slug);
+
+  if (!product) {
+    return {};
+  }
+
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  const rawImageUrl =
+    getProductVariantImageUrl(product, null) ?? PLACEHOLDER_IMAGE_URLS["1200"];
+  const imageUrl =
+    rawImageUrl.startsWith("http://") || rawImageUrl.startsWith("https://")
+      ? rawImageUrl
+      : `${baseUrl}${rawImageUrl}`;
+  const description = product.description ?? undefined;
+
+  return {
+    title: product.name,
+    description,
+    openGraph: {
+      title: product.name,
+      description,
+      url: `/store/products/${encodeURIComponent(product.slug)}`,
+      images: [
+        {
+          url: imageUrl,
+          alt: product.name,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: product.name,
+      description,
+      images: [imageUrl],
+    },
+  };
+}
+
 export default async function ProductDetailPage(props: {
-  params: Promise<z.infer<typeof ParamsSchema>>;
+  params: Promise<ProductDetailParams>;
 }) {
   const params = await props.params;
   const validatedParams = ParamsSchema.safeParse(params);
@@ -24,41 +94,19 @@ export default async function ProductDetailPage(props: {
     return notFound();
   }
 
-  const raw = decodeURIComponent(validatedParams.data.slug);
-
-  const product = await fetchProductBySlug(raw, { visibleOnly: true });
+  const { product, redirectSlug } = await resolvePublicProduct(
+    validatedParams.data.slug,
+  );
 
   if (!product) {
-    if (/^\d+$/.test(raw)) {
-      const byId = await fetchProduct(Number(raw));
-      if (!byId || !byId.isVisible) {
-        return notFound();
-      }
-      return permanentRedirect(`/store/products/${byId.slug}`);
-    }
     return notFound();
   }
 
-  let originalPrice: number | null = null;
-  let price = product.price;
-
-  if (product.discount && product.discountUnit === "percentage") {
-    const validDiscount = validatedDiscount(
-      product.price,
-      product.discount,
-      product.discountUnit,
-    );
-    originalPrice = product.price;
-    price = product.price * (1 - validDiscount / 100);
-  } else if (product.discount && product.discountUnit === "amount") {
-    const validDiscount = validatedDiscount(
-      product.price,
-      product.discount,
-      product.discountUnit,
-    );
-    originalPrice = product.price;
-    price = product.price - validDiscount;
+  if (redirectSlug) {
+    return permanentRedirect(`/store/products/${redirectSlug}`);
   }
+
+  const rentalEligibility = await getRentalEligibilityForCurrentUser();
 
   return (
     <div className="container px-3 py-6">
@@ -70,46 +118,13 @@ export default async function ProductDetailPage(props: {
         Volver a la tienda
       </Link>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
-        <StoreProductImages
-          productName={product.name}
-          stock={product.stock ?? 0}
-          images={product.images}
-        />
-
-        <div className="flex flex-col gap-4">
-          <Heading level={2}>{product.name}</Heading>
-
-          {product.description && (
-            <p className="text-muted-foreground text-sm leading-relaxed">
-              {product.description}
-            </p>
-          )}
-
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-semibold">Bs{price.toFixed(2)}</span>
-            {originalPrice && (
-              <span className="text-base text-muted-foreground line-through">
-                Bs{originalPrice.toFixed(2)}
-              </span>
-            )}
-          </div>
-
-          {product.isPreOrder && product.availableDate && (
-            <p className="text-sm text-muted-foreground flex items-center gap-1">
-              <ClockIcon className="w-4 h-4" />
-              Disponible el{" "}
-              {formatDate(product.availableDate).toLocaleString({
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })}
-            </p>
-          )}
-
-          <StoreItemQuantityInput product={product} />
-        </div>
-      </div>
+      <ProductDetailContent
+        product={product}
+        rentalEligible={rentalEligibility.eligible}
+        rentalContexts={
+          rentalEligibility.eligible ? rentalEligibility.contexts : []
+        }
+      />
     </div>
   );
 }

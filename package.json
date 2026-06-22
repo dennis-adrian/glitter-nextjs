@@ -1,6 +1,6 @@
 {
   "name": "glitter-nextjs",
-  "version": "2.32.1",
+  "version": "2.33.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -15,7 +15,7 @@
     "vercel-build": "npm run generate && npm run migrate && next build",
     "email": "email dev --dir app/emails",
     "test": "vitest",
-    "format:fix": "prettier --write .",
+    "format:write": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "dependencies": {

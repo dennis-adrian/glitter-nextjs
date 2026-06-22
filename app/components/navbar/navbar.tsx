@@ -5,8 +5,11 @@ import MobileSidebar from "@/app/components/organisms/mobile-sidebar";
 import { getCurrentNavbarProfile } from "@/app/lib/users/helpers";
 import { MenuIcon } from "lucide-react";
 import Link from "next/link";
+import { connection } from "next/server";
 
 export default async function Navbar() {
+  await connection();
+
   const profile = await getCurrentNavbarProfile();
 
   return (

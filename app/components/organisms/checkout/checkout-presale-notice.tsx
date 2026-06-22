@@ -26,16 +26,20 @@ export function CheckoutPresaleNotice({ items }: CheckoutPresaleNoticeProps) {
         <ul className="space-y-1">
           {items.map((item) => (
             <li key={item.key} className="text-sm text-amber-900">
-              <span className="font-medium">{item.product.name}</span>
-              {item.product.availableDate && (
-                <span className="text-amber-700">
-                  {" "}
-                  - disponible desde el{" "}
-                  {formatDate(item.product.availableDate).toLocaleString(
-                    DateTime.DATE_FULL,
-                  )}
-                </span>
-              )}
+              <span className="font-medium">
+                {item.productVariantLabel
+                  ? `${item.product.name} (${item.productVariantLabel})`
+                  : item.product.name}
+              </span>
+              <span className="text-amber-700">
+                {" "}
+                -{" "}
+                {item.product.availableDate
+                  ? `disponible desde el ${formatDate(
+                      item.product.availableDate,
+                    ).toLocaleString(DateTime.DATE_FULL)}`
+                  : "disponible próximamente"}
+              </span>
             </li>
           ))}
         </ul>

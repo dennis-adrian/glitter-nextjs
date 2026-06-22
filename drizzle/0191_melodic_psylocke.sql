@@ -1,0 +1,1 @@
+ALTER TABLE "festival_activity_coupon_book_configs" ADD CONSTRAINT "festival_activity_coupon_book_configs_revision_positive" CHECK ("festival_activity_coupon_book_configs"."revision" >= 1);

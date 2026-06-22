@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -14,6 +15,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const userRoleEnum = pgEnum("user_role", [
@@ -98,6 +100,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   userRequests: many(userRequests),
   userSocials: many(userSocials),
   participations: many(reservationParticipants),
+  createdExternalParticipants: many(externalParticipants),
   scheduledTasks: many(scheduledTasks),
   invoices: many(invoices),
   profileTags: many(profileTags),
@@ -353,6 +356,19 @@ export const reservationStatusEnum = pgEnum("reservation_status", [
   "accepted",
   "rejected",
 ]);
+export const reservationSourceEnum = pgEnum("reservation_source", [
+  "user_reservation",
+  "admin_assignment",
+]);
+export const externalParticipantTypeEnum = pgEnum("external_participant_type", [
+  "institution",
+  "social_organization",
+  "sponsor",
+  "partner",
+  "public_entity",
+  "invited_brand",
+  "other",
+]);
 
 export const requestTypeEnum = pgEnum("user_request_type", [
   "festival_participation",
@@ -532,16 +548,23 @@ export const standHoldsRelations = relations(standHolds, ({ one }) => ({
   }),
 }));
 
-export const standReservations = pgTable("stand_reservations", {
-  id: serial("id").primaryKey(),
-  standId: integer("stand_id")
-    .notNull()
-    .references(() => stands.id),
-  festivalId: integer("festival_id").notNull(),
-  status: reservationStatusEnum("status").default("pending").notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const standReservations = pgTable(
+  "stand_reservations",
+  {
+    id: serial("id").primaryKey(),
+    standId: integer("stand_id")
+      .notNull()
+      .references(() => stands.id),
+    festivalId: integer("festival_id").notNull(),
+    status: reservationStatusEnum("status").default("pending").notNull(),
+    source: reservationSourceEnum("source").default("user_reservation").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("stand_reservations_id_festival_id_unique").on(t.id, t.festivalId),
+  ],
+);
 export const standReservationsRelations = relations(
   standReservations,
   ({ one, many }) => ({
@@ -554,6 +577,7 @@ export const standReservationsRelations = relations(
       references: [festivals.id],
     }),
     participants: many(reservationParticipants),
+    externalParticipants: many(reservationExternalParticipants),
     invoices: many(invoices),
     scheduledTasks: many(scheduledTasks),
     collaborators: many(reservationCollaborators),
@@ -582,6 +606,78 @@ export const participationsRelations = relations(
     }),
     reservation: one(standReservations, {
       fields: [reservationParticipants.reservationId],
+      references: [standReservations.id],
+    }),
+  }),
+);
+
+export const externalParticipants = pgTable(
+  "external_participants",
+  {
+    id: serial("id").primaryKey(),
+    displayName: text("display_name").notNull(),
+    type: externalParticipantTypeEnum("type").notNull(),
+    customCategoryLabel: text("custom_category_label"),
+    description: text("description"),
+    imageUrl: text("image_url"),
+    websiteUrl: text("website_url"),
+    instagramUrl: text("instagram_url"),
+    contactEmail: text("contact_email"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (externalParticipants) => [
+    index("external_participants_display_name_idx").on(
+      externalParticipants.displayName,
+    ),
+  ],
+);
+export const externalParticipantsRelations = relations(
+  externalParticipants,
+  ({ one, many }) => ({
+    createdByUser: one(users, {
+      fields: [externalParticipants.createdByUserId],
+      references: [users.id],
+    }),
+    reservations: many(reservationExternalParticipants),
+  }),
+);
+
+export const reservationExternalParticipants = pgTable(
+  "reservation_external_participants",
+  {
+    id: serial("id").primaryKey(),
+    externalParticipantId: integer("external_participant_id")
+      .notNull()
+      .references(() => externalParticipants.id, { onDelete: "cascade" }),
+    reservationId: integer("reservation_id")
+      .notNull()
+      .references(() => standReservations.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (reservationExternalParticipants) => [
+    index("reservation_external_participants_reservation_id_idx").on(
+      reservationExternalParticipants.reservationId,
+    ),
+    unique("reservation_external_participants_unique").on(
+      reservationExternalParticipants.externalParticipantId,
+      reservationExternalParticipants.reservationId,
+    ),
+  ],
+);
+export const reservationExternalParticipantsRelations = relations(
+  reservationExternalParticipants,
+  ({ one }) => ({
+    externalParticipant: one(externalParticipants, {
+      fields: [reservationExternalParticipants.externalParticipantId],
+      references: [externalParticipants.id],
+    }),
+    reservation: one(standReservations, {
+      fields: [reservationExternalParticipants.reservationId],
       references: [standReservations.id],
     }),
   }),
@@ -911,6 +1007,63 @@ export const festivalActivityParticipantProofsRelations = relations(
   }),
 );
 
+export const festivalActivityCouponBookConfigs = pgTable(
+  "festival_activity_coupon_book_configs",
+  {
+    id: serial("id").primaryKey(),
+    activityId: integer("activity_id")
+      .notNull()
+      .references(() => festivalActivities.id, { onDelete: "cascade" })
+      .unique(),
+    // Validated at write time via CouponBookDraftSchema (coupon-book-draft-schema.ts).
+    payload: jsonb("payload").notNull(),
+    revision: integer("revision").default(1).notNull(),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check(
+      "festival_activity_coupon_book_configs_revision_positive",
+      sql`${t.revision} >= 1`,
+    ),
+  ],
+);
+
+export const festivalActivityCouponBookConfigsRelations = relations(
+  festivalActivityCouponBookConfigs,
+  ({ one }) => ({
+    activity: one(festivalActivities, {
+      fields: [festivalActivityCouponBookConfigs.activityId],
+      references: [festivalActivities.id],
+    }),
+    createdBy: one(users, {
+      fields: [festivalActivityCouponBookConfigs.createdByUserId],
+      references: [users.id],
+    }),
+    updatedBy: one(users, {
+      fields: [festivalActivityCouponBookConfigs.updatedByUserId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const couponBookPrintSessions = pgTable(
+  "coupon_book_print_sessions",
+  {
+    id: text("id").primaryKey(),
+    payload: jsonb("payload").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("coupon_book_print_sessions_expires_at_idx").on(t.expiresAt)],
+);
+
 export const votableTypeEnum = pgEnum("votable_type", ["participant", "stand"]);
 
 export const festivalActivityVotes = pgTable(
@@ -1142,6 +1295,35 @@ export const productStatusEnum = pgEnum("product_status", [
   "sale",
 ]);
 
+export const productOptionSelectorDisplayEnum = pgEnum(
+  "product_option_selector_display",
+  ["dropdown", "image", "button"],
+);
+
+export const productTransactionTypeEnum = pgEnum("product_transaction_type", [
+  "purchase",
+  "rental",
+]);
+export const productRentalStockModeEnum = pgEnum("product_rental_stock_mode", [
+  "shared",
+  "separate",
+]);
+export const productContentSectionFormatEnum = pgEnum(
+  "product_content_section_format",
+  ["free_text", "bullet_list"],
+);
+export const productContentSectionDisplayContextEnum = pgEnum(
+  "product_content_section_display_context",
+  ["all", "purchase", "rental"],
+);
+export const rentalReturnConditionEnum = pgEnum("rental_return_condition", [
+  "good",
+  "damaged",
+  "missing_parts",
+  "lost",
+  "other",
+]);
+
 export const products = pgTable("products", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -1153,7 +1335,6 @@ export const products = pgTable("products", {
   imageUrl: text("image_url"),
   isNew: boolean("is_new").default(true).notNull(),
   isFeatured: boolean("is_featured").default(false).notNull(),
-  isPreOrder: boolean("is_pre_order").default(false).notNull(),
   isVisible: boolean("is_visible").default(true).notNull(),
   availableDate: timestamp("available_date"),
   discount: real("discount").default(0),
@@ -1161,14 +1342,198 @@ export const products = pgTable("products", {
     .default("percentage")
     .notNull(),
   status: productStatusEnum("status").default("available").notNull(),
+  isPurchasable: boolean("is_purchasable").default(true).notNull(),
+  isRentable: boolean("is_rentable").default(false).notNull(),
+  rentalPrice: real("rental_price"),
+  rentalStockMode: productRentalStockModeEnum("rental_stock_mode")
+    .default("shared")
+    .notNull(),
+  rentalStock: integer("rental_stock"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 export const productsRelations = relations(products, ({ many }) => ({
+  options: many(productOptions),
+  variants: many(productVariants),
   orderItems: many(orderItems),
   images: many(productImages),
   cartItems: many(cartItems),
+  contentSections: many(productContentSections),
 }));
+
+export const productOptions = pgTable(
+  "product_options",
+  {
+    id: serial("id").primaryKey(),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    selectorDisplay: productOptionSelectorDisplayEnum("selector_display")
+      .default("dropdown")
+      .notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("product_options_product_id_idx").on(t.productId),
+    uniqueIndex("product_options_id_product_id_unique").on(t.id, t.productId),
+    unique("product_options_product_name_unique").on(t.productId, t.name),
+  ],
+);
+
+export const productOptionsRelations = relations(
+  productOptions,
+  ({ one, many }) => ({
+    product: one(products, {
+      fields: [productOptions.productId],
+      references: [products.id],
+    }),
+    values: many(productOptionValues),
+    variantSelections: many(productVariantOptionValues),
+  }),
+);
+
+export const productOptionValues = pgTable(
+  "product_option_values",
+  {
+    id: serial("id").primaryKey(),
+    optionId: integer("option_id")
+      .notNull()
+      .references(() => productOptions.id, { onDelete: "cascade" }),
+    value: text("value").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("product_option_values_option_id_idx").on(t.optionId),
+    uniqueIndex("product_option_values_option_id_id_unique").on(
+      t.optionId,
+      t.id,
+    ),
+    unique("product_option_values_option_value_unique").on(t.optionId, t.value),
+  ],
+);
+
+export const productOptionValuesRelations = relations(
+  productOptionValues,
+  ({ one, many }) => ({
+    option: one(productOptions, {
+      fields: [productOptionValues.optionId],
+      references: [productOptions.id],
+    }),
+    variantSelections: many(productVariantOptionValues),
+  }),
+);
+
+export const productVariants = pgTable(
+  "product_variants",
+  {
+    id: serial("id").primaryKey(),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    price: real("price"),
+    stock: integer("stock").notNull().default(0),
+    rentalStock: integer("rental_stock"),
+    imageUrl: text("image_url"),
+    isVisible: boolean("is_visible").default(true).notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("product_variants_product_id_idx").on(t.productId),
+    index("product_variants_visible_idx").on(t.isVisible),
+    uniqueIndex("product_variants_id_product_id_unique").on(t.id, t.productId),
+  ],
+);
+
+export const productVariantsRelations = relations(
+  productVariants,
+  ({ one, many }) => ({
+    product: one(products, {
+      fields: [productVariants.productId],
+      references: [products.id],
+    }),
+    selections: many(productVariantOptionValues),
+    orderItems: many(orderItems),
+    cartItems: many(cartItems),
+  }),
+);
+
+export const productVariantOptionValues = pgTable(
+  "product_variant_option_values",
+  {
+    id: serial("id").primaryKey(),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    variantId: integer("variant_id")
+      .notNull()
+      .references(() => productVariants.id, { onDelete: "cascade" }),
+    optionId: integer("option_id")
+      .notNull()
+      .references(() => productOptions.id, { onDelete: "cascade" }),
+    optionValueId: integer("option_value_id")
+      .notNull()
+      .references(() => productOptionValues.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("product_variant_option_values_product_id_idx").on(t.productId),
+    index("product_variant_option_values_variant_id_idx").on(t.variantId),
+    index("product_variant_option_values_option_id_idx").on(t.optionId),
+    index("product_variant_option_values_option_value_id_idx").on(
+      t.optionValueId,
+    ),
+    unique("product_variant_option_unique").on(t.variantId, t.optionId),
+    unique("product_variant_option_value_unique").on(
+      t.variantId,
+      t.optionValueId,
+    ),
+    foreignKey({
+      name: "product_variant_option_values_option_value_pair_fk",
+      columns: [t.optionId, t.optionValueId],
+      foreignColumns: [productOptionValues.optionId, productOptionValues.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "product_variant_option_values_variant_product_fk",
+      columns: [t.variantId, t.productId],
+      foreignColumns: [productVariants.id, productVariants.productId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "product_variant_option_values_option_product_fk",
+      columns: [t.optionId, t.productId],
+      foreignColumns: [productOptions.id, productOptions.productId],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const productVariantOptionValuesRelations = relations(
+  productVariantOptionValues,
+  ({ one }) => ({
+    variant: one(productVariants, {
+      fields: [productVariantOptionValues.variantId],
+      references: [productVariants.id],
+    }),
+    product: one(products, {
+      fields: [productVariantOptionValues.productId],
+      references: [products.id],
+    }),
+    option: one(productOptions, {
+      fields: [productVariantOptionValues.optionId],
+      references: [productOptions.id],
+    }),
+    optionValue: one(productOptionValues, {
+      fields: [productVariantOptionValues.optionValueId],
+      references: [productOptionValues.id],
+    }),
+  }),
+);
 
 export const orderStatusEnum = pgEnum("order_status", [
   /** Initial state when an order is first created but not yet processed/accepted */
@@ -1246,17 +1611,61 @@ export const orderItems = pgTable(
     productId: integer("product_id")
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
+    productVariantId: integer("product_variant_id"),
+    productVariantLabel: text("product_variant_label"),
     quantity: integer("quantity").notNull(),
     priceAtPurchase: real("price_at_purchase").notNull(),
+    transactionType: productTransactionTypeEnum("transaction_type")
+      .default("purchase")
+      .notNull(),
+    rentalContentSectionsSnapshot: jsonb("rental_content_sections_snapshot"),
+    rentalStockModeSnapshot: productRentalStockModeEnum(
+      "rental_stock_mode_snapshot",
+    ),
+    rentalFestivalId: integer("rental_festival_id"),
+    rentalReservationId: integer("rental_reservation_id"),
+    rentalReturnedQuantity: integer("rental_returned_quantity")
+      .default(0)
+      .notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (orderItems) => ({
-    orderIdIdx: index("order_items_order_id_idx").on(orderItems.orderId),
-    productIdIdx: index("order_items_product_id_idx").on(orderItems.productId),
-  }),
+  (t) => [
+    index("order_items_order_id_idx").on(t.orderId),
+    index("order_items_product_id_idx").on(t.productId),
+    foreignKey({
+      name: "order_items_product_variant_product_fk",
+      columns: [t.productVariantId, t.productId],
+      foreignColumns: [productVariants.id, productVariants.productId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "order_items_rental_reservation_festival_fk",
+      columns: [t.rentalReservationId, t.rentalFestivalId],
+      foreignColumns: [standReservations.id, standReservations.festivalId],
+    }).onDelete("restrict"),
+    check(
+      "order_items_rental_context_required",
+      sql`(
+        ${t.transactionType} != 'rental'
+        AND ${t.rentalContentSectionsSnapshot} IS NULL
+        AND ${t.rentalStockModeSnapshot} IS NULL
+        AND ${t.rentalFestivalId} IS NULL
+        AND ${t.rentalReservationId} IS NULL
+        AND ${t.rentalReturnedQuantity} = 0
+      ) OR (
+        ${t.transactionType} = 'rental'
+        AND ${t.rentalFestivalId} IS NOT NULL
+        AND ${t.rentalReservationId} IS NOT NULL
+        AND ${t.rentalStockModeSnapshot} IS NOT NULL
+      )`,
+    ),
+    check(
+      "order_items_rental_returned_quantity_valid",
+      sql`${t.rentalReturnedQuantity} >= 0 AND ${t.rentalReturnedQuantity} <= ${t.quantity}`,
+    ),
+  ],
 );
-export const orderItemsRelations = relations(orderItems, ({ one }) => ({
+export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
   order: one(orders, {
     fields: [orderItems.orderId],
     references: [orders.id],
@@ -1265,6 +1674,19 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
     fields: [orderItems.productId],
     references: [products.id],
   }),
+  variant: one(productVariants, {
+    fields: [orderItems.productVariantId],
+    references: [productVariants.id],
+  }),
+  rentalFestival: one(festivals, {
+    fields: [orderItems.rentalFestivalId],
+    references: [festivals.id],
+  }),
+  rentalReservation: one(standReservations, {
+    fields: [orderItems.rentalReservationId],
+    references: [standReservations.id],
+  }),
+  rentalReturnLogs: many(rentalReturnLogs),
 }));
 
 export const carts = pgTable("carts", {
@@ -1291,15 +1713,78 @@ export const cartItems = pgTable(
     productId: integer("product_id")
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
+    productVariantId: integer("product_variant_id"),
     quantity: integer("quantity").notNull().default(1),
+    transactionType: productTransactionTypeEnum("transaction_type")
+      .default("purchase")
+      .notNull(),
+    rentalFestivalId: integer("rental_festival_id"),
+    rentalReservationId: integer("rental_reservation_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (t) => [
     index("cart_items_cart_id_idx").on(t.cartId),
     index("cart_items_product_id_idx").on(t.productId),
-    unique("cart_items_cart_product_unique").on(t.cartId, t.productId),
+    index("cart_items_product_variant_id_idx").on(t.productVariantId),
+    index("cart_items_rental_festival_id_idx").on(t.rentalFestivalId),
+    index("cart_items_rental_reservation_id_idx").on(t.rentalReservationId),
+    uniqueIndex("cart_items_cart_product_base_unique")
+      .on(
+        t.cartId,
+        t.productId,
+        t.transactionType,
+        t.rentalFestivalId,
+        t.rentalReservationId,
+      )
+      .where(
+        sql`${t.productVariantId} IS NULL AND ${t.rentalFestivalId} IS NOT NULL AND ${t.rentalReservationId} IS NOT NULL`,
+      ),
+    uniqueIndex("cart_items_cart_product_base_purchase_unique")
+      .on(t.cartId, t.productId, t.transactionType)
+      .where(
+        sql`${t.productVariantId} IS NULL AND ${t.rentalFestivalId} IS NULL AND ${t.rentalReservationId} IS NULL`,
+      ),
+    uniqueIndex("cart_items_cart_product_variant_unique")
+      .on(
+        t.cartId,
+        t.productId,
+        t.productVariantId,
+        t.transactionType,
+        t.rentalFestivalId,
+        t.rentalReservationId,
+      )
+      .where(
+        sql`${t.productVariantId} IS NOT NULL AND ${t.rentalFestivalId} IS NOT NULL AND ${t.rentalReservationId} IS NOT NULL`,
+      ),
+    uniqueIndex("cart_items_cart_product_variant_purchase_unique")
+      .on(t.cartId, t.productId, t.productVariantId, t.transactionType)
+      .where(
+        sql`${t.productVariantId} IS NOT NULL AND ${t.rentalFestivalId} IS NULL AND ${t.rentalReservationId} IS NULL`,
+      ),
+    foreignKey({
+      name: "cart_items_product_variant_product_fk",
+      columns: [t.productVariantId, t.productId],
+      foreignColumns: [productVariants.id, productVariants.productId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "cart_items_rental_reservation_festival_fk",
+      columns: [t.rentalReservationId, t.rentalFestivalId],
+      foreignColumns: [standReservations.id, standReservations.festivalId],
+    }).onDelete("restrict"),
     check("cart_items_quantity_positive", sql`${t.quantity} > 0`),
+    check(
+      "cart_items_rental_context_required",
+      sql`(
+        ${t.transactionType} != 'rental'
+        AND ${t.rentalFestivalId} IS NULL
+        AND ${t.rentalReservationId} IS NULL
+      ) OR (
+        ${t.transactionType} = 'rental'
+        AND ${t.rentalFestivalId} IS NOT NULL
+        AND ${t.rentalReservationId} IS NOT NULL
+      )`,
+    ),
   ],
 );
 export const cartItemsRelations = relations(cartItems, ({ one }) => ({
@@ -1307,6 +1792,18 @@ export const cartItemsRelations = relations(cartItems, ({ one }) => ({
   product: one(products, {
     fields: [cartItems.productId],
     references: [products.id],
+  }),
+  variant: one(productVariants, {
+    fields: [cartItems.productVariantId],
+    references: [productVariants.id],
+  }),
+  rentalFestival: one(festivals, {
+    fields: [cartItems.rentalFestivalId],
+    references: [festivals.id],
+  }),
+  rentalReservation: one(standReservations, {
+    fields: [cartItems.rentalReservationId],
+    references: [standReservations.id],
   }),
 }));
 
@@ -1482,6 +1979,136 @@ export const productImagesRelations = relations(productImages, ({ one }) => ({
     references: [products.id],
   }),
 }));
+
+export const productContentSections = pgTable(
+  "product_content_sections",
+  {
+    id: serial("id").primaryKey(),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    productVariantId: integer("product_variant_id"),
+    title: text("title").notNull(),
+    format: productContentSectionFormatEnum("format").notNull(),
+    body: text("body"),
+    items: jsonb("items").$type<string[]>(),
+    displayContext: productContentSectionDisplayContextEnum("display_context")
+      .default("all")
+      .notNull(),
+    isVisible: boolean("is_visible").default(true).notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("product_content_sections_product_id_idx").on(t.productId),
+    index("product_content_sections_variant_id_idx").on(t.productVariantId),
+    index("product_content_sections_product_sort_idx").on(
+      t.productId,
+      t.productVariantId,
+      t.sortOrder,
+    ),
+    foreignKey({
+      name: "product_content_sections_product_variant_product_fk",
+      columns: [t.productVariantId, t.productId],
+      foreignColumns: [productVariants.id, productVariants.productId],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const productContentSectionsRelations = relations(
+  productContentSections,
+  ({ one }) => ({
+    product: one(products, {
+      fields: [productContentSections.productId],
+      references: [products.id],
+    }),
+    variant: one(productVariants, {
+      fields: [productContentSections.productVariantId],
+      references: [productVariants.id],
+    }),
+  }),
+);
+
+export const rentalReturnLogs = pgTable(
+  "rental_return_logs",
+  {
+    id: serial("id").primaryKey(),
+    orderItemId: integer("order_item_id")
+      .notNull()
+      .references(() => orderItems.id, { onDelete: "restrict" }),
+    orderId: integer("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "restrict" }),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "restrict" }),
+    productVariantId: integer("product_variant_id"),
+    quantityReturned: integer("quantity_returned").notNull(),
+    conditionStatus: rentalReturnConditionEnum("condition_status").notNull(),
+    notes: text("notes"),
+    stockRestored: integer("stock_restored").notNull(),
+    stockPool: productRentalStockModeEnum("stock_pool").notNull(),
+    processedByUserId: integer("processed_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    previousReturnedQuantity: integer("previous_returned_quantity"),
+    newReturnedQuantity: integer("new_returned_quantity"),
+    productNameSnapshot: text("product_name_snapshot"),
+    variantLabelSnapshot: text("variant_label_snapshot"),
+    customerNameSnapshot: text("customer_name_snapshot"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("rental_return_logs_order_item_id_idx").on(t.orderItemId),
+    index("rental_return_logs_order_id_idx").on(t.orderId),
+    index("rental_return_logs_product_id_idx").on(t.productId),
+    index("rental_return_logs_created_at_idx").on(t.createdAt),
+    check(
+      "rental_return_logs_quantity_positive",
+      sql`${t.quantityReturned} > 0`,
+    ),
+    check(
+      "rental_return_logs_stock_restored_non_negative",
+      sql`${t.stockRestored} >= 0`,
+    ),
+    check(
+      "rental_return_logs_stock_restored_lte_quantity",
+      sql`${t.stockRestored} <= ${t.quantityReturned}`,
+    ),
+    foreignKey({
+      name: "rental_return_logs_product_variant_product_fk",
+      columns: [t.productVariantId, t.productId],
+      foreignColumns: [productVariants.id, productVariants.productId],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const rentalReturnLogsRelations = relations(
+  rentalReturnLogs,
+  ({ one }) => ({
+    orderItem: one(orderItems, {
+      fields: [rentalReturnLogs.orderItemId],
+      references: [orderItems.id],
+    }),
+    order: one(orders, {
+      fields: [rentalReturnLogs.orderId],
+      references: [orders.id],
+    }),
+    product: one(products, {
+      fields: [rentalReturnLogs.productId],
+      references: [products.id],
+    }),
+    variant: one(productVariants, {
+      fields: [rentalReturnLogs.productVariantId],
+      references: [productVariants.id],
+    }),
+    processedBy: one(users, {
+      fields: [rentalReturnLogs.processedByUserId],
+      references: [users.id],
+    }),
+  }),
+);
 
 // Map Elements - signaling elements on festival maps (entrances, stages, etc.)
 export const mapElementTypeEnum = pgEnum("map_element_type", [

@@ -7,13 +7,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import { BaseProduct } from "@/app/lib/products/definitions";
+import { LowStockEntry } from "@/app/lib/products/actions";
 import { AlertTriangleIcon } from "lucide-react";
 import Link from "next/link";
 import { use } from "react";
 
 type LowStockAlertProps = {
-  lowStockPromise: Promise<BaseProduct[]>;
+  lowStockPromise: Promise<LowStockEntry[]>;
 };
 
 export default function LowStockAlert({ lowStockPromise }: LowStockAlertProps) {
@@ -36,12 +36,14 @@ export default function LowStockAlert({ lowStockPromise }: LowStockAlertProps) {
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
           {products.map((product) => (
             <Link
-              key={product.id}
-              href={`/dashboard/store/products/${product.id}/edit`}
+              key={`${product.productId}:${product.variantId ?? "base"}`}
+              href={`/dashboard/store/products/${product.productId}/edit`}
               className="flex items-center justify-between rounded-md border px-3 py-2 hover:bg-accent transition-colors"
             >
               <span className="text-sm font-medium truncate mr-2">
-                {product.name}
+                {product.variantLabel
+                  ? `${product.productName} (${product.variantLabel})`
+                  : product.productName}
               </span>
               <Badge
                 variant={product.stock === 0 ? "destructive" : "outline"}
@@ -51,7 +53,7 @@ export default function LowStockAlert({ lowStockPromise }: LowStockAlertProps) {
                     : undefined
                 }
               >
-                {product.stock ?? 0} unid.
+                {product.stock} unid.
               </Badge>
             </Link>
           ))}

@@ -19,8 +19,9 @@ interface Product {
   name: string;
   quantity: number;
   price: number;
-  isPreOrder: boolean;
+  status: "available" | "presale" | "sale";
   availableDate: Date | null;
+  transactionType?: "purchase" | "rental";
 }
 interface OrderConfirmationForUsersEmailTemplateProps {
   customerName: string;
@@ -87,18 +88,19 @@ export default function OrderConfirmationForUsersEmailTemplate(
                       <div
                         style={{
                           ...styles.text,
-                          marginBottom: p.isPreOrder ? "2px" : "10px",
+                          marginBottom: p.status === "presale" ? "2px" : "10px",
                         }}
                       >
-                        {p.name}{" "}
+                        {p.name}
+                        {p.transactionType === "rental" && " (Alquiler)"}{" "}
                       </div>
-                      {p.isPreOrder && p.availableDate && (
+                      {p.status === "presale" && (
                         <div style={{ ...styles.textSmall }}>
-                          (Disponible el{" "}
-                          {formatDate(p.availableDate).toLocaleString(
-                            DateTime.DATE_MED,
-                          )}
-                          )
+                          {p.availableDate
+                            ? `(Disponible el ${formatDate(
+                                p.availableDate,
+                              ).toLocaleString(DateTime.DATE_MED)})`
+                            : "(Disponible próximamente)"}
                         </div>
                       )}
                     </td>
@@ -133,12 +135,8 @@ export default function OrderConfirmationForUsersEmailTemplate(
             </table>
 
             <Text style={styles.text}>
-              Nos comunicaremos contigo en los próximos días para coordinar el
-              pago y la entrega de tu orden.
-            </Text>
-
-            <Text style={styles.text}>
-              Puedes ver el detalle de tu orden haciendo clic en el botón
+              Podés hacer el pago de tu pedido y ver el detalle de tu orden
+              haciendo clic en el botón
             </Text>
 
             <Button href={orderUrl} style={styles.button}>
@@ -162,7 +160,7 @@ OrderConfirmationForUsersEmailTemplate.PreviewProps = {
       name: "Camiseta Glitter",
       quantity: 2,
       price: 20,
-      isPreOrder: false,
+      status: "available",
       availableDate: null,
     },
     {
@@ -170,7 +168,7 @@ OrderConfirmationForUsersEmailTemplate.PreviewProps = {
       name: "Taza Glitter",
       quantity: 1,
       price: 10,
-      isPreOrder: false,
+      status: "available",
       availableDate: null,
     },
   ],

@@ -2,171 +2,328 @@
 
 ## 1) Overview
 
-The Coupon Book feature enables festival admins to generate a printable coupon sheet from participant proof content in festival activities. It provides a collapsible side panel for layout tuning and exports high-fidelity PDFs with configurable sheet size/orientation. The preview targets near-WYSIWYG parity (<=2px layout tolerance); QA passes only when corresponding element bounds between preview and exported PDF differ by no more than 2px and text fit behavior is identical (no clipping/ellipsis regressions).
+The Coupon Book feature enables festival admins to compose, edit, preview, save, and print coupon books for `coupon_book` festival activities. The editor starts from approved and, optionally, pending-review participant promotion proofs, then lets admins adjust the coupon book before printing: edit the default courtesy coupon, edit any participant coupon, configure the coupon count per variant, configure coupon count per page, move participants between coupon book pages, tune global layout, and apply per-coupon overrides where needed.
 
-The implementation is designed so preview and print use the same visual structure, minimizing divergence between UI and exported documents.
+The printable version must follow the editor's current state, including unsaved local draft changes. Preview and PDF export target near-WYSIWYG parity (<=2px layout tolerance); QA passes only when corresponding element bounds between preview and exported PDF differ by no more than 2px and text fit behavior is identical.
 
-## 2) Problem Statement
+## 2) Current Implementation Analysis
 
-Admins need to:
+- Review route: `app/dashboard/festivals/[id]/festival_activities/[activityId]/review/couponbook/page.tsx` loads the activity, builds coupon book variants from activity details, hydrates participant preview data, and passes variants to the client preview component.
+- Builder: `app/lib/festival_activites/coupon-book-builder.ts` creates one `CouponBookVariant` per activity detail. Participant coupons come from text proofs with `approved` or `pending_review` status, excluding removed participants.
+- Courtesy coupon: `COURTESY_COUPON_ENTRY` is a hard-coded default coupon rendered in the first top-right header slot of every printed page.
+- Pagination: `paginateCouponBookEntries` uses a fixed 26 dynamic coupons per coupon book page: one header dynamic slot plus 25 body slots. This is independent of the activity participant limit today, but it is not admin configurable.
+- Variant capacity: each coupon book variant is built from one activity detail and initially includes that detail's enrolled participants. The activity detail `participationLimit` is not editable from the coupon book preview page today, and changing how many coupons belong in each variant's book is not supported.
+- Preview state: `coupon-book-preview-client.tsx` stores only global text layout and PDF canvas settings in local storage. It does not store coupon content edits, courtesy coupon edits, coupon page assignments, coupon count per page, or per-coupon layout overrides.
+- Print/export state: the print route (`app/couponbook-print/[id]/[activityId]/page.tsx`) rebuilds variants from database data and query-string layout config. Because it does not receive the full editor draft, unsaved edits and participant moves cannot be reflected in printable output today.
+- Export endpoint: `POST /api/festival_activities/[activityId]/couponbook/export` accepts the editor draft and uses Playwright to generate a PDF. Legacy `GET` on the same path rebuilds from live DB state only and does not reflect saved or local editor changes.
 
-- Build a couponbook that matches a specific print template.
-- Ensure all coupon text remains visible (no clipping/ellipsis).
-- Control print output dimensions and packing per sheet.
-- Export reliable, consistent PDFs for production printing.
+## 3) Problem Statement
 
-## 3) Goals
+Admins need to produce complete, print-ready coupon books even when activity variants have uneven or incomplete participation. For example, an activity may define two variants with a `participationLimit` of 26 each, but only 35 participants may actually sign up (26 in the first variant and 9 in the second). Admins still need to rebalance how those 35 coupons are split across the printed variant books without rewriting enrollment records. The current workflow is too rigid because coupon page composition is derived directly from activity details, per-variant coupon counts cannot be adjusted in the review workflow, the default coupon is fixed, participant coupons cannot be edited in the review workflow, and printable output can only represent database state plus a small set of layout query params.
 
-- Goal 1: Provide near-WYSIWYG parity (<=2px layout tolerance) between print preview and final PDF; QA pass criterion is that corresponding element bounds differ by no more than 2px and text fit behavior is identical (no clipping/ellipsis regressions), otherwise QA fails.
-- Support dynamic text fitting so content is always visible.
-- Include only approved + pending-review proofs.
-- Allow admin-controlled layout tuning (text boxes, columns, font sizes, header image scale).
-- Persist editor configuration locally across reloads.
-- Generate PDF with configurable canvas width, height, and orientation.
-- Centralize export endpoint under API routing conventions.
+## 4) Goals
 
-## 4) Non-Goals
+- Let admins edit the default courtesy coupon.
+- Let admins edit every participant promotion/coupon entry before printing.
+- Let admins toggle the coupon book preview between approved participants only and approved + pending-review participants.
+- Let admins configure the coupon count per variant from the coupon book preview page, redistributing participant coupons across variant books when limits change.
+- Let admins configure dynamic coupons per coupon book page regardless of the activity's participant limit.
+- Let admins move participant coupons between coupon book pages without writing to the database during editing.
+- Persist all editor settings and draft edits in local storage to survive page reloads.
+- Save the edited coupon book state only when the admin explicitly clicks Save.
+- Let all coupons inherit the same default template for position and sizing while allowing individual coupon overrides.
+- Ensure preview and printable PDF always use the current editor state.
+- Preserve near-WYSIWYG parity between preview and PDF export.
 
-- End-user/self-service coupon generation (this is admin review workflow).
-- Generic document designer for arbitrary layouts.
-- Persistent server-side storage of per-admin layout presets (currently local storage).
-- Full visual editor for non-coupon activity types.
+## 5) Non-Goals
 
-## 5) Users & Roles
+- End-user/self-service coupon generation.
+- Changing activity enrollment, participant approval, proof status, activity variant membership, or activity detail `participationLimit` when editing coupon book drafts (including per-variant coupon counts and page moves).
+- A generic document designer for arbitrary layouts outside coupon books.
+- Automatic balancing that changes the source activity details or participant records.
+- Server-side collaborative editing or real-time multi-admin conflict resolution in this iteration.
 
-- Primary user: `admin` / `festival_admin`
-- Permissions: Only these roles can access export and print routes.
+## 6) Users & Roles
 
-## 6) User Stories
+- Primary user: `admin` / `festival_admin`.
+- Only authorized admins can access the coupon book editor, save endpoint, print route, and export endpoint.
 
-- As an admin, I can preview couponbooks exactly as they will print.
-- As an admin, I can export one variant or all variants to PDF.
-- As an admin, I can adjust text containers (position/size), multiline behavior, and font settings.
-- As an admin, I can tune sheet dimensions/orientation to control how many couponbooks fit per sheet.
-- As an admin, I can use a header image per variant and scale it without cropping.
+## 7) User Stories
 
-## 7) Functional Requirements
+- As an admin, I can edit the default courtesy coupon so the printed sample/promo matches the event's needs.
+- As an admin, I can edit any coupon's displayed name, stand labels, sector, image/avatar, highlight, description, and conditions/validity text.
+- As an admin, I can preview and export only approved participant coupons when pending-review coupons should be excluded.
+- As an admin, I can include pending-review participant coupons when preparing a fuller draft before final approval.
+- As an admin, I can change how many participant coupons belong in each variant book so uneven signups can be rebalanced for printing.
+- As an admin, I can choose how many participant coupons fit in one coupon book page.
+- As an admin, I can move coupons between coupon book pages to fill incomplete books without changing participant records.
+- As an admin, I can use a global layout template so most coupons remain consistent.
+- As an admin, I can override an individual coupon's content layout when that coupon needs special handling.
+- As an admin, I can reload the page and continue from my latest local draft.
+- As an admin, I can reset the editor back to the original generated defaults.
+- As an admin, I can print or export the exact coupon book currently shown in the editor, including unsaved local draft changes.
+- As an admin, I can Save once I am satisfied, committing the edited coupon book state.
 
-### 7.1 Data Inclusion Rules
+## 8) Functional Requirements
 
-- Source: festival activity participants/proofs.
-- Include proofs with status: `approved`, `pending_review`.
-- Exclude removed participants.
-- Hydrate coupon entries with participant name, stand labels, sector, avatar/logo where available.
+### 8.1 Source Data & Initial Draft
 
-### 7.2 Couponbook Composition
+- On first load, generate an initial coupon book draft from current activity data:
+  - One initial group/variant per activity detail.
+  - Initialize each variant book's coupon count from the activity detail `participationLimit` when present.
+  - Include participant text proofs according to the selected review-status filter.
+  - Exclude removed participants.
+  - Hydrate coupon display data with participant name, stand labels, sector, avatar/logo, promo highlight, promo description, and promo conditions.
+- The initial draft must include the default courtesy coupon.
+- If a saved coupon book configuration exists for the activity, the editor should load that saved configuration as the canonical starting point, then apply any newer local draft over it when available.
+- If participant source data changed since the saved configuration, the editor must surface a reconciliation state for new, removed, or changed participant coupons.
 
-- Fixed couponbook page size: `21.59cm x 16.5cm`.
-- Grid layout:
-  - Header area with 3-column header region + 2 coupon slots on top-right.
-  - First top-right slot is fixed courtesy/sample coupon.
-  - Second top-right slot is first dynamic coupon.
-  - Remaining dynamic coupons fill body slots.
-- Pagination implemented when entries exceed page capacity.
+### 8.2 Coupon Book Draft Model
 
-### 7.3 Preview & Layout Editor
+The editor draft must represent the full printable state, not only layout controls.
 
-- WYSIWYG page preview for selected variant and selected page.
-- Layout controls live in a collapsible side panel (inline on desktop, Sheet overlay on mobile).
-- Configurable:
-  - Text boxes: `name`, `highlight`, `description`, `validity` (x/y/width/height). Multiline behavior is fixed to per-box defaults and is not exposed in the UI.
-  - Coupon column split (left column width %).
-  - Left-column font sizes (stand, sector).
-  - Header image scale (%).
-  - PDF canvas: width cm, height cm, orientation.
-- Local persistence via `localStorage`.
-- Panel is toggled via an "Editor" button in the page header; hidden by default on mobile.
+Required draft fields:
 
-### 7.4 Dynamic Text Fitting
+- Draft metadata: `festivalId`, `activityId`, `schemaVersion`, `updatedAt`, and optional `savedRevision`.
+- Global settings:
+  - PDF canvas width, height, and orientation.
+  - Coupon book page width/height.
+  - Dynamic coupons per coupon book page.
+  - Participant inclusion mode: approved only, or approved + pending review.
+  - Global coupon layout template.
+  - Header image scale and per-book header image references.
+- Coupon books/pages:
+  - Stable page/book ID.
+  - Label.
+  - Source activity detail ID when applicable.
+  - Editable variant coupon count for that book.
+  - Ordered coupon slot IDs.
+  - Header image URL.
+- Coupon entries:
+  - Stable coupon ID.
+  - Source participation ID when applicable.
+  - `type`: `courtesy` or `participant`.
+  - Editable display fields: participant/display name, stand labels, sector name, promo highlight, promo description, promo conditions/validity, image URL.
+  - Source proof status for reference.
+  - Optional per-coupon layout override.
 
-- Automatic font-size fitting with min/max constraints.
-- Supports single-line and multiline modes per text box.
-- Must avoid clipping and ellipsis in both preview and PDF output.
+### 8.3 Courtesy Coupon Editing
 
-### 7.5 Header & Visual Assets
+- The default courtesy coupon must be editable from the same editor workflow as participant coupons.
+- Editable fields include name, stand labels, sector, image/logo, promo highlight, promo description, and validity text.
+- Courtesy coupon edits are draft settings and must persist in local storage.
+- Reset restores the courtesy coupon to `COURTESY_COUPON_ENTRY` defaults unless a saved server configuration is being reset to.
 
-- Variant-level dedicated header image field is supported.
-- Header image uses contain-style fitting and adjustable scale.
-- Courtesy coupon uses branded logo sample with white avatar background.
-- No couponbook watermark/background image in final output.
+### 8.4 Participant Coupon Editing
 
-### 7.6 PDF Export
+- Every participant coupon entry must be editable by an admin.
+- Editing a coupon changes only the coupon book draft until Save.
+- Admins must be able to restore an edited participant coupon to its source proof/participant values.
+- Empty validity/conditions should still render the fallback validity text unless the admin explicitly clears or overrides it according to the final UI rules.
 
-- Endpoint: `/api/festival_activities/[activityId]/couponbook/export`.
-- Query parameters include layout config + PDF canvas options + optional `detailId`.
-- Exports:
-  - One variant (when `detailId` provided),
-  - All variants (when omitted).
-- Uses Playwright server-side rendering for deterministic print output.
-- Uses cookie forwarding for authenticated render.
-- Isolates printable DOM root to avoid app chrome (navbar/footer) in PDF.
+### 8.5 Participant Status Filter
 
-## 8) Technical Design Summary
+- Admins must be able to toggle the coupon book between:
+  - Approved only: include participant coupons with proof status `approved`.
+  - Approved + pending review: include participant coupons with proof status `approved` or `pending_review`.
+- The selected inclusion mode must affect preview, page counts, coupon movement controls, local storage draft state, Save, and PDF export.
+- Toggling the inclusion mode must not change proof statuses or participant records.
+- When pending-review coupons are hidden, their draft edits and per-coupon overrides should be preserved so they can reappear if the admin toggles pending-review coupons back on.
+- The UI must clearly display the active inclusion mode and the count of included/hidden coupons.
 
-- Render source of truth: React print page route (`/couponbook-print/[id]/[activityId]`).
-- Export flow: API route opens print page in Playwright and prints to PDF.
-- Shared config parser: `coupon-book-print-config` parses layout/pdf query values.
-- Print precision: dimensions converted to inches with fixed precision for PDF API.
-- Packing algorithm: computes rows/columns/slots per sheet from canvas dimensions.
+### 8.6 Per-Variant Coupon Count
 
-## 9) API Contract (Current)
+- Admins must be able to edit the coupon count for each variant book from the coupon book preview page at `app/dashboard/festivals/[id]/festival_activities/[activityId]/review/couponbook/page.tsx`.
+- On first load, each variant book's coupon count should initialize from the source activity detail `participationLimit` when present. When a detail has no limit, the initial count should reflect the number of included participant coupons for that detail.
+- Changing a variant's coupon count must update only the editor draft until Save.
+- Changing variant coupon counts must redistribute included participant coupons across variant books using a stable global order across all included participants (default: ascending `participationId`).
+- Redistribution must fill earlier variant books up to their configured coupon count before assigning remaining participants to later variant books.
+- Example: an activity has two variants that each start with a `participationLimit` of 26, but only 35 participant coupons exist in total (26 assigned to the first variant and 9 to the second by enrollment). If the admin sets each variant book to 18 coupons, the draft should place participants 1-18 in the first variant book and participants 19-35 in the second variant book.
+- Redistribution must not change activity enrollment, proof status, or the participant's source activity detail membership in the database.
+- Manual coupon moves between pages within a variant book should be preserved when possible. If a variant-limit change conflicts with manual page assignments, the editor should reflow predictably and surface the resulting composition in preview.
+- The UI must show, per variant: configured coupon count, assigned participant coupon count, and any unused capacity.
+- Variant coupon count edits must affect preview, page counts, local storage draft state, Save, and PDF export.
 
-`GET /api/festival_activities/[activityId]/couponbook/export`
+### 8.7 Coupon Count Per Page
 
-Query params (key examples):
+- Admins must be able to configure the number of dynamic participant coupons per coupon book page.
+- This setting must not be coupled to the activity's participant limit, activity detail capacity, or per-variant coupon count.
+- The UI must show the resulting page count and empty slot count.
+- Changing the coupon count per page must reflow coupons predictably while preserving manual ordering as much as possible.
+- The courtesy coupon remains separate from the dynamic participant coupon count unless the UI explicitly adds a future option to include it in capacity.
 
-- `detailId` (optional)
-- `pdfWcm`, `pdfHcm`, `pdfOrientation`
-- `leftColW`, `standFsMm`, `sectorFsMm`, `headerScalePct`
-- `nameX/nameY/nameW/nameH/nameM`
-- `highlightX/...`
-- `descriptionX/...`
-- `validityX/...`
+### 8.8 Moving Coupons Between Coupon Book Pages
 
-Response:
+- Admins must be able to move participant coupons from one coupon book page to another.
+- Supported interactions should include at least explicit move controls; drag-and-drop can be added if accessible keyboard alternatives exist.
+- Moving a coupon changes only the draft assignment/order.
+- Moving a coupon must not update activity detail membership, participation records, proof records, or any database row until Save.
+- Save commits the edited coupon book composition/configuration, including per-variant coupon counts, not the participant's source activity variant or activity detail limits.
 
-- `200` PDF binary (`application/pdf`)
-- `401` unauthorized
-- `400` invalid `activityId` path param (fails numeric coercion)
-- `404` activity not found
-- `404` variant not found (only when numeric `detailId` is provided but not present in activity details)
-- `500` Playwright missing
+### 8.9 Global Layout & Per-Coupon Overrides
 
-Notes on query-param behavior:
+- All coupons inherit a global layout template by default:
+  - Left column width.
+  - Stand and sector font sizes.
+  - Header image scale.
+  - Text box position/size/multiline behavior for name, highlight, description, and validity.
+- Each individual coupon may define an override for:
+  - Text box position/size/multiline behavior.
+  - Left column width.
+  - Stand and sector font sizes.
+  - Image/avatar display behavior if added to the UI.
+- The editor must make inheritance clear: unset values use the global template; overridden values affect only that coupon.
+- Reset all settings removes per-coupon overrides and restores global defaults.
 
-- `detailId` is parsed with `Number(...)`; non-numeric values are treated as absent and removed from the forwarded query (not a `400`).
-- PDF/layout params (`pdfWcm`, `pdfHcm`, `pdfOrientation`, `leftColW`, `standFsMm`, `sectorFsMm`, `headerScalePct`, `nameX/nameY/nameW/nameH/nameM`, `highlightX/...`, `descriptionX/...`, `validityX/...`) are normalized via parser defaults and min/max clamping rather than rejected.
+### 8.10 Local Storage Persistence
 
-## 10) UX Requirements
+- All editor state must persist in local storage:
+  - Global layout settings.
+  - PDF canvas settings.
+  - Participant inclusion mode.
+  - Per-variant coupon counts.
+  - Coupon count per page.
+  - Courtesy coupon edits.
+  - Participant coupon edits.
+  - Coupon ordering and page assignments.
+  - Per-coupon overrides.
+  - Selected editor state where useful, such as selected page/coupon.
+- Local storage key should be scoped by festival ID, activity ID, and schema version.
+- The editor must tolerate malformed or older local storage data by migrating when possible or falling back safely.
+- The Reset button must reset all local editor settings and draft edits, not only layout controls.
 
-- Preview must match printed couponbook layout.
-- Export controls (variant + all variants) are always visible in the page header, independent of the editor panel state.
-- Real-time feedback on expected couponbooks-per-sheet based on current canvas settings, shown in the layout editor panel.
+### 8.11 Save Behavior
 
-## 11) Acceptance Criteria
+- Provide an explicit Save action.
+- Before Save, changes remain local draft state and must not mutate the database.
+- On Save, persist the coupon book configuration needed to reproduce the current editor state.
+- Saved state should include coupon composition, per-variant coupon counts, content overrides, global settings, per-coupon overrides, and print/export settings.
+- Saved state should include the selected participant inclusion mode.
+- Save should not rewrite source participant/proof data unless a future, separate action explicitly supports that.
+- The UI must indicate unsaved changes and Save success/failure.
 
-1. Exported PDF includes only couponbook content (no site navbar/footer).
-2. Preview and PDF have consistent layout and text fit behavior.
-3. Empty conditions show fallback validity text; non-empty conditions show provided value.
-4. Stand and sector render in printable output when available.
-5. Header image displays with contain behavior and scale control.
-6. PDF canvas dimensions and orientation materially affect packing and page size.
-7. Layout settings persist across reloads locally.
-8. Endpoint is centralized under `/api/...` and functional from review UI.
+### 8.12 Preview & Printable Output
 
-## 12) Risks & Mitigations
+- Preview must render from the editor draft state.
+- Printable route/export must render from the same draft state currently shown in preview.
+- Exporting with unsaved local draft changes must still print those changes.
+- Printable output must respect the active participant inclusion mode.
+- Because the current GET query approach is insufficient for full draft state, implementation should use one of:
+  - A draft print session API that stores a temporary serialized draft and passes a session ID to the print route.
+  - A POST export endpoint that receives the serialized draft body.
+  - Another equivalent mechanism that avoids rebuilding print output only from database state.
+- The print renderer should continue to share visual components with preview wherever possible.
 
+### 8.13 PDF Export
+
+- Export one selected coupon book/page group or all coupon books from the current draft.
+- PDF canvas dimensions and orientation remain configurable.
+- Packing algorithm computes coupon book pages per physical sheet from canvas dimensions.
+- Export must include only coupon book content, with no app chrome.
+- Export must use the current draft, including per-variant coupon counts, coupon moves, content edits, courtesy coupon edits, coupon count per page, and per-coupon overrides.
+- Export must respect whether the admin selected approved-only or approved + pending-review coupons.
+
+## 9) UX Requirements
+
+- Keep export controls visible in the page header.
+- Add Save and unsaved-change status near the export controls.
+- The editor panel must include sections for:
+  - PDF settings.
+  - Participant status filter.
+  - Variant coupon counts.
+  - Coupon book/page settings.
+  - Global coupon layout.
+  - Selected coupon content.
+  - Selected coupon layout overrides.
+- The preview should allow selecting a coupon so its content and override controls can be edited.
+- Variant controls should show configured coupon count, assigned coupon count, and unused capacity.
+- Page navigation should show page count, coupon count, configured coupons per page, and empty slots.
+- The status filter control should show included and hidden coupon counts.
+- Moving coupons should be understandable without relying only on drag-and-drop.
+- Reset must clearly communicate that it resets all local draft edits/settings.
+
+## 10) Technical Design Summary
+
+- Introduce a serializable `CouponBookDraft` domain model shared by preview, print, save, and export.
+- Store an editable per-variant coupon count on each draft book and redistribute participant coupons across books when those limits change.
+- Refactor pagination to accept `dynamicCouponsPerPage` and ordered coupon IDs instead of using only `COUPON_BOOK_DYNAMIC_SLOTS_PER_PAGE`.
+- Refactor `CouponBookPrintPage` and `CouponBookCardPrint` to accept effective coupon config per entry: global template plus per-coupon override.
+- Replace hard-coded courtesy coupon rendering with a courtesy coupon entry from the draft.
+- Update local storage persistence from layout-only (`couponbook-layout:v1`) to full draft persistence with schema versioning.
+- Add server persistence for saved coupon book configuration.
+- Update print/export flow so it can render a full draft payload or temporary print session, not only query params.
+- Preserve the existing Playwright PDF generation approach for deterministic output.
+
+## 11) API Contract (Proposed)
+
+Exact route names can be adjusted to existing API conventions, but the feature needs these capabilities:
+
+- `GET /api/festival_activities/[activityId]/couponbook/config`
+  - Returns saved coupon book configuration if present.
+  - Returns enough metadata to reconcile with current participant/proof source data.
+
+- `PUT /api/festival_activities/[activityId]/couponbook/config`
+  - Persists the current draft as the saved coupon book configuration.
+  - Requires `admin` or `festival_admin`.
+  - Validates draft schema version, activity ownership, source participation IDs, and payload size.
+
+- `POST /api/festival_activities/[activityId]/couponbook/export`
+  - Receives the current draft payload and export scope.
+  - Returns PDF binary.
+  - Supports selected page/book or all pages/books.
+
+Alternative: keep the current `GET /export` route only for saved-state export, and add a temporary print-session route for unsaved drafts. The chosen design must satisfy the requirement that printable output follows the current editor state.
+
+## 12) Data & Persistence
+
+- Local storage is the immediate draft persistence layer and protects admins from losing work on reload.
+- Server persistence is the saved configuration layer and is updated only by explicit Save.
+- Suggested storage model:
+  - A coupon book configuration table keyed by `activityId`.
+  - JSON payload for draft/config data.
+  - `createdBy`, `updatedBy`, `createdAt`, `updatedAt`, and `revision`.
+- The saved JSON must be versioned so future layout/template changes can migrate cleanly.
+- Payload validation must reject invalid source participation IDs for the activity and unsafe image URLs.
+
+## 13) Acceptance Criteria
+
+1. Admin can edit the default courtesy coupon and see those edits in preview and PDF.
+2. Admin can edit every participant coupon's displayed promotion fields.
+3. Admin can toggle between approved-only coupons and approved + pending-review coupons.
+4. The active participant status filter affects preview, page counts, Save, and PDF export.
+5. Admin can edit the coupon count for each variant book from the preview page and see participant coupons redistribute across variants according to the configured limits.
+6. Changing per-variant coupon counts updates only the draft until Save and does not mutate enrollment or source activity detail membership.
+7. Admin can configure dynamic coupons per coupon book page independently from participant limits and per-variant coupon counts.
+8. Admin can move participant coupons between coupon book pages without changing activity detail membership or participant/proof records.
+9. Before Save, reload restores all draft edits from local storage.
+10. Reset clears all local draft edits/settings and restores generated defaults or saved defaults according to the chosen reset mode.
+11. Save persists the coupon book configuration, including per-variant coupon counts, and reloads use the saved state as the starting point.
+12. Global coupon layout applies to all coupons by default.
+13. Individual coupon layout overrides affect only that coupon.
+14. Preview and PDF export reflect the current editor draft, including unsaved local changes.
+15. Exported PDF includes only coupon book content and keeps the existing no-chrome behavior.
+16. Text fitting remains consistent between preview and PDF with no clipping/ellipsis regressions.
+17. Empty validity conditions render fallback validity text consistently.
+18. Malformed local storage data does not break the editor.
+
+## 14) Risks & Mitigations
+
+- Risk: Full draft payloads become too large for query strings.
+  - Mitigation: use POST export or temporary server-side print sessions.
+- Risk: Admin edits diverge from later participant proof changes.
+  - Mitigation: store source metadata and show reconciliation for changed/new/removed source coupons.
 - Risk: Preview/PDF divergence over time.
-  - Mitigation: Keep print rendering through shared React print page.
-- Risk: Font/render differences across environments.
-  - Mitigation: Server-side Playwright + explicit fitting pass + fixed physical units.
-- Risk: Large exports impacting performance.
-  - Mitigation: Paginate and sheet-pack efficiently; future: background jobs if needed.
+  - Mitigation: share print components and render PDF from the same draft model.
+- Risk: Per-coupon overrides make the UI complex.
+  - Mitigation: use global defaults first, expose overrides only for selected coupon editing, and provide restore-to-global controls.
+- Risk: Local storage schema changes break existing drafts.
+  - Mitigation: version local storage keys and add migrations/fallback.
 
-## 13) Future Enhancements
+## 15) Future Enhancements
 
-- Persist layout presets server-side (per activity/admin/team).
-- Add explicit template versioning.
-- Add export job queue + progress UI for very large datasets.
-- Add visual regression tests for print fidelity.
-- Support custom courtesy coupon templates per festival.
+- Drag-and-drop coupon rearrangement with keyboard parity.
+- Named layout presets per festival.
+- Visual diff/reconciliation for source proof changes.
+- Export job queue + progress UI for very large coupon books.
+- Visual regression tests for print fidelity.
+- Custom courtesy coupon templates per festival.

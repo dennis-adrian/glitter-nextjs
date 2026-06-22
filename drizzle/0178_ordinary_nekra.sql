@@ -1,0 +1,1 @@
+ALTER TABLE "stand_reservations" ADD COLUMN "source" "reservation_source" DEFAULT 'user_reservation' NOT NULL;

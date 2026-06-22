@@ -5,7 +5,7 @@ import ProductsTable from "@/app/components/organisms/products/products-table";
 import TableSkeleton from "@/app/components/users/skeletons/table";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
-import { Suspense } from "react";
+import { Suspense, use } from "react";
 
 type ResponsiveProductsViewProps = {
   productsPromise: Promise<BaseProductWithImages[]>;
@@ -22,6 +22,19 @@ const cardGridFallback = (
   </div>
 );
 
+function ProductsContent({
+  productsPromise,
+  isDesktop,
+}: ResponsiveProductsViewProps & { isDesktop: boolean }) {
+  const products = use(productsPromise);
+
+  return isDesktop ? (
+    <ProductsTable products={products} />
+  ) : (
+    <ProductsCardGrid products={products} />
+  );
+}
+
 export default function ResponsiveProductsView({
   productsPromise,
 }: ResponsiveProductsViewProps) {
@@ -29,11 +42,10 @@ export default function ResponsiveProductsView({
 
   return (
     <Suspense fallback={isDesktop ? <TableSkeleton /> : cardGridFallback}>
-      {isDesktop ? (
-        <ProductsTable productsPromise={productsPromise} />
-      ) : (
-        <ProductsCardGrid productsPromise={productsPromise} />
-      )}
+      <ProductsContent
+        productsPromise={productsPromise}
+        isDesktop={isDesktop}
+      />
     </Suspense>
   );
 }

@@ -11,6 +11,7 @@ type CartLineRowLayoutProps = {
   productName: string;
   unitPrice: number;
   subtotal: number;
+  lineLabel?: string | null;
   warnings: ReactNode;
   quantityControl: ReactNode;
   onRemove: () => void;
@@ -22,6 +23,7 @@ export function CartLineRowLayout({
   productName,
   unitPrice,
   subtotal,
+  lineLabel,
   warnings,
   quantityControl,
   onRemove,
@@ -40,7 +42,14 @@ export function CartLineRowLayout({
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm truncate">{productName}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-medium text-sm truncate">{productName}</p>
+          {lineLabel && (
+            <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium">
+              {lineLabel}
+            </span>
+          )}
+        </div>
         <p className="text-sm text-muted-foreground">
           Bs {unitPrice.toFixed(2)}
         </p>

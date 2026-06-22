@@ -10,7 +10,17 @@ import { useCartContext } from "@/app/components/providers/cart-provider";
 import { Button } from "@/app/components/ui/button";
 import { checkoutCart } from "@/app/lib/cart/actions";
 
-export default function CheckoutConfirmButton() {
+type CheckoutConfirmButtonProps = {
+  hasRentalItems?: boolean;
+  rentalFestivalId?: number | null;
+  rentalReservationId?: number | null;
+};
+
+export default function CheckoutConfirmButton({
+  hasRentalItems = false,
+  rentalFestivalId = null,
+  rentalReservationId = null,
+}: CheckoutConfirmButtonProps) {
   const [loading, setLoading] = useState(false);
   const isSubmittingRef = useRef(false);
   const router = useRouter();
@@ -18,10 +28,18 @@ export default function CheckoutConfirmButton() {
 
   async function handleConfirm() {
     if (isSubmittingRef.current) return;
+    if (hasRentalItems && (rentalFestivalId == null || rentalReservationId == null)) {
+      toast.error("Selecciona el festival/reserva para los productos de alquiler.");
+      return;
+    }
     isSubmittingRef.current = true;
     setLoading(true);
     try {
-      const result = await checkoutCart();
+      const result = await checkoutCart(
+        hasRentalItems
+          ? { rentalFestivalId, rentalReservationId }
+          : undefined,
+      );
       if (result.success && result.orderId && result.profileId) {
         posthog.capture(POSTHOG_EVENTS.ORDER_PLACED, {
           order_id: result.orderId,

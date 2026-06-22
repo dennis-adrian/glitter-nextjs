@@ -23,7 +23,8 @@ interface AdminOrderNotificationEmailProps {
     quantity: number;
     price: number;
     availableDate: Date | null;
-    isPreOrder: boolean;
+    status: "available" | "presale" | "sale";
+    transactionType?: "purchase" | "rental";
   }[];
   total: number;
 }
@@ -88,18 +89,19 @@ export default function OrderConfirmationForAdminsEmailTemplate(
                       <div
                         style={{
                           ...styles.text,
-                          marginBottom: p.isPreOrder ? "2px" : "10px",
+                          marginBottom: p.status === "presale" ? "2px" : "10px",
                         }}
                       >
-                        {p.name}{" "}
+                        {p.name}
+                        {p.transactionType === "rental" && " (Alquiler)"}{" "}
                       </div>
-                      {p.isPreOrder && p.availableDate && (
+                      {p.status === "presale" && (
                         <div style={{ ...styles.textSmall }}>
-                          (Disponible el{" "}
-                          {formatDate(p.availableDate).toLocaleString(
-                            DateTime.DATE_MED,
-                          )}
-                          )
+                          {p.availableDate
+                            ? `(Disponible el ${formatDate(
+                                p.availableDate,
+                              ).toLocaleString(DateTime.DATE_MED)})`
+                            : "(Disponible próximamente)"}
                         </div>
                       )}
                     </td>
@@ -161,7 +163,7 @@ OrderConfirmationForAdminsEmailTemplate.PreviewProps = {
       name: "Camiseta Glitter",
       quantity: 2,
       price: 20,
-      isPreOrder: true,
+      status: "presale",
       availableDate: formatDate(new Date()).plus({ days: 5 }).toJSDate(),
     },
     {
@@ -169,7 +171,7 @@ OrderConfirmationForAdminsEmailTemplate.PreviewProps = {
       name: "Taza Glitter",
       quantity: 1,
       price: 10,
-      isPreOrder: false,
+      status: "available",
       availableDate: null,
     },
   ],

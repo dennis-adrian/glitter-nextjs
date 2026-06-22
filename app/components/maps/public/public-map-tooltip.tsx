@@ -10,6 +10,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
+import { getStandMapParticipants } from "@/app/components/maps/map-participants";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
 import CategoryBadge from "@/app/components/category-badge";
@@ -21,14 +22,6 @@ type PublicMapTooltipProps = {
 
 const GAP = 8;
 
-function getParticipants(stand: StandWithReservationsWithParticipants) {
-	return (
-		stand.reservations
-			?.filter((r) => r.status !== "rejected")
-			.flatMap((r) => r.participants) ?? []
-	);
-}
-
 export default function PublicMapTooltip({
 	stand,
 	anchorRect,
@@ -39,7 +32,7 @@ export default function PublicMapTooltip({
 		left: 0,
 	});
 
-	const participants = getParticipants(stand);
+	const participants = getStandMapParticipants(stand);
 	const standLabel = `${stand.label}${stand.standNumber}`;
 	const countLabel =
 		participants.length === 1
@@ -107,18 +100,27 @@ export default function PublicMapTooltip({
 							<div key={i} className="flex items-center gap-2">
 								<Avatar className="w-8 h-8 shrink-0">
 									<AvatarImage
-										src={p.user.imageUrl ?? undefined}
-										alt={p.user.displayName ?? "Participante"}
+										src={p.imageUrl ?? undefined}
+										alt={p.displayName}
 									/>
 								</Avatar>
 								<div>
 									<p className="text-sm font-semibold leading-tight">
-										{p.user.displayName ?? "Participante"}
+										{p.displayName}
 									</p>
-									<CategoryBadge
-										category={p.user.category}
-										className="text-[10px]"
-									/>
+									{p.kind === "user" ? (
+										<CategoryBadge
+											category={p.categoryLabel}
+											className="text-[10px]"
+										/>
+									) : (
+										<Badge
+											variant="outline"
+											className="mt-1 rounded-full border-teal-600 text-[10px] text-teal-700"
+										>
+											{p.categoryLabel}
+										</Badge>
+									)}
 								</div>
 							</div>
 						))}

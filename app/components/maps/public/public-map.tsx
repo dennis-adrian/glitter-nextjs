@@ -6,9 +6,11 @@ import { StandWithReservationsWithParticipants } from "@/app/api/stands/definiti
 import { MapElementBase } from "@/app/lib/map_elements/definitions";
 import {
 	computeCanvasBounds,
+	getExternalParticipantStandColors,
 	getPublicStandColors,
 } from "@/app/components/maps/map-utils";
 import { usePublicMapCard } from "@/app/components/maps/public/public-map-card-provider";
+import { hasExternalParticipants } from "@/app/components/maps/map-participants";
 
 import MapCanvas from "@/app/components/maps/map-canvas";
 import MapStand from "@/app/components/maps/map-stand";
@@ -84,11 +86,15 @@ export default function PublicMap({
 						{visibleStands.map((stand) => (
 							<MapStand
 								key={stand.id}
-								stand={stand}
-								canBeReserved={false}
-								selected={stand.id === selectedStandId}
-								colors={getPublicStandColors(stand.status)}
-								onHoverChange={handleHoverChange}
+										stand={stand}
+										canBeReserved={false}
+										selected={stand.id === selectedStandId}
+										colors={
+											hasExternalParticipants(stand)
+												? getExternalParticipantStandColors()
+												: getPublicStandColors(stand.status)
+										}
+										onHoverChange={handleHoverChange}
 								onTouchTap={handleStandSelect}
 								onClick={handleStandSelect}
 							/>

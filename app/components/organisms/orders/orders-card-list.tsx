@@ -6,7 +6,12 @@ import SocialMediaBadge from "@/app/components/social-media-badge";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
-import { getOrderStatusLabel } from "@/app/lib/orders/utils";
+import {
+  getOrderItemDisplayName,
+  getOrderStatusLabel,
+} from "@/app/lib/orders/utils";
+import type { RentalOrderFilter } from "@/app/lib/rentals/order-filters";
+import { getRentalOrderFilterLabel } from "@/app/lib/rentals/order-filters";
 import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
 import { Input } from "@/app/components/ui/input";
 import { useOrdersDateFilter } from "@/app/hooks/use-orders-date-filter";
@@ -28,7 +33,19 @@ type ActiveStatus = OrderStatus | "all" | "needs_attention";
 type OrdersCardListProps = {
   ordersPromise: Promise<OrderWithRelations[]>;
   activeStatus: ActiveStatus;
+  activeRentalFilter?: RentalOrderFilter;
 };
+
+const RENTAL_FILTER_OPTIONS: { value: RentalOrderFilter; label: string }[] = [
+  { value: "all", label: getRentalOrderFilterLabel("all") },
+  { value: "has_rental", label: getRentalOrderFilterLabel("has_rental") },
+  { value: "out", label: getRentalOrderFilterLabel("out") },
+  {
+    value: "partially_returned",
+    label: getRentalOrderFilterLabel("partially_returned"),
+  },
+  { value: "returned", label: getRentalOrderFilterLabel("returned") },
+];
 
 const STATUS_OPTIONS: {
   value: "" | OrderStatus | "needs_attention";
@@ -87,7 +104,9 @@ function exportOrdersToCsv(orders: OrderWithRelations[]) {
     sanitizeCsvCell(o.customer?.displayName ?? o.guestName ?? "Invitado"),
     sanitizeCsvCell(o.customer?.phoneNumber ?? o.guestPhone ?? ""),
     sanitizeCsvCell(
-      o.orderItems.map((i) => `${i.quantity}x ${i.product.name}`).join(", "),
+      o.orderItems
+        .map((i) => `${i.quantity}x ${getOrderItemDisplayName(i)}`)
+        .join(", "),
     ),
     sanitizeCsvCell(o.totalAmount.toFixed(2)),
     sanitizeCsvCell(getOrderStatusLabel(o.status)),
@@ -140,7 +159,7 @@ function OrderCard({
 
   const itemsPreview = order.orderItems
     .slice(0, 2)
-    .map((item) => `${item.quantity}× ${item.product.name}`)
+    .map((item) => `${item.quantity}× ${getOrderItemDisplayName(item)}`)
     .join(", ");
   const extraItems =
     order.orderItems.length > 2 ? ` +${order.orderItems.length - 2} más` : "";
@@ -225,11 +244,14 @@ function OrderCard({
 export default function OrdersCardList({
   ordersPromise,
   activeStatus,
+  activeRentalFilter = "all",
 }: OrdersCardListProps) {
   const orders = use(ordersPromise);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [optimisticStatus, setOptimisticStatus] = useOptimistic(activeStatus);
+  const [optimisticRentalFilter, setOptimisticRentalFilter] =
+    useOptimistic(activeRentalFilter);
   const [search, setSearch] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const {
@@ -248,7 +270,21 @@ export default function OrdersCardList({
     startTransition(() => {
       setOptimisticStatus(chipToActive(value));
       setSearch("");
-      router.push(`/dashboard/store/orders?status=${param}`);
+      router.push(
+        `/dashboard/store/orders?status=${param}&rental=${optimisticRentalFilter}`,
+      );
+    });
+  }
+
+  function handleRentalFilterChange(value: RentalOrderFilter) {
+    const statusParam =
+      optimisticStatus === "all" ? "all" : optimisticStatus;
+    startTransition(() => {
+      setOptimisticRentalFilter(value);
+      setSearch("");
+      router.push(
+        `/dashboard/store/orders?status=${statusParam}&rental=${value}`,
+      );
     });
   }
 
@@ -313,6 +349,31 @@ export default function OrdersCardList({
                   "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
                   isActive
                     ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border text-muted-foreground hover:bg-accent",
+                )}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Alquiler
+        </span>
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 [&::-webkit-scrollbar]:hidden">
+          {RENTAL_FILTER_OPTIONS.map((opt) => {
+            const isActive = optimisticRentalFilter === opt.value;
+            return (
+              <button
+                key={opt.value}
+                onClick={() => handleRentalFilterChange(opt.value)}
+                className={cn(
+                  "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                  isActive
+                    ? "bg-primary/10 text-primary border-primary"
                     : "border-border text-muted-foreground hover:bg-accent",
                 )}
               >

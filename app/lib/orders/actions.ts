@@ -1,16 +1,32 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { orderItems, orders } from "@/db/schema";
+import {
+  orderItems,
+  orders,
+  productContentSections,
+  products,
+  productVariantOptionValues,
+  productVariants,
+} from "@/db/schema";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
 import {
   ORDER_TAB_VALUES,
   type OrderTabValue,
 } from "@/app/lib/orders/order-tabs";
 import { db } from "@/db";
-import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  exists,
+  inArray,
+  isNull,
+  notExists,
+  sql,
+} from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { products } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
 import { fetchAdminUsers } from "@/app/api/users/actions";
 import OrderConfirmationForAdminsEmailTemplate from "@/app/emails/order-confirmation-for-admins";
@@ -19,9 +35,30 @@ import OrderPaymentConfirmationForUserEmailTemplate from "@/app/emails/order-pay
 import OrderVoucherSubmittedForAdminsEmailTemplate from "@/app/emails/order-voucher-submitted-for-admins";
 import OrderUpdatedForUserEmailTemplate from "@/app/emails/order-updated-for-user";
 import OrderUpdatedForAdminsEmailTemplate from "@/app/emails/order-updated-for-admins";
+import { getVariantLabel } from "@/app/lib/products/variants";
+import { assertRentalEligibility } from "@/app/lib/rentals/eligibility";
+import { resolveRentalLineContext } from "@/app/lib/rentals/rental-context";
+import {
+  consumeLineStockInTx,
+  getAvailableStockForLine,
+  restoreLineStockInTx,
+  validateCombinedSharedStockDemand,
+} from "@/app/lib/rentals/order-stock";
+import { getStockPoolForTransaction } from "@/app/lib/rentals/stock";
+import {
+  buildRentalContentSectionsSnapshot,
+  filterContentSectionsForMode,
+} from "@/app/lib/rentals/validation";
+import type { ProductTransactionType } from "@/app/lib/rentals/types";
+import type { RentalOrderFilter } from "@/app/lib/rentals/order-filters";
 import { getPostHogClient } from "@/app/lib/posthog-server";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
-import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import {
+  getOrderItemDisplayName,
+  getLineUnitPrice,
+  getProductPriceAtPurchase,
+  getRentalPriceAtPurchase,
+} from "@/app/lib/orders/utils";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 function revalidateStoreOrderViews() {
@@ -40,8 +77,9 @@ export async function sendOrderEmails(emailData: {
     name: string;
     quantity: number;
     price: number;
-    isPreOrder: boolean;
+    status: "available" | "presale" | "sale";
     availableDate: Date | null;
+    transactionType?: ProductTransactionType;
   }[];
   total: number;
 }) {
@@ -87,53 +125,305 @@ export type CreateOrderInTxResult = {
     name: string;
     quantity: number;
     price: number;
-    isPreOrder: boolean;
+    status: "available" | "presale" | "sale";
     availableDate: Date | null;
+    transactionType: ProductTransactionType;
   }[];
   totalAmount: number;
 };
 
 type OrderTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-export async function createOrderInTx(
+export type OrderLineInput = {
+  productId: number;
+  productVariantId: number | null;
+  quantity: number;
+  transactionType?: ProductTransactionType;
+  rentalFestivalId?: number | null;
+  rentalReservationId?: number | null;
+};
+
+type ResolvedOrderLine = {
+  product: typeof products.$inferSelect;
+  productVariantId: number | null;
+  productVariantLabel: string | null;
+  quantity: number;
+  unitPrice: number;
+  transactionType: ProductTransactionType;
+  rentalFestivalId: number | null;
+  rentalReservationId: number | null;
+  rentalStockModeSnapshot: "shared" | "separate" | null;
+  rentalContentSectionsSnapshot: ReturnType<
+    typeof buildRentalContentSectionsSnapshot
+  > | null;
+};
+
+const orderRelations = {
+  customer: {
+    with: {
+      profileSubcategories: {
+        with: {
+          subcategory: true,
+        },
+      },
+    },
+  },
+  orderItems: {
+    with: {
+      product: {
+        with: {
+          images: true,
+        },
+      },
+      variant: {
+        with: {
+          selections: {
+            with: {
+              option: true,
+              optionValue: true,
+            },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
+function mergeOrderLines(lines: OrderLineInput[]): OrderLineInput[] {
+  const merged = new Map<string, OrderLineInput>();
+
+  for (const line of lines) {
+    const transactionType = line.transactionType ?? "purchase";
+    const key = `${line.productId}:${line.productVariantId ?? "base"}:${transactionType}`;
+    const existing = merged.get(key);
+    if (existing) {
+      existing.quantity += line.quantity;
+      continue;
+    }
+    merged.set(key, {
+      productId: line.productId,
+      productVariantId: line.productVariantId ?? null,
+      quantity: line.quantity,
+      transactionType,
+      rentalFestivalId: line.rentalFestivalId ?? null,
+      rentalReservationId: line.rentalReservationId ?? null,
+    });
+  }
+
+  return Array.from(merged.values());
+}
+
+async function resolveOrderLines(
   tx: OrderTx,
-  orderItemsIdsQuantityMap: Map<number, number>,
-  userId: number,
-  _customerEmail: string,
-  _customerName: string,
-): Promise<CreateOrderInTxResult> {
-  if (orderItemsIdsQuantityMap.size === 0) {
+  lines: OrderLineInput[],
+): Promise<ResolvedOrderLine[]> {
+  if (lines.length === 0) {
     throw new Error("No order items provided");
   }
 
-  for (const [itemId, qty] of orderItemsIdsQuantityMap.entries()) {
-    if (qty <= 0) {
-      throw new Error(`Invalid quantity for itemId ${itemId}`);
+  const normalizedLines = mergeOrderLines(lines);
+  for (const line of normalizedLines) {
+    if (line.quantity <= 0) {
+      throw new Error(
+        `Invalid quantity for product ${line.productId}/${line.productVariantId ?? "base"}`,
+      );
     }
   }
 
-  const itemsIds = Array.from(orderItemsIdsQuantityMap.keys());
-  const productsInOrder = await tx
+  const productIds = Array.from(
+    new Set(normalizedLines.map((line) => line.productId)),
+  );
+  const variantIds = Array.from(
+    new Set(
+      normalizedLines
+        .map((line) => line.productVariantId)
+        .filter((value): value is number => value != null),
+    ),
+  );
+
+  const lockedProducts = await tx
     .select()
     .from(products)
-    .where(inArray(products.id, itemsIds))
+    .where(inArray(products.id, productIds))
     .for("update");
 
-  if (productsInOrder.length !== itemsIds.length) {
-    const foundIds = new Set(productsInOrder.map((p) => p.id));
-    const missingIds = itemsIds.filter((id) => !foundIds.has(id));
+  if (lockedProducts.length !== productIds.length) {
+    const foundIds = new Set(lockedProducts.map((product) => product.id));
+    const missingIds = productIds.filter((id) => !foundIds.has(id));
     throw new Error(`Products not found: ${missingIds.join(", ")}`);
   }
 
+  const lockedVariants =
+    variantIds.length > 0
+      ? await tx
+          .select()
+          .from(productVariants)
+          .where(inArray(productVariants.id, variantIds))
+          .for("update")
+      : [];
+
+  const productsWithVariants = new Set(
+    (
+      await tx
+        .select({ productId: productVariants.productId })
+        .from(productVariants)
+        .where(inArray(productVariants.productId, productIds))
+    ).map((row) => row.productId),
+  );
+
+  if (lockedVariants.length !== variantIds.length) {
+    const foundIds = new Set(lockedVariants.map((variant) => variant.id));
+    const missingIds = variantIds.filter((id) => !foundIds.has(id));
+    throw new Error(`Variants not found: ${missingIds.join(", ")}`);
+  }
+
+  const variantSelections =
+    variantIds.length > 0
+      ? await tx.query.productVariantOptionValues.findMany({
+          where: inArray(productVariantOptionValues.variantId, variantIds),
+          with: {
+            option: true,
+            optionValue: true,
+          },
+        })
+      : [];
+
+  const productMap = new Map(
+    lockedProducts.map((product) => [product.id, product]),
+  );
+  const variantMap = new Map(
+    lockedVariants.map((variant) => [variant.id, variant]),
+  );
+  const selectionsByVariantId = new Map<number, typeof variantSelections>();
+
+  for (const selection of variantSelections) {
+    const entries = selectionsByVariantId.get(selection.variantId) ?? [];
+    entries.push(selection);
+    selectionsByVariantId.set(selection.variantId, entries);
+  }
+
   const stockValidationErrors: string[] = [];
-  for (const product of productsInOrder) {
-    const requestedQuantity = orderItemsIdsQuantityMap.get(product.id)!;
-    const currentStock = product.stock ?? 0;
-    if (currentStock < requestedQuantity) {
-      stockValidationErrors.push(
-        `${product.name} - ${currentStock} disponible(s)`,
-      );
+  const resolvedLines: ResolvedOrderLine[] = [];
+  const contentSectionsByProductId = new Map<
+    number,
+    (typeof productContentSections)["$inferSelect"][]
+  >();
+
+  for (const productId of productIds) {
+    const sections = await tx.query.productContentSections.findMany({
+      where: eq(productContentSections.productId, productId),
+    });
+    contentSectionsByProductId.set(productId, sections);
+  }
+
+  for (const line of normalizedLines) {
+    const transactionType = line.transactionType ?? "purchase";
+    const product = productMap.get(line.productId);
+    if (!product) {
+      throw new Error(`Product ${line.productId} not found`);
     }
+
+    if (transactionType === "purchase" && !product.isPurchasable) {
+      throw new Error(`${product.name} no está disponible para compra.`);
+    }
+
+    if (transactionType === "rental" && !product.isRentable) {
+      throw new Error(`${product.name} no está disponible para alquiler.`);
+    }
+
+    let variant = null;
+    let productVariantLabel: string | null = null;
+    let unitPrice =
+      transactionType === "rental"
+        ? getRentalPriceAtPurchase(product)
+        : getProductPriceAtPurchase(product);
+
+    if (line.productVariantId != null) {
+      const matchedVariant = variantMap.get(line.productVariantId);
+      if (!matchedVariant || matchedVariant.productId !== product.id) {
+        throw new Error(
+          `Variant ${line.productVariantId} does not belong to product ${product.id}`,
+        );
+      }
+
+      if (!matchedVariant.isVisible) {
+        throw new Error(`${product.name} - variante no disponible`, {
+          cause: "variant_unavailable",
+        });
+      }
+
+      variant = matchedVariant;
+      productVariantLabel =
+        getVariantLabel({
+          selections: selectionsByVariantId.get(variant.id) ?? [],
+        }) ?? null;
+      unitPrice =
+        transactionType === "rental"
+          ? getRentalPriceAtPurchase(product)
+          : getProductPriceAtPurchase(product, variant);
+    } else if (productsWithVariants.has(product.id)) {
+      throw new Error(`${product.name} - selecciona una variante`, {
+        cause: "variant_required",
+      });
+    }
+
+    const sharedRemaining = validateCombinedSharedStockDemand(
+      normalizedLines.map((entry) => ({
+        productId: entry.productId,
+        productVariantId: entry.productVariantId ?? null,
+        quantity: entry.quantity,
+        transactionType: entry.transactionType ?? "purchase",
+      })),
+      product,
+      variant,
+    );
+
+    const usesSharedPool =
+      getStockPoolForTransaction(product, transactionType) === "sale";
+    const availableStock = usesSharedPool
+      ? sharedRemaining
+      : getAvailableStockForLine(product, variant, transactionType);
+
+    const stockInsufficient = usesSharedPool
+      ? availableStock < 0
+      : line.quantity > availableStock;
+
+    if (stockInsufficient) {
+      const label = productVariantLabel
+        ? `${product.name} (${productVariantLabel})`
+        : product.name;
+      stockValidationErrors.push(`${label} - stock insuficiente`);
+    }
+
+    const rentalSections =
+      transactionType === "rental"
+        ? filterContentSectionsForMode(
+            contentSectionsByProductId.get(product.id) ?? [],
+            "rental",
+            line.productVariantId ?? null,
+          )
+        : [];
+
+    resolvedLines.push({
+      product,
+      productVariantId: line.productVariantId ?? null,
+      productVariantLabel,
+      quantity: line.quantity,
+      unitPrice,
+      transactionType,
+      rentalFestivalId:
+        transactionType === "rental" ? (line.rentalFestivalId ?? null) : null,
+      rentalReservationId:
+        transactionType === "rental"
+          ? (line.rentalReservationId ?? null)
+          : null,
+      rentalStockModeSnapshot:
+        transactionType === "rental" ? product.rentalStockMode : null,
+      rentalContentSectionsSnapshot:
+        transactionType === "rental"
+          ? buildRentalContentSectionsSnapshot(rentalSections)
+          : null,
+    });
   }
 
   if (stockValidationErrors.length > 0) {
@@ -142,12 +432,127 @@ export async function createOrderInTx(
     });
   }
 
-  const totalAmount = productsInOrder.reduce(
-    (acc, product) =>
-      acc +
-      getProductPriceAtPurchase(product) *
-        orderItemsIdsQuantityMap.get(product.id)!,
+  return resolvedLines;
+}
+
+async function restoreOrderItemStock(
+  tx: OrderTx,
+  item: Pick<
+    (typeof orderItems)["$inferSelect"],
+    | "productId"
+    | "productVariantId"
+    | "quantity"
+    | "transactionType"
+    | "rentalStockModeSnapshot"
+    | "rentalReturnedQuantity"
+  >,
+) {
+  await restoreLineStockInTx(tx, item);
+}
+
+async function consumeOrderItemStock(
+  tx: OrderTx,
+  product: typeof products.$inferSelect,
+  productVariantId: number | null,
+  quantity: number,
+  transactionType: ProductTransactionType,
+  variantMap: Map<number, typeof productVariants.$inferSelect>,
+) {
+  const variant =
+    productVariantId != null ? (variantMap.get(productVariantId) ?? null) : null;
+  await consumeLineStockInTx(tx, product, variant, quantity, transactionType);
+}
+
+async function consumeResolvedOrderLineStock(
+  tx: OrderTx,
+  line: ResolvedOrderLine,
+  variantMap: Map<number, typeof productVariants.$inferSelect>,
+) {
+  await consumeOrderItemStock(
+    tx,
+    line.product,
+    line.productVariantId,
+    line.quantity,
+    line.transactionType,
+    variantMap,
+  );
+}
+
+export async function createOrderInTx(
+  tx: OrderTx,
+  lines: OrderLineInput[],
+  userId: number,
+  _customerEmail: string,
+  _customerName: string,
+): Promise<CreateOrderInTxResult> {
+  let orderLines = lines;
+  const rentalLines = orderLines.filter(
+    (line) => (line.transactionType ?? "purchase") === "rental",
+  );
+  if (rentalLines.length > 0) {
+    const rentalContexts = new Set(
+      rentalLines.map(
+        (line) => `${line.rentalFestivalId}:${line.rentalReservationId}`,
+      ),
+    );
+    if (rentalContexts.size > 1) {
+      throw new Error(
+        "Todos los productos de alquiler deben usar el mismo festival/reserva.",
+        { cause: "multiple_rental_contexts" },
+      );
+    }
+
+    const [sampleRentalLine] = rentalLines;
+    const eligibility = await assertRentalEligibility(
+      userId,
+      sampleRentalLine.rentalFestivalId ?? undefined,
+      sampleRentalLine.rentalReservationId ?? undefined,
+    );
+    if (!eligibility.eligible) {
+      throw new Error(eligibility.message, { cause: "rental_ineligible" });
+    }
+
+    const resolvedContext = resolveRentalLineContext(
+      eligibility.contexts,
+      sampleRentalLine.rentalFestivalId,
+      sampleRentalLine.rentalReservationId,
+    );
+    if (!resolvedContext.ok) {
+      throw new Error(resolvedContext.message, { cause: resolvedContext.cause });
+    }
+
+    orderLines = orderLines.map((line) => {
+      if ((line.transactionType ?? "purchase") !== "rental") return line;
+      return {
+        ...line,
+        rentalFestivalId: resolvedContext.context.festivalId,
+        rentalReservationId: resolvedContext.context.reservationId,
+      };
+    });
+  }
+
+  const resolvedLines = await resolveOrderLines(tx, orderLines);
+  const totalAmount = resolvedLines.reduce(
+    (sum, line) => sum + line.unitPrice * line.quantity,
     0,
+  );
+
+  const variantIds = Array.from(
+    new Set(
+      resolvedLines
+        .map((line) => line.productVariantId)
+        .filter((value): value is number => value != null),
+    ),
+  );
+  const lockedVariants =
+    variantIds.length > 0
+      ? await tx
+          .select()
+          .from(productVariants)
+          .where(inArray(productVariants.id, variantIds))
+      : [];
+  const variantMap = new Map(
+    lockedVariants.map((variant) => [variant.id, variant]),
   );
 
   const [order] = await tx
@@ -159,33 +564,37 @@ export async function createOrderInTx(
     })
     .returning();
 
-  for (const item of productsInOrder) {
+  for (const line of resolvedLines) {
     await tx.insert(orderItems).values({
-      productId: item.id,
-      quantity: orderItemsIdsQuantityMap.get(item.id)!,
-      priceAtPurchase: getProductPriceAtPurchase(item),
+      productId: line.product.id,
+      productVariantId: line.productVariantId,
+      productVariantLabel: line.productVariantLabel,
+      quantity: line.quantity,
+      priceAtPurchase: line.unitPrice,
+      transactionType: line.transactionType,
+      rentalContentSectionsSnapshot: line.rentalContentSectionsSnapshot,
+      rentalStockModeSnapshot: line.rentalStockModeSnapshot,
+      rentalFestivalId: line.rentalFestivalId,
+      rentalReservationId: line.rentalReservationId,
       orderId: order.id,
     });
   }
 
-  // Decrease product stock
-  for (const item of productsInOrder) {
-    const orderedQuantity = orderItemsIdsQuantityMap.get(item.id)!;
-    await tx
-      .update(products)
-      .set({
-        stock: sql`GREATEST(0, COALESCE(${products.stock}, 0) - ${orderedQuantity})`,
-      })
-      .where(eq(products.id, item.id));
+  for (const line of resolvedLines) {
+    await consumeResolvedOrderLineStock(tx, line, variantMap);
   }
 
-  const mappedProducts = productsInOrder.map((product) => ({
-    id: product.id,
-    name: product.name,
-    quantity: orderItemsIdsQuantityMap.get(product.id)!,
-    price: getProductPriceAtPurchase(product),
-    isPreOrder: !!product.isPreOrder,
-    availableDate: product.availableDate || null,
+  const mappedProducts = resolvedLines.map((line) => ({
+    id: line.product.id,
+    name: getOrderItemDisplayName({
+      product: line.product,
+      productVariantLabel: line.productVariantLabel,
+    }),
+    quantity: line.quantity,
+    price: line.unitPrice,
+    status: line.product.status,
+    availableDate: line.product.availableDate || null,
+    transactionType: line.transactionType,
   }));
 
   return {
@@ -201,57 +610,41 @@ export type CreateGuestOrderInTxResult = CreateOrderInTxResult & {
 
 export async function createGuestOrderInTx(
   tx: OrderTx,
-  orderItemsIdsQuantityMap: Map<number, number>,
+  lines: OrderLineInput[],
   guestName: string,
   guestEmail: string,
   guestPhone: string,
 ): Promise<CreateGuestOrderInTxResult> {
-  if (orderItemsIdsQuantityMap.size === 0) {
-    throw new Error("No order items provided");
-  }
-
-  for (const [itemId, qty] of orderItemsIdsQuantityMap.entries()) {
-    if (qty <= 0) {
-      throw new Error(`Invalid quantity for itemId ${itemId}`);
-    }
-  }
-
-  const itemsIds = Array.from(orderItemsIdsQuantityMap.keys());
-  const productsInOrder = await tx
-    .select()
-    .from(products)
-    .where(inArray(products.id, itemsIds))
-    .for("update");
-
-  if (productsInOrder.length !== itemsIds.length) {
-    const foundIds = new Set(productsInOrder.map((p) => p.id));
-    const missingIds = itemsIds.filter((id) => !foundIds.has(id));
-    throw new Error(`Products not found: ${missingIds.join(", ")}`);
-  }
-
-  const stockValidationErrors: string[] = [];
-  for (const product of productsInOrder) {
-    const requestedQuantity = orderItemsIdsQuantityMap.get(product.id)!;
-    const currentStock = product.stock ?? 0;
-    if (currentStock < requestedQuantity) {
-      stockValidationErrors.push(
-        `${product.name} - ${currentStock} disponible(s)`,
-      );
-    }
-  }
-
-  if (stockValidationErrors.length > 0) {
-    throw new Error(`Stock insuficiente: ${stockValidationErrors.join(", ")}`, {
-      cause: "stock_insufficient",
+  if (
+    lines.some((line) => (line.transactionType ?? "purchase") === "rental")
+  ) {
+    throw new Error("Los productos de alquiler requieren una cuenta verificada.", {
+      cause: "rental_ineligible",
     });
   }
 
-  const totalAmount = productsInOrder.reduce(
-    (acc, product) =>
-      acc +
-      getProductPriceAtPurchase(product) *
-        orderItemsIdsQuantityMap.get(product.id)!,
+  const resolvedLines = await resolveOrderLines(tx, lines);
+  const totalAmount = resolvedLines.reduce(
+    (sum, line) => sum + line.unitPrice * line.quantity,
     0,
+  );
+
+  const variantIds = Array.from(
+    new Set(
+      resolvedLines
+        .map((line) => line.productVariantId)
+        .filter((value): value is number => value != null),
+    ),
+  );
+  const lockedVariants =
+    variantIds.length > 0
+      ? await tx
+          .select()
+          .from(productVariants)
+          .where(inArray(productVariants.id, variantIds))
+      : [];
+  const variantMap = new Map(
+    lockedVariants.map((variant) => [variant.id, variant]),
   );
 
   // Generate a cryptographically random token for guest order tracking
@@ -271,33 +664,33 @@ export async function createGuestOrderInTx(
     })
     .returning();
 
-  for (const item of productsInOrder) {
+  for (const line of resolvedLines) {
     await tx.insert(orderItems).values({
-      productId: item.id,
-      quantity: orderItemsIdsQuantityMap.get(item.id)!,
-      priceAtPurchase: getProductPriceAtPurchase(item),
+      productId: line.product.id,
+      productVariantId: line.productVariantId,
+      productVariantLabel: line.productVariantLabel,
+      quantity: line.quantity,
+      priceAtPurchase: line.unitPrice,
+      transactionType: line.transactionType,
       orderId: order.id,
     });
   }
 
-  // Decrease product stock
-  for (const item of productsInOrder) {
-    const orderedQuantity = orderItemsIdsQuantityMap.get(item.id)!;
-    await tx
-      .update(products)
-      .set({
-        stock: sql`GREATEST(0, COALESCE(${products.stock}, 0) - ${orderedQuantity})`,
-      })
-      .where(eq(products.id, item.id));
+  for (const line of resolvedLines) {
+    await consumeResolvedOrderLineStock(tx, line, variantMap);
   }
 
-  const mappedProducts = productsInOrder.map((product) => ({
-    id: product.id,
-    name: product.name,
-    quantity: orderItemsIdsQuantityMap.get(product.id)!,
-    price: getProductPriceAtPurchase(product),
-    isPreOrder: !!product.isPreOrder,
-    availableDate: product.availableDate || null,
+  const mappedProducts = resolvedLines.map((line) => ({
+    id: line.product.id,
+    name: getOrderItemDisplayName({
+      product: line.product,
+      productVariantLabel: line.productVariantLabel,
+    }),
+    quantity: line.quantity,
+    price: line.unitPrice,
+    status: line.product.status,
+    availableDate: line.product.availableDate || null,
+    transactionType: line.transactionType,
   }));
 
   return {
@@ -318,8 +711,9 @@ export async function sendGuestOrderEmails(emailData: {
     name: string;
     quantity: number;
     price: number;
-    isPreOrder: boolean;
+    status: "available" | "presale" | "sale";
     availableDate: Date | null;
+    transactionType?: ProductTransactionType;
   }[];
   total: number;
 }) {
@@ -367,7 +761,7 @@ export async function sendGuestOrderEmails(emailData: {
 }
 
 export async function createOrder(
-  orderItemsIdsQuantityMap: Map<number, number>,
+  lines: OrderLineInput[],
   userId: number,
   customerEmail: string,
   customerName: string,
@@ -376,13 +770,7 @@ export async function createOrder(
 
   try {
     result = await db.transaction((tx) =>
-      createOrderInTx(
-        tx,
-        orderItemsIdsQuantityMap,
-        userId,
-        customerEmail,
-        customerName,
-      ),
+      createOrderInTx(tx, lines, userId, customerEmail, customerName),
     );
 
     try {
@@ -424,26 +812,7 @@ export async function fetchOrder(
 ): Promise<OrderWithRelations | null> {
   try {
     const order = await db.query.orders.findFirst({
-      with: {
-        customer: {
-          with: {
-            profileSubcategories: {
-              with: {
-                subcategory: true,
-              },
-            },
-          },
-        },
-        orderItems: {
-          with: {
-            product: {
-              with: {
-                images: true,
-              },
-            },
-          },
-        },
-      },
+      with: orderRelations,
       where: eq(orders.id, orderId),
     });
 
@@ -465,26 +834,7 @@ export async function fetchGuestOrder(
 ): Promise<OrderWithRelations | null> {
   try {
     const order = await db.query.orders.findFirst({
-      with: {
-        customer: {
-          with: {
-            profileSubcategories: {
-              with: {
-                subcategory: true,
-              },
-            },
-          },
-        },
-        orderItems: {
-          with: {
-            product: {
-              with: {
-                images: true,
-              },
-            },
-          },
-        },
-      },
+      with: orderRelations,
       where: and(eq(orders.id, orderId), eq(orders.guestOrderToken, token)),
     });
 
@@ -500,26 +850,7 @@ export async function fetchOrdersByUserId(userId: number) {
     return await db.query.orders.findMany({
       where: eq(orders.userId, userId),
       orderBy: [desc(orders.createdAt)],
-      with: {
-        customer: {
-          with: {
-            profileSubcategories: {
-              with: {
-                subcategory: true,
-              },
-            },
-          },
-        },
-        orderItems: {
-          with: {
-            product: {
-              with: {
-                images: true,
-              },
-            },
-          },
-        },
-      },
+      with: orderRelations,
     });
   } catch (error) {
     console.error(error);
@@ -569,26 +900,7 @@ export async function fetchOrdersByUserIdAndStatus(
     return await db.query.orders.findMany({
       where: and(eq(orders.userId, userId), eq(orders.status, status)),
       orderBy: [desc(orders.createdAt)],
-      with: {
-        customer: {
-          with: {
-            profileSubcategories: {
-              with: {
-                subcategory: true,
-              },
-            },
-          },
-        },
-        orderItems: {
-          with: {
-            product: {
-              with: {
-                images: true,
-              },
-            },
-          },
-        },
-      },
+      with: orderRelations,
     });
   } catch (error) {
     console.error(error);
@@ -599,26 +911,7 @@ export async function fetchOrdersByUserIdAndStatus(
 export async function fetchOrders() {
   try {
     return await db.query.orders.findMany({
-      with: {
-        customer: {
-          with: {
-            profileSubcategories: {
-              with: {
-                subcategory: true,
-              },
-            },
-          },
-        },
-        orderItems: {
-          with: {
-            product: {
-              with: {
-                images: true,
-              },
-            },
-          },
-        },
-      },
+      with: orderRelations,
     });
   } catch (error) {
     console.error(error);
@@ -628,6 +921,7 @@ export async function fetchOrders() {
 
 export async function fetchOrdersByStatus(
   status?: OrderStatus | readonly OrderStatus[],
+  rentalFilter: RentalOrderFilter = "all",
 ) {
   try {
     const statusWhere =
@@ -637,34 +931,107 @@ export async function fetchOrdersByStatus(
           ? eq(orders.status, status)
           : inArray(orders.status, status);
 
+    const rentalWhere = buildRentalFilterSql(rentalFilter);
+    const whereClause =
+      statusWhere && rentalWhere
+        ? and(statusWhere, rentalWhere)
+        : (statusWhere ?? rentalWhere);
+
     return await db.query.orders.findMany({
-      where: statusWhere,
+      where: whereClause,
       orderBy: [desc(orders.createdAt)],
-      with: {
-        customer: {
-          with: {
-            profileSubcategories: {
-              with: {
-                subcategory: true,
-              },
-            },
-          },
-        },
-        orderItems: {
-          with: {
-            product: {
-              with: {
-                images: true,
-              },
-            },
-          },
-        },
-      },
+      with: orderRelations,
     });
   } catch (error) {
     console.error(error);
     return [];
   }
+}
+
+function buildRentalFilterSql(filter: RentalOrderFilter) {
+  if (filter === "all") return undefined;
+
+  if (filter === "has_rental") {
+    return exists(
+      db
+        .select({ one: sql`1` })
+        .from(orderItems)
+        .where(
+          and(
+            eq(orderItems.orderId, orders.id),
+            eq(orderItems.transactionType, "rental"),
+          ),
+        ),
+    );
+  }
+
+  const rentalItemScope = and(
+    eq(orderItems.orderId, orders.id),
+    eq(orderItems.transactionType, "rental"),
+  );
+
+  if (filter === "out") {
+    return and(
+      exists(
+        db.select({ one: sql`1` }).from(orderItems).where(rentalItemScope),
+      ),
+      notExists(
+        db
+          .select({ one: sql`1` })
+          .from(orderItems)
+          .where(
+            and(
+              rentalItemScope,
+              sql`${orderItems.rentalReturnedQuantity} > 0`,
+            ),
+          ),
+      ),
+    );
+  }
+
+  if (filter === "partially_returned") {
+    return and(
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(orderItems)
+          .where(
+            and(
+              rentalItemScope,
+              sql`${orderItems.rentalReturnedQuantity} > 0`,
+            ),
+          ),
+      ),
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(orderItems)
+          .where(
+            and(
+              rentalItemScope,
+              sql`${orderItems.rentalReturnedQuantity} < ${orderItems.quantity}`,
+            ),
+          ),
+      ),
+    );
+  }
+
+  return and(
+    exists(
+      db.select({ one: sql`1` }).from(orderItems).where(rentalItemScope),
+    ),
+    notExists(
+      db
+        .select({ one: sql`1` })
+        .from(orderItems)
+        .where(
+          and(
+            rentalItemScope,
+            sql`${orderItems.rentalReturnedQuantity} < ${orderItems.quantity}`,
+          ),
+        ),
+    ),
+  );
 }
 
 export async function fetchPendingVoucherCount(): Promise<number> {
@@ -685,26 +1052,7 @@ export async function fetchPendingVoucherReviewOrders() {
     return await db.query.orders.findMany({
       where: eq(orders.status, "payment_verification"),
       orderBy: [desc(orders.voucherSubmittedAt)],
-      with: {
-        customer: {
-          with: {
-            profileSubcategories: {
-              with: {
-                subcategory: true,
-              },
-            },
-          },
-        },
-        orderItems: {
-          with: {
-            product: {
-              with: {
-                images: true,
-              },
-            },
-          },
-        },
-      },
+      with: orderRelations,
     });
   } catch (error) {
     console.error(error);
@@ -1202,11 +1550,15 @@ export async function updateOrder(
     const newQty = editMap.get(orderItem.id);
     // Skip items that weren't submitted (unchanged) or aren't being changed
     if (newQty === undefined || newQty === orderItem.quantity) continue;
-    const currentPrice = getProductPriceAtPurchase(orderItem.product);
+    const currentPrice = getLineUnitPrice(
+      orderItem.product,
+      orderItem.variant,
+      orderItem.transactionType,
+    );
     if (Math.abs(currentPrice - orderItem.priceAtPurchase) > 0.001) {
       return {
         success: false,
-        message: `No puedes modificar "${orderItem.product.name}" porque su precio cambió desde que realizaste el pedido.`,
+        message: `No puedes modificar "${getOrderItemDisplayName(orderItem)}" porque su precio cambió desde que realizaste el pedido.`,
       };
     }
   }
@@ -1242,12 +1594,7 @@ export async function updateOrder(
       if (willCancelOrder) {
         // Restore all stock and cancel
         for (const item of order.orderItems) {
-          await tx
-            .update(products)
-            .set({
-              stock: sql`COALESCE(${products.stock}, 0) + ${item.quantity}`,
-            })
-            .where(eq(products.id, item.productId));
+          await restoreOrderItemStock(tx, item);
         }
         await tx
           .update(orders)
@@ -1257,51 +1604,30 @@ export async function updateOrder(
         // Restore old quantities to stock for all edited items
         for (const [itemId] of editMap) {
           const orderItem = order.orderItems.find((i) => i.id === itemId)!;
-          await tx
-            .update(products)
-            .set({
-              stock: sql`COALESCE(${products.stock}, 0) + ${orderItem.quantity}`,
-            })
-            .where(eq(products.id, orderItem.productId));
+          await restoreOrderItemStock(tx, orderItem);
         }
 
-        // Re-fetch affected products FOR UPDATE and validate stock
-        const affectedProductIds = Array.from(editMap.entries())
+        // Re-fetch affected product lines FOR UPDATE and validate stock
+        const linesToResolve = Array.from(editMap.entries())
           .filter(([, qty]) => qty > 0)
-          .map(
-            ([itemId]) =>
-              order.orderItems.find((i) => i.id === itemId)!.productId,
-          );
+          .map(([itemId, quantity]) => {
+            const orderItem = order.orderItems.find(
+              (entry) => entry.id === itemId,
+            )!;
+            return {
+              productId: orderItem.productId,
+              productVariantId: orderItem.productVariantId,
+              quantity,
+              transactionType: orderItem.transactionType,
+              rentalFestivalId: orderItem.rentalFestivalId,
+              rentalReservationId: orderItem.rentalReservationId,
+            };
+          });
 
-        const freshProducts =
-          affectedProductIds.length > 0
-            ? await tx
-                .select()
-                .from(products)
-                .where(inArray(products.id, affectedProductIds))
-                .for("update")
+        const resolvedLines =
+          linesToResolve.length > 0
+            ? await resolveOrderLines(tx, linesToResolve)
             : [];
-
-        const stockErrors: string[] = [];
-        for (const [itemId, newQty] of editMap) {
-          if (newQty <= 0) continue;
-          const orderItem = order.orderItems.find((i) => i.id === itemId)!;
-          const freshProduct = freshProducts.find(
-            (p) => p.id === orderItem.productId,
-          );
-          if (freshProduct && (freshProduct.stock ?? 0) < newQty) {
-            stockErrors.push(
-              `${freshProduct.name} - ${freshProduct.stock ?? 0} disponible(s)`,
-            );
-          }
-        }
-
-        if (stockErrors.length > 0) {
-          throw Object.assign(
-            new Error(`Stock insuficiente: ${stockErrors.join(", ")}`),
-            { cause: "stock_insufficient" },
-          );
-        }
 
         // Apply changes: delete removed items, update quantities, deduct new stock
         for (const [itemId, newQty] of editMap) {
@@ -1314,12 +1640,32 @@ export async function updateOrder(
               .where(eq(orderItems.id, itemId));
 
             const orderItem = order.orderItems.find((i) => i.id === itemId)!;
-            await tx
-              .update(products)
-              .set({
-                stock: sql`GREATEST(0, COALESCE(${products.stock}, 0) - ${newQty})`,
-              })
-              .where(eq(products.id, orderItem.productId));
+            const [product] = await tx
+              .select()
+              .from(products)
+              .where(eq(products.id, orderItem.productId))
+              .limit(1);
+            const variantMap = new Map<number, typeof productVariants.$inferSelect>();
+            if (orderItem.productVariantId != null) {
+              const [variant] = await tx
+                .select()
+                .from(productVariants)
+                .where(eq(productVariants.id, orderItem.productVariantId))
+                .limit(1);
+              if (variant) {
+                variantMap.set(variant.id, variant);
+              }
+            }
+            if (product) {
+              await consumeOrderItemStock(
+                tx,
+                product,
+                orderItem.productVariantId,
+                newQty,
+                orderItem.transactionType,
+                variantMap,
+              );
+            }
           }
         }
 
@@ -1367,7 +1713,7 @@ export async function updateOrder(
   const changes: OrderChange[] = order.orderItems
     .filter((item) => editMap.has(item.id))
     .map((item) => ({
-      productName: item.product.name,
+      productName: getOrderItemDisplayName(item),
       oldQuantity: item.quantity,
       newQuantity: editMap.get(item.id)!,
     }));
@@ -1412,14 +1758,26 @@ export async function fetchOrdersTotalsByProduct() {
       const totals = await tx
         .select({
           productId: orderItems.productId,
-          productName: products.name,
+          productVariantId: orderItems.productVariantId,
+          productVariantLabel: orderItems.productVariantLabel,
+          productName: sql<string>`CASE
+            WHEN ${orderItems.productVariantLabel} IS NOT NULL
+              THEN ${products.name} || ' (' || ${orderItems.productVariantLabel} || ')'
+            ELSE ${products.name}
+          END`,
           status: orders.status,
           totalQuantity: sql<number>`cast(sum(${orderItems.quantity}) as integer)`,
         })
         .from(orderItems)
         .innerJoin(orders, eq(orderItems.orderId, orders.id))
         .innerJoin(products, eq(orderItems.productId, products.id))
-        .groupBy(orderItems.productId, products.name, orders.status);
+        .groupBy(
+          orderItems.productId,
+          orderItems.productVariantId,
+          orderItems.productVariantLabel,
+          products.name,
+          orders.status,
+        );
 
       return totals;
     });

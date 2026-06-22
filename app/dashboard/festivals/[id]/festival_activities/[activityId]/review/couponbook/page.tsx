@@ -2,9 +2,14 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 
 import CouponBookPreviewClient from "@/app/components/festivals/festival_activities/coupon-book-preview-client";
-import { fetchFestivalActivityForReview } from "@/app/lib/festivals/actions";
+import { fetchSavedCouponBookConfig } from "@/app/lib/festival_activites/coupon-book-config-actions";
+import {
+  buildInitialCouponBookDraft,
+  reconcileDraftWithSource,
+} from "@/app/lib/festival_activites/coupon-book-draft";
 import { buildCouponBookVariants } from "@/app/lib/festival_activites/coupon-book-builder";
 import { fetchParticipationPreviewData } from "@/app/lib/festival_activites/actions";
+import { fetchFestivalActivityForReview } from "@/app/lib/festivals/actions";
 
 const ParamsSchema = z.object({
   id: z.coerce.number(),
@@ -49,12 +54,26 @@ export default async function CouponBookReviewPage({
     }),
   );
 
+  const saved = await fetchSavedCouponBookConfig(activityId);
+  const sourceDraft = buildInitialCouponBookDraft({
+    festivalId: id,
+    activityId,
+    variants,
+  });
+  const reconciliation = saved.draft
+    ? reconcileDraftWithSource(saved.draft, sourceDraft)
+    : null;
+
   return (
     <CouponBookPreviewClient
       festivalId={id}
       activityId={activityId}
       activityName={activity.name}
       variants={variants}
+      initialSavedDraft={saved.draft}
+      savedRevision={saved.revision}
+      savedUpdatedAt={saved.updatedAt}
+      reconciliation={reconciliation}
       backUrl="../"
     />
   );

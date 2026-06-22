@@ -1,4 +1,7 @@
-import { BaseProduct } from "@/app/lib/products/definitions";
+import {
+  BaseProduct,
+  ProductVariantWithSelections,
+} from "@/app/lib/products/definitions";
 import { OrderStatus, OrderWithRelations } from "./definitions";
 
 export function getOrderItemCount(order: OrderWithRelations): number {
@@ -7,10 +10,10 @@ export function getOrderItemCount(order: OrderWithRelations): number {
 }
 
 export function hasPreorders(order: OrderWithRelations): boolean {
-  const preOrderItems = order.orderItems.find(
-    (item) => item.product.isPreOrder,
+  const presaleItems = order.orderItems.find(
+    (item) => item.product.status === "presale",
   );
-  return !!preOrderItems;
+  return !!presaleItems;
 }
 
 export function getOrderStatusLabel(status: OrderStatus): string {
@@ -47,21 +50,60 @@ export function validatedDiscount(
   }
 }
 
-export function getProductPriceAtPurchase(product: BaseProduct): number {
-  if (!product.discount) return product.price;
+export function getRentalPriceAtPurchase(
+  product: Pick<BaseProduct, "rentalPrice">,
+): number {
+  if (product.rentalPrice == null) {
+    throw new Error("Missing rental price");
+  }
+  return product.rentalPrice;
+}
+
+export function getLineUnitPrice(
+  product: BaseProduct,
+  variant: Pick<ProductVariantWithSelections, "price"> | null | undefined,
+  transactionType: "purchase" | "rental" = "purchase",
+): number {
+  if (transactionType === "rental") {
+    return getRentalPriceAtPurchase(product);
+  }
+  return getProductPriceAtPurchase(product, variant);
+}
+
+export function getProductPriceAtPurchase(
+  product: BaseProduct,
+  variant?: Pick<ProductVariantWithSelections, "price"> | null,
+): number {
+  if (variant?.price != null) {
+    return variant.price;
+  }
+
+  const basePrice = product.price;
+  if (!product.discount) return basePrice;
 
   const validDiscount = validatedDiscount(
-    product.price,
+    basePrice,
     product.discount,
     product.discountUnit,
   );
 
   switch (product.discountUnit) {
     case "percentage":
-      return product.price * (1 - validDiscount / 100);
+      return basePrice * (1 - validDiscount / 100);
     case "amount":
-      return product.price - validDiscount;
+      return basePrice - validDiscount;
     default:
-      return product.price;
+      return basePrice;
   }
+}
+
+export function getOrderItemDisplayName(item: {
+  product: Pick<BaseProduct, "name">;
+  productVariantLabel?: string | null;
+}): string {
+  if (!item.productVariantLabel) {
+    return item.product.name;
+  }
+
+  return `${item.product.name} (${item.productVariantLabel})`;
 }
