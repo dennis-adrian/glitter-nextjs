@@ -1,8 +1,14 @@
 import StoreItemCard from "@/app/components/molecules/store-item-card";
 import { fetchProducts } from "@/app/lib/products/actions";
+import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
 
 export default async function StoreProducts() {
-  const products = await fetchProducts("default", { visibleOnly: true });
+  const [products, rentalEligibility] = await Promise.all([
+    fetchProducts("default", { visibleOnly: true }),
+    getRentalEligibilityForCurrentUser(),
+  ]);
+  const rentalEligible = rentalEligibility.eligible;
+  const rentalContexts = rentalEligible ? rentalEligibility.contexts : [];
 
   if (products.length === 0) {
     return (
@@ -20,7 +26,12 @@ export default async function StoreProducts() {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 items-start">
       {products.map((product) => (
-        <StoreItemCard key={product.id} product={product} />
+        <StoreItemCard
+          key={product.id}
+          product={product}
+          rentalEligible={rentalEligible}
+          rentalContexts={rentalContexts}
+        />
       ))}
     </div>
   );

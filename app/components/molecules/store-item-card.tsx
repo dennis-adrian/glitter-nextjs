@@ -20,19 +20,30 @@ import { useCartContext } from "@/app/components/providers/cart-provider";
 import { addToCart } from "@/app/lib/cart/actions";
 import { buildCartLineKey } from "@/app/lib/cart/utils";
 import { formatDate } from "@/app/lib/formatters";
-import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import {
+  getProductPriceAtPurchase,
+  getRentalPriceAtPurchase,
+} from "@/app/lib/orders/utils";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
+import type { RentalEligibilityContext } from "@/app/lib/rentals/types";
 import {
   getProductEffectiveStock,
+  getProductStoreAvailability,
   getVariantLabel,
 } from "@/app/lib/products/variants";
 import { ProductStatusBadge } from "@/components/molecules/ProductStatusBadge";
 
 type StoreItemCardProps = {
   product: BaseProductWithImages;
+  rentalEligible?: boolean;
+  rentalContexts?: RentalEligibilityContext[];
 };
 
-export default function StoreItemCard({ product }: StoreItemCardProps) {
+export default function StoreItemCard({
+  product,
+  rentalEligible = false,
+  rentalContexts = [],
+}: StoreItemCardProps) {
   const { setItemCount, isAuthenticated, addGuestItem } = useCartContext();
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -42,20 +53,39 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
   const hasVariants = variants.length > 0;
   const shouldUseQuickAddModal = variants.length > 1;
   const singleVariant = variants.length === 1 ? variants[0] : null;
-  const inStock = getProductEffectiveStock(product) > 0;
+  const { purchaseInStock, rentalInStock, canTransact } =
+    getProductStoreAvailability(product, rentalEligible);
+  const inStock = canTransact;
   const isPresale = product.status === "presale";
+  const showRentalBadge = product.isRentable && rentalEligible && rentalInStock;
+  const isRentalOnly = rentalInStock && !purchaseInStock;
+  const needsRentalContextPicker =
+    isRentalOnly && rentalContexts.length > 1;
+  const shouldOpenModal = shouldUseQuickAddModal || needsRentalContextPicker;
 
-  const effectivePrices = hasVariants
-    ? variants.map((variant) => ({
-        current: getProductPriceAtPurchase(product, variant),
-        original: variant.price ?? product.price,
-      }))
-    : [
-        {
-          current: getProductPriceAtPurchase(product),
-          original: product.price,
-        },
-      ];
+  const effectivePrices = isRentalOnly
+    ? hasVariants
+      ? variants.map(() => ({
+          current: getRentalPriceAtPurchase(product),
+          original: product.rentalPrice ?? 0,
+        }))
+      : [
+          {
+            current: getRentalPriceAtPurchase(product),
+            original: product.rentalPrice ?? 0,
+          },
+        ]
+    : hasVariants
+      ? variants.map((variant) => ({
+          current: getProductPriceAtPurchase(product, variant),
+          original: variant.price ?? product.price,
+        }))
+      : [
+          {
+            current: getProductPriceAtPurchase(product),
+            original: product.price,
+          },
+        ];
 
   const lowestCurrentPrice = Math.min(
     ...effectivePrices.map((entry) => entry.current),
@@ -68,8 +98,16 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
       ? lowestOriginalPrice
       : null;
 
+  const quickAddLabel = !inStock
+    ? "Agotado"
+    : purchaseInStock
+      ? "Agregar al carrito"
+      : rentalInStock
+        ? "Alquilar"
+        : "Agregar al carrito";
+
   async function handleQuickAdd() {
-    if (shouldUseQuickAddModal) {
+    if (shouldOpenModal) {
       setQuickAddOpen(true);
       return;
     }
@@ -77,34 +115,63 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
     const productVariantId = singleVariant?.id ?? null;
     setSubmitting(true);
     try {
-      if (isAuthenticated) {
-        const { success, newCount } = await addToCart({
+      if (purchaseInStock) {
+        if (isAuthenticated) {
+          const { success, newCount, message } = await addToCart({
+            productId: product.id,
+            productVariantId,
+            quantity: 1,
+            transactionType: "purchase",
+          });
+
+          if (!success) {
+            toast.error(message ?? "No se pudo agregar al carrito");
+            return;
+          }
+
+          setItemCount(newCount);
+        } else {
+          addGuestItem({
+            lineKey: buildCartLineKey(product.id, productVariantId),
+            productId: product.id,
+            productVariantId,
+            productVariantLabel: singleVariant
+              ? getVariantLabel(singleVariant)
+              : null,
+            quantity: 1,
+            product,
+            variant: singleVariant,
+          });
+        }
+
+        toast.success("Producto agregado al carrito");
+        return;
+      }
+
+      if (rentalInStock) {
+        const [rentalContext] = rentalContexts;
+        if (!rentalContext) {
+          toast.error("Selecciona un festival/reserva para alquilar.");
+          return;
+        }
+
+        const { success, newCount, message } = await addToCart({
           productId: product.id,
           productVariantId,
           quantity: 1,
+          transactionType: "rental",
+          rentalFestivalId: rentalContext.festivalId,
+          rentalReservationId: rentalContext.reservationId,
         });
 
         if (!success) {
-          toast.error("No se pudo agregar al carrito");
+          toast.error(message ?? "No se pudo agregar al carrito de alquiler");
           return;
         }
 
         setItemCount(newCount);
-      } else {
-        addGuestItem({
-          lineKey: buildCartLineKey(product.id, productVariantId),
-          productId: product.id,
-          productVariantId,
-          productVariantLabel: singleVariant
-            ? getVariantLabel(singleVariant)
-            : null,
-          quantity: 1,
-          product,
-          variant: singleVariant,
-        });
+        toast.success("Producto agregado al carrito de alquiler");
       }
-
-      toast.success("Producto agregado al carrito");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Error desconocido";
@@ -126,13 +193,24 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
               status={product.status}
               discount={product.discount}
               discountUnit={product.discountUnit}
-              stock={getProductEffectiveStock(product)}
+              stock={
+                purchaseInStock
+                  ? getProductEffectiveStock(product)
+                  : rentalInStock
+                    ? 1
+                    : 0
+              }
             />
+            {showRentalBadge && (
+              <span className="inline-flex w-fit rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium">
+                Alquiler disponible
+              </span>
+            )}
           </div>
 
           <StoreProductImages
             productName={product.name}
-            stock={getProductEffectiveStock(product)}
+            stock={inStock ? 1 : 0}
             images={product.images}
             interactive={false}
           />
@@ -179,31 +257,35 @@ export default function StoreItemCard({ product }: StoreItemCardProps) {
             }
             disabled={!inStock || submitting}
             onClick={handleQuickAdd}
-            aria-label={`Agregar al carrito ${product.name}`}
+            aria-label={`${quickAddLabel} ${product.name}`}
           >
             {!inStock ? (
               <span className="text-xs md:text-sm">Agotado</span>
             ) : submitting ? (
               <span className="text-xs md:text-sm">Agregando...</span>
             ) : (
-              <span className="text-xs md:text-sm">Agregar al carrito</span>
+              <span className="text-xs md:text-sm">{quickAddLabel}</span>
             )}
           </Button>
         </div>
       </Card>
 
-      {shouldUseQuickAddModal && (
+      {shouldOpenModal && (
         <Dialog open={quickAddOpen} onOpenChange={setQuickAddOpen}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{product.name}</DialogTitle>
               <DialogDescription>
-                Selecciona una variante para agregarla al carrito.
+                {shouldUseQuickAddModal
+                  ? "Selecciona una variante para agregarla al carrito."
+                  : "Selecciona el festival/reserva para alquilar."}
               </DialogDescription>
             </DialogHeader>
             <StoreItemQuantityInput
               product={product}
               compact
+              rentalEligible={rentalEligible}
+              rentalContexts={rentalContexts}
               onAdded={() => setQuickAddOpen(false)}
             />
           </DialogContent>

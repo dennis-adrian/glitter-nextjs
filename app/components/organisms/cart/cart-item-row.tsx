@@ -13,24 +13,28 @@ import {
 } from "@/app/components/ui/select";
 import { removeFromCart, updateCartItemQuantity } from "@/app/lib/cart/actions";
 import { CartItemWithProduct } from "@/app/lib/cart/definitions";
-import { getCartItemWarnings } from "@/app/lib/cart/utils";
+import { getCartItemAvailableStock, getCartItemWarnings } from "@/app/lib/cart/utils";
 import {
   MAX_CART_LINE_QUANTITY,
   PLACEHOLDER_IMAGE_URLS,
 } from "@/app/lib/constants";
-import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import { getLineUnitPrice } from "@/app/lib/orders/utils";
 import {
   getProductVariantImageUrl,
-  getProductVariantStock,
   getVariantLabel,
 } from "@/app/lib/products/variants";
 
 type CartItemRowProps = {
   item: CartItemWithProduct;
+  allItems: CartItemWithProduct[];
   onCartUpdate: () => Promise<void>;
 };
 
-export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
+export default function CartItemRow({
+  item,
+  allItems,
+  onCartUpdate,
+}: CartItemRowProps) {
   const [pending, setPending] = useState(false);
   const [localQty, setLocalQty] = useState(item.quantity);
   const updateGenerationRef = useRef(0);
@@ -41,20 +45,22 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
     previousCommittedQtyRef.current = item.quantity;
   }, [item.quantity]);
 
-  const warnings = getCartItemWarnings(item);
+  const warnings = getCartItemWarnings(item, allItems);
   const variantLabel = getVariantLabel(item.variant);
   const productName = variantLabel
     ? `${item.product.name} (${variantLabel})`
     : item.product.name;
+  const availableStock = getCartItemAvailableStock(item, allItems);
   const stockCap = Math.max(
     1,
-    Math.min(
-      MAX_CART_LINE_QUANTITY,
-      getProductVariantStock(item.product, item.variant),
-    ),
+    Math.min(MAX_CART_LINE_QUANTITY, availableStock),
   );
   const maxQty = Math.max(stockCap, localQty);
-  const unitPrice = getProductPriceAtPurchase(item.product, item.variant);
+  const unitPrice = getLineUnitPrice(
+    item.product,
+    item.variant,
+    item.transactionType,
+  );
   const subtotal = unitPrice * localQty;
 
   const imageUrl =
@@ -112,6 +118,7 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
       productName={productName}
       unitPrice={unitPrice}
       subtotal={subtotal}
+      lineLabel={item.transactionType === "rental" ? "Alquiler" : null}
       warnings={
         <>
           {warnings.isOutOfStock && (
@@ -127,7 +134,7 @@ export default function CartItemRow({ item, onCartUpdate }: CartItemRowProps) {
         </>
       }
       quantityControl={
-        getProductVariantStock(item.product, item.variant) === 0 ? (
+        availableStock === 0 ? (
           <span className="text-xs text-muted-foreground">
             Cantidad: {localQty}
           </span>

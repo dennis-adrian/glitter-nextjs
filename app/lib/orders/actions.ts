@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import {
   orderItems,
   orders,
+  productContentSections,
   products,
   productVariantOptionValues,
   productVariants,
@@ -14,7 +15,17 @@ import {
   type OrderTabValue,
 } from "@/app/lib/orders/order-tabs";
 import { db } from "@/db";
-import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  exists,
+  inArray,
+  isNull,
+  notExists,
+  sql,
+} from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/app/vendors/resend";
 import { fetchAdminUsers } from "@/app/api/users/actions";
@@ -25,11 +36,28 @@ import OrderVoucherSubmittedForAdminsEmailTemplate from "@/app/emails/order-vouc
 import OrderUpdatedForUserEmailTemplate from "@/app/emails/order-updated-for-user";
 import OrderUpdatedForAdminsEmailTemplate from "@/app/emails/order-updated-for-admins";
 import { getVariantLabel } from "@/app/lib/products/variants";
+import { assertRentalEligibility } from "@/app/lib/rentals/eligibility";
+import { resolveRentalLineContext } from "@/app/lib/rentals/rental-context";
+import {
+  consumeLineStockInTx,
+  getAvailableStockForLine,
+  restoreLineStockInTx,
+  validateCombinedSharedStockDemand,
+} from "@/app/lib/rentals/order-stock";
+import { getStockPoolForTransaction } from "@/app/lib/rentals/stock";
+import {
+  buildRentalContentSectionsSnapshot,
+  filterContentSectionsForMode,
+} from "@/app/lib/rentals/validation";
+import type { ProductTransactionType } from "@/app/lib/rentals/types";
+import type { RentalOrderFilter } from "@/app/lib/rentals/order-filters";
 import { getPostHogClient } from "@/app/lib/posthog-server";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import {
   getOrderItemDisplayName,
+  getLineUnitPrice,
   getProductPriceAtPurchase,
+  getRentalPriceAtPurchase,
 } from "@/app/lib/orders/utils";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
@@ -51,6 +79,7 @@ export async function sendOrderEmails(emailData: {
     price: number;
     status: "available" | "presale" | "sale";
     availableDate: Date | null;
+    transactionType?: ProductTransactionType;
   }[];
   total: number;
 }) {
@@ -98,6 +127,7 @@ export type CreateOrderInTxResult = {
     price: number;
     status: "available" | "presale" | "sale";
     availableDate: Date | null;
+    transactionType: ProductTransactionType;
   }[];
   totalAmount: number;
 };
@@ -108,6 +138,9 @@ export type OrderLineInput = {
   productId: number;
   productVariantId: number | null;
   quantity: number;
+  transactionType?: ProductTransactionType;
+  rentalFestivalId?: number | null;
+  rentalReservationId?: number | null;
 };
 
 type ResolvedOrderLine = {
@@ -116,6 +149,13 @@ type ResolvedOrderLine = {
   productVariantLabel: string | null;
   quantity: number;
   unitPrice: number;
+  transactionType: ProductTransactionType;
+  rentalFestivalId: number | null;
+  rentalReservationId: number | null;
+  rentalStockModeSnapshot: "shared" | "separate" | null;
+  rentalContentSectionsSnapshot: ReturnType<
+    typeof buildRentalContentSectionsSnapshot
+  > | null;
 };
 
 const orderRelations = {
@@ -153,7 +193,8 @@ function mergeOrderLines(lines: OrderLineInput[]): OrderLineInput[] {
   const merged = new Map<string, OrderLineInput>();
 
   for (const line of lines) {
-    const key = `${line.productId}:${line.productVariantId ?? "base"}`;
+    const transactionType = line.transactionType ?? "purchase";
+    const key = `${line.productId}:${line.productVariantId ?? "base"}:${transactionType}`;
     const existing = merged.get(key);
     if (existing) {
       existing.quantity += line.quantity;
@@ -163,6 +204,9 @@ function mergeOrderLines(lines: OrderLineInput[]): OrderLineInput[] {
       productId: line.productId,
       productVariantId: line.productVariantId ?? null,
       quantity: line.quantity,
+      transactionType,
+      rentalFestivalId: line.rentalFestivalId ?? null,
+      rentalReservationId: line.rentalReservationId ?? null,
     });
   }
 
@@ -260,51 +304,105 @@ async function resolveOrderLines(
 
   const stockValidationErrors: string[] = [];
   const resolvedLines: ResolvedOrderLine[] = [];
+  const contentSectionsByProductId = new Map<
+    number,
+    (typeof productContentSections)["$inferSelect"][]
+  >();
+
+  for (const productId of productIds) {
+    const sections = await tx.query.productContentSections.findMany({
+      where: eq(productContentSections.productId, productId),
+    });
+    contentSectionsByProductId.set(productId, sections);
+  }
 
   for (const line of normalizedLines) {
+    const transactionType = line.transactionType ?? "purchase";
     const product = productMap.get(line.productId);
     if (!product) {
       throw new Error(`Product ${line.productId} not found`);
     }
 
-    let currentStock = product.stock ?? 0;
+    if (transactionType === "purchase" && !product.isPurchasable) {
+      throw new Error(`${product.name} no está disponible para compra.`);
+    }
+
+    if (transactionType === "rental" && !product.isRentable) {
+      throw new Error(`${product.name} no está disponible para alquiler.`);
+    }
+
+    let variant = null;
     let productVariantLabel: string | null = null;
-    let unitPrice = getProductPriceAtPurchase(product);
+    let unitPrice =
+      transactionType === "rental"
+        ? getRentalPriceAtPurchase(product)
+        : getProductPriceAtPurchase(product);
 
     if (line.productVariantId != null) {
-      const variant = variantMap.get(line.productVariantId);
-      if (!variant || variant.productId !== product.id) {
+      const matchedVariant = variantMap.get(line.productVariantId);
+      if (!matchedVariant || matchedVariant.productId !== product.id) {
         throw new Error(
           `Variant ${line.productVariantId} does not belong to product ${product.id}`,
         );
       }
 
-      if (!variant.isVisible) {
+      if (!matchedVariant.isVisible) {
         throw new Error(`${product.name} - variante no disponible`, {
           cause: "variant_unavailable",
         });
       }
 
-      currentStock = variant.stock ?? 0;
+      variant = matchedVariant;
       productVariantLabel =
         getVariantLabel({
           selections: selectionsByVariantId.get(variant.id) ?? [],
         }) ?? null;
-      unitPrice = getProductPriceAtPurchase(product, variant);
-    } else {
-      if (productsWithVariants.has(product.id)) {
-        throw new Error(`${product.name} - selecciona una variante`, {
-          cause: "variant_required",
-        });
-      }
+      unitPrice =
+        transactionType === "rental"
+          ? getRentalPriceAtPurchase(product)
+          : getProductPriceAtPurchase(product, variant);
+    } else if (productsWithVariants.has(product.id)) {
+      throw new Error(`${product.name} - selecciona una variante`, {
+        cause: "variant_required",
+      });
     }
 
-    if (currentStock < line.quantity) {
+    const sharedRemaining = validateCombinedSharedStockDemand(
+      normalizedLines.map((entry) => ({
+        productId: entry.productId,
+        productVariantId: entry.productVariantId ?? null,
+        quantity: entry.quantity,
+        transactionType: entry.transactionType ?? "purchase",
+      })),
+      product,
+      variant,
+    );
+
+    const usesSharedPool =
+      getStockPoolForTransaction(product, transactionType) === "sale";
+    const availableStock = usesSharedPool
+      ? sharedRemaining
+      : getAvailableStockForLine(product, variant, transactionType);
+
+    const stockInsufficient = usesSharedPool
+      ? availableStock < 0
+      : line.quantity > availableStock;
+
+    if (stockInsufficient) {
       const label = productVariantLabel
         ? `${product.name} (${productVariantLabel})`
         : product.name;
-      stockValidationErrors.push(`${label} - ${currentStock} disponible(s)`);
+      stockValidationErrors.push(`${label} - stock insuficiente`);
     }
+
+    const rentalSections =
+      transactionType === "rental"
+        ? filterContentSectionsForMode(
+            contentSectionsByProductId.get(product.id) ?? [],
+            "rental",
+            line.productVariantId ?? null,
+          )
+        : [];
 
     resolvedLines.push({
       product,
@@ -312,6 +410,19 @@ async function resolveOrderLines(
       productVariantLabel,
       quantity: line.quantity,
       unitPrice,
+      transactionType,
+      rentalFestivalId:
+        transactionType === "rental" ? (line.rentalFestivalId ?? null) : null,
+      rentalReservationId:
+        transactionType === "rental"
+          ? (line.rentalReservationId ?? null)
+          : null,
+      rentalStockModeSnapshot:
+        transactionType === "rental" ? product.rentalStockMode : null,
+      rentalContentSectionsSnapshot:
+        transactionType === "rental"
+          ? buildRentalContentSectionsSnapshot(rentalSections)
+          : null,
     });
   }
 
@@ -328,60 +439,42 @@ async function restoreOrderItemStock(
   tx: OrderTx,
   item: Pick<
     (typeof orderItems)["$inferSelect"],
-    "productId" | "productVariantId" | "quantity"
+    | "productId"
+    | "productVariantId"
+    | "quantity"
+    | "transactionType"
+    | "rentalStockModeSnapshot"
+    | "rentalReturnedQuantity"
   >,
 ) {
-  if (item.productVariantId != null) {
-    await tx
-      .update(productVariants)
-      .set({
-        stock: sql`COALESCE(${productVariants.stock}, 0) + ${item.quantity}`,
-      })
-      .where(eq(productVariants.id, item.productVariantId));
-    return;
-  }
-
-  await tx
-    .update(products)
-    .set({
-      stock: sql`COALESCE(${products.stock}, 0) + ${item.quantity}`,
-    })
-    .where(eq(products.id, item.productId));
+  await restoreLineStockInTx(tx, item);
 }
 
 async function consumeOrderItemStock(
   tx: OrderTx,
-  productId: number,
+  product: typeof products.$inferSelect,
   productVariantId: number | null,
   quantity: number,
+  transactionType: ProductTransactionType,
+  variantMap: Map<number, typeof productVariants.$inferSelect>,
 ) {
-  if (productVariantId != null) {
-    await tx
-      .update(productVariants)
-      .set({
-        stock: sql`GREATEST(0, COALESCE(${productVariants.stock}, 0) - ${quantity})`,
-      })
-      .where(eq(productVariants.id, productVariantId));
-    return;
-  }
-
-  await tx
-    .update(products)
-    .set({
-      stock: sql`GREATEST(0, COALESCE(${products.stock}, 0) - ${quantity})`,
-    })
-    .where(eq(products.id, productId));
+  const variant =
+    productVariantId != null ? (variantMap.get(productVariantId) ?? null) : null;
+  await consumeLineStockInTx(tx, product, variant, quantity, transactionType);
 }
 
 async function consumeResolvedOrderLineStock(
   tx: OrderTx,
   line: ResolvedOrderLine,
+  variantMap: Map<number, typeof productVariants.$inferSelect>,
 ) {
   await consumeOrderItemStock(
     tx,
-    line.product.id,
+    line.product,
     line.productVariantId,
     line.quantity,
+    line.transactionType,
+    variantMap,
   );
 }
 
@@ -392,10 +485,74 @@ export async function createOrderInTx(
   _customerEmail: string,
   _customerName: string,
 ): Promise<CreateOrderInTxResult> {
-  const resolvedLines = await resolveOrderLines(tx, lines);
+  let orderLines = lines;
+  const rentalLines = orderLines.filter(
+    (line) => (line.transactionType ?? "purchase") === "rental",
+  );
+  if (rentalLines.length > 0) {
+    const rentalContexts = new Set(
+      rentalLines.map(
+        (line) => `${line.rentalFestivalId}:${line.rentalReservationId}`,
+      ),
+    );
+    if (rentalContexts.size > 1) {
+      throw new Error(
+        "Todos los productos de alquiler deben usar el mismo festival/reserva.",
+        { cause: "multiple_rental_contexts" },
+      );
+    }
+
+    const [sampleRentalLine] = rentalLines;
+    const eligibility = await assertRentalEligibility(
+      userId,
+      sampleRentalLine.rentalFestivalId ?? undefined,
+      sampleRentalLine.rentalReservationId ?? undefined,
+    );
+    if (!eligibility.eligible) {
+      throw new Error(eligibility.message, { cause: "rental_ineligible" });
+    }
+
+    const resolvedContext = resolveRentalLineContext(
+      eligibility.contexts,
+      sampleRentalLine.rentalFestivalId,
+      sampleRentalLine.rentalReservationId,
+    );
+    if (!resolvedContext.ok) {
+      throw new Error(resolvedContext.message, { cause: resolvedContext.cause });
+    }
+
+    orderLines = orderLines.map((line) => {
+      if ((line.transactionType ?? "purchase") !== "rental") return line;
+      return {
+        ...line,
+        rentalFestivalId: resolvedContext.context.festivalId,
+        rentalReservationId: resolvedContext.context.reservationId,
+      };
+    });
+  }
+
+  const resolvedLines = await resolveOrderLines(tx, orderLines);
   const totalAmount = resolvedLines.reduce(
     (sum, line) => sum + line.unitPrice * line.quantity,
     0,
+  );
+
+  const variantIds = Array.from(
+    new Set(
+      resolvedLines
+        .map((line) => line.productVariantId)
+        .filter((value): value is number => value != null),
+    ),
+  );
+  const lockedVariants =
+    variantIds.length > 0
+      ? await tx
+          .select()
+          .from(productVariants)
+          .where(inArray(productVariants.id, variantIds))
+      : [];
+  const variantMap = new Map(
+    lockedVariants.map((variant) => [variant.id, variant]),
   );
 
   const [order] = await tx
@@ -414,12 +571,17 @@ export async function createOrderInTx(
       productVariantLabel: line.productVariantLabel,
       quantity: line.quantity,
       priceAtPurchase: line.unitPrice,
+      transactionType: line.transactionType,
+      rentalContentSectionsSnapshot: line.rentalContentSectionsSnapshot,
+      rentalStockModeSnapshot: line.rentalStockModeSnapshot,
+      rentalFestivalId: line.rentalFestivalId,
+      rentalReservationId: line.rentalReservationId,
       orderId: order.id,
     });
   }
 
   for (const line of resolvedLines) {
-    await consumeResolvedOrderLineStock(tx, line);
+    await consumeResolvedOrderLineStock(tx, line, variantMap);
   }
 
   const mappedProducts = resolvedLines.map((line) => ({
@@ -432,6 +594,7 @@ export async function createOrderInTx(
     price: line.unitPrice,
     status: line.product.status,
     availableDate: line.product.availableDate || null,
+    transactionType: line.transactionType,
   }));
 
   return {
@@ -452,10 +615,36 @@ export async function createGuestOrderInTx(
   guestEmail: string,
   guestPhone: string,
 ): Promise<CreateGuestOrderInTxResult> {
+  if (
+    lines.some((line) => (line.transactionType ?? "purchase") === "rental")
+  ) {
+    throw new Error("Los productos de alquiler requieren una cuenta verificada.", {
+      cause: "rental_ineligible",
+    });
+  }
+
   const resolvedLines = await resolveOrderLines(tx, lines);
   const totalAmount = resolvedLines.reduce(
     (sum, line) => sum + line.unitPrice * line.quantity,
     0,
+  );
+
+  const variantIds = Array.from(
+    new Set(
+      resolvedLines
+        .map((line) => line.productVariantId)
+        .filter((value): value is number => value != null),
+    ),
+  );
+  const lockedVariants =
+    variantIds.length > 0
+      ? await tx
+          .select()
+          .from(productVariants)
+          .where(inArray(productVariants.id, variantIds))
+      : [];
+  const variantMap = new Map(
+    lockedVariants.map((variant) => [variant.id, variant]),
   );
 
   // Generate a cryptographically random token for guest order tracking
@@ -482,12 +671,13 @@ export async function createGuestOrderInTx(
       productVariantLabel: line.productVariantLabel,
       quantity: line.quantity,
       priceAtPurchase: line.unitPrice,
+      transactionType: line.transactionType,
       orderId: order.id,
     });
   }
 
   for (const line of resolvedLines) {
-    await consumeResolvedOrderLineStock(tx, line);
+    await consumeResolvedOrderLineStock(tx, line, variantMap);
   }
 
   const mappedProducts = resolvedLines.map((line) => ({
@@ -500,6 +690,7 @@ export async function createGuestOrderInTx(
     price: line.unitPrice,
     status: line.product.status,
     availableDate: line.product.availableDate || null,
+    transactionType: line.transactionType,
   }));
 
   return {
@@ -522,6 +713,7 @@ export async function sendGuestOrderEmails(emailData: {
     price: number;
     status: "available" | "presale" | "sale";
     availableDate: Date | null;
+    transactionType?: ProductTransactionType;
   }[];
   total: number;
 }) {
@@ -729,6 +921,7 @@ export async function fetchOrders() {
 
 export async function fetchOrdersByStatus(
   status?: OrderStatus | readonly OrderStatus[],
+  rentalFilter: RentalOrderFilter = "all",
 ) {
   try {
     const statusWhere =
@@ -738,8 +931,14 @@ export async function fetchOrdersByStatus(
           ? eq(orders.status, status)
           : inArray(orders.status, status);
 
+    const rentalWhere = buildRentalFilterSql(rentalFilter);
+    const whereClause =
+      statusWhere && rentalWhere
+        ? and(statusWhere, rentalWhere)
+        : (statusWhere ?? rentalWhere);
+
     return await db.query.orders.findMany({
-      where: statusWhere,
+      where: whereClause,
       orderBy: [desc(orders.createdAt)],
       with: orderRelations,
     });
@@ -747,6 +946,92 @@ export async function fetchOrdersByStatus(
     console.error(error);
     return [];
   }
+}
+
+function buildRentalFilterSql(filter: RentalOrderFilter) {
+  if (filter === "all") return undefined;
+
+  if (filter === "has_rental") {
+    return exists(
+      db
+        .select({ one: sql`1` })
+        .from(orderItems)
+        .where(
+          and(
+            eq(orderItems.orderId, orders.id),
+            eq(orderItems.transactionType, "rental"),
+          ),
+        ),
+    );
+  }
+
+  const rentalItemScope = and(
+    eq(orderItems.orderId, orders.id),
+    eq(orderItems.transactionType, "rental"),
+  );
+
+  if (filter === "out") {
+    return and(
+      exists(
+        db.select({ one: sql`1` }).from(orderItems).where(rentalItemScope),
+      ),
+      notExists(
+        db
+          .select({ one: sql`1` })
+          .from(orderItems)
+          .where(
+            and(
+              rentalItemScope,
+              sql`${orderItems.rentalReturnedQuantity} > 0`,
+            ),
+          ),
+      ),
+    );
+  }
+
+  if (filter === "partially_returned") {
+    return and(
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(orderItems)
+          .where(
+            and(
+              rentalItemScope,
+              sql`${orderItems.rentalReturnedQuantity} > 0`,
+            ),
+          ),
+      ),
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(orderItems)
+          .where(
+            and(
+              rentalItemScope,
+              sql`${orderItems.rentalReturnedQuantity} < ${orderItems.quantity}`,
+            ),
+          ),
+      ),
+    );
+  }
+
+  return and(
+    exists(
+      db.select({ one: sql`1` }).from(orderItems).where(rentalItemScope),
+    ),
+    notExists(
+      db
+        .select({ one: sql`1` })
+        .from(orderItems)
+        .where(
+          and(
+            rentalItemScope,
+            sql`${orderItems.rentalReturnedQuantity} < ${orderItems.quantity}`,
+          ),
+        ),
+    ),
+  );
 }
 
 export async function fetchPendingVoucherCount(): Promise<number> {
@@ -1265,9 +1550,10 @@ export async function updateOrder(
     const newQty = editMap.get(orderItem.id);
     // Skip items that weren't submitted (unchanged) or aren't being changed
     if (newQty === undefined || newQty === orderItem.quantity) continue;
-    const currentPrice = getProductPriceAtPurchase(
+    const currentPrice = getLineUnitPrice(
       orderItem.product,
       orderItem.variant,
+      orderItem.transactionType,
     );
     if (Math.abs(currentPrice - orderItem.priceAtPurchase) > 0.001) {
       return {
@@ -1332,6 +1618,9 @@ export async function updateOrder(
               productId: orderItem.productId,
               productVariantId: orderItem.productVariantId,
               quantity,
+              transactionType: orderItem.transactionType,
+              rentalFestivalId: orderItem.rentalFestivalId,
+              rentalReservationId: orderItem.rentalReservationId,
             };
           });
 
@@ -1351,12 +1640,32 @@ export async function updateOrder(
               .where(eq(orderItems.id, itemId));
 
             const orderItem = order.orderItems.find((i) => i.id === itemId)!;
-            await consumeOrderItemStock(
-              tx,
-              orderItem.productId,
-              orderItem.productVariantId,
-              newQty,
-            );
+            const [product] = await tx
+              .select()
+              .from(products)
+              .where(eq(products.id, orderItem.productId))
+              .limit(1);
+            const variantMap = new Map<number, typeof productVariants.$inferSelect>();
+            if (orderItem.productVariantId != null) {
+              const [variant] = await tx
+                .select()
+                .from(productVariants)
+                .where(eq(productVariants.id, orderItem.productVariantId))
+                .limit(1);
+              if (variant) {
+                variantMap.set(variant.id, variant);
+              }
+            }
+            if (product) {
+              await consumeOrderItemStock(
+                tx,
+                product,
+                orderItem.productVariantId,
+                newQty,
+                orderItem.transactionType,
+                variantMap,
+              );
+            }
           }
         }
 

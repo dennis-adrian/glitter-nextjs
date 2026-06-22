@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 
 import { ensureUniqueSlug, slugifyName } from "@/app/lib/products/slug";
 import { getProductEffectiveStock } from "@/app/lib/products/variants";
+import { validateProductRentalSettings } from "@/app/lib/rentals/validation";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
@@ -26,6 +27,7 @@ type ProductVariantInput = {
   optionValues: string[];
   price?: number | null;
   stock: number;
+  rentalStock?: number | null;
   imageUrl?: string | null;
   isVisible?: boolean;
   sortOrder?: number;
@@ -55,6 +57,11 @@ type NewProductData = {
   isFeatured?: boolean;
   isNew?: boolean;
   isVisible?: boolean;
+  isPurchasable?: boolean;
+  isRentable?: boolean;
+  rentalPrice?: number | null;
+  rentalStockMode?: "shared" | "separate";
+  rentalStock?: number | null;
   imagePayloads?: { id: number; isMain: boolean }[];
   variantOptions?: ProductOptionInput[];
   variants?: ProductVariantInput[];
@@ -166,6 +173,23 @@ function normalizeVariantInputs(
     options: normalizedVariants.length > 0 ? normalizedOptions : [],
     variants: normalizedVariants,
   };
+}
+
+function validateNewProductRentalData(
+  productData: NewProductData,
+  normalizedVariants: ReturnType<typeof normalizeVariantInputs>,
+): string | null {
+  return validateProductRentalSettings({
+    isPurchasable: productData.isPurchasable ?? true,
+    isRentable: productData.isRentable ?? false,
+    rentalPrice: productData.rentalPrice,
+    rentalStockMode: productData.rentalStockMode ?? "shared",
+    rentalStock: productData.rentalStock,
+    hasVariants: normalizedVariants.variants.length > 0,
+    variantRentalStocks: normalizedVariants.variants.map(
+      (variant) => variant.rentalStock,
+    ),
+  });
 }
 
 async function syncProductImages(
@@ -351,6 +375,7 @@ async function syncProductVariants(
       productId,
       price: variant.price,
       stock: variant.stock,
+      rentalStock: variant.rentalStock ?? null,
       imageUrl: variant.imageUrl ?? null,
       isVisible: variant.isVisible ?? true,
       sortOrder: variant.sortOrder ?? index,
@@ -456,6 +481,12 @@ function buildProductQuery(visibleOnly = false) {
           orderAsc(variants.id),
         ]),
       },
+      contentSections: {
+        orderBy: relationalOrderBy((sections, { asc: orderAsc }) => [
+          orderAsc(sections.sortOrder),
+          orderAsc(sections.id),
+        ]),
+      },
     },
   } as const;
 }
@@ -471,6 +502,13 @@ export async function createProduct(data: NewProductData) {
 
   const { imagePayloads = [], variantOptions, variants, ...productData } = data;
   const normalizedVariants = normalizeVariantInputs(variantOptions, variants);
+  const rentalValidationError = validateNewProductRentalData(
+    productData,
+    normalizedVariants,
+  );
+  if (rentalValidationError) {
+    return { success: false, message: rentalValidationError };
+  }
   if (normalizedVariants.variants.length > 0) {
     productData.stock = 0;
   }
@@ -482,6 +520,7 @@ export async function createProduct(data: NewProductData) {
   }
 
   let createdSlug: string | undefined;
+  let createdProductId: number | undefined;
 
   try {
     await db.transaction(async (tx) => {
@@ -500,6 +539,7 @@ export async function createProduct(data: NewProductData) {
         .values({ ...insertData, slug })
         .returning();
       createdSlug = product.slug;
+      createdProductId = product.id;
 
       await syncProductImages(tx, product.id, imagePayloads);
       await syncProductVariants(
@@ -527,7 +567,11 @@ export async function createProduct(data: NewProductData) {
     revalidatePath(`/store/products/${createdSlug}`);
   }
   revalidatePath("/store");
-  return { success: true, message: "Producto creado correctamente." };
+  return {
+    success: true,
+    message: "Producto creado correctamente.",
+    productId: createdProductId,
+  };
 }
 
 export async function updateProduct(id: number, data: NewProductData) {
@@ -541,6 +585,13 @@ export async function updateProduct(id: number, data: NewProductData) {
 
   const { imagePayloads = [], variantOptions, variants, ...productData } = data;
   const normalizedVariants = normalizeVariantInputs(variantOptions, variants);
+  const rentalValidationError = validateNewProductRentalData(
+    productData,
+    normalizedVariants,
+  );
+  if (rentalValidationError) {
+    return { success: false, message: rentalValidationError };
+  }
   if (normalizedVariants.variants.length > 0) {
     productData.stock = 0;
   }

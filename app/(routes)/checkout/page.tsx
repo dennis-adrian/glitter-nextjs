@@ -1,11 +1,13 @@
 import OrderDeliveryInfo from "@/app/components/molecules/order-delivery-info";
-import CheckoutConfirmButton from "@/app/components/organisms/checkout/checkout-confirm-button";
+import CheckoutActions from "@/app/components/organisms/checkout/checkout-actions";
 import { CheckoutEmptyCart } from "@/app/components/organisms/checkout/checkout-empty-cart";
 import type { CheckoutLineItem } from "@/app/components/organisms/checkout/checkout-line-item";
 import { CheckoutPageLayout } from "@/app/components/organisms/checkout/checkout-page-layout";
+import CheckoutRentalIneligible from "@/app/components/organisms/checkout/checkout-rental-ineligible";
 import GuestCheckoutView from "@/app/components/organisms/checkout/guest-checkout-view";
 import { fetchCartWithItems } from "@/app/lib/cart/actions";
-import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import { getLineUnitPrice } from "@/app/lib/orders/utils";
+import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
 import { getVariantLabel } from "@/app/lib/products/variants";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
@@ -34,15 +36,59 @@ export default async function CheckoutPage() {
     variant: i.variant,
     productVariantLabel: getVariantLabel(i.variant),
     quantity: i.quantity,
+    transactionType: i.transactionType,
   }));
   const presaleLines = orderLines.filter((l) => l.product.status === "presale");
   const availableItems = cart.items.filter(
     (i) => i.product.status !== "presale",
   );
+  const hasRentalItems = cart.items.some((i) => i.transactionType === "rental");
+  const rentalEligibility = hasRentalItems
+    ? await getRentalEligibilityForCurrentUser()
+    : null;
+
+  if (
+    hasRentalItems &&
+    rentalEligibility &&
+    !rentalEligibility.eligible
+  ) {
+    return <CheckoutRentalIneligible message={rentalEligibility.message} />;
+  }
+
+  const persistedRentalItem = cart.items.find(
+    (item) =>
+      item.transactionType === "rental" &&
+      item.rentalReservationId != null,
+  );
+  if (
+    hasRentalItems &&
+    rentalEligibility?.eligible &&
+    persistedRentalItem &&
+    !rentalEligibility.contexts.some(
+      (context) =>
+        context.festivalId === persistedRentalItem.rentalFestivalId &&
+        context.reservationId === persistedRentalItem.rentalReservationId,
+    )
+  ) {
+    return (
+      <CheckoutRentalIneligible message="El contexto de alquiler del carrito cambió. Vuelve a agregar los productos de alquiler." />
+    );
+  }
+  const checkoutRentalContexts =
+    rentalEligibility?.eligible && persistedRentalItem
+      ? rentalEligibility.contexts.filter(
+          (context) =>
+            context.festivalId === persistedRentalItem.rentalFestivalId &&
+            context.reservationId === persistedRentalItem.rentalReservationId,
+        )
+      : rentalEligibility?.eligible
+        ? rentalEligibility.contexts
+        : [];
 
   const total = cart.items.reduce(
     (sum, i) =>
-      sum + getProductPriceAtPurchase(i.product, i.variant) * i.quantity,
+      sum +
+      getLineUnitPrice(i.product, i.variant, i.transactionType) * i.quantity,
     0,
   );
 
@@ -52,14 +98,13 @@ export default async function CheckoutPage() {
       total={total}
       presaleItems={presaleLines}
     >
-      <OrderDeliveryInfo
+      <CheckoutActions
+        hasRentalItems={hasRentalItems}
         hasAvailableItems={availableItems.length > 0}
         hasPresaleItems={presaleLines.length > 0}
+        rentalContexts={checkoutRentalContexts}
+        initialReservationId={persistedRentalItem?.rentalReservationId ?? null}
       />
-
-      <div className="fixed bottom-0 left-0 right-0 bg-background border-t px-4 py-4 z-40 md:static md:border-0 md:px-0 md:py-0 md:bg-transparent">
-        <CheckoutConfirmButton />
-      </div>
     </CheckoutPageLayout>
   );
 }

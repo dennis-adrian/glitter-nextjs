@@ -24,6 +24,7 @@ interface AdminOrderNotificationEmailProps {
     price: number;
     availableDate: Date | null;
     status: "available" | "presale" | "sale";
+    transactionType?: "purchase" | "rental";
   }[];
   total: number;
 }
@@ -91,7 +92,8 @@ export default function OrderConfirmationForAdminsEmailTemplate(
                           marginBottom: p.status === "presale" ? "2px" : "10px",
                         }}
                       >
-                        {p.name}{" "}
+                        {p.name}
+                        {p.transactionType === "rental" && " (Alquiler)"}{" "}
                       </div>
                       {p.status === "presale" && (
                         <div style={{ ...styles.textSmall }}>

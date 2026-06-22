@@ -69,6 +69,15 @@ function normalizeGuestCartItem(
     return null;
   }
 
+  const productVariantId =
+    typeof item.productVariantId === "number" ? item.productVariantId : null;
+
+  const lineKey =
+    item.lineKey ?? buildCartLineKey(item.productId, productVariantId);
+  if (lineKey.endsWith(":rental")) {
+    return null;
+  }
+
   if (
     !isValidGuestCartProduct(item.product) ||
     item.product.id !== item.productId
@@ -76,11 +85,8 @@ function normalizeGuestCartItem(
     return null;
   }
 
-  const productVariantId =
-    typeof item.productVariantId === "number" ? item.productVariantId : null;
-
   return {
-    lineKey: item.lineKey ?? buildCartLineKey(item.productId, productVariantId),
+    lineKey,
     productId: item.productId,
     productVariantId,
     productVariantLabel: item.productVariantLabel ?? null,
@@ -140,6 +146,9 @@ export function CartProvider({
   const closeCart = useCallback(() => setIsOpen(false), []);
 
   const addGuestItem = useCallback((incoming: GuestCartItem) => {
+    if (incoming.lineKey.endsWith(":rental")) {
+      return;
+    }
     setGuestItems((prev) => {
       const existing = prev.find((i) => i.lineKey === incoming.lineKey);
       let updatedGuestItems: GuestCartItem[];

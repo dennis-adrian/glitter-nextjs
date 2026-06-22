@@ -7,15 +7,29 @@ import { guestCheckoutContactSchema } from "@/app/components/form/input-validato
 import { MAX_CART_LINE_QUANTITY } from "@/app/lib/constants";
 import { BaseCart, CartWithItems } from "@/app/lib/cart/definitions";
 import {
+  BaseProduct,
+  ProductVariantWithSelections,
+} from "@/app/lib/products/definitions";
+import {
   createGuestOrderInTx,
   createOrderInTx,
   sendGuestOrderEmails,
   sendOrderEmails,
   type OrderLineInput,
 } from "@/app/lib/orders/actions";
-import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
 import { fetchProduct } from "@/app/lib/products/actions";
 import { getProductVariantStock } from "@/app/lib/products/variants";
+import {
+  assertRentalEligibility,
+} from "@/app/lib/rentals/eligibility";
+import { resolveRentalLineContext } from "@/app/lib/rentals/rental-context";
+import {
+  getAvailableStockForTransaction,
+  getStockPoolForTransaction,
+  getTransactionPoolRemainingStock,
+  usesSharedRentalStock,
+} from "@/app/lib/rentals/stock";
+import type { ProductTransactionType } from "@/app/lib/rentals/types";
 import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { cartItems, carts } from "@/db/schema";
@@ -45,6 +59,9 @@ export type CartCheckoutSnapshot = {
     productId: number;
     productVariantId: number | null;
     quantity: number;
+    transactionType: ProductTransactionType;
+    rentalFestivalId: number | null;
+    rentalReservationId: number | null;
   }[];
 };
 
@@ -88,18 +105,91 @@ function buildCartItemWhere(
   cartId: number,
   productId: number,
   productVariantId: number | null,
+  transactionType: ProductTransactionType = "purchase",
 ) {
-  return productVariantId == null
+  const base = productVariantId == null
     ? and(
         eq(cartItems.cartId, cartId),
         eq(cartItems.productId, productId),
         isNull(cartItems.productVariantId),
+        eq(cartItems.transactionType, transactionType),
       )
     : and(
         eq(cartItems.cartId, cartId),
         eq(cartItems.productId, productId),
         eq(cartItems.productVariantId, productVariantId),
+        eq(cartItems.transactionType, transactionType),
       );
+
+  return base;
+}
+
+async function getCartStockLimit(
+  cartId: number,
+  product: Pick<BaseProduct, "id" | "stock" | "rentalStock" | "rentalStockMode">,
+  variant: Pick<ProductVariantWithSelections, "id" | "stock" | "rentalStock"> | null,
+  transactionType: ProductTransactionType,
+  excludeCartItemId?: number,
+): Promise<number> {
+  if (!product) return 0;
+
+  const poolStock = getAvailableStockForTransaction(
+    product,
+    variant,
+    transactionType,
+  );
+
+  if (!usesSharedRentalStock(product)) {
+    const cartItemsForProduct = await db.query.cartItems.findMany({
+      where: and(
+        eq(cartItems.cartId, cartId),
+        eq(cartItems.productId, product.id),
+        eq(cartItems.transactionType, transactionType),
+        variant?.id != null
+          ? eq(cartItems.productVariantId, variant.id)
+          : isNull(cartItems.productVariantId),
+      ),
+    });
+
+    return getTransactionPoolRemainingStock(
+      product,
+      variant,
+      transactionType,
+      cartItemsForProduct.map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        productVariantId: item.productVariantId,
+        transactionType: item.transactionType,
+        quantity: item.quantity,
+      })),
+      {
+        id: excludeCartItemId,
+        productId: product.id,
+        productVariantId: variant?.id ?? null,
+      },
+    );
+  }
+
+  const cartItemsForProduct = await db.query.cartItems.findMany({
+    where: and(
+      eq(cartItems.cartId, cartId),
+      eq(cartItems.productId, product.id),
+      variant?.id != null
+        ? eq(cartItems.productVariantId, variant.id)
+        : isNull(cartItems.productVariantId),
+    ),
+  });
+
+  const sharedDemand = cartItemsForProduct
+    .filter((item) => {
+      if (excludeCartItemId != null && item.id === excludeCartItemId) {
+        return false;
+      }
+      return getStockPoolForTransaction(product, item.transactionType) === "sale";
+    })
+    .reduce((sum, item) => sum + item.quantity, 0);
+
+  return Math.max(0, poolStock - sharedDemand);
 }
 
 export async function validateGuestCartStock(
@@ -206,10 +296,44 @@ export async function fetchCartItemCount(): Promise<number> {
 
 export async function addToCart(
   input: CartLineInput,
-): Promise<{ success: boolean; newCount: number }> {
+): Promise<{ success: boolean; newCount: number; message?: string }> {
   try {
     const user = await getCurrentBaseProfile();
     if (!user) return { success: false, newCount: 0 };
+
+    const transactionType = input.transactionType ?? "purchase";
+    let rentalFestivalId: number | null = null;
+    let rentalReservationId: number | null = null;
+
+    if (transactionType === "rental") {
+      const eligibility = await assertRentalEligibility(
+        user.id,
+        input.rentalFestivalId ?? undefined,
+        input.rentalReservationId ?? undefined,
+      );
+      if (!eligibility.eligible) {
+        return {
+          success: false,
+          newCount: await fetchCartItemCount(),
+          message: eligibility.message,
+        };
+      }
+
+      const resolvedContext = resolveRentalLineContext(
+        eligibility.contexts,
+        input.rentalFestivalId,
+        input.rentalReservationId,
+      );
+      if (!resolvedContext.ok) {
+        return {
+          success: false,
+          newCount: await fetchCartItemCount(),
+          message: resolvedContext.message,
+        };
+      }
+      rentalFestivalId = resolvedContext.context.festivalId;
+      rentalReservationId = resolvedContext.context.reservationId;
+    }
 
     if (input.quantity <= 0) {
       const currentCount = await fetchCartItemCount();
@@ -222,42 +346,101 @@ export async function addToCart(
       return { success: false, newCount: currentCount };
     }
 
-    const availableStock = getProductVariantStock(
-      resolved.product,
-      resolved.variant,
-    );
-    if (availableStock <= 0) {
-      const currentCount = await fetchCartItemCount();
-      return { success: false, newCount: currentCount };
+    if (transactionType === "purchase" && !resolved.product.isPurchasable) {
+      return {
+        success: false,
+        newCount: await fetchCartItemCount(),
+        message: "Este producto no está disponible para compra.",
+      };
+    }
+
+    if (transactionType === "rental" && !resolved.product.isRentable) {
+      return {
+        success: false,
+        newCount: await fetchCartItemCount(),
+        message: "Este producto no está disponible para alquiler.",
+      };
     }
 
     const cart = await getOrCreateCart(user.id);
-    const cappedQuantity = Math.min(
-      input.quantity,
-      MAX_CART_LINE_QUANTITY,
-      availableStock,
-    );
-    if (cappedQuantity <= 0) {
-      const currentCount = await fetchCartItemCount();
-      return { success: false, newCount: currentCount };
+
+    if (transactionType === "rental") {
+      const existingRentalItems = await db.query.cartItems.findMany({
+        where: and(
+          eq(cartItems.cartId, cart.id),
+          eq(cartItems.transactionType, "rental"),
+        ),
+      });
+      const conflictingContext = existingRentalItems.find(
+        (entry) =>
+          entry.rentalFestivalId !== rentalFestivalId ||
+          entry.rentalReservationId !== rentalReservationId,
+      );
+      if (conflictingContext) {
+        return {
+          success: false,
+          newCount: await fetchCartItemCount(),
+          message:
+            "Todos los productos de alquiler deben usar el mismo festival/reserva.",
+        };
+      }
     }
 
     const where = buildCartItemWhere(
       cart.id,
       input.productId,
       input.productVariantId ?? null,
+      transactionType,
     );
     const existing = await db.query.cartItems.findFirst({ where });
+
+    const lineStockCap = await getCartStockLimit(
+      cart.id,
+      resolved.product,
+      resolved.variant,
+      transactionType,
+      existing?.id,
+    );
+
+    if (lineStockCap <= 0) {
+      const currentCount = await fetchCartItemCount();
+      return {
+        success: false,
+        newCount: currentCount,
+        message: "No hay stock disponible.",
+      };
+    }
+
+    const cappedQuantity = Math.min(
+      input.quantity,
+      MAX_CART_LINE_QUANTITY,
+      existing ? lineStockCap - existing.quantity : lineStockCap,
+    );
+    if (cappedQuantity <= 0) {
+      const currentCount = await fetchCartItemCount();
+      return {
+        success: false,
+        newCount: currentCount,
+        message: "No hay stock disponible.",
+      };
+    }
 
     if (existing) {
       const nextQuantity = Math.min(
         existing.quantity + cappedQuantity,
         MAX_CART_LINE_QUANTITY,
-        availableStock,
+        lineStockCap,
       );
       await db
         .update(cartItems)
-        .set({ quantity: nextQuantity, updatedAt: new Date() })
+        .set({
+          quantity: nextQuantity,
+          rentalFestivalId:
+            transactionType === "rental" ? rentalFestivalId : null,
+          rentalReservationId:
+            transactionType === "rental" ? rentalReservationId : null,
+          updatedAt: new Date(),
+        })
         .where(eq(cartItems.id, existing.id));
     } else {
       await db.insert(cartItems).values({
@@ -265,6 +448,11 @@ export async function addToCart(
         productId: input.productId,
         productVariantId: input.productVariantId ?? null,
         quantity: cappedQuantity,
+        transactionType,
+        rentalFestivalId:
+          transactionType === "rental" ? rentalFestivalId : null,
+        rentalReservationId:
+          transactionType === "rental" ? rentalReservationId : null,
       });
     }
 
@@ -315,7 +503,13 @@ export async function updateCartItemQuantity(
 
     const capped = Math.min(quantity, MAX_CART_LINE_QUANTITY);
     if (capped > 0) {
-      const availableStock = getProductVariantStock(item.product, item.variant);
+      const availableStock = await getCartStockLimit(
+        cart.id,
+        item.product,
+        item.variant,
+        item.transactionType,
+        item.id,
+      );
       if (capped > availableStock) {
         return { success: false, error: "stock_insufficient" };
       }
@@ -404,6 +598,9 @@ export async function fetchCartWithItemsForCheckout(
       productId: cartItems.productId,
       productVariantId: cartItems.productVariantId,
       quantity: cartItems.quantity,
+      transactionType: cartItems.transactionType,
+      rentalFestivalId: cartItems.rentalFestivalId,
+      rentalReservationId: cartItems.rentalReservationId,
     })
     .from(cartItems)
     .where(eq(cartItems.cartId, cart.id))
@@ -416,6 +613,9 @@ export async function fetchCartWithItemsForCheckout(
       productId: row.productId,
       productVariantId: row.productVariantId,
       quantity: row.quantity,
+      transactionType: row.transactionType,
+      rentalFestivalId: row.rentalFestivalId,
+      rentalReservationId: row.rentalReservationId,
     })),
   };
 }
@@ -424,7 +624,10 @@ export async function clearCartInTx(tx: CartTx, cartId: number): Promise<void> {
   await tx.delete(cartItems).where(eq(cartItems.cartId, cartId));
 }
 
-export async function checkoutCart(): Promise<{
+export async function checkoutCart(input?: {
+  rentalFestivalId?: number | null;
+  rentalReservationId?: number | null;
+}): Promise<{
   success: boolean;
   message: string;
   orderId?: number | null;
@@ -451,13 +654,90 @@ export async function checkoutCart(): Promise<{
         throw new Error("empty_cart");
       }
 
+      const rentalItems = snapshot.items.filter(
+        (item) => item.transactionType === "rental",
+      );
+      if (rentalItems.length > 0) {
+        const [sampleRentalItem] = rentalItems;
+        const persistedContexts = new Set(
+          rentalItems.map(
+            (item) => `${item.rentalFestivalId}:${item.rentalReservationId}`,
+          ),
+        );
+        if (persistedContexts.size > 1) {
+          throw new Error(
+            "Todos los productos de alquiler deben usar el mismo festival/reserva.",
+            { cause: "multiple_rental_contexts" },
+          );
+        }
+
+        const checkoutFestivalId = sampleRentalItem.rentalFestivalId;
+        const checkoutReservationId = sampleRentalItem.rentalReservationId;
+        if (checkoutFestivalId == null || checkoutReservationId == null) {
+          throw new Error("Selecciona un festival/reserva para alquilar.", {
+            cause: "rental_context_required",
+          });
+        }
+
+        const requestedFestivalId = input?.rentalFestivalId ?? null;
+        const requestedReservationId = input?.rentalReservationId ?? null;
+        const hasRequestedContext =
+          requestedFestivalId != null || requestedReservationId != null;
+        if (
+          hasRequestedContext &&
+          (requestedFestivalId == null ||
+            requestedReservationId == null ||
+            requestedFestivalId !== checkoutFestivalId ||
+            requestedReservationId !== checkoutReservationId)
+        ) {
+          throw new Error(
+            "El contexto de alquiler del carrito cambió. Vuelve a agregar los productos de alquiler.",
+            { cause: "invalid_rental_context" },
+          );
+        }
+
+        const eligibility = await assertRentalEligibility(
+          userId,
+          checkoutFestivalId,
+          checkoutReservationId,
+        );
+        if (!eligibility.eligible) {
+          throw new Error(eligibility.message, { cause: "rental_ineligible" });
+        }
+
+        const resolvedContext = resolveRentalLineContext(
+          eligibility.contexts,
+          checkoutFestivalId,
+          checkoutReservationId,
+        );
+        if (!resolvedContext.ok) {
+          throw new Error(resolvedContext.message, {
+            cause: resolvedContext.cause,
+          });
+        }
+      }
+
       const result = await createOrderInTx(
         tx,
-        snapshot.items.map((item) => ({
-          productId: item.productId,
-          productVariantId: item.productVariantId,
-          quantity: item.quantity,
-        })),
+        snapshot.items.map((item) => {
+          const rentalFestivalId =
+            item.transactionType === "rental"
+              ? (item.rentalFestivalId ?? null)
+              : null;
+          const rentalReservationId =
+            item.transactionType === "rental"
+              ? (item.rentalReservationId ?? null)
+              : null;
+
+          return {
+            productId: item.productId,
+            productVariantId: item.productVariantId,
+            quantity: item.quantity,
+            transactionType: item.transactionType,
+            rentalFestivalId,
+            rentalReservationId,
+          };
+        }),
         userId,
         customerEmail,
         customerName,
@@ -516,6 +796,19 @@ export async function checkoutCart(): Promise<{
           profileId: null,
         };
       }
+      if (
+        err.cause === "rental_ineligible" ||
+        err.cause === "rental_context_required" ||
+        err.cause === "invalid_rental_context" ||
+        err.cause === "multiple_rental_contexts"
+      ) {
+        return {
+          success: false,
+          message: err.message,
+          orderId: null,
+          profileId: null,
+        };
+      }
     }
     return {
       success: false,
@@ -539,6 +832,13 @@ export async function checkoutGuestCart(
 }> {
   if (!items.length) {
     return { success: false, message: "El carrito está vacío." };
+  }
+
+  if (items.some((item) => item.lineKey.endsWith(":rental"))) {
+    return {
+      success: false,
+      message: "Los productos de alquiler requieren una cuenta verificada.",
+    };
   }
 
   const contactParsed = guestCheckoutContactSchema.safeParse({

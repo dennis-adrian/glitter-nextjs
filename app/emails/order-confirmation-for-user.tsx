@@ -21,6 +21,7 @@ interface Product {
   price: number;
   status: "available" | "presale" | "sale";
   availableDate: Date | null;
+  transactionType?: "purchase" | "rental";
 }
 interface OrderConfirmationForUsersEmailTemplateProps {
   customerName: string;
@@ -90,7 +91,8 @@ export default function OrderConfirmationForUsersEmailTemplate(
                           marginBottom: p.status === "presale" ? "2px" : "10px",
                         }}
                       >
-                        {p.name}{" "}
+                        {p.name}
+                        {p.transactionType === "rental" && " (Alquiler)"}{" "}
                       </div>
                       {p.status === "presale" && (
                         <div style={{ ...styles.textSmall }}>
@@ -133,12 +135,8 @@ export default function OrderConfirmationForUsersEmailTemplate(
             </table>
 
             <Text style={styles.text}>
-              Nos comunicaremos contigo en los próximos días para coordinar el
-              pago y la entrega de tu orden.
-            </Text>
-
-            <Text style={styles.text}>
-              Puedes ver el detalle de tu orden haciendo clic en el botón
+              Podés hacer el pago de tu pedido y ver el detalle de tu orden
+              haciendo clic en el botón
             </Text>
 
             <Button href={orderUrl} style={styles.button}>

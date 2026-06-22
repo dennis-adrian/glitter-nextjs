@@ -50,6 +50,26 @@ export function validatedDiscount(
   }
 }
 
+export function getRentalPriceAtPurchase(
+  product: Pick<BaseProduct, "rentalPrice">,
+): number {
+  if (product.rentalPrice == null) {
+    throw new Error("Missing rental price");
+  }
+  return product.rentalPrice;
+}
+
+export function getLineUnitPrice(
+  product: BaseProduct,
+  variant: Pick<ProductVariantWithSelections, "price"> | null | undefined,
+  transactionType: "purchase" | "rental" = "purchase",
+): number {
+  if (transactionType === "rental") {
+    return getRentalPriceAtPurchase(product);
+  }
+  return getProductPriceAtPurchase(product, variant);
+}
+
 export function getProductPriceAtPurchase(
   product: BaseProduct,
   variant?: Pick<ProductVariantWithSelections, "price"> | null,

@@ -1237,6 +1237,30 @@ export const productOptionSelectorDisplayEnum = pgEnum(
   ["dropdown", "image", "button"],
 );
 
+export const productTransactionTypeEnum = pgEnum("product_transaction_type", [
+  "purchase",
+  "rental",
+]);
+export const productRentalStockModeEnum = pgEnum("product_rental_stock_mode", [
+  "shared",
+  "separate",
+]);
+export const productContentSectionFormatEnum = pgEnum(
+  "product_content_section_format",
+  ["free_text", "bullet_list"],
+);
+export const productContentSectionDisplayContextEnum = pgEnum(
+  "product_content_section_display_context",
+  ["all", "purchase", "rental"],
+);
+export const rentalReturnConditionEnum = pgEnum("rental_return_condition", [
+  "good",
+  "damaged",
+  "missing_parts",
+  "lost",
+  "other",
+]);
+
 export const products = pgTable("products", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -1255,6 +1279,13 @@ export const products = pgTable("products", {
     .default("percentage")
     .notNull(),
   status: productStatusEnum("status").default("available").notNull(),
+  isPurchasable: boolean("is_purchasable").default(true).notNull(),
+  isRentable: boolean("is_rentable").default(false).notNull(),
+  rentalPrice: real("rental_price"),
+  rentalStockMode: productRentalStockModeEnum("rental_stock_mode")
+    .default("shared")
+    .notNull(),
+  rentalStock: integer("rental_stock"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -1264,6 +1295,7 @@ export const productsRelations = relations(products, ({ many }) => ({
   orderItems: many(orderItems),
   images: many(productImages),
   cartItems: many(cartItems),
+  contentSections: many(productContentSections),
 }));
 
 export const productOptions = pgTable(
@@ -1342,6 +1374,7 @@ export const productVariants = pgTable(
       .references(() => products.id, { onDelete: "cascade" }),
     price: real("price"),
     stock: integer("stock").notNull().default(0),
+    rentalStock: integer("rental_stock"),
     imageUrl: text("image_url"),
     isVisible: boolean("is_visible").default(true).notNull(),
     sortOrder: integer("sort_order").notNull().default(0),
@@ -1519,20 +1552,58 @@ export const orderItems = pgTable(
     productVariantLabel: text("product_variant_label"),
     quantity: integer("quantity").notNull(),
     priceAtPurchase: real("price_at_purchase").notNull(),
+    transactionType: productTransactionTypeEnum("transaction_type")
+      .default("purchase")
+      .notNull(),
+    rentalContentSectionsSnapshot: jsonb("rental_content_sections_snapshot"),
+    rentalStockModeSnapshot: productRentalStockModeEnum(
+      "rental_stock_mode_snapshot",
+    ),
+    rentalFestivalId: integer("rental_festival_id").references(
+      () => festivals.id,
+      { onDelete: "restrict" },
+    ),
+    rentalReservationId: integer("rental_reservation_id").references(
+      () => standReservations.id,
+      { onDelete: "restrict" },
+    ),
+    rentalReturnedQuantity: integer("rental_returned_quantity")
+      .default(0)
+      .notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (orderItems) => ({
-    orderIdIdx: index("order_items_order_id_idx").on(orderItems.orderId),
-    productIdIdx: index("order_items_product_id_idx").on(orderItems.productId),
-    variantProductFk: foreignKey({
+  (t) => [
+    index("order_items_order_id_idx").on(t.orderId),
+    index("order_items_product_id_idx").on(t.productId),
+    foreignKey({
       name: "order_items_product_variant_product_fk",
-      columns: [orderItems.productVariantId, orderItems.productId],
+      columns: [t.productVariantId, t.productId],
       foreignColumns: [productVariants.id, productVariants.productId],
     }).onDelete("restrict"),
-  }),
+    check(
+      "order_items_rental_context_required",
+      sql`(
+        ${t.transactionType} != 'rental'
+        AND ${t.rentalContentSectionsSnapshot} IS NULL
+        AND ${t.rentalStockModeSnapshot} IS NULL
+        AND ${t.rentalFestivalId} IS NULL
+        AND ${t.rentalReservationId} IS NULL
+        AND ${t.rentalReturnedQuantity} = 0
+      ) OR (
+        ${t.transactionType} = 'rental'
+        AND ${t.rentalFestivalId} IS NOT NULL
+        AND ${t.rentalReservationId} IS NOT NULL
+        AND ${t.rentalStockModeSnapshot} IS NOT NULL
+      )`,
+    ),
+    check(
+      "order_items_rental_returned_quantity_valid",
+      sql`${t.rentalReturnedQuantity} >= 0 AND ${t.rentalReturnedQuantity} <= ${t.quantity}`,
+    ),
+  ],
 );
-export const orderItemsRelations = relations(orderItems, ({ one }) => ({
+export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
   order: one(orders, {
     fields: [orderItems.orderId],
     references: [orders.id],
@@ -1545,6 +1616,15 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
     fields: [orderItems.productVariantId],
     references: [productVariants.id],
   }),
+  rentalFestival: one(festivals, {
+    fields: [orderItems.rentalFestivalId],
+    references: [festivals.id],
+  }),
+  rentalReservation: one(standReservations, {
+    fields: [orderItems.rentalReservationId],
+    references: [standReservations.id],
+  }),
+  rentalReturnLogs: many(rentalReturnLogs),
 }));
 
 export const carts = pgTable("carts", {
@@ -1573,6 +1653,17 @@ export const cartItems = pgTable(
       .references(() => products.id, { onDelete: "cascade" }),
     productVariantId: integer("product_variant_id"),
     quantity: integer("quantity").notNull().default(1),
+    transactionType: productTransactionTypeEnum("transaction_type")
+      .default("purchase")
+      .notNull(),
+    rentalFestivalId: integer("rental_festival_id").references(
+      () => festivals.id,
+      { onDelete: "restrict" },
+    ),
+    rentalReservationId: integer("rental_reservation_id").references(
+      () => standReservations.id,
+      { onDelete: "restrict" },
+    ),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -1580,18 +1671,59 @@ export const cartItems = pgTable(
     index("cart_items_cart_id_idx").on(t.cartId),
     index("cart_items_product_id_idx").on(t.productId),
     index("cart_items_product_variant_id_idx").on(t.productVariantId),
+    index("cart_items_rental_festival_id_idx").on(t.rentalFestivalId),
+    index("cart_items_rental_reservation_id_idx").on(t.rentalReservationId),
     uniqueIndex("cart_items_cart_product_base_unique")
-      .on(t.cartId, t.productId)
-      .where(sql`${t.productVariantId} IS NULL`),
+      .on(
+        t.cartId,
+        t.productId,
+        t.transactionType,
+        t.rentalFestivalId,
+        t.rentalReservationId,
+      )
+      .where(
+        sql`${t.productVariantId} IS NULL AND ${t.rentalFestivalId} IS NOT NULL AND ${t.rentalReservationId} IS NOT NULL`,
+      ),
+    uniqueIndex("cart_items_cart_product_base_purchase_unique")
+      .on(t.cartId, t.productId, t.transactionType)
+      .where(
+        sql`${t.productVariantId} IS NULL AND ${t.rentalFestivalId} IS NULL AND ${t.rentalReservationId} IS NULL`,
+      ),
     uniqueIndex("cart_items_cart_product_variant_unique")
-      .on(t.cartId, t.productId, t.productVariantId)
-      .where(sql`${t.productVariantId} IS NOT NULL`),
+      .on(
+        t.cartId,
+        t.productId,
+        t.productVariantId,
+        t.transactionType,
+        t.rentalFestivalId,
+        t.rentalReservationId,
+      )
+      .where(
+        sql`${t.productVariantId} IS NOT NULL AND ${t.rentalFestivalId} IS NOT NULL AND ${t.rentalReservationId} IS NOT NULL`,
+      ),
+    uniqueIndex("cart_items_cart_product_variant_purchase_unique")
+      .on(t.cartId, t.productId, t.productVariantId, t.transactionType)
+      .where(
+        sql`${t.productVariantId} IS NOT NULL AND ${t.rentalFestivalId} IS NULL AND ${t.rentalReservationId} IS NULL`,
+      ),
     foreignKey({
       name: "cart_items_product_variant_product_fk",
       columns: [t.productVariantId, t.productId],
       foreignColumns: [productVariants.id, productVariants.productId],
     }).onDelete("cascade"),
     check("cart_items_quantity_positive", sql`${t.quantity} > 0`),
+    check(
+      "cart_items_rental_context_required",
+      sql`(
+        ${t.transactionType} != 'rental'
+        AND ${t.rentalFestivalId} IS NULL
+        AND ${t.rentalReservationId} IS NULL
+      ) OR (
+        ${t.transactionType} = 'rental'
+        AND ${t.rentalFestivalId} IS NOT NULL
+        AND ${t.rentalReservationId} IS NOT NULL
+      )`,
+    ),
   ],
 );
 export const cartItemsRelations = relations(cartItems, ({ one }) => ({
@@ -1603,6 +1735,14 @@ export const cartItemsRelations = relations(cartItems, ({ one }) => ({
   variant: one(productVariants, {
     fields: [cartItems.productVariantId],
     references: [productVariants.id],
+  }),
+  rentalFestival: one(festivals, {
+    fields: [cartItems.rentalFestivalId],
+    references: [festivals.id],
+  }),
+  rentalReservation: one(standReservations, {
+    fields: [cartItems.rentalReservationId],
+    references: [standReservations.id],
   }),
 }));
 
@@ -1778,6 +1918,131 @@ export const productImagesRelations = relations(productImages, ({ one }) => ({
     references: [products.id],
   }),
 }));
+
+export const productContentSections = pgTable(
+  "product_content_sections",
+  {
+    id: serial("id").primaryKey(),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    productVariantId: integer("product_variant_id"),
+    title: text("title").notNull(),
+    format: productContentSectionFormatEnum("format").notNull(),
+    body: text("body"),
+    items: jsonb("items").$type<string[]>(),
+    displayContext: productContentSectionDisplayContextEnum("display_context")
+      .default("all")
+      .notNull(),
+    isVisible: boolean("is_visible").default(true).notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("product_content_sections_product_id_idx").on(t.productId),
+    index("product_content_sections_variant_id_idx").on(t.productVariantId),
+    index("product_content_sections_product_sort_idx").on(
+      t.productId,
+      t.productVariantId,
+      t.sortOrder,
+    ),
+    foreignKey({
+      name: "product_content_sections_product_variant_product_fk",
+      columns: [t.productVariantId, t.productId],
+      foreignColumns: [productVariants.id, productVariants.productId],
+    }).onDelete("cascade"),
+  ],
+);
+
+export const productContentSectionsRelations = relations(
+  productContentSections,
+  ({ one }) => ({
+    product: one(products, {
+      fields: [productContentSections.productId],
+      references: [products.id],
+    }),
+    variant: one(productVariants, {
+      fields: [productContentSections.productVariantId],
+      references: [productVariants.id],
+    }),
+  }),
+);
+
+export const rentalReturnLogs = pgTable(
+  "rental_return_logs",
+  {
+    id: serial("id").primaryKey(),
+    orderItemId: integer("order_item_id")
+      .notNull()
+      .references(() => orderItems.id, { onDelete: "restrict" }),
+    orderId: integer("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "restrict" }),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "restrict" }),
+    productVariantId: integer("product_variant_id").references(
+      () => productVariants.id,
+      { onDelete: "restrict" },
+    ),
+    quantityReturned: integer("quantity_returned").notNull(),
+    conditionStatus: rentalReturnConditionEnum("condition_status").notNull(),
+    notes: text("notes"),
+    stockRestored: integer("stock_restored").notNull(),
+    stockPool: productRentalStockModeEnum("stock_pool").notNull(),
+    processedByUserId: integer("processed_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    previousReturnedQuantity: integer("previous_returned_quantity"),
+    newReturnedQuantity: integer("new_returned_quantity"),
+    productNameSnapshot: text("product_name_snapshot"),
+    variantLabelSnapshot: text("variant_label_snapshot"),
+    customerNameSnapshot: text("customer_name_snapshot"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("rental_return_logs_order_item_id_idx").on(t.orderItemId),
+    index("rental_return_logs_order_id_idx").on(t.orderId),
+    index("rental_return_logs_product_id_idx").on(t.productId),
+    index("rental_return_logs_created_at_idx").on(t.createdAt),
+    check("rental_return_logs_quantity_positive", sql`${t.quantityReturned} > 0`),
+    check(
+      "rental_return_logs_stock_restored_non_negative",
+      sql`${t.stockRestored} >= 0`,
+    ),
+    check(
+      "rental_return_logs_stock_restored_lte_quantity",
+      sql`${t.stockRestored} <= ${t.quantityReturned}`,
+    ),
+  ],
+);
+
+export const rentalReturnLogsRelations = relations(
+  rentalReturnLogs,
+  ({ one }) => ({
+    orderItem: one(orderItems, {
+      fields: [rentalReturnLogs.orderItemId],
+      references: [orderItems.id],
+    }),
+    order: one(orders, {
+      fields: [rentalReturnLogs.orderId],
+      references: [orders.id],
+    }),
+    product: one(products, {
+      fields: [rentalReturnLogs.productId],
+      references: [products.id],
+    }),
+    variant: one(productVariants, {
+      fields: [rentalReturnLogs.productVariantId],
+      references: [productVariants.id],
+    }),
+    processedBy: one(users, {
+      fields: [rentalReturnLogs.processedByUserId],
+      references: [users.id],
+    }),
+  }),
+);
 
 // Map Elements - signaling elements on festival maps (entrances, stages, etc.)
 export const mapElementTypeEnum = pgEnum("map_element_type", [

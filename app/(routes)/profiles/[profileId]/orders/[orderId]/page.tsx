@@ -11,9 +11,16 @@ import { Button } from "@/app/components/ui/button";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { formatDate } from "@/app/lib/formatters";
+import { Badge } from "@/app/components/ui/badge";
+import ProductContentSectionsDisplay from "@/app/components/molecules/product-content-sections-display";
 import { fetchOrder } from "@/app/lib/orders/actions";
 import { OrderItemWithRelations } from "@/app/lib/orders/definitions";
 import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import type { RentalContentSectionSnapshot } from "@/app/lib/rentals/types";
+import {
+  deriveRentalStatus,
+  getRentalStatusLabel,
+} from "@/app/lib/rentals/status";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 
@@ -73,7 +80,14 @@ export default async function UserOrderPage(props: {
             </h2>
 
             <div className="divide-y">
-              {order.orderItems.map((item: OrderItemWithRelations) => (
+              {order.orderItems.map((item: OrderItemWithRelations) => {
+                const rentalStatus = deriveRentalStatus({
+                  transactionType: item.transactionType,
+                  quantity: item.quantity,
+                  rentalReturnedQuantity: item.rentalReturnedQuantity,
+                });
+
+                return (
                 <div key={item.id} className="py-4 flex gap-4">
                   <div className="h-20 w-20 rounded-md overflow-hidden bg-gray-100 shrink-0">
                     <Image
@@ -88,11 +102,21 @@ export default async function UserOrderPage(props: {
                     />
                   </div>
                   <div className="flex-1">
-                    <div className="flex justify-between">
-                      <h3 className="font-medium">
-                        {getOrderItemDisplayName(item)}
-                      </h3>
-                      <p className="font-medium">
+                    <div className="flex justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-medium">
+                          {getOrderItemDisplayName(item)}
+                        </h3>
+                        {item.transactionType === "rental" && (
+                          <Badge variant="secondary">Alquiler</Badge>
+                        )}
+                        {rentalStatus !== "not_applicable" && (
+                          <Badge variant="outline">
+                            {getRentalStatusLabel(rentalStatus)}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="font-medium shrink-0">
                         Bs{(item.priceAtPurchase * item.quantity).toFixed(2)}
                       </p>
                     </div>
@@ -104,9 +128,20 @@ export default async function UserOrderPage(props: {
                         Bs{item.priceAtPurchase.toFixed(2)} cada uno
                       </p>
                     </div>
+                    {Array.isArray(item.rentalContentSectionsSnapshot) &&
+                      item.rentalContentSectionsSnapshot.length > 0 && (
+                        <div className="mt-3">
+                          <ProductContentSectionsDisplay
+                            sections={
+                              item.rentalContentSectionsSnapshot as RentalContentSectionSnapshot[]
+                            }
+                          />
+                        </div>
+                      )}
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
 
             <div className="flex justify-between font-medium text-lg pt-4 border-t mt-2">
