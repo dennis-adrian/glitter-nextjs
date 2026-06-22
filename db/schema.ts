@@ -1304,6 +1304,10 @@ export const productTransactionTypeEnum = pgEnum("product_transaction_type", [
   "purchase",
   "rental",
 ]);
+export const productStoreCategoryEnum = pgEnum("product_store_category", [
+  "merch",
+  "supplies",
+]);
 export const productRentalStockModeEnum = pgEnum("product_rental_stock_mode", [
   "shared",
   "separate",
@@ -1336,6 +1340,9 @@ export const products = pgTable("products", {
   isNew: boolean("is_new").default(true).notNull(),
   isFeatured: boolean("is_featured").default(false).notNull(),
   isVisible: boolean("is_visible").default(true).notNull(),
+  storeCategory: productStoreCategoryEnum("store_category")
+    .default("merch")
+    .notNull(),
   availableDate: timestamp("available_date"),
   discount: real("discount").default(0),
   discountUnit: discountUnitEnum("discount_unit")
