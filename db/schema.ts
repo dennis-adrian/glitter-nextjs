@@ -1594,11 +1594,12 @@ export const orderItems = pgTable(
         ${t.transactionType} = 'rental'
         AND ${t.rentalFestivalId} IS NOT NULL
         AND ${t.rentalReservationId} IS NOT NULL
+        AND ${t.rentalStockModeSnapshot} IS NOT NULL
       )`,
     ),
     check(
       "order_items_rental_returned_quantity_valid",
-      sql`${t.rentalReturnedQuantity} <= ${t.quantity}`,
+      sql`${t.rentalReturnedQuantity} >= 0 AND ${t.rentalReturnedQuantity} <= ${t.quantity}`,
     ),
   ],
 );
@@ -1713,7 +1714,15 @@ export const cartItems = pgTable(
     check("cart_items_quantity_positive", sql`${t.quantity} > 0`),
     check(
       "cart_items_rental_context_required",
-      sql`${t.transactionType} != 'rental' OR (${t.rentalFestivalId} IS NOT NULL AND ${t.rentalReservationId} IS NOT NULL)`,
+      sql`(
+        ${t.transactionType} != 'rental'
+        AND ${t.rentalFestivalId} IS NULL
+        AND ${t.rentalReservationId} IS NULL
+      ) OR (
+        ${t.transactionType} = 'rental'
+        AND ${t.rentalFestivalId} IS NOT NULL
+        AND ${t.rentalReservationId} IS NOT NULL
+      )`,
     ),
   ],
 );

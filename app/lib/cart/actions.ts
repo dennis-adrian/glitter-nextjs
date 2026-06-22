@@ -659,16 +659,47 @@ export async function checkoutCart(input?: {
       );
       if (rentalItems.length > 0) {
         const [sampleRentalItem] = rentalItems;
-        const checkoutFestivalId =
-          input?.rentalFestivalId ?? sampleRentalItem.rentalFestivalId;
-        const checkoutReservationId =
-          input?.rentalReservationId ??
-          sampleRentalItem.rentalReservationId;
+        const persistedContexts = new Set(
+          rentalItems.map(
+            (item) => `${item.rentalFestivalId}:${item.rentalReservationId}`,
+          ),
+        );
+        if (persistedContexts.size > 1) {
+          throw new Error(
+            "Todos los productos de alquiler deben usar el mismo festival/reserva.",
+            { cause: "multiple_rental_contexts" },
+          );
+        }
+
+        const checkoutFestivalId = sampleRentalItem.rentalFestivalId;
+        const checkoutReservationId = sampleRentalItem.rentalReservationId;
+        if (checkoutFestivalId == null || checkoutReservationId == null) {
+          throw new Error("Selecciona un festival/reserva para alquilar.", {
+            cause: "rental_context_required",
+          });
+        }
+
+        const requestedFestivalId = input?.rentalFestivalId ?? null;
+        const requestedReservationId = input?.rentalReservationId ?? null;
+        const hasRequestedContext =
+          requestedFestivalId != null || requestedReservationId != null;
+        if (
+          hasRequestedContext &&
+          (requestedFestivalId == null ||
+            requestedReservationId == null ||
+            requestedFestivalId !== checkoutFestivalId ||
+            requestedReservationId !== checkoutReservationId)
+        ) {
+          throw new Error(
+            "El contexto de alquiler del carrito cambió. Vuelve a agregar los productos de alquiler.",
+            { cause: "invalid_rental_context" },
+          );
+        }
 
         const eligibility = await assertRentalEligibility(
           userId,
-          checkoutFestivalId ?? undefined,
-          checkoutReservationId ?? undefined,
+          checkoutFestivalId,
+          checkoutReservationId,
         );
         if (!eligibility.eligible) {
           throw new Error(eligibility.message, { cause: "rental_ineligible" });
@@ -691,15 +722,11 @@ export async function checkoutCart(input?: {
         snapshot.items.map((item) => {
           const rentalFestivalId =
             item.transactionType === "rental"
-              ? (input?.rentalFestivalId ??
-                item.rentalFestivalId ??
-                null)
+              ? (item.rentalFestivalId ?? null)
               : null;
           const rentalReservationId =
             item.transactionType === "rental"
-              ? (input?.rentalReservationId ??
-                item.rentalReservationId ??
-                null)
+              ? (item.rentalReservationId ?? null)
               : null;
 
           return {

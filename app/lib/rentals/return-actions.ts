@@ -114,6 +114,7 @@ export async function markRentalOrderItemReturned(
   payload: {
     quantityReturned: number;
     conditionStatus: RentalReturnCondition;
+    stockRestored?: number | null;
     notes?: string | null;
   },
 ): Promise<MarkRentalReturnResult> {
@@ -126,11 +127,30 @@ export async function markRentalOrderItemReturned(
     };
   }
 
-  if (payload.quantityReturned <= 0) {
+  if (
+    !Number.isInteger(payload.quantityReturned) ||
+    payload.quantityReturned <= 0
+  ) {
     return {
       success: false,
       error: "invalid_quantity",
       message: "La cantidad devuelta debe ser mayor a 0.",
+    };
+  }
+
+  const stockRestored =
+    payload.stockRestored ??
+    (payload.conditionStatus === "good" ? payload.quantityReturned : 0);
+  if (
+    !Number.isInteger(stockRestored) ||
+    stockRestored < 0 ||
+    stockRestored > payload.quantityReturned
+  ) {
+    return {
+      success: false,
+      error: "invalid_quantity",
+      message:
+        "La cantidad a reponer debe estar entre 0 y la cantidad devuelta.",
     };
   }
 
@@ -195,12 +215,14 @@ export async function markRentalOrderItemReturned(
       const newReturnedQuantity =
         previousReturnedQuantity + payload.quantityReturned;
 
-      await restoreRentalStockInTx(tx, {
-        productId: item.productId,
-        productVariantId: item.productVariantId,
-        quantity: payload.quantityReturned,
-        stockPool,
-      });
+      if (stockRestored > 0) {
+        await restoreRentalStockInTx(tx, {
+          productId: item.productId,
+          productVariantId: item.productVariantId,
+          quantity: stockRestored,
+          stockPool,
+        });
+      }
 
       await tx
         .update(orderItems)
@@ -242,7 +264,7 @@ export async function markRentalOrderItemReturned(
         quantityReturned: payload.quantityReturned,
         conditionStatus: payload.conditionStatus,
         notes: payload.notes?.trim() || null,
-        stockRestored: payload.quantityReturned,
+        stockRestored,
         stockPool,
         processedByUserId: admin.id,
         previousReturnedQuantity,
@@ -257,6 +279,7 @@ export async function markRentalOrderItemReturned(
         orderId: item.orderId,
         returnedQuantity: payload.quantityReturned,
         outstandingQuantity: outstanding - payload.quantityReturned,
+        stockRestored,
       };
     });
 

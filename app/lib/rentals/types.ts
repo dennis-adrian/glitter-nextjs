@@ -59,7 +59,12 @@ export type RentalEligibilityResult =
     };
 
 export type MarkRentalReturnResult =
-  | { success: true; returnedQuantity: number; outstandingQuantity: number }
+  | {
+      success: true;
+      returnedQuantity: number;
+      outstandingQuantity: number;
+      stockRestored: number;
+    }
   | {
       success: false;
       error:

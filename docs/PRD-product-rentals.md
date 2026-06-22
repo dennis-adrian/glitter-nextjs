@@ -231,6 +231,7 @@ Return action fields:
 
 - Quantity returned.
 - Condition status: `good`, `damaged`, `missing_parts`, `lost`, `other`.
+- Stock restored: integer from 0 to `quantityReturned`; admin-controlled per return.
 - Notes: text; required when condition is not `good`.
 - Optional photo/file attachments are a future enhancement.
 
@@ -239,7 +240,9 @@ Rules:
 - Only rental order items can be returned.
 - Return quantity must be greater than 0.
 - Return quantity cannot exceed `quantity - rentalReturnedQuantity`.
-- Stock increases by return quantity in the same transaction that creates the return log, using the rental stock mode snapshot from the order item.
+- `stockRestored` defaults to `quantityReturned` when condition is `good`, otherwise `0`; admins may override within the allowed range.
+- Stock increases by `stockRestored` (not necessarily by `quantityReturned`) in the same transaction that creates the return log, using the rental stock mode snapshot from the order item.
+- `rentalReturnedQuantity` always increases by `quantityReturned`, even when `stockRestored` is `0`, so lost or damaged units can close the rental line without re-entering inventory.
 - Return action is idempotency-safe at the business level because outstanding quantity is checked inside the transaction.
 - A fully returned item cannot be returned again.
 
@@ -471,7 +474,7 @@ Product configured as rentable
   -> Sale/shared stock or rental-only stock decreases by quantity
   -> Rental item is "out"
   -> Admin records return
-  -> Same stock pool increases by returned quantity
+  -> Same stock pool increases by stockRestored (0..quantityReturned)
   -> Item becomes partially_returned or returned
   -> Return log remains available for audit
 ```
@@ -485,8 +488,9 @@ Product configured as rentable
 | Rental order created with separate stock | Decrease product/variant `rentalStock` by quantity. |
 | Purchase order cancelled | Increase by quantity according to existing rules. |
 | Rental order cancelled before return | Increase outstanding quantity in the rental order item's original stock pool. |
-| Rental item partially returned | Increase returned quantity in the rental order item's original stock pool. |
-| Rental item fully returned | Increase returned quantity in the rental order item's original stock pool and mark returned. |
+| Rental item partially returned | Increase the order item's stock pool by `stockRestored`; increase `rentalReturnedQuantity` by `quantityReturned`. |
+| Rental item fully returned | Same as partial return; item becomes fully returned when `rentalReturnedQuantity` reaches `quantity`. |
+| Non-good return (`damaged`, `lost`, etc.) with `stockRestored = 0` | No stock change; return log and `rentalReturnedQuantity` still update. |
 | Attempted duplicate return | Blocked; no stock change. |
 
 ### 9.3 Concurrency
@@ -592,8 +596,8 @@ type MarkRentalReturnResult =
 17. Product content sections can be shown for all modes, purchase only, or rental only.
 18. Product-level sections show for the whole listing; variant-level sections show only when the matching variant is selected.
 19. Order item stores `transaction_type = rental`, rental unit price, rental stock mode snapshot, rental festival/reservation context, and rental-visible product/variant content section snapshot.
-20. Admin can return a partial rental quantity and stock increases in the correct stock pool by that quantity.
-21. Admin can return the remaining rental quantity later and the item becomes fully returned.
+20. Admin can return a partial rental quantity; `rentalReturnedQuantity` increases by the returned quantity and stock increases in the correct pool by the admin-specified `stockRestored` (default: returned quantity when condition is `good`, otherwise `0`).
+21. Admin can return the remaining rental quantity later and the item becomes fully returned, with the same `stockRestored` rules.
 22. Admin cannot return more than the outstanding quantity.
 23. Every return creates a return log with admin, quantity, condition, notes, stock pool, stock restored, and timestamp.
 24. Return logs remain visible after the item is fully returned.
@@ -616,18 +620,19 @@ type MarkRentalReturnResult =
 - Active festival changes before checkout: checkout revalidates against the selected rental festival/reservation and blocks stale rental lines if that context is no longer valid.
 - Product deleted after order: order item and return logs should preserve enough snapshot data to remain understandable.
 - Admin processes two returns at the same time: transaction/conditional update prevents over-return.
-- Rental line has condition `lost`: v1 can still mark returned quantity only if stock should be restored; otherwise admins should leave it outstanding until a future inventory adjustment flow exists. Product decision needed.
+- Rental line has condition `lost` or other non-good condition: admin records `quantityReturned` to close the rental line, sets `stockRestored` to `0` by default (may increase up to `quantityReturned` if the unit should re-enter inventory), and provides required notes. A return log is always created; only `stockRestored > 0` increases inventory.
 
 ## 14) Open Questions
 
 1. Should rentals require a due date, or is "currently out / returned" enough for v1?
 2. Should rental deposits be charged separately from rental price?
-3. Should damaged or lost items restore stock automatically, or should admins choose whether returned units are restockable?
-4. Should any product content section be able to require explicit customer acknowledgement at checkout?
-5. Should rental return notes ever be visible to customers, or remain admin-only?
-6. Do rent-only products still use the existing product `price` field for display/admin forms, or should `price` become optional when `isPurchasable = false`?
-7. Should v2 allow rental lines for multiple festivals in the same checkout, or keep one rental context per order permanently?
-8. Should admins be able to create rental orders manually for eligible participants from the dashboard?
+3. Should any product content section be able to require explicit customer acknowledgement at checkout?
+4. Should rental return notes ever be visible to customers, or remain admin-only?
+5. Do rent-only products still use the existing product `price` field for display/admin forms, or should `price` become optional when `isPurchasable = false`?
+6. Should v2 allow rental lines for multiple festivals in the same checkout, or keep one rental context per order permanently?
+7. Should admins be able to create rental orders manually for eligible participants from the dashboard?
+
+**Resolved (damaged/lost stock restoration):** v1 uses admin-controlled `stockRestored` per return. Defaults: `good` → restore full returned quantity; non-good (including `lost`) → `0`. Admins may override within `0..quantityReturned`. Return logs always record both values; inventory changes only when `stockRestored > 0`.
 
 ## 15) Implementation Plan
 
@@ -689,14 +694,13 @@ type MarkRentalReturnResult =
 | Ineligible users can rent through a stale UI or tampered request. | Rentals happen outside the event participation use case. | Revalidate eligibility in add-to-cart and checkout server actions. |
 | Multiple active festivals create ambiguous eligibility. | Rentals may attach to the wrong event. | Require the user to select an eligible festival/reservation and snapshot it on rental order items. |
 | Product content sections change after checkout. | Customer/admin lose the details shown at rental time. | Snapshot rental-visible content sections on the order item. |
-| Damaged/lost returns should not always increase sellable stock. | Inventory may overstate usable stock. | Add open question for restockable flag; consider `restockQuantity` in implementation if needed before v1 build. |
+| Damaged/lost returns should not always increase sellable stock. | Inventory may overstate usable stock. | v1 uses admin-controlled `stockRestored` with non-good defaults to `0`; return logs record both `quantityReturned` and `stockRestored` for audit. |
 | Existing checkout regressions. | Purchase flow breaks. | Defaults keep all existing products purchase-only; add focused regression tests. |
 
 ## 18) Future Enhancements
 
 - Due dates and overdue rental dashboards.
 - Deposits, late fees, damage fees, and refund workflows.
-- Admin-selectable `restockQuantity` separate from returned quantity.
 - Photo attachments on return logs.
 - Item-level asset tracking for serialized rental inventory.
 - Customer return appointments or return requests.

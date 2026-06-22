@@ -1324,6 +1324,13 @@
       "when": 1782084960717,
       "tag": "0188_bitter_red_wolf",
       "breakpoints": true
+    },
+    {
+      "idx": 189,
+      "version": "7",
+      "when": 1782090526908,
+      "tag": "0189_sweet_red_skull",
+      "breakpoints": true
     }
   ]
 }

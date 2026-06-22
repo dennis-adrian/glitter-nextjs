@@ -135,12 +135,8 @@ export default function OrderConfirmationForUsersEmailTemplate(
             </table>
 
             <Text style={styles.text}>
-              Nos comunicaremos contigo en los próximos días para coordinar el
-              pago y la entrega de tu orden.
-            </Text>
-
-            <Text style={styles.text}>
-              Puedes ver el detalle de tu orden haciendo clic en el botón
+              Podés hacer el pago de tu pedido y ver el detalle de tu orden
+              haciendo clic en el botón
             </Text>
 
             <Button href={orderUrl} style={styles.button}>

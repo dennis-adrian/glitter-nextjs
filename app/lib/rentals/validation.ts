@@ -5,10 +5,28 @@ import type {
   RentalContentSectionSnapshot,
 } from "@/app/lib/rentals/types";
 import type { BaseProductContentSection } from "@/app/lib/products/definitions";
+import {
+  productContentSectionDisplayContextEnum,
+  productContentSectionFormatEnum,
+} from "@/db/schema";
 
 export function validateProductContentSection(
   section: ProductContentSectionInput,
 ): string | null {
+  if (
+    !productContentSectionFormatEnum.enumValues.includes(section.format)
+  ) {
+    return "El formato de la sección no es válido.";
+  }
+
+  if (
+    !productContentSectionDisplayContextEnum.enumValues.includes(
+      section.displayContext,
+    )
+  ) {
+    return "El contexto de visualización no es válido.";
+  }
+
   if (!section.title.trim()) {
     return "El título de la sección es requerido.";
   }
@@ -82,19 +100,27 @@ export function validateProductRentalSettings(input: {
 
   if (!input.isRentable) return null;
 
-  if (input.rentalPrice == null || Number.isNaN(input.rentalPrice) || input.rentalPrice < 0) {
+  if (
+    input.rentalPrice == null ||
+    !Number.isFinite(input.rentalPrice) ||
+    input.rentalPrice < 0
+  ) {
     return "El precio de alquiler es requerido para productos alquilables.";
   }
 
   if (input.rentalStockMode === "separate") {
     if (input.hasVariants) {
       const invalidVariant = (input.variantRentalStocks ?? []).some(
-        (stock) => stock == null || stock < 0,
+        (stock) => stock == null || !Number.isFinite(stock) || stock < 0,
       );
       if (invalidVariant) {
         return "Cada variante alquilable necesita stock de alquiler.";
       }
-    } else if (input.rentalStock == null || input.rentalStock < 0) {
+    } else if (
+      input.rentalStock == null ||
+      !Number.isFinite(input.rentalStock) ||
+      input.rentalStock < 0
+    ) {
       return "El stock de alquiler es requerido cuando se usa stock separado.";
     }
   }

@@ -53,7 +53,10 @@ export function validatedDiscount(
 export function getRentalPriceAtPurchase(
   product: Pick<BaseProduct, "rentalPrice">,
 ): number {
-  return product.rentalPrice ?? 0;
+  if (product.rentalPrice == null) {
+    throw new Error("Missing rental price");
+  }
+  return product.rentalPrice;
 }
 
 export function getLineUnitPrice(

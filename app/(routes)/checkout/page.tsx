@@ -60,6 +60,30 @@ export default async function CheckoutPage() {
       item.transactionType === "rental" &&
       item.rentalReservationId != null,
   );
+  if (
+    hasRentalItems &&
+    rentalEligibility?.eligible &&
+    persistedRentalItem &&
+    !rentalEligibility.contexts.some(
+      (context) =>
+        context.festivalId === persistedRentalItem.rentalFestivalId &&
+        context.reservationId === persistedRentalItem.rentalReservationId,
+    )
+  ) {
+    return (
+      <CheckoutRentalIneligible message="El contexto de alquiler del carrito cambió. Vuelve a agregar los productos de alquiler." />
+    );
+  }
+  const checkoutRentalContexts =
+    rentalEligibility?.eligible && persistedRentalItem
+      ? rentalEligibility.contexts.filter(
+          (context) =>
+            context.festivalId === persistedRentalItem.rentalFestivalId &&
+            context.reservationId === persistedRentalItem.rentalReservationId,
+        )
+      : rentalEligibility?.eligible
+        ? rentalEligibility.contexts
+        : [];
 
   const total = cart.items.reduce(
     (sum, i) =>
@@ -78,9 +102,7 @@ export default async function CheckoutPage() {
         hasRentalItems={hasRentalItems}
         hasAvailableItems={availableItems.length > 0}
         hasPresaleItems={presaleLines.length > 0}
-        rentalContexts={
-          rentalEligibility?.eligible ? rentalEligibility.contexts : []
-        }
+        rentalContexts={checkoutRentalContexts}
         initialReservationId={persistedRentalItem?.rentalReservationId ?? null}
       />
     </CheckoutPageLayout>

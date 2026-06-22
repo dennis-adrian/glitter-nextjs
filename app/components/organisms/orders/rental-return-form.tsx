@@ -37,6 +37,7 @@ export default function RentalReturnForm({
   const [quantityReturned, setQuantityReturned] = useState(outstanding);
   const [conditionStatus, setConditionStatus] =
     useState<RentalReturnCondition>("good");
+  const [stockRestored, setStockRestored] = useState(outstanding);
   const [notes, setNotes] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -54,6 +55,7 @@ export default function RentalReturnForm({
           const result = await markRentalOrderItemReturned(orderItemId, {
             quantityReturned,
             conditionStatus,
+            stockRestored,
             notes,
           });
 
@@ -78,18 +80,29 @@ export default function RentalReturnForm({
           min={1}
           max={outstanding}
           value={quantityReturned}
-          onChange={(event) =>
-            setQuantityReturned(Number(event.target.value) || 1)
-          }
+          onChange={(event) => {
+            const nextQuantity = Math.min(
+              outstanding,
+              Math.max(1, Math.trunc(Number(event.target.value)) || 1),
+            );
+            setQuantityReturned(nextQuantity);
+            setStockRestored((current) =>
+              conditionStatus === "good"
+                ? nextQuantity
+                : Math.min(current, nextQuantity),
+            );
+          }}
         />
       </div>
       <div className="grid gap-2">
         <Label>Condición</Label>
         <Select
           value={conditionStatus}
-          onValueChange={(value) =>
-            setConditionStatus(value as RentalReturnCondition)
-          }
+          onValueChange={(value) => {
+            const nextCondition = value as RentalReturnCondition;
+            setConditionStatus(nextCondition);
+            setStockRestored(nextCondition === "good" ? quantityReturned : 0);
+          }}
         >
           <SelectTrigger>
             <SelectValue />
@@ -102,6 +115,31 @@ export default function RentalReturnForm({
             <SelectItem value="other">Otro</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor={`return-stock-${orderItemId}`}>
+          Cantidad a reponer al stock
+        </Label>
+        <Input
+          id={`return-stock-${orderItemId}`}
+          type="number"
+          min={0}
+          max={quantityReturned}
+          value={stockRestored}
+          onChange={(event) =>
+            setStockRestored(
+              Math.min(
+                quantityReturned,
+                Math.max(0, Math.trunc(Number(event.target.value)) || 0),
+              ),
+            )
+          }
+        />
+        {conditionStatus !== "good" && (
+          <p className="text-xs text-muted-foreground">
+            Déjalo en 0 si el producto no debe volver al inventario.
+          </p>
+        )}
       </div>
       <div className="grid gap-2">
         <Label htmlFor={`return-notes-${orderItemId}`}>Notas</Label>

@@ -20,7 +20,10 @@ import { useCartContext } from "@/app/components/providers/cart-provider";
 import { addToCart } from "@/app/lib/cart/actions";
 import { buildCartLineKey } from "@/app/lib/cart/utils";
 import { formatDate } from "@/app/lib/formatters";
-import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import {
+  getProductPriceAtPurchase,
+  getRentalPriceAtPurchase,
+} from "@/app/lib/orders/utils";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
 import type { RentalEligibilityContext } from "@/app/lib/rentals/types";
 import {
@@ -55,21 +58,34 @@ export default function StoreItemCard({
   const inStock = canTransact;
   const isPresale = product.status === "presale";
   const showRentalBadge = product.isRentable && rentalEligible && rentalInStock;
+  const isRentalOnly = rentalInStock && !purchaseInStock;
   const needsRentalContextPicker =
-    rentalInStock && !purchaseInStock && rentalContexts.length > 1;
+    isRentalOnly && rentalContexts.length > 1;
   const shouldOpenModal = shouldUseQuickAddModal || needsRentalContextPicker;
 
-  const effectivePrices = hasVariants
-    ? variants.map((variant) => ({
-        current: getProductPriceAtPurchase(product, variant),
-        original: variant.price ?? product.price,
-      }))
-    : [
-        {
-          current: getProductPriceAtPurchase(product),
-          original: product.price,
-        },
-      ];
+  const effectivePrices = isRentalOnly
+    ? hasVariants
+      ? variants.map(() => ({
+          current: getRentalPriceAtPurchase(product),
+          original: product.rentalPrice ?? 0,
+        }))
+      : [
+          {
+            current: getRentalPriceAtPurchase(product),
+            original: product.rentalPrice ?? 0,
+          },
+        ]
+    : hasVariants
+      ? variants.map((variant) => ({
+          current: getProductPriceAtPurchase(product, variant),
+          original: variant.price ?? product.price,
+        }))
+      : [
+          {
+            current: getProductPriceAtPurchase(product),
+            original: product.price,
+          },
+        ];
 
   const lowestCurrentPrice = Math.min(
     ...effectivePrices.map((entry) => entry.current),

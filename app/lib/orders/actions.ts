@@ -15,7 +15,17 @@ import {
   type OrderTabValue,
 } from "@/app/lib/orders/order-tabs";
 import { db } from "@/db";
-import { and, count, desc, eq, exists, inArray, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  exists,
+  inArray,
+  isNull,
+  notExists,
+  sql,
+} from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/app/vendors/resend";
 import { fetchAdminUsers } from "@/app/api/users/actions";
@@ -955,48 +965,72 @@ function buildRentalFilterSql(filter: RentalOrderFilter) {
     );
   }
 
+  const rentalItemScope = and(
+    eq(orderItems.orderId, orders.id),
+    eq(orderItems.transactionType, "rental"),
+  );
+
   if (filter === "out") {
-    return exists(
-      db
-        .select({ one: sql`1` })
-        .from(orderItems)
-        .where(
-          and(
-            eq(orderItems.orderId, orders.id),
-            eq(orderItems.transactionType, "rental"),
-            eq(orderItems.rentalReturnedQuantity, 0),
+    return and(
+      exists(
+        db.select({ one: sql`1` }).from(orderItems).where(rentalItemScope),
+      ),
+      notExists(
+        db
+          .select({ one: sql`1` })
+          .from(orderItems)
+          .where(
+            and(
+              rentalItemScope,
+              sql`${orderItems.rentalReturnedQuantity} > 0`,
+            ),
           ),
-        ),
+      ),
     );
   }
 
   if (filter === "partially_returned") {
-    return exists(
+    return and(
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(orderItems)
+          .where(
+            and(
+              rentalItemScope,
+              sql`${orderItems.rentalReturnedQuantity} > 0`,
+            ),
+          ),
+      ),
+      exists(
+        db
+          .select({ one: sql`1` })
+          .from(orderItems)
+          .where(
+            and(
+              rentalItemScope,
+              sql`${orderItems.rentalReturnedQuantity} < ${orderItems.quantity}`,
+            ),
+          ),
+      ),
+    );
+  }
+
+  return and(
+    exists(
+      db.select({ one: sql`1` }).from(orderItems).where(rentalItemScope),
+    ),
+    notExists(
       db
         .select({ one: sql`1` })
         .from(orderItems)
         .where(
           and(
-            eq(orderItems.orderId, orders.id),
-            eq(orderItems.transactionType, "rental"),
-            sql`${orderItems.rentalReturnedQuantity} > 0`,
+            rentalItemScope,
             sql`${orderItems.rentalReturnedQuantity} < ${orderItems.quantity}`,
           ),
         ),
-    );
-  }
-
-  return exists(
-    db
-      .select({ one: sql`1` })
-      .from(orderItems)
-      .where(
-        and(
-          eq(orderItems.orderId, orders.id),
-          eq(orderItems.transactionType, "rental"),
-          sql`${orderItems.rentalReturnedQuantity} >= ${orderItems.quantity}`,
-        ),
-      ),
+    ),
   );
 }
 
