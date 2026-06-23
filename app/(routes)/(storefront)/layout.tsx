@@ -2,7 +2,7 @@ import StoreLayoutShell from "@/app/components/organisms/store/store-layout-shel
 
 export const dynamic = "force-dynamic";
 
-export default async function StoreLayout({
+export default function StorefrontLayout({
   children,
 }: {
   children: React.ReactNode;

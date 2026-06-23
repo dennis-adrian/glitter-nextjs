@@ -242,7 +242,7 @@ export default function StoreProductImages({
   };
 
   return (
-    <div>
+    <div className="w-full max-w-[560px]">
       <Carousel setApi={setApi}>
         <CarouselContent
           {...(canOpenModal

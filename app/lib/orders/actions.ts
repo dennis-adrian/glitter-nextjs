@@ -459,7 +459,9 @@ async function consumeOrderItemStock(
   variantMap: Map<number, typeof productVariants.$inferSelect>,
 ) {
   const variant =
-    productVariantId != null ? (variantMap.get(productVariantId) ?? null) : null;
+    productVariantId != null
+      ? (variantMap.get(productVariantId) ?? null)
+      : null;
   await consumeLineStockInTx(tx, product, variant, quantity, transactionType);
 }
 
@@ -491,13 +493,11 @@ export async function createOrderInTx(
   );
   if (rentalLines.length > 0) {
     const rentalContexts = new Set(
-      rentalLines.map(
-        (line) => `${line.rentalFestivalId}:${line.rentalReservationId}`,
-      ),
+      rentalLines.map((line) => line.rentalFestivalId),
     );
     if (rentalContexts.size > 1) {
       throw new Error(
-        "Todos los productos de alquiler deben usar el mismo festival/reserva.",
+        "Todos los productos de alquiler deben usar el mismo festival.",
         { cause: "multiple_rental_contexts" },
       );
     }
@@ -512,17 +512,18 @@ export async function createOrderInTx(
       throw new Error(eligibility.message, { cause: "rental_ineligible" });
     }
 
-    const resolvedContext = resolveRentalLineContext(
-      eligibility.contexts,
-      sampleRentalLine.rentalFestivalId,
-      sampleRentalLine.rentalReservationId,
-    );
-    if (!resolvedContext.ok) {
-      throw new Error(resolvedContext.message, { cause: resolvedContext.cause });
-    }
-
     orderLines = orderLines.map((line) => {
       if ((line.transactionType ?? "purchase") !== "rental") return line;
+      const resolvedContext = resolveRentalLineContext(
+        eligibility.contexts,
+        line.rentalFestivalId,
+        line.rentalReservationId,
+      );
+      if (!resolvedContext.ok) {
+        throw new Error(resolvedContext.message, {
+          cause: resolvedContext.cause,
+        });
+      }
       return {
         ...line,
         rentalFestivalId: resolvedContext.context.festivalId,
@@ -615,12 +616,13 @@ export async function createGuestOrderInTx(
   guestEmail: string,
   guestPhone: string,
 ): Promise<CreateGuestOrderInTxResult> {
-  if (
-    lines.some((line) => (line.transactionType ?? "purchase") === "rental")
-  ) {
-    throw new Error("Los productos de alquiler requieren una cuenta verificada.", {
-      cause: "rental_ineligible",
-    });
+  if (lines.some((line) => (line.transactionType ?? "purchase") === "rental")) {
+    throw new Error(
+      "Los productos de alquiler requieren una cuenta verificada.",
+      {
+        cause: "rental_ineligible",
+      },
+    );
   }
 
   const resolvedLines = await resolveOrderLines(tx, lines);
@@ -973,17 +975,17 @@ function buildRentalFilterSql(filter: RentalOrderFilter) {
   if (filter === "out") {
     return and(
       exists(
-        db.select({ one: sql`1` }).from(orderItems).where(rentalItemScope),
+        db
+          .select({ one: sql`1` })
+          .from(orderItems)
+          .where(rentalItemScope),
       ),
       notExists(
         db
           .select({ one: sql`1` })
           .from(orderItems)
           .where(
-            and(
-              rentalItemScope,
-              sql`${orderItems.rentalReturnedQuantity} > 0`,
-            ),
+            and(rentalItemScope, sql`${orderItems.rentalReturnedQuantity} > 0`),
           ),
       ),
     );
@@ -996,10 +998,7 @@ function buildRentalFilterSql(filter: RentalOrderFilter) {
           .select({ one: sql`1` })
           .from(orderItems)
           .where(
-            and(
-              rentalItemScope,
-              sql`${orderItems.rentalReturnedQuantity} > 0`,
-            ),
+            and(rentalItemScope, sql`${orderItems.rentalReturnedQuantity} > 0`),
           ),
       ),
       exists(
@@ -1018,7 +1017,10 @@ function buildRentalFilterSql(filter: RentalOrderFilter) {
 
   return and(
     exists(
-      db.select({ one: sql`1` }).from(orderItems).where(rentalItemScope),
+      db
+        .select({ one: sql`1` })
+        .from(orderItems)
+        .where(rentalItemScope),
     ),
     notExists(
       db
@@ -1645,7 +1647,10 @@ export async function updateOrder(
               .from(products)
               .where(eq(products.id, orderItem.productId))
               .limit(1);
-            const variantMap = new Map<number, typeof productVariants.$inferSelect>();
+            const variantMap = new Map<
+              number,
+              typeof productVariants.$inferSelect
+            >();
             if (orderItem.productVariantId != null) {
               const [variant] = await tx
                 .select()

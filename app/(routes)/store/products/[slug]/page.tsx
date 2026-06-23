@@ -1,7 +1,7 @@
 import { ArrowLeftIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, permanentRedirect } from "next/navigation";
+import { notFound, permanentRedirect, redirect } from "next/navigation";
 import { z } from "zod";
 
 import ProductDetailContent from "@/app/components/organisms/store/product-detail-content";
@@ -9,6 +9,7 @@ import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { fetchProduct, fetchProductBySlug } from "@/app/lib/products/actions";
 import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 const ParamsSchema = z.object({
   slug: z.string().min(1),
@@ -106,12 +107,17 @@ export default async function ProductDetailPage(props: {
     return permanentRedirect(`/store/products/${redirectSlug}`);
   }
 
+  const profile = await getCurrentUserProfile();
+  if (product.storeCategory === "supplies" && profile?.status !== "verified") {
+    return redirect("/merch");
+  }
+
   const rentalEligibility = await getRentalEligibilityForCurrentUser();
 
   return (
     <div className="container px-3 py-6">
       <Link
-        href="/store"
+        href={product.storeCategory === "supplies" ? "/supplies" : "/merch"}
         className="text-sm text-muted-foreground flex items-center gap-1 mb-6 hover:text-foreground transition-colors"
       >
         <ArrowLeftIcon className="h-3.5 w-3.5" />

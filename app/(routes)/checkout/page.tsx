@@ -47,27 +47,20 @@ export default async function CheckoutPage() {
     ? await getRentalEligibilityForCurrentUser()
     : null;
 
-  if (
-    hasRentalItems &&
-    rentalEligibility &&
-    !rentalEligibility.eligible
-  ) {
+  if (hasRentalItems && rentalEligibility && !rentalEligibility.eligible) {
     return <CheckoutRentalIneligible message={rentalEligibility.message} />;
   }
 
   const persistedRentalItem = cart.items.find(
     (item) =>
-      item.transactionType === "rental" &&
-      item.rentalReservationId != null,
+      item.transactionType === "rental" && item.rentalReservationId != null,
   );
   if (
     hasRentalItems &&
     rentalEligibility?.eligible &&
     persistedRentalItem &&
     !rentalEligibility.contexts.some(
-      (context) =>
-        context.festivalId === persistedRentalItem.rentalFestivalId &&
-        context.reservationId === persistedRentalItem.rentalReservationId,
+      (context) => context.festivalId === persistedRentalItem.rentalFestivalId,
     )
   ) {
     return (
@@ -78,8 +71,7 @@ export default async function CheckoutPage() {
     rentalEligibility?.eligible && persistedRentalItem
       ? rentalEligibility.contexts.filter(
           (context) =>
-            context.festivalId === persistedRentalItem.rentalFestivalId &&
-            context.reservationId === persistedRentalItem.rentalReservationId,
+            context.festivalId === persistedRentalItem.rentalFestivalId,
         )
       : rentalEligibility?.eligible
         ? rentalEligibility.contexts

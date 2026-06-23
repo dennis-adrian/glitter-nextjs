@@ -39,6 +39,13 @@ export type RentalEligibilityContext = {
   standId: number;
   standLabel: string | null;
   standNumber: number;
+  reservationIds: number[];
+  stands: {
+    reservationId: number;
+    standId: number;
+    standLabel: string | null;
+    standNumber: number;
+  }[];
 };
 
 export type RentalEligibilityResult =

@@ -3,9 +3,13 @@
 import { useCartContext } from "@/app/components/providers/cart-provider";
 import { Button } from "@/app/components/ui/button";
 import { ShoppingCartIcon } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 export default function StoreSubheader() {
   const { itemCount, openCart } = useCartContext();
+  const pathname = usePathname();
+  const isListingPage = pathname === "/merch" || pathname === "/supplies";
+  const isSupplies = pathname === "/supplies";
 
   return (
     <div className="sticky top-16 md:top-20 z-40 bg-background border-b">
@@ -14,9 +18,13 @@ export default function StoreSubheader() {
           <h1 className="text-xl md:text-2xl font-bold tracking-tight">
             Tiendita Glitter
           </h1>
-          <p className="text-xs text-muted-foreground hidden sm:block">
-            Conseguí mercha oficial de nuestros festivales
-          </p>
+          {isListingPage && (
+            <p className="text-xs text-muted-foreground hidden sm:block">
+              {isSupplies
+                ? "Insumos para mejorar la presentación de tu stand"
+                : "Conseguí mercha oficial de nuestros festivales"}
+            </p>
+          )}
         </div>
 
         <Button

@@ -9,9 +9,19 @@ const RENTAL_ELIGIBILITY_FALLBACK: RentalEligibilityResult = {
   message: "No se pudo verificar la elegibilidad de alquiler.",
 };
 
-export default async function StoreProducts() {
+type StoreProductsProps = {
+  storeCategory?: "merch" | "supplies";
+  emptyTitle?: string;
+  emptyDescription?: string;
+};
+
+export default async function StoreProducts({
+  storeCategory = "merch",
+  emptyTitle = "No hay productos disponibles",
+  emptyDescription = "No hay productos disponibles en este momento. ¡Vuelve pronto!",
+}: StoreProductsProps) {
   const [productsResult, rentalEligibilityResult] = await Promise.allSettled([
-    fetchProducts("default", { visibleOnly: true }),
+    fetchProducts("default", { visibleOnly: true, storeCategory }),
     getRentalEligibilityForCurrentUser(),
   ]);
 
@@ -30,12 +40,8 @@ export default async function StoreProducts() {
   if (products.length === 0) {
     return (
       <div className="text-center py-12">
-        <h3 className="text-lg font-medium mb-2">
-          No hay productos disponibles
-        </h3>
-        <p className="text-muted-foreground">
-          No hay productos disponibles en este momento. ¡Vuelve pronto!
-        </p>
+        <h3 className="text-lg font-medium mb-2">{emptyTitle}</h3>
+        <p className="text-muted-foreground">{emptyDescription}</p>
       </div>
     );
   }

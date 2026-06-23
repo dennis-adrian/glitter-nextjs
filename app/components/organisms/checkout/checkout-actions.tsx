@@ -6,6 +6,7 @@ import RentalTransactionControls from "@/app/components/molecules/rental-transac
 import CheckoutConfirmButton from "@/app/components/organisms/checkout/checkout-confirm-button";
 import OrderDeliveryInfo from "@/app/components/molecules/order-delivery-info";
 import type { RentalEligibilityContext } from "@/app/lib/rentals/types";
+import { rentalContextIncludesReservation } from "@/app/lib/rentals/rental-context";
 
 type CheckoutActionsProps = {
   hasRentalItems: boolean;
@@ -30,9 +31,10 @@ export default function CheckoutActions({
 
   const selectedContext = useMemo(
     () =>
-      rentalContexts.find(
-        (context) => context.reservationId === selectedReservationId,
-      ) ?? rentalContexts[0] ??
+      rentalContexts.find((context) =>
+        rentalContextIncludesReservation(context, selectedReservationId),
+      ) ??
+      rentalContexts[0] ??
       null,
     [rentalContexts, selectedReservationId],
   );

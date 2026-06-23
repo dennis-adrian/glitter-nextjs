@@ -15,6 +15,10 @@ import type {
   ProductTransactionType,
   RentalEligibilityContext,
 } from "@/app/lib/rentals/types";
+import {
+  formatRentalContextStands,
+  rentalContextIncludesReservation,
+} from "@/app/lib/rentals/rental-context";
 
 type RentalTransactionControlsProps = {
   canPurchase: boolean;
@@ -38,9 +42,10 @@ export default function RentalTransactionControls({
   const showModeSelector = canPurchase && canRent;
   const selectedContext = useMemo(
     () =>
-      rentalContexts.find(
-        (context) => context.reservationId === selectedReservationId,
-      ) ?? rentalContexts[0] ??
+      rentalContexts.find((context) =>
+        rentalContextIncludesReservation(context, selectedReservationId),
+      ) ??
+      rentalContexts[0] ??
       null,
     [rentalContexts, selectedReservationId],
   );
@@ -62,12 +67,12 @@ export default function RentalTransactionControls({
             className="flex gap-4"
           >
             <div className="flex items-center gap-2">
-              <RadioGroupItem value="purchase" id="mode-purchase" />
-              <Label htmlFor="mode-purchase">Comprar</Label>
-            </div>
-            <div className="flex items-center gap-2">
               <RadioGroupItem value="rental" id="mode-rental" />
               <Label htmlFor="mode-rental">Alquilar</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="purchase" id="mode-purchase" />
+              <Label htmlFor="mode-purchase">Comprar</Label>
             </div>
           </RadioGroup>
         </div>
@@ -77,7 +82,7 @@ export default function RentalTransactionControls({
 
       {transactionType === "rental" && rentalContexts.length > 1 && (
         <div className="grid gap-2">
-          <Label>Festival / stand</Label>
+          <Label>Festival</Label>
           <Select
             value={
               selectedContext
@@ -97,8 +102,7 @@ export default function RentalTransactionControls({
                   key={context.reservationId}
                   value={String(context.reservationId)}
                 >
-                  {context.festivalName} · Stand {context.standNumber}
-                  {context.standLabel ? ` (${context.standLabel})` : ""}
+                  {context.festivalName} - {formatRentalContextStands(context)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -108,9 +112,8 @@ export default function RentalTransactionControls({
 
       {transactionType === "rental" && selectedContext && (
         <p className="text-xs text-muted-foreground">
-          Alquiler para {selectedContext.festivalName}, stand{" "}
-          {selectedContext.standNumber}
-          {selectedContext.standLabel ? ` (${selectedContext.standLabel})` : ""}
+          Alquiler para {selectedContext.festivalName},{" "}
+          {formatRentalContextStands(selectedContext)}
         </p>
       )}
     </div>

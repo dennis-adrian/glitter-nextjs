@@ -20,7 +20,7 @@ export default function OrdersList({ ordersPromise }: OrdersListProps) {
         <p className="text-muted-foreground mb-6">
           No tienes ningún pedido en este momento
         </p>
-        <RedirectButton href="/store">Ir a la tiendita Glitter</RedirectButton>
+        <RedirectButton href="/merch">Ir a la tiendita Glitter</RedirectButton>
       </div>
     );
   }

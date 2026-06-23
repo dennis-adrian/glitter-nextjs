@@ -585,18 +585,27 @@ export const standReservationsRelations = relations(
   }),
 );
 
-export const reservationParticipants = pgTable("participations", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  reservationId: integer("reservation_id")
-    .notNull()
-    .references(() => standReservations.id, { onDelete: "cascade" }),
-  hasStamp: boolean("has_stamp").default(false).notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const reservationParticipants = pgTable(
+  "participations",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    reservationId: integer("reservation_id")
+      .notNull()
+      .references(() => standReservations.id, { onDelete: "cascade" }),
+    hasStamp: boolean("has_stamp").default(false).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    unique("participations_user_reservation_unique").on(
+      table.userId,
+      table.reservationId,
+    ),
+  ],
+);
 export const participationsRelations = relations(
   reservationParticipants,
   ({ one }) => ({
@@ -1304,6 +1313,10 @@ export const productTransactionTypeEnum = pgEnum("product_transaction_type", [
   "purchase",
   "rental",
 ]);
+export const productStoreCategoryEnum = pgEnum("product_store_category", [
+  "merch",
+  "supplies",
+]);
 export const productRentalStockModeEnum = pgEnum("product_rental_stock_mode", [
   "shared",
   "separate",
@@ -1336,6 +1349,9 @@ export const products = pgTable("products", {
   isNew: boolean("is_new").default(true).notNull(),
   isFeatured: boolean("is_featured").default(false).notNull(),
   isVisible: boolean("is_visible").default(true).notNull(),
+  storeCategory: productStoreCategoryEnum("store_category")
+    .default("merch")
+    .notNull(),
   availableDate: timestamp("available_date"),
   discount: real("discount").default(0),
   discountUnit: discountUnitEnum("discount_unit")
