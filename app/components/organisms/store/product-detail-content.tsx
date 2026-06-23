@@ -80,7 +80,7 @@ export default function ProductDetailContent({
   const imageStockSignal = purchaseInStock || rentalInStock ? 1 : 0;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
+    <div className="flex flex-col md:flex-row gap-6">
       <StoreProductImages
         productName={product.name}
         stock={imageStockSignal}
@@ -88,7 +88,7 @@ export default function ProductDetailContent({
         selectedImageUrl={selectedImageUrl}
       />
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 w-full">
         <Heading level={2}>{product.name}</Heading>
 
         {product.description && (
