@@ -8,12 +8,18 @@ export function useNavbarProfile() {
   const { isLoaded, isSignedIn, user } = useUser();
   const [profile, setProfile] = useState<NavbarProfile | null>(null);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [profileFetchError, setProfileFetchError] = useState(false);
 
   const isLoadingProfile =
-    isSignedIn && isLoaded && user?.id != null && profileUserId !== user.id;
+    isSignedIn &&
+    isLoaded &&
+    user?.id != null &&
+    profileUserId !== user.id &&
+    !profileFetchError;
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user?.id) {
+      setProfileFetchError(false);
       return;
     }
 
@@ -22,6 +28,7 @@ export function useNavbarProfile() {
     }
 
     let isCurrent = true;
+    setProfileFetchError(false);
 
     fetch("/api/users/navbar-profile", { cache: "no-store" })
       .then((response) => {
@@ -41,6 +48,7 @@ export function useNavbarProfile() {
         console.error(error);
         if (isCurrent) {
           setProfile(null);
+          setProfileFetchError(true);
         }
       });
 

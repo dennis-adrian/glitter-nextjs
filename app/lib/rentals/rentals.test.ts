@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   getDefaultRentalReservationId,
@@ -276,6 +276,9 @@ describe("rental context resolution", () => {
   });
 
   it("selects the closest festival in time by default", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-02-01"));
+
     const contexts = [
       {
         festivalId: 1,
@@ -316,6 +319,8 @@ describe("rental context resolution", () => {
     ];
 
     expect(getDefaultRentalReservationId(contexts)).toBe(20);
+
+    vi.useRealTimers();
   });
 
   it("accepts any reservation in the selected festival context", () => {

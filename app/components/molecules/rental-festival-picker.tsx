@@ -11,7 +11,10 @@ import {
 import { Label } from "@/app/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/app/components/ui/radio-group";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
-import { formatRentalContextStands } from "@/app/lib/rentals/rental-context";
+import {
+  formatRentalContextStands,
+  rentalContextIncludesReservation,
+} from "@/app/lib/rentals/rental-context";
 import type { RentalEligibilityContext } from "@/app/lib/rentals/types";
 
 type RentalFestivalPickerDialogProps = {
@@ -30,6 +33,10 @@ export function RentalFestivalPickerDialog({
   onSelectedReservationIdChange,
 }: RentalFestivalPickerDialogProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
+  const selectedRadioReservationId =
+    rentalContexts.find((context) =>
+      rentalContextIncludesReservation(context, selectedReservationId),
+    )?.reservationId ?? selectedReservationId;
 
   function handleSelect(value: string) {
     onSelectedReservationIdChange(Number(value));
@@ -47,8 +54,8 @@ export function RentalFestivalPickerDialog({
         <div className={isDesktop ? "py-2" : "px-4 pb-4"}>
           <RadioGroup
             value={
-              selectedReservationId != null
-                ? String(selectedReservationId)
+              selectedRadioReservationId != null
+                ? String(selectedRadioReservationId)
                 : undefined
             }
             onValueChange={handleSelect}

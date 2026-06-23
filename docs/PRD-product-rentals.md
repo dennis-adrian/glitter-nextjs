@@ -529,6 +529,7 @@ type RentalEligibilityResult =
       contexts: Array<{
         festivalId: number;
         festivalName: string;
+        festivalStartDate: Date | null;
         reservationId: number; // representative reservation for current DB constraints
         standId: number; // representative stand for current DB constraints
         standLabel: string | null;

@@ -75,6 +75,7 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
   return (
     <Sheet>
       <SheetTrigger
+        aria-label="Open navigation menu"
         className="cursor-default hover:bg-primary-200/30 hover:text-primary-700"
         variant="outline"
         size="icon"
