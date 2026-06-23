@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import SubmitProductOrderButton from "@/app/components/molecules/submit-product-order-button";
 import RentalTransactionControls from "@/app/components/molecules/rental-transaction-controls";
+import TransactionModeCards from "@/app/components/molecules/transaction-mode-cards";
 import ProductContentSectionsDisplay from "@/app/components/molecules/product-content-sections-display";
 import { useCartContext } from "@/app/components/providers/cart-provider";
 import { Button } from "@/app/components/ui/button";
@@ -122,6 +123,7 @@ export default function StoreItemQuantityInput({
   const { setItemCount, isAuthenticated, addGuestItem } = useCartContext();
   const canPurchase = product.isPurchasable;
   const canRent = product.isRentable && rentalEligible && isAuthenticated;
+  const showDualMode = canPurchase && canRent;
   const defaultTransactionType: ProductTransactionType = canRent
     ? "rental"
     : canPurchase
@@ -198,6 +200,14 @@ export default function StoreItemQuantityInput({
     setQuantity(1);
   }, [product.id, visibleVariantKey, options, hasVariants, variants]);
 
+  useEffect(() => {
+    if (!isSelectedReservationControlled) {
+      setInternalSelectedReservationId(
+        getDefaultRentalReservationId(rentalContexts),
+      );
+    }
+  }, [product.id, rentalContexts, isSelectedReservationControlled]);
+
   const selectedVariant = hasVariants
     ? (variants.find((variant) =>
         variantMatchesSelection(variant, selectedOptionValueIds),
@@ -272,6 +282,18 @@ export default function StoreItemQuantityInput({
     ) ??
     rentalContexts[0] ??
     null;
+  const purchaseCardPrice = selectedVariant
+    ? getProductPriceAtPurchase(product, selectedVariant)
+    : hasVariants
+      ? Math.min(
+          ...variants.map((variant) =>
+            getProductPriceAtPurchase(product, variant),
+          ),
+        )
+      : getProductPriceAtPurchase(product);
+  const rentalCardPrice =
+    product.rentalPrice != null ? getRentalPriceAtPurchase(product) : 0;
+  const hideModeSelector = hideTransactionModeSelector || showDualMode;
 
   useEffect(() => {
     setQuantity((current) => Math.min(current, maxQuantity));
@@ -395,6 +417,20 @@ export default function StoreItemQuantityInput({
 
   return (
     <div className={`flex flex-col gap-4 ${compact ? "" : "mt-4"}`}>
+      {showDualMode && (
+        <TransactionModeCards
+          transactionType={transactionType}
+          onTransactionTypeChange={setTransactionType}
+          purchasePrice={purchaseCardPrice}
+          rentalPrice={rentalCardPrice}
+          purchasePricePrefix={hasVariants ? "Desde " : ""}
+          rentalContexts={rentalContexts}
+          selectedReservationId={selectedReservationId}
+          onSelectedReservationIdChange={setSelectedReservationId}
+          selectedRentalContext={selectedRentalContext}
+        />
+      )}
+
       {canRent && (
         <RentalTransactionControls
           canPurchase={canPurchase}
@@ -404,7 +440,7 @@ export default function StoreItemQuantityInput({
           rentalContexts={rentalContexts}
           selectedReservationId={selectedReservationId}
           onSelectedReservationIdChange={setSelectedReservationId}
-          hideModeSelector={hideTransactionModeSelector}
+          hideModeSelector={hideModeSelector}
         />
       )}
 

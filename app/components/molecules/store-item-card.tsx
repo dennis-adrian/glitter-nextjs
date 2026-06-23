@@ -64,8 +64,15 @@ export default function StoreItemCard({
   const isPresale = product.status === "presale";
   const showRentalBadge = product.isRentable && rentalEligible && rentalInStock;
   const isRentalOnly = rentalInStock && !purchaseInStock;
+  const showDualMode =
+    purchaseInStock &&
+    rentalInStock &&
+    product.isRentable &&
+    rentalEligible &&
+    isAuthenticated;
   const needsRentalContextPicker = isRentalOnly && rentalContexts.length > 1;
-  const shouldOpenModal = shouldUseQuickAddModal || needsRentalContextPicker;
+  const shouldOpenModal =
+    shouldUseQuickAddModal || needsRentalContextPicker || showDualMode;
 
   const purchasePrices = hasVariants
     ? variants.map((variant) => ({
@@ -296,9 +303,11 @@ export default function StoreItemCard({
             <DialogHeader>
               <DialogTitle>{product.name}</DialogTitle>
               <DialogDescription>
-                {shouldUseQuickAddModal
-                  ? "Selecciona una variante para agregarla al carrito."
-                  : "Selecciona el festival para alquilar."}
+                {showDualMode
+                  ? "Selecciona cómo quieres obtener el producto."
+                  : shouldUseQuickAddModal
+                    ? "Selecciona una variante para agregarla al carrito."
+                    : "Selecciona el festival para alquilar."}
               </DialogDescription>
             </DialogHeader>
             <StoreItemQuantityInput

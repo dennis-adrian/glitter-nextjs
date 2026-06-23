@@ -1,11 +1,10 @@
 "use client";
 
 import { ClockIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import Heading from "@/app/components/atoms/heading";
 import StoreItemQuantityInput from "@/app/components/molecules/store-item-quantity-input";
-import TransactionModeCards from "@/app/components/molecules/transaction-mode-cards";
 import StoreProductImages from "@/app/components/molecules/store-product-images";
 import { useCartContext } from "@/app/components/providers/cart-provider";
 import { formatDate } from "@/app/lib/formatters";
@@ -17,11 +16,6 @@ import {
   BaseProductWithImages,
   ProductVariantWithSelections,
 } from "@/app/lib/products/definitions";
-import type { ProductTransactionType } from "@/app/lib/rentals/types";
-import {
-  getDefaultRentalReservationId,
-  rentalContextIncludesReservation,
-} from "@/app/lib/rentals/rental-context";
 import {
   getProductStoreAvailability,
   getProductVariantImageUrl,
@@ -96,29 +90,6 @@ export default function ProductDetailContent({
     rentalInStock &&
     product.rentalPrice != null;
   const showDualMode = canPurchase && canRent;
-  const [transactionType, setTransactionType] =
-    useState<ProductTransactionType>("rental");
-  const [selectedReservationId, setSelectedReservationId] = useState<
-    number | null
-  >(() => getDefaultRentalReservationId(rentalContexts));
-
-  const selectedRentalContext = useMemo(
-    () =>
-      rentalContexts.find((context) =>
-        rentalContextIncludesReservation(context, selectedReservationId),
-      ) ??
-      rentalContexts[0] ??
-      null,
-    [rentalContexts, selectedReservationId],
-  );
-
-  useEffect(() => {
-    setTransactionType(canRent ? "rental" : "purchase");
-  }, [product.id, canRent]);
-
-  useEffect(() => {
-    setSelectedReservationId(getDefaultRentalReservationId(rentalContexts));
-  }, [product.id, rentalContexts]);
 
   const imageStockSignal = purchaseInStock || rentalInStock ? 1 : 0;
   const rentalPrice = canRent ? getRentalPriceAtPurchase(product) : null;
@@ -143,19 +114,7 @@ export default function ProductDetailContent({
           </p>
         )}
 
-        {showDualMode ? (
-          <TransactionModeCards
-            transactionType={transactionType}
-            onTransactionTypeChange={setTransactionType}
-            purchasePrice={price}
-            rentalPrice={rentalPrice!}
-            purchasePricePrefix={hasVariants ? "Desde " : ""}
-            rentalContexts={rentalContexts}
-            selectedReservationId={selectedReservationId}
-            onSelectedReservationIdChange={setSelectedReservationId}
-            selectedRentalContext={selectedRentalContext}
-          />
-        ) : showRentalOnlyPrice ? (
+        {showDualMode ? null : showRentalOnlyPrice ? (
           <div className="flex flex-col gap-1">
             <span className="text-xs font-semibold uppercase tracking-wide text-primary">
               Alquiler
@@ -198,17 +157,6 @@ export default function ProductDetailContent({
           rentalEligible={rentalEligible}
           rentalContexts={rentalContexts}
           onSelectedVariantChange={handleSelectedVariantChange}
-          transactionType={showDualMode ? transactionType : undefined}
-          onTransactionTypeChange={
-            showDualMode ? setTransactionType : undefined
-          }
-          hideTransactionModeSelector={showDualMode}
-          selectedReservationId={
-            showDualMode ? selectedReservationId : undefined
-          }
-          onSelectedReservationIdChange={
-            showDualMode ? setSelectedReservationId : undefined
-          }
         />
       </div>
     </div>
