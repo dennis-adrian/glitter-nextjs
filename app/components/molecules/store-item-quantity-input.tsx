@@ -1,17 +1,16 @@
 "use client";
 
-import { MinusIcon, PlusIcon } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import SubmitProductOrderButton from "@/app/components/molecules/submit-product-order-button";
+import StoreItemQuantityStepper from "@/app/components/molecules/store-item-quantity-stepper";
 import RentalTransactionControls from "@/app/components/molecules/rental-transaction-controls";
 import TransactionModeCards from "@/app/components/molecules/transaction-mode-cards";
 import ProductContentSectionsDisplay from "@/app/components/molecules/product-content-sections-display";
 import { useCartContext } from "@/app/components/providers/cart-provider";
 import { Button } from "@/app/components/ui/button";
-import { Input } from "@/app/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -45,6 +44,7 @@ import {
   getTransactionPoolRemainingStock,
 } from "@/app/lib/rentals/stock";
 import {
+  getProductStoreAvailability,
   getProductVariantImageUrl,
   getVariantLabel,
 } from "@/app/lib/products/variants";
@@ -121,8 +121,17 @@ export default function StoreItemQuantityInput({
   onSelectedReservationIdChange,
 }: StoreItemQuantityInputProps) {
   const { setItemCount, isAuthenticated, addGuestItem } = useCartContext();
-  const canPurchase = product.isPurchasable;
-  const canRent = product.isRentable && rentalEligible && isAuthenticated;
+  const { purchaseInStock, rentalInStock } = getProductStoreAvailability(
+    product,
+    rentalEligible,
+  );
+  const canPurchase = product.isPurchasable && purchaseInStock;
+  const canRent =
+    product.isRentable &&
+    rentalEligible &&
+    isAuthenticated &&
+    rentalInStock &&
+    product.rentalPrice != null;
   const showDualMode = canPurchase && canRent;
   const defaultTransactionType: ProductTransactionType = canRent
     ? "rental"
@@ -550,69 +559,42 @@ export default function StoreItemQuantityInput({
         </div>
       )}
 
-      {inStock && (
-        <div className="flex flex-col items-end gap-1 self-end">
-          <p className="self-start text-sm font-medium">Cantidad</p>
-          <div className="flex gap-1">
-            <Button
-              variant="outline"
-              size="icon"
-              type="button"
-              onClick={() =>
-                setQuantity((current) => clampQuantity(current - 1))
-              }
-              disabled={quantity <= 1}
-            >
-              <MinusIcon className="w-4 h-4" />
-            </Button>
-            <Input
-              className="w-16"
-              type="number"
-              min={1}
-              max={maxQuantity}
-              value={quantity}
-              onChange={(event) =>
-                setQuantity(clampQuantity(Number(event.target.value)))
-              }
-              onBlur={() => setQuantity((current) => clampQuantity(current))}
-            />
-            <Button
-              variant="outline"
-              size="icon"
-              type="button"
-              onClick={() =>
-                setQuantity((current) => clampQuantity(current + 1))
-              }
-              disabled={quantity >= maxQuantity}
-            >
-              <PlusIcon className="w-4 h-4" />
-            </Button>
-          </div>
-          <span className="text-sm">
-            Subtotal Bs{subtotal.toFixed(2)}
-            {transactionType === "rental" ? " (alquiler)" : ""}
-          </span>
+      {inStock ? (
+        <div className="flex items-stretch gap-3">
+          <StoreItemQuantityStepper
+            quantity={quantity}
+            max={maxQuantity}
+            onDecrease={() =>
+              setQuantity((current) => clampQuantity(current - 1))
+            }
+            onIncrease={() =>
+              setQuantity((current) => clampQuantity(current + 1))
+            }
+          />
+          <SubmitProductOrderButton
+            className="flex-1"
+            disabled={
+              submitting ||
+              (hasVariants && !selectedVariant) ||
+              (transactionType === "rental" && !selectedRentalContext)
+            }
+            loading={submitting}
+            inStock={inStock}
+            isPresale={product.status === "presale"}
+            onClick={handleAddToCart}
+            transactionType={transactionType}
+            unitPrice={unitPrice}
+            subtotal={subtotal}
+          />
         </div>
+      ) : (
+        <SubmitProductOrderButton
+          disabled={submitting}
+          loading={submitting}
+          inStock={false}
+          isPresale={product.status === "presale"}
+        />
       )}
-
-      <SubmitProductOrderButton
-        disabled={
-          submitting ||
-          (hasVariants && !selectedVariant) ||
-          (transactionType === "rental" && !selectedRentalContext)
-        }
-        loading={submitting}
-        inStock={inStock}
-        isPresale={product.status === "presale"}
-        onClick={handleAddToCart}
-        label={
-          transactionType === "rental"
-            ? "Alquilar"
-            : product.status === "presale"
-              ? "Reservar"
-              : undefined
-        }
-      />
     </div>
   );
 }

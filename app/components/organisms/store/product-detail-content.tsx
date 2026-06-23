@@ -119,12 +119,9 @@ export default function ProductDetailContent({
             <span className="text-xs font-semibold uppercase tracking-wide text-primary">
               Alquiler
             </span>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-semibold">
-                Bs{rentalPrice!.toFixed(2)}
-              </span>
-              <span className="text-base text-muted-foreground">/día</span>
-            </div>
+            <span className="text-3xl font-semibold">
+              Bs{rentalPrice!.toFixed(2)}
+            </span>
           </div>
         ) : showPurchaseOnlyPrice ? (
           <div className="flex items-baseline gap-2">
