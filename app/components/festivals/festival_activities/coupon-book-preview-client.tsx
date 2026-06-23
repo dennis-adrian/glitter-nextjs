@@ -109,9 +109,9 @@ export default function CouponBookPreviewClient({
   const [saveState, setSaveState] = useState<
     "idle" | "saving" | "saved" | "error" | "conflict"
   >("idle");
-  const [exportState, setExportState] = useState<
-    "idle" | "loading" | "error"
-  >("idle");
+  const [exportState, setExportState] = useState<"idle" | "loading" | "error">(
+    "idle",
+  );
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const pageFrameRef = useRef<HTMLDivElement | null>(null);
@@ -554,8 +554,9 @@ export default function CouponBookPreviewClient({
             reconciliation.changedParticipationIds.length > 0) ? (
             <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950 space-y-2">
               <p>
-                Los datos de participantes cambiaron desde la última configuración
-                guardada: {reconciliation.newParticipationIds.length} nuevo(s),{" "}
+                Los datos de participantes cambiaron desde la última
+                configuración guardada:{" "}
+                {reconciliation.newParticipationIds.length} nuevo(s),{" "}
                 {reconciliation.removedParticipationIds.length} removido(s),{" "}
                 {reconciliation.changedParticipationIds.length} modificado(s).
               </p>

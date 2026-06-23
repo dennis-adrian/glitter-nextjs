@@ -104,7 +104,11 @@ const DraftCouponBookSchema = z.object({
 
 const CouponBookDraftGlobalSettingsSchema = z.object({
   pdfCanvas: PdfCanvasConfigSchema,
-  dynamicCouponsPerPage: z.number().int().min(1).max(MAX_DYNAMIC_COUPONS_PER_PAGE),
+  dynamicCouponsPerPage: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_DYNAMIC_COUPONS_PER_PAGE),
   participantInclusionMode: z.enum(["approved_only", "approved_and_pending"]),
   globalLayout: CouponTextLayoutConfigSchema,
 });
@@ -206,7 +210,9 @@ export const CouponBookDraftSchema = z
 
 export type ParsedCouponBookDraft = z.infer<typeof CouponBookDraftSchema>;
 
-export function parseCouponBookDraft(value: unknown): ParsedCouponBookDraft | null {
+export function parseCouponBookDraft(
+  value: unknown,
+): ParsedCouponBookDraft | null {
   const result = CouponBookDraftSchema.safeParse(value);
   return result.success ? result.data : null;
 }

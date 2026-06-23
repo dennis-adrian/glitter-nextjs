@@ -41,7 +41,10 @@ export async function createCouponBookPrintSession(input: {
 
 export async function getCouponBookPrintSession(
   sessionId: string,
-): Promise<{ draft: CouponBookDraft; exportScope: CouponBookExportScope } | null> {
+): Promise<{
+  draft: CouponBookDraft;
+  exportScope: CouponBookExportScope;
+} | null> {
   await purgeExpiredSessions();
   const row = await db.query.couponBookPrintSessions.findFirst({
     where: eq(couponBookPrintSessions.id, sessionId),
@@ -56,11 +59,7 @@ export async function getCouponBookPrintSession(
   }
 
   const payload = row.payload;
-  if (
-    payload == null ||
-    typeof payload !== "object" ||
-    !("draft" in payload)
-  ) {
+  if (payload == null || typeof payload !== "object" || !("draft" in payload)) {
     await db
       .delete(couponBookPrintSessions)
       .where(eq(couponBookPrintSessions.id, sessionId));

@@ -167,10 +167,7 @@ export async function markRentalOrderItemReturned(
     };
   }
 
-  if (
-    payload.conditionStatus !== "good" &&
-    !payload.notes?.trim()
-  ) {
+  if (payload.conditionStatus !== "good" && !payload.notes?.trim()) {
     return {
       success: false,
       error: "notes_required",

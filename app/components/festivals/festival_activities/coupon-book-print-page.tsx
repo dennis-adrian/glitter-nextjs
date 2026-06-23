@@ -73,8 +73,7 @@ export default function CouponBookPrintPage({
 }: CouponBookPrintPageProps) {
   const resolvedCourtesy = courtesyEntry ?? COURTESY_COUPON_ENTRY;
   const canSelect = interactive && Boolean(onSelectCoupon);
-  const dynamicSlotCount =
-    page.dynamicSlotCount ?? 1 + page.bodyEntries.length;
+  const dynamicSlotCount = page.dynamicSlotCount ?? 1 + page.bodyEntries.length;
   const { totalRows, bodyRows } = computeCouponBookGridLayout(dynamicSlotCount);
   const lastBodyRow = bodyRows === 0 ? 1 : 1 + bodyRows;
 
@@ -278,7 +277,9 @@ export default function CouponBookPrintPage({
               borderRight: col < 5 ? "2px dashed #111" : undefined,
               ...slotShellStyle({
                 selected:
-                  canSelect && couponId !== null && selectedCouponId === couponId,
+                  canSelect &&
+                  couponId !== null &&
+                  selectedCouponId === couponId,
                 onClick:
                   canSelect && couponId
                     ? () => onSelectCoupon?.(couponId)
@@ -286,7 +287,9 @@ export default function CouponBookPrintPage({
               }),
             }}
             onClick={
-              canSelect && couponId ? () => onSelectCoupon?.(couponId) : undefined
+              canSelect && couponId
+                ? () => onSelectCoupon?.(couponId)
+                : undefined
             }
             onKeyDown={
               canSelect && couponId

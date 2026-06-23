@@ -10,10 +10,7 @@ export function useNavbarProfile() {
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   const isLoadingProfile =
-    isSignedIn &&
-    isLoaded &&
-    user?.id != null &&
-    profileUserId !== user.id;
+    isSignedIn && isLoaded && user?.id != null && profileUserId !== user.id;
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user?.id) {
@@ -53,8 +50,7 @@ export function useNavbarProfile() {
   }, [isLoaded, isSignedIn, user?.id, profileUserId]);
 
   return {
-    profile:
-      isSignedIn && profileUserId === user?.id ? profile : null,
+    profile: isSignedIn && profileUserId === user?.id ? profile : null,
     isLoading: !isLoaded || isLoadingProfile,
   };
 }

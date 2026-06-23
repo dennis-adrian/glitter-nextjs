@@ -34,7 +34,10 @@ const RENTAL_FILTER_OPTIONS: { value: RentalOrderFilter; label: string }[] = [
   { value: "all", label: getRentalOrderFilterLabel("all") },
   { value: "has_rental", label: getRentalOrderFilterLabel("has_rental") },
   { value: "out", label: getRentalOrderFilterLabel("out") },
-  { value: "partially_returned", label: getRentalOrderFilterLabel("partially_returned") },
+  {
+    value: "partially_returned",
+    label: getRentalOrderFilterLabel("partially_returned"),
+  },
   { value: "returned", label: getRentalOrderFilterLabel("returned") },
 ];
 

@@ -223,7 +223,9 @@ export function validateCombinedSharedStockDemand(
       const lineVariantId = line.productVariantId ?? null;
       const targetVariantId = variant?.id ?? null;
       if (lineVariantId !== targetVariantId) return false;
-      return getStockPoolForTransaction(product, line.transactionType) === "sale";
+      return (
+        getStockPoolForTransaction(product, line.transactionType) === "sale"
+      );
     })
     .reduce((sum, line) => sum + line.quantity, 0);
 

@@ -161,7 +161,10 @@ export default async function OrderDetailPage({
                 });
 
                 return (
-                  <div key={item.id} className="space-y-3 border-b pb-4 last:border-b-0">
+                  <div
+                    key={item.id}
+                    className="space-y-3 border-b pb-4 last:border-b-0"
+                  >
                     <div className="flex items-center gap-3">
                       <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md border bg-muted">
                         {imageUrl ? (
@@ -192,7 +195,8 @@ export default async function OrderDetailPage({
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {item.quantity} × {formatCurrency(item.priceAtPurchase)}
+                          {item.quantity} ×{" "}
+                          {formatCurrency(item.priceAtPurchase)}
                         </p>
                       </div>
                       <p className="text-sm font-semibold shrink-0">
@@ -202,12 +206,12 @@ export default async function OrderDetailPage({
 
                     {Array.isArray(item.rentalContentSectionsSnapshot) &&
                       item.rentalContentSectionsSnapshot.length > 0 && (
-                      <ProductContentSectionsDisplay
-                        sections={
-                          item.rentalContentSectionsSnapshot as RentalContentSectionSnapshot[]
-                        }
-                      />
-                    )}
+                        <ProductContentSectionsDisplay
+                          sections={
+                            item.rentalContentSectionsSnapshot as RentalContentSectionSnapshot[]
+                          }
+                        />
+                      )}
 
                     {item.transactionType === "rental" && (
                       <RentalReturnForm
@@ -221,14 +225,17 @@ export default async function OrderDetailPage({
               })}
               {returnLogs.length > 0 && (
                 <div className="space-y-2 border-t pt-4">
-                  <p className="text-sm font-medium">Historial de devoluciones</p>
+                  <p className="text-sm font-medium">
+                    Historial de devoluciones
+                  </p>
                   {returnLogs.map((log) => (
                     <div
                       key={log.id}
                       className="rounded-md border p-3 text-xs text-muted-foreground"
                     >
                       <p>
-                        {log.quantityReturned} unidad(es) · {log.conditionStatus}
+                        {log.quantityReturned} unidad(es) ·{" "}
+                        {log.conditionStatus}
                       </p>
                       {log.notes && <p>{log.notes}</p>}
                       <p>

@@ -50,10 +50,7 @@ type CouponBookEditorPanelProps = {
   emptySlots: number;
   onReset: () => void;
   onDraftChange: (next: CouponBookDraft) => void;
-  onUpdateCoupon: (
-    couponId: string,
-    patch: Partial<DraftCouponEntry>,
-  ) => void;
+  onUpdateCoupon: (couponId: string, patch: Partial<DraftCouponEntry>) => void;
   onRestoreCoupon: (couponId: string) => void;
   onClearCouponOverride: (couponId: string) => void;
   onMoveCoupon: (targetPageId: string) => void;
@@ -208,7 +205,11 @@ export default function CouponBookEditorPanel({
   };
 
   const patchGlobalRoot = (
-    key: "leftColumnWidthPct" | "standFontSizeMm" | "sectorFontSizeMm" | "headerImageScalePct",
+    key:
+      | "leftColumnWidthPct"
+      | "standFontSizeMm"
+      | "sectorFontSizeMm"
+      | "headerImageScalePct",
     value: string,
     min: number,
     max: number,
@@ -393,7 +394,8 @@ export default function CouponBookEditorPanel({
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            Páginas: {pageCount} · Slots vacíos: {emptySlots} (+ 1 cortesía fija)
+            Páginas: {pageCount} · Slots vacíos: {emptySlots} (+ 1 cortesía
+            fija)
           </p>
         </div>
 
@@ -586,7 +588,8 @@ export default function CouponBookEditorPanel({
                   ...draft.globalSettings,
                   pdfCanvas: {
                     ...pdfCanvas,
-                    orientation: value === "portrait" ? "portrait" : "landscape",
+                    orientation:
+                      value === "portrait" ? "portrait" : "landscape",
                   },
                 },
               })

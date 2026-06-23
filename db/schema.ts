@@ -557,12 +557,17 @@ export const standReservations = pgTable(
       .references(() => stands.id),
     festivalId: integer("festival_id").notNull(),
     status: reservationStatusEnum("status").default("pending").notNull(),
-    source: reservationSourceEnum("source").default("user_reservation").notNull(),
+    source: reservationSourceEnum("source")
+      .default("user_reservation")
+      .notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
-    uniqueIndex("stand_reservations_id_festival_id_unique").on(t.id, t.festivalId),
+    uniqueIndex("stand_reservations_id_festival_id_unique").on(
+      t.id,
+      t.festivalId,
+    ),
   ],
 );
 export const standReservationsRelations = relations(

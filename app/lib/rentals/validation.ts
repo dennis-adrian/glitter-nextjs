@@ -13,9 +13,7 @@ import {
 export function validateProductContentSection(
   section: ProductContentSectionInput,
 ): string | null {
-  if (
-    !productContentSectionFormatEnum.enumValues.includes(section.format)
-  ) {
+  if (!productContentSectionFormatEnum.enumValues.includes(section.format)) {
     return "El formato de la sección no es válido.";
   }
 
@@ -38,7 +36,9 @@ export function validateProductContentSection(
     return null;
   }
 
-  const items = (section.items ?? []).map((item) => item.trim()).filter(Boolean);
+  const items = (section.items ?? [])
+    .map((item) => item.trim())
+    .filter(Boolean);
   if (items.length === 0) {
     return "Las listas deben tener al menos un elemento.";
   }

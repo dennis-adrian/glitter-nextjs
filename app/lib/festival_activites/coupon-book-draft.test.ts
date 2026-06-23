@@ -157,10 +157,7 @@ describe("coupon-book-draft", () => {
     expect(getDraftBookPages(draft, draft.books[0].id)).toHaveLength(2);
 
     const narrowed = setParticipantInclusionMode(draft, "approved_only");
-    const reflowed = reflowDraftPages(
-      narrowed,
-      2,
-    );
+    const reflowed = reflowDraftPages(narrowed, 2);
     const pages = getDraftBookPages(reflowed, reflowed.books[0].id);
     expect(pages).toHaveLength(1);
     expect(pages[0].slotCouponIds[0]).toBe("participant-1");
@@ -224,7 +221,11 @@ describe("coupon-book-draft", () => {
     const sourceDraft = updateDraftCouponEntry(draft, "participant-1", {
       participantName: "Nombre fuente",
     });
-    const merged = mergeDraftWithSource(withOverride, sourceDraft, sampleVariants);
+    const merged = mergeDraftWithSource(
+      withOverride,
+      sourceDraft,
+      sampleVariants,
+    );
     expect(merged.entries["participant-1"].participantName).toBe(
       "Nombre fuente",
     );
@@ -269,10 +270,7 @@ describe("coupon-book-draft", () => {
     const merged = mergeDraftWithSource(draft, sourceDraft, sampleVariants);
 
     expect(merged.books).toHaveLength(2);
-    expect(merged.books.map((book) => book.id)).toEqual([
-      "book-10",
-      "book-11",
-    ]);
+    expect(merged.books.map((book) => book.id)).toEqual(["book-10", "book-11"]);
     expect(merged.entries["participant-3"]?.participantName).toBe("Gamma");
   });
 
@@ -501,7 +499,11 @@ describe("coupon-book-draft", () => {
       ],
     });
 
-    const redistributed = updateVariantCouponCount(draft, draft.books[0].id, 18);
+    const redistributed = updateVariantCouponCount(
+      draft,
+      draft.books[0].id,
+      18,
+    );
     const assignments = partitionParticipantsAcrossBooks(redistributed);
 
     expect(redistributed.books[0].variantCouponCount).toBe(18);

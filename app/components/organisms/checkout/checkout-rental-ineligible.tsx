@@ -23,9 +23,7 @@ export default function CheckoutRentalIneligible({
         <Button variant="outline" onClick={() => router.push("/merch")}>
           Volver a la tienda
         </Button>
-        <Button onClick={() => openCart()}>
-          Ver carrito
-        </Button>
+        <Button onClick={() => openCart()}>Ver carrito</Button>
       </div>
     </div>
   );
