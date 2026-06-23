@@ -4,6 +4,7 @@ import {
   buildInitialCouponBookDraft,
   countCouponVisibility,
   countEmptySlotsOnPage,
+  draftEntryToCouponBookEntry,
   draftPageToCouponBookPage,
   getDraftBookPages,
   mergeDraftWithSource,
@@ -17,7 +18,10 @@ import {
   partitionParticipantsAcrossBooks,
 } from "@/app/lib/festival_activites/coupon-book-draft";
 import { isCouponBookDraft } from "@/app/lib/festival_activites/coupon-book-draft";
-import { DEFAULT_COUPON_TEXT_LAYOUT_CONFIG } from "@/app/lib/festival_activites/coupon-book-builder";
+import {
+  COURTESY_COUPON_ENTRY,
+  DEFAULT_COUPON_TEXT_LAYOUT_CONFIG,
+} from "@/app/lib/festival_activites/coupon-book-builder";
 
 const sampleVariants = [
   {
@@ -64,6 +68,21 @@ describe("coupon-book-draft", () => {
     expect(draft.entries[draft.courtesyCouponId]?.type).toBe("courtesy");
     expect(Object.keys(draft.entries)).toHaveLength(3);
     expect(getDraftBookPages(draft, draft.books[0].id)).toHaveLength(1);
+  });
+
+  it("falls back to the default courtesy logo for older drafts without an image", () => {
+    const draft = buildInitialCouponBookDraft({
+      festivalId: 1,
+      activityId: 2,
+      variants: sampleVariants,
+    });
+    const courtesy = draft.entries[draft.courtesyCouponId];
+    const rendered = draftEntryToCouponBookEntry({
+      ...courtesy,
+      imageUrl: null,
+    });
+
+    expect(rendered.imageUrl).toBe(COURTESY_COUPON_ENTRY.imageUrl);
   });
 
   it("respects participant inclusion mode counts", () => {

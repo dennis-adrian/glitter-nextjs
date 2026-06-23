@@ -274,6 +274,12 @@ export function mergeLayoutWithOverride(
 export function draftEntryToCouponBookEntry(
   entry: DraftCouponEntry,
 ): CouponBookEntry {
+  const imageUrl =
+    entry.imageUrl ??
+    (entry.type === "courtesy"
+      ? (entry.sourceSnapshot?.imageUrl ?? COURTESY_COUPON_ENTRY.imageUrl)
+      : null);
+
   return {
     participationId: entry.participationId,
     participantName: entry.participantName,
@@ -282,7 +288,7 @@ export function draftEntryToCouponBookEntry(
     promoHighlight: entry.promoHighlight,
     promoDescription: entry.promoDescription,
     promoConditions: entry.promoConditions,
-    imageUrl: entry.imageUrl,
+    imageUrl,
     proofStatus: entry.proofStatus,
   };
 }
