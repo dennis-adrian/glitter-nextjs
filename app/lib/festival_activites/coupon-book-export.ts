@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import type { Page } from "playwright";
+import type { Page, Response as PlaywrightResponse } from "playwright";
 
 import {
   CouponBookDraft,
@@ -120,7 +120,7 @@ export async function generateCouponBookPdf(input: {
     pdfCanvas,
     fileName: `cuponera-${input.activityId}-${input.fileNameSuffix}.pdf`,
     loadPage: async (page) => {
-      await page.goto(printUrl.toString(), { waitUntil: "load" });
+      return page.goto(printUrl.toString(), { waitUntil: "load" });
     },
   });
 }
@@ -163,7 +163,7 @@ export async function generateDraftCouponBookPdf(input: {
       pdfCanvas,
       fileName: `cuponera-${input.activityId}-${input.fileNameSuffix}.pdf`,
       loadPage: async (page) => {
-        await page.goto(printUrl.toString(), { waitUntil: "load" });
+        return page.goto(printUrl.toString(), { waitUntil: "load" });
       },
     });
   } finally {
@@ -175,7 +175,7 @@ export async function renderCouponBookPdf(input: {
   request: NextRequest;
   pdfCanvas: ReturnType<typeof resolvePdfCanvasConfig>;
   fileName: string;
-  loadPage: (page: Page) => Promise<void>;
+  loadPage: (page: Page) => Promise<PlaywrightResponse | null | void>;
 }): Promise<Response> {
   let playwrightModule: typeof import("playwright");
   try {
@@ -215,10 +215,45 @@ export async function renderCouponBookPdf(input: {
       }
     }
     const page = await browserContext.newPage();
-    await input.loadPage(page);
-    await page.waitForSelector("[data-couponbook-print-ready='true']", {
-      timeout: 10000,
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => {
+      pageErrors.push(error.message);
     });
+
+    const response = await input.loadPage(page);
+    if (response && !response.ok()) {
+      const bodyText = await page.locator("body").innerText().catch(() => "");
+      console.error("Coupon book print page failed to load", {
+        status: response.status(),
+        url: response.url(),
+        bodyText: bodyText.slice(0, 500),
+      });
+      return new Response(
+        "No se pudo cargar la página de impresión de la cuponera.",
+        { status: 500 },
+      );
+    }
+
+    try {
+      await page.waitForSelector("[data-couponbook-print-ready='true']", {
+        state: "attached",
+        timeout: 30000,
+      });
+    } catch (error) {
+      const bodyText = await page.locator("body").innerText().catch(() => "");
+      const title = await page.title().catch(() => "");
+      console.error("Coupon book print page did not become ready", {
+        title,
+        url: page.url(),
+        pageErrors,
+        bodyText: bodyText.slice(0, 500),
+        error,
+      });
+      return new Response(
+        "La página de impresión de la cuponera tardó demasiado en cargar.",
+        { status: 500 },
+      );
+    }
     await page.evaluate(() => {
       const printableRoot = document.querySelector<HTMLElement>(
         "[data-couponbook-print-ready='true']",
