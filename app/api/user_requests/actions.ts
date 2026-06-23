@@ -295,10 +295,18 @@ export async function updateReservationSimple(
               .where(eq(reservationParticipants.id, partner.participationId));
           }
         } else if (partner.userId) {
-          await tx.insert(reservationParticipants).values({
-            userId: partner.userId,
-            reservationId: id,
-          });
+          await tx
+            .insert(reservationParticipants)
+            .values({
+              userId: partner.userId,
+              reservationId: id,
+            })
+            .onConflictDoNothing({
+              target: [
+                reservationParticipants.userId,
+                reservationParticipants.reservationId,
+              ],
+            });
         }
       }
     });
@@ -386,8 +394,8 @@ export async function updateReservation(id: number, data: ReservationUpdate) {
         .set({ status: standStatus, updatedAt: new Date() })
         .where(eq(stands.id, standId));
 
-      if (updatedParticipants && updatedParticipants?.length > 0) {
-        updatedParticipants.forEach(async (participant) => {
+      if (updatedParticipants && updatedParticipants.length > 0) {
+        for (const participant of updatedParticipants) {
           if (participant.participationId) {
             if (participant.userId) {
               await tx
@@ -403,15 +411,21 @@ export async function updateReservation(id: number, data: ReservationUpdate) {
                   eq(reservationParticipants.id, participant.participationId),
                 );
             }
-          } else {
-            if (participant.userId) {
-              await tx.insert(reservationParticipants).values({
+          } else if (participant.userId) {
+            await tx
+              .insert(reservationParticipants)
+              .values({
                 userId: participant.userId,
                 reservationId: id,
+              })
+              .onConflictDoNothing({
+                target: [
+                  reservationParticipants.userId,
+                  reservationParticipants.reservationId,
+                ],
               });
-            }
           }
-        });
+        }
       }
     });
   } catch (error) {
