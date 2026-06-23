@@ -56,6 +56,11 @@ type StoreItemQuantityInputProps = {
   ) => void;
   rentalEligible?: boolean;
   rentalContexts?: RentalEligibilityContext[];
+  transactionType?: ProductTransactionType;
+  onTransactionTypeChange?: (value: ProductTransactionType) => void;
+  hideTransactionModeSelector?: boolean;
+  selectedReservationId?: number | null;
+  onSelectedReservationIdChange?: (reservationId: number) => void;
 };
 
 function variantHasSelection(
@@ -105,6 +110,11 @@ export default function StoreItemQuantityInput({
   onSelectedVariantChange,
   rentalEligible = false,
   rentalContexts = [],
+  transactionType: controlledTransactionType,
+  onTransactionTypeChange,
+  hideTransactionModeSelector = false,
+  selectedReservationId: controlledSelectedReservationId,
+  onSelectedReservationIdChange,
 }: StoreItemQuantityInputProps) {
   const { setItemCount, isAuthenticated, addGuestItem } = useCartContext();
   const canPurchase = product.isPurchasable;
@@ -114,11 +124,23 @@ export default function StoreItemQuantityInput({
     : canPurchase
       ? "purchase"
       : "purchase";
-  const [transactionType, setTransactionType] =
+  const [internalTransactionType, setInternalTransactionType] =
     useState<ProductTransactionType>(defaultTransactionType);
-  const [selectedReservationId, setSelectedReservationId] = useState<
-    number | null
-  >(rentalContexts[0]?.reservationId ?? null);
+  const isTransactionTypeControlled = controlledTransactionType !== undefined;
+  const transactionType = isTransactionTypeControlled
+    ? controlledTransactionType
+    : internalTransactionType;
+  const setTransactionType =
+    onTransactionTypeChange ?? setInternalTransactionType;
+  const [internalSelectedReservationId, setInternalSelectedReservationId] =
+    useState<number | null>(rentalContexts[0]?.reservationId ?? null);
+  const isSelectedReservationControlled =
+    controlledSelectedReservationId !== undefined;
+  const selectedReservationId = isSelectedReservationControlled
+    ? controlledSelectedReservationId
+    : internalSelectedReservationId;
+  const setSelectedReservationId =
+    onSelectedReservationIdChange ?? setInternalSelectedReservationId;
   const variants = useMemo(
     () => (product.variants ?? []).filter((variant) => variant.isVisible),
     [product.variants],
@@ -377,6 +399,7 @@ export default function StoreItemQuantityInput({
           rentalContexts={rentalContexts}
           selectedReservationId={selectedReservationId}
           onSelectedReservationIdChange={setSelectedReservationId}
+          hideModeSelector={hideTransactionModeSelector}
         />
       )}
 

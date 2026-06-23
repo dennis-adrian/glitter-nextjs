@@ -16,6 +16,7 @@ import type {
   RentalEligibilityContext,
 } from "@/app/lib/rentals/types";
 import {
+  formatRentalContextSummary,
   formatRentalContextStands,
   rentalContextIncludesReservation,
 } from "@/app/lib/rentals/rental-context";
@@ -28,6 +29,7 @@ type RentalTransactionControlsProps = {
   rentalContexts: RentalEligibilityContext[];
   selectedReservationId: number | null;
   onSelectedReservationIdChange: (reservationId: number) => void;
+  hideModeSelector?: boolean;
 };
 
 export default function RentalTransactionControls({
@@ -38,8 +40,9 @@ export default function RentalTransactionControls({
   rentalContexts,
   selectedReservationId,
   onSelectedReservationIdChange,
+  hideModeSelector = false,
 }: RentalTransactionControlsProps) {
-  const showModeSelector = canPurchase && canRent;
+  const showModeSelector = canPurchase && canRent && !hideModeSelector;
   const selectedContext = useMemo(
     () =>
       rentalContexts.find((context) =>
@@ -49,8 +52,20 @@ export default function RentalTransactionControls({
       null,
     [rentalContexts, selectedReservationId],
   );
+  const showRentOnlyHeading = !canPurchase && !hideModeSelector;
+  const showFestivalPicker =
+    transactionType === "rental" && rentalContexts.length > 1;
+  const showRentalContextSummary =
+    transactionType === "rental" &&
+    selectedContext != null &&
+    !hideModeSelector;
+  const hasVisibleContent =
+    showModeSelector ||
+    showRentOnlyHeading ||
+    showFestivalPicker ||
+    showRentalContextSummary;
 
-  if (!canRent) {
+  if (!canRent || !hasVisibleContent) {
     return null;
   }
 
@@ -76,11 +91,11 @@ export default function RentalTransactionControls({
             </div>
           </RadioGroup>
         </div>
-      ) : (
+      ) : showRentOnlyHeading ? (
         <p className="text-sm font-medium">Alquiler</p>
-      )}
+      ) : null}
 
-      {transactionType === "rental" && rentalContexts.length > 1 && (
+      {showFestivalPicker && (
         <div className="grid gap-2">
           <Label>Festival</Label>
           <Select
@@ -110,10 +125,9 @@ export default function RentalTransactionControls({
         </div>
       )}
 
-      {transactionType === "rental" && selectedContext && (
+      {showRentalContextSummary && selectedContext && (
         <p className="text-xs text-muted-foreground">
-          Alquiler para {selectedContext.festivalName},{" "}
-          {formatRentalContextStands(selectedContext)}
+          {formatRentalContextSummary(selectedContext)}
         </p>
       )}
     </div>

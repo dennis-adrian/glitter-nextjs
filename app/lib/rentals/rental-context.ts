@@ -63,6 +63,12 @@ export function formatRentalContextStands(
     .join(", ");
 }
 
+export function formatRentalContextSummary(
+  context: RentalEligibilityContext,
+): string {
+  return `Alquiler para ${context.festivalName}, ${formatRentalContextStands(context)}`;
+}
+
 export function resolveRentalLineContext(
   contexts: RentalEligibilityContext[],
   rentalFestivalId?: number | null,

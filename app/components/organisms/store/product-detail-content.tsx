@@ -1,17 +1,27 @@
 "use client";
 
 import { ClockIcon } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Heading from "@/app/components/atoms/heading";
 import StoreItemQuantityInput from "@/app/components/molecules/store-item-quantity-input";
+import TransactionModeCards from "@/app/components/molecules/transaction-mode-cards";
 import StoreProductImages from "@/app/components/molecules/store-product-images";
+import { useCartContext } from "@/app/components/providers/cart-provider";
 import { formatDate } from "@/app/lib/formatters";
-import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import {
+  getProductPriceAtPurchase,
+  getRentalPriceAtPurchase,
+} from "@/app/lib/orders/utils";
 import {
   BaseProductWithImages,
   ProductVariantWithSelections,
 } from "@/app/lib/products/definitions";
+import type { ProductTransactionType } from "@/app/lib/rentals/types";
+import {
+  formatRentalContextSummary,
+  rentalContextIncludesReservation,
+} from "@/app/lib/rentals/rental-context";
 import {
   getProductStoreAvailability,
   getProductVariantImageUrl,
@@ -38,6 +48,7 @@ export default function ProductDetailContent({
   rentalEligible = false,
   rentalContexts = [],
 }: ProductDetailContentProps) {
+  const { isAuthenticated } = useCartContext();
   const visibleVariants = useMemo(
     () => (product.variants ?? []).filter((variant) => variant.isVisible),
     [product.variants],
@@ -77,7 +88,45 @@ export default function ProductDetailContent({
     product,
     rentalEligible,
   );
+  const canPurchase = product.isPurchasable && purchaseInStock;
+  const canRent =
+    product.isRentable &&
+    rentalEligible &&
+    isAuthenticated &&
+    rentalInStock &&
+    product.rentalPrice != null;
+  const showDualMode = canPurchase && canRent;
+  const [transactionType, setTransactionType] =
+    useState<ProductTransactionType>("rental");
+  const [selectedReservationId, setSelectedReservationId] = useState<
+    number | null
+  >(rentalContexts[0]?.reservationId ?? null);
+
+  const selectedRentalContext = useMemo(
+    () =>
+      rentalContexts.find((context) =>
+        rentalContextIncludesReservation(context, selectedReservationId),
+      ) ??
+      rentalContexts[0] ??
+      null,
+    [rentalContexts, selectedReservationId],
+  );
+  const rentalCardDescription = selectedRentalContext
+    ? formatRentalContextSummary(selectedRentalContext)
+    : "Por día · Depósito reembolsable";
+
+  useEffect(() => {
+    setTransactionType(canRent ? "rental" : "purchase");
+  }, [product.id, canRent]);
+
+  useEffect(() => {
+    setSelectedReservationId(rentalContexts[0]?.reservationId ?? null);
+  }, [product.id, rentalContexts]);
+
   const imageStockSignal = purchaseInStock || rentalInStock ? 1 : 0;
+  const rentalPrice = canRent ? getRentalPriceAtPurchase(product) : null;
+  const showRentalOnlyPrice = canRent && !canPurchase;
+  const showPurchaseOnlyPrice = canPurchase && !canRent;
 
   return (
     <div className="flex flex-col md:flex-row gap-6">
@@ -97,14 +146,37 @@ export default function ProductDetailContent({
           </p>
         )}
 
-        <div className="flex items-baseline gap-2">
-          <span className="text-3xl font-semibold">Bs{price.toFixed(2)}</span>
-          {originalPrice && (
-            <span className="text-base text-muted-foreground line-through">
-              Bs{originalPrice.toFixed(2)}
+        {showDualMode ? (
+          <TransactionModeCards
+            transactionType={transactionType}
+            onTransactionTypeChange={setTransactionType}
+            purchasePrice={price}
+            rentalPrice={rentalPrice!}
+            purchasePricePrefix={hasVariants ? "Desde " : ""}
+            rentalDescription={rentalCardDescription}
+          />
+        ) : showRentalOnlyPrice ? (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+              Alquiler
             </span>
-          )}
-        </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-semibold">
+                Bs{rentalPrice!.toFixed(2)}
+              </span>
+              <span className="text-base text-muted-foreground">/día</span>
+            </div>
+          </div>
+        ) : showPurchaseOnlyPrice ? (
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-semibold">Bs{price.toFixed(2)}</span>
+            {originalPrice && (
+              <span className="text-base text-muted-foreground line-through">
+                Bs{originalPrice.toFixed(2)}
+              </span>
+            )}
+          </div>
+        ) : null}
 
         {isPresale && (
           <p className="text-sm text-muted-foreground flex items-center gap-1">
@@ -126,6 +198,17 @@ export default function ProductDetailContent({
           rentalEligible={rentalEligible}
           rentalContexts={rentalContexts}
           onSelectedVariantChange={handleSelectedVariantChange}
+          transactionType={showDualMode ? transactionType : undefined}
+          onTransactionTypeChange={
+            showDualMode ? setTransactionType : undefined
+          }
+          hideTransactionModeSelector={showDualMode}
+          selectedReservationId={
+            showDualMode ? selectedReservationId : undefined
+          }
+          onSelectedReservationIdChange={
+            showDualMode ? setSelectedReservationId : undefined
+          }
         />
       </div>
     </div>
