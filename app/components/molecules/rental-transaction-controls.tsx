@@ -67,12 +67,12 @@ export default function RentalTransactionControls({
             className="flex gap-4"
           >
             <div className="flex items-center gap-2">
-              <RadioGroupItem value="purchase" id="mode-purchase" />
-              <Label htmlFor="mode-purchase">Comprar</Label>
-            </div>
-            <div className="flex items-center gap-2">
               <RadioGroupItem value="rental" id="mode-rental" />
               <Label htmlFor="mode-rental">Alquilar</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="purchase" id="mode-purchase" />
+              <Label htmlFor="mode-purchase">Comprar</Label>
             </div>
           </RadioGroup>
         </div>

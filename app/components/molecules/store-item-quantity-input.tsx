@@ -109,10 +109,10 @@ export default function StoreItemQuantityInput({
   const { setItemCount, isAuthenticated, addGuestItem } = useCartContext();
   const canPurchase = product.isPurchasable;
   const canRent = product.isRentable && rentalEligible && isAuthenticated;
-  const defaultTransactionType: ProductTransactionType = canPurchase
-    ? "purchase"
-    : canRent
-      ? "rental"
+  const defaultTransactionType: ProductTransactionType = canRent
+    ? "rental"
+    : canPurchase
+      ? "purchase"
       : "purchase";
   const [transactionType, setTransactionType] =
     useState<ProductTransactionType>(defaultTransactionType);

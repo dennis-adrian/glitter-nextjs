@@ -58,19 +58,7 @@ export function rentalContextIncludesReservation(
 export function formatRentalContextStands(
   context: RentalEligibilityContext,
 ): string {
-  const stands =
-    context.stands.length > 0
-      ? context.stands
-      : [
-          {
-            reservationId: context.reservationId,
-            standId: context.standId,
-            standLabel: context.standLabel,
-            standNumber: context.standNumber,
-          },
-        ];
-
-  return stands
+  return context.stands
     .map((stand) => `Stand ${stand.standLabel ?? ""}${stand.standNumber}`)
     .join(", ");
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "participations" ADD CONSTRAINT "participations_user_reservation_unique" UNIQUE("user_id","reservation_id");

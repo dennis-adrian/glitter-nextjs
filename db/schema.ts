@@ -585,18 +585,27 @@ export const standReservationsRelations = relations(
   }),
 );
 
-export const reservationParticipants = pgTable("participations", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  reservationId: integer("reservation_id")
-    .notNull()
-    .references(() => standReservations.id, { onDelete: "cascade" }),
-  hasStamp: boolean("has_stamp").default(false).notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const reservationParticipants = pgTable(
+  "participations",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    reservationId: integer("reservation_id")
+      .notNull()
+      .references(() => standReservations.id, { onDelete: "cascade" }),
+    hasStamp: boolean("has_stamp").default(false).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    unique("participations_user_reservation_unique").on(
+      table.userId,
+      table.reservationId,
+    ),
+  ],
+);
 export const participationsRelations = relations(
   reservationParticipants,
   ({ one }) => ({
