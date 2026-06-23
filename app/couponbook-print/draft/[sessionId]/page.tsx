@@ -1,7 +1,6 @@
 import CouponBookDraftPrintDocument from "@/app/components/festivals/festival_activities/coupon-book-draft-print-document";
 import { getCouponBookPrintSession } from "@/app/lib/festival_activites/coupon-book-print-session";
 import { resolvePdfCanvasConfig } from "@/app/lib/festival_activites/coupon-book-print-config";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { notFound } from "next/navigation";
 
 type PageProps = {
@@ -27,14 +26,6 @@ export default async function CouponBookDraftPrintPage({
   params,
   searchParams,
 }: PageProps) {
-  const profile = await getCurrentUserProfile();
-  if (
-    !profile ||
-    (profile.role !== "admin" && profile.role !== "festival_admin")
-  ) {
-    notFound();
-  }
-
   const [{ sessionId }, resolvedSearchParams] = await Promise.all([
     params,
     searchParams,
