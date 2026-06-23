@@ -15,7 +15,10 @@ import { productContentSections, productVariants } from "@/db/schema";
 export async function fetchProductContentSections(productId: number) {
   return db.query.productContentSections.findMany({
     where: eq(productContentSections.productId, productId),
-    orderBy: [asc(productContentSections.sortOrder), asc(productContentSections.id)],
+    orderBy: [
+      asc(productContentSections.sortOrder),
+      asc(productContentSections.id),
+    ],
   });
 }
 
@@ -82,7 +85,8 @@ export async function upsertProductContentSection(
     productVariantId: payload.productVariantId ?? null,
     title: payload.title.trim(),
     format: payload.format,
-    body: payload.format === "free_text" ? payload.body?.trim() ?? null : null,
+    body:
+      payload.format === "free_text" ? (payload.body?.trim() ?? null) : null,
     items:
       payload.format === "bullet_list"
         ? (payload.items ?? []).map((item) => item.trim()).filter(Boolean)

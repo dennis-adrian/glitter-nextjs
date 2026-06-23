@@ -277,8 +277,7 @@ export default function OrdersCardList({
   }
 
   function handleRentalFilterChange(value: RentalOrderFilter) {
-    const statusParam =
-      optimisticStatus === "all" ? "all" : optimisticStatus;
+    const statusParam = optimisticStatus === "all" ? "all" : optimisticStatus;
     startTransition(() => {
       setOptimisticRentalFilter(value);
       setSearch("");

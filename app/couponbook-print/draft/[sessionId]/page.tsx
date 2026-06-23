@@ -42,7 +42,9 @@ export default async function CouponBookDraftPrintPage({
   const session = await getCouponBookPrintSession(sessionId);
   if (!session) notFound();
 
-  const pdfCanvas = resolvePdfCanvasConfig(toSearchParams(resolvedSearchParams));
+  const pdfCanvas = resolvePdfCanvasConfig(
+    toSearchParams(resolvedSearchParams),
+  );
 
   return (
     <CouponBookDraftPrintDocument

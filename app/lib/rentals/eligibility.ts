@@ -1,8 +1,12 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
 import type { RentalEligibilityResult } from "@/app/lib/rentals/types";
+import {
+  normalizeRentalEligibilityContexts,
+  rentalContextIncludesReservation,
+} from "@/app/lib/rentals/rental-context";
 import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
@@ -18,6 +22,7 @@ async function fetchEligibleContextsForUser(userId: number) {
     .select({
       festivalId: festivals.id,
       festivalName: festivals.name,
+      festivalStartDate: festivals.startDate,
       reservationId: standReservations.id,
       standId: stands.id,
       standLabel: stands.label,
@@ -37,9 +42,14 @@ async function fetchEligibleContextsForUser(userId: number) {
         eq(stands.status, "confirmed"),
         eq(festivals.status, "active"),
       ),
+    )
+    .orderBy(
+      asc(festivals.startDate),
+      asc(festivals.name),
+      asc(standReservations.id),
     );
 
-  return rows;
+  return normalizeRentalEligibilityContexts(rows);
 }
 
 export async function getRentalEligibilityForCurrentUser(): Promise<RentalEligibilityResult> {
@@ -106,7 +116,7 @@ export async function assertRentalEligibility(
     const match = contexts.find(
       (context) =>
         context.festivalId === rentalFestivalId &&
-        context.reservationId === rentalReservationId,
+        rentalContextIncludesReservation(context, rentalReservationId),
     );
     if (!match) {
       return {
@@ -124,7 +134,9 @@ export async function assertRentalEligibility(
   };
 }
 
-export async function canUserRent(userId: number | null | undefined): Promise<boolean> {
+export async function canUserRent(
+  userId: number | null | undefined,
+): Promise<boolean> {
   if (!userId) return false;
   const result = await assertRentalEligibility(userId);
   return result.eligible;

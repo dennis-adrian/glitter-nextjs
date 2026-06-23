@@ -1,4 +1,7 @@
-import type { ProductTransactionType, RentalStatus } from "@/app/lib/rentals/types";
+import type {
+  ProductTransactionType,
+  RentalStatus,
+} from "@/app/lib/rentals/types";
 
 export function deriveRentalStatus(input: {
   transactionType: ProductTransactionType;

@@ -67,6 +67,7 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
   const { isSignedIn } = useUser();
   const router = useRouter();
   const pathname = usePathname();
+  const canViewSupplies = profile?.status === "verified";
 
   if (pathname.includes("festivals") && pathname.includes("registration"))
     return null;
@@ -74,6 +75,7 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
   return (
     <Sheet>
       <SheetTrigger
+        aria-label="Open navigation menu"
         className="cursor-default hover:bg-primary-200/30 hover:text-primary-700"
         variant="outline"
         size="icon"
@@ -100,10 +102,29 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
             <CalendarCheck2Icon className="mr-2 h-6 w-6" />
             Próximo Evento
           </MobileSidebarItem>
-          <MobileSidebarItem href="/store">
-            <StoreIcon className="mr-2 h-6 w-6" />
-            Tiendita
-          </MobileSidebarItem>
+          {canViewSupplies ? (
+            <li>
+              <h4 className="flex items-center p-2 text-lg">
+                <StoreIcon className="mr-2 h-6 w-6" />
+                Tiendita
+              </h4>
+              <ul className="ml-4">
+                <MobileSidebarItem href="/merch">
+                  <StoreIcon className="mr-2 h-6 w-6" />
+                  Merch
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/supplies">
+                  <PackageIcon className="mr-2 h-6 w-6" />
+                  Insumos
+                </MobileSidebarItem>
+              </ul>
+            </li>
+          ) : (
+            <MobileSidebarItem href="/merch">
+              <StoreIcon className="mr-2 h-6 w-6" />
+              Tiendita
+            </MobileSidebarItem>
+          )}
           <MobileSidebarItem href="/festivals">
             <BookImageIcon className="mr-2 h-6 w-6" />
             Festivales

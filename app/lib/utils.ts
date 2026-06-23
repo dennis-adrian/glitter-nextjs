@@ -347,6 +347,8 @@ export function isStoreFlowPage(pathname?: string | null) {
 
   return (
     pathname.startsWith("/store") ||
+    pathname.startsWith("/merch") ||
+    pathname.startsWith("/supplies") ||
     pathname.startsWith("/checkout") ||
     pathname.startsWith("/orders/") ||
     pathname.startsWith("/live-acts")

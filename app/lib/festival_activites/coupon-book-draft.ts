@@ -119,10 +119,7 @@ function resolveInitialVariantCouponCount(
   variant: CouponBookVariant,
   includedCount: number,
 ): number {
-  if (
-    variant.participationLimit !== null &&
-    variant.participationLimit > 0
-  ) {
+  if (variant.participationLimit !== null && variant.participationLimit > 0) {
     return variant.participationLimit;
   }
   return Math.max(MIN_VARIANT_COUPON_COUNT, includedCount);
@@ -221,7 +218,10 @@ export function updateVariantCouponCount(
 ): CouponBookDraft {
   const nextBooks = draft.books.map((book) =>
     book.id === bookId
-      ? { ...book, variantCouponCount: clampVariantCouponCount(variantCouponCount) }
+      ? {
+          ...book,
+          variantCouponCount: clampVariantCouponCount(variantCouponCount),
+        }
       : book,
   );
   return reflowDraftFromVariantLimits({
@@ -871,7 +871,10 @@ export function mergeDraftWithSource(
     };
   }
 
-  const { books, pages } = reconcileDraftStructureWithSource(draft, sourceDraft);
+  const { books, pages } = reconcileDraftStructureWithSource(
+    draft,
+    sourceDraft,
+  );
 
   const mergedDraft: CouponBookDraft = {
     ...draft,

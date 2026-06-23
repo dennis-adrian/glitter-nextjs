@@ -1,0 +1,39 @@
+import { connection } from "next/server";
+
+import CartSheet from "@/app/components/organisms/cart/cart-sheet";
+import { CartProvider } from "@/app/components/providers/cart-provider";
+import FestivalHappeningNotice from "@/app/components/organisms/store/festival-happening-notice";
+import StoreSubheader from "@/app/components/organisms/store/store-subheader";
+import { fetchCartItemCount } from "@/app/lib/cart/actions";
+import { getActiveFestivalBase } from "@/app/lib/festivals/helpers";
+import { isFestivalHappeningAt } from "@/app/lib/festivals/store-gate";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+
+export default async function StoreLayoutShell({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  // Opt into dynamic rendering so we can read the current time below.
+  await connection();
+
+  const activeFestival = await getActiveFestivalBase();
+
+  if (
+    !activeFestival?.keepStoreOpen &&
+    isFestivalHappeningAt(activeFestival, new Date())
+  ) {
+    return <FestivalHappeningNotice festival={activeFestival} />;
+  }
+
+  const user = await getCurrentUserProfile();
+  const initialItemCount = user ? await fetchCartItemCount() : 0;
+
+  return (
+    <CartProvider initialItemCount={initialItemCount} isAuthenticated={!!user}>
+      <StoreSubheader />
+      <CartSheet />
+      {children}
+    </CartProvider>
+  );
+}

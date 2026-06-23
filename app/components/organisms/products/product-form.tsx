@@ -67,6 +67,7 @@ const FormSchema = z
     description: z.string().trim().optional(),
     price: z.string().trim().min(1, "El precio es requerido"),
     stock: z.string().trim().min(1, "El stock es requerido"),
+    storeCategory: z.enum(["merch", "supplies"]),
     status: z.enum(["available", "presale", "sale"]),
     discount: z.string().trim().optional(),
     discountUnit: z.enum(["percentage", "amount"]),
@@ -389,6 +390,7 @@ function buildProductFormValues(
     description: product?.description ?? "",
     price: String(product?.price ?? 0),
     stock: String(product?.stock ?? 0),
+    storeCategory: product?.storeCategory ?? "merch",
     status: product?.status ?? "available",
     discount: product?.discount !== undefined ? String(product.discount) : "0",
     discountUnit: product?.discountUnit ?? "percentage",
@@ -706,6 +708,7 @@ export default function ProductForm({ product }: ProductFormProps) {
       description: data.description?.trim() || "",
       price: Number(data.price),
       stock: data.hasVariants ? 0 : Number(data.stock),
+      storeCategory: data.storeCategory,
       status: data.status,
       discount: data.discount?.trim() ? Number(data.discount) : 0,
       discountUnit: data.discountUnit,
@@ -1234,6 +1237,16 @@ export default function ProductForm({ product }: ProductFormProps) {
             { value: "available", label: "Disponible" },
             { value: "presale", label: "Preventa" },
             { value: "sale", label: "En oferta" },
+          ]}
+        />
+
+        <SelectInput
+          formControl={form.control}
+          label="Categoría de tienda"
+          name="storeCategory"
+          options={[
+            { value: "merch", label: "Merch" },
+            { value: "supplies", label: "Insumos" },
           ]}
         />
 

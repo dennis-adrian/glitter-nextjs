@@ -37,7 +37,11 @@ export function resolveStoredDraftAgainstServer(
     return serverDraft;
   }
 
-  if (serverRevision > 0 && serverRevision === localRevision && serverUpdatedAt) {
+  if (
+    serverRevision > 0 &&
+    serverRevision === localRevision &&
+    serverUpdatedAt
+  ) {
     const localUpdated = Date.parse(stored.updatedAt);
     const serverUpdated = serverUpdatedAt.getTime();
     if (Number.isFinite(localUpdated) && localUpdated > serverUpdated) {
@@ -66,7 +70,11 @@ export function loadStoredCouponBookEditorState(
       getCouponBookDraftStorageKey(festivalId, activityId),
     );
     if (!raw) {
-      return migrateLegacyLayoutOnlyState(festivalId, activityId, fallbackDraft);
+      return migrateLegacyLayoutOnlyState(
+        festivalId,
+        activityId,
+        fallbackDraft,
+      );
     }
     const parsed = JSON.parse(raw) as Partial<StoredCouponBookEditorState>;
     const ui = parsed.ui;

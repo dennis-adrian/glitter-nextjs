@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { resolveRentalLineContext } from "@/app/lib/rentals/rental-context";
+import {
+  getDefaultRentalReservationId,
+  normalizeRentalEligibilityContexts,
+  resolveRentalLineContext,
+} from "@/app/lib/rentals/rental-context";
 import {
   deriveRentalStatus,
   getRentalOutstandingQuantity,
@@ -138,13 +142,10 @@ describe("rental stock", () => {
     };
 
     expect(
-      getTransactionPoolRemainingStock(
-        product,
-        null,
-        "rental",
-        [siblingLine],
-        { productId: 1, productVariantId: null },
-      ),
+      getTransactionPoolRemainingStock(product, null, "rental", [siblingLine], {
+        productId: 1,
+        productVariantId: null,
+      }),
     ).toBe(0);
 
     expect(
@@ -190,10 +191,20 @@ describe("rental context resolution", () => {
     {
       festivalId: 1,
       festivalName: "Festival",
+      festivalStartDate: null,
       reservationId: 10,
       standId: 100,
       standLabel: "A",
       standNumber: 1,
+      reservationIds: [10],
+      stands: [
+        {
+          reservationId: 10,
+          standId: 100,
+          standLabel: "A",
+          standNumber: 1,
+        },
+      ],
     },
   ];
 
@@ -211,10 +222,20 @@ describe("rental context resolution", () => {
         {
           festivalId: 2,
           festivalName: "Other",
+          festivalStartDate: null,
           reservationId: 20,
           standId: 200,
           standLabel: "B",
           standNumber: 2,
+          reservationIds: [20],
+          stands: [
+            {
+              reservationId: 20,
+              standId: 200,
+              standLabel: "B",
+              standNumber: 2,
+            },
+          ],
         },
       ],
       null,
@@ -224,6 +245,115 @@ describe("rental context resolution", () => {
     if (!result.ok) {
       expect(result.cause).toBe("rental_context_required");
     }
+  });
+
+  it("collapses multiple reservations for the same festival into one context", () => {
+    const result = normalizeRentalEligibilityContexts([
+      {
+        festivalId: 1,
+        festivalName: "Festival",
+        festivalStartDate: new Date("2026-03-01"),
+        reservationId: 10,
+        standId: 100,
+        standLabel: "A",
+        standNumber: 1,
+      },
+      {
+        festivalId: 1,
+        festivalName: "Festival",
+        festivalStartDate: new Date("2026-03-01"),
+        reservationId: 11,
+        standId: 101,
+        standLabel: "A",
+        standNumber: 2,
+      },
+    ]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].reservationId).toBe(10);
+    expect(result[0].reservationIds).toEqual([10, 11]);
+    expect(result[0].stands.map((stand) => stand.standNumber)).toEqual([1, 2]);
+  });
+
+  it("selects the closest festival in time by default", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-02-01"));
+
+    const contexts = [
+      {
+        festivalId: 1,
+        festivalName: "Later Festival",
+        festivalStartDate: new Date("2026-12-01"),
+        reservationId: 10,
+        standId: 100,
+        standLabel: "A",
+        standNumber: 1,
+        reservationIds: [10],
+        stands: [
+          {
+            reservationId: 10,
+            standId: 100,
+            standLabel: "A",
+            standNumber: 1,
+          },
+        ],
+      },
+      {
+        festivalId: 2,
+        festivalName: "Soon Festival",
+        festivalStartDate: new Date("2026-04-01"),
+        reservationId: 20,
+        standId: 200,
+        standLabel: "B",
+        standNumber: 2,
+        reservationIds: [20],
+        stands: [
+          {
+            reservationId: 20,
+            standId: 200,
+            standLabel: "B",
+            standNumber: 2,
+          },
+        ],
+      },
+    ];
+
+    expect(getDefaultRentalReservationId(contexts)).toBe(20);
+
+    vi.useRealTimers();
+  });
+
+  it("accepts any reservation in the selected festival context", () => {
+    expect(resolveRentalLineContext(contexts, 1, 10)).toEqual({
+      ok: true,
+      context: { festivalId: 1, reservationId: 10 },
+    });
+
+    const [context] = contexts;
+    const result = resolveRentalLineContext(
+      [
+        {
+          ...context,
+          reservationIds: [10, 11],
+          stands: [
+            ...context.stands,
+            {
+              reservationId: 11,
+              standId: 101,
+              standLabel: "A",
+              standNumber: 2,
+            },
+          ],
+        },
+      ],
+      1,
+      11,
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      context: { festivalId: 1, reservationId: 11 },
+    });
   });
 });
 

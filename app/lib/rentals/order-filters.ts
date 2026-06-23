@@ -50,7 +50,9 @@ export function getRentalOrderFilterLabel(filter: RentalOrderFilter): string {
   }
 }
 
-export function getOrderRentalSummary(order: RentalFilterOrder): RentalStatus | null {
+export function getOrderRentalSummary(
+  order: RentalFilterOrder,
+): RentalStatus | null {
   const rentalItems = order.orderItems.filter(
     (item) => item.transactionType === "rental",
   );

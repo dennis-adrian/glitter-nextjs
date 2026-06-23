@@ -115,7 +115,10 @@ export default function CouponBookDraftPrintDocument({
                 headerDynamicCouponId={headerDynamicCouponId}
                 bodyCouponIds={bodyCouponIds}
                 textLayoutConfig={draft.globalSettings.globalLayout}
-                layoutByCouponId={buildLayoutByCouponId(draft, page.slotCouponIds)}
+                layoutByCouponId={buildLayoutByCouponId(
+                  draft,
+                  page.slotCouponIds,
+                )}
                 headerImageUrl={book.headerImageUrl}
                 headerImageScalePct={
                   draft.globalSettings.globalLayout.headerImageScalePct

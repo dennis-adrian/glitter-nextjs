@@ -23,7 +23,8 @@ export function findInvalidDraftParticipationId(
   validParticipationIds: Set<number>,
 ): number | null {
   for (const entry of Object.values(draft.entries)) {
-    if (entry.type !== "participant" || entry.participationId === null) continue;
+    if (entry.type !== "participant" || entry.participationId === null)
+      continue;
     if (!validParticipationIds.has(entry.participationId)) {
       return entry.participationId;
     }
@@ -31,7 +32,9 @@ export function findInvalidDraftParticipationId(
   return null;
 }
 
-export function sanitizeCouponBookDraft(draft: CouponBookDraft): CouponBookDraft {
+export function sanitizeCouponBookDraft(
+  draft: CouponBookDraft,
+): CouponBookDraft {
   const entries = Object.fromEntries(
     Object.entries(draft.entries).map(([id, entry]) => [
       id,
@@ -92,7 +95,10 @@ export async function saveCouponBookConfig(input: {
 > {
   const serialized = JSON.stringify(input.draft);
   if (Buffer.byteLength(serialized, "utf8") > MAX_DRAFT_BYTES) {
-    return { ok: false, error: "La configuración de cuponera es demasiado grande." };
+    return {
+      ok: false,
+      error: "La configuración de cuponera es demasiado grande.",
+    };
   }
 
   if (input.draft.schemaVersion !== COUPON_BOOK_DRAFT_SCHEMA_VERSION) {
@@ -151,14 +157,13 @@ export async function saveCouponBookConfig(input: {
       .returning({ revision: festivalActivityCouponBookConfigs.revision });
 
     if (updated.length === 0) {
-      const current = await db.query.festivalActivityCouponBookConfigs.findFirst(
-        {
+      const current =
+        await db.query.festivalActivityCouponBookConfigs.findFirst({
           where: eq(
             festivalActivityCouponBookConfigs.activityId,
             input.activityId,
           ),
-        },
-      );
+        });
       return {
         ok: false,
         error:

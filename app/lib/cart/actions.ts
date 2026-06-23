@@ -19,9 +19,7 @@ import {
 } from "@/app/lib/orders/actions";
 import { fetchProduct } from "@/app/lib/products/actions";
 import { getProductVariantStock } from "@/app/lib/products/variants";
-import {
-  assertRentalEligibility,
-} from "@/app/lib/rentals/eligibility";
+import { assertRentalEligibility } from "@/app/lib/rentals/eligibility";
 import { resolveRentalLineContext } from "@/app/lib/rentals/rental-context";
 import {
   getAvailableStockForTransaction,
@@ -29,10 +27,13 @@ import {
   getTransactionPoolRemainingStock,
   usesSharedRentalStock,
 } from "@/app/lib/rentals/stock";
-import type { ProductTransactionType } from "@/app/lib/rentals/types";
+import type {
+  ProductTransactionType,
+  RentalEligibilityContext,
+} from "@/app/lib/rentals/types";
 import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
-import { cartItems, carts } from "@/db/schema";
+import { cartItems, carts, products } from "@/db/schema";
 
 export type GuestCartItemInput = {
   lineKey: string;
@@ -51,6 +52,16 @@ export type GuestStockValidationResult = {
 };
 
 type CartTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+const SUPPLIES_VERIFIED_MESSAGE =
+  "Los insumos requieren una cuenta verificada.";
+
+function isSuppliesPurchaseBlocked(
+  storeCategory: string | null | undefined,
+  userStatus: string | undefined,
+): boolean {
+  return storeCategory === "supplies" && userStatus !== "verified";
+}
 
 export type CartCheckoutSnapshot = {
   cartId: number;
@@ -107,27 +118,34 @@ function buildCartItemWhere(
   productVariantId: number | null,
   transactionType: ProductTransactionType = "purchase",
 ) {
-  const base = productVariantId == null
-    ? and(
-        eq(cartItems.cartId, cartId),
-        eq(cartItems.productId, productId),
-        isNull(cartItems.productVariantId),
-        eq(cartItems.transactionType, transactionType),
-      )
-    : and(
-        eq(cartItems.cartId, cartId),
-        eq(cartItems.productId, productId),
-        eq(cartItems.productVariantId, productVariantId),
-        eq(cartItems.transactionType, transactionType),
-      );
+  const base =
+    productVariantId == null
+      ? and(
+          eq(cartItems.cartId, cartId),
+          eq(cartItems.productId, productId),
+          isNull(cartItems.productVariantId),
+          eq(cartItems.transactionType, transactionType),
+        )
+      : and(
+          eq(cartItems.cartId, cartId),
+          eq(cartItems.productId, productId),
+          eq(cartItems.productVariantId, productVariantId),
+          eq(cartItems.transactionType, transactionType),
+        );
 
   return base;
 }
 
 async function getCartStockLimit(
   cartId: number,
-  product: Pick<BaseProduct, "id" | "stock" | "rentalStock" | "rentalStockMode">,
-  variant: Pick<ProductVariantWithSelections, "id" | "stock" | "rentalStock"> | null,
+  product: Pick<
+    BaseProduct,
+    "id" | "stock" | "rentalStock" | "rentalStockMode"
+  >,
+  variant: Pick<
+    ProductVariantWithSelections,
+    "id" | "stock" | "rentalStock"
+  > | null,
   transactionType: ProductTransactionType,
   excludeCartItemId?: number,
 ): Promise<number> {
@@ -185,7 +203,9 @@ async function getCartStockLimit(
       if (excludeCartItemId != null && item.id === excludeCartItemId) {
         return false;
       }
-      return getStockPoolForTransaction(product, item.transactionType) === "sale";
+      return (
+        getStockPoolForTransaction(product, item.transactionType) === "sale"
+      );
     })
     .reduce((sum, item) => sum + item.quantity, 0);
 
@@ -304,6 +324,7 @@ export async function addToCart(
     const transactionType = input.transactionType ?? "purchase";
     let rentalFestivalId: number | null = null;
     let rentalReservationId: number | null = null;
+    let eligibleRentalContexts: RentalEligibilityContext[] = [];
 
     if (transactionType === "rental") {
       const eligibility = await assertRentalEligibility(
@@ -318,6 +339,7 @@ export async function addToCart(
           message: eligibility.message,
         };
       }
+      eligibleRentalContexts = eligibility.contexts;
 
       const resolvedContext = resolveRentalLineContext(
         eligibility.contexts,
@@ -346,6 +368,16 @@ export async function addToCart(
       return { success: false, newCount: currentCount };
     }
 
+    if (
+      isSuppliesPurchaseBlocked(resolved.product.storeCategory, user.status)
+    ) {
+      return {
+        success: false,
+        newCount: await fetchCartItemCount(),
+        message: SUPPLIES_VERIFIED_MESSAGE,
+      };
+    }
+
     if (transactionType === "purchase" && !resolved.product.isPurchasable) {
       return {
         success: false,
@@ -372,17 +404,31 @@ export async function addToCart(
         ),
       });
       const conflictingContext = existingRentalItems.find(
-        (entry) =>
-          entry.rentalFestivalId !== rentalFestivalId ||
-          entry.rentalReservationId !== rentalReservationId,
+        (entry) => entry.rentalFestivalId !== rentalFestivalId,
       );
       if (conflictingContext) {
         return {
           success: false,
           newCount: await fetchCartItemCount(),
           message:
-            "Todos los productos de alquiler deben usar el mismo festival/reserva.",
+            "Todos los productos de alquiler deben usar el mismo festival.",
         };
+      }
+
+      const existingContext = existingRentalItems.find(
+        (entry) =>
+          entry.rentalFestivalId === rentalFestivalId &&
+          entry.rentalReservationId != null,
+      );
+      if (existingContext?.rentalReservationId != null) {
+        const existingResolvedContext = resolveRentalLineContext(
+          eligibleRentalContexts,
+          rentalFestivalId,
+          existingContext.rentalReservationId,
+        );
+        if (existingResolvedContext.ok) {
+          rentalReservationId = existingResolvedContext.context.reservationId;
+        }
       }
     }
 
@@ -457,6 +503,8 @@ export async function addToCart(
     }
 
     revalidatePath("/store");
+    revalidatePath("/merch");
+    revalidatePath("/supplies");
     const newCount = await fetchCartItemCount();
     return { success: true, newCount };
   } catch (error) {
@@ -525,6 +573,8 @@ export async function updateCartItemQuantity(
     }
 
     revalidatePath("/store");
+    revalidatePath("/merch");
+    revalidatePath("/supplies");
     return { success: true };
   } catch (error) {
     console.error(error);
@@ -549,6 +599,8 @@ export async function removeFromCart(
       .where(and(eq(cartItems.cartId, cart.id), eq(cartItems.id, cartItemId)));
 
     revalidatePath("/store");
+    revalidatePath("/merch");
+    revalidatePath("/supplies");
     return { success: true };
   } catch (error) {
     console.error(error);
@@ -574,6 +626,8 @@ export async function clearCart(): Promise<{
 
     await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));
     revalidatePath("/store");
+    revalidatePath("/merch");
+    revalidatePath("/supplies");
     return { success: true };
   } catch (error) {
     console.error(error);
@@ -654,19 +708,37 @@ export async function checkoutCart(input?: {
         throw new Error("empty_cart");
       }
 
+      const productIds = [
+        ...new Set(snapshot.items.map((item) => item.productId)),
+      ];
+      const productRows = await tx
+        .select({
+          id: products.id,
+          storeCategory: products.storeCategory,
+        })
+        .from(products)
+        .where(inArray(products.id, productIds));
+      if (
+        productRows.some((product) =>
+          isSuppliesPurchaseBlocked(product.storeCategory, user.status),
+        )
+      ) {
+        throw new Error(SUPPLIES_VERIFIED_MESSAGE, {
+          cause: "supplies_unverified",
+        });
+      }
+
       const rentalItems = snapshot.items.filter(
         (item) => item.transactionType === "rental",
       );
       if (rentalItems.length > 0) {
         const [sampleRentalItem] = rentalItems;
         const persistedContexts = new Set(
-          rentalItems.map(
-            (item) => `${item.rentalFestivalId}:${item.rentalReservationId}`,
-          ),
+          rentalItems.map((item) => item.rentalFestivalId),
         );
         if (persistedContexts.size > 1) {
           throw new Error(
-            "Todos los productos de alquiler deben usar el mismo festival/reserva.",
+            "Todos los productos de alquiler deben usar el mismo festival.",
             { cause: "multiple_rental_contexts" },
           );
         }
@@ -674,7 +746,7 @@ export async function checkoutCart(input?: {
         const checkoutFestivalId = sampleRentalItem.rentalFestivalId;
         const checkoutReservationId = sampleRentalItem.rentalReservationId;
         if (checkoutFestivalId == null || checkoutReservationId == null) {
-          throw new Error("Selecciona un festival/reserva para alquilar.", {
+          throw new Error("Selecciona un festival para alquilar.", {
             cause: "rental_context_required",
           });
         }
@@ -687,8 +759,7 @@ export async function checkoutCart(input?: {
           hasRequestedContext &&
           (requestedFestivalId == null ||
             requestedReservationId == null ||
-            requestedFestivalId !== checkoutFestivalId ||
-            requestedReservationId !== checkoutReservationId)
+            requestedFestivalId !== checkoutFestivalId)
         ) {
           throw new Error(
             "El contexto de alquiler del carrito cambió. Vuelve a agregar los productos de alquiler.",
@@ -696,10 +767,13 @@ export async function checkoutCart(input?: {
           );
         }
 
+        const validationFestivalId = requestedFestivalId ?? checkoutFestivalId;
+        const validationReservationId =
+          requestedReservationId ?? checkoutReservationId;
         const eligibility = await assertRentalEligibility(
           userId,
-          checkoutFestivalId,
-          checkoutReservationId,
+          validationFestivalId,
+          validationReservationId,
         );
         if (!eligibility.eligible) {
           throw new Error(eligibility.message, { cause: "rental_ineligible" });
@@ -707,13 +781,18 @@ export async function checkoutCart(input?: {
 
         const resolvedContext = resolveRentalLineContext(
           eligibility.contexts,
-          checkoutFestivalId,
-          checkoutReservationId,
+          validationFestivalId,
+          validationReservationId,
         );
         if (!resolvedContext.ok) {
           throw new Error(resolvedContext.message, {
             cause: resolvedContext.cause,
           });
+        }
+
+        for (const item of rentalItems) {
+          item.rentalFestivalId = resolvedContext.context.festivalId;
+          item.rentalReservationId = resolvedContext.context.reservationId;
         }
       }
 
@@ -760,6 +839,8 @@ export async function checkoutCart(input?: {
     }
 
     revalidatePath("/store", "layout");
+    revalidatePath("/merch", "layout");
+    revalidatePath("/supplies", "layout");
     return {
       success: true,
       message: "Orden creada correctamente.",
@@ -800,7 +881,8 @@ export async function checkoutCart(input?: {
         err.cause === "rental_ineligible" ||
         err.cause === "rental_context_required" ||
         err.cause === "invalid_rental_context" ||
-        err.cause === "multiple_rental_contexts"
+        err.cause === "multiple_rental_contexts" ||
+        err.cause === "supplies_unverified"
       ) {
         return {
           success: false,

@@ -2,19 +2,14 @@
 
 import { useMemo } from "react";
 
+import { RentalContextDescription } from "@/app/components/molecules/rental-festival-picker";
 import { Label } from "@/app/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/app/components/ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/app/components/ui/select";
 import type {
   ProductTransactionType,
   RentalEligibilityContext,
 } from "@/app/lib/rentals/types";
+import { rentalContextIncludesReservation } from "@/app/lib/rentals/rental-context";
 
 type RentalTransactionControlsProps = {
   canPurchase: boolean;
@@ -24,6 +19,7 @@ type RentalTransactionControlsProps = {
   rentalContexts: RentalEligibilityContext[];
   selectedReservationId: number | null;
   onSelectedReservationIdChange: (reservationId: number) => void;
+  hideModeSelector?: boolean;
 };
 
 export default function RentalTransactionControls({
@@ -34,18 +30,27 @@ export default function RentalTransactionControls({
   rentalContexts,
   selectedReservationId,
   onSelectedReservationIdChange,
+  hideModeSelector = false,
 }: RentalTransactionControlsProps) {
-  const showModeSelector = canPurchase && canRent;
+  const showModeSelector = canPurchase && canRent && !hideModeSelector;
   const selectedContext = useMemo(
     () =>
-      rentalContexts.find(
-        (context) => context.reservationId === selectedReservationId,
-      ) ?? rentalContexts[0] ??
+      rentalContexts.find((context) =>
+        rentalContextIncludesReservation(context, selectedReservationId),
+      ) ??
+      rentalContexts[0] ??
       null,
     [rentalContexts, selectedReservationId],
   );
+  const showRentOnlyHeading = !canPurchase && !hideModeSelector;
+  const showRentalContextSummary =
+    transactionType === "rental" &&
+    selectedContext != null &&
+    !hideModeSelector;
+  const hasVisibleContent =
+    showModeSelector || showRentOnlyHeading || showRentalContextSummary;
 
-  if (!canRent) {
+  if (!canRent || !hasVisibleContent) {
     return null;
   }
 
@@ -62,55 +67,27 @@ export default function RentalTransactionControls({
             className="flex gap-4"
           >
             <div className="flex items-center gap-2">
-              <RadioGroupItem value="purchase" id="mode-purchase" />
-              <Label htmlFor="mode-purchase">Comprar</Label>
-            </div>
-            <div className="flex items-center gap-2">
               <RadioGroupItem value="rental" id="mode-rental" />
               <Label htmlFor="mode-rental">Alquilar</Label>
             </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="purchase" id="mode-purchase" />
+              <Label htmlFor="mode-purchase">Comprar</Label>
+            </div>
           </RadioGroup>
         </div>
-      ) : (
+      ) : showRentOnlyHeading ? (
         <p className="text-sm font-medium">Alquiler</p>
-      )}
+      ) : null}
 
-      {transactionType === "rental" && rentalContexts.length > 1 && (
-        <div className="grid gap-2">
-          <Label>Festival / stand</Label>
-          <Select
-            value={
-              selectedContext
-                ? String(selectedContext.reservationId)
-                : undefined
-            }
-            onValueChange={(value) =>
-              onSelectedReservationIdChange(Number(value))
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecciona tu reserva" />
-            </SelectTrigger>
-            <SelectContent>
-              {rentalContexts.map((context) => (
-                <SelectItem
-                  key={context.reservationId}
-                  value={String(context.reservationId)}
-                >
-                  {context.festivalName} · Stand {context.standNumber}
-                  {context.standLabel ? ` (${context.standLabel})` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {transactionType === "rental" && selectedContext && (
+      {showRentalContextSummary && selectedContext && (
         <p className="text-xs text-muted-foreground">
-          Alquiler para {selectedContext.festivalName}, stand{" "}
-          {selectedContext.standNumber}
-          {selectedContext.standLabel ? ` (${selectedContext.standLabel})` : ""}
+          <RentalContextDescription
+            context={selectedContext}
+            rentalContexts={rentalContexts}
+            selectedReservationId={selectedReservationId}
+            onSelectedReservationIdChange={onSelectedReservationIdChange}
+          />
         </p>
       )}
     </div>

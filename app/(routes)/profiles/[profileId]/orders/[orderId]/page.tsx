@@ -88,59 +88,61 @@ export default async function UserOrderPage(props: {
                 });
 
                 return (
-                <div key={item.id} className="py-4 flex gap-4">
-                  <div className="h-20 w-20 rounded-md overflow-hidden bg-gray-100 shrink-0">
-                    <Image
-                      src={
-                        getProductVariantImageUrl(item.product, item.variant) ??
-                        PLACEHOLDER_IMAGE_URLS["300"]
-                      }
-                      alt={item.product.name}
-                      width={80}
-                      height={80}
-                      className="object-cover w-full h-full"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-medium">
-                          {getOrderItemDisplayName(item)}
-                        </h3>
-                        {item.transactionType === "rental" && (
-                          <Badge variant="secondary">Alquiler</Badge>
-                        )}
-                        {rentalStatus !== "not_applicable" && (
-                          <Badge variant="outline">
-                            {getRentalStatusLabel(rentalStatus)}
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="font-medium shrink-0">
-                        Bs{(item.priceAtPurchase * item.quantity).toFixed(2)}
-                      </p>
+                  <div key={item.id} className="py-4 flex gap-4">
+                    <div className="h-20 w-20 rounded-md overflow-hidden bg-gray-100 shrink-0">
+                      <Image
+                        src={
+                          getProductVariantImageUrl(
+                            item.product,
+                            item.variant,
+                          ) ?? PLACEHOLDER_IMAGE_URLS["300"]
+                        }
+                        alt={item.product.name}
+                        width={80}
+                        height={80}
+                        className="object-cover w-full h-full"
+                      />
                     </div>
-                    <div className="flex justify-between mt-1">
-                      <p className="text-sm text-gray-500">
-                        Cantidad: {item.quantity}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Bs{item.priceAtPurchase.toFixed(2)} cada uno
-                      </p>
-                    </div>
-                    {Array.isArray(item.rentalContentSectionsSnapshot) &&
-                      item.rentalContentSectionsSnapshot.length > 0 && (
-                        <div className="mt-3">
-                          <ProductContentSectionsDisplay
-                            sections={
-                              item.rentalContentSectionsSnapshot as RentalContentSectionSnapshot[]
-                            }
-                          />
+                    <div className="flex-1">
+                      <div className="flex justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-medium">
+                            {getOrderItemDisplayName(item)}
+                          </h3>
+                          {item.transactionType === "rental" && (
+                            <Badge variant="secondary">Alquiler</Badge>
+                          )}
+                          {rentalStatus !== "not_applicable" && (
+                            <Badge variant="outline">
+                              {getRentalStatusLabel(rentalStatus)}
+                            </Badge>
+                          )}
                         </div>
-                      )}
+                        <p className="font-medium shrink-0">
+                          Bs{(item.priceAtPurchase * item.quantity).toFixed(2)}
+                        </p>
+                      </div>
+                      <div className="flex justify-between mt-1">
+                        <p className="text-sm text-gray-500">
+                          Cantidad: {item.quantity}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Bs{item.priceAtPurchase.toFixed(2)} cada uno
+                        </p>
+                      </div>
+                      {Array.isArray(item.rentalContentSectionsSnapshot) &&
+                        item.rentalContentSectionsSnapshot.length > 0 && (
+                          <div className="mt-3">
+                            <ProductContentSectionsDisplay
+                              sections={
+                                item.rentalContentSectionsSnapshot as RentalContentSectionSnapshot[]
+                              }
+                            />
+                          </div>
+                        )}
+                    </div>
                   </div>
-                </div>
-              );
+                );
               })}
             </div>
 

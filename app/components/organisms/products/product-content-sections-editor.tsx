@@ -32,7 +32,9 @@ export default function ProductContentSectionsEditor({
   const [sections, setSections] = useState(initialSections);
   const [isPending, startTransition] = useTransition();
   const [title, setTitle] = useState("");
-  const [format, setFormat] = useState<"free_text" | "bullet_list">("free_text");
+  const [format, setFormat] = useState<"free_text" | "bullet_list">(
+    "free_text",
+  );
   const [body, setBody] = useState("");
   const [displayContext, setDisplayContext] = useState<
     "all" | "purchase" | "rental"
@@ -151,9 +153,7 @@ export default function ProductContentSectionsEditor({
           </div>
         ) : (
           <div className="grid gap-2">
-            <Label htmlFor="section-items">
-              Elementos (uno por línea)
-            </Label>
+            <Label htmlFor="section-items">Elementos (uno por línea)</Label>
             <Textarea
               id="section-items"
               value={body}

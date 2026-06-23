@@ -13,7 +13,10 @@ import {
 } from "@/app/components/ui/select";
 import { removeFromCart, updateCartItemQuantity } from "@/app/lib/cart/actions";
 import { CartItemWithProduct } from "@/app/lib/cart/definitions";
-import { getCartItemAvailableStock, getCartItemWarnings } from "@/app/lib/cart/utils";
+import {
+  getCartItemAvailableStock,
+  getCartItemWarnings,
+} from "@/app/lib/cart/utils";
 import {
   MAX_CART_LINE_QUANTITY,
   PLACEHOLDER_IMAGE_URLS,

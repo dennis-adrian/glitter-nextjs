@@ -64,8 +64,7 @@ export function getProductEffectiveRentalStock(
     .filter((variant) => variant.isVisible)
     .reduce(
       (sum, variant) =>
-        sum +
-        getAvailableStockForTransaction(product, variant, "rental"),
+        sum + getAvailableStockForTransaction(product, variant, "rental"),
       0,
     );
 }

@@ -28,17 +28,18 @@ export default function CheckoutConfirmButton({
 
   async function handleConfirm() {
     if (isSubmittingRef.current) return;
-    if (hasRentalItems && (rentalFestivalId == null || rentalReservationId == null)) {
-      toast.error("Selecciona el festival/reserva para los productos de alquiler.");
+    if (
+      hasRentalItems &&
+      (rentalFestivalId == null || rentalReservationId == null)
+    ) {
+      toast.error("Selecciona el festival para los productos de alquiler.");
       return;
     }
     isSubmittingRef.current = true;
     setLoading(true);
     try {
       const result = await checkoutCart(
-        hasRentalItems
-          ? { rentalFestivalId, rentalReservationId }
-          : undefined,
+        hasRentalItems ? { rentalFestivalId, rentalReservationId } : undefined,
       );
       if (result.success && result.orderId && result.profileId) {
         posthog.capture(POSTHOG_EVENTS.ORDER_PLACED, {

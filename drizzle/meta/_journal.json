@@ -1352,6 +1352,20 @@
       "when": 1782140319482,
       "tag": "0192_handy_pestilence",
       "breakpoints": true
+    },
+    {
+      "idx": 193,
+      "version": "7",
+      "when": 1782152955491,
+      "tag": "0193_square_warbound",
+      "breakpoints": true
+    },
+    {
+      "idx": 194,
+      "version": "7",
+      "when": 1782165594958,
+      "tag": "0194_brave_sphinx",
+      "breakpoints": true
     }
   ]
 }

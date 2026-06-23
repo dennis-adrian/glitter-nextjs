@@ -2,7 +2,10 @@ import type {
   ProductRentalStockMode,
   ProductTransactionType,
 } from "@/app/lib/rentals/types";
-import type { BaseProduct, BaseProductVariant } from "@/app/lib/products/definitions";
+import type {
+  BaseProduct,
+  BaseProductVariant,
+} from "@/app/lib/products/definitions";
 
 type ProductStockFields = Pick<
   BaseProduct,
@@ -74,7 +77,9 @@ export function getSharedPoolRemainingStock(
       if (line.productId !== currentLine.productId) return false;
       const lineVariantId = line.productVariantId ?? null;
       if (lineVariantId !== currentVariantId) return false;
-      return getStockPoolForTransaction(product, line.transactionType) === "sale";
+      return (
+        getStockPoolForTransaction(product, line.transactionType) === "sale"
+      );
     })
     .reduce((sum, line) => sum + line.quantity, 0);
 
