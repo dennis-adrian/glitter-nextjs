@@ -33,7 +33,7 @@ import type {
 } from "@/app/lib/rentals/types";
 import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
-import { cartItems, carts } from "@/db/schema";
+import { cartItems, carts, products } from "@/db/schema";
 
 export type GuestCartItemInput = {
   lineKey: string;
@@ -52,6 +52,16 @@ export type GuestStockValidationResult = {
 };
 
 type CartTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+const SUPPLIES_VERIFIED_MESSAGE =
+  "Los insumos requieren una cuenta verificada.";
+
+function isSuppliesPurchaseBlocked(
+  storeCategory: string | null | undefined,
+  userStatus: string | undefined,
+): boolean {
+  return storeCategory === "supplies" && userStatus !== "verified";
+}
 
 export type CartCheckoutSnapshot = {
   cartId: number;
@@ -356,6 +366,16 @@ export async function addToCart(
     if (!resolved) {
       const currentCount = await fetchCartItemCount();
       return { success: false, newCount: currentCount };
+    }
+
+    if (
+      isSuppliesPurchaseBlocked(resolved.product.storeCategory, user.status)
+    ) {
+      return {
+        success: false,
+        newCount: await fetchCartItemCount(),
+        message: SUPPLIES_VERIFIED_MESSAGE,
+      };
     }
 
     if (transactionType === "purchase" && !resolved.product.isPurchasable) {
@@ -688,6 +708,26 @@ export async function checkoutCart(input?: {
         throw new Error("empty_cart");
       }
 
+      const productIds = [
+        ...new Set(snapshot.items.map((item) => item.productId)),
+      ];
+      const productRows = await tx
+        .select({
+          id: products.id,
+          storeCategory: products.storeCategory,
+        })
+        .from(products)
+        .where(inArray(products.id, productIds));
+      if (
+        productRows.some((product) =>
+          isSuppliesPurchaseBlocked(product.storeCategory, user.status),
+        )
+      ) {
+        throw new Error(SUPPLIES_VERIFIED_MESSAGE, {
+          cause: "supplies_unverified",
+        });
+      }
+
       const rentalItems = snapshot.items.filter(
         (item) => item.transactionType === "rental",
       );
@@ -841,7 +881,8 @@ export async function checkoutCart(input?: {
         err.cause === "rental_ineligible" ||
         err.cause === "rental_context_required" ||
         err.cause === "invalid_rental_context" ||
-        err.cause === "multiple_rental_contexts"
+        err.cause === "multiple_rental_contexts" ||
+        err.cause === "supplies_unverified"
       ) {
         return {
           success: false,
