@@ -3,6 +3,7 @@ import type { RentalEligibilityContext } from "@/app/lib/rentals/types";
 export type RentalEligibilityContextRow = {
   festivalId: number;
   festivalName: string;
+  festivalStartDate: Date | null;
   reservationId: number;
   standId: number;
   standLabel: string | null;
@@ -61,6 +62,43 @@ export function formatRentalContextStands(
   return context.stands
     .map((stand) => `Stand ${stand.standLabel ?? ""}${stand.standNumber}`)
     .join(", ");
+}
+
+export function formatRentalContextSummary(
+  context: RentalEligibilityContext,
+): string {
+  return `Alquiler para ${context.festivalName}, ${formatRentalContextStands(context)}`;
+}
+
+function getFestivalTimeDistance(
+  context: RentalEligibilityContext,
+  now: number,
+): number {
+  if (!context.festivalStartDate) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return Math.abs(new Date(context.festivalStartDate).getTime() - now);
+}
+
+export function getDefaultRentalReservationId(
+  contexts: RentalEligibilityContext[],
+): number | null {
+  if (contexts.length === 0) {
+    return null;
+  }
+
+  if (contexts.length === 1) {
+    return contexts[0].reservationId;
+  }
+
+  const now = Date.now();
+  const [closestContext] = [...contexts].sort(
+    (left, right) =>
+      getFestivalTimeDistance(left, now) - getFestivalTimeDistance(right, now),
+  );
+
+  return closestContext.reservationId;
 }
 
 export function resolveRentalLineContext(

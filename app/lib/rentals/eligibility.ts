@@ -22,6 +22,7 @@ async function fetchEligibleContextsForUser(userId: number) {
     .select({
       festivalId: festivals.id,
       festivalName: festivals.name,
+      festivalStartDate: festivals.startDate,
       reservationId: standReservations.id,
       standId: stands.id,
       standLabel: stands.label,
@@ -42,7 +43,11 @@ async function fetchEligibleContextsForUser(userId: number) {
         eq(festivals.status, "active"),
       ),
     )
-    .orderBy(asc(festivals.name), asc(standReservations.id));
+    .orderBy(
+      asc(festivals.startDate),
+      asc(festivals.name),
+      asc(standReservations.id),
+    );
 
   return normalizeRentalEligibilityContexts(rows);
 }

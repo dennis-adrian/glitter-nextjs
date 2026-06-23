@@ -1,16 +1,16 @@
 "use client";
 
-import { MinusIcon, PlusIcon } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import SubmitProductOrderButton from "@/app/components/molecules/submit-product-order-button";
+import StoreItemQuantityStepper from "@/app/components/molecules/store-item-quantity-stepper";
 import RentalTransactionControls from "@/app/components/molecules/rental-transaction-controls";
+import TransactionModeCards from "@/app/components/molecules/transaction-mode-cards";
 import ProductContentSectionsDisplay from "@/app/components/molecules/product-content-sections-display";
 import { useCartContext } from "@/app/components/providers/cart-provider";
 import { Button } from "@/app/components/ui/button";
-import { Input } from "@/app/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -35,12 +35,16 @@ import type {
   ProductTransactionType,
   RentalEligibilityContext,
 } from "@/app/lib/rentals/types";
-import { rentalContextIncludesReservation } from "@/app/lib/rentals/rental-context";
+import {
+  getDefaultRentalReservationId,
+  rentalContextIncludesReservation,
+} from "@/app/lib/rentals/rental-context";
 import {
   getAvailableStockForTransaction,
   getTransactionPoolRemainingStock,
 } from "@/app/lib/rentals/stock";
 import {
+  getProductStoreAvailability,
   getProductVariantImageUrl,
   getVariantLabel,
 } from "@/app/lib/products/variants";
@@ -56,6 +60,11 @@ type StoreItemQuantityInputProps = {
   ) => void;
   rentalEligible?: boolean;
   rentalContexts?: RentalEligibilityContext[];
+  transactionType?: ProductTransactionType;
+  onTransactionTypeChange?: (value: ProductTransactionType) => void;
+  hideTransactionModeSelector?: boolean;
+  selectedReservationId?: number | null;
+  onSelectedReservationIdChange?: (reservationId: number) => void;
 };
 
 function variantHasSelection(
@@ -105,20 +114,49 @@ export default function StoreItemQuantityInput({
   onSelectedVariantChange,
   rentalEligible = false,
   rentalContexts = [],
+  transactionType: controlledTransactionType,
+  onTransactionTypeChange,
+  hideTransactionModeSelector = false,
+  selectedReservationId: controlledSelectedReservationId,
+  onSelectedReservationIdChange,
 }: StoreItemQuantityInputProps) {
   const { setItemCount, isAuthenticated, addGuestItem } = useCartContext();
-  const canPurchase = product.isPurchasable;
-  const canRent = product.isRentable && rentalEligible && isAuthenticated;
+  const { purchaseInStock, rentalInStock } = getProductStoreAvailability(
+    product,
+    rentalEligible,
+  );
+  const canPurchase = product.isPurchasable && purchaseInStock;
+  const canRent =
+    product.isRentable &&
+    rentalEligible &&
+    isAuthenticated &&
+    rentalInStock &&
+    product.rentalPrice != null;
+  const showDualMode = canPurchase && canRent;
   const defaultTransactionType: ProductTransactionType = canRent
     ? "rental"
     : canPurchase
       ? "purchase"
       : "purchase";
-  const [transactionType, setTransactionType] =
+  const [internalTransactionType, setInternalTransactionType] =
     useState<ProductTransactionType>(defaultTransactionType);
-  const [selectedReservationId, setSelectedReservationId] = useState<
-    number | null
-  >(rentalContexts[0]?.reservationId ?? null);
+  const isTransactionTypeControlled = controlledTransactionType !== undefined;
+  const transactionType = isTransactionTypeControlled
+    ? controlledTransactionType
+    : internalTransactionType;
+  const setTransactionType =
+    onTransactionTypeChange ?? setInternalTransactionType;
+  const [internalSelectedReservationId, setInternalSelectedReservationId] =
+    useState<number | null>(() =>
+      getDefaultRentalReservationId(rentalContexts),
+    );
+  const isSelectedReservationControlled =
+    controlledSelectedReservationId !== undefined;
+  const selectedReservationId = isSelectedReservationControlled
+    ? controlledSelectedReservationId
+    : internalSelectedReservationId;
+  const setSelectedReservationId =
+    onSelectedReservationIdChange ?? setInternalSelectedReservationId;
   const variants = useMemo(
     () => (product.variants ?? []).filter((variant) => variant.isVisible),
     [product.variants],
@@ -170,6 +208,14 @@ export default function StoreItemQuantityInput({
     );
     setQuantity(1);
   }, [product.id, visibleVariantKey, options, hasVariants, variants]);
+
+  useEffect(() => {
+    if (!isSelectedReservationControlled) {
+      setInternalSelectedReservationId(
+        getDefaultRentalReservationId(rentalContexts),
+      );
+    }
+  }, [product.id, rentalContexts, isSelectedReservationControlled]);
 
   const selectedVariant = hasVariants
     ? (variants.find((variant) =>
@@ -245,6 +291,18 @@ export default function StoreItemQuantityInput({
     ) ??
     rentalContexts[0] ??
     null;
+  const purchaseCardPrice = selectedVariant
+    ? getProductPriceAtPurchase(product, selectedVariant)
+    : hasVariants
+      ? Math.min(
+          ...variants.map((variant) =>
+            getProductPriceAtPurchase(product, variant),
+          ),
+        )
+      : getProductPriceAtPurchase(product);
+  const rentalCardPrice =
+    product.rentalPrice != null ? getRentalPriceAtPurchase(product) : 0;
+  const hideModeSelector = hideTransactionModeSelector || showDualMode;
 
   useEffect(() => {
     setQuantity((current) => Math.min(current, maxQuantity));
@@ -368,6 +426,20 @@ export default function StoreItemQuantityInput({
 
   return (
     <div className={`flex flex-col gap-4 ${compact ? "" : "mt-4"}`}>
+      {showDualMode && (
+        <TransactionModeCards
+          transactionType={transactionType}
+          onTransactionTypeChange={setTransactionType}
+          purchasePrice={purchaseCardPrice}
+          rentalPrice={rentalCardPrice}
+          purchasePricePrefix={hasVariants ? "Desde " : ""}
+          rentalContexts={rentalContexts}
+          selectedReservationId={selectedReservationId}
+          onSelectedReservationIdChange={setSelectedReservationId}
+          selectedRentalContext={selectedRentalContext}
+        />
+      )}
+
       {canRent && (
         <RentalTransactionControls
           canPurchase={canPurchase}
@@ -377,6 +449,7 @@ export default function StoreItemQuantityInput({
           rentalContexts={rentalContexts}
           selectedReservationId={selectedReservationId}
           onSelectedReservationIdChange={setSelectedReservationId}
+          hideModeSelector={hideModeSelector}
         />
       )}
 
@@ -486,69 +559,42 @@ export default function StoreItemQuantityInput({
         </div>
       )}
 
-      {inStock && (
-        <div className="flex flex-col items-end gap-1 self-end">
-          <p className="self-start text-sm font-medium">Cantidad</p>
-          <div className="flex gap-1">
-            <Button
-              variant="outline"
-              size="icon"
-              type="button"
-              onClick={() =>
-                setQuantity((current) => clampQuantity(current - 1))
-              }
-              disabled={quantity <= 1}
-            >
-              <MinusIcon className="w-4 h-4" />
-            </Button>
-            <Input
-              className="w-16"
-              type="number"
-              min={1}
-              max={maxQuantity}
-              value={quantity}
-              onChange={(event) =>
-                setQuantity(clampQuantity(Number(event.target.value)))
-              }
-              onBlur={() => setQuantity((current) => clampQuantity(current))}
-            />
-            <Button
-              variant="outline"
-              size="icon"
-              type="button"
-              onClick={() =>
-                setQuantity((current) => clampQuantity(current + 1))
-              }
-              disabled={quantity >= maxQuantity}
-            >
-              <PlusIcon className="w-4 h-4" />
-            </Button>
-          </div>
-          <span className="text-sm">
-            Subtotal Bs{subtotal.toFixed(2)}
-            {transactionType === "rental" ? " (alquiler)" : ""}
-          </span>
+      {inStock ? (
+        <div className="flex items-stretch gap-3">
+          <StoreItemQuantityStepper
+            quantity={quantity}
+            max={maxQuantity}
+            onDecrease={() =>
+              setQuantity((current) => clampQuantity(current - 1))
+            }
+            onIncrease={() =>
+              setQuantity((current) => clampQuantity(current + 1))
+            }
+          />
+          <SubmitProductOrderButton
+            className="flex-1"
+            disabled={
+              submitting ||
+              (hasVariants && !selectedVariant) ||
+              (transactionType === "rental" && !selectedRentalContext)
+            }
+            loading={submitting}
+            inStock={inStock}
+            isPresale={product.status === "presale"}
+            onClick={handleAddToCart}
+            transactionType={transactionType}
+            unitPrice={unitPrice}
+            subtotal={subtotal}
+          />
         </div>
+      ) : (
+        <SubmitProductOrderButton
+          disabled={submitting}
+          loading={submitting}
+          inStock={false}
+          isPresale={product.status === "presale"}
+        />
       )}
-
-      <SubmitProductOrderButton
-        disabled={
-          submitting ||
-          (hasVariants && !selectedVariant) ||
-          (transactionType === "rental" && !selectedRentalContext)
-        }
-        loading={submitting}
-        inStock={inStock}
-        isPresale={product.status === "presale"}
-        onClick={handleAddToCart}
-        label={
-          transactionType === "rental"
-            ? "Alquilar"
-            : product.status === "presale"
-              ? "Reservar"
-              : undefined
-        }
-      />
     </div>
   );
 }

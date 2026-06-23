@@ -39,9 +39,7 @@ export async function createCouponBookPrintSession(input: {
   return sessionId;
 }
 
-export async function getCouponBookPrintSession(
-  sessionId: string,
-): Promise<{
+export async function getCouponBookPrintSession(sessionId: string): Promise<{
   draft: CouponBookDraft;
   exportScope: CouponBookExportScope;
 } | null> {

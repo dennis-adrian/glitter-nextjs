@@ -6,8 +6,12 @@ import { useCallback, useMemo, useState } from "react";
 import Heading from "@/app/components/atoms/heading";
 import StoreItemQuantityInput from "@/app/components/molecules/store-item-quantity-input";
 import StoreProductImages from "@/app/components/molecules/store-product-images";
+import { useCartContext } from "@/app/components/providers/cart-provider";
 import { formatDate } from "@/app/lib/formatters";
-import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import {
+  getProductPriceAtPurchase,
+  getRentalPriceAtPurchase,
+} from "@/app/lib/orders/utils";
 import {
   BaseProductWithImages,
   ProductVariantWithSelections,
@@ -38,6 +42,7 @@ export default function ProductDetailContent({
   rentalEligible = false,
   rentalContexts = [],
 }: ProductDetailContentProps) {
+  const { isAuthenticated } = useCartContext();
   const visibleVariants = useMemo(
     () => (product.variants ?? []).filter((variant) => variant.isVisible),
     [product.variants],
@@ -77,7 +82,19 @@ export default function ProductDetailContent({
     product,
     rentalEligible,
   );
+  const canPurchase = product.isPurchasable && purchaseInStock;
+  const canRent =
+    product.isRentable &&
+    rentalEligible &&
+    isAuthenticated &&
+    rentalInStock &&
+    product.rentalPrice != null;
+  const showDualMode = canPurchase && canRent;
+
   const imageStockSignal = purchaseInStock || rentalInStock ? 1 : 0;
+  const rentalPrice = canRent ? getRentalPriceAtPurchase(product) : null;
+  const showRentalOnlyPrice = canRent && !canPurchase;
+  const showPurchaseOnlyPrice = canPurchase && !canRent;
 
   return (
     <div className="flex flex-col md:flex-row gap-6">
@@ -97,14 +114,25 @@ export default function ProductDetailContent({
           </p>
         )}
 
-        <div className="flex items-baseline gap-2">
-          <span className="text-3xl font-semibold">Bs{price.toFixed(2)}</span>
-          {originalPrice && (
-            <span className="text-base text-muted-foreground line-through">
-              Bs{originalPrice.toFixed(2)}
+        {showDualMode ? null : showRentalOnlyPrice ? (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+              Alquiler
             </span>
-          )}
-        </div>
+            <span className="text-3xl font-semibold">
+              Bs{rentalPrice!.toFixed(2)}
+            </span>
+          </div>
+        ) : showPurchaseOnlyPrice ? (
+          <div className="flex items-baseline gap-2">
+            <span className="text-3xl font-semibold">Bs{price.toFixed(2)}</span>
+            {originalPrice && (
+              <span className="text-base text-muted-foreground line-through">
+                Bs{originalPrice.toFixed(2)}
+              </span>
+            )}
+          </div>
+        ) : null}
 
         {isPresale && (
           <p className="text-sm text-muted-foreground flex items-center gap-1">

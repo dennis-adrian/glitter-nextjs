@@ -39,6 +39,11 @@ type StoreItemCardProps = {
   rentalContexts?: RentalEligibilityContext[];
 };
 
+function formatCardPrice(amount: number): string {
+  const rounded = Math.round(amount * 100) / 100;
+  return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(2);
+}
+
 export default function StoreItemCard({
   product,
   rentalEligible = false,
@@ -57,45 +62,49 @@ export default function StoreItemCard({
     getProductStoreAvailability(product, rentalEligible);
   const inStock = canTransact;
   const isPresale = product.status === "presale";
-  const showRentalBadge = product.isRentable && rentalEligible && rentalInStock;
   const isRentalOnly = rentalInStock && !purchaseInStock;
+  const showDualMode =
+    purchaseInStock &&
+    rentalInStock &&
+    product.isRentable &&
+    rentalEligible &&
+    isAuthenticated;
   const needsRentalContextPicker = isRentalOnly && rentalContexts.length > 1;
-  const shouldOpenModal = shouldUseQuickAddModal || needsRentalContextPicker;
+  const shouldOpenModal =
+    shouldUseQuickAddModal || needsRentalContextPicker || showDualMode;
 
-  const effectivePrices = isRentalOnly
-    ? hasVariants
-      ? variants.map(() => ({
-          current: getRentalPriceAtPurchase(product),
-          original: product.rentalPrice ?? 0,
-        }))
-      : [
-          {
-            current: getRentalPriceAtPurchase(product),
-            original: product.rentalPrice ?? 0,
-          },
-        ]
-    : hasVariants
-      ? variants.map((variant) => ({
-          current: getProductPriceAtPurchase(product, variant),
-          original: variant.price ?? product.price,
-        }))
-      : [
-          {
-            current: getProductPriceAtPurchase(product),
-            original: product.price,
-          },
-        ];
+  const purchasePrices = hasVariants
+    ? variants.map((variant) => ({
+        current: getProductPriceAtPurchase(product, variant),
+        original: variant.price ?? product.price,
+      }))
+    : [
+        {
+          current: getProductPriceAtPurchase(product),
+          original: product.price,
+        },
+      ];
 
-  const lowestCurrentPrice = Math.min(
-    ...effectivePrices.map((entry) => entry.current),
+  const lowestPurchasePrice = Math.min(
+    ...purchasePrices.map((entry) => entry.current),
   );
-  const lowestOriginalPrice = Math.min(
-    ...effectivePrices.map((entry) => entry.original),
+  const lowestPurchaseOriginal = Math.min(
+    ...purchasePrices.map((entry) => entry.original),
   );
-  const originalPrice =
-    Math.abs(lowestOriginalPrice - lowestCurrentPrice) > 0.001
-      ? lowestOriginalPrice
+  const purchaseOriginalPrice =
+    Math.abs(lowestPurchaseOriginal - lowestPurchasePrice) > 0.001
+      ? lowestPurchaseOriginal
       : null;
+
+  const showRentalPrice =
+    product.isRentable &&
+    rentalEligible &&
+    rentalInStock &&
+    product.rentalPrice != null;
+  const showDualPricing = showRentalPrice && purchaseInStock;
+  const rentalPrice = showRentalPrice
+    ? getRentalPriceAtPurchase(product)
+    : null;
 
   const quickAddLabel = !inStock
     ? "Agotado"
@@ -200,11 +209,6 @@ export default function StoreItemCard({
                     : 0
               }
             />
-            {showRentalBadge && (
-              <span className="inline-flex w-fit rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium">
-                Alquiler disponible
-              </span>
-            )}
           </div>
 
           <StoreProductImages
@@ -219,27 +223,33 @@ export default function StoreItemCard({
               {product.name}
             </p>
 
-            <div className="flex items-baseline gap-1.5">
-              <span className="font-semibold text-base">
-                {hasVariants ? "Desde " : ""}Bs{lowestCurrentPrice.toFixed(2)}
-              </span>
-              {originalPrice && (
-                <span className="text-xs text-muted-foreground line-through">
-                  Bs{originalPrice.toFixed(2)}
+            {showRentalPrice ? (
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-primary">
+                  Alquiler
                 </span>
-              )}
-            </div>
-
-            {isPresale && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <ClockIcon className="w-3 h-3" />
-                {product.availableDate
-                  ? formatDate(product.availableDate).toLocaleString({
-                      month: "short",
-                      day: "numeric",
-                    })
-                  : "Disponible próximamente"}
-              </p>
+                <span className="text-lg font-bold leading-tight">
+                  Bs{formatCardPrice(rentalPrice!)}
+                </span>
+                {showDualPricing && (
+                  <p className="text-xs text-muted-foreground">
+                    {hasVariants ? "o compralo desde " : "o compralo por "}
+                    Bs{formatCardPrice(lowestPurchasePrice)}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-semibold text-base">
+                  {hasVariants ? "Desde " : ""}Bs
+                  {formatCardPrice(lowestPurchasePrice)}
+                </span>
+                {purchaseOriginalPrice && (
+                  <span className="text-xs text-muted-foreground line-through">
+                    Bs{formatCardPrice(purchaseOriginalPrice)}
+                  </span>
+                )}
+              </div>
             )}
           </CardContent>
         </Link>
@@ -251,7 +261,7 @@ export default function StoreItemCard({
               inStock
                 ? isPresale
                   ? "w-full bg-amber-600 hover:bg-amber-700"
-                  : "w-full bg-purple-600 hover:bg-purple-700"
+                  : "w-full bg-primary hover:bg-primary/90"
                 : "w-full bg-muted text-muted-foreground hover:bg-muted"
             }
             disabled={!inStock || submitting}
@@ -275,9 +285,11 @@ export default function StoreItemCard({
             <DialogHeader>
               <DialogTitle>{product.name}</DialogTitle>
               <DialogDescription>
-                {shouldUseQuickAddModal
-                  ? "Selecciona una variante para agregarla al carrito."
-                  : "Selecciona el festival para alquilar."}
+                {showDualMode
+                  ? "Selecciona cómo quieres obtener el producto."
+                  : shouldUseQuickAddModal
+                    ? "Selecciona una variante para agregarla al carrito."
+                    : "Selecciona el festival para alquilar."}
               </DialogDescription>
             </DialogHeader>
             <StoreItemQuantityInput
