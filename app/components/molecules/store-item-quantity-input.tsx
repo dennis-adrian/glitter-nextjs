@@ -35,7 +35,10 @@ import type {
   ProductTransactionType,
   RentalEligibilityContext,
 } from "@/app/lib/rentals/types";
-import { rentalContextIncludesReservation } from "@/app/lib/rentals/rental-context";
+import {
+  getDefaultRentalReservationId,
+  rentalContextIncludesReservation,
+} from "@/app/lib/rentals/rental-context";
 import {
   getAvailableStockForTransaction,
   getTransactionPoolRemainingStock,
@@ -133,7 +136,9 @@ export default function StoreItemQuantityInput({
   const setTransactionType =
     onTransactionTypeChange ?? setInternalTransactionType;
   const [internalSelectedReservationId, setInternalSelectedReservationId] =
-    useState<number | null>(rentalContexts[0]?.reservationId ?? null);
+    useState<number | null>(() =>
+      getDefaultRentalReservationId(rentalContexts),
+    );
   const isSelectedReservationControlled =
     controlledSelectedReservationId !== undefined;
   const selectedReservationId = isSelectedReservationControlled

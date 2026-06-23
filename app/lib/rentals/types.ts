@@ -35,6 +35,7 @@ export type RentalContentSectionSnapshot = {
 export type RentalEligibilityContext = {
   festivalId: number;
   festivalName: string;
+  festivalStartDate: Date | null;
   reservationId: number;
   standId: number;
   standLabel: string | null;

@@ -19,7 +19,7 @@ import {
 } from "@/app/lib/products/definitions";
 import type { ProductTransactionType } from "@/app/lib/rentals/types";
 import {
-  formatRentalContextSummary,
+  getDefaultRentalReservationId,
   rentalContextIncludesReservation,
 } from "@/app/lib/rentals/rental-context";
 import {
@@ -100,7 +100,7 @@ export default function ProductDetailContent({
     useState<ProductTransactionType>("rental");
   const [selectedReservationId, setSelectedReservationId] = useState<
     number | null
-  >(rentalContexts[0]?.reservationId ?? null);
+  >(() => getDefaultRentalReservationId(rentalContexts));
 
   const selectedRentalContext = useMemo(
     () =>
@@ -111,16 +111,13 @@ export default function ProductDetailContent({
       null,
     [rentalContexts, selectedReservationId],
   );
-  const rentalCardDescription = selectedRentalContext
-    ? formatRentalContextSummary(selectedRentalContext)
-    : "Por día · Depósito reembolsable";
 
   useEffect(() => {
     setTransactionType(canRent ? "rental" : "purchase");
   }, [product.id, canRent]);
 
   useEffect(() => {
-    setSelectedReservationId(rentalContexts[0]?.reservationId ?? null);
+    setSelectedReservationId(getDefaultRentalReservationId(rentalContexts));
   }, [product.id, rentalContexts]);
 
   const imageStockSignal = purchaseInStock || rentalInStock ? 1 : 0;
@@ -153,7 +150,10 @@ export default function ProductDetailContent({
             purchasePrice={price}
             rentalPrice={rentalPrice!}
             purchasePricePrefix={hasVariants ? "Desde " : ""}
-            rentalDescription={rentalCardDescription}
+            rentalContexts={rentalContexts}
+            selectedReservationId={selectedReservationId}
+            onSelectedReservationIdChange={setSelectedReservationId}
+            selectedRentalContext={selectedRentalContext}
           />
         ) : showRentalOnlyPrice ? (
           <div className="flex flex-col gap-1">

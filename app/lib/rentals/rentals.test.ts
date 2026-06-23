@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getDefaultRentalReservationId,
   normalizeRentalEligibilityContexts,
   resolveRentalLineContext,
 } from "@/app/lib/rentals/rental-context";
@@ -190,6 +191,7 @@ describe("rental context resolution", () => {
     {
       festivalId: 1,
       festivalName: "Festival",
+      festivalStartDate: null,
       reservationId: 10,
       standId: 100,
       standLabel: "A",
@@ -220,6 +222,7 @@ describe("rental context resolution", () => {
         {
           festivalId: 2,
           festivalName: "Other",
+          festivalStartDate: null,
           reservationId: 20,
           standId: 200,
           standLabel: "B",
@@ -249,6 +252,7 @@ describe("rental context resolution", () => {
       {
         festivalId: 1,
         festivalName: "Festival",
+        festivalStartDate: new Date("2026-03-01"),
         reservationId: 10,
         standId: 100,
         standLabel: "A",
@@ -257,6 +261,7 @@ describe("rental context resolution", () => {
       {
         festivalId: 1,
         festivalName: "Festival",
+        festivalStartDate: new Date("2026-03-01"),
         reservationId: 11,
         standId: 101,
         standLabel: "A",
@@ -268,6 +273,49 @@ describe("rental context resolution", () => {
     expect(result[0].reservationId).toBe(10);
     expect(result[0].reservationIds).toEqual([10, 11]);
     expect(result[0].stands.map((stand) => stand.standNumber)).toEqual([1, 2]);
+  });
+
+  it("selects the closest festival in time by default", () => {
+    const contexts = [
+      {
+        festivalId: 1,
+        festivalName: "Later Festival",
+        festivalStartDate: new Date("2026-12-01"),
+        reservationId: 10,
+        standId: 100,
+        standLabel: "A",
+        standNumber: 1,
+        reservationIds: [10],
+        stands: [
+          {
+            reservationId: 10,
+            standId: 100,
+            standLabel: "A",
+            standNumber: 1,
+          },
+        ],
+      },
+      {
+        festivalId: 2,
+        festivalName: "Soon Festival",
+        festivalStartDate: new Date("2026-04-01"),
+        reservationId: 20,
+        standId: 200,
+        standLabel: "B",
+        standNumber: 2,
+        reservationIds: [20],
+        stands: [
+          {
+            reservationId: 20,
+            standId: 200,
+            standLabel: "B",
+            standNumber: 2,
+          },
+        ],
+      },
+    ];
+
+    expect(getDefaultRentalReservationId(contexts)).toBe(20);
   });
 
   it("accepts any reservation in the selected festival context", () => {

@@ -4,7 +4,11 @@ import type { ReactNode } from "react";
 
 import { Label } from "@/app/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/app/components/ui/radio-group";
-import type { ProductTransactionType } from "@/app/lib/rentals/types";
+import { RentalContextDescription } from "@/app/components/molecules/rental-festival-picker";
+import type {
+  ProductTransactionType,
+  RentalEligibilityContext,
+} from "@/app/lib/rentals/types";
 import { cn } from "@/lib/utils";
 
 type TransactionModeCardsProps = {
@@ -13,7 +17,10 @@ type TransactionModeCardsProps = {
   purchasePrice: number;
   rentalPrice: number;
   purchasePricePrefix?: string;
-  rentalDescription?: string;
+  rentalContexts?: RentalEligibilityContext[];
+  selectedReservationId?: number | null;
+  onSelectedReservationIdChange?: (reservationId: number) => void;
+  selectedRentalContext?: RentalEligibilityContext | null;
 };
 
 function formatCardPrice(amount: number): string {
@@ -79,8 +86,23 @@ export default function TransactionModeCards({
   purchasePrice,
   rentalPrice,
   purchasePricePrefix = "",
-  rentalDescription = "Por día · Depósito reembolsable",
+  rentalContexts = [],
+  selectedReservationId = null,
+  onSelectedReservationIdChange,
+  selectedRentalContext = null,
 }: TransactionModeCardsProps) {
+  const rentalDescription =
+    selectedRentalContext && onSelectedReservationIdChange ? (
+      <RentalContextDescription
+        context={selectedRentalContext}
+        rentalContexts={rentalContexts}
+        selectedReservationId={selectedReservationId}
+        onSelectedReservationIdChange={onSelectedReservationIdChange}
+      />
+    ) : (
+      "Por día · Depósito reembolsable"
+    );
+
   return (
     <div className="grid gap-3">
       <p className="text-sm font-semibold">¿Comprar o alquilar?</p>

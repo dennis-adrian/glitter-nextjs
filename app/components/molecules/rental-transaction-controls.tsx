@@ -2,24 +2,14 @@
 
 import { useMemo } from "react";
 
+import { RentalContextDescription } from "@/app/components/molecules/rental-festival-picker";
 import { Label } from "@/app/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/app/components/ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/app/components/ui/select";
 import type {
   ProductTransactionType,
   RentalEligibilityContext,
 } from "@/app/lib/rentals/types";
-import {
-  formatRentalContextSummary,
-  formatRentalContextStands,
-  rentalContextIncludesReservation,
-} from "@/app/lib/rentals/rental-context";
+import { rentalContextIncludesReservation } from "@/app/lib/rentals/rental-context";
 
 type RentalTransactionControlsProps = {
   canPurchase: boolean;
@@ -53,17 +43,12 @@ export default function RentalTransactionControls({
     [rentalContexts, selectedReservationId],
   );
   const showRentOnlyHeading = !canPurchase && !hideModeSelector;
-  const showFestivalPicker =
-    transactionType === "rental" && rentalContexts.length > 1;
   const showRentalContextSummary =
     transactionType === "rental" &&
     selectedContext != null &&
     !hideModeSelector;
   const hasVisibleContent =
-    showModeSelector ||
-    showRentOnlyHeading ||
-    showFestivalPicker ||
-    showRentalContextSummary;
+    showModeSelector || showRentOnlyHeading || showRentalContextSummary;
 
   if (!canRent || !hasVisibleContent) {
     return null;
@@ -95,39 +80,14 @@ export default function RentalTransactionControls({
         <p className="text-sm font-medium">Alquiler</p>
       ) : null}
 
-      {showFestivalPicker && (
-        <div className="grid gap-2">
-          <Label>Festival</Label>
-          <Select
-            value={
-              selectedContext
-                ? String(selectedContext.reservationId)
-                : undefined
-            }
-            onValueChange={(value) =>
-              onSelectedReservationIdChange(Number(value))
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecciona tu reserva" />
-            </SelectTrigger>
-            <SelectContent>
-              {rentalContexts.map((context) => (
-                <SelectItem
-                  key={context.reservationId}
-                  value={String(context.reservationId)}
-                >
-                  {context.festivalName} - {formatRentalContextStands(context)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
       {showRentalContextSummary && selectedContext && (
         <p className="text-xs text-muted-foreground">
-          {formatRentalContextSummary(selectedContext)}
+          <RentalContextDescription
+            context={selectedContext}
+            rentalContexts={rentalContexts}
+            selectedReservationId={selectedReservationId}
+            onSelectedReservationIdChange={onSelectedReservationIdChange}
+          />
         </p>
       )}
     </div>
