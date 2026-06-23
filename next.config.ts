@@ -20,6 +20,11 @@ const nextConfig: NextConfig = {
   },
   skipTrailingSlashRedirect: true,
   reactCompiler: true,
+  outputFileTracingIncludes: {
+    "/app/api/festival_activities/*/couponbook/export": [
+      "./node_modules/@sparticuz/chromium/bin/**/*",
+    ],
+  },
   images: {
     remotePatterns: [
       {

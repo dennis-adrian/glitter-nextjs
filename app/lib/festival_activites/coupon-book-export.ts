@@ -14,10 +14,16 @@ import {
   resolvePdfCanvasConfig,
 } from "@/app/lib/festival_activites/coupon-book-print-config";
 
+type PlaywrightModule = typeof import("playwright");
+type ChromiumLaunchOptions = Parameters<
+  PlaywrightModule["chromium"]["launch"]
+>[0];
+
 const ALLOWED_ORIGINS = [
   "http://localhost:8080",
   "https://game.glitter.com.bo",
 ];
+const DEFAULT_CHROMIUM_ARGS = ["--no-sandbox", "--disable-setuid-sandbox"];
 
 function resolveTrustedOrigin(request: NextRequest): string {
   const canonicalOrigin = (
@@ -55,6 +61,42 @@ function parseCookieHeaderForOrigin(cookieHeader: string, origin: string) {
       };
     })
     .filter((cookie) => cookie !== null);
+}
+
+function isServerlessRuntime() {
+  return (
+    process.env.VERCEL === "1" ||
+    Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME) ||
+    Boolean(process.env.AWS_EXECUTION_ENV)
+  );
+}
+
+async function resolveChromiumLaunchOptions(): Promise<ChromiumLaunchOptions> {
+  const configuredExecutablePath =
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+  if (configuredExecutablePath) {
+    return {
+      headless: true,
+      executablePath: configuredExecutablePath,
+      args: DEFAULT_CHROMIUM_ARGS,
+    };
+  }
+
+  if (!isServerlessRuntime()) {
+    return {
+      headless: true,
+      args: DEFAULT_CHROMIUM_ARGS,
+    };
+  }
+
+  const chromium = (await import("@sparticuz/chromium")).default;
+  chromium.setGraphicsMode = false;
+
+  return {
+    headless: true,
+    executablePath: await chromium.executablePath(),
+    args: chromium.args,
+  };
 }
 
 export async function generateCouponBookPdf(input: {
@@ -145,10 +187,18 @@ export async function renderCouponBookPdf(input: {
     );
   }
 
-  const browser = await playwrightModule.chromium.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
+  let browser: Awaited<ReturnType<PlaywrightModule["chromium"]["launch"]>>;
+  try {
+    browser = await playwrightModule.chromium.launch(
+      await resolveChromiumLaunchOptions(),
+    );
+  } catch (error) {
+    console.error("Error launching browser for coupon book PDF export", error);
+    return new Response(
+      "No se pudo iniciar el navegador para exportar la cuponera.",
+      { status: 500 },
+    );
+  }
   let browserContext: Awaited<ReturnType<typeof browser.newContext>> | null =
     null;
 
