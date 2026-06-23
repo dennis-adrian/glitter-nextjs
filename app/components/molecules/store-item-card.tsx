@@ -62,7 +62,6 @@ export default function StoreItemCard({
     getProductStoreAvailability(product, rentalEligible);
   const inStock = canTransact;
   const isPresale = product.status === "presale";
-  const showRentalBadge = product.isRentable && rentalEligible && rentalInStock;
   const isRentalOnly = rentalInStock && !purchaseInStock;
   const showDualMode =
     purchaseInStock &&
@@ -210,11 +209,6 @@ export default function StoreItemCard({
                     : 0
               }
             />
-            {showRentalBadge && (
-              <span className="inline-flex w-fit rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium">
-                Alquiler disponible
-              </span>
-            )}
           </div>
 
           <StoreProductImages
@@ -256,18 +250,6 @@ export default function StoreItemCard({
                   </span>
                 )}
               </div>
-            )}
-
-            {isPresale && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <ClockIcon className="w-3 h-3" />
-                {product.availableDate
-                  ? formatDate(product.availableDate).toLocaleString({
-                      month: "short",
-                      day: "numeric",
-                    })
-                  : "Disponible próximamente"}
-              </p>
             )}
           </CardContent>
         </Link>
