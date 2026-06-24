@@ -81,8 +81,16 @@ export default function StoreItemCard({
     rentalEligible &&
     isAuthenticated;
   const needsRentalContextPicker = isRentalOnly && rentalContexts.length > 1;
+  // Buy + rent product viewed by an ineligible user: open the modal showing the
+  // disabled rent option so they see the actual (purchase) price before adding,
+  // instead of silently adding the purchase line under the rental price.
+  const showIneligibleDualModal =
+    purchaseInStock && productOffersRental && !rentalEligible;
   const shouldOpenModal =
-    shouldUseQuickAddModal || needsRentalContextPicker || showDualMode;
+    shouldUseQuickAddModal ||
+    needsRentalContextPicker ||
+    showDualMode ||
+    showIneligibleDualModal;
 
   const purchasePrices = hasVariants
     ? variants.map((variant) => ({
@@ -327,9 +335,11 @@ export default function StoreItemCard({
               <DialogDescription>
                 {showDualMode
                   ? "Selecciona cómo quieres obtener el producto."
-                  : shouldUseQuickAddModal
-                    ? "Selecciona una variante para agregarla al carrito."
-                    : "Selecciona el festival para alquilar."}
+                  : showIneligibleDualModal
+                    ? "Revisa las opciones disponibles antes de agregar al carrito."
+                    : shouldUseQuickAddModal
+                      ? "Selecciona una variante para agregarla al carrito."
+                      : "Selecciona el festival para alquilar."}
               </DialogDescription>
             </DialogHeader>
             <StoreItemQuantityInput
