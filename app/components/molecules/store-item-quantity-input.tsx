@@ -137,8 +137,7 @@ export default function StoreItemQuantityInput({
   // The product offers rentals independent of who is viewing it. Ineligible
   // viewers still see the rental price and a notice explaining why they cannot
   // rent, but the rental action stays unavailable to them.
-  const productOffersRental =
-    product.isRentable && product.rentalPrice != null;
+  const productOffersRental = product.isRentable && product.rentalPrice != null;
   // Dual products keep the side-by-side mode cards with the rental option
   // disabled; rent-only products show a read-only rental panel. Both are
   // followed by the eligibility notice.
@@ -624,7 +623,7 @@ export default function StoreItemQuantityInput({
             subtotal={subtotal}
           />
         </div>
-      ) : product.isPurchasable || canRent ? (
+      ) : product.isPurchasable || productOffersRental ? (
         <SubmitProductOrderButton
           disabled={submitting}
           loading={submitting}
