@@ -21,6 +21,7 @@ type TransactionModeCardsProps = {
   selectedReservationId?: number | null;
   onSelectedReservationIdChange?: (reservationId: number) => void;
   selectedRentalContext?: RentalEligibilityContext | null;
+  rentalDisabled?: boolean;
 };
 
 function formatCardPrice(amount: number): string {
@@ -35,6 +36,7 @@ type ModeCardProps = {
   selected: boolean;
   price: ReactNode;
   description?: ReactNode;
+  disabled?: boolean;
 };
 
 function ModeCard({
@@ -44,27 +46,35 @@ function ModeCard({
   selected,
   price,
   description,
+  disabled = false,
 }: ModeCardProps) {
   return (
     <Label
       htmlFor={id}
       className={cn(
-        "flex cursor-pointer flex-col rounded-xl border p-4 transition-colors",
-        selected
-          ? "border-primary bg-primary/5"
-          : "border-border bg-card hover:border-foreground/20",
+        "flex flex-col rounded-xl border p-4 transition-colors",
+        disabled
+          ? "cursor-not-allowed border-border bg-muted/30 opacity-60"
+          : selected
+            ? "cursor-pointer border-primary bg-primary/5"
+            : "cursor-pointer border-border bg-card hover:border-foreground/20",
       )}
     >
       <div className="mb-2 flex items-center gap-2">
         <RadioGroupItem
           value={value}
           id={id}
-          className={cn(selected && "border-primary text-primary")}
+          disabled={disabled}
+          className={cn(selected && !disabled && "border-primary text-primary")}
         />
         <span
           className={cn(
             "text-sm font-semibold",
-            selected ? "text-primary" : "text-foreground",
+            disabled
+              ? "text-muted-foreground"
+              : selected
+                ? "text-primary"
+                : "text-foreground",
           )}
         >
           {label}
@@ -90,6 +100,7 @@ export default function TransactionModeCards({
   selectedReservationId = null,
   onSelectedReservationIdChange,
   selectedRentalContext = null,
+  rentalDisabled = false,
 }: TransactionModeCardsProps) {
   const rentalDescription =
     selectedRentalContext && onSelectedReservationIdChange ? (
@@ -131,13 +142,14 @@ export default function TransactionModeCards({
           value="rental"
           id="transaction-mode-rental"
           label="Alquilar"
-          selected={transactionType === "rental"}
+          selected={!rentalDisabled && transactionType === "rental"}
+          disabled={rentalDisabled}
           price={
             <span className="flex items-baseline gap-0.5">
               Bs{formatCardPrice(rentalPrice)}
             </span>
           }
-          description={rentalDescription}
+          description={rentalDisabled ? undefined : rentalDescription}
         />
       </RadioGroup>
     </div>

@@ -27,6 +27,7 @@ import {
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
 import type { RentalEligibilityContext } from "@/app/lib/rentals/types";
 import {
+  getProductEffectiveRentalStock,
   getProductEffectiveStock,
   getProductStoreAvailability,
   getVariantLabel,
@@ -62,6 +63,16 @@ export default function StoreItemCard({
     getProductStoreAvailability(product, rentalEligible);
   const inStock = canTransact;
   const isPresale = product.status === "presale";
+  // Rental availability for display is independent of the viewer's eligibility.
+  const productOffersRental = product.isRentable && product.rentalPrice != null;
+  const rentalDisplayInStock =
+    productOffersRental && getProductEffectiveRentalStock(product) > 0;
+  // Rentable product the viewer cannot rent from the card (e.g. not eligible)
+  // but that is otherwise available; the card sends them to the detail page
+  // where the eligibility notice explains why.
+  const rentalNeedsDetail =
+    !inStock && rentalDisplayInStock && !rentalEligible;
+  const displayAvailable = inStock || rentalNeedsDetail;
   const isRentalOnly = rentalInStock && !purchaseInStock;
   const showDualMode =
     purchaseInStock &&
@@ -70,8 +81,16 @@ export default function StoreItemCard({
     rentalEligible &&
     isAuthenticated;
   const needsRentalContextPicker = isRentalOnly && rentalContexts.length > 1;
+  // Buy + rent product viewed by an ineligible user: open the modal showing the
+  // disabled rent option so they see the actual (purchase) price before adding,
+  // instead of silently adding the purchase line under the rental price.
+  const showIneligibleDualModal =
+    purchaseInStock && productOffersRental && !rentalEligible;
   const shouldOpenModal =
-    shouldUseQuickAddModal || needsRentalContextPicker || showDualMode;
+    shouldUseQuickAddModal ||
+    needsRentalContextPicker ||
+    showDualMode ||
+    showIneligibleDualModal;
 
   const purchasePrices = hasVariants
     ? variants.map((variant) => ({
@@ -96,15 +115,29 @@ export default function StoreItemCard({
       ? lowestPurchaseOriginal
       : null;
 
-  const showRentalPrice =
-    product.isRentable &&
-    rentalEligible &&
-    rentalInStock &&
-    product.rentalPrice != null;
+  // Rental pricing is shown to all viewers of a rentable product, not only
+  // eligible ones; the rental action remains gated by eligibility.
+  const showRentalPrice = rentalDisplayInStock;
   const showDualPricing = showRentalPrice && purchaseInStock;
   const rentalPrice = showRentalPrice
     ? getRentalPriceAtPurchase(product)
     : null;
+
+  // When the product is fully out of stock but is offered both for sale and
+  // for rent, surface the lowest price (generally the rental price) so the
+  // card reflects the cheapest way the product would have been available.
+  // Shown regardless of rental eligibility: rental availability/pricing is
+  // visible to all viewers, with the rental action gated by eligibility.
+  const outOfStockRentalPrice =
+    !inStock && product.isRentable && product.rentalPrice != null
+      ? getRentalPriceAtPurchase(product)
+      : null;
+  const lowestDisplayPrice =
+    outOfStockRentalPrice != null
+      ? Math.min(lowestPurchasePrice, outOfStockRentalPrice)
+      : lowestPurchasePrice;
+  const showFromPrefix =
+    hasVariants || lowestDisplayPrice < lowestPurchasePrice;
 
   const quickAddLabel = !inStock
     ? "Agotado"
@@ -204,7 +237,7 @@ export default function StoreItemCard({
               stock={
                 purchaseInStock
                   ? getProductEffectiveStock(product)
-                  : rentalInStock
+                  : displayAvailable
                     ? 1
                     : 0
               }
@@ -213,7 +246,7 @@ export default function StoreItemCard({
 
           <StoreProductImages
             productName={product.name}
-            stock={inStock ? 1 : 0}
+            stock={displayAvailable ? 1 : 0}
             images={product.images}
             interactive={false}
           />
@@ -241,10 +274,10 @@ export default function StoreItemCard({
             ) : (
               <div className="flex items-baseline gap-1.5">
                 <span className="font-semibold text-base">
-                  {hasVariants ? "Desde " : ""}Bs
-                  {formatCardPrice(lowestPurchasePrice)}
+                  {showFromPrefix ? "Desde " : ""}Bs
+                  {formatCardPrice(lowestDisplayPrice)}
                 </span>
-                {purchaseOriginalPrice && (
+                {purchaseOriginalPrice && outOfStockRentalPrice == null && (
                   <span className="text-xs text-muted-foreground line-through">
                     Bs{formatCardPrice(purchaseOriginalPrice)}
                   </span>
@@ -255,27 +288,42 @@ export default function StoreItemCard({
         </Link>
 
         <div className="px-3 pb-3">
-          <Button
-            size="sm"
-            className={
-              inStock
-                ? isPresale
-                  ? "w-full bg-amber-600 hover:bg-amber-700"
-                  : "w-full bg-primary hover:bg-primary/90"
-                : "w-full bg-muted text-muted-foreground hover:bg-muted"
-            }
-            disabled={!inStock || submitting}
-            onClick={handleQuickAdd}
-            aria-label={`${quickAddLabel} ${product.name}`}
-          >
-            {!inStock ? (
-              <span className="text-xs md:text-sm">Agotado</span>
-            ) : submitting ? (
-              <span className="text-xs md:text-sm">Agregando...</span>
-            ) : (
-              <span className="text-xs md:text-sm">{quickAddLabel}</span>
-            )}
-          </Button>
+          {rentalNeedsDetail ? (
+            <Button
+              asChild
+              size="sm"
+              className="w-full bg-primary hover:bg-primary/90"
+            >
+              <Link
+                href={`/store/products/${encodeURIComponent(product.slug)}`}
+                aria-label={`Alquilar ${product.name}`}
+              >
+                <span className="text-xs md:text-sm">Alquilar</span>
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              className={
+                inStock
+                  ? isPresale
+                    ? "w-full bg-amber-600 hover:bg-amber-700"
+                    : "w-full bg-primary hover:bg-primary/90"
+                  : "w-full bg-muted text-muted-foreground hover:bg-muted"
+              }
+              disabled={!inStock || submitting}
+              onClick={handleQuickAdd}
+              aria-label={`${quickAddLabel} ${product.name}`}
+            >
+              {!inStock ? (
+                <span className="text-xs md:text-sm">Agotado</span>
+              ) : submitting ? (
+                <span className="text-xs md:text-sm">Agregando...</span>
+              ) : (
+                <span className="text-xs md:text-sm">{quickAddLabel}</span>
+              )}
+            </Button>
+          )}
         </div>
       </Card>
 
@@ -287,9 +335,11 @@ export default function StoreItemCard({
               <DialogDescription>
                 {showDualMode
                   ? "Selecciona cómo quieres obtener el producto."
-                  : shouldUseQuickAddModal
-                    ? "Selecciona una variante para agregarla al carrito."
-                    : "Selecciona el festival para alquilar."}
+                  : showIneligibleDualModal
+                    ? "Revisa las opciones disponibles antes de agregar al carrito."
+                    : shouldUseQuickAddModal
+                      ? "Selecciona una variante para agregarla al carrito."
+                      : "Selecciona el festival para alquilar."}
               </DialogDescription>
             </DialogHeader>
             <StoreItemQuantityInput
