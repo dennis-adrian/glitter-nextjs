@@ -106,6 +106,23 @@ export default function StoreItemCard({
     ? getRentalPriceAtPurchase(product)
     : null;
 
+  // When the product is fully out of stock but is offered both for sale and
+  // for rent, surface the lowest price (generally the rental price) so the
+  // card reflects the cheapest way the product would have been available.
+  const outOfStockRentalPrice =
+    !inStock &&
+    product.isRentable &&
+    rentalEligible &&
+    product.rentalPrice != null
+      ? getRentalPriceAtPurchase(product)
+      : null;
+  const lowestDisplayPrice =
+    outOfStockRentalPrice != null
+      ? Math.min(lowestPurchasePrice, outOfStockRentalPrice)
+      : lowestPurchasePrice;
+  const showFromPrefix =
+    hasVariants || lowestDisplayPrice < lowestPurchasePrice;
+
   const quickAddLabel = !inStock
     ? "Agotado"
     : purchaseInStock
@@ -241,10 +258,10 @@ export default function StoreItemCard({
             ) : (
               <div className="flex items-baseline gap-1.5">
                 <span className="font-semibold text-base">
-                  {hasVariants ? "Desde " : ""}Bs
-                  {formatCardPrice(lowestPurchasePrice)}
+                  {showFromPrefix ? "Desde " : ""}Bs
+                  {formatCardPrice(lowestDisplayPrice)}
                 </span>
-                {purchaseOriginalPrice && (
+                {purchaseOriginalPrice && outOfStockRentalPrice == null && (
                   <span className="text-xs text-muted-foreground line-through">
                     Bs{formatCardPrice(purchaseOriginalPrice)}
                   </span>
