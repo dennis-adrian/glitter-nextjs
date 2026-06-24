@@ -6,6 +6,8 @@ The Product Rentals feature allows store products to be offered for rent in addi
 
 Rentals are only available to authenticated, verified users who are active participants in an active festival and have an accepted stand reservation for the festival they select as the rental context. Guest users and unverified, rejected, or banned users can still use the regular purchase flow where allowed, but they cannot rent products.
 
+Rental availability and pricing are visible to everyone who can view the product. This does **not** change page-level access: the supplies store that lists rentable products remains restricted to verified users (non-verified users are redirected away as today). The change is that, among users who can already see the product, rental information is no longer hidden from those who are not rental-eligible. Rather than hiding rental components from ineligible viewers, the store shows rental information everywhere it is relevant (product cards and product detail pages) but keeps the rental action disabled by default and only enables it for eligible users. Ineligible viewers (e.g. a verified user without an accepted reservation in an active festival) see a notice on the product detail page explaining why renting is unavailable. Eligibility still gates the action itself, and server actions remain the source of truth that reject ineligible rental attempts.
+
 The feature also introduces a return log so admins can document every return event, including condition notes, missing or broken pieces, partial returns, and who processed the return. Product listings and individual product variants can include configurable content sections for details such as warranty, use instructions, size, weight, care notes, or rental process notes. These sections can be free text or bullet lists, and admins can add as many as needed.
 
 ## 2) Problem Statement
@@ -56,12 +58,12 @@ Without this, admins have to track rentals manually, which makes stock unreliabl
 
 | ID    | Story                                                                                                              | Acceptance Criteria                                                                                                                                           |
 | ----- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| US-01 | As a customer, I can see whether a product is available to buy, rent, or both when I am eligible for those modes.  | Product cards/details show rental indicators/options only when the product is rentable and the viewer is eligible to rent.                                    |
+| US-01 | As a customer, I can see whether a product is available to buy, rent, or both.                                    | Product cards/details show rental indicators and rental pricing for any rentable product to all viewers; the rental action is enabled only for eligible viewers.   |
 | US-02 | As a verified active festival participant, I can choose "Rent" for a rentable product before adding it to my cart. | Cart line records the selected mode and keeps rent/buy lines separate.                                                                                        |
 | US-03 | As a customer, I can read product-specific detail sections before checkout.                                        | Configured sections appear on the product detail page; rental-relevant sections also appear in cart/checkout summary and order confirmation for rental lines. |
 | US-04 | As a verified active festival participant, I can complete checkout with a mix of purchased and rented products.    | Order creation validates eligibility and stock across all lines and creates order items with their selected mode.                                             |
 | US-05 | As a customer, I can see which items in my order are rented and whether they have been returned.                   | Order detail labels rental items and shows return status/quantity.                                                                                            |
-| US-06 | As a guest, unverified user, or user without active participation, I do not see rental options.                    | Rental indicators/options are not rendered for ineligible users, and server actions reject rental attempts.                                                   |
+| US-06 | As a verified user who can browse the store but is not rental-eligible (e.g. no accepted reservation in an active festival), I can see that a product is rentable but cannot rent it. | Rental indicators/pricing render for ineligible users who can reach the product, but the rental action is disabled and the detail page shows an eligibility notice. Page access stays verified-only, and server actions reject rental attempts from any ineligible user. |
 
 ### Admin
 
@@ -153,9 +155,9 @@ Rental actions require all of the following:
 
 Rules:
 
-- Eligibility must be checked when rendering product cards and product detail pages.
+- Eligibility must be evaluated when rendering product cards and product detail pages to decide whether the rental action is enabled and whether to show the eligibility notice. Rental indicators and pricing are shown to all viewers regardless of eligibility.
 - Eligibility must also be checked on the server when adding a rental to cart and again during checkout.
-- UI checks prevent ineligible users from seeing rental options; server actions remain the source of truth.
+- UI checks disable the rental action and surface a notice for ineligible users; they do not hide rental information. Server actions remain the source of truth and reject ineligible rental attempts.
 - A user who becomes ineligible after adding a rental line cannot checkout until rental lines are removed or eligibility is restored.
 - Purchase lines remain available to guests/unverified users according to the existing store rules.
 - If the user has accepted reservations in exactly one eligible active festival, the system may auto-select that festival as the rental context.
@@ -166,14 +168,16 @@ Rules:
 
 ### 7.4 Product Discovery & Detail UX
 
-- Product cards show a concise rental indicator only when `isRentable = true` and the current viewer is eligible to rent.
-- Product cards do not show rental indicators to guests, unverified users, blocked/rejected users, or users without an accepted reservation in an active festival.
-- Product detail pages show a transaction mode control when both buy and rent are available.
-- If a product is rent-only and the viewer is eligible, the default and only mode is rent.
+- Page-level access is unchanged: the supplies store that lists rentable products stays restricted to verified users. "All viewers" below means everyone who can already reach the product, not guests/unverified users who are redirected away.
+- Product cards show a concise rental indicator whenever `isRentable = true`, for all viewers regardless of rental eligibility.
+- Product cards show rental pricing for rentable products to all viewers. The rental quick-action (e.g. `Alquilar`) is enabled only for eligible viewers; for ineligible viewers it is disabled or routes to the detail page where the eligibility notice explains the requirement.
+- Product detail pages show a transaction mode control when both buy and rent are available, for all viewers.
+- If a product is rent-only, rent is the default (and only) mode for all viewers. Eligible viewers get an active add-to-rental action; ineligible viewers see the rental information plus the eligibility notice and a disabled rental action.
 - If a product is buy-only, the UI remains effectively unchanged.
-- If the viewer is not eligible to rent, rental mode controls and rental CTAs should not render.
-- If a rent-only product is viewed by an ineligible user, the page should show the regular product information but no add-to-rental action; purchase action remains available only if `isPurchasable = true`.
+- For ineligible viewers, the product detail page still renders the rental information together with an eligibility notice placed just below the controls. For buy + rent products the side-by-side buy/rent mode cards remain, with the rental card disabled (not selectable) and the purchase flow active. For rent-only products the rental price is shown as a read-only panel. In all cases no actionable rental control is rendered for ineligible viewers.
+- If a rent-only product is viewed by an ineligible user, the page shows the regular product information and the rental details with a disabled add-to-rental action; the purchase action remains available only if `isPurchasable = true`.
 - Price display must distinguish purchase price from rental price.
+- On product cards, when a rentable + purchasable product is fully out of stock, the displayed price is the lowest of the purchase and rental prices (generally the rental price), so the card reflects the cheapest way the product would have been available. This is shown to all viewers.
 - Configured product-level content sections are shown on the product detail page according to the selected mode.
 - Configured variant-level content sections are shown after the shopper selects the corresponding variant.
 - Rental-visible sections are shown near the mode selector or add-to-cart area when rent is selected.
@@ -184,6 +188,13 @@ Suggested labels:
 - Rent: `Alquilar`
 - Rental process/content section example: `Instrucciones de alquiler`
 - Rental price: `Precio de alquiler`
+- Eligibility notice (ineligible viewers, single generic message): `El alquiler está disponible solo para participantes verificados con una reserva de stand aceptada en un festival activo.`
+
+Eligibility notice rules:
+
+- The product detail page shows a single generic eligibility notice to any viewer who is not eligible to rent. The copy does not branch per reason (guest vs unverified vs no reservation) in v1.
+- The notice appears near the rental mode control / disabled rental action so the reason for the disabled state is clear.
+- The notice is not shown to eligible viewers and is not required on product cards.
 
 ### 7.5 Cart Behavior
 
@@ -576,10 +587,10 @@ type MarkRentalReturnResult =
 ## 11) UX Requirements
 
 - Rental mode selection must be explicit when both modes are available.
-- Rental CTAs and rental card indicators are only rendered for eligible verified active participants.
+- Rental card indicators and rental pricing are rendered for all viewers of a rentable product. The rental CTA/action is enabled only for eligible verified active participants and is disabled for everyone else.
 - When more than one active festival is eligible, the user must select the rental festival before adding or checking out rental lines.
-- Ineligible users should not see rental options on product cards or product pages.
-- If an ineligible user reaches a rental action through stale UI, direct URL, localStorage tampering, or a crafted request, the server must reject it.
+- Ineligible users see rental options on product cards and product pages, but the rental action is disabled and the product detail page shows a generic eligibility notice explaining why renting is unavailable.
+- If an ineligible user reaches a rental action through a disabled control, stale UI, direct URL, localStorage tampering, or a crafted request, the server must reject it.
 - Rental lines must be visually distinguishable from purchase lines in cart, checkout, order details, and admin order views.
 - Admin return controls should be disabled or hidden for purchase items and fully returned rental items.
 - Return notes should support enough detail for operational follow-up.
@@ -595,8 +606,8 @@ type MarkRentalReturnResult =
 3. Verified user with an accepted reservation in an active festival can add a rentable product to cart as a rental line.
 4. Guest, pending, rejected, or banned users cannot add rental lines or checkout with rental lines.
 5. Verified user without an accepted reservation in an active festival cannot add rental lines or checkout with rental lines.
-6. Product cards do not render rental indicators for ineligible users.
-7. Product detail pages do not render rental mode controls or rental CTAs for ineligible users.
+6. Product cards render rental indicators and rental pricing for all viewers of a rentable product; the rental quick-action is disabled for ineligible users.
+7. Product detail pages render rental mode controls and rental information for ineligible users, with the rental CTA disabled and a generic eligibility notice shown.
 8. Server actions reject rental lines for ineligible users even if a rental request is crafted manually.
 9. Verified user with accepted reservations across multiple active festivals must select which festival the rental is for; multiple reservations in the same active festival are treated as one participation.
 10. Rental order items snapshot the selected `rental_festival_id` and `rental_reservation_id`.
@@ -618,6 +629,7 @@ type MarkRentalReturnResult =
 26. Admin can view a current rentals report showing product, variant, quantity out, renter, order, festival, reservation/stand, rented-at date, and return status.
 27. Product admin/inventory views can show currently rented quantity and available rental quantity.
 28. Existing purchase-only checkout behavior continues to work.
+29. When a rentable + purchasable product is fully out of stock, its product card displays the lowest of the purchase and rental prices to all viewers.
 
 ## 13) Edge Cases
 
@@ -688,7 +700,8 @@ type MarkRentalReturnResult =
 - Unit tests for shared vs separate rental stock validation.
 - Unit tests for product content section validation and ordering.
 - Unit tests for rental eligibility.
-- Render/route tests for hiding rental indicators/options from ineligible users on product cards and product detail pages.
+- Render/route tests that rental indicators/pricing render for ineligible users on product cards and product detail pages, with the rental action disabled and the eligibility notice shown on the detail page.
+- Render test for the out-of-stock card showing the lowest of purchase/rental price for a rentable + purchasable product.
 - Unit tests for rental status derivation.
 - Integration/server-action tests for checkout stock decrement on rental lines.
 - Integration/server-action tests that reject guest/unverified/non-participant rental attempts.
@@ -705,7 +718,7 @@ type MarkRentalReturnResult =
 | Stock is restored twice for the same rental units.                     | Inventory becomes inaccurate.                            | Track returned quantity on order item and enforce outstanding quantity inside a transaction.                                                      |
 | Return restores to the wrong stock pool after product settings change. | Sale/rental stock becomes inaccurate.                    | Snapshot rental stock mode on the order item and use that for returns/cancellations.                                                              |
 | Rental and purchase cart lines collapse into one line.                 | Wrong pricing and fulfillment mode.                      | Include transaction type in cart uniqueness and line keys.                                                                                        |
-| Ineligible users can rent through a stale UI or tampered request.      | Rentals happen outside the event participation use case. | Revalidate eligibility in add-to-cart and checkout server actions.                                                                                |
+| Ineligible users can rent through a disabled control, stale UI, or tampered request. | Rentals happen outside the event participation use case. | Rental information is visible to all, but the action is disabled for ineligible users; eligibility is revalidated in add-to-cart and checkout server actions, which remain the source of truth. |
 | Multiple active festivals create ambiguous eligibility.                | Rentals may attach to the wrong event.                   | Require the user to select an eligible festival and snapshot the festival plus representative reservation on rental order items.                  |
 | Product content sections change after checkout.                        | Customer/admin lose the details shown at rental time.    | Snapshot rental-visible content sections on the order item.                                                                                       |
 | Damaged/lost returns should not always increase sellable stock.        | Inventory may overstate usable stock.                    | v1 uses admin-controlled `stockRestored` with non-good defaults to `0`; return logs record both `quantityReturned` and `stockRestored` for audit. |

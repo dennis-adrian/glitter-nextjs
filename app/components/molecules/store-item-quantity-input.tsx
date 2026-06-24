@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import SubmitProductOrderButton from "@/app/components/molecules/submit-product-order-button";
 import StoreItemQuantityStepper from "@/app/components/molecules/store-item-quantity-stepper";
 import RentalTransactionControls from "@/app/components/molecules/rental-transaction-controls";
+import RentalEligibilityNotice from "@/app/components/molecules/rental-eligibility-notice";
 import TransactionModeCards from "@/app/components/molecules/transaction-mode-cards";
 import ProductContentSectionsDisplay from "@/app/components/molecules/product-content-sections-display";
 import { useCartContext } from "@/app/components/providers/cart-provider";
@@ -133,6 +134,19 @@ export default function StoreItemQuantityInput({
     rentalInStock &&
     product.rentalPrice != null;
   const showDualMode = canPurchase && canRent;
+  // The product offers rentals independent of who is viewing it. Ineligible
+  // viewers still see the rental price and a notice explaining why they cannot
+  // rent, but the rental action stays unavailable to them.
+  const productOffersRental =
+    product.isRentable && product.rentalPrice != null;
+  // Dual products keep the side-by-side mode cards with the rental option
+  // disabled; rent-only products show a read-only rental panel. Both are
+  // followed by the eligibility notice.
+  const showIneligibleDualCards =
+    canPurchase && productOffersRental && !rentalEligible;
+  const showIneligibleRentalOnlyInfo =
+    !canPurchase && productOffersRental && !rentalEligible;
+  const showTransactionModeCards = showDualMode || showIneligibleDualCards;
   const defaultTransactionType: ProductTransactionType = canRent
     ? "rental"
     : canPurchase
@@ -275,6 +289,11 @@ export default function StoreItemQuantityInput({
     Math.min(MAX_CART_LINE_QUANTITY, poolRemaining),
   );
   const inStock = poolRemaining > 0;
+  // Whether the viewer can actually act in the currently selected mode, so a
+  // rent-only product is never purchasable and an ineligible viewer cannot
+  // submit a rental.
+  const canActInCurrentMode =
+    transactionType === "rental" ? canRent : canPurchase;
   const unitPrice =
     transactionType === "rental"
       ? getRentalPriceAtPurchase(product)
@@ -426,18 +445,22 @@ export default function StoreItemQuantityInput({
 
   return (
     <div className={`flex flex-col gap-4 ${compact ? "" : "mt-4"}`}>
-      {showDualMode && (
-        <TransactionModeCards
-          transactionType={transactionType}
-          onTransactionTypeChange={setTransactionType}
-          purchasePrice={purchaseCardPrice}
-          rentalPrice={rentalCardPrice}
-          purchasePricePrefix={hasVariants ? "Desde " : ""}
-          rentalContexts={rentalContexts}
-          selectedReservationId={selectedReservationId}
-          onSelectedReservationIdChange={setSelectedReservationId}
-          selectedRentalContext={selectedRentalContext}
-        />
+      {showTransactionModeCards && (
+        <div className="grid gap-3">
+          <TransactionModeCards
+            transactionType={transactionType}
+            onTransactionTypeChange={setTransactionType}
+            purchasePrice={purchaseCardPrice}
+            rentalPrice={rentalCardPrice}
+            purchasePricePrefix={hasVariants ? "Desde " : ""}
+            rentalContexts={rentalContexts}
+            selectedReservationId={selectedReservationId}
+            onSelectedReservationIdChange={setSelectedReservationId}
+            selectedRentalContext={selectedRentalContext}
+            rentalDisabled={showIneligibleDualCards}
+          />
+          {showIneligibleDualCards && <RentalEligibilityNotice />}
+        </div>
       )}
 
       {canRent && (
@@ -451,6 +474,20 @@ export default function StoreItemQuantityInput({
           onSelectedReservationIdChange={setSelectedReservationId}
           hideModeSelector={hideModeSelector}
         />
+      )}
+
+      {showIneligibleRentalOnlyInfo && (
+        <div className="grid gap-3 rounded-lg border p-4">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+              Alquiler
+            </span>
+            <span className="text-2xl font-semibold leading-tight">
+              Bs{rentalCardPrice.toFixed(2)}
+            </span>
+          </div>
+          <RentalEligibilityNotice />
+        </div>
       )}
 
       {visibleSections.length > 0 && (
@@ -559,7 +596,7 @@ export default function StoreItemQuantityInput({
         </div>
       )}
 
-      {inStock ? (
+      {inStock && canActInCurrentMode ? (
         <div className="flex items-stretch gap-3">
           <StoreItemQuantityStepper
             quantity={quantity}
@@ -587,14 +624,14 @@ export default function StoreItemQuantityInput({
             subtotal={subtotal}
           />
         </div>
-      ) : (
+      ) : product.isPurchasable || canRent ? (
         <SubmitProductOrderButton
           disabled={submitting}
           loading={submitting}
           inStock={false}
           isPresale={product.status === "presale"}
         />
-      )}
+      ) : null}
     </div>
   );
 }

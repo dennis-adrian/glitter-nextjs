@@ -17,6 +17,7 @@ import {
   ProductVariantWithSelections,
 } from "@/app/lib/products/definitions";
 import {
+  getProductEffectiveRentalStock,
   getProductStoreAvailability,
   getProductVariantImageUrl,
 } from "@/app/lib/products/variants";
@@ -90,8 +91,25 @@ export default function ProductDetailContent({
     rentalInStock &&
     product.rentalPrice != null;
   const showDualMode = canPurchase && canRent;
+  // Ineligible viewers of a buy + rent product still see the side-by-side mode
+  // cards (with rental disabled), so the heading should not also repeat the
+  // purchase-only price.
+  const showModeCards =
+    showDualMode ||
+    (canPurchase &&
+      product.isRentable &&
+      product.rentalPrice != null &&
+      !rentalEligible);
 
-  const imageStockSignal = purchaseInStock || rentalInStock ? 1 : 0;
+  // Rental availability for display is independent of the viewer's eligibility,
+  // so an available rentable product is not shown as out of stock to ineligible
+  // viewers.
+  const rentalDisplayAvailable =
+    product.isRentable &&
+    product.rentalPrice != null &&
+    getProductEffectiveRentalStock(product) > 0;
+  const imageStockSignal =
+    purchaseInStock || rentalInStock || rentalDisplayAvailable ? 1 : 0;
   const rentalPrice = canRent ? getRentalPriceAtPurchase(product) : null;
   const showRentalOnlyPrice = canRent && !canPurchase;
   const showPurchaseOnlyPrice = canPurchase && !canRent;
@@ -114,7 +132,7 @@ export default function ProductDetailContent({
           </p>
         )}
 
-        {showDualMode ? null : showRentalOnlyPrice ? (
+        {showModeCards ? null : showRentalOnlyPrice ? (
           <div className="flex flex-col gap-1">
             <span className="text-xs font-semibold uppercase tracking-wide text-primary">
               Alquiler
