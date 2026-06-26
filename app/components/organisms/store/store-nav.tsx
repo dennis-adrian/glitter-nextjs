@@ -8,6 +8,7 @@ import {
   ReceiptTextIcon,
   ShoppingCartIcon,
   KeyRoundIcon,
+  SettingsIcon,
 } from "lucide-react";
 
 import {
@@ -50,6 +51,12 @@ const storeSections = [
     href: "/dashboard/store/rentals",
     icon: KeyRoundIcon,
   },
+  {
+    value: "settings",
+    label: "Configuración",
+    href: "/dashboard/store/settings",
+    icon: SettingsIcon,
+  },
 ] as const;
 
 function getActiveStoreSection(pathname: string) {
@@ -57,6 +64,7 @@ function getActiveStoreSection(pathname: string) {
   if (pathname.startsWith("/dashboard/store/rentals")) return "rentals";
   if (pathname.startsWith("/dashboard/store/payments")) return "payments";
   if (pathname.startsWith("/dashboard/store/analytics")) return "analytics";
+  if (pathname.startsWith("/dashboard/store/settings")) return "settings";
   return "orders";
 }
 

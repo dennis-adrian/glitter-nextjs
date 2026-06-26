@@ -1366,6 +1366,20 @@
       "when": 1782165594958,
       "tag": "0194_brave_sphinx",
       "breakpoints": true
+    },
+    {
+      "idx": 195,
+      "version": "7",
+      "when": 1782490902019,
+      "tag": "0195_rich_boomer",
+      "breakpoints": true
+    },
+    {
+      "idx": 196,
+      "version": "7",
+      "when": 1782492626022,
+      "tag": "0196_flawless_starfox",
+      "breakpoints": true
     }
   ]
 }

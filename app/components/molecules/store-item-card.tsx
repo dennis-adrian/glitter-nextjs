@@ -116,18 +116,22 @@ export default function StoreItemCard({
       : null;
 
   // Rental pricing is shown to all viewers of a rentable product, not only
-  // eligible ones; the rental action remains gated by eligibility.
-  const showRentalPrice = rentalDisplayInStock;
-  const showDualPricing = showRentalPrice && purchaseInStock;
+  // eligible ones; the rental action remains gated by eligibility. The
+  // rental-led block (Alquiler + optional "o compralo por") is used when rental
+  // stock is available, and also when the item is fully out of stock but is
+  // offered both for rent and for sale.
+  const offersBothListings = productOffersRental && product.isPurchasable;
+  const isOutOfStockDual = !inStock && offersBothListings;
+  const showRentalPrice = rentalDisplayInStock || isOutOfStockDual;
+  const showDualPricing =
+    (rentalDisplayInStock && purchaseInStock) || isOutOfStockDual;
   const rentalPrice = showRentalPrice
     ? getRentalPriceAtPurchase(product)
     : null;
 
-  // When the product is fully out of stock but is offered both for sale and
-  // for rent, surface the lowest price (generally the rental price) so the
-  // card reflects the cheapest way the product would have been available.
-  // Shown regardless of rental eligibility: rental availability/pricing is
-  // visible to all viewers, with the rental action gated by eligibility.
+  // For out-of-stock items not covered by the rental-led block above (e.g.
+  // purchase-only or rent-only), surface the lowest of the purchase and rental
+  // prices so the card still reflects the cheapest option.
   const outOfStockRentalPrice =
     !inStock && product.isRentable && product.rentalPrice != null
       ? getRentalPriceAtPurchase(product)
