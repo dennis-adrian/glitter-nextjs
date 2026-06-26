@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import StoreSettingsForm from "@/app/components/organisms/store/store-settings-form";
-import { fetchAllStoreSettings } from "@/app/lib/store_settings/actions";
+import { fetchAllStoreSettings } from "@/app/lib/store_settings/data";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export default async function StoreSettingsPage() {

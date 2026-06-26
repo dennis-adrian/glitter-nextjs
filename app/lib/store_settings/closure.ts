@@ -3,7 +3,7 @@ import {
   resolveStoreClosure,
   type StoreClosure,
 } from "@/app/lib/festivals/store-gate";
-import { fetchStoreSettings } from "./actions";
+import { fetchStoreSettings } from "./data";
 import type { StoreSection } from "./definitions";
 
 export type ClosedStore = Extract<StoreClosure, { closed: true }>;
