@@ -2,9 +2,7 @@ import { connection } from "next/server";
 
 import FestivalHappeningNotice from "@/app/components/organisms/store/festival-happening-notice";
 import StoreClosedNotice from "@/app/components/organisms/store/store-closed-notice";
-import { getActiveFestivalBase } from "@/app/lib/festivals/helpers";
-import { resolveStoreClosure } from "@/app/lib/festivals/store-gate";
-import { fetchStoreSettings } from "@/app/lib/store_settings/actions";
+import { resolveSectionClosure } from "@/app/lib/store_settings/closure";
 import type { StoreSection } from "@/app/lib/store_settings/definitions";
 
 /**
@@ -23,18 +21,7 @@ export default async function StoreSectionGate({
   // Opt into dynamic rendering so we can read the current time below.
   await connection();
 
-  const [activeFestival, settings] = await Promise.all([
-    getActiveFestivalBase(),
-    fetchStoreSettings(section),
-  ]);
-
-  const closure = resolveStoreClosure({
-    mode: settings.mode,
-    closedTitle: settings.closedTitle,
-    closedMessage: settings.closedMessage,
-    festival: activeFestival,
-    now: new Date(),
-  });
+  const closure = await resolveSectionClosure(section);
 
   if (closure.closed) {
     return closure.source === "festival" ? (

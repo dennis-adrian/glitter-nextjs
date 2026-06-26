@@ -70,12 +70,16 @@ function getActiveStoreSection(pathname: string) {
 
 type StoreNavProps = {
   pendingCount: number;
+  isAdmin: boolean;
 };
 
-export default function StoreNav({ pendingCount }: StoreNavProps) {
+export default function StoreNav({ pendingCount, isAdmin }: StoreNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const active = getActiveStoreSection(pathname);
+  const sections = storeSections.filter(
+    (section) => section.value !== "settings" || isAdmin,
+  );
 
   return (
     <div className="sticky top-16 z-40 -mx-3 border-b bg-background/95 px-3 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 md:top-20 md:-mx-6 md:px-6">
@@ -87,7 +91,7 @@ export default function StoreNav({ pendingCount }: StoreNavProps) {
           <Select
             value={active}
             onValueChange={(value) => {
-              const targetSection = storeSections.find(
+              const targetSection = sections.find(
                 (section) => section.value === value,
               );
               if (targetSection) {
@@ -99,7 +103,7 @@ export default function StoreNav({ pendingCount }: StoreNavProps) {
               <SelectValue placeholder="Selecciona una sección" />
             </SelectTrigger>
             <SelectContent>
-              {storeSections.map(({ value, label, icon: Icon }) => (
+              {sections.map(({ value, label, icon: Icon }) => (
                 <SelectItem key={value} value={value}>
                   <span className="flex items-center gap-2">
                     <Icon className="h-4 w-4" />
@@ -116,7 +120,7 @@ export default function StoreNav({ pendingCount }: StoreNavProps) {
 
         <nav className="hidden rounded-2xl border border-border/70 bg-muted/30 p-1 shadow-sm md:block">
           <div className="flex flex-wrap gap-1">
-            {storeSections.map(({ value, label, href, icon: Icon }) => {
+            {sections.map(({ value, label, href, icon: Icon }) => {
               const isActive = active === value;
 
               return (

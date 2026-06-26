@@ -1,8 +1,9 @@
 "use server";
 
-import { asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cache } from "react";
+import { z } from "zod";
 
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
@@ -14,9 +15,21 @@ import {
   type UpdateStoreSettingsInput,
 } from "./definitions";
 
+const CLOSED_TITLE_MAX = 120;
+const CLOSED_MESSAGE_MAX = 1000;
+
+const updateStoreSettingsSchema = z.object({
+  section: z.enum(["merch", "supplies"]),
+  mode: z.enum(["auto", "open", "closed"]),
+  closedTitle: z.string().max(CLOSED_TITLE_MAX).nullish(),
+  closedMessage: z.string().max(CLOSED_MESSAGE_MAX).nullish(),
+});
+
 /**
  * Reads the settings row for a section, creating a default (`mode: "auto"`) row
  * the first time it's requested so we never have to seed it in a migration.
+ * `onConflictDoNothing` keeps concurrent first reads from racing on the unique
+ * `section` constraint.
  */
 export const fetchStoreSettings = cache(
   async (section: StoreSection): Promise<StoreSettings> => {
@@ -30,12 +43,24 @@ export const fetchStoreSettings = cache(
       return existing[0];
     }
 
-    const [created] = await db
+    const inserted = await db
       .insert(storeSettings)
       .values({ section, mode: "auto" })
+      .onConflictDoNothing({ target: storeSettings.section })
       .returning();
 
-    return created;
+    if (inserted.length > 0) {
+      return inserted[0];
+    }
+
+    // A concurrent request inserted the row first; read it back.
+    const [row] = await db
+      .select()
+      .from(storeSettings)
+      .where(eq(storeSettings.section, section))
+      .limit(1);
+
+    return row;
   },
 );
 
@@ -53,20 +78,27 @@ export async function updateStoreSettings(input: UpdateStoreSettingsInput) {
     return { success: false, message: "No autorizado" } as const;
   }
 
-  const current = await fetchStoreSettings(input.section);
+  const parsed = updateStoreSettingsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, message: "Datos inválidos" } as const;
+  }
+
+  const { section, mode, closedTitle, closedMessage } = parsed.data;
+  const current = await fetchStoreSettings(section);
 
   await db
     .update(storeSettings)
     .set({
-      mode: input.mode,
-      closedTitle: input.closedTitle?.trim() || null,
-      closedMessage: input.closedMessage?.trim() || null,
+      mode,
+      closedTitle: closedTitle?.trim() || null,
+      closedMessage: closedMessage?.trim() || null,
       updatedAt: new Date(),
     })
     .where(eq(storeSettings.id, current.id));
 
-  revalidatePath("/store", "layout");
-  revalidatePath("/(storefront)", "layout");
+  revalidatePath("/merch", "layout");
+  revalidatePath("/supplies", "layout");
+  revalidatePath("/checkout", "layout");
   revalidatePath("/dashboard/store/settings");
 
   return { success: true, message: "Configuración actualizada" } as const;

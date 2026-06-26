@@ -121,7 +121,11 @@ export default function StoreItemCard({
   // stock is available, and also when the item is fully out of stock but is
   // offered both for rent and for sale.
   const offersBothListings = productOffersRental && product.isPurchasable;
-  const isOutOfStockDual = !inStock && offersBothListings;
+  // "Out of stock dual" means both listings are truly exhausted by stock — not
+  // merely that the current viewer can't transact (canTransact/inStock folds in
+  // rental eligibility, which would wrongly enable the purchase copy below).
+  const isOutOfStockDual =
+    !purchaseInStock && !rentalDisplayInStock && offersBothListings;
   const showRentalPrice = rentalDisplayInStock || isOutOfStockDual;
   const showDualPricing =
     (rentalDisplayInStock && purchaseInStock) || isOutOfStockDual;

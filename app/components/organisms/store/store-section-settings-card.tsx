@@ -60,16 +60,20 @@ export default function StoreSectionSettingsCard({ settings }: Props) {
 
   function handleSubmit() {
     startTransition(async () => {
-      const result = await updateStoreSettings({
-        section: settings.section,
-        mode,
-        closedTitle,
-        closedMessage,
-      });
-      if (result.success) {
-        toast.success(result.message);
-      } else {
-        toast.error(result.message);
+      try {
+        const result = await updateStoreSettings({
+          section: settings.section,
+          mode,
+          closedTitle,
+          closedMessage,
+        });
+        if (result.success) {
+          toast.success(result.message);
+        } else {
+          toast.error(result.message);
+        }
+      } catch {
+        toast.error("No se pudo guardar la configuración");
       }
     });
   }
