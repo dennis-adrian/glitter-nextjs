@@ -64,12 +64,12 @@ export const fetchStoreSettings = cache(
   },
 );
 
-/** Returns every section's settings (creating any missing rows), ordered by id. */
+/**
+ * Returns every section's settings (creating any missing rows) in STORE_SECTIONS
+ * order, which Promise.all preserves regardless of row-creation order.
+ */
 export async function fetchAllStoreSettings(): Promise<StoreSettings[]> {
-  const settings = await Promise.all(
-    STORE_SECTIONS.map((section) => fetchStoreSettings(section)),
-  );
-  return settings.sort((a, b) => a.id - b.id);
+  return Promise.all(STORE_SECTIONS.map((section) => fetchStoreSettings(section)));
 }
 
 export async function updateStoreSettings(input: UpdateStoreSettingsInput) {

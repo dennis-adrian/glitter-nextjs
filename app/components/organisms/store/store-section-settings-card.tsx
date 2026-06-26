@@ -69,6 +69,10 @@ export default function StoreSectionSettingsCard({ settings }: Props) {
         });
         if (result.success) {
           toast.success(result.message);
+          // Mirror the server-side normalization (trim + empty -> null) so the
+          // inputs reflect exactly what was persisted.
+          setClosedTitle((current) => current.trim());
+          setClosedMessage((current) => current.trim());
         } else {
           toast.error(result.message);
         }
@@ -94,6 +98,7 @@ export default function StoreSectionSettingsCard({ settings }: Props) {
           value={mode}
           onValueChange={(value) => setMode(value as StoreStatusMode)}
           className="gap-3"
+          disabled={isPending}
         >
           {MODE_OPTIONS.map((option) => (
             <Label
@@ -130,6 +135,7 @@ export default function StoreSectionSettingsCard({ settings }: Props) {
                 onChange={(event) => setClosedTitle(event.target.value)}
                 placeholder="La tiendita está cerrada"
                 rows={1}
+                disabled={isPending}
               />
             </div>
             <div className="space-y-2">
@@ -142,6 +148,7 @@ export default function StoreSectionSettingsCard({ settings }: Props) {
                 onChange={(event) => setClosedMessage(event.target.value)}
                 placeholder="Estamos haciendo una pausa por el momento. ¡Vuelve pronto!"
                 rows={4}
+                disabled={isPending}
               />
             </div>
             <p className="text-xs text-muted-foreground">
