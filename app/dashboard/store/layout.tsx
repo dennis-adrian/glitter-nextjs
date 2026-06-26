@@ -1,13 +1,18 @@
 import StoreNav from "@/app/components/organisms/store/store-nav";
 import { fetchPendingVoucherCount } from "@/app/lib/orders/actions";
 import Heading from "@/app/components/atoms/heading";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export default async function StoreLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const pendingCount = await fetchPendingVoucherCount();
+  const [pendingCount, profile] = await Promise.all([
+    fetchPendingVoucherCount(),
+    getCurrentUserProfile(),
+  ]);
+  const isAdmin = profile?.role === "admin";
 
   return (
     <div className="container space-y-6 px-3 py-4 md:px-6 md:py-6">
@@ -19,7 +24,7 @@ export default async function StoreLayout({
         </p>
       </div>
 
-      <StoreNav pendingCount={pendingCount} />
+      <StoreNav pendingCount={pendingCount} isAdmin={isAdmin} />
 
       {children}
     </div>

@@ -64,6 +64,12 @@ export const marketingBannerAudienceEnum = pgEnum("marketing_banner_audience", [
   "public_only",
   "participants_only",
 ]);
+export const storeStatusModeEnum = pgEnum("store_status_mode", [
+  "auto",
+  "open",
+  "closed",
+]);
+export const storeSectionEnum = pgEnum("store_section", ["merch", "supplies"]);
 
 export const users = pgTable(
   "users",
@@ -278,6 +284,23 @@ export const marketingBanners = pgTable(
     index("marketing_banners_is_visible_idx").on(t.isVisible),
   ],
 );
+
+/**
+ * Per-section store configuration (one row per `section`: merch / supplies).
+ * The storefront reads `mode` to decide whether to override the festival-based
+ * auto-close for that section (see store-gate.ts): `auto` keeps the festival
+ * behavior, `open` forces the section open, `closed` forces it closed and shows
+ * the optional custom title/message to visitors.
+ */
+export const storeSettings = pgTable("store_settings", {
+  id: serial("id").primaryKey(),
+  section: storeSectionEnum("section").notNull().unique(),
+  mode: storeStatusModeEnum("mode").default("auto").notNull(),
+  closedTitle: text("closed_title"),
+  closedMessage: text("closed_message"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 
 export const festivalSectors = pgTable(
   "festival_sectors",
