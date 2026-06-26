@@ -31,6 +31,11 @@ import type {
   ProductTransactionType,
   RentalEligibilityContext,
 } from "@/app/lib/rentals/types";
+import {
+  findClosedSection,
+  resolveSectionClosure,
+  storeClosureMessage,
+} from "@/app/lib/store_settings/closure";
 import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { cartItems, carts, products } from "@/db/schema";
@@ -375,6 +380,17 @@ export async function addToCart(
         success: false,
         newCount: await fetchCartItemCount(),
         message: SUPPLIES_VERIFIED_MESSAGE,
+      };
+    }
+
+    const sectionClosure = await resolveSectionClosure(
+      resolved.product.storeCategory,
+    );
+    if (sectionClosure.closed) {
+      return {
+        success: false,
+        newCount: await fetchCartItemCount(),
+        message: storeClosureMessage(sectionClosure),
       };
     }
 
@@ -728,6 +744,15 @@ export async function checkoutCart(input?: {
         });
       }
 
+      const closedSection = await findClosedSection(
+        productRows.map((product) => product.storeCategory),
+      );
+      if (closedSection) {
+        throw new Error(storeClosureMessage(closedSection.closure), {
+          cause: "store_closed",
+        });
+      }
+
       const rentalItems = snapshot.items.filter(
         (item) => item.transactionType === "rental",
       );
@@ -882,7 +907,8 @@ export async function checkoutCart(input?: {
         err.cause === "rental_context_required" ||
         err.cause === "invalid_rental_context" ||
         err.cause === "multiple_rental_contexts" ||
-        err.cause === "supplies_unverified"
+        err.cause === "supplies_unverified" ||
+        err.cause === "store_closed"
       ) {
         return {
           success: false,
@@ -941,6 +967,22 @@ export async function checkoutGuestCart(
   } = contactParsed.data;
 
   try {
+    const productRows = await db
+      .select({ storeCategory: products.storeCategory })
+      .from(products)
+      .where(
+        inArray(
+          products.id,
+          items.map((item) => item.productId),
+        ),
+      );
+    const closedSection = await findClosedSection(
+      productRows.map((product) => product.storeCategory),
+    );
+    if (closedSection) {
+      return { success: false, message: storeClosureMessage(closedSection.closure) };
+    }
+
     const orderResult = await db.transaction((tx) =>
       createGuestOrderInTx(
         tx,

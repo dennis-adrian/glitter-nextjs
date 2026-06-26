@@ -5,6 +5,7 @@ import { notFound, permanentRedirect, redirect } from "next/navigation";
 import { z } from "zod";
 
 import ProductDetailContent from "@/app/components/organisms/store/product-detail-content";
+import StoreSectionGate from "@/app/components/organisms/store/store-section-gate";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { fetchProduct, fetchProductBySlug } from "@/app/lib/products/actions";
 import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
@@ -115,22 +116,24 @@ export default async function ProductDetailPage(props: {
   const rentalEligibility = await getRentalEligibilityForCurrentUser();
 
   return (
-    <div className="container px-3 py-6">
-      <Link
-        href={product.storeCategory === "supplies" ? "/supplies" : "/merch"}
-        className="text-sm text-muted-foreground flex items-center gap-1 mb-6 hover:text-foreground transition-colors"
-      >
-        <ArrowLeftIcon className="h-3.5 w-3.5" />
-        Volver a la tienda
-      </Link>
+    <StoreSectionGate section={product.storeCategory}>
+      <div className="container px-3 py-6">
+        <Link
+          href={product.storeCategory === "supplies" ? "/supplies" : "/merch"}
+          className="text-sm text-muted-foreground flex items-center gap-1 mb-6 hover:text-foreground transition-colors"
+        >
+          <ArrowLeftIcon className="h-3.5 w-3.5" />
+          Volver a la tienda
+        </Link>
 
-      <ProductDetailContent
-        product={product}
-        rentalEligible={rentalEligibility.eligible}
-        rentalContexts={
-          rentalEligibility.eligible ? rentalEligibility.contexts : []
-        }
-      />
-    </div>
+        <ProductDetailContent
+          product={product}
+          rentalEligible={rentalEligibility.eligible}
+          rentalContexts={
+            rentalEligibility.eligible ? rentalEligibility.contexts : []
+          }
+        />
+      </div>
+    </StoreSectionGate>
   );
 }
