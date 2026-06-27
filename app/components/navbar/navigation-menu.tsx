@@ -190,6 +190,12 @@ const NavbarNavigationMenu = ({
                   Etiquetas para los usuarios
                 </NavigationMenuListItem>
                 <NavigationMenuListItem
+                  title="Participantes externos"
+                  href="/dashboard/external_participants"
+                >
+                  Instituciones, auspiciantes y aliados sin cuenta
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
                   title="Códigos de descuento"
                   href="/dashboard/discount_codes"
                 >

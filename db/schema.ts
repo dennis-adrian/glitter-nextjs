@@ -660,6 +660,7 @@ export const externalParticipants = pgTable(
     websiteUrl: text("website_url"),
     instagramUrl: text("instagram_url"),
     contactEmail: text("contact_email"),
+    contactPhone: text("contact_phone"),
     createdByUserId: integer("created_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
