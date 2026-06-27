@@ -12,16 +12,14 @@ export default async function EditExternalParticipantPage(props: {
   const validatedParams = ParamsSchema.safeParse(params);
   if (!validatedParams.success) return <ResourceNotFound />;
 
-  const externalParticipant = await fetchExternalParticipant(
-    validatedParams.data.id,
-  );
-
-  if (!externalParticipant) return <ResourceNotFound />;
+  const result = await fetchExternalParticipant(validatedParams.data.id);
+  if ("error" in result) throw result.error;
+  if (!result.found) return <ResourceNotFound />;
 
   return (
     <div className="container p-4 md:p-6">
       <h1 className="mb-4 text-2xl font-bold">Editar participante externo</h1>
-      <ExternalParticipantForm externalParticipant={externalParticipant} />
+      <ExternalParticipantForm externalParticipant={result.participant} />
     </div>
   );
 }

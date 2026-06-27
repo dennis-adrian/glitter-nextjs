@@ -20,6 +20,7 @@ export const columnTitles = {
 export const columns: ColumnDef<ExternalParticipant>[] = [
   {
     id: "displayName",
+    accessorKey: "displayName",
     header: columnTitles.displayName,
     cell: ({ row }) => (
       <span className="font-medium">{row.original.displayName}</span>
@@ -27,21 +28,25 @@ export const columns: ColumnDef<ExternalParticipant>[] = [
   },
   {
     id: "type",
+    accessorFn: (row) => getExternalParticipantCategoryLabel(row),
     header: columnTitles.type,
     cell: ({ row }) => getExternalParticipantCategoryLabel(row.original),
   },
   {
     id: "contactEmail",
+    accessorKey: "contactEmail",
     header: columnTitles.contactEmail,
     cell: ({ row }) => row.original.contactEmail ?? "—",
   },
   {
     id: "contactPhone",
+    accessorKey: "contactPhone",
     header: columnTitles.contactPhone,
     cell: ({ row }) => row.original.contactPhone ?? "—",
   },
   {
     id: "actions",
+    enableSorting: false,
     header: columnTitles.actions,
     cell: ({ row }) => (
       <Button asChild size="sm" variant="outline">

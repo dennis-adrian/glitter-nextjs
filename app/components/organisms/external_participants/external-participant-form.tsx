@@ -24,7 +24,6 @@ import {
   externalParticipantTypeOptions,
 } from "@/app/lib/external_participants/definitions";
 import { externalParticipantInputSchema } from "@/app/lib/external_participants/schema";
-import { deleteFile } from "@/app/lib/uploadthing/actions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Building2Icon, Loader2Icon } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -236,15 +235,7 @@ export default function ExternalParticipantForm({
                           type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={async () => {
-                            const result = await deleteFile(imageUrl);
-                            if (result.success) {
-                              field.onChange("");
-                              toast.success("Imagen eliminada");
-                            } else {
-                              toast.error("No se pudo eliminar la imagen");
-                            }
-                          }}
+                          onClick={() => field.onChange("")}
                         >
                           Quitar
                         </Button>

@@ -8,6 +8,7 @@ import {
   stands,
 } from "@/db/schema";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { deleteFile } from "@/app/lib/uploadthing/actions";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -16,13 +17,31 @@ import {
   externalParticipantInputSchema,
   ExternalParticipantInput,
 } from "./schema";
+import type { ExternalParticipant } from "./definitions";
 
-const AssignmentSchema = z.object({
-  festivalId: z.coerce.number().int().positive(),
-  standId: z.coerce.number().int().positive(),
-  externalParticipantId: z.coerce.number().int().positive().optional(),
-  externalParticipant: externalParticipantInputSchema.optional(),
-});
+const AssignmentSchema = z
+  .object({
+    festivalId: z.coerce.number().int().positive(),
+    standId: z.coerce.number().int().positive(),
+    externalParticipantId: z.coerce.number().int().positive().optional(),
+    externalParticipant: externalParticipantInputSchema.optional(),
+  })
+  .refine(
+    (data) => {
+      const hasId = data.externalParticipantId != null;
+      const hasNew = data.externalParticipant != null;
+      return hasId !== hasNew;
+    },
+    {
+      message:
+        "Indicá un participante existente o los datos de uno nuevo, no ambos",
+    },
+  );
+
+export type FetchExternalParticipantResult =
+  | { found: true; participant: ExternalParticipant }
+  | { found: false }
+  | { error: Error };
 
 function emptyToNull(value?: string) {
   const trimmed = value?.trim();
@@ -49,6 +68,31 @@ function mapExternalParticipantInput(
   };
 }
 
+function logExternalParticipantError(
+  operation: string,
+  error: unknown,
+  context?: Record<string, unknown>,
+) {
+  console.error(`[external_participants] ${operation} failed`, {
+    ...context,
+    ...(error instanceof Error
+      ? { name: error.name, message: error.message }
+      : { message: "Unknown error" }),
+  });
+}
+
+async function deleteOrphanImage(
+  url: string | null | undefined,
+  logLabel: string,
+) {
+  if (!url) return;
+
+  const deleteResult = await deleteFile(url);
+  if (!deleteResult.success) {
+    console.error(logLabel, { error: deleteResult.error });
+  }
+}
+
 async function requireExternalParticipantManager() {
   const currentProfile = await getCurrentUserProfile();
   if (
@@ -69,19 +113,39 @@ export async function fetchExternalParticipants() {
       ],
     });
   } catch (error) {
-    console.error("Error fetching external participants", error);
+    logExternalParticipantError("fetchExternalParticipants", error);
     return [];
   }
 }
 
-export async function fetchExternalParticipant(id: number) {
+export async function fetchExternalParticipant(
+  id: number,
+): Promise<FetchExternalParticipantResult> {
   try {
-    return await db.query.externalParticipants.findFirst({
+    const currentProfile = await requireExternalParticipantManager();
+    if (!currentProfile) {
+      return { found: false };
+    }
+
+    const participant = await db.query.externalParticipants.findFirst({
       where: eq(externalParticipants.id, id),
     });
+    if (!participant) {
+      return { found: false };
+    }
+    return { found: true, participant };
   } catch (error) {
-    console.error("Error fetching external participant", error);
-    return null;
+    logExternalParticipantError("fetchExternalParticipant", error, {
+      participantId: id,
+    });
+    return {
+      error:
+        error instanceof Error
+          ? error
+          : new Error(
+              "Unexpected error while fetching external participant.",
+            ),
+    };
   }
 }
 
@@ -104,9 +168,7 @@ export async function createExternalParticipant(
   try {
     const [created] = await db
       .insert(externalParticipants)
-      .values(
-        mapExternalParticipantInput(parsed.data, currentProfile.id),
-      )
+      .values(mapExternalParticipantInput(parsed.data, currentProfile.id))
       .returning({ id: externalParticipants.id });
 
     revalidatePath("/dashboard/external_participants");
@@ -118,7 +180,11 @@ export async function createExternalParticipant(
       id: created.id,
     };
   } catch (error) {
-    console.error("Error creating external participant", error);
+    await deleteOrphanImage(
+      parsed.data.imageUrl,
+      "Failed to delete uploaded image after create failure",
+    );
+    logExternalParticipantError("createExternalParticipant", error);
     return {
       success: false,
       message: "No se pudo crear el participante externo",
@@ -143,6 +209,10 @@ export async function updateExternalParticipant(
     return { success: false, message: "Datos inválidos" };
   }
 
+  const newImageUrl = emptyToNull(parsed.data.imageUrl);
+  let previousImageUrl: string | null = null;
+  let existingImageUrl: string | null = null;
+
   try {
     const existing = await db.query.externalParticipants.findFirst({
       where: eq(externalParticipants.id, id),
@@ -152,10 +222,22 @@ export async function updateExternalParticipant(
       return { success: false, message: "El participante externo no existe" };
     }
 
+    existingImageUrl = existing.imageUrl;
+    if (existing.imageUrl && existing.imageUrl !== newImageUrl) {
+      previousImageUrl = existing.imageUrl;
+    }
+
     await db
       .update(externalParticipants)
       .set(mapExternalParticipantInput(parsed.data))
       .where(eq(externalParticipants.id, id));
+
+    if (previousImageUrl) {
+      await deleteOrphanImage(
+        previousImageUrl,
+        "Failed to delete replaced external participant image",
+      );
+    }
 
     revalidatePath("/dashboard/external_participants");
     revalidatePath(`/dashboard/external_participants/${id}/edit`);
@@ -166,7 +248,15 @@ export async function updateExternalParticipant(
       message: "Participante externo actualizado",
     };
   } catch (error) {
-    console.error("Error updating external participant", error);
+    if (newImageUrl && newImageUrl !== existingImageUrl) {
+      await deleteOrphanImage(
+        newImageUrl,
+        "Failed to delete uploaded image after update failure",
+      );
+    }
+    logExternalParticipantError("updateExternalParticipant", error, {
+      participantId: id,
+    });
     return {
       success: false,
       message: "No se pudo actualizar el participante externo",
@@ -189,19 +279,12 @@ export async function createExternalParticipantReservation(
   if (!parsed.success) {
     return {
       success: false,
-      message: "Datos inválidos",
+      message: parsed.error.issues[0]?.message ?? "Datos inválidos",
     };
   }
 
   const { festivalId, standId, externalParticipantId, externalParticipant } =
     parsed.data;
-
-  if (!externalParticipantId && !externalParticipant) {
-    return {
-      success: false,
-      message: "Seleccioná o creá un participante externo",
-    };
-  }
 
   try {
     const reservationId = await db.transaction(async (tx) => {
@@ -301,7 +384,18 @@ export async function createExternalParticipantReservation(
       }
     }
 
-    console.error("Error creating external participant reservation", error);
+    if (externalParticipant?.imageUrl) {
+      await deleteOrphanImage(
+        externalParticipant.imageUrl,
+        "Failed to delete uploaded image after reservation create failure",
+      );
+    }
+
+    logExternalParticipantError(
+      "createExternalParticipantReservation",
+      error,
+      { festivalId, standId },
+    );
     return {
       success: false,
       message: "Ups! No pudimos crear la reserva externa",
