@@ -19,6 +19,7 @@ import {
   AlbumIcon,
   BookImageIcon,
   BoxesIcon,
+  Building2Icon,
   CalendarCheck2Icon,
   CalendarIcon,
   CreditCardIcon,
@@ -194,6 +195,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
                 <MobileSidebarItem href="/dashboard/tags">
                   <TagsIcon className="mr-2 h-6 w-6" />
                   Etiquetas
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/external_participants">
+                  <Building2Icon className="mr-2 h-6 w-6" />
+                  Participantes externos
                 </MobileSidebarItem>
                 <MobileSidebarItem href="/dashboard/discount_codes">
                   <TicketIcon className="mr-2 h-6 w-6" />

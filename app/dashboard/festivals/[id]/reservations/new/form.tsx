@@ -48,6 +48,7 @@ const FormSchema = z.object({
   websiteUrl: z.string().optional(),
   instagramUrl: z.string().optional(),
   contactEmail: z.string().optional(),
+  contactPhone: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof FormSchema>;
@@ -140,6 +141,7 @@ export default function CreateReservationForm({
       websiteUrl: "",
       instagramUrl: "",
       contactEmail: "",
+      contactPhone: "",
     },
   });
 
@@ -214,6 +216,7 @@ export default function CreateReservationForm({
         websiteUrl: data.websiteUrl,
         instagramUrl: data.instagramUrl,
         contactEmail: data.contactEmail,
+        contactPhone: data.contactPhone,
       },
     });
 
@@ -346,6 +349,12 @@ export default function CreateReservationForm({
                   name="contactEmail"
                   label="Correo de contacto"
                   placeholder="contacto@..."
+                />
+                <TextField
+                  form={form}
+                  name="contactPhone"
+                  label="Teléfono de contacto"
+                  placeholder="+591 ..."
                 />
                 <FormField
                   control={form.control}
