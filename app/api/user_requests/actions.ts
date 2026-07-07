@@ -455,6 +455,29 @@ export async function createUserEnrollment(params: {
   } = params;
 
   try {
+    const profile = await db.query.users.findFirst({
+      where: eq(users.id, profileId),
+    });
+
+    if (!profile) {
+      return { success: false, message: "Perfil no encontrado." };
+    }
+
+    if (profile.status === "paused") {
+      return {
+        success: false,
+        message:
+          "Tu cuenta está pausada. Contactá a soporte para solicitar la reactivación.",
+      };
+    }
+
+    if (profile.status !== "verified") {
+      return {
+        success: false,
+        message: "Tu perfil debe estar verificado para aceptar los términos.",
+      };
+    }
+
     const existing = await db.query.userRequests.findFirst({
       where: and(
         eq(userRequests.userId, profileId),

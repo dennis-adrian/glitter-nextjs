@@ -1,6 +1,7 @@
 import { fetchUserProfileById } from "@/app/api/users/actions";
 import { UserCategory } from "@/app/api/users/definitions";
 import TermsAndConditions from "@/app/components/festivals/terms";
+import PausedAccountTermsMessage from "@/app/components/festivals/paused-account-terms-message";
 import {
   fetchFestivalSectors,
   fetchFestivalSectorsWithAllowedCategories,
@@ -32,6 +33,10 @@ export default async function TermsPage(props: TermsPageProps) {
 
   const forProfile = await fetchUserProfileById(props.profileId);
   if (!forProfile) notFound();
+
+  if (forProfile.status === "paused") {
+    return <PausedAccountTermsMessage />;
+  }
 
   const hasSubcategories =
     forProfile.profileSubcategories &&

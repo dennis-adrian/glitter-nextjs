@@ -14,6 +14,7 @@ import FestivalActivities from "@/app/components/participant_dashboard/festival-
 import ParticipationHistoryPreview from "@/app/components/participant_dashboard/participation-history-preview";
 import ReservationCard from "@/app/components/participant_dashboard/reservation-card";
 import RestrictedDashboard from "@/app/components/participant_dashboard/restricted-dashboard";
+import PausedParticipantDashboard from "@/app/components/participant_dashboard/paused-dashboard";
 import { fetchOutstandingInvoiceCountByProfileAndFestival } from "@/app/data/invoices/actions";
 import {
   fetchProfileEnrollmentInFestival,
@@ -32,13 +33,21 @@ export default async function ParticipantDashboardPage() {
     redirect("/");
   }
 
-  if (currentProfile.status !== "verified") {
+  if (
+    currentProfile.status === "pending" ||
+    currentProfile.status === "rejected" ||
+    currentProfile.status === "banned"
+  ) {
     return (
       <RestrictedDashboard
         profile={currentProfile}
         status={currentProfile.status}
       />
     );
+  }
+
+  if (currentProfile.status === "paused") {
+    return <PausedParticipantDashboard profile={currentProfile} />;
   }
 
   const carouselFestivals = await fetchPublishedActiveFestivals();

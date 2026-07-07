@@ -6,6 +6,7 @@ import {
   CircleCheckBigIcon,
   CircleCheckIcon,
   CogIcon,
+  PauseCircleIcon,
   PenBoxIcon,
   ReceiptIcon,
   TagsIcon,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { ProfileType } from "@/app/api/users/definitions";
+import { ParticipantActivitySummary } from "@/app/lib/participants/definitions";
 import { buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -30,6 +32,8 @@ import { DeleteProfileModal } from "@/app/components/users/form/delete-profile-m
 import { VerifyProfileModal } from "@/app/components/users/form/verify-user-modal";
 import { DisableProfileModal } from "@/app/components/users/form/disable-profile-modal";
 import { RejectProfileModal } from "@/app/components/users/form/reject-profile-modal";
+import { PauseParticipantModal } from "@/app/components/users/form/pause-participant-modal";
+import { UnpauseParticipantModal } from "@/app/components/users/form/unpause-participant-modal";
 
 export default function ProfileQuickActions({
   profile,
@@ -39,9 +43,11 @@ export default function ProfileQuickActions({
   triggerSize = "icon",
   triggerClassName,
   children,
+  activitySummary,
 }: {
   hideViewProfile?: boolean;
   profile: ProfileType;
+  activitySummary?: ParticipantActivitySummary;
   pendingPaymentsByFestival?:
     | { festivalId: number; festivalName: string; count: number }[]
     | undefined;
@@ -55,7 +61,17 @@ export default function ProfileQuickActions({
   const [openVerifyModal, setOpenVerifyModal] = useState(false);
   const [openDisableModal, setOpenDisableModal] = useState(false);
   const [openRejectModal, setOpenRejectModal] = useState(false);
-  const allowVerify = profile.status !== "verified";
+  const [openPauseModal, setOpenPauseModal] = useState(false);
+  const [openUnpauseModal, setOpenUnpauseModal] = useState(false);
+  const allowVerify =
+    profile.status !== "verified" && profile.status !== "paused";
+  const canPause =
+    profile.status === "verified" && activitySummary?.isPauseEligible === true;
+  const canUnpause = profile.status === "paused";
+  const participantProfile =
+    activitySummary !== undefined
+      ? { ...profile, activitySummary }
+      : undefined;
 
   const triggerContent = children ?? (
     <CogIcon className="h-6 w-6 shrink-0" aria-hidden />
@@ -144,6 +160,18 @@ export default function ProfileQuickActions({
             )}
           </DropdownMenuItem>
         )}
+        {canPause && participantProfile ? (
+          <DropdownMenuItem onClick={() => setOpenPauseModal(true)}>
+            <PauseCircleIcon className="h-4 w-4 mr-1" />
+            Pausar cuenta
+          </DropdownMenuItem>
+        ) : null}
+        {canUnpause ? (
+          <DropdownMenuItem onClick={() => setOpenUnpauseModal(true)}>
+            <CircleCheckBigIcon className="h-4 w-4 mr-1" />
+            Reactivar cuenta
+          </DropdownMenuItem>
+        ) : null}
         {profile.userRequests.length > 0 && (
           <DropdownMenuItem asChild>
             <Link
@@ -182,6 +210,18 @@ export default function ProfileQuickActions({
         open={openRejectModal}
         profile={profile}
         setOpen={setOpenRejectModal}
+      />
+      {participantProfile ? (
+        <PauseParticipantModal
+          open={openPauseModal}
+          profile={participantProfile}
+          setOpen={setOpenPauseModal}
+        />
+      ) : null}
+      <UnpauseParticipantModal
+        open={openUnpauseModal}
+        profile={profile}
+        setOpen={setOpenUnpauseModal}
       />
     </DropdownMenu>
   );
