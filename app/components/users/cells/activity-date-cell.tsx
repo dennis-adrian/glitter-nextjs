@@ -5,10 +5,10 @@ import { DateTime } from "luxon";
 
 import { formatDate } from "@/app/lib/formatters";
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/app/components/ui/hover-card";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/app/components/ui/popover";
 
 type ActivityDateCellProps = {
   date: Date | string | null;
@@ -78,8 +78,8 @@ export default function ActivityDateCell({
   return (
     <div className="inline-flex items-center gap-1.5">
       <span className="text-sm">{relativeLabel}</span>
-      <HoverCard openDelay={200} closeDelay={100}>
-        <HoverCardTrigger asChild>
+      <Popover>
+        <PopoverTrigger asChild>
           <button
             type="button"
             className="shrink-0 text-amber-800 transition-colors hover:text-amber-900"
@@ -87,11 +87,11 @@ export default function ActivityDateCell({
           >
             <InfoIcon className="h-4 w-4" />
           </button>
-        </HoverCardTrigger>
-        <HoverCardContent className="w-72 space-y-2 text-sm">
+        </PopoverTrigger>
+        <PopoverContent className="w-72 space-y-2 text-sm" align="start">
           {details}
-        </HoverCardContent>
-      </HoverCard>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

@@ -10,6 +10,7 @@ import {
   filterProfileRequestStatuses,
   toProfileRequestSort,
 } from "@/app/lib/participants/helpers";
+import { profileRequestStatusOptions } from "@/app/lib/participants/definitions";
 import {
   fetchUserProfiles,
   fetchUsersAggregates,
@@ -69,7 +70,7 @@ export default async function Page(props: {
       </p>
       <div className="flex flex-col gap-4 group">
         <Suspense fallback={<TableFiltersSkeleton />}>
-          <UsersTableFilters />
+          <UsersTableFilters statusOptions={profileRequestStatusOptions} />
         </Suspense>
         <Suspense fallback={<TableSkeleton />}>
           <UsersTable

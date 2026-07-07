@@ -372,6 +372,14 @@ export async function upsertActivityParticipantProof(
     return { success: false, message: "No tienes permisos para esta acción" };
   }
 
+  if (profile.status !== "verified") {
+    return {
+      success: false,
+      message:
+        "Tu perfil debe estar verificado y activo para actualizar esta prueba.",
+    };
+  }
+
   if (data.promoHighlight && data.promoHighlight.trim().length > 20) {
     return {
       success: false,

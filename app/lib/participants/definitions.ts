@@ -65,6 +65,13 @@ export const participantStatusOptions = PARTICIPANT_STATUSES.map((value) => ({
   label: getProfileStatusLabel(value),
 }));
 
+export const profileRequestStatusOptions = PROFILE_REQUEST_STATUSES.map(
+  (value) => ({
+    value,
+    label: getProfileStatusLabel(value),
+  }),
+);
+
 export function isParticipantStatus(
   status: (typeof userStatusEnum.enumValues)[number],
 ): status is ParticipantStatus {

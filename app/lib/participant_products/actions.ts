@@ -13,6 +13,7 @@ import {
   reservationParticipants,
   standReservations,
   festivals,
+  users,
 } from "@/db/schema";
 import { and, desc, eq, getTableColumns } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -21,6 +22,18 @@ export async function createParticipantProduct(
   newParticipantProduct: NewParticipantProduct,
 ) {
   try {
+    const profile = await db.query.users.findFirst({
+      where: eq(users.id, newParticipantProduct.userId),
+    });
+
+    if (!profile || profile.status !== "verified") {
+      return {
+        success: false,
+        message:
+          "Tu perfil debe estar verificado y activo para agregar productos.",
+      };
+    }
+
     await db.insert(participantProducts).values({
       ...newParticipantProduct,
     });

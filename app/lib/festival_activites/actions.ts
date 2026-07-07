@@ -94,12 +94,34 @@ export const fetchActivityVariantVotes = async (variantId: number) => {
   }
 };
 
+async function fetchVerifiedActivityProfile(profileId: number) {
+  const profile = await db.query.users.findFirst({
+    where: eq(users.id, profileId),
+  });
+
+  if (!profile || profile.status !== "verified") {
+    return null;
+  }
+
+  return profile;
+}
+
+const inactiveParticipantMessage =
+  "Tu perfil debe estar verificado y activo para participar en actividades.";
+
 export const addFestivalActivityVote = async (
   vote: NewFestivalActivityVote,
 ) => {
   const currentUser = await getCurrentUserProfile();
   if (!currentUser) {
     throw new Error("Usuario no autenticado.");
+  }
+
+  if (currentUser.status !== "verified") {
+    return {
+      success: false,
+      message: inactiveParticipantMessage,
+    };
   }
 
   if (vote.votableType === "stand" && !vote.standId) {
@@ -179,6 +201,14 @@ export async function enrollInActivity(
 ) {
   try {
     const { id: detailsId } = activityDetails;
+    const activeProfile = await fetchVerifiedActivityProfile(forProfile.id);
+
+    if (!activeProfile) {
+      return {
+        success: false,
+        message: inactiveParticipantMessage,
+      };
+    }
 
     // Re-fetch authoritative records from DB — do not trust caller-supplied objects
     const [[dbActivity], [dbDetails], allVariantDetails] = await Promise.all([
@@ -225,7 +255,7 @@ export async function enrollInActivity(
 
     if (
       dbDetails.category !== null &&
-      dbDetails.category !== forProfile.category
+      dbDetails.category !== activeProfile.category
     ) {
       return {
         success: false,
@@ -246,7 +276,7 @@ export async function enrollInActivity(
           .where(
             and(
               eq(festivalActivityParticipants.detailsId, detailsId),
-              eq(festivalActivityParticipants.userId, forProfile.id),
+              eq(festivalActivityParticipants.userId, activeProfile.id),
             ),
           );
 
@@ -293,7 +323,7 @@ export async function enrollInActivity(
               .where(
                 and(
                   eq(festivalActivityWaitlist.activityId, dbActivity.id),
-                  eq(festivalActivityWaitlist.userId, forProfile.id),
+                  eq(festivalActivityWaitlist.userId, activeProfile.id),
                   isNotNull(festivalActivityWaitlist.notifiedAt),
                   eq(festivalActivityWaitlist.notifiedForDetailId, detailsId),
                   gt(festivalActivityWaitlist.expiresAt, now),
@@ -313,7 +343,7 @@ export async function enrollInActivity(
 
         const [newParticipant] = await tx
           .insert(festivalActivityParticipants)
-          .values({ userId: forProfile.id, detailsId })
+          .values({ userId: activeProfile.id, detailsId })
           .returning({ id: festivalActivityParticipants.id });
 
         return {
@@ -342,14 +372,14 @@ export async function enrollInActivity(
         subject: "Inscripción a una actividad del festival",
         react: FestivalActivityRegistrationEmail({
           festivalActivityName: dbActivity.name,
-          userDisplayName: forProfile.displayName,
+          userDisplayName: activeProfile.displayName,
           festivalName: festival?.name,
           festivalType: festival?.festivalType,
         }),
       });
 
       revalidatePath(
-        `/profiles/${forProfile.id}/festivals/${festivalId}/activity`,
+        `/profiles/${activeProfile.id}/festivals/${festivalId}/activity`,
       );
       return result;
     } else {
@@ -360,7 +390,7 @@ export async function enrollInActivity(
           .where(
             and(
               eq(festivalActivityParticipants.detailsId, detailsId),
-              eq(festivalActivityParticipants.userId, forProfile.id),
+              eq(festivalActivityParticipants.userId, activeProfile.id),
             ),
           );
 
@@ -373,7 +403,7 @@ export async function enrollInActivity(
 
         const [newParticipant] = await tx
           .insert(festivalActivityParticipants)
-          .values({ userId: forProfile.id, detailsId })
+          .values({ userId: activeProfile.id, detailsId })
           .returning({ id: festivalActivityParticipants.id });
 
         return {
@@ -397,14 +427,14 @@ export async function enrollInActivity(
         subject: "Inscripción a una actividad del festival",
         react: FestivalActivityRegistrationEmail({
           festivalActivityName: dbActivity.name,
-          userDisplayName: forProfile.displayName,
+          userDisplayName: activeProfile.displayName,
           festivalName: festival?.name,
           festivalType: festival?.festivalType,
         }),
       });
 
       revalidatePath(
-        `/profiles/${forProfile.id}/festivals/${festivalId}/activity`,
+        `/profiles/${activeProfile.id}/festivals/${festivalId}/activity`,
       );
       return result;
     }
@@ -431,9 +461,18 @@ export async function enrollInBestStandActivity(
   activityId: number,
   forProfileId: BaseProfile["id"],
   festivalId: FestivalBase["id"],
-  profileCategory: BaseProfile["category"],
+  _profileCategory: BaseProfile["category"],
 ) {
   try {
+    const activeProfile = await fetchVerifiedActivityProfile(forProfileId);
+
+    if (!activeProfile) {
+      return {
+        success: false,
+        message: inactiveParticipantMessage,
+      };
+    }
+
     const enrollmentResult = await db.transaction(async (tx) => {
       const [participantReservation] = await tx
         .select({
@@ -473,7 +512,7 @@ export async function enrollInBestStandActivity(
 					INNER JOIN ${festivalActivities}
 						ON ${festivalActivities.id} = ${festivalActivityDetails.activityId}
 					WHERE ${festivalActivityDetails.activityId} = ${activityId}
-						AND ${festivalActivityDetails.category} = ${profileCategory}
+						AND ${festivalActivityDetails.category} = ${activeProfile.category}
 					LIMIT 1
 					FOR UPDATE
 				`,
@@ -594,10 +633,19 @@ export async function addFestivalActivityParticipantProof(
   imageUrls: string[],
   forProfileId: number,
 ) {
+  const activeProfile = await fetchVerifiedActivityProfile(forProfileId);
+
+  if (!activeProfile) {
+    return {
+      success: false,
+      message: inactiveParticipantMessage,
+    };
+  }
+
   const participation = await db.query.festivalActivityParticipants.findFirst({
     where: and(
       eq(festivalActivityParticipants.id, participationId),
-      eq(festivalActivityParticipants.userId, forProfileId),
+      eq(festivalActivityParticipants.userId, activeProfile.id),
     ),
     with: {
       activityDetail: {
@@ -677,11 +725,20 @@ export async function deleteFestivalActivityParticipantProof(
   festivalId: FestivalBase["id"],
 ) {
   try {
+    const activeProfile = await fetchVerifiedActivityProfile(forProfileId);
+
+    if (!activeProfile) {
+      return {
+        success: false,
+        message: inactiveParticipantMessage,
+      };
+    }
+
     const participation = await db.query.festivalActivityParticipants.findFirst(
       {
         where: and(
           eq(festivalActivityParticipants.id, activityParticipationId),
-          eq(festivalActivityParticipants.userId, forProfileId),
+          eq(festivalActivityParticipants.userId, activeProfile.id),
         ),
         with: {
           activityDetail: {
@@ -754,6 +811,15 @@ export async function joinActivityWaitlist(
   activityId: number,
 ) {
   try {
+    const activeProfile = await fetchVerifiedActivityProfile(forProfile.id);
+
+    if (!activeProfile) {
+      return {
+        success: false,
+        message: inactiveParticipantMessage,
+      };
+    }
+
     const activity = await db.query.festivalActivities.findFirst({
       where: eq(festivalActivities.id, activityId),
       with: {
@@ -781,7 +847,7 @@ export async function joinActivityWaitlist(
       const activeParticipants = detail.participants.filter(
         (p) => p.removedAt === null,
       );
-      return activeParticipants.some((p) => p.userId === forProfile.id);
+      return activeParticipants.some((p) => p.userId === activeProfile.id);
     });
     if (isEnrolled) {
       return { success: false, message: "Ya estás inscrito en esta actividad" };
@@ -790,7 +856,7 @@ export async function joinActivityWaitlist(
     // Check all limited variants the profile can join are actually full
     const eligibleDetails = activity.details.filter(
       (detail) =>
-        detail.category === null || detail.category === forProfile.category,
+        detail.category === null || detail.category === activeProfile.category,
     );
     const allFull = eligibleDetails.every((detail) => {
       const activeParticipants = detail.participants.filter(
@@ -819,7 +885,7 @@ export async function joinActivityWaitlist(
           .where(
             and(
               eq(festivalActivityWaitlist.activityId, activityId),
-              eq(festivalActivityWaitlist.userId, forProfile.id),
+              eq(festivalActivityWaitlist.userId, activeProfile.id),
             ),
           );
 
@@ -847,7 +913,7 @@ export async function joinActivityWaitlist(
           .insert(festivalActivityWaitlist)
           .values({
             activityId,
-            userId: forProfile.id,
+            userId: activeProfile.id,
             position,
           })
           .onConflictDoNothing()
@@ -860,7 +926,7 @@ export async function joinActivityWaitlist(
             .where(
               and(
                 eq(festivalActivityWaitlist.activityId, activityId),
-                eq(festivalActivityWaitlist.userId, forProfile.id),
+                eq(festivalActivityWaitlist.userId, activeProfile.id),
               ),
             );
 
@@ -889,7 +955,7 @@ export async function joinActivityWaitlist(
 
       if (result.success || !result.retry) {
         if (result.success) {
-          revalidatePath(`/profiles/${forProfile.id}`);
+          revalidatePath(`/profiles/${activeProfile.id}`);
           return {
             success: true,
             message: result.message,
@@ -1046,6 +1112,15 @@ export async function enrollFromWaitlistInvitation(
   festivalId: number,
 ) {
   try {
+    const activeProfile = await fetchVerifiedActivityProfile(userId);
+
+    if (!activeProfile) {
+      return {
+        success: false,
+        message: inactiveParticipantMessage,
+      };
+    }
+
     const [entry] = await db
       .select()
       .from(festivalActivityWaitlist)
@@ -1161,7 +1236,9 @@ export async function enrollFromWaitlistInvitation(
         .where(eq(festivalActivityWaitlist.id, waitlistEntryId));
     });
 
-    revalidatePath(`/profiles/${userId}/festivals/${festivalId}/activity`);
+    revalidatePath(
+      `/profiles/${activeProfile.id}/festivals/${festivalId}/activity`,
+    );
     return { success: true, message: "Inscripción realizada correctamente" };
   } catch (error) {
     console.error("Error enrolling from waitlist invitation", error);

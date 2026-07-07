@@ -33,6 +33,18 @@ describe("participant status grouping", () => {
       "pending",
     ]);
   });
+
+  it("falls back to valid group defaults when all provided statuses are invalid", () => {
+    expect(filterParticipantStatuses(["pending", "rejected"])).toEqual([
+      "verified",
+      "paused",
+      "banned",
+    ]);
+    expect(filterProfileRequestStatuses(["verified", "paused"])).toEqual([
+      "pending",
+      "rejected",
+    ]);
+  });
 });
 
 describe("toProfileRequestSort", () => {

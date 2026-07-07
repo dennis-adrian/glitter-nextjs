@@ -69,12 +69,14 @@ export function isProfileRequestStatusGroup(
 
 export function filterParticipantStatuses(
   statuses?: BaseProfile["status"][],
+  fallback: readonly BaseProfile["status"][] = PARTICIPANT_STATUSES,
 ): BaseProfile["status"][] {
   if (!statuses?.length) {
-    return [...PARTICIPANT_STATUSES];
+    return [...fallback];
   }
 
-  return statuses.filter((status) => isParticipantStatus(status));
+  const filtered = statuses.filter((status) => isParticipantStatus(status));
+  return filtered.length > 0 ? filtered : [...fallback];
 }
 
 export function filterProfileRequestStatuses(
@@ -84,7 +86,8 @@ export function filterProfileRequestStatuses(
     return [...PROFILE_REQUEST_STATUSES];
   }
 
-  return statuses.filter((status) => isProfileRequestStatus(status));
+  const filtered = statuses.filter((status) => isProfileRequestStatus(status));
+  return filtered.length > 0 ? filtered : [...PROFILE_REQUEST_STATUSES];
 }
 
 const PROFILE_REQUEST_SORT_FIELDS = [

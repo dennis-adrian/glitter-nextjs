@@ -1,7 +1,11 @@
 "use server";
 
 import AccountPausedEmailTemplate from "@/app/emails/account-paused";
-import { BaseProfile, ProfileType, UserCategory } from "@/app/api/users/definitions";
+import {
+  BaseProfile,
+  ProfileType,
+  UserCategory,
+} from "@/app/api/users/definitions";
 import {
   DEFAULT_PARTICIPANT_VISIBLE_STATUSES,
   ParticipantActivitySummary,
@@ -18,9 +22,7 @@ import {
   getCurrentUserProfile,
 } from "@/app/lib/users/helpers";
 import { formatDate } from "@/app/lib/formatters";
-import {
-  updateUserStatusWithAudit,
-} from "@/app/lib/users/status-events";
+import { updateUserStatusWithAudit } from "@/app/lib/users/status-events";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -90,10 +92,16 @@ function buildParticipantOrderBy(
 }
 
 async function buildParticipantWhereClause(
-  filters: Omit<ParticipantListFilters, "limit" | "offset" | "sort" | "direction">,
+  filters: Omit<
+    ParticipantListFilters,
+    "limit" | "offset" | "sort" | "direction"
+  >,
 ) {
   const participantStatuses = filters.status?.length
-    ? filterParticipantStatuses(filters.status)
+    ? filterParticipantStatuses(
+        filters.status,
+        DEFAULT_PARTICIPANT_VISIBLE_STATUSES,
+      )
     : [...DEFAULT_PARTICIPANT_VISIBLE_STATUSES];
 
   const whereClause = await buildWhereClauseForProfileFetching(
@@ -107,10 +115,7 @@ async function buildParticipantWhereClause(
     true,
   );
 
-  buildWhereClause(
-    whereClause,
-    sql`${users.status} in ${participantStatuses}`,
-  );
+  buildWhereClause(whereClause, sql`${users.status} in ${participantStatuses}`);
 
   if (filters.pauseEligible) {
     buildWhereClause(
@@ -142,7 +147,7 @@ async function fetchParticipantRows(
     participant_activity as (
       select
         p.user_id,
-        max(sr.updated_at) filter (where sr.status = 'accepted') as last_participation_at,
+        max(coalesce(f.end_date, f.start_date, sr.updated_at)) filter (where sr.status = 'accepted') as last_participation_at,
         count(*) filter (where sr.status = 'accepted') as accepted_participations_count,
         bool_or(
           sr.festival_id in (select id from latest_festivals)
@@ -150,6 +155,7 @@ async function fetchParticipantRows(
         ) as participated_recently
       from participations p
       join stand_reservations sr on sr.id = p.reservation_id
+      join festivals f on f.id = sr.festival_id
       group by p.user_id
     ),
     terms_activity as (
@@ -172,7 +178,7 @@ async function fetchParticipantRows(
       join stand_reservations sr on sr.id = p.reservation_id
       join festivals f on f.id = sr.festival_id
       where sr.status = 'accepted'
-      order by p.user_id, sr.updated_at desc
+      order by p.user_id, coalesce(f.end_date, f.start_date, sr.updated_at) desc
     ),
     last_terms_festival as (
       select distinct on (ur.user_id)
@@ -263,7 +269,9 @@ export async function fetchParticipantProfiles(
       where: inArray(users.id, ids),
     });
 
-    const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+    const profileById = new Map(
+      profiles.map((profile) => [profile.id, profile]),
+    );
 
     return rows
       .map((row) => {
@@ -600,7 +608,7 @@ export async function fetchParticipantActivitySummary(
     participant_activity as (
       select
         p.user_id,
-        max(sr.updated_at) filter (where sr.status = 'accepted') as last_participation_at,
+        max(coalesce(f.end_date, f.start_date, sr.updated_at)) filter (where sr.status = 'accepted') as last_participation_at,
         count(*) filter (where sr.status = 'accepted') as accepted_participations_count,
         bool_or(
           sr.festival_id in (select id from latest_festivals)
@@ -608,6 +616,7 @@ export async function fetchParticipantActivitySummary(
         ) as participated_recently
       from participations p
       join stand_reservations sr on sr.id = p.reservation_id
+      join festivals f on f.id = sr.festival_id
       where p.user_id = ${profileId}
       group by p.user_id
     ),
@@ -632,7 +641,7 @@ export async function fetchParticipantActivitySummary(
       join stand_reservations sr on sr.id = p.reservation_id
       join festivals f on f.id = sr.festival_id
       where p.user_id = ${profileId} and sr.status = 'accepted'
-      order by p.user_id, sr.updated_at desc
+      order by p.user_id, coalesce(f.end_date, f.start_date, sr.updated_at) desc
     ),
     last_terms_festival as (
       select distinct on (ur.user_id)
