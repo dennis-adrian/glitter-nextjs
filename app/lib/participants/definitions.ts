@@ -18,6 +18,11 @@ export const DEFAULT_PARTICIPANT_VISIBLE_STATUSES = [
   "paused",
 ] as const satisfies readonly BaseProfile["status"][];
 
+export const PARTICIPANT_READ_ONLY_ROUTE_STATUSES = [
+  "verified",
+  "paused",
+] as const satisfies readonly BaseProfile["status"][];
+
 export const DEFAULT_PROFILE_REQUEST_STATUSES = [
   "pending",
   "rejected",

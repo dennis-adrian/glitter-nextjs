@@ -310,15 +310,16 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
 export async function verifyProfile(profileId: number, category: UserCategory) {
   try {
     const currentProfile = await getCurrentUserProfile();
-    const existingProfile = await db.query.users.findFirst({
-      where: eq(users.id, profileId),
-    });
-
-    if (!existingProfile) {
-      return { success: false, message: "Perfil no encontrado" };
-    }
 
     const updatedUser = await db.transaction(async (tx) => {
+      const existingProfile = await tx.query.users.findFirst({
+        where: eq(users.id, profileId),
+      });
+
+      if (!existingProfile) {
+        return null;
+      }
+
       await updateUserStatusWithAudit(tx, {
         userId: profileId,
         fromStatus: existingProfile.status,

@@ -129,7 +129,7 @@ export default function ProfileQuickActions({
           ) : (
             <span className="flex items-center gap-1">
               <CircleCheckBigIcon className="h-4 w-4" />
-              Verificado
+              {profile.status === "paused" ? "Pausado" : "Verificado"}
             </span>
           )}
         </DropdownMenuItem>

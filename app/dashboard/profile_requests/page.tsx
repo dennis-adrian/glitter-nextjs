@@ -6,7 +6,10 @@ import {
   ProfileRequestSearchParamsSchema,
   ProfileRequestSearchParamsSchemaType,
 } from "@/app/dashboard/users/schemas";
-import { filterProfileRequestStatuses } from "@/app/lib/participants/helpers";
+import {
+  filterProfileRequestStatuses,
+  toProfileRequestSort,
+} from "@/app/lib/participants/helpers";
 import {
   fetchUserProfiles,
   fetchUsersAggregates,
@@ -43,7 +46,7 @@ export default async function Page(props: {
     status: requestStatuses,
     category,
     query,
-    sort: sort as Parameters<typeof fetchUserProfiles>[0]["sort"],
+    sort: toProfileRequestSort(sort),
     direction,
     profileCompletion,
   });

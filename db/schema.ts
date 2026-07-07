@@ -111,7 +111,9 @@ export const userStatusEvents = pgTable("user_status_events", {
   fromStatus: userStatusEnum("from_status").notNull(),
   toStatus: userStatusEnum("to_status").notNull(),
   reason: text("reason"),
-  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  createdByUserId: integer("created_by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 export const userStatusEventsRelations = relations(

@@ -383,7 +383,7 @@ export async function fetchParticipantAggregates(
   }
 }
 
-export async function checkPauseEligibility(profileId: number) {
+async function resolvePauseEligibility(profileId: number) {
   const result = await db.execute(sql`
     with latest_festivals as (
       select id
@@ -431,6 +431,18 @@ export async function checkPauseEligibility(profileId: number) {
   });
 }
 
+export async function checkPauseEligibility(profileId: number) {
+  const currentProfile = await getCurrentUserProfile();
+  if (!currentProfile || currentProfile.role !== "admin") {
+    return {
+      isPauseEligible: false,
+      pauseEligibilityReason: "No autorizado",
+    };
+  }
+
+  return resolvePauseEligibility(profileId);
+}
+
 type ActionResult = {
   success: boolean;
   message: string;
@@ -472,7 +484,7 @@ export async function pauseParticipantAccount(
     };
   }
 
-  const eligibility = await checkPauseEligibility(profileId);
+  const eligibility = await resolvePauseEligibility(profileId);
   if (!eligibility.isPauseEligible) {
     return {
       success: false,
@@ -493,7 +505,15 @@ export async function pauseParticipantAccount(
         createdByUserId: currentProfile.id,
       });
     });
+  } catch (error) {
+    console.error("Error pausing participant account", error);
+    return {
+      success: false,
+      message: "Error al pausar la cuenta del participante.",
+    };
+  }
 
+  try {
     await sendEmail({
       to: [targetProfile.email],
       from: "Perfiles Glitter <perfiles@productoraglitter.com>",
@@ -503,11 +523,7 @@ export async function pauseParticipantAccount(
       }) as React.ReactElement,
     });
   } catch (error) {
-    console.error("Error pausing participant account", error);
-    return {
-      success: false,
-      message: "Error al pausar la cuenta del participante.",
-    };
+    console.error("Error sending pause notification email", error);
   }
 
   revalidateParticipantPaths(profileId);

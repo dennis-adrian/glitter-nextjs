@@ -6,6 +6,7 @@ import {
   getPauseEligibilityReason,
   isParticipantStatusGroup,
   isProfileRequestStatusGroup,
+  toProfileRequestSort,
 } from "@/app/lib/participants/helpers";
 
 describe("participant status grouping", () => {
@@ -31,6 +32,18 @@ describe("participant status grouping", () => {
     expect(filterProfileRequestStatuses(["pending", "verified"])).toEqual([
       "pending",
     ]);
+  });
+});
+
+describe("toProfileRequestSort", () => {
+  it("keeps supported user profile sort fields", () => {
+    expect(toProfileRequestSort("displayName")).toBe("displayName");
+    expect(toProfileRequestSort("verifiedAt")).toBe("verifiedAt");
+  });
+
+  it("falls back for participant-only sort fields", () => {
+    expect(toProfileRequestSort("lastParticipationAt")).toBe("updatedAt");
+    expect(toProfileRequestSort("lastTermsAcceptedAt")).toBe("updatedAt");
   });
 });
 

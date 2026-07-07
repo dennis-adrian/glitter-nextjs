@@ -92,7 +92,7 @@ export default function ParticipantsTableFilters() {
           },
         ]
       : []),
-    ...(status.length > 0
+    ...(statusParams.length > 0
       ? [
           {
             key: "status",

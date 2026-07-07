@@ -65,7 +65,7 @@ Admins will get a global participants view that highlights participant activity,
 
 ### Data model
 
-- [db/schema.ts](/Users/dennisadrian/Documents/Dev/glitter/glitter-nextjs/db/schema.ts) defines `userStatusEnum` as `verified`, `pending`, `rejected`, `banned`.
+- `db/schema.ts` defines `userStatusEnum` as `verified`, `pending`, `rejected`, `banned`.
 - `users.status` is the source of truth for profile status.
 - `users.verifiedAt` records when the profile became verified.
 - `user_requests` stores profile/festival requests:
@@ -365,7 +365,7 @@ Known area to inspect during implementation:
 
 ### 9.1 Update enum
 
-In [db/schema.ts](/Users/dennisadrian/Documents/Dev/glitter/glitter-nextjs/db/schema.ts):
+In `db/schema.ts`:
 
 ```ts
 export const userStatusEnum = pgEnum("user_status", [
@@ -410,7 +410,7 @@ Add relations from `users`:
 
 ### 9.3 Query helper return shape
 
-Create a participant activity type in `app/lib/users/definitions.ts`:
+Create participant types in `app/lib/participants/definitions.ts`:
 
 ```ts
 export type ParticipantActivitySummary = {
@@ -441,7 +441,7 @@ or return a flattened select type if performance requires it.
 
 ### 10.1 Participant list query
 
-Add `fetchParticipantProfiles` and `fetchParticipantAggregates` in `app/lib/users/actions.ts` or a new `app/lib/participants/actions.ts`.
+Add `fetchParticipantProfiles` and `fetchParticipantAggregates` in `app/lib/participants/actions.ts`.
 
 Recommended approach:
 

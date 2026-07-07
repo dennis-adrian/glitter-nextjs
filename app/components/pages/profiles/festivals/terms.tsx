@@ -7,6 +7,7 @@ import {
   fetchFestivalSectorsWithAllowedCategories,
 } from "@/app/lib/festival_sectors/actions";
 import { fetchFestivalWithDates } from "@/app/lib/festivals/actions";
+import { PARTICIPANT_READ_ONLY_ROUTE_STATUSES } from "@/app/lib/participants/definitions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { HeartCrackIcon } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -17,7 +18,9 @@ type TermsPageProps = {
 };
 export default async function TermsPage(props: TermsPageProps) {
   const currentProfile = await getCurrentUserProfile();
-  await protectRoute(currentProfile || undefined, props.profileId);
+  await protectRoute(currentProfile || undefined, props.profileId, {
+    allowedStatuses: [...PARTICIPANT_READ_ONLY_ROUTE_STATUSES],
+  });
   const festival = await fetchFestivalWithDates(props.festivalId);
   const festivalSectors = await fetchFestivalSectors(props.festivalId);
   if (!festival) notFound();

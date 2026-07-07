@@ -3,6 +3,7 @@ import {
   isParticipantStatus,
   isProfileRequestStatus,
   PARTICIPANT_STATUSES,
+  ParticipantSortField,
   PROFILE_REQUEST_STATUSES,
 } from "@/app/lib/participants/definitions";
 
@@ -84,4 +85,23 @@ export function filterProfileRequestStatuses(
   }
 
   return statuses.filter((status) => isProfileRequestStatus(status));
+}
+
+const PROFILE_REQUEST_SORT_FIELDS = [
+  "displayName",
+  "category",
+  "status",
+  "verifiedAt",
+  "updatedAt",
+  "createdAt",
+] as const satisfies readonly (keyof BaseProfile)[];
+
+export function toProfileRequestSort(
+  sort: ParticipantSortField,
+): keyof BaseProfile {
+  return PROFILE_REQUEST_SORT_FIELDS.includes(
+    sort as (typeof PROFILE_REQUEST_SORT_FIELDS)[number],
+  )
+    ? (sort as keyof BaseProfile)
+    : "updatedAt";
 }

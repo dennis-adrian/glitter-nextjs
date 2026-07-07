@@ -1,13 +1,16 @@
 import Title from "@/app/components/atoms/heading";
 import ParticipationsHistory from "@/app/components/organisms/participations-history";
 import { getActiveFestivalBase } from "@/app/lib/festivals/helpers";
+import { PARTICIPANT_READ_ONLY_ROUTE_STATUSES } from "@/app/lib/participants/definitions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound } from "next/navigation";
 
 export default async function MyHistoryPage() {
   const activeFestivalPromise = getActiveFestivalBase();
   const currentProfile = await getCurrentUserProfile();
-  await protectRoute(currentProfile || undefined, currentProfile?.id);
+  await protectRoute(currentProfile || undefined, currentProfile?.id, {
+    allowedStatuses: [...PARTICIPANT_READ_ONLY_ROUTE_STATUSES],
+  });
 
   if (!currentProfile) {
     notFound();
