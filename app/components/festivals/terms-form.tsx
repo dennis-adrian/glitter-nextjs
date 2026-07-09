@@ -55,7 +55,6 @@ export default function TermsForm({
     startTransition(async () => {
       const res = await createUserEnrollment({
         profileId: profile.id,
-        profileCategory: profile.category,
         profileDisplayName: profile.displayName,
         festivalId: festival.id,
         festivalName: festival.name,

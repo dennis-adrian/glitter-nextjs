@@ -12,7 +12,13 @@ import { SlidersHorizontalIcon, XIcon } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ReactElement, useState, useTransition } from "react";
 
-export default function UsersTableFilters() {
+type UsersTableFiltersProps = {
+  statusOptions?: typeof profileStatusOptions;
+};
+
+export default function UsersTableFilters({
+  statusOptions = profileStatusOptions,
+}: UsersTableFiltersProps) {
   const searchParams = useSearchParams();
   const { push } = useRouter();
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -50,6 +56,12 @@ export default function UsersTableFilters() {
     category = [],
     profileCompletion = "all",
   } = validatedSearchParams.data;
+  const allowedStatusValues = new Set(
+    statusOptions.map((option) => option.value),
+  );
+  const selectedStatus = status.filter((statusValue) =>
+    allowedStatusValues.has(statusValue),
+  );
 
   const categoryOptions = [
     { value: "none", label: "Sin categoria" },
@@ -61,7 +73,7 @@ export default function UsersTableFilters() {
     all: "Todos",
   };
   const statusLabelByValue = Object.fromEntries(
-    profileStatusOptions.map((option) => [option.value, option.label]),
+    statusOptions.map((option) => [option.value, option.label]),
   );
   const categoryLabelByValue = Object.fromEntries(
     categoryOptions.map((option) => [option.value, option.label]),
@@ -88,11 +100,11 @@ export default function UsersTableFilters() {
           },
         ]
       : []),
-    ...(status.length > 0
+    ...(selectedStatus.length > 0
       ? [
           {
             key: "status",
-            textLabel: `Estado: ${status
+            textLabel: `Estado: ${selectedStatus
               .map(
                 (statusValue) => statusLabelByValue[statusValue] || statusValue,
               )
@@ -102,7 +114,7 @@ export default function UsersTableFilters() {
                 <span className="font-medium text-[9px] uppercase">
                   Estado:
                 </span>{" "}
-                {status
+                {selectedStatus
                   .map(
                     (statusValue) =>
                       statusLabelByValue[statusValue] || statusValue,
@@ -205,10 +217,10 @@ export default function UsersTableFilters() {
         onSelect={handleFilterSelect}
       />
       <MultipleSelectCombobox
-        defaultValue={status}
+        defaultValue={selectedStatus}
         label="Estado"
         name="status"
-        options={profileStatusOptions}
+        options={statusOptions}
         onSelect={handleFilterSelect}
       />
       <MultipleSelectCombobox

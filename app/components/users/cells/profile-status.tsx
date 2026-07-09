@@ -5,6 +5,7 @@ import {
   BanIcon,
   CheckCircleIcon,
   CircleDashedIcon,
+  PauseCircleIcon,
   XCircleIcon,
 } from "lucide-react";
 
@@ -30,6 +31,10 @@ export default function ProfileStatusCell({
 
   if (status === "banned") {
     icon = <BanIcon className="w-4 h-4 text-red-500" />;
+  }
+
+  if (status === "paused") {
+    icon = <PauseCircleIcon className="w-4 h-4 text-slate-500" />;
   }
 
   return (

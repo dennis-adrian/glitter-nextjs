@@ -58,5 +58,7 @@ export const fetchStoreSettings = cache(
  * order, which Promise.all preserves regardless of row-creation order.
  */
 export async function fetchAllStoreSettings(): Promise<StoreSettings[]> {
-  return Promise.all(STORE_SECTIONS.map((section) => fetchStoreSettings(section)));
+  return Promise.all(
+    STORE_SECTIONS.map((section) => fetchStoreSettings(section)),
+  );
 }

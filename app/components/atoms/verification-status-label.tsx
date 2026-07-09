@@ -4,6 +4,7 @@ import {
   CheckCircle2Icon,
   CircleAlertIcon,
   HourglassIcon,
+  PauseCircleIcon,
 } from "lucide-react";
 
 export default function VerificationStatusLabel({
@@ -34,6 +35,15 @@ export default function VerificationStatusLabel({
       <div className="flex items-center gap-1.5 text-sm text-blue-700 mb-1">
         <HourglassIcon className="size-4" />
         <span>Esperando verificación</span>
+      </div>
+    );
+  }
+
+  if (status === "paused") {
+    return (
+      <div className="flex items-center gap-1.5 text-sm text-slate-700 mb-1">
+        <PauseCircleIcon className="size-4" />
+        <span>Cuenta pausada</span>
       </div>
     );
   }

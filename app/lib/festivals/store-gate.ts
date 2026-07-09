@@ -30,7 +30,12 @@ export function isFestivalHappeningAt(
 
 export type StoreClosure =
   | { closed: false }
-  | { closed: true; source: "manual"; title: string | null; message: string | null }
+  | {
+      closed: true;
+      source: "manual";
+      title: string | null;
+      message: string | null;
+    }
   | { closed: true; source: "festival"; festival: FestivalWithDates };
 
 /**
@@ -65,7 +70,11 @@ export function resolveStoreClosure({
   }
 
   // mode === "auto": keep the existing festival behavior.
-  if (festival && !festival.keepStoreOpen && isFestivalHappeningAt(festival, now)) {
+  if (
+    festival &&
+    !festival.keepStoreOpen &&
+    isFestivalHappeningAt(festival, now)
+  ) {
     return { closed: true, source: "festival", festival };
   }
 

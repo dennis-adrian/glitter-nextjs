@@ -49,15 +49,22 @@ export async function getCurrentNavbarProfile() {
   }
 }
 
+type ProtectRouteOptions = {
+  allowedStatuses?: BaseProfile["status"][];
+};
+
 export async function protectRoute(
   currentUser?: BaseProfile,
   profileId?: number,
+  options?: ProtectRouteOptions,
 ) {
   if (!(currentUser && profileId)) redirect("/");
 
+  const allowedStatuses = options?.allowedStatuses ?? ["verified"];
+
   const canAccessResource =
     (currentUser.id === profileId || currentUser.role === "admin") &&
-    currentUser.status === "verified";
+    allowedStatuses.includes(currentUser.status);
 
   if (!canAccessResource) redirect("/my_profile");
 }

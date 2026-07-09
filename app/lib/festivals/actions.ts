@@ -668,8 +668,13 @@ export async function sendUserEmailsTemp(
   festivalId: number,
 ) {
   try {
+    const verifiedUsers = users.filter((user) => user.status === "verified");
     const festivalWithDates = await fetchFestivalWithDates(festivalId);
-    await queueEmails<BaseProfile>(users, festivalWithDates!, sendEmailToUsers);
+    await queueEmails<BaseProfile>(
+      verifiedUsers,
+      festivalWithDates!,
+      sendEmailToUsers,
+    );
   } catch (error) {}
 }
 // ------ END
@@ -809,6 +814,10 @@ export async function sendEmailToUsers(
   user: BaseProfile,
   festival: FestivalWithDates,
 ) {
+  if (user.status !== "verified") {
+    return;
+  }
+
   const { error } = await sendEmail({
     to: [user.email],
     from: "Productora Glitter <eventos@productoraglitter.com>",

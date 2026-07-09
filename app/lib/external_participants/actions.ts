@@ -142,9 +142,7 @@ export async function fetchExternalParticipant(
       error:
         error instanceof Error
           ? error
-          : new Error(
-              "Unexpected error while fetching external participant.",
-            ),
+          : new Error("Unexpected error while fetching external participant."),
     };
   }
 }
@@ -316,10 +314,7 @@ export async function createExternalParticipantReservation(
         const [created] = await tx
           .insert(externalParticipants)
           .values(
-            mapExternalParticipantInput(
-              externalParticipant,
-              currentProfile.id,
-            ),
+            mapExternalParticipantInput(externalParticipant, currentProfile.id),
           )
           .returning({ id: externalParticipants.id });
 
@@ -391,11 +386,10 @@ export async function createExternalParticipantReservation(
       );
     }
 
-    logExternalParticipantError(
-      "createExternalParticipantReservation",
-      error,
-      { festivalId, standId },
-    );
+    logExternalParticipantError("createExternalParticipantReservation", error, {
+      festivalId,
+      standId,
+    });
     return {
       success: false,
       message: "Ups! No pudimos crear la reserva externa",

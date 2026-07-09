@@ -4,9 +4,37 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 
+import { useOverlayOwnership } from "@/lib/overlay-ownership";
 import { cn } from "@/lib/utils";
 
-const Dialog = DialogPrimitive.Root;
+function Dialog({
+  open,
+  defaultOpen,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Root>) {
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(
+    defaultOpen ?? false,
+  );
+  const isControlled = open !== undefined;
+  const isOpen = isControlled ? open : uncontrolledOpen;
+
+  useOverlayOwnership(isOpen);
+
+  return (
+    <DialogPrimitive.Root
+      open={open}
+      defaultOpen={defaultOpen}
+      onOpenChange={(next) => {
+        if (!isControlled) {
+          setUncontrolledOpen(next);
+        }
+        onOpenChange?.(next);
+      }}
+      {...props}
+    />
+  );
+}
 
 const DialogTrigger = DialogPrimitive.Trigger;
 

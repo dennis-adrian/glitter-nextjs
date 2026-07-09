@@ -32,6 +32,8 @@ export function getProfileStatusLabel(status: BaseProfile["status"]) {
       return "Rechazado";
     case "banned":
       return "Deshabilitado";
+    case "paused":
+      return "Pausado";
   }
 }
 

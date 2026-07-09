@@ -156,11 +156,7 @@ export default function ExternalParticipantForm({
     </Form>
   );
 
-  function ExternalParticipantImageField({
-    imageUrl,
-  }: {
-    imageUrl?: string;
-  }) {
+  function ExternalParticipantImageField({ imageUrl }: { imageUrl?: string }) {
     return (
       <FormField
         control={form.control}
