@@ -5,9 +5,27 @@ import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/lib/utils";
 
+function restoreBodyPointerEvents() {
+  document.body.style.removeProperty("pointer-events");
+}
+
 function Drawer({
+  open,
+  onOpenChange,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
+  React.useEffect(() => {
+    if (!open) {
+      restoreBodyPointerEvents();
+    }
+  }, [open]);
+
+  React.useEffect(() => {
+    return () => {
+      restoreBodyPointerEvents();
+    };
+  }, []);
+
   return (
     <>
       {/*
@@ -17,10 +35,15 @@ function Drawer({
        * but with controlled state (`open` prop) the timing race is lost.
        * This style tag wins regardless of timing via CSS !important.
        */}
-      {props.open && props.modal === false && (
+      {open && props.modal === false && (
         <style>{`body { pointer-events: auto !important; }`}</style>
       )}
-      <DrawerPrimitive.Root data-slot="drawer" {...props} />
+      <DrawerPrimitive.Root
+        data-slot="drawer"
+        open={open}
+        onOpenChange={onOpenChange}
+        {...props}
+      />
     </>
   );
 }

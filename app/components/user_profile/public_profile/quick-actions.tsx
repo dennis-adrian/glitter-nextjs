@@ -78,8 +78,9 @@ export default function ProfileQuickActions({
   );
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
         type="button"
         variant={triggerVariant}
         size={triggerSize}
@@ -191,6 +192,7 @@ export default function ProfileQuickActions({
           Eliminar
         </DropdownMenuItem>
       </DropdownMenuContent>
+      </DropdownMenu>
       <DeleteProfileModal
         open={openDeleteModal}
         profile={profile}
@@ -223,6 +225,6 @@ export default function ProfileQuickActions({
         profile={profile}
         setOpen={setOpenUnpauseModal}
       />
-    </DropdownMenu>
+    </>
   );
 }
