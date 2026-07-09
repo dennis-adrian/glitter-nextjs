@@ -2,8 +2,10 @@
 
 import { InfoIcon } from "lucide-react";
 import { DateTime } from "luxon";
+import { useCallback, useRef, useState } from "react";
 
 import { formatDate } from "@/app/lib/formatters";
+import { useMediaQuery } from "@/app/hooks/use-media-query";
 import {
   Popover,
   PopoverContent,
@@ -44,6 +46,8 @@ function ActivityDateDetails({
   );
 }
 
+const detailsContentClassName = "w-72 space-y-2 text-sm";
+
 export default function ActivityDateCell({
   date,
   festivalName,
@@ -51,6 +55,42 @@ export default function ActivityDateCell({
   sourceLabel,
   exactDateStyle = "datetime",
 }: ActivityDateCellProps) {
+  const prefersTap = useMediaQuery("(pointer: coarse)");
+  const [open, setOpen] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearCloseTimer = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleClose = useCallback(() => {
+    clearCloseTimer();
+    closeTimerRef.current = setTimeout(() => setOpen(false), 100);
+  }, [clearCloseTimer]);
+
+  const handleHoverOpen = useCallback(() => {
+    if (prefersTap) return;
+    clearCloseTimer();
+    setOpen(true);
+  }, [prefersTap, clearCloseTimer]);
+
+  const handleHoverClose = useCallback(() => {
+    if (prefersTap) return;
+    scheduleClose();
+  }, [prefersTap, scheduleClose]);
+
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (prefersTap || next) {
+        setOpen(next);
+      }
+    },
+    [prefersTap],
+  );
+
   if (!date) {
     return <span className="text-muted-foreground">{emptyLabel}</span>;
   }
@@ -78,17 +118,31 @@ export default function ActivityDateCell({
   return (
     <div className="inline-flex items-center gap-1.5">
       <span className="text-sm">{relativeLabel}</span>
-      <Popover>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <button
             type="button"
             className="shrink-0 text-amber-800 transition-colors hover:text-amber-900"
             aria-label={`Ver detalles: ${sourceLabel}`}
+            onMouseEnter={handleHoverOpen}
+            onMouseLeave={handleHoverClose}
+            onClick={
+              prefersTap
+                ? undefined
+                : (event) => {
+                    event.preventDefault();
+                  }
+            }
           >
             <InfoIcon className="h-4 w-4" />
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-72 space-y-2 text-sm" align="start">
+        <PopoverContent
+          className={detailsContentClassName}
+          align="start"
+          onMouseEnter={handleHoverOpen}
+          onMouseLeave={handleHoverClose}
+        >
           {details}
         </PopoverContent>
       </Popover>
