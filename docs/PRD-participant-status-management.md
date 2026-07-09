@@ -156,10 +156,10 @@ A user is eligible to pause when all of these are true:
 
 Latest 3 festivals definition:
 
-- Use the latest 3 non-draft festivals ordered by `startDate desc nulls last, id desc`.
-- Include `published`, `active`, and `archived`.
-- Exclude future festivals only if they have not started yet; otherwise a newly published future festival could make everyone look inactive.
-- Recommended query: festivals where `startDate <= now()` and status in `published`, `active`, `archived`.
+- Use the latest 3 non-draft festivals that have rows in `festival_dates`.
+- Rank by `max(festival_dates.end_date) desc`, requiring `min(festival_dates.start_date) <= now()`.
+- Include `published`, `active`, and `archived` statuses only.
+- Do not use deprecated `festivals.start_date` / `festivals.end_date`.
 
 Real participation definition:
 
@@ -457,22 +457,33 @@ Recommended approach:
 SQL shape:
 
 ```sql
-with latest_festivals as (
-  select id
-  from festivals
-  where status in ('published', 'active', 'archived')
-    and start_date <= now()
-  order by start_date desc nulls last, id desc
+with festival_last_occurrence as (
+  select
+    festival_id,
+    max(end_date) as last_occurrence_at,
+    min(start_date) as first_start_at
+  from festival_dates
+  group by festival_id
+),
+latest_festivals as (
+  select f.id
+  from festivals f
+  inner join festival_last_occurrence flo on flo.festival_id = f.id
+  where f.status in ('published', 'active', 'archived')
+    and flo.first_start_at <= now()
+  order by flo.last_occurrence_at desc nulls last, f.id desc
   limit 3
 ),
 participant_activity as (
   select
     p.user_id,
-    max(sr.updated_at) filter (where sr.status = 'accepted') as last_participation_at,
+    max(coalesce(flo.last_occurrence_at, sr.updated_at)) filter (where sr.status = 'accepted') as last_participation_at,
     count(*) filter (where sr.status = 'accepted') as accepted_participations_count,
     bool_or(sr.festival_id in (select id from latest_festivals) and sr.status = 'accepted') as participated_recently
   from participations p
   join stand_reservations sr on sr.id = p.reservation_id
+  join festivals f on f.id = sr.festival_id
+  left join festival_last_occurrence flo on flo.festival_id = f.id
   group by p.user_id
 ),
 terms_activity as (

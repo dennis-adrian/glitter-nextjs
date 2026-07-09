@@ -18,6 +18,11 @@ import {
   getPauseEligibilityReason,
 } from "@/app/lib/participants/helpers";
 import {
+  participatedRecentlyExpression,
+  participationOccurredAtSql,
+  pauseEligibilityFestivalCtes,
+} from "@/app/lib/participants/pause-eligibility-sql";
+import {
   buildWhereClauseForProfileFetching,
   getCurrentUserProfile,
 } from "@/app/lib/users/helpers";
@@ -120,7 +125,7 @@ async function buildParticipantWhereClause(
   if (filters.pauseEligible) {
     buildWhereClause(
       whereClause,
-      sql`${users.status} = 'verified' and ${users.role} = 'user' and coalesce(pa.participated_recently, false) = false`,
+      sql`${users.status} = 'verified' and ${users.role} = 'user' and ${participatedRecentlyExpression} = false`,
     );
   }
 
@@ -136,18 +141,11 @@ async function fetchParticipantRows(
     whereClause.queryChunks.length > 0 ? sql`where ${whereClause}` : sql``;
 
   const result = await db.execute(sql`
-    with latest_festivals as (
-      select id
-      from festivals
-      where status in ('published', 'active', 'archived')
-        and start_date <= now()
-      order by start_date desc nulls last, id desc
-      limit 3
-    ),
+    with ${pauseEligibilityFestivalCtes},
     participant_activity as (
       select
         p.user_id,
-        max(coalesce(f.end_date, f.start_date, sr.updated_at)) filter (where sr.status = 'accepted') as last_participation_at,
+        max(${participationOccurredAtSql}) filter (where sr.status = 'accepted') as last_participation_at,
         count(*) filter (where sr.status = 'accepted') as accepted_participations_count,
         bool_or(
           sr.festival_id in (select id from latest_festivals)
@@ -156,6 +154,7 @@ async function fetchParticipantRows(
       from participations p
       join stand_reservations sr on sr.id = p.reservation_id
       join festivals f on f.id = sr.festival_id
+      left join festival_last_occurrence flo on flo.festival_id = f.id
       group by p.user_id
     ),
     terms_activity as (
@@ -173,12 +172,14 @@ async function fetchParticipantRows(
     last_participation_festival as (
       select distinct on (p.user_id)
         p.user_id,
+        f.id as festival_id,
         f.name as festival_name
       from participations p
       join stand_reservations sr on sr.id = p.reservation_id
       join festivals f on f.id = sr.festival_id
+      left join festival_last_occurrence flo on flo.festival_id = f.id
       where sr.status = 'accepted'
-      order by p.user_id, coalesce(f.end_date, f.start_date, sr.updated_at) desc
+      order by p.user_id, ${participationOccurredAtSql} desc
     ),
     last_terms_festival as (
       select distinct on (ur.user_id)
@@ -199,7 +200,7 @@ async function fetchParticipantRows(
       ltf.festival_name as last_terms_accepted_festival_name,
       coalesce(pa.accepted_participations_count, 0)::int as accepted_participations_count,
       coalesce(ta.accepted_terms_count, 0)::int as accepted_terms_count,
-      coalesce(pa.participated_recently, false) as participated_recently
+      ${participatedRecentlyExpression} as participated_recently
     from ${users}
     left join participant_activity pa on pa.user_id = ${users.id}
     left join terms_activity ta on ta.user_id = ${users.id}
@@ -314,14 +315,7 @@ export async function fetchParticipantAggregates(
         : sql``;
 
     const activityCte = sql`
-      with latest_festivals as (
-        select id
-        from festivals
-        where status in ('published', 'active', 'archived')
-          and start_date <= now()
-        order by start_date desc nulls last, id desc
-        limit 3
-      ),
+      with ${pauseEligibilityFestivalCtes},
       participant_activity as (
         select
           p.user_id,
@@ -332,6 +326,17 @@ export async function fetchParticipantAggregates(
         from participations p
         join stand_reservations sr on sr.id = p.reservation_id
         group by p.user_id
+      ),
+      last_participation_festival as (
+        select distinct on (p.user_id)
+          p.user_id,
+          f.id as festival_id
+        from participations p
+        join stand_reservations sr on sr.id = p.reservation_id
+        join festivals f on f.id = sr.festival_id
+        left join festival_last_occurrence flo on flo.festival_id = f.id
+        where sr.status = 'accepted'
+        order by p.user_id, ${participationOccurredAtSql} desc
       )
     `;
 
@@ -341,6 +346,7 @@ export async function fetchParticipantAggregates(
         select count(*)::int as total
         from ${users}
         left join participant_activity pa on pa.user_id = ${users.id}
+        left join last_participation_festival lpf on lpf.user_id = ${users.id}
         ${filteredWhereSql}
       `),
       db.execute(sql`
@@ -353,10 +359,11 @@ export async function fetchParticipantAggregates(
           count(*) filter (
             where ${users.status} = 'verified'
               and ${users.role} = 'user'
-              and coalesce(pa.participated_recently, false) = false
+              and ${participatedRecentlyExpression} = false
           )::int as pause_eligible
         from ${users}
         left join participant_activity pa on pa.user_id = ${users.id}
+        left join last_participation_festival lpf on lpf.user_id = ${users.id}
         ${summaryWhereSql}
       `),
     ]);
@@ -393,26 +400,37 @@ export async function fetchParticipantAggregates(
 
 async function resolvePauseEligibility(profileId: number) {
   const result = await db.execute(sql`
-    with latest_festivals as (
-      select id
-      from festivals
-      where status in ('published', 'active', 'archived')
-        and start_date <= now()
-      order by start_date desc nulls last, id desc
-      limit 3
+    with ${pauseEligibilityFestivalCtes},
+    participant_activity as (
+      select
+        p.user_id,
+        bool_or(
+          sr.festival_id in (select id from latest_festivals)
+          and sr.status = 'accepted'
+        ) as participated_recently
+      from participations p
+      join stand_reservations sr on sr.id = p.reservation_id
+      where p.user_id = ${profileId}
+      group by p.user_id
+    ),
+    last_participation_festival as (
+      select distinct on (p.user_id)
+        p.user_id,
+        f.id as festival_id
+      from participations p
+      join stand_reservations sr on sr.id = p.reservation_id
+      join festivals f on f.id = sr.festival_id
+      left join festival_last_occurrence flo on flo.festival_id = f.id
+      where p.user_id = ${profileId} and sr.status = 'accepted'
+      order by p.user_id, ${participationOccurredAtSql} desc
     )
     select
       u.status,
       u.role,
-      exists (
-        select 1
-        from participations p
-        join stand_reservations sr on sr.id = p.reservation_id
-        where p.user_id = u.id
-          and sr.status = 'accepted'
-          and sr.festival_id in (select id from latest_festivals)
-      ) as participated_recently
+      ${participatedRecentlyExpression} as participated_recently
     from users u
+    left join participant_activity pa on pa.user_id = u.id
+    left join last_participation_festival lpf on lpf.user_id = u.id
     where u.id = ${profileId}
     limit 1
   `);
@@ -597,18 +615,11 @@ export async function fetchParticipantActivitySummary(
   profileId: number,
 ): Promise<ParticipantActivitySummary | null> {
   const result = await db.execute(sql`
-    with latest_festivals as (
-      select id
-      from festivals
-      where status in ('published', 'active', 'archived')
-        and start_date <= now()
-      order by start_date desc nulls last, id desc
-      limit 3
-    ),
+    with ${pauseEligibilityFestivalCtes},
     participant_activity as (
       select
         p.user_id,
-        max(coalesce(f.end_date, f.start_date, sr.updated_at)) filter (where sr.status = 'accepted') as last_participation_at,
+        max(${participationOccurredAtSql}) filter (where sr.status = 'accepted') as last_participation_at,
         count(*) filter (where sr.status = 'accepted') as accepted_participations_count,
         bool_or(
           sr.festival_id in (select id from latest_festivals)
@@ -617,6 +628,7 @@ export async function fetchParticipantActivitySummary(
       from participations p
       join stand_reservations sr on sr.id = p.reservation_id
       join festivals f on f.id = sr.festival_id
+      left join festival_last_occurrence flo on flo.festival_id = f.id
       where p.user_id = ${profileId}
       group by p.user_id
     ),
@@ -636,12 +648,14 @@ export async function fetchParticipantActivitySummary(
     last_participation_festival as (
       select distinct on (p.user_id)
         p.user_id,
+        f.id as festival_id,
         f.name as festival_name
       from participations p
       join stand_reservations sr on sr.id = p.reservation_id
       join festivals f on f.id = sr.festival_id
+      left join festival_last_occurrence flo on flo.festival_id = f.id
       where p.user_id = ${profileId} and sr.status = 'accepted'
-      order by p.user_id, coalesce(f.end_date, f.start_date, sr.updated_at) desc
+      order by p.user_id, ${participationOccurredAtSql} desc
     ),
     last_terms_festival as (
       select distinct on (ur.user_id)
@@ -663,7 +677,7 @@ export async function fetchParticipantActivitySummary(
       ltf.festival_name as last_terms_accepted_festival_name,
       coalesce(pa.accepted_participations_count, 0)::int as accepted_participations_count,
       coalesce(ta.accepted_terms_count, 0)::int as accepted_terms_count,
-      coalesce(pa.participated_recently, false) as participated_recently
+      ${participatedRecentlyExpression} as participated_recently
     from ${users}
     left join participant_activity pa on pa.user_id = ${users.id}
     left join terms_activity ta on ta.user_id = ${users.id}
