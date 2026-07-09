@@ -40,8 +40,8 @@ export default function AccountPausedEmailTemplate(
             </Text>
             <Text style={styles.text}>
               Mientras tu perfil esté pausado no recibirás correos de invitación
-              pero si estás interesado en participar en el próximo festival,
-              escribinos para solicitar la reactivación de tu perfil.
+              pero si estás interesado o interesada en participar en el próximo
+              festival, escribinos para solicitar la reactivación de tu perfil.
             </Text>
             <Text style={styles.text}>
               La solicitud será evaluada y en caso de ser aprobada, tu perfil
