@@ -2,10 +2,38 @@
 
 import * as React from "react";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
-import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/app/components/ui/button";
+import { useOverlayOwnership } from "@/lib/overlay-ownership";
+import { cn } from "@/lib/utils";
 
-const AlertDialog = AlertDialogPrimitive.Root;
+function AlertDialog({
+  open,
+  defaultOpen,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(
+    defaultOpen ?? false,
+  );
+  const isControlled = open !== undefined;
+  const isOpen = isControlled ? open : uncontrolledOpen;
+
+  useOverlayOwnership(isOpen);
+
+  return (
+    <AlertDialogPrimitive.Root
+      open={open}
+      defaultOpen={defaultOpen}
+      onOpenChange={(next) => {
+        if (!isControlled) {
+          setUncontrolledOpen(next);
+        }
+        onOpenChange?.(next);
+      }}
+      {...props}
+    />
+  );
+}
 
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
 

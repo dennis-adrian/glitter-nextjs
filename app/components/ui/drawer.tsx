@@ -3,28 +3,22 @@
 import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
+import { useOverlayOwnership } from "@/lib/overlay-ownership";
 import { cn } from "@/lib/utils";
-
-function restoreBodyPointerEvents() {
-  document.body.style.removeProperty("pointer-events");
-}
 
 function Drawer({
   open,
+  defaultOpen,
   onOpenChange,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
-  React.useEffect(() => {
-    if (!open) {
-      restoreBodyPointerEvents();
-    }
-  }, [open]);
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(
+    defaultOpen ?? false,
+  );
+  const isControlled = open !== undefined;
+  const isOpen = isControlled ? !!open : uncontrolledOpen;
 
-  React.useEffect(() => {
-    return () => {
-      restoreBodyPointerEvents();
-    };
-  }, []);
+  useOverlayOwnership(isOpen);
 
   return (
     <>
@@ -35,13 +29,19 @@ function Drawer({
        * but with controlled state (`open` prop) the timing race is lost.
        * This style tag wins regardless of timing via CSS !important.
        */}
-      {open && props.modal === false && (
+      {isOpen && props.modal === false && (
         <style>{`body { pointer-events: auto !important; }`}</style>
       )}
       <DrawerPrimitive.Root
         data-slot="drawer"
         open={open}
-        onOpenChange={onOpenChange}
+        defaultOpen={defaultOpen}
+        onOpenChange={(next) => {
+          if (!isControlled) {
+            setUncontrolledOpen(next);
+          }
+          onOpenChange?.(next);
+        }}
         {...props}
       />
     </>

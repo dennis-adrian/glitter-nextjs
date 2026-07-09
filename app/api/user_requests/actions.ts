@@ -439,7 +439,6 @@ export async function updateReservation(id: number, data: ReservationUpdate) {
 
 export async function createUserEnrollment(params: {
   profileId: BaseProfile["id"];
-  profileCategory: BaseProfile["category"];
   profileDisplayName: BaseProfile["displayName"];
   festivalId: FestivalBase["id"];
   festivalName: FestivalBase["name"];
@@ -447,7 +446,6 @@ export async function createUserEnrollment(params: {
 }) {
   const {
     profileId,
-    profileCategory,
     profileDisplayName,
     festivalId,
     festivalName,
@@ -493,10 +491,15 @@ export async function createUserEnrollment(params: {
       };
     }
 
+    // Derive status from DB-backed category so callers cannot force "accepted"
+    // for gastronomy enrollments via tampered input.
+    const enrollmentStatus =
+      profile.category === "gastronomy" ? "pending" : "accepted";
+
     await db.insert(userRequests).values({
       userId: profileId,
       festivalId: festivalId,
-      status: profileCategory === "gastronomy" ? "pending" : "accepted",
+      status: enrollmentStatus,
       type: "festival_participation",
     });
 
@@ -511,7 +514,7 @@ export async function createUserEnrollment(params: {
           profile: {
             id: profileId,
             displayName: profileDisplayName || "Usuario",
-            category: profileCategory,
+            category: profile.category,
           },
           festival: {
             id: festivalId,

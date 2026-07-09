@@ -120,7 +120,7 @@ async function buildParticipantWhereClause(
     true,
   );
 
-  buildWhereClause(whereClause, sql`${users.status} in ${participantStatuses}`);
+  buildWhereClause(whereClause, inArray(users.status, participantStatuses));
 
   if (filters.pauseEligible) {
     buildWhereClause(
