@@ -980,7 +980,10 @@ export async function checkoutGuestCart(
       productRows.map((product) => product.storeCategory),
     );
     if (closedSection) {
-      return { success: false, message: storeClosureMessage(closedSection.closure) };
+      return {
+        success: false,
+        message: storeClosureMessage(closedSection.closure),
+      };
     }
 
     const orderResult = await db.transaction((tx) =>

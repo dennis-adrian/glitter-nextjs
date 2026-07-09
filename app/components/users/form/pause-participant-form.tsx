@@ -33,7 +33,10 @@ export default function PauseParticipantForm({
     <Form {...form}>
       <form onSubmit={action} className="w-full">
         <SubmitButton
-          disabled={form.formState.isSubmitting || !profile.activitySummary.isPauseEligible}
+          disabled={
+            form.formState.isSubmitting ||
+            !profile.activitySummary.isPauseEligible
+          }
           label="Pausar cuenta"
           loading={form.formState.isSubmitting}
         />

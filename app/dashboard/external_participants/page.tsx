@@ -7,8 +7,8 @@ export default function ExternalParticipantsPage() {
     <div className="container p-4 md:p-6">
       <h1 className="text-2xl font-bold">Participantes externos</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Instituciones, auspiciantes y otros participantes que no tienen cuenta en
-        Glitter.
+        Instituciones, auspiciantes y otros participantes que no tienen cuenta
+        en Glitter.
       </p>
       <div className="my-4 w-full">
         <RedirectButton href="/dashboard/external_participants/add">

@@ -222,7 +222,10 @@ export async function renderCouponBookPdf(input: {
 
     const response = await input.loadPage(page);
     if (response && !response.ok()) {
-      const bodyText = await page.locator("body").innerText().catch(() => "");
+      const bodyText = await page
+        .locator("body")
+        .innerText()
+        .catch(() => "");
       console.error("Coupon book print page failed to load", {
         status: response.status(),
         url: response.url(),
@@ -240,7 +243,10 @@ export async function renderCouponBookPdf(input: {
         timeout: 30000,
       });
     } catch (error) {
-      const bodyText = await page.locator("body").innerText().catch(() => "");
+      const bodyText = await page
+        .locator("body")
+        .innerText()
+        .catch(() => "");
       const title = await page.title().catch(() => "");
       console.error("Coupon book print page did not become ready", {
         title,

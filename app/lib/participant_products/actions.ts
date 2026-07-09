@@ -46,7 +46,8 @@ export async function createParticipantProduct(
     if (!participation) {
       return {
         success: false,
-        message: "No tienes permiso para agregar productos a esta participación.",
+        message:
+          "No tienes permiso para agregar productos a esta participación.",
       };
     }
 

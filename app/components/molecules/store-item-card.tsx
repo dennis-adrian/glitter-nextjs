@@ -70,8 +70,7 @@ export default function StoreItemCard({
   // Rentable product the viewer cannot rent from the card (e.g. not eligible)
   // but that is otherwise available; the card sends them to the detail page
   // where the eligibility notice explains why.
-  const rentalNeedsDetail =
-    !inStock && rentalDisplayInStock && !rentalEligible;
+  const rentalNeedsDetail = !inStock && rentalDisplayInStock && !rentalEligible;
   const displayAvailable = inStock || rentalNeedsDetail;
   const isRentalOnly = rentalInStock && !purchaseInStock;
   const showDualMode =

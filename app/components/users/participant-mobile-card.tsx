@@ -139,7 +139,10 @@ export default function ParticipantMobileCard({ participant }: Props) {
       )}
 
       <Accordion type="single" collapsible className="w-full">
-        <AccordionItem value={`participant-${participant.id}`} className="border-b-0">
+        <AccordionItem
+          value={`participant-${participant.id}`}
+          className="border-b-0"
+        >
           <AccordionTrigger className="border-t px-3 py-2 text-xs font-medium uppercase [&[data-state=closed]_.label-open]:hidden [&[data-state=open]_.label-closed]:hidden">
             <span className="label-closed">Ver más</span>
             <span className="label-open">Ver menos</span>
@@ -202,7 +205,9 @@ export default function ParticipantMobileCard({ participant }: Props) {
                   <p className="mb-0.5 text-xs font-medium text-muted-foreground">
                     Participaciones
                   </p>
-                  <p>{participant.activitySummary.acceptedParticipationsCount}</p>
+                  <p>
+                    {participant.activitySummary.acceptedParticipationsCount}
+                  </p>
                 </div>
               </div>
             </div>

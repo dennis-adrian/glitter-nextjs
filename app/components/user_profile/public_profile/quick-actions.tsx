@@ -69,9 +69,7 @@ export default function ProfileQuickActions({
     profile.status === "verified" && activitySummary?.isPauseEligible === true;
   const canUnpause = profile.status === "paused";
   const participantProfile =
-    activitySummary !== undefined
-      ? { ...profile, activitySummary }
-      : undefined;
+    activitySummary !== undefined ? { ...profile, activitySummary } : undefined;
 
   const triggerContent = children ?? (
     <CogIcon className="h-6 w-6 shrink-0" aria-hidden />
@@ -81,117 +79,117 @@ export default function ProfileQuickActions({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger
-        type="button"
-        variant={triggerVariant}
-        size={triggerSize}
-        className={cn("shrink-0", triggerClassName)}
-        aria-label={children ? undefined : "Acciones"}
-      >
-        {triggerContent}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-        {!hideViewProfile && (
-          <DropdownMenuItem asChild>
-            <Link href={`/dashboard/users/${profile.id}`}>
-              <UserIcon className="h-4 w-4 mr-1" />
-              Ver perfil
-            </Link>
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuItem asChild>
-          <Link href={`/dashboard/users/${profile.id}/edit-categories`}>
-            <PenBoxIcon className="h-4 w-4 mr-1" />
-            Editar categorías
-          </Link>
-        </DropdownMenuItem>
-        {pendingPaymentsByFestival?.map(
-          ({ festivalId, festivalName, count }) => (
-            <DropdownMenuItem key={festivalId} asChild>
-              <Link
-                className="flex items-center gap-1"
-                href={`/profiles/${profile.id}/festivals/${festivalId}/invoices`}
-              >
-                <ReceiptIcon className="h-4 w-4" />
-                Pagos pendientes · {festivalName} ({count})
+          type="button"
+          variant={triggerVariant}
+          size={triggerSize}
+          className={cn("shrink-0", triggerClassName)}
+          aria-label={children ? undefined : "Acciones"}
+        >
+          {triggerContent}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+          {!hideViewProfile && (
+            <DropdownMenuItem asChild>
+              <Link href={`/dashboard/users/${profile.id}`}>
+                <UserIcon className="h-4 w-4 mr-1" />
+                Ver perfil
               </Link>
             </DropdownMenuItem>
-          ),
-        )}
-        <DropdownMenuItem
-          disabled={!allowVerify}
-          onClick={() => setOpenVerifyModal(true)}
-        >
-          {allowVerify ? (
-            <span className="flex items-center gap-1">
-              <CircleCheckIcon className="h-4 w-4" />
-              {profile.status === "banned" ? "Habilitar" : "Verificar"}
-            </span>
-          ) : (
-            <span className="flex items-center gap-1">
-              <CircleCheckBigIcon className="h-4 w-4" />
-              {profile.status === "paused" ? "Pausado" : "Verificado"}
-            </span>
           )}
-        </DropdownMenuItem>
-        {profile.status !== "verified" && profile.status !== "banned" ? (
-          <DropdownMenuItem
-            disabled={profile.status === "rejected"}
-            onClick={() => setOpenRejectModal(true)}
-          >
-            <XCircleIcon className="h-4 w-4 mr-1" />
-            {profile.status === "pending" ? "Rechazar" : "Rechazado"}
+          <DropdownMenuItem asChild>
+            <Link href={`/dashboard/users/${profile.id}/edit-categories`}>
+              <PenBoxIcon className="h-4 w-4 mr-1" />
+              Editar categorías
+            </Link>
           </DropdownMenuItem>
-        ) : null}
-        {profile.status !== "pending" && profile.status !== "rejected" && (
+          {pendingPaymentsByFestival?.map(
+            ({ festivalId, festivalName, count }) => (
+              <DropdownMenuItem key={festivalId} asChild>
+                <Link
+                  className="flex items-center gap-1"
+                  href={`/profiles/${profile.id}/festivals/${festivalId}/invoices`}
+                >
+                  <ReceiptIcon className="h-4 w-4" />
+                  Pagos pendientes · {festivalName} ({count})
+                </Link>
+              </DropdownMenuItem>
+            ),
+          )}
           <DropdownMenuItem
-            disabled={profile.status === "banned"}
-            onClick={() => setOpenDisableModal(true)}
+            disabled={!allowVerify}
+            onClick={() => setOpenVerifyModal(true)}
           >
-            {profile.status === "banned" ? (
+            {allowVerify ? (
               <span className="flex items-center gap-1">
-                <BanIcon className="h-4 w-4" />
-                Deshabilitado
+                <CircleCheckIcon className="h-4 w-4" />
+                {profile.status === "banned" ? "Habilitar" : "Verificar"}
               </span>
             ) : (
               <span className="flex items-center gap-1">
-                <BanIcon className="h-4 w-4" />
-                Deshabilitar
+                <CircleCheckBigIcon className="h-4 w-4" />
+                {profile.status === "paused" ? "Pausado" : "Verificado"}
               </span>
             )}
           </DropdownMenuItem>
-        )}
-        {canPause && participantProfile ? (
-          <DropdownMenuItem onClick={() => setOpenPauseModal(true)}>
-            <PauseCircleIcon className="h-4 w-4 mr-1" />
-            Pausar cuenta
-          </DropdownMenuItem>
-        ) : null}
-        {canUnpause ? (
-          <DropdownMenuItem onClick={() => setOpenUnpauseModal(true)}>
-            <CircleCheckBigIcon className="h-4 w-4 mr-1" />
-            Reactivar cuenta
-          </DropdownMenuItem>
-        ) : null}
-        {profile.userRequests.length > 0 && (
-          <DropdownMenuItem asChild>
-            <Link
-              className="flex items-center gap-1"
-              href={`/dashboard/users/${profile.id}/requests`}
+          {profile.status !== "verified" && profile.status !== "banned" ? (
+            <DropdownMenuItem
+              disabled={profile.status === "rejected"}
+              onClick={() => setOpenRejectModal(true)}
             >
-              <TagsIcon className="h-4 w-4" />
-              Ver solicitudes
-            </Link>
+              <XCircleIcon className="h-4 w-4 mr-1" />
+              {profile.status === "pending" ? "Rechazar" : "Rechazado"}
+            </DropdownMenuItem>
+          ) : null}
+          {profile.status !== "pending" && profile.status !== "rejected" && (
+            <DropdownMenuItem
+              disabled={profile.status === "banned"}
+              onClick={() => setOpenDisableModal(true)}
+            >
+              {profile.status === "banned" ? (
+                <span className="flex items-center gap-1">
+                  <BanIcon className="h-4 w-4" />
+                  Deshabilitado
+                </span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <BanIcon className="h-4 w-4" />
+                  Deshabilitar
+                </span>
+              )}
+            </DropdownMenuItem>
+          )}
+          {canPause && participantProfile ? (
+            <DropdownMenuItem onClick={() => setOpenPauseModal(true)}>
+              <PauseCircleIcon className="h-4 w-4 mr-1" />
+              Pausar cuenta
+            </DropdownMenuItem>
+          ) : null}
+          {canUnpause ? (
+            <DropdownMenuItem onClick={() => setOpenUnpauseModal(true)}>
+              <CircleCheckBigIcon className="h-4 w-4 mr-1" />
+              Reactivar cuenta
+            </DropdownMenuItem>
+          ) : null}
+          {profile.userRequests.length > 0 && (
+            <DropdownMenuItem asChild>
+              <Link
+                className="flex items-center gap-1"
+                href={`/dashboard/users/${profile.id}/requests`}
+              >
+                <TagsIcon className="h-4 w-4" />
+                Ver solicitudes
+              </Link>
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem
+            className="text-destructive hover:text-destructive-foreground hover:bg-destructive"
+            onClick={() => setOpenDeleteModal(true)}
+          >
+            <Trash2Icon className="h-4 w-4 mr-1" />
+            Eliminar
           </DropdownMenuItem>
-        )}
-        <DropdownMenuItem
-          className="text-destructive hover:text-destructive-foreground hover:bg-destructive"
-          onClick={() => setOpenDeleteModal(true)}
-        >
-          <Trash2Icon className="h-4 w-4 mr-1" />
-          Eliminar
-        </DropdownMenuItem>
-      </DropdownMenuContent>
+        </DropdownMenuContent>
       </DropdownMenu>
       <DeleteProfileModal
         open={openDeleteModal}

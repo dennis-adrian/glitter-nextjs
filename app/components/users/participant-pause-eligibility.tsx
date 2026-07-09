@@ -10,16 +10,16 @@ export function participantEligibleSurfaceClass(isEligible: boolean) {
 }
 
 export function participantEligibleStickyCellClass(isEligible: boolean) {
-  return isEligible
-    ? "bg-amber-50/70 group-hover:bg-amber-100/40"
-    : "bg-white";
+  return isEligible ? "bg-amber-50/70 group-hover:bg-amber-100/40" : "bg-white";
 }
 
 type PauseEligibilityNoticeProps = {
   className?: string;
 };
 
-export function PauseEligibilityNotice({ className }: PauseEligibilityNoticeProps) {
+export function PauseEligibilityNotice({
+  className,
+}: PauseEligibilityNoticeProps) {
   return (
     <p className={cn("text-xs leading-snug text-amber-800", className)}>
       {PARTICIPANT_PAUSE_ELIGIBLE_MESSAGE}

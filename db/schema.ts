@@ -146,7 +146,9 @@ export const usersRelations = relations(users, ({ many }) => ({
   participantProducts: many(participantProducts),
   festivalActivityVotes: many(festivalActivityVotes),
   standHolds: many(standHolds),
-  statusEvents: many(userStatusEvents, { relationName: "targetUserStatusEvents" }),
+  statusEvents: many(userStatusEvents, {
+    relationName: "targetUserStatusEvents",
+  }),
   createdStatusEvents: many(userStatusEvents, {
     relationName: "createdUserStatusEvents",
   }),

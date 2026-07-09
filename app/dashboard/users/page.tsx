@@ -73,13 +73,17 @@ export default async function Page(props: {
           }
         >
           <ParticipantSummarySection
-            fetchParticipantAggregatesPromise={fetchParticipantAggregatesPromise}
+            fetchParticipantAggregatesPromise={
+              fetchParticipantAggregatesPromise
+            }
           />
         </Suspense>
         <Suspense fallback={<TableSkeleton />}>
           <ParticipantsTable
             fetchParticipantsPromise={fetchParticipantsPromise}
-            fetchParticipantAggregatesPromise={fetchParticipantAggregatesPromise}
+            fetchParticipantAggregatesPromise={
+              fetchParticipantAggregatesPromise
+            }
           />
         </Suspense>
       </div>
@@ -90,7 +94,9 @@ export default async function Page(props: {
 async function ParticipantSummarySection({
   fetchParticipantAggregatesPromise,
 }: {
-  fetchParticipantAggregatesPromise: ReturnType<typeof fetchParticipantAggregates>;
+  fetchParticipantAggregatesPromise: ReturnType<
+    typeof fetchParticipantAggregates
+  >;
 }) {
   const aggregates = await fetchParticipantAggregatesPromise;
   return <ParticipantSummaryBar aggregates={aggregates} />;

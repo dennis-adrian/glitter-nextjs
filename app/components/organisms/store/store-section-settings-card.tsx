@@ -89,8 +89,8 @@ export default function StoreSectionSettingsCard({ settings }: Props) {
       <CardHeader>
         <CardTitle>{sectionLabel}</CardTitle>
         <CardDescription>
-          Controla manualmente si la sección de {sectionLabel.toLowerCase()} está
-          abierta o cerrada para los visitantes.
+          Controla manualmente si la sección de {sectionLabel.toLowerCase()}{" "}
+          está abierta o cerrada para los visitantes.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

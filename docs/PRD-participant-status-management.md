@@ -48,16 +48,16 @@ Admins will get a global participants view that highlights participant activity,
 
 ## 4. Definitions
 
-| Term | Definition |
-| --- | --- |
-| Profile status | The value in `users.status`. Currently `verified`, `pending`, `rejected`, `banned`; this feature adds `paused`. |
-| Participant | A user who has been verified before and belongs in participant history. Includes `verified`, `paused`, and `banned`. |
-| Active participant | A participant with `users.status = verified`. |
-| Past participant | A participant that is no longer active because `users.status` is `paused` or `banned`. |
-| Profile request | A non-participant profile awaiting or denied verification. Includes `pending` and `rejected`. |
-| Terms acceptance | A `user_requests` row with `type = festival_participation` and `status = accepted`. Existing creation happens in `createUserEnrollment`. |
+| Term               | Definition                                                                                                                                |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Profile status     | The value in `users.status`. Currently `verified`, `pending`, `rejected`, `banned`; this feature adds `paused`.                           |
+| Participant        | A user who has been verified before and belongs in participant history. Includes `verified`, `paused`, and `banned`.                      |
+| Active participant | A participant with `users.status = verified`.                                                                                             |
+| Past participant   | A participant that is no longer active because `users.status` is `paused` or `banned`.                                                    |
+| Profile request    | A non-participant profile awaiting or denied verification. Includes `pending` and `rejected`.                                             |
+| Terms acceptance   | A `user_requests` row with `type = festival_participation` and `status = accepted`. Existing creation happens in `createUserEnrollment`.  |
 | Real participation | A `reservation_participants` row connected to a `stand_reservations` row with `status = accepted`. This is stricter than accepting terms. |
-| Pause eligibility | A verified participant has not had real participation in any of the last 3 festivals. |
+| Pause eligibility  | A verified participant has not had real participation in any of the last 3 festivals.                                                     |
 
 ---
 
@@ -76,15 +76,15 @@ Admins will get a global participants view that highlights participant activity,
 
 ### Existing routes and surfaces
 
-| Route / module | Current role |
-| --- | --- |
-| `/dashboard/users` | Global users table with server-side filters by profile status, category, query, completion, and admins. |
-| `/dashboard/requests` | Global request table for `user_requests`, not the same as profile verification requests. |
-| `/dashboard/users/[profileId]/requests` | Admin surface for a single user's requests. |
-| `/dashboard/festivals/[id]/allowed_participants` | Festival invitation/allowed participants flow. |
-| `/profiles/[profileId]/festivals/[festivalId]/terms` | Terms and conditions acceptance route for a user/festival. |
-| `/festivals/[id]/terms` | Terms flow alias that redirects authenticated users into the profile-scoped terms route. |
-| `/profiles/[profileId]/festivals/[festivalId]/reservations/new` | Reservation flow gated by verified status and festival enrollment. |
+| Route / module                                                  | Current role                                                                                            |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `/dashboard/users`                                              | Global users table with server-side filters by profile status, category, query, completion, and admins. |
+| `/dashboard/requests`                                           | Global request table for `user_requests`, not the same as profile verification requests.                |
+| `/dashboard/users/[profileId]/requests`                         | Admin surface for a single user's requests.                                                             |
+| `/dashboard/festivals/[id]/allowed_participants`                | Festival invitation/allowed participants flow.                                                          |
+| `/profiles/[profileId]/festivals/[festivalId]/terms`            | Terms and conditions acceptance route for a user/festival.                                              |
+| `/festivals/[id]/terms`                                         | Terms flow alias that redirects authenticated users into the profile-scoped terms route.                |
+| `/profiles/[profileId]/festivals/[festivalId]/reservations/new` | Reservation flow gated by verified status and festival enrollment.                                      |
 
 ---
 
@@ -94,10 +94,10 @@ Admins will get a global participants view that highlights participant activity,
 
 The app must expose two primary admin groups:
 
-| Group | Included statuses | Default visible statuses |
-| --- | --- | --- |
-| Participants | `verified`, `paused`, `banned` | `verified`, `paused` |
-| Profile requests | `pending`, `rejected` | `pending`, `rejected` |
+| Group            | Included statuses              | Default visible statuses |
+| ---------------- | ------------------------------ | ------------------------ |
+| Participants     | `verified`, `paused`, `banned` | `verified`, `paused`     |
+| Profile requests | `pending`, `rejected`          | `pending`, `rejected`    |
 
 Acceptance criteria:
 
@@ -200,15 +200,15 @@ The app should record pause/unpause events separately from the current status.
 
 Recommended new table: `user_status_events`.
 
-| Column | Type | Notes |
-| --- | --- | --- |
-| `id` | serial PK | |
-| `userId` | integer FK -> `users.id` | Paused/unpaused user. |
-| `fromStatus` | `user_status` | Previous status. |
-| `toStatus` | `user_status` | New status. |
-| `reason` | text | Admin-entered or system-provided explanation. |
+| Column            | Type                              | Notes                                                       |
+| ----------------- | --------------------------------- | ----------------------------------------------------------- |
+| `id`              | serial PK                         |                                                             |
+| `userId`          | integer FK -> `users.id`          | Paused/unpaused user.                                       |
+| `fromStatus`      | `user_status`                     | Previous status.                                            |
+| `toStatus`        | `user_status`                     | New status.                                                 |
+| `reason`          | text                              | Admin-entered or system-provided explanation.               |
 | `createdByUserId` | integer FK -> `users.id` nullable | Admin who performed action; nullable for future automation. |
-| `createdAt` | timestamp | Defaults to now. |
+| `createdAt`       | timestamp                         | Defaults to now.                                            |
 
 Acceptance criteria:
 
@@ -262,26 +262,26 @@ Default filters:
 
 Top summary cards:
 
-| Card | Count |
-| --- | --- |
-| Participantes activos | `status = verified` |
-| Pausados | `status = paused` |
-| Vetados | `status = banned` |
+| Card                     | Count                        |
+| ------------------------ | ---------------------------- |
+| Participantes activos    | `status = verified`          |
+| Pausados                 | `status = paused`            |
+| Vetados                  | `status = banned`            |
 | Participantes históricos | `verified + paused + banned` |
 
 Table columns:
 
-| Column | Notes |
-| --- | --- |
-| Perfil | Existing `UserInfoCell`. |
-| Categoría | Existing category badge. |
-| Estado | Existing status badge with new `paused` label. |
-| Última participación | Relative label + touch-friendly exact date. |
-| Última aceptación de términos | Relative label + touch-friendly exact date. |
-| Participaciones | Existing count, but preferably accepted real participations only. |
-| Elegible para pausa | Badge: `Elegible`, `Activo reciente`, `Ya pausado`, `Vetado`, etc. |
-| Fecha de verificación | Existing column. |
-| Acciones | Add pause/unpause actions. |
+| Column                        | Notes                                                              |
+| ----------------------------- | ------------------------------------------------------------------ |
+| Perfil                        | Existing `UserInfoCell`.                                           |
+| Categoría                     | Existing category badge.                                           |
+| Estado                        | Existing status badge with new `paused` label.                     |
+| Última participación          | Relative label + touch-friendly exact date.                        |
+| Última aceptación de términos | Relative label + touch-friendly exact date.                        |
+| Participaciones               | Existing count, but preferably accepted real participations only.  |
+| Elegible para pausa           | Badge: `Elegible`, `Activo reciente`, `Ya pausado`, `Vetado`, etc. |
+| Fecha de verificación         | Existing column.                                                   |
+| Acciones                      | Add pause/unpause actions.                                         |
 
 Touch-friendly exact-date interaction:
 
@@ -584,16 +584,16 @@ No automatic email is required for MVP, but recommended.
 
 Update all participant eligibility checks to distinguish active verified users from historical participants.
 
-| Area | Required behavior |
-| --- | --- |
-| `protectRoute` | Keep verified-only for routes that mutate participant festival state. Consider allowing paused users to view read-only profile/history pages if needed. |
-| Terms route | Block paused users before rendering terms acceptance UI. |
-| `createUserEnrollment` | Require `profile.status === verified`; return paused-specific message. |
-| Allowed participants page | Exclude paused and banned by default. |
-| Invitation send action | Re-check `status = verified` before sending emails. |
-| Reservation actions | Keep or add `status = verified` server checks. |
-| Activity enrollment | Require `status = verified`. |
-| Product submission | Require `status = verified`. |
+| Area                      | Required behavior                                                                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `protectRoute`            | Keep verified-only for routes that mutate participant festival state. Consider allowing paused users to view read-only profile/history pages if needed. |
+| Terms route               | Block paused users before rendering terms acceptance UI.                                                                                                |
+| `createUserEnrollment`    | Require `profile.status === verified`; return paused-specific message.                                                                                  |
+| Allowed participants page | Exclude paused and banned by default.                                                                                                                   |
+| Invitation send action    | Re-check `status = verified` before sending emails.                                                                                                     |
+| Reservation actions       | Keep or add `status = verified` server checks.                                                                                                          |
+| Activity enrollment       | Require `status = verified`.                                                                                                                            |
+| Product submission        | Require `status = verified`.                                                                                                                            |
 
 ---
 

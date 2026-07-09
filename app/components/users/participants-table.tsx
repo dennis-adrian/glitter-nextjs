@@ -1,6 +1,9 @@
 "use client";
 
-import { ParticipantAggregates, ParticipantProfile } from "@/app/lib/participants/definitions";
+import {
+  ParticipantAggregates,
+  ParticipantProfile,
+} from "@/app/lib/participants/definitions";
 import {
   Table,
   TableBody,
