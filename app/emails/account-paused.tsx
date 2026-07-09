@@ -27,29 +27,29 @@ export default function AccountPausedEmailTemplate(
   return (
     <Html>
       <Head />
-      <Preview>Tu cuenta de participante fue pausada</Preview>
+      <Preview>Tu perfil fue pausado</Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <EmailHeader />
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.text}>¡Hola {userName}!</Text>
             <Text style={styles.text}>
-              Pausamos tu cuenta de participante como parte de una limpieza de
-              perfiles inactivos. Esto no es una sanción ni una infracción.
+              Pausamos tu perfil como parte de una limpieza de perfiles
+              inactivos que no han tenido participaciones en los últimos 3
+              festivales.
             </Text>
             <Text style={styles.text}>
-              Mientras tu cuenta esté pausada no recibirás invitaciones para
-              festivales ni podrás aceptar términos y condiciones de
-              participación.
+              Mientras tu perfil esté pausado no recibirás correos de invitación
+              pero siestás interesado en participar en el próximo festival,
+              escribinos para solicitar la reactivación de tu perfil.
             </Text>
             <Text style={styles.text}>
-              Si querés participar en un próximo festival, escribinos para
-              solicitar la reactivación de tu cuenta. Si pedís la reactivación y
-              no participás en el festival próximo, nuestro equipo podría
-              revisar tu cuenta con mayor detalle.
+              La solicitud será evaluada y en caso de ser aprobada, tu perfil
+              será reactivado condicionado a una participación activa en el
+              próximo festival.
             </Text>
             <Text style={styles.text}>
-              Podés contactarnos en{" "}
+              Podés contactarnos al correo{" "}
               <Link
                 href={`mailto:${PARTICIPANT_SUPPORT_EMAIL}`}
                 style={{

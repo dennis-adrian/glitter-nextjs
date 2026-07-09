@@ -82,14 +82,9 @@ export default function ActivityDateCell({
     scheduleClose();
   }, [prefersTap, scheduleClose]);
 
-  const handleOpenChange = useCallback(
-    (next: boolean) => {
-      if (prefersTap || next) {
-        setOpen(next);
-      }
-    },
-    [prefersTap],
-  );
+  const handleOpenChange = useCallback((next: boolean) => {
+    setOpen(next);
+  }, []);
 
   if (!date) {
     return <span className="text-muted-foreground">{emptyLabel}</span>;
@@ -130,7 +125,10 @@ export default function ActivityDateCell({
               prefersTap
                 ? undefined
                 : (event) => {
-                    event.preventDefault();
+                    // Suppress pointer clicks (hover opens); allow keyboard activation.
+                    if (event.detail !== 0) {
+                      event.preventDefault();
+                    }
                   }
             }
           >
