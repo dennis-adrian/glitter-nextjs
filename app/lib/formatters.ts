@@ -4,10 +4,21 @@ import { DateTime } from "luxon";
 export const STORE_TIMEZONE = "America/La_Paz";
 
 export function formatDate(date: Date | string): DateTime {
-  const isoDate = date instanceof Date ? date.toISOString() : date;
-  return DateTime.fromISO(isoDate, {
-    zone: STORE_TIMEZONE,
-  }).setLocale("es");
+  if (date instanceof Date) {
+    return DateTime.fromJSDate(date, { zone: STORE_TIMEZONE }).setLocale("es");
+  }
+
+  const isoDate = DateTime.fromISO(date, { zone: STORE_TIMEZONE });
+  if (isoDate.isValid) {
+    return isoDate.setLocale("es");
+  }
+
+  const sqlDate = DateTime.fromSQL(date, { zone: STORE_TIMEZONE });
+  if (sqlDate.isValid) {
+    return sqlDate.setLocale("es");
+  }
+
+  return DateTime.invalid("unparsable");
 }
 
 export function formatFullDate(

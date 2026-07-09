@@ -36,6 +36,7 @@ export const userStatusEnum = pgEnum("user_status", [
   "pending",
   "rejected",
   "banned",
+  "paused",
 ]);
 export const genderEnum = pgEnum("gender", [
   "male",
@@ -102,6 +103,35 @@ export const users = pgTable(
   },
   (users) => [index("display_name_idx").on(users.displayName)],
 );
+export const userStatusEvents = pgTable("user_status_events", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  fromStatus: userStatusEnum("from_status").notNull(),
+  toStatus: userStatusEnum("to_status").notNull(),
+  reason: text("reason"),
+  createdByUserId: integer("created_by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const userStatusEventsRelations = relations(
+  userStatusEvents,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userStatusEvents.userId],
+      references: [users.id],
+      relationName: "targetUserStatusEvents",
+    }),
+    createdBy: one(users, {
+      fields: [userStatusEvents.createdByUserId],
+      references: [users.id],
+      relationName: "createdUserStatusEvents",
+    }),
+  }),
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   userRequests: many(userRequests),
   userSocials: many(userSocials),
@@ -116,6 +146,10 @@ export const usersRelations = relations(users, ({ many }) => ({
   participantProducts: many(participantProducts),
   festivalActivityVotes: many(festivalActivityVotes),
   standHolds: many(standHolds),
+  statusEvents: many(userStatusEvents, { relationName: "targetUserStatusEvents" }),
+  createdStatusEvents: many(userStatusEvents, {
+    relationName: "createdUserStatusEvents",
+  }),
 }));
 
 export const tags = pgTable("tags", {

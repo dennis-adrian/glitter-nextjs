@@ -86,7 +86,6 @@ export function ParticipantProductsUpload({
       />
       <UploadProductModal
         show={showProductModal}
-        userId={profile.id}
         participationId={participation.id}
         currentImage={currentImage}
         onOpenChange={handleToggleProductModal}

@@ -1,25 +1,25 @@
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-
-import UsersTableFilters from "@/app/components/users/filters/users-table-filters";
+import ParticipantsTableFilters from "@/app/components/users/filters/participants-table-filters";
+import ParticipantSummaryBar from "@/app/components/users/participant-summary-bar";
 import TableFiltersSkeleton from "@/app/components/users/skeletons/filters";
 import TableSkeleton from "@/app/components/users/skeletons/table";
-import UsersTable from "@/app/components/users/table";
+import ParticipantsTable from "@/app/components/users/participants-table";
 import {
-  SearchParamsSchema,
-  SearchParamsSchemaType,
+  ParticipantSearchParamsSchema,
+  ParticipantSearchParamsSchemaType,
 } from "@/app/dashboard/users/schemas";
 import {
-  fetchUserProfiles,
-  fetchUsersAggregates,
-} from "@/app/lib/users/actions";
+  fetchParticipantAggregates,
+  fetchParticipantProfiles,
+} from "@/app/lib/participants/actions";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 export default async function Page(props: {
-  searchParams: Promise<SearchParamsSchemaType>;
+  searchParams: Promise<ParticipantSearchParamsSchemaType>;
 }) {
   const searchParams = await props.searchParams;
-  const validatedSearchParams = SearchParamsSchema.safeParse(searchParams);
+  const validatedSearchParams =
+    ParticipantSearchParamsSchema.safeParse(searchParams);
   if (!validatedSearchParams.success) notFound();
 
   const {
@@ -32,9 +32,10 @@ export default async function Page(props: {
     sort,
     direction,
     profileCompletion,
+    pauseEligible,
   } = validatedSearchParams.data;
 
-  const fetchUsersPromise = fetchUserProfiles({
+  const listFilters = {
     limit: limit || 10,
     offset: offset || 0,
     includeAdmins,
@@ -44,29 +45,53 @@ export default async function Page(props: {
     sort,
     direction,
     profileCompletion,
-  });
-  const fetchUsersAggregatesPromise = fetchUsersAggregates({
+    pauseEligible,
+  };
+
+  const fetchParticipantsPromise = fetchParticipantProfiles(listFilters);
+  const fetchParticipantAggregatesPromise = fetchParticipantAggregates({
     includeAdmins,
     status,
     category,
     query,
     profileCompletion,
+    pauseEligible,
   });
 
   return (
-    <div className="container mx-auto min-h-full p-3 md:p-6">
-      <h1 className="mb-2 text-2xl font-bold md:text-3xl">Usuarios</h1>
-      <div className="flex flex-col gap-4 group">
+    <div className="container mx-auto min-h-full min-w-0 overflow-x-hidden p-3 md:p-6">
+      <h1 className="mb-2 text-xl font-bold sm:text-2xl md:text-3xl">
+        Participantes
+      </h1>
+      <div className="flex min-w-0 flex-col gap-3 sm:gap-4 group">
         <Suspense fallback={<TableFiltersSkeleton />}>
-          <UsersTableFilters />
+          <ParticipantsTableFilters />
+        </Suspense>
+        <Suspense
+          fallback={
+            <div className="h-10 animate-pulse rounded-lg border bg-muted" />
+          }
+        >
+          <ParticipantSummarySection
+            fetchParticipantAggregatesPromise={fetchParticipantAggregatesPromise}
+          />
         </Suspense>
         <Suspense fallback={<TableSkeleton />}>
-          <UsersTable
-            fetchUsersPromise={fetchUsersPromise}
-            fetchUsersAggregatesPromise={fetchUsersAggregatesPromise}
+          <ParticipantsTable
+            fetchParticipantsPromise={fetchParticipantsPromise}
+            fetchParticipantAggregatesPromise={fetchParticipantAggregatesPromise}
           />
         </Suspense>
       </div>
     </div>
   );
+}
+
+async function ParticipantSummarySection({
+  fetchParticipantAggregatesPromise,
+}: {
+  fetchParticipantAggregatesPromise: ReturnType<typeof fetchParticipantAggregates>;
+}) {
+  const aggregates = await fetchParticipantAggregatesPromise;
+  return <ParticipantSummaryBar aggregates={aggregates} />;
 }

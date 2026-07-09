@@ -17,6 +17,12 @@ import {
 } from "@/app/lib/festivals/utils";
 import ProfileRejectionEmailTemplate from "@/app/emails/profile-rejection";
 import { deleteClerkUser } from "@/app/lib/users/actions";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import {
+  logUserStatusEvent,
+  updateUserStatusWithAudit,
+  verificationReasonForStatus,
+} from "@/app/lib/users/status-events";
 import { fetchFestival } from "@/app/lib/festivals/actions";
 
 export type NewUser = typeof users.$inferInsert;
@@ -303,16 +309,37 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
 
 export async function verifyProfile(profileId: number, category: UserCategory) {
   try {
-    const [updatedUser] = await db
-      .update(users)
-      .set({
-        status: "verified",
-        verifiedAt: new Date(),
-        updatedAt: new Date(),
-        category: category,
-      })
-      .where(eq(users.id, profileId))
-      .returning();
+    const currentProfile = await getCurrentUserProfile();
+
+    const updatedUser = await db.transaction(async (tx) => {
+      const existingProfile = await tx.query.users.findFirst({
+        where: eq(users.id, profileId),
+      });
+
+      if (!existingProfile) {
+        return null;
+      }
+
+      await updateUserStatusWithAudit(tx, {
+        userId: profileId,
+        fromStatus: existingProfile.status,
+        toStatus: "verified",
+        reason: verificationReasonForStatus(existingProfile.status),
+        createdByUserId: currentProfile?.id,
+        userUpdates: {
+          verifiedAt: new Date(),
+          category,
+        },
+      });
+
+      const [user] = await tx
+        .select()
+        .from(users)
+        .where(eq(users.id, profileId))
+        .limit(1);
+
+      return user;
+    });
 
     if (!updatedUser) {
       return { success: false, message: "Perfil no encontrado" };
@@ -351,6 +378,7 @@ export async function verifyProfile(profileId: number, category: UserCategory) {
   }
 
   revalidatePath("/dashboard/users");
+  revalidatePath("/dashboard/profile_requests");
   return { success: true, message: "Perfil verificado" };
 }
 
@@ -393,7 +421,31 @@ export async function fetchBaseProfileByClerkId(
 
 export async function disableProfile(id: number) {
   try {
-    await db.update(users).set({ status: "banned" }).where(eq(users.id, id));
+    const currentProfile = await getCurrentUserProfile();
+
+    const existingProfile = await db.transaction(async (tx) => {
+      const profile = await tx.query.users.findFirst({
+        where: eq(users.id, id),
+      });
+
+      if (!profile) {
+        return null;
+      }
+
+      await updateUserStatusWithAudit(tx, {
+        userId: id,
+        fromStatus: profile.status,
+        toStatus: "banned",
+        reason: "Deshabilitación manual por administrador.",
+        createdByUserId: currentProfile?.id,
+      });
+
+      return profile;
+    });
+
+    if (!existingProfile) {
+      return { success: false, message: "Usuario no encontrado" };
+    }
   } catch (error) {
     console.error(error);
     return {
@@ -403,6 +455,7 @@ export async function disableProfile(id: number) {
   }
 
   revalidatePath("/dashboard/users");
+  revalidatePath("/dashboard/profile_requests");
   return { success: true, message: "Usuario deshabilitado correctamente" };
 }
 
@@ -411,21 +464,40 @@ export async function rejectProfile(
   rejectReason: string,
 ) {
   try {
-    await db.transaction(async (tx) => {
-      await tx
-        .update(users)
-        .set({ status: "rejected" })
-        .where(eq(users.id, profile.id));
+    const currentProfile = await getCurrentUserProfile();
 
-      await sendEmail({
-        to: [profile.email],
-        from: "Equipo Glitter <equipo@productoraglitter.com>",
-        subject: "No pudimos verificar tu perfil",
-        react: ProfileRejectionEmailTemplate({
-          profile: profile,
-          reason: rejectReason,
-        }) as React.ReactElement,
+    const existingProfile = await db.transaction(async (tx) => {
+      const freshProfile = await tx.query.users.findFirst({
+        where: eq(users.id, profile.id),
       });
+
+      if (!freshProfile) {
+        return null;
+      }
+
+      await updateUserStatusWithAudit(tx, {
+        userId: profile.id,
+        fromStatus: freshProfile.status,
+        toStatus: "rejected",
+        reason: rejectReason,
+        createdByUserId: currentProfile?.id,
+      });
+
+      return freshProfile;
+    });
+
+    if (!existingProfile) {
+      return { success: false, message: "Perfil no encontrado" };
+    }
+
+    await sendEmail({
+      to: [existingProfile.email],
+      from: "Equipo Glitter <equipo@productoraglitter.com>",
+      subject: "No pudimos verificar tu perfil",
+      react: ProfileRejectionEmailTemplate({
+        profile: existingProfile,
+        reason: rejectReason,
+      }) as React.ReactElement,
     });
   } catch (error) {
     console.error("Error rejecting profile", error);
@@ -436,5 +508,6 @@ export async function rejectProfile(
   }
 
   revalidatePath("/dashboard/users");
+  revalidatePath("/dashboard/profile_requests");
   return { success: true, message: "Perfil rechazado correctamente" };
 }

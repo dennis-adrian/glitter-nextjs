@@ -276,24 +276,10 @@ export const invoiceStatusOptions = [
   },
 ];
 
-export const profileStatusOptions = [
-  {
-    value: userStatusEnum.enumValues[0],
-    label: getProfileStatusLabel(userStatusEnum.enumValues[0]),
-  },
-  {
-    value: userStatusEnum.enumValues[1],
-    label: getProfileStatusLabel(userStatusEnum.enumValues[1]),
-  },
-  {
-    value: userStatusEnum.enumValues[2],
-    label: getProfileStatusLabel(userStatusEnum.enumValues[2]),
-  },
-  {
-    value: userStatusEnum.enumValues[3],
-    label: getProfileStatusLabel(userStatusEnum.enumValues[3]),
-  },
-];
+export const profileStatusOptions = userStatusEnum.enumValues.map((value) => ({
+  value,
+  label: getProfileStatusLabel(value),
+}));
 
 export function getFestivalLogo(festivalType: FestivalBase["festivalType"]) {
   if (festivalType === "twinkler") {

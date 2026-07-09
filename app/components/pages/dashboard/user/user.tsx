@@ -5,6 +5,8 @@ import PublicProfile from "@/app/components/user_profile/public_profile/profile"
 import AnnouncementCard from "@/components/user_profile/announcements_cards/card";
 import ProfileQuickActions from "@/app/components/user_profile/public_profile/quick-actions";
 import { fetchPendingInvoicesByProfile } from "@/app/data/invoices/actions";
+import { fetchParticipantActivitySummary } from "@/app/lib/participants/actions";
+import { isParticipantStatus } from "@/app/lib/participants/definitions";
 
 type DashboardUserPageProps = {
   profileId: number;
@@ -46,6 +48,10 @@ export default async function DashboardUserPage(props: DashboardUserPageProps) {
       .sort((a, b) => a.festivalName.localeCompare(b.festivalName, "es"));
   }
 
+  const activitySummary = isParticipantStatus(forProfile.status)
+    ? await fetchParticipantActivitySummary(forProfile.id)
+    : undefined;
+
   return (
     <div className="mx-auto max-w-5xl p-3 md:p-6">
       <div className="flex flex-col gap-4">
@@ -56,6 +62,7 @@ export default async function DashboardUserPage(props: DashboardUserPageProps) {
           <ProfileQuickActions
             hideViewProfile
             profile={forProfile}
+            activitySummary={activitySummary ?? undefined}
             pendingPaymentsByFestival={pendingPaymentsByFestival}
           />
         </div>

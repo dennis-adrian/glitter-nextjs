@@ -148,10 +148,16 @@ const NavbarNavigationMenu = ({
             <NavigationMenuContent>
               <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
                 <NavigationMenuListItem
-                  title="Usuarios"
-                  href="/dashboard/users?limit=10&offset=0&includeAdmins=false&status=pending&sort=updatedAt&direction=desc&profileCompletion=complete"
+                  title="Participantes"
+                  href="/dashboard/users?limit=10&offset=0&includeAdmins=false&sort=updatedAt&direction=desc"
                 >
-                  Todas las cuentas creadas en Glitter
+                  Participantes activos, pausados y vetados
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
+                  title="Solicitudes de perfil"
+                  href="/dashboard/profile_requests?limit=10&offset=0&includeAdmins=false&sort=updatedAt&direction=desc&profileCompletion=complete"
+                >
+                  Perfiles pendientes o rechazados
                 </NavigationMenuListItem>
                 <NavigationMenuListItem
                   title="Reservas"

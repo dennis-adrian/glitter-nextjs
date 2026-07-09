@@ -6,24 +6,22 @@ import Search from "@/app/components/ui/search";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { IncludeAdminsFilter } from "@/app/components/users/filters/include-admins-filter";
-import { SearchParamsSchema } from "@/app/dashboard/users/schemas";
-import { profileStatusOptions, userCategoryOptions } from "@/app/lib/utils";
+import { ParticipantSearchParamsSchema } from "@/app/dashboard/users/schemas";
+import {
+  isParticipantStatus,
+  participantStatusOptions,
+} from "@/app/lib/participants/definitions";
+import { userCategoryOptions } from "@/app/lib/utils";
 import { SlidersHorizontalIcon, XIcon } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ReactElement, useState, useTransition } from "react";
 
-type UsersTableFiltersProps = {
-  statusOptions?: typeof profileStatusOptions;
-};
-
-export default function UsersTableFilters({
-  statusOptions = profileStatusOptions,
-}: UsersTableFiltersProps) {
+export default function ParticipantsTableFilters() {
   const searchParams = useSearchParams();
   const { push } = useRouter();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const mobileFiltersPanelId = "users-table-mobile-filters-panel";
+  const mobileFiltersPanelId = "participants-table-mobile-filters-panel";
 
   const statusParams = searchParams.getAll("status");
   const categoryParams = searchParams.getAll("category");
@@ -44,9 +42,11 @@ export default function UsersTableFilters({
           : categoryParams,
     query: searchParams.get("query") || undefined,
     profileCompletion: searchParams.get("profileCompletion") || undefined,
+    pauseEligible: searchParams.get("pauseEligible") || undefined,
   };
 
-  const validatedSearchParams = SearchParamsSchema.safeParse(defaultValues);
+  const validatedSearchParams =
+    ParticipantSearchParamsSchema.safeParse(defaultValues);
 
   if (!validatedSearchParams.success) return null;
 
@@ -55,13 +55,9 @@ export default function UsersTableFilters({
     status = [],
     category = [],
     profileCompletion = "all",
+    pauseEligible,
   } = validatedSearchParams.data;
-  const allowedStatusValues = new Set(
-    statusOptions.map((option) => option.value),
-  );
-  const selectedStatus = status.filter((statusValue) =>
-    allowedStatusValues.has(statusValue),
-  );
+  const selectedStatus = status.filter(isParticipantStatus);
 
   const categoryOptions = [
     { value: "none", label: "Sin categoria" },
@@ -73,7 +69,7 @@ export default function UsersTableFilters({
     all: "Todos",
   };
   const statusLabelByValue = Object.fromEntries(
-    statusOptions.map((option) => [option.value, option.label]),
+    participantStatusOptions.map((option) => [option.value, option.label]),
   );
   const categoryLabelByValue = Object.fromEntries(
     categoryOptions.map((option) => [option.value, option.label]),
@@ -151,6 +147,15 @@ export default function UsersTableFilters({
           },
         ]
       : []),
+    ...(pauseEligible
+      ? [
+          {
+            key: "pauseEligible",
+            label: "Elegibles para pausa",
+            textLabel: "Elegibles para pausa",
+          },
+        ]
+      : []),
     ...(includeAdmins
       ? [
           {
@@ -191,6 +196,21 @@ export default function UsersTableFilters({
     });
   };
 
+  const handleBooleanFilterChange = (filter: string, value: boolean) => {
+    const newSearchParams = new URLSearchParams(searchParams.toString());
+    if (value) {
+      newSearchParams.set(filter, "true");
+    } else {
+      newSearchParams.delete(filter);
+    }
+    newSearchParams.set("offset", "0");
+    startTransition(() => {
+      push(`?${newSearchParams.toString()}`, {
+        scroll: false,
+      });
+    });
+  };
+
   const handleClearFilter = (filter: string) => {
     const newSearchParams = new URLSearchParams(searchParams.toString());
     newSearchParams.delete(filter);
@@ -220,7 +240,7 @@ export default function UsersTableFilters({
         defaultValue={selectedStatus}
         label="Estado"
         name="status"
-        options={statusOptions}
+        options={participantStatusOptions}
         onSelect={handleFilterSelect}
       />
       <MultipleSelectCombobox
@@ -229,6 +249,19 @@ export default function UsersTableFilters({
         name="category"
         options={categoryOptions}
         onSelect={handleFilterSelect}
+      />
+      <ComboboxPopover
+        defaultValue={pauseEligible ? "true" : "false"}
+        label="Elegible para pausa"
+        name="pauseEligible"
+        placeholder="Todos"
+        options={[
+          { value: "false", label: "Todos" },
+          { value: "true", label: "Solo elegibles" },
+        ]}
+        onSelect={(_, values) =>
+          handleBooleanFilterChange("pauseEligible", values[0] === "true")
+        }
       />
       <IncludeAdminsFilter
         checked={!!includeAdmins}

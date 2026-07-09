@@ -152,9 +152,13 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
                 <h4 className="text-lg">Dashboard</h4>
               </MobileSidebarItem>
               <div className="ml-4">
-                <MobileSidebarItem href="/dashboard/users?limit=10&offset=0&includeAdmins=false&status=pending&sort=updatedAt&direction=desc&profileCompletion=complete">
+                <MobileSidebarItem href="/dashboard/users?limit=10&offset=0&includeAdmins=false&sort=updatedAt&direction=desc">
                   <UsersIcon className="mr-2 h-6 w-6" />
-                  Usuarios
+                  Participantes
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/profile_requests?limit=10&offset=0&includeAdmins=false&sort=updatedAt&direction=desc&profileCompletion=complete">
+                  <UsersIcon className="mr-2 h-6 w-6" />
+                  Solicitudes de perfil
                 </MobileSidebarItem>
                 <MobileSidebarItem href="/dashboard/reservations">
                   <AlbumIcon className="mr-2 h-6 w-6" />

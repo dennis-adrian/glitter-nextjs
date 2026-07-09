@@ -9,6 +9,7 @@ import {
   BreadcrumbSeparator,
 } from "@/app/components/ui/breadcrumb";
 import { fetchUserParticipations } from "@/app/lib/users/actions";
+import { PARTICIPANT_READ_ONLY_ROUTE_STATUSES } from "@/app/lib/participants/definitions";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { PackageOpenIcon } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -34,7 +35,9 @@ export default async function ParticipationsPage(
   if (!paramValidationSuccess) notFound();
 
   const currentProfile = await getCurrentUserProfile();
-  await protectRoute(currentProfile || undefined, params.profileId);
+  await protectRoute(currentProfile || undefined, params.profileId, {
+    allowedStatuses: [...PARTICIPANT_READ_ONLY_ROUTE_STATUSES],
+  });
 
   if (!currentProfile) {
     notFound();

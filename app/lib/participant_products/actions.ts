@@ -5,6 +5,7 @@ import {
   ParticipantProduct,
 } from "@/app/lib/participant_products/definitions";
 import { groupProductsByStatus } from "@/app/lib/participant_products/utils";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { deleteFile } from "@/app/lib/uploadthing/actions";
 import { utapi } from "@/app/server/uploadthing";
 import { db } from "@/db";
@@ -18,11 +19,40 @@ import { and, desc, eq, getTableColumns } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function createParticipantProduct(
-  newParticipantProduct: NewParticipantProduct,
+  newParticipantProduct: Omit<NewParticipantProduct, "userId">,
 ) {
   try {
+    const profile = await getCurrentUserProfile();
+
+    if (!profile || profile.status !== "verified") {
+      return {
+        success: false,
+        message:
+          "Tu perfil debe estar verificado y activo para agregar productos.",
+      };
+    }
+
+    const [participation] = await db
+      .select({ id: reservationParticipants.id })
+      .from(reservationParticipants)
+      .where(
+        and(
+          eq(reservationParticipants.id, newParticipantProduct.participationId),
+          eq(reservationParticipants.userId, profile.id),
+        ),
+      )
+      .limit(1);
+
+    if (!participation) {
+      return {
+        success: false,
+        message: "No tienes permiso para agregar productos a esta participación.",
+      };
+    }
+
     await db.insert(participantProducts).values({
       ...newParticipantProduct,
+      userId: profile.id,
     });
   } catch (error) {
     console.error("Error creating participant product", error);

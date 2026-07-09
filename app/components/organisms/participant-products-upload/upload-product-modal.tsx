@@ -26,7 +26,6 @@ type UploadProductModalProps = {
   participationId: number;
   show: boolean;
   uploadedImageUrl: string | null;
-  userId: number;
   setUploadedImageUrl: (url: string | null) => void;
   onClose: () => void;
   onOpenChange: (open: boolean) => void;
@@ -38,7 +37,6 @@ export default function UploadProductModal({
   participationId,
   show,
   uploadedImageUrl,
-  userId,
   setUploadedImageUrl,
   onClose,
   onOpenChange,
@@ -100,7 +98,6 @@ export default function UploadProductModal({
     const result = await createParticipantProduct({
       ...formData,
       participationId: participationId,
-      userId: userId,
       imageUrl,
     });
 
