@@ -94,7 +94,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
         <div className="text-left md:text-center mb-4">
           <Heading level={1}>Términos y Condiciones para Expositores</Heading>
           <p className="text-xs md:text-sm text-muted-foreground mt-2">
-            Última actualización: 24 de abril de 2026
+            Última actualización: 9 de julio de 2026
           </p>
           <p className="text-sm md:text-base mt-3">
             Por favor, leé estos términos y condiciones cuidadosamente para
@@ -196,7 +196,12 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
                 </li>
                 <li>
                   Todos los participantes deben cuidar la estética de su stand
-                  para que sea atractiva para el público.
+                  para que sea atractiva para el público.{" "}
+                  <Highlight>
+                    Es requerido que cada stand tenga un mantel que cubra
+                    completamente el frente de la mesa llegando casi hasta el
+                    suelo, sin arrastrarlo.
+                  </Highlight>
                 </li>
                 {props.festival.festivalType === "festicker" && (
                   <li>
@@ -207,6 +212,17 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
                     signifiquen más del 20% del espacio. El incumplimiento de
                     este requisito puede resultar en penalizaciones para
                     participaciones futuras.
+                  </li>
+                )}
+                {props.category === "illustration" && (
+                  <li>
+                    <Highlight>
+                      Para mejorar la experiencia del "Stand de Trueque" del
+                      festival, todos los participantes en la categoría de
+                      ilustración deberán donar 3 stickers. Estos stickers serán
+                      solicitados al artista durante el festival por un miembro
+                      designado del staff que pasará por su stand
+                    </Highlight>
                   </li>
                 )}
                 <li>
@@ -776,7 +792,7 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
                 </section>
                 <section>
                   <h3 className="text-base md:text-lg font-semibold text-foreground font-space-grotesk tracking-wide">
-                    <Highlight>4.4. Horario de desmontaje</Highlight>
+                    4.4. Horario de desmontaje
                   </h3>
                   {dayOneStartDate && dayOneEndDate ? (
                     <section>
@@ -838,17 +854,14 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
                       <div className="ml-2 flex flex-col gap-2">
                         <p>
                           Los expositores tienen permitido desmontar sus stands
-                          este día{" "}
-                          <Highlight>
-                            desde las{" "}
-                            {dayTwoEndDate
-                              .minus({ minutes: 15 })
-                              .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
-                            hasta las{" "}
-                            {dayTwoEndDate
-                              .plus({ minutes: 30 })
-                              .toLocaleString(DateTime.TIME_24_SIMPLE)}
-                          </Highlight>
+                          este día desde las{" "}
+                          {dayTwoEndDate
+                            .minus({ minutes: 15 })
+                            .toLocaleString(DateTime.TIME_24_SIMPLE)}{" "}
+                          hasta las{" "}
+                          {dayTwoEndDate
+                            .plus({ minutes: 30 })
+                            .toLocaleString(DateTime.TIME_24_SIMPLE)}
                           . Sin excepción.
                         </p>
                         <p>
@@ -866,10 +879,8 @@ export default function TermsAndConditions(props: TermsAndConditionsProps) {
                 </section>
                 <div className="flex flex-col gap-2 text-sm">
                   <p>
-                    <Highlight>
-                      Cualquier infracción a estos horarios será registrada en
-                      el historial del participante
-                    </Highlight>
+                    Cualquier infracción a estos horarios será registrada en el
+                    historial del participante
                   </p>
                 </div>
               </AccordionContent>
