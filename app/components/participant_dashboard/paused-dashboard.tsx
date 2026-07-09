@@ -48,16 +48,12 @@ export default function PausedParticipantDashboard({ profile }: Props) {
           <CardContent className="p-5 space-y-3">
             <p className="font-semibold">Tu cuenta está pausada</p>
             <p className="text-sm text-muted-foreground">
-              Pausamos algunas cuentas durante una limpieza de participantes
-              inactivos. Esto no es una sanción. Podés seguir viendo tu perfil e
-              historial, pero no podés aceptar términos ni recibir invitaciones
-              hasta que un administrador reactive tu cuenta.
+              Podés seguir viendo tu perfil e historial, pero no recibirás
+              información sobre futuros festivales. Si te gustaría participar en
+              un próximo festival, escribinos para solicitar la reactivación de
+              tu perfil al correo{" "}
+              <span className="text-primary">{PARTICIPANT_SUPPORT_EMAIL}</span>
             </p>
-            <Button asChild variant="outline">
-              <Link href={`mailto:${PARTICIPANT_SUPPORT_EMAIL}`}>
-                Solicitar reactivación
-              </Link>
-            </Button>
           </CardContent>
         </Card>
       </div>
