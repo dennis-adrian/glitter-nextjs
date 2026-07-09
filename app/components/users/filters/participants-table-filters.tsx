@@ -7,7 +7,10 @@ import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { IncludeAdminsFilter } from "@/app/components/users/filters/include-admins-filter";
 import { ParticipantSearchParamsSchema } from "@/app/dashboard/users/schemas";
-import { participantStatusOptions } from "@/app/lib/participants/definitions";
+import {
+  isParticipantStatus,
+  participantStatusOptions,
+} from "@/app/lib/participants/definitions";
 import { userCategoryOptions } from "@/app/lib/utils";
 import { SlidersHorizontalIcon, XIcon } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -54,6 +57,7 @@ export default function ParticipantsTableFilters() {
     profileCompletion = "all",
     pauseEligible,
   } = validatedSearchParams.data;
+  const selectedStatus = status.filter(isParticipantStatus);
 
   const categoryOptions = [
     { value: "none", label: "Sin categoria" },
@@ -92,11 +96,11 @@ export default function ParticipantsTableFilters() {
           },
         ]
       : []),
-    ...(statusParams.length > 0
+    ...(selectedStatus.length > 0
       ? [
           {
             key: "status",
-            textLabel: `Estado: ${status
+            textLabel: `Estado: ${selectedStatus
               .map(
                 (statusValue) => statusLabelByValue[statusValue] || statusValue,
               )
@@ -106,7 +110,7 @@ export default function ParticipantsTableFilters() {
                 <span className="font-medium text-[9px] uppercase">
                   Estado:
                 </span>{" "}
-                {status
+                {selectedStatus
                   .map(
                     (statusValue) =>
                       statusLabelByValue[statusValue] || statusValue,
@@ -233,7 +237,7 @@ export default function ParticipantsTableFilters() {
         onSelect={handleFilterSelect}
       />
       <MultipleSelectCombobox
-        defaultValue={status}
+        defaultValue={selectedStatus}
         label="Estado"
         name="status"
         options={participantStatusOptions}

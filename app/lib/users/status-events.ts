@@ -1,7 +1,7 @@
 import { BaseProfile } from "@/app/api/users/definitions";
 import { db } from "@/db";
 import { userStatusEvents, users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 export type UserStatus = BaseProfile["status"];
 
@@ -63,14 +63,21 @@ export async function updateUserStatusWithAudit(
     userUpdates?: Partial<typeof users.$inferInsert>;
   },
 ) {
-  await tx
+  const [updated] = await tx
     .update(users)
     .set({
       ...userUpdates,
       status: toStatus,
       updatedAt: new Date(),
     })
-    .where(eq(users.id, userId));
+    .where(and(eq(users.id, userId), eq(users.status, fromStatus)))
+    .returning({ id: users.id });
+
+  if (!updated) {
+    throw new Error(
+      `User status update failed: expected status "${fromStatus}" for user ${userId}`,
+    );
+  }
 
   await logUserStatusEvent(tx, {
     userId,

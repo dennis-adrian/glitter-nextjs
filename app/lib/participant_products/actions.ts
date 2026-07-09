@@ -32,6 +32,24 @@ export async function createParticipantProduct(
       };
     }
 
+    const [participation] = await db
+      .select({ id: reservationParticipants.id })
+      .from(reservationParticipants)
+      .where(
+        and(
+          eq(reservationParticipants.id, newParticipantProduct.participationId),
+          eq(reservationParticipants.userId, profile.id),
+        ),
+      )
+      .limit(1);
+
+    if (!participation) {
+      return {
+        success: false,
+        message: "No tienes permiso para agregar productos a esta participación.",
+      };
+    }
+
     await db.insert(participantProducts).values({
       ...newParticipantProduct,
       userId: profile.id,

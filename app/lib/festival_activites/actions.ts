@@ -95,15 +95,17 @@ export const fetchActivityVariantVotes = async (variantId: number) => {
 };
 
 async function fetchVerifiedActivityProfile(profileId: number) {
-  const profile = await db.query.users.findFirst({
-    where: eq(users.id, profileId),
-  });
+  const currentProfile = await getCurrentUserProfile();
 
-  if (!profile || profile.status !== "verified") {
+  if (
+    !currentProfile ||
+    currentProfile.id !== profileId ||
+    currentProfile.status !== "verified"
+  ) {
     return null;
   }
 
-  return profile;
+  return currentProfile;
 }
 
 const inactiveParticipantMessage =

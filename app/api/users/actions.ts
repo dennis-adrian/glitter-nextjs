@@ -422,23 +422,30 @@ export async function fetchBaseProfileByClerkId(
 export async function disableProfile(id: number) {
   try {
     const currentProfile = await getCurrentUserProfile();
-    const existingProfile = await db.query.users.findFirst({
-      where: eq(users.id, id),
+
+    const existingProfile = await db.transaction(async (tx) => {
+      const profile = await tx.query.users.findFirst({
+        where: eq(users.id, id),
+      });
+
+      if (!profile) {
+        return null;
+      }
+
+      await updateUserStatusWithAudit(tx, {
+        userId: id,
+        fromStatus: profile.status,
+        toStatus: "banned",
+        reason: "Deshabilitación manual por administrador.",
+        createdByUserId: currentProfile?.id,
+      });
+
+      return profile;
     });
 
     if (!existingProfile) {
       return { success: false, message: "Usuario no encontrado" };
     }
-
-    await db.transaction(async (tx) => {
-      await updateUserStatusWithAudit(tx, {
-        userId: id,
-        fromStatus: existingProfile.status,
-        toStatus: "banned",
-        reason: "Deshabilitación manual por administrador.",
-        createdByUserId: currentProfile?.id,
-      });
-    });
   } catch (error) {
     console.error(error);
     return {
@@ -459,24 +466,38 @@ export async function rejectProfile(
   try {
     const currentProfile = await getCurrentUserProfile();
 
-    await db.transaction(async (tx) => {
+    const existingProfile = await db.transaction(async (tx) => {
+      const freshProfile = await tx.query.users.findFirst({
+        where: eq(users.id, profile.id),
+      });
+
+      if (!freshProfile) {
+        return null;
+      }
+
       await updateUserStatusWithAudit(tx, {
         userId: profile.id,
-        fromStatus: profile.status,
+        fromStatus: freshProfile.status,
         toStatus: "rejected",
         reason: rejectReason,
         createdByUserId: currentProfile?.id,
       });
 
-      await sendEmail({
-        to: [profile.email],
-        from: "Equipo Glitter <equipo@productoraglitter.com>",
-        subject: "No pudimos verificar tu perfil",
-        react: ProfileRejectionEmailTemplate({
-          profile: profile,
-          reason: rejectReason,
-        }) as React.ReactElement,
-      });
+      return freshProfile;
+    });
+
+    if (!existingProfile) {
+      return { success: false, message: "Perfil no encontrado" };
+    }
+
+    await sendEmail({
+      to: [existingProfile.email],
+      from: "Equipo Glitter <equipo@productoraglitter.com>",
+      subject: "No pudimos verificar tu perfil",
+      react: ProfileRejectionEmailTemplate({
+        profile: existingProfile,
+        reason: rejectReason,
+      }) as React.ReactElement,
     });
   } catch (error) {
     console.error("Error rejecting profile", error);

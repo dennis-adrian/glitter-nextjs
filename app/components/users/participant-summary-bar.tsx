@@ -57,7 +57,9 @@ export default function ParticipantSummaryBar({ aggregates }: Props) {
   };
 
   const isStatusActive = (status: string) =>
-    activeStatuses.length === 1 && activeStatuses[0] === status;
+    !pauseEligibleFilter &&
+    activeStatuses.length === 1 &&
+    activeStatuses[0] === status;
 
   return (
     <div className="rounded-lg border bg-muted/30 px-3 py-2 sm:px-4">
