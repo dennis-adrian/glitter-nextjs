@@ -619,6 +619,10 @@ export const standReservations = pgTable(
     source: reservationSourceEnum("source")
       .default("user_reservation")
       .notNull(),
+    // When set and in the future, the reservation is hidden from participants:
+    // the stand appears "available" and participant identity is withheld until
+    // this moment. null means the reservation is visible immediately.
+    revealAt: timestamp("reveal_at"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

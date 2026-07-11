@@ -7,6 +7,7 @@ import {
   standReservations,
   stands,
 } from "@/db/schema";
+import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { deleteFile } from "@/app/lib/uploadthing/actions";
 import { and, eq } from "drizzle-orm";
@@ -25,6 +26,10 @@ const AssignmentSchema = z
     standId: z.coerce.number().int().positive(),
     externalParticipantId: z.coerce.number().int().positive().optional(),
     externalParticipant: externalParticipantInputSchema.optional(),
+    // Moment before which the reservation stays hidden from participants.
+    // Omit (undefined) to fall back to the festival's reservation start date;
+    // pass null to make the reservation visible immediately.
+    revealAt: z.coerce.date().nullish(),
   })
   .refine(
     (data) => {
@@ -284,6 +289,15 @@ export async function createExternalParticipantReservation(
   const { festivalId, standId, externalParticipantId, externalParticipant } =
     parsed.data;
 
+  const festival = await fetchBaseFestival(festivalId);
+  if (!festival) {
+    return { success: false, message: "El festival no existe" };
+  }
+  const revealAt =
+    parsed.data.revealAt === undefined
+      ? festival.reservationsStartDate
+      : parsed.data.revealAt;
+
   try {
     const reservationId = await db.transaction(async (tx) => {
       const [lockedStand] = await tx
@@ -332,6 +346,7 @@ export async function createExternalParticipantReservation(
           standId,
           status: "accepted",
           source: "admin_assignment",
+          revealAt,
         })
         .returning({ id: standReservations.id });
 

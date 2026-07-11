@@ -179,7 +179,10 @@ export async function updateReservation(
     await db.transaction(async (tx) => {
       await tx
         .update(standReservations)
-        .set({ status })
+        .set({
+          status,
+          ...(status === "rejected" ? { revealAt: null } : {}),
+        })
         .where(eq(standReservations.id, id));
 
       const standStatus = status === "accepted" ? "confirmed" : "available";
@@ -307,7 +310,11 @@ export async function rejectReservation(
 
       await tx
         .update(standReservations)
-        .set({ status: "rejected", updatedAt: sql`now()` })
+        .set({
+          status: "rejected",
+          revealAt: null,
+          updatedAt: sql`now()`,
+        })
         .where(eq(standReservations.id, reservation.id));
 
       await tx
