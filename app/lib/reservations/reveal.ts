@@ -12,7 +12,8 @@ export function isReservationHidden(
   now: Date = new Date(),
 ): boolean {
   return (
-    reservation.revealAt != null && reservation.revealAt.getTime() > now.getTime()
+    reservation.revealAt != null &&
+    reservation.revealAt.getTime() > now.getTime()
   );
 }
 

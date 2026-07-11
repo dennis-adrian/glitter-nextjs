@@ -1,3 +1,4 @@
+import { isReservationHidden } from "@/app/lib/reservations/reveal";
 import { db } from "@/db";
 import { stands, standReservations } from "@/db/schema";
 import { eq, isNotNull, or } from "drizzle-orm";
@@ -121,18 +122,22 @@ export async function GET(
         .filter((date): date is Date => date != null)
         .sort((a, b) => b.getTime() - a.getTime())[0]
         ?.toISOString() ?? null,
-    participants: stand.reservations.flatMap((reservation) =>
-      reservation.participants.map((p) => ({
-        participantId: p.id,
-        imageUrl: p.user.imageUrl,
-        displayName: p.user.displayName,
-        category: p.user.category,
-        socials: p.user.userSocials.map((s) => ({
-          type: s.type,
-          username: s.username,
+    // Withhold participant identity until revealAt; keep revealAt above so the
+    // game can schedule the reveal without receiving names/images/socials early.
+    participants: stand.reservations
+      .filter((reservation) => !isReservationHidden(reservation))
+      .flatMap((reservation) =>
+        reservation.participants.map((p) => ({
+          participantId: p.id,
+          imageUrl: p.user.imageUrl,
+          displayName: p.user.displayName,
+          category: p.user.category,
+          socials: p.user.userSocials.map((s) => ({
+            type: s.type,
+            username: s.username,
+          })),
         })),
-      })),
-    ),
+      ),
   }));
 
   return NextResponse.json(

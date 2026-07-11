@@ -30,6 +30,7 @@ import {
   externalParticipantTypeOptions,
 } from "@/app/lib/external_participants/definitions";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
+import { STORE_TIMEZONE } from "@/app/lib/formatters";
 import { createAdminReservation } from "@/app/lib/reservations/admin-actions";
 import { createExternalParticipantReservation } from "@/app/lib/external_participants/actions";
 import { deleteFile } from "@/app/lib/uploadthing/actions";
@@ -63,10 +64,18 @@ type Props = {
   reservationsStartDate: Date;
 };
 
-// datetime-local inputs work in the browser's local timezone, so format and
-// parse against local time rather than UTC.
+// Format/parse in the store timezone so SSR and client hydration agree
+// regardless of the server's or browser's local zone.
 function toDateTimeLocal(date: Date): string {
-  return DateTime.fromJSDate(date).toFormat("yyyy-MM-dd'T'HH:mm");
+  return DateTime.fromJSDate(date, { zone: STORE_TIMEZONE }).toFormat(
+    "yyyy-MM-dd'T'HH:mm",
+  );
+}
+
+function fromDateTimeLocal(value: string): Date {
+  return DateTime.fromFormat(value, "yyyy-MM-dd'T'HH:mm", {
+    zone: STORE_TIMEZONE,
+  }).toJSDate();
 }
 
 function TextField({
@@ -172,7 +181,7 @@ export default function CreateReservationForm({
         userId: Number(data.userId),
         standId: Number(data.standId),
         partnerId: data.partnerId ? Number(data.partnerId) : undefined,
-        revealAt: data.revealAt ? new Date(data.revealAt) : null,
+        revealAt: data.revealAt ? fromDateTimeLocal(data.revealAt) : null,
       });
 
       if (result.success) {
@@ -196,7 +205,7 @@ export default function CreateReservationForm({
         festivalId,
         standId: Number(data.standId),
         externalParticipantId: Number(data.externalParticipantId),
-        revealAt: data.revealAt ? new Date(data.revealAt) : null,
+        revealAt: data.revealAt ? fromDateTimeLocal(data.revealAt) : null,
       });
 
       if (result.success) {
@@ -220,7 +229,7 @@ export default function CreateReservationForm({
     const result = await createExternalParticipantReservation({
       festivalId,
       standId: Number(data.standId),
-      revealAt: data.revealAt ? new Date(data.revealAt) : null,
+      revealAt: data.revealAt ? fromDateTimeLocal(data.revealAt) : null,
       externalParticipant: {
         displayName: data.displayName,
         type: data.type as ExternalParticipant["type"],
@@ -282,8 +291,8 @@ export default function CreateReservationForm({
                 <Input type="datetime-local" {...field} />
               </FormControl>
               <p className="text-muted-foreground text-sm">
-                Hasta este momento el espacio se muestra como disponible para los
-                participantes y no revela quién lo reservó. El espacio queda
+                Hasta este momento el espacio se muestra como disponible para
+                los participantes y no revela quién lo reservó. El espacio queda
                 reservado y no puede ser tomado por nadie. Por defecto, la fecha
                 de apertura de reservas.
               </p>
