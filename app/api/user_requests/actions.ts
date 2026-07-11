@@ -269,7 +269,11 @@ export async function updateReservationSimple(
     await db.transaction(async (tx) => {
       await tx
         .update(standReservations)
-        .set({ status, updatedAt: new Date() })
+        .set({
+          status,
+          updatedAt: new Date(),
+          ...(status === "rejected" ? { revealAt: null } : {}),
+        })
         .where(eq(standReservations.id, id));
 
       let standStatus: StandStatus = "available";

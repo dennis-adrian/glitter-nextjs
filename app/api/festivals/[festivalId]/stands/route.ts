@@ -1,7 +1,7 @@
 import { isReservationHidden } from "@/app/lib/reservations/reveal";
 import { db } from "@/db";
 import { stands, standReservations } from "@/db/schema";
-import { eq, isNotNull, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, or } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -77,11 +77,18 @@ export async function GET(
       where: eq(stands.festivalId, festivalId),
       with: {
         reservations: {
-          // Include accepted reservations plus admin timed reservations that
-          // are still (or were) hidden, so the game can reveal them itself.
+          // Include accepted reservations plus active admin timed reservations
+          // (non-terminal + revealAt), so the game can reveal them itself.
+          // Rejected/canceled timed reservations must not leak through revealAt alone.
           where: or(
             eq(standReservations.status, "accepted"),
-            isNotNull(standReservations.revealAt),
+            and(
+              isNotNull(standReservations.revealAt),
+              inArray(standReservations.status, [
+                "pending",
+                "verification_payment",
+              ]),
+            ),
           ),
           with: {
             participants: {
