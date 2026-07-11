@@ -522,7 +522,10 @@ export const stands = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (stands) => [index("stand_label_idx").on(stands.label)],
+  (stands) => [
+    index("stand_label_idx").on(stands.label),
+    index("stands_festival_sector_id_idx").on(stands.festivalSectorId),
+  ],
 );
 export const standRelations = relations(stands, ({ many, one }) => ({
   reservations: many(standReservations),
