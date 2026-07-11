@@ -29,7 +29,10 @@ export async function GET(request: NextRequest) {
     cleanupExpiredHolds().catch(console.error);
   }
 
-  // Return lightweight stand statuses for the sector
+  // Return lightweight stand statuses for the sector. A stand with a hidden
+  // reservation is genuinely reserved, so its real status is reported here;
+  // only the reservation's identity is withheld (at the data layer) until the
+  // reveal time passes.
   const sectorStands = await db
     .select({ id: stands.id, status: stands.status })
     .from(stands)

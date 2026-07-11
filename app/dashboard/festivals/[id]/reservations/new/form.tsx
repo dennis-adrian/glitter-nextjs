@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Building2Icon, Loader2Icon, UserIcon } from "lucide-react";
+import { DateTime } from "luxon";
 import { twMerge } from "tailwind-merge";
 
 import { BaseProfile } from "@/app/api/users/definitions";
@@ -38,6 +39,7 @@ const FormSchema = z.object({
   externalMode: z.enum(["existing", "new"]),
   userId: z.string().optional(),
   standId: z.string().min(1, "Seleccioná un espacio"),
+  revealAt: z.string().optional(),
   partnerId: z.string().optional(),
   externalParticipantId: z.string().optional(),
   displayName: z.string().optional(),
@@ -58,7 +60,14 @@ type Props = {
   users: BaseProfile[];
   sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
   externalParticipants: ExternalParticipant[];
+  reservationsStartDate: Date;
 };
+
+// datetime-local inputs work in the browser's local timezone, so format and
+// parse against local time rather than UTC.
+function toDateTimeLocal(date: Date): string {
+  return DateTime.fromJSDate(date).toFormat("yyyy-MM-dd'T'HH:mm");
+}
 
 function TextField({
   form,
@@ -93,6 +102,7 @@ export default function CreateReservationForm({
   users,
   sectors,
   externalParticipants,
+  reservationsStartDate,
 }: Props) {
   const router = useRouter();
 
@@ -131,6 +141,7 @@ export default function CreateReservationForm({
       externalMode: externalParticipantOptions.length > 0 ? "existing" : "new",
       userId: "",
       standId: "",
+      revealAt: toDateTimeLocal(reservationsStartDate),
       partnerId: "",
       externalParticipantId: "",
       displayName: "",
@@ -161,6 +172,7 @@ export default function CreateReservationForm({
         userId: Number(data.userId),
         standId: Number(data.standId),
         partnerId: data.partnerId ? Number(data.partnerId) : undefined,
+        revealAt: data.revealAt ? new Date(data.revealAt) : null,
       });
 
       if (result.success) {
@@ -184,6 +196,7 @@ export default function CreateReservationForm({
         festivalId,
         standId: Number(data.standId),
         externalParticipantId: Number(data.externalParticipantId),
+        revealAt: data.revealAt ? new Date(data.revealAt) : null,
       });
 
       if (result.success) {
@@ -207,6 +220,7 @@ export default function CreateReservationForm({
     const result = await createExternalParticipantReservation({
       festivalId,
       standId: Number(data.standId),
+      revealAt: data.revealAt ? new Date(data.revealAt) : null,
       externalParticipant: {
         displayName: data.displayName,
         type: data.type as ExternalParticipant["type"],
@@ -253,6 +267,26 @@ export default function CreateReservationForm({
                   </TabsList>
                 </Tabs>
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="revealAt"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Revelar en</FormLabel>
+              <FormControl>
+                <Input type="datetime-local" {...field} />
+              </FormControl>
+              <p className="text-muted-foreground text-sm">
+                Hasta este momento el espacio se muestra como disponible para los
+                participantes y no revela quién lo reservó. El espacio queda
+                reservado y no puede ser tomado por nadie. Por defecto, la fecha
+                de apertura de reservas.
+              </p>
               <FormMessage />
             </FormItem>
           )}

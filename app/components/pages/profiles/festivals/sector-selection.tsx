@@ -3,6 +3,7 @@ import SectorSelectionClient from "@/app/components/festivals/reservations/secto
 import { isProfileInFestival } from "@/app/components/next_event/helpers";
 import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
 import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/actions";
+import { stripHiddenReservationsFromSectors } from "@/app/lib/reservations/reveal";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { formatDate } from "@/app/lib/formatters";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
@@ -46,12 +47,16 @@ export default async function SectorSelectionPage(
   const subcategoryIds = forProfile.profileSubcategories.map(
     (ps) => ps.subcategoryId,
   );
-  const sectors = await fetchFestivalSectorsByUserCategory(
+  const fetchedSectors = await fetchFestivalSectorsByUserCategory(
     festival.id,
     forProfile.category,
     subcategoryIds,
     forProfile.participationType,
   );
+  const sectors =
+    currentProfile?.role === "admin"
+      ? fetchedSectors
+      : stripHiddenReservationsFromSectors(fetchedSectors);
 
   return (
     <SectorSelectionClient

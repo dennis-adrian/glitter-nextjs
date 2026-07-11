@@ -92,7 +92,9 @@ export default function PublicMapTooltip({
 					<Badge className="font-bold rounded-full text-xs px-2 py-0.5">
 						{standLabel}
 					</Badge>
-					<span className="text-xs text-muted-foreground">{countLabel}</span>
+					{participants.length > 0 && (
+						<span className="text-xs text-muted-foreground">{countLabel}</span>
+					)}
 				</div>
 				{participants.length > 0 && (
 					<div className="space-y-2">
