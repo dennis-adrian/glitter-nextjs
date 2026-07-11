@@ -24,7 +24,16 @@ import {
   standSubcategories,
   users,
 } from "@/db/schema";
-import { and, eq, exists, inArray, isNull, notExists, or } from "drizzle-orm";
+import {
+  and,
+  eq,
+  exists,
+  inArray,
+  isNull,
+  lte,
+  notExists,
+  or,
+} from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function fetchFestivalSectors(
@@ -234,6 +243,11 @@ export async function fetchConfirmedProfilesByFestivalId(
         and(
           eq(standReservations.festivalId, festivalId),
           eq(standReservations.status, "accepted"),
+          // Exclude reservations still hidden from participants.
+          or(
+            isNull(standReservations.revealAt),
+            lte(standReservations.revealAt, new Date()),
+          ),
         ),
       );
     const userIds = Array.from(
@@ -264,6 +278,11 @@ export async function fetchConfirmedProfilesByFestivalId(
         and(
           inArray(reservationParticipants.userId, userIds),
           eq(standReservations.status, "accepted"),
+          // Exclude reservations still hidden from participants.
+          or(
+            isNull(standReservations.revealAt),
+            lte(standReservations.revealAt, new Date()),
+          ),
         ),
       );
 

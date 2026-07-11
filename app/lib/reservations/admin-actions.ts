@@ -2,6 +2,7 @@
 
 import { fetchStandById } from "@/app/api/stands/actions";
 import { fetchBaseProfileById } from "@/app/api/users/actions";
+import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import ReservationPaymentExtensionTemplate from "@/app/emails/reservation-payment-extension";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { sendEmail } from "@/app/vendors/resend";
@@ -21,6 +22,7 @@ export async function createAdminReservation(params: {
   standId: number;
   userId: number;
   partnerId?: number;
+  revealAt?: Date | null;
 }): Promise<{ success: boolean; message: string; reservationId?: number }> {
   const { festivalId, standId, userId, partnerId } = params;
 
@@ -42,6 +44,17 @@ export async function createAdminReservation(params: {
       message: "El espacio no pertenece a este festival",
     };
   }
+
+  // When the admin doesn't specify a reveal time, the reservation stays hidden
+  // from participants until reservations open for everyone.
+  const festival = await fetchBaseFestival(festivalId);
+  if (!festival) {
+    return { success: false, message: "El festival no existe" };
+  }
+  const revealAt =
+    params.revealAt === undefined
+      ? festival.reservationsStartDate
+      : params.revealAt;
 
   const forUser = await fetchBaseProfileById(userId);
   if (!forUser) {
@@ -98,7 +111,7 @@ export async function createAdminReservation(params: {
 
       const [reservation] = await tx
         .insert(standReservations)
-        .values({ festivalId, standId })
+        .values({ festivalId, standId, revealAt })
         .returning();
 
       const participantIds = [userId];

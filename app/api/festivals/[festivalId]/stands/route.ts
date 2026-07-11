@@ -1,6 +1,7 @@
+import { isReservationHidden } from "@/app/lib/reservations/reveal";
 import { db } from "@/db";
 import { stands, standReservations } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, or } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -31,6 +32,9 @@ type FestivalStand = {
   standLabel: string | null;
   standNumber: number;
   standDisplayLabel: string;
+  // When set and in the future, the reservation on this stand is still hidden
+  // from participants: the client should withhold it until this moment.
+  revealAt: string | null;
   participants: {
     participantId: number;
     imageUrl: string | null;
@@ -73,7 +77,19 @@ export async function GET(
       where: eq(stands.festivalId, festivalId),
       with: {
         reservations: {
-          where: eq(standReservations.status, "accepted"),
+          // Include accepted reservations plus active admin timed reservations
+          // (non-terminal + revealAt), so the game can reveal them itself.
+          // Rejected/canceled timed reservations must not leak through revealAt alone.
+          where: or(
+            eq(standReservations.status, "accepted"),
+            and(
+              isNotNull(standReservations.revealAt),
+              inArray(standReservations.status, [
+                "pending",
+                "verification_payment",
+              ]),
+            ),
+          ),
           with: {
             participants: {
               with: {
@@ -107,18 +123,28 @@ export async function GET(
       stand.label != null && stand.standNumber != null
         ? `${stand.label}${stand.standNumber}`
         : "",
-    participants: stand.reservations.flatMap((reservation) =>
-      reservation.participants.map((p) => ({
-        participantId: p.id,
-        imageUrl: p.user.imageUrl,
-        displayName: p.user.displayName,
-        category: p.user.category,
-        socials: p.user.userSocials.map((s) => ({
-          type: s.type,
-          username: s.username,
+    revealAt:
+      stand.reservations
+        .map((reservation) => reservation.revealAt)
+        .filter((date): date is Date => date != null)
+        .sort((a, b) => b.getTime() - a.getTime())[0]
+        ?.toISOString() ?? null,
+    // Withhold participant identity until revealAt; keep revealAt above so the
+    // game can schedule the reveal without receiving names/images/socials early.
+    participants: stand.reservations
+      .filter((reservation) => !isReservationHidden(reservation))
+      .flatMap((reservation) =>
+        reservation.participants.map((p) => ({
+          participantId: p.id,
+          imageUrl: p.user.imageUrl,
+          displayName: p.user.displayName,
+          category: p.user.category,
+          socials: p.user.userSocials.map((s) => ({
+            type: s.type,
+            username: s.username,
+          })),
         })),
-      })),
-    ),
+      ),
   }));
 
   return NextResponse.json(

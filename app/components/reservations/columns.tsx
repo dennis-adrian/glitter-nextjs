@@ -21,6 +21,8 @@ import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info
 import { RESERVATION_EXPIRATION_HOURS } from "@/app/lib/constants";
 import { getExternalParticipantCategoryLabel } from "@/app/lib/external_participants/definitions";
 import { formatDate, formatDateWithTime } from "@/app/lib/formatters";
+import { isReservationHidden } from "@/app/lib/reservations/reveal";
+import { EyeOffIcon } from "lucide-react";
 import {
   DisplayPaymentStatus,
   mapPaymentStatusToDisplayPaymentStatus,
@@ -74,6 +76,37 @@ export const columns: ColumnDef<FullReservation>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.stand} />
     ),
+    cell: ({ row }) => {
+      const reservation = row.original;
+      const hidden = isReservationHidden(reservation);
+      return (
+        <div className="flex items-center gap-1.5">
+          <span>
+            {reservation.stand.label ?? ""}
+            {reservation.stand.standNumber}
+          </span>
+          {hidden && reservation.revealAt && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-amber-500 text-amber-700"
+                  >
+                    <EyeOffIcon className="size-3" />
+                    Oculta
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Oculta para los participantes hasta{" "}
+                  {formatDateWithTime(reservation.revealAt)}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
+      );
+    },
   },
   {
     id: "artists",
