@@ -23,10 +23,12 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { UTApi } from "uploadthing/server";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { revalidatePath } from "next/cache";
+import { confirmReservation } from "@/app/api/reservations/actions";
 
 export async function adminAttachPaymentVoucher(
   invoiceId: number,
   voucherUrl: string,
+  markAsPaid: boolean,
 ): Promise<{ success: boolean; message: string }> {
   const profile = await getCurrentUserProfile();
   if (!profile || profile.role !== "admin") {
@@ -36,13 +38,26 @@ export async function adminAttachPaymentVoucher(
   try {
     const invoice = await db.query.invoices.findFirst({
       where: eq(invoices.id, invoiceId),
-      with: { payments: true },
+      with: {
+        payments: {
+          orderBy: [desc(payments.createdAt), desc(payments.id)],
+          limit: 1,
+        },
+        user: true,
+        reservation: {
+          with: {
+            stand: true,
+            festival: { with: { festivalDates: true } },
+            participants: { with: { user: true } },
+          },
+        },
+      },
     });
     if (!invoice) {
       return { success: false, message: "Pago no encontrado." };
     }
 
-    const currentPayment = invoice.payments.at(-1);
+    const currentPayment = invoice.payments[0];
     await db.transaction(async (tx) => {
       if (currentPayment) {
         await tx
@@ -62,12 +77,27 @@ export async function adminAttachPaymentVoucher(
           voucherUrl,
         });
       }
+    });
 
-      await tx
+    if (markAsPaid && invoice.reservation.status !== "accepted") {
+      const confirmationResult = await confirmReservation(
+        invoice.reservationId,
+        invoice.user,
+        invoice.reservation.standId,
+        `${invoice.reservation.stand.label}${invoice.reservation.stand.standNumber}`,
+        invoice.reservation.festival,
+        invoice.reservation.participants,
+        invoice.id,
+      );
+      if (!confirmationResult.success) {
+        return confirmationResult;
+      }
+    } else if (markAsPaid) {
+      await db
         .update(invoices)
         .set({ status: "paid", updatedAt: new Date() })
         .where(eq(invoices.id, invoiceId));
-    });
+    }
 
     revalidatePath("/dashboard/payments");
     revalidatePath("/dashboard/festivals/[id]/payments", "page");
@@ -89,33 +119,51 @@ export async function adminRemovePaymentVoucher(
   try {
     const invoice = await db.query.invoices.findFirst({
       where: eq(invoices.id, invoiceId),
-      with: { payments: true },
+      with: {
+        payments: {
+          orderBy: [desc(payments.createdAt), desc(payments.id)],
+        },
+      },
     });
     if (!invoice) {
       return { success: false, message: "Pago no encontrado." };
     }
-    if (invoice.payments.length === 0) {
+
+    const targetPayment = invoice.payments.find(
+      (payment) => payment.voucherUrl,
+    );
+    if (!targetPayment) {
       return { success: false, message: "El pago no tiene un comprobante." };
     }
 
-    await db.transaction(async (tx) => {
-      await tx.delete(payments).where(eq(payments.invoiceId, invoiceId));
-      await tx
-        .update(invoices)
-        .set({ status: "pending", updatedAt: new Date() })
-        .where(eq(invoices.id, invoiceId));
-    });
-
-    const uploadThingKeys = invoice.payments
-      .map((payment) => payment.voucherUrl.split("/f/")[1])
-      .filter((key): key is string => Boolean(key));
-    if (uploadThingKeys.length > 0) {
+    const uploadThingKey = targetPayment.voucherUrl.split("/f/")[1];
+    if (uploadThingKey) {
       try {
-        await new UTApi().deleteFiles(uploadThingKeys);
+        await new UTApi().deleteFiles(uploadThingKey);
       } catch (error) {
         console.error("Error deleting payment voucher files", error);
+        return {
+          success: false,
+          message:
+            "No se pudo eliminar el comprobante del almacenamiento. Inténtalo de nuevo.",
+        };
       }
     }
+
+    await db.transaction(async (tx) => {
+      await tx.delete(payments).where(eq(payments.id, targetPayment.id));
+
+      const remainingPayments = await tx.query.payments.findMany({
+        where: eq(payments.invoiceId, invoiceId),
+      });
+      await tx
+        .update(invoices)
+        .set({
+          status: remainingPayments.length > 0 ? "paid" : "pending",
+          updatedAt: new Date(),
+        })
+        .where(eq(invoices.id, invoiceId));
+    });
 
     revalidatePath("/dashboard/payments");
     revalidatePath("/dashboard/festivals/[id]/payments", "page");

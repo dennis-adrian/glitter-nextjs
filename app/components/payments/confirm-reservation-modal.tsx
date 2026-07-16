@@ -32,6 +32,9 @@ export default function ConfirmReservationModal({
   const [markAsPaid, setMarkAsPaid] = useState(false);
   const isPending = invoice.status !== "paid";
   const standLabel = `${invoice.reservation.stand.label}${invoice.reservation.stand.standNumber}`;
+  const voucherUrl = invoice.payments.find(
+    (payment) => payment.voucherUrl,
+  )?.voucherUrl;
 
   return (
     <DrawerDialog
@@ -57,9 +60,9 @@ export default function ConfirmReservationModal({
         </DrawerDialogHeader>
 
         <div className="space-y-4 px-4 pb-6 md:px-0 md:pb-0">
-          {invoice.payments[0]?.voucherUrl && (
+          {voucherUrl && (
             <a
-              href={invoice.payments[0].voucherUrl}
+              href={voucherUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
@@ -81,7 +84,7 @@ export default function ConfirmReservationModal({
                   Marcar el pago como pagado
                 </span>
                 <span className="block text-xs text-muted-foreground">
-                  La factura todavía figura como pendiente.
+                  El pago todavía figura como pendiente.
                 </span>
               </span>
             </label>
@@ -90,7 +93,10 @@ export default function ConfirmReservationModal({
           <ConfirmReservationForm
             invoice={invoice}
             markAsPaid={isPending && markAsPaid}
-            onSuccess={() => onOpenChange(false)}
+            onSuccess={() => {
+              setMarkAsPaid(false);
+              onOpenChange(false);
+            }}
           />
         </div>
       </DrawerDialogContent>

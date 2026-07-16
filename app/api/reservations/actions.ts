@@ -273,7 +273,7 @@ export async function confirmReservation(
         );
 
       if (paidInvoiceId !== undefined) {
-        await tx
+        const updatedInvoices = await tx
           .update(invoices)
           .set({ status: "paid", updatedAt: new Date() })
           .where(
@@ -281,7 +281,14 @@ export async function confirmReservation(
               eq(invoices.id, paidInvoiceId),
               eq(invoices.reservationId, reservationId),
             ),
+          )
+          .returning({ id: invoices.id });
+
+        if (updatedInvoices.length === 0) {
+          throw new Error(
+            "No se encontró un pago coincidente para marcar como pagado.",
           );
+        }
       }
     });
 
@@ -321,6 +328,7 @@ export async function confirmReservation(
   }
 
   revalidatePath("/dashboard/payments");
+  revalidatePath("/dashboard/festivals/[id]/payments", "page");
   return { success: true, message: "Reserva confirmada" };
 }
 
