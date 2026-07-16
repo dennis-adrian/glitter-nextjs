@@ -23,7 +23,11 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { UTApi } from "uploadthing/server";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { revalidatePath } from "next/cache";
-import { confirmReservation } from "@/app/api/reservations/actions";
+import {
+  confirmReservation,
+  sendReservationConfirmationEmails,
+} from "@/app/api/reservations/actions";
+import { deleteFile } from "@/app/lib/uploadthing/actions";
 
 export async function adminAttachPaymentVoucher(
   invoiceId: number,
@@ -34,6 +38,8 @@ export async function adminAttachPaymentVoucher(
   if (!profile || profile.role !== "admin") {
     return { success: false, message: "No autorizado." };
   }
+
+  let confirmationFailure: string | null = null;
 
   try {
     const invoice = await db.query.invoices.findFirst({
@@ -58,6 +64,10 @@ export async function adminAttachPaymentVoucher(
     }
 
     const currentPayment = invoice.payments[0];
+    const standLabel = `${invoice.reservation.stand.label}${invoice.reservation.stand.standNumber}`;
+    const shouldConfirmReservation =
+      markAsPaid && invoice.reservation.status !== "accepted";
+
     await db.transaction(async (tx) => {
       if (currentPayment) {
         await tx
@@ -77,26 +87,37 @@ export async function adminAttachPaymentVoucher(
           voucherUrl,
         });
       }
+
+      if (shouldConfirmReservation) {
+        const confirmationResult = await confirmReservation(
+          invoice.reservationId,
+          invoice.user,
+          invoice.reservation.standId,
+          standLabel,
+          invoice.reservation.festival,
+          invoice.reservation.participants,
+          invoice.id,
+          tx,
+        );
+        if (!confirmationResult.success) {
+          confirmationFailure = confirmationResult.message;
+          throw new Error(confirmationResult.message);
+        }
+      } else if (markAsPaid) {
+        await tx
+          .update(invoices)
+          .set({ status: "paid", updatedAt: new Date() })
+          .where(eq(invoices.id, invoiceId));
+      }
     });
 
-    if (markAsPaid && invoice.reservation.status !== "accepted") {
-      const confirmationResult = await confirmReservation(
-        invoice.reservationId,
-        invoice.user,
-        invoice.reservation.standId,
-        `${invoice.reservation.stand.label}${invoice.reservation.stand.standNumber}`,
-        invoice.reservation.festival,
-        invoice.reservation.participants,
-        invoice.id,
-      );
-      if (!confirmationResult.success) {
-        return confirmationResult;
-      }
-    } else if (markAsPaid) {
-      await db
-        .update(invoices)
-        .set({ status: "paid", updatedAt: new Date() })
-        .where(eq(invoices.id, invoiceId));
+    if (shouldConfirmReservation) {
+      await sendReservationConfirmationEmails({
+        user: invoice.user,
+        standLabel,
+        festival: invoice.reservation.festival,
+        participants: invoice.reservation.participants,
+      });
     }
 
     revalidatePath("/dashboard/payments");
@@ -104,6 +125,9 @@ export async function adminAttachPaymentVoucher(
     return { success: true, message: "Comprobante guardado correctamente." };
   } catch (error) {
     console.error("Error attaching payment voucher", error);
+    if (confirmationFailure) {
+      return { success: false, message: confirmationFailure };
+    }
     return { success: false, message: "No se pudo guardar el comprobante." };
   }
 }
@@ -136,34 +160,33 @@ export async function adminRemovePaymentVoucher(
       return { success: false, message: "El pago no tiene un comprobante." };
     }
 
-    const uploadThingKey = targetPayment.voucherUrl.split("/f/")[1];
-    if (uploadThingKey) {
-      try {
-        await new UTApi().deleteFiles(uploadThingKey);
-      } catch (error) {
-        console.error("Error deleting payment voucher files", error);
-        return {
-          success: false,
-          message:
-            "No se pudo eliminar el comprobante del almacenamiento. Inténtalo de nuevo.",
-        };
-      }
-    }
+    const voucherUrlToDelete = targetPayment.voucherUrl;
 
     await db.transaction(async (tx) => {
       await tx.delete(payments).where(eq(payments.id, targetPayment.id));
 
-      const remainingPayments = await tx.query.payments.findMany({
-        where: eq(payments.invoiceId, invoiceId),
-      });
+      // Paid state is invoice-level, not derived from remaining payment rows.
       await tx
         .update(invoices)
         .set({
-          status: remainingPayments.length > 0 ? "paid" : "pending",
+          status: "pending",
           updatedAt: new Date(),
         })
         .where(eq(invoices.id, invoiceId));
     });
+
+    // No payment-voucher outbox: clean up storage after commit; retain on failure.
+    const deleteResult = await deleteFile(voucherUrlToDelete);
+    if (!deleteResult.success) {
+      console.error(
+        "Payment voucher DB record removed but storage cleanup failed; file retained for retry",
+        {
+          invoiceId,
+          voucherUrl: voucherUrlToDelete,
+          error: deleteResult.error,
+        },
+      );
+    }
 
     revalidatePath("/dashboard/payments");
     revalidatePath("/dashboard/festivals/[id]/payments", "page");

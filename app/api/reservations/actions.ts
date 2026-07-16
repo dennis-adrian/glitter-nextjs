@@ -234,6 +234,103 @@ export async function deleteReservation(
   return { success: true, message: "Reserva eliminada" };
 }
 
+type ConfirmReservationTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function applyConfirmReservationMutations(
+  tx: ConfirmReservationTx,
+  {
+    reservationId,
+    standId,
+    paidInvoiceId,
+  }: {
+    reservationId: number;
+    standId: number;
+    paidInvoiceId?: number;
+  },
+) {
+  await tx
+    .update(standReservations)
+    .set({ status: "accepted", updatedAt: new Date() })
+    .where(eq(standReservations.id, reservationId));
+
+  await tx
+    .update(stands)
+    .set({ status: "confirmed" })
+    .where(eq(stands.id, standId));
+
+  await tx
+    .update(scheduledTasks)
+    .set({ completedAt: new Date(), updatedAt: new Date() })
+    .where(
+      and(
+        eq(scheduledTasks.reservationId, reservationId),
+        eq(scheduledTasks.taskType, "stand_reservation"),
+      ),
+    );
+
+  if (paidInvoiceId !== undefined) {
+    const updatedInvoices = await tx
+      .update(invoices)
+      .set({ status: "paid", updatedAt: new Date() })
+      .where(
+        and(
+          eq(invoices.id, paidInvoiceId),
+          eq(invoices.reservationId, reservationId),
+        ),
+      )
+      .returning({ id: invoices.id });
+
+    if (updatedInvoices.length === 0) {
+      throw new Error(
+        "No se encontró un pago coincidente para marcar como pagado.",
+      );
+    }
+  }
+}
+
+export async function sendReservationConfirmationEmails({
+  user,
+  standLabel,
+  festival,
+  participants,
+}: {
+  user: BaseProfile;
+  standLabel: string;
+  festival: FestivalWithDates;
+  participants: ReservationParticipantWithUser[];
+}) {
+  const targets: { to: string; profile: BaseProfile }[] = [];
+  if (user.email?.trim())
+    targets.push({ to: user.email.trim(), profile: user });
+  for (const p of participants) {
+    const email = p.user?.email?.trim();
+    if (!email) continue;
+    targets.push({ to: email, profile: p.user });
+  }
+  const seen = new Set<string>();
+  const uniqueTargets = targets.filter(({ to }) => {
+    const key = to.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  await Promise.allSettled(
+    uniqueTargets.map(({ to, profile }) =>
+      sendEmail({
+        to: [to],
+        from: "Reservas Glitter <reservas@productoraglitter.com>",
+        subject: `Reserva confirmada para el festival ${festival.name}`,
+        react: EmailTemplate({
+          profile,
+          standLabel,
+          festival,
+        }) as React.ReactElement,
+      }),
+    ),
+  );
+}
+
 export async function confirmReservation(
   reservationId: number,
   user: BaseProfile,
@@ -242,6 +339,7 @@ export async function confirmReservation(
   festival: FestivalWithDates,
   participants: ReservationParticipantWithUser[],
   paidInvoiceId?: number,
+  tx?: ConfirmReservationTx,
 ) {
   if (paidInvoiceId !== undefined) {
     const profile = await getCurrentUserProfile();
@@ -251,77 +349,30 @@ export async function confirmReservation(
   }
 
   try {
-    await db.transaction(async (tx) => {
-      await tx
-        .update(standReservations)
-        .set({ status: "accepted", updatedAt: new Date() })
-        .where(eq(standReservations.id, reservationId));
-
-      await tx
-        .update(stands)
-        .set({ status: "confirmed" })
-        .where(eq(stands.id, standId));
-
-      await tx
-        .update(scheduledTasks)
-        .set({ completedAt: new Date(), updatedAt: new Date() })
-        .where(
-          and(
-            eq(scheduledTasks.reservationId, reservationId),
-            eq(scheduledTasks.taskType, "stand_reservation"),
-          ),
-        );
-
-      if (paidInvoiceId !== undefined) {
-        const updatedInvoices = await tx
-          .update(invoices)
-          .set({ status: "paid", updatedAt: new Date() })
-          .where(
-            and(
-              eq(invoices.id, paidInvoiceId),
-              eq(invoices.reservationId, reservationId),
-            ),
-          )
-          .returning({ id: invoices.id });
-
-        if (updatedInvoices.length === 0) {
-          throw new Error(
-            "No se encontró un pago coincidente para marcar como pagado.",
-          );
-        }
-      }
-    });
-
-    const targets: { to: string; profile: BaseProfile }[] = [];
-    if (user.email?.trim())
-      targets.push({ to: user.email.trim(), profile: user });
-    for (const p of participants) {
-      const email = p.user?.email?.trim();
-      if (!email) continue;
-      targets.push({ to: email, profile: p.user });
+    if (tx) {
+      await applyConfirmReservationMutations(tx, {
+        reservationId,
+        standId,
+        paidInvoiceId,
+      });
+      // Side effects run after the caller's transaction commits.
+      return { success: true, message: "Reserva confirmada" };
     }
-    const seen = new Set<string>();
-    const uniqueTargets = targets.filter(({ to }) => {
-      const key = to.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
+
+    await db.transaction(async (innerTx) => {
+      await applyConfirmReservationMutations(innerTx, {
+        reservationId,
+        standId,
+        paidInvoiceId,
+      });
     });
 
-    await Promise.allSettled(
-      uniqueTargets.map(({ to, profile }) =>
-        sendEmail({
-          to: [to],
-          from: "Reservas Glitter <reservas@productoraglitter.com>",
-          subject: `Reserva confirmada para el festival ${festival.name}`,
-          react: EmailTemplate({
-            profile,
-            standLabel,
-            festival,
-          }) as React.ReactElement,
-        }),
-      ),
-    );
+    await sendReservationConfirmationEmails({
+      user,
+      standLabel,
+      festival,
+      participants,
+    });
   } catch (error) {
     console.error(error);
     return { success: false, message: "Error al confirmar la reserva" };
