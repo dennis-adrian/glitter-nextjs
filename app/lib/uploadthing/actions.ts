@@ -24,6 +24,8 @@ type StorageCleanupJob = typeof storageCleanupJobs.$inferSelect;
 
 const MAX_ATTEMPTS = 5;
 const LEASE_DURATION_MS = 5 * 60 * 1000;
+/** Keep headroom under the lease for completion/reschedule DB writes. */
+const DELETE_TIMEOUT_MS = LEASE_DURATION_MS - 30_000;
 const MAX_BACKOFF_MS = 24 * 60 * 60 * 1000;
 
 function getUploadThingFileKey(url: string) {
@@ -220,11 +222,33 @@ async function failOrRescheduleClaimedStorageCleanupJob(
   return updated ?? null;
 }
 
+async function deleteFileWithinLease(url: string) {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      deleteFile(url),
+      new Promise<{ success: false; error: string }>((resolve) => {
+        timeoutId = setTimeout(() => {
+          resolve({
+            success: false,
+            error: "Storage delete exceeded lease-safe timeout",
+          });
+        }, DELETE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
 async function processClaimedStorageCleanupJob(
   job: StorageCleanupJob,
   owner: string,
 ) {
-  const deleteResult = await deleteFile(job.fileUrl);
+  // Bound the external delete so it cannot outlive the claim lease.
+  const deleteResult = await deleteFileWithinLease(job.fileUrl);
   if (deleteResult.success) {
     const completed = await completeClaimedStorageCleanupJob(job, owner);
     return {
