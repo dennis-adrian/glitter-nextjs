@@ -27,7 +27,11 @@ import {
   confirmReservation,
   sendReservationConfirmationEmails,
 } from "@/app/api/reservations/actions";
-import { deleteFile } from "@/app/lib/uploadthing/actions";
+import {
+  attemptStorageCleanupJob,
+  enqueueStorageCleanupJob,
+  processPendingStorageCleanupJobs,
+} from "@/app/lib/uploadthing/actions";
 
 export async function adminAttachPaymentVoucher(
   invoiceId: number,
@@ -140,6 +144,11 @@ export async function adminRemovePaymentVoucher(
     return { success: false, message: "No autorizado." };
   }
 
+  // Opportunistically retry earlier failed voucher cleanups.
+  void processPendingStorageCleanupJobs().catch((error) => {
+    console.error("Failed processing pending storage cleanup jobs", error);
+  });
+
   try {
     const invoice = await db.query.invoices.findFirst({
       where: eq(invoices.id, invoiceId),
@@ -161,6 +170,7 @@ export async function adminRemovePaymentVoucher(
     }
 
     const voucherUrlToDelete = targetPayment.voucherUrl;
+    let cleanupJobId: number | undefined;
 
     await db.transaction(async (tx) => {
       await tx.delete(payments).where(eq(payments.id, targetPayment.id));
@@ -173,19 +183,24 @@ export async function adminRemovePaymentVoucher(
           updatedAt: new Date(),
         })
         .where(eq(invoices.id, invoiceId));
+
+      // Persist outbox entry in the same transaction so the URL survives
+      // immediate delete failures and can be retried asynchronously.
+      const cleanupJob = await enqueueStorageCleanupJob(
+        {
+          entityType: "invoice_voucher",
+          entityId: invoiceId,
+          fileUrl: voucherUrlToDelete,
+        },
+        tx,
+      );
+      cleanupJobId = cleanupJob.id;
     });
 
-    // No payment-voucher outbox: clean up storage after commit; retain on failure.
-    const deleteResult = await deleteFile(voucherUrlToDelete);
-    if (!deleteResult.success) {
-      console.error(
-        "Payment voucher DB record removed but storage cleanup failed; file retained for retry",
-        {
-          invoiceId,
-          voucherUrl: voucherUrlToDelete,
-          error: deleteResult.error,
-        },
-      );
+    if (cleanupJobId !== undefined) {
+      await attemptStorageCleanupJob(cleanupJobId, voucherUrlToDelete, {
+        invoiceId,
+      });
     }
 
     revalidatePath("/dashboard/payments");

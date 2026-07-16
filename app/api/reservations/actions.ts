@@ -248,15 +248,32 @@ async function applyConfirmReservationMutations(
     paidInvoiceId?: number;
   },
 ) {
-  await tx
+  const updatedReservations = await tx
     .update(standReservations)
     .set({ status: "accepted", updatedAt: new Date() })
-    .where(eq(standReservations.id, reservationId));
+    .where(
+      and(
+        eq(standReservations.id, reservationId),
+        eq(standReservations.standId, standId),
+      ),
+    )
+    .returning({ id: standReservations.id });
 
-  await tx
+  if (updatedReservations.length === 0) {
+    throw new Error(
+      "No se encontró una reserva coincidente para el espacio indicado.",
+    );
+  }
+
+  const updatedStands = await tx
     .update(stands)
     .set({ status: "confirmed" })
-    .where(eq(stands.id, standId));
+    .where(eq(stands.id, standId))
+    .returning({ id: stands.id });
+
+  if (updatedStands.length === 0) {
+    throw new Error("No se encontró el espacio a confirmar.");
+  }
 
   await tx
     .update(scheduledTasks)
@@ -299,36 +316,56 @@ export async function sendReservationConfirmationEmails({
   festival: FestivalWithDates;
   participants: ReservationParticipantWithUser[];
 }) {
-  const targets: { to: string; profile: BaseProfile }[] = [];
-  if (user.email?.trim())
-    targets.push({ to: user.email.trim(), profile: user });
-  for (const p of participants) {
-    const email = p.user?.email?.trim();
-    if (!email) continue;
-    targets.push({ to: email, profile: p.user });
-  }
-  const seen = new Set<string>();
-  const uniqueTargets = targets.filter(({ to }) => {
-    const key = to.toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  try {
+    const targets: { to: string; profile: BaseProfile }[] = [];
+    if (user.email?.trim())
+      targets.push({ to: user.email.trim(), profile: user });
+    for (const p of participants) {
+      const email = p.user?.email?.trim();
+      if (!email) continue;
+      targets.push({ to: email, profile: p.user });
+    }
+    const seen = new Set<string>();
+    const uniqueTargets = targets.filter(({ to }) => {
+      const key = to.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 
-  await Promise.allSettled(
-    uniqueTargets.map(({ to, profile }) =>
-      sendEmail({
-        to: [to],
-        from: "Reservas Glitter <reservas@productoraglitter.com>",
-        subject: `Reserva confirmada para el festival ${festival.name}`,
-        react: EmailTemplate({
-          profile,
-          standLabel,
-          festival,
-        }) as React.ReactElement,
-      }),
-    ),
-  );
+    // Wrap each send in an async boundary so sync EmailTemplate errors become
+    // rejections instead of escaping Promise.allSettled construction.
+    const results = await Promise.allSettled(
+      uniqueTargets.map(({ to, profile }) =>
+        (async () =>
+          sendEmail({
+            to: [to],
+            from: "Reservas Glitter <reservas@productoraglitter.com>",
+            subject: `Reserva confirmada para el festival ${festival.name}`,
+            react: EmailTemplate({
+              profile,
+              standLabel,
+              festival,
+            }) as React.ReactElement,
+          }))(),
+      ),
+    );
+
+    results.forEach((result, index) => {
+      if (result.status === "rejected") {
+        console.error(
+          `[sendReservationConfirmationEmails] Failed to send confirmation email to ${uniqueTargets[index]?.to ?? "unknown"}:`,
+          result.reason,
+        );
+      }
+    });
+  } catch (error) {
+    // Post-commit side effect: never propagate to callers.
+    console.error(
+      "[sendReservationConfirmationEmails] Unexpected failure after commit:",
+      error,
+    );
+  }
 }
 
 export async function confirmReservation(
@@ -366,17 +403,18 @@ export async function confirmReservation(
         paidInvoiceId,
       });
     });
-
-    await sendReservationConfirmationEmails({
-      user,
-      standLabel,
-      festival,
-      participants,
-    });
   } catch (error) {
     console.error(error);
     return { success: false, message: "Error al confirmar la reserva" };
   }
+
+  // Emails run only after a successful commit and must not alter the result.
+  await sendReservationConfirmationEmails({
+    user,
+    standLabel,
+    festival,
+    participants,
+  });
 
   revalidatePath("/dashboard/payments");
   revalidatePath("/dashboard/festivals/[id]/payments", "page");
