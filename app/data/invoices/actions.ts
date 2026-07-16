@@ -192,9 +192,7 @@ export async function adminRemovePaymentVoucher(
     });
 
     if (cleanupJobId !== undefined) {
-      await attemptStorageCleanupJob(cleanupJobId, voucherUrlToDelete, {
-        invoiceId,
-      });
+      await attemptStorageCleanupJob(cleanupJobId, { invoiceId });
     }
 
     revalidatePath("/dashboard/payments");

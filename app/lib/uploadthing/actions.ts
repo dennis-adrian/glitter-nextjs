@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 import { utapi } from "@/app/server/uploadthing";
@@ -131,54 +131,28 @@ async function claimStorageCleanupJobById(jobId: number, owner: string) {
   return claimed ?? null;
 }
 
-async function claimDueStorageCleanupJobs(limit: number, owner: string) {
+/** List due job ids oldest-first without claiming; claim happens per job. */
+async function selectDueStorageCleanupJobIds(limit: number) {
   const now = new Date();
-  const leaseExpiresAt = leaseExpiryDate(now);
-
   const result = await db.execute(sql`
-    WITH due AS (
-      SELECT id
-      FROM storage_cleanup_jobs
-      WHERE (
-          status = 'pending'
-          OR (
-            status = 'processing'
-            AND lease_expires_at IS NOT NULL
-            AND lease_expires_at < ${now}
-          )
+    SELECT id
+    FROM storage_cleanup_jobs
+    WHERE (
+        status = 'pending'
+        OR (
+          status = 'processing'
+          AND lease_expires_at IS NOT NULL
+          AND lease_expires_at < ${now}
         )
-        AND next_attempt_at <= ${now}
-      ORDER BY created_at ASC
-      LIMIT ${limit}
-      FOR UPDATE SKIP LOCKED
-    )
-    UPDATE storage_cleanup_jobs AS jobs
-    SET
-      status = 'processing',
-      lease_owner = ${owner},
-      lease_expires_at = ${leaseExpiresAt},
-      updated_at = ${now}
-    FROM due
-    WHERE jobs.id = due.id
-    RETURNING jobs.id
+      )
+      AND next_attempt_at <= ${now}
+    ORDER BY created_at ASC
+    LIMIT ${limit}
   `);
 
-  const claimedIds = (result.rows ?? [])
+  return (result.rows ?? [])
     .map((row) => Number((row as { id: number | string }).id))
     .filter((id) => Number.isFinite(id));
-
-  if (claimedIds.length === 0) {
-    return [] as StorageCleanupJob[];
-  }
-
-  return db.query.storageCleanupJobs.findMany({
-    where: and(
-      inArray(storageCleanupJobs.id, claimedIds),
-      eq(storageCleanupJobs.leaseOwner, owner),
-      eq(storageCleanupJobs.status, "processing"),
-    ),
-    orderBy: [asc(storageCleanupJobs.createdAt)],
-  });
 }
 
 async function completeClaimedStorageCleanupJob(
@@ -246,13 +220,49 @@ async function failOrRescheduleClaimedStorageCleanupJob(
   return updated ?? null;
 }
 
+async function processClaimedStorageCleanupJob(
+  job: StorageCleanupJob,
+  owner: string,
+) {
+  const deleteResult = await deleteFile(job.fileUrl);
+  if (deleteResult.success) {
+    const completed = await completeClaimedStorageCleanupJob(job, owner);
+    return {
+      deleteResult,
+      outcome: completed ? ("completed" as const) : ("claim_lost" as const),
+    };
+  }
+
+  const error = deleteResult.error ?? "Unknown cleanup error";
+  const updated = await failOrRescheduleClaimedStorageCleanupJob(
+    job,
+    owner,
+    error,
+  );
+  if (!updated) {
+    return {
+      deleteResult,
+      outcome: "claim_lost" as const,
+      error,
+    };
+  }
+
+  return {
+    deleteResult,
+    outcome:
+      updated.status === "failed"
+        ? ("failed" as const)
+        : ("rescheduled" as const),
+    error,
+  };
+}
+
 /**
  * Attempt an immediate delete for a just-enqueued cleanup job.
- * Claims the row first; on failure schedules retry via nextAttemptAt backoff.
+ * Claims the row first and deletes the claimed job URL only.
  */
 export async function attemptStorageCleanupJob(
   jobId: number,
-  fileUrl: string,
   context?: Record<string, unknown>,
 ) {
   const owner = randomUUID();
@@ -262,7 +272,6 @@ export async function attemptStorageCleanupJob(
       "Storage cleanup claim failed; job left for scheduled retry",
       {
         jobId,
-        fileUrl,
         ...context,
       },
     );
@@ -272,83 +281,104 @@ export async function attemptStorageCleanupJob(
     };
   }
 
-  const deleteResult = await deleteFile(fileUrl);
-  if (deleteResult.success) {
-    const completed = await completeClaimedStorageCleanupJob(claimed, owner);
-    if (!completed) {
-      console.error(
-        "Storage cleanup succeeded but claimant could not complete job",
-        {
-          jobId,
-          owner,
-          ...context,
-        },
-      );
-    }
+  const { deleteResult, outcome, error } = await processClaimedStorageCleanupJob(
+    claimed,
+    owner,
+  );
+
+  if (outcome === "completed") {
     return deleteResult;
   }
 
-  const error = deleteResult.error ?? "Unknown cleanup error";
-  const updated = await failOrRescheduleClaimedStorageCleanupJob(
-    claimed,
-    owner,
-    error,
-  );
+  if (outcome === "claim_lost" && deleteResult.success) {
+    console.error(
+      "Storage cleanup succeeded but claimant could not complete job",
+      {
+        jobId,
+        owner,
+        fileUrl: claimed.fileUrl,
+        ...context,
+      },
+    );
+    return deleteResult;
+  }
+
   console.error("Storage cleanup failed; outbox retained for retry", {
     jobId,
-    fileUrl,
-    error,
-    status: updated?.status,
+    fileUrl: claimed.fileUrl,
+    error: error ?? deleteResult.error,
+    status: outcome,
     ...context,
   });
   return deleteResult;
 }
 
 /**
- * Cron/worker entrypoint: claim due cleanup jobs and process UploadThing deletes.
- * Pending jobs with future nextAttemptAt, terminal failures, and active leases are skipped.
+ * Cron/worker entrypoint: claim each due job immediately before deletion.
+ * Avoids batch leases expiring while earlier jobs are still being processed.
  */
 export async function processPendingStorageCleanupJobs(limit = 20) {
-  const owner = randomUUID();
-  let claimedJobs: StorageCleanupJob[];
+  let dueIds: number[];
 
   try {
-    claimedJobs = await claimDueStorageCleanupJobs(limit, owner);
+    dueIds = await selectDueStorageCleanupJobIds(limit);
   } catch (error) {
     console.error(
-      "[processPendingStorageCleanupJobs] Failed to claim due cleanup jobs",
+      "[processPendingStorageCleanupJobs] Failed to select due cleanup jobs",
       error,
     );
     throw error;
   }
 
+  let claimedCount = 0;
   let completed = 0;
   let failed = 0;
   let rescheduled = 0;
 
-  for (const job of claimedJobs) {
+  for (const jobId of dueIds) {
+    const owner = randomUUID();
+    let job: StorageCleanupJob | null;
+
     try {
-      const deleteResult = await deleteFile(job.fileUrl);
-      if (deleteResult.success) {
-        const didComplete = await completeClaimedStorageCleanupJob(job, owner);
-        if (didComplete) {
-          completed += 1;
-        } else {
-          console.error(
-            "[processPendingStorageCleanupJobs] Delete succeeded but claim was lost",
-            { jobId: job.id, owner },
-          );
-        }
+      job = await claimStorageCleanupJobById(jobId, owner);
+    } catch (error) {
+      console.error(
+        "[processPendingStorageCleanupJobs] Failed to claim cleanup job",
+        { jobId, error },
+      );
+      continue;
+    }
+
+    if (!job) {
+      // Another worker claimed it, or it is no longer due.
+      continue;
+    }
+
+    claimedCount += 1;
+
+    try {
+      const { deleteResult, outcome, error } =
+        await processClaimedStorageCleanupJob(job, owner);
+
+      if (outcome === "completed") {
+        completed += 1;
         continue;
       }
 
-      const error = deleteResult.error ?? "Unknown cleanup error";
-      const updated = await failOrRescheduleClaimedStorageCleanupJob(
-        job,
-        owner,
-        error,
-      );
-      if (updated?.status === "failed") {
+      if (outcome === "claim_lost") {
+        console.error(
+          "[processPendingStorageCleanupJobs] Claim was lost after processing",
+          {
+            jobId: job.id,
+            owner,
+            deleteSucceeded: deleteResult.success,
+            error,
+          },
+        );
+        continue;
+      }
+
+      if (outcome === "failed") {
         failed += 1;
         console.error(
           "[processPendingStorageCleanupJobs] Job reached terminal failure",
@@ -361,25 +391,21 @@ export async function processPendingStorageCleanupJobs(limit = 20) {
             attempts: job.attempts + 1,
           },
         );
-      } else if (updated) {
-        rescheduled += 1;
-        console.error(
-          "[processPendingStorageCleanupJobs] Job rescheduled after failure",
-          {
-            jobId: job.id,
-            entityType: job.entityType,
-            entityId: job.entityId,
-            fileUrl: job.fileUrl,
-            error,
-            attempts: job.attempts + 1,
-          },
-        );
-      } else {
-        console.error(
-          "[processPendingStorageCleanupJobs] Failure handling skipped; claim was lost",
-          { jobId: job.id, owner, error },
-        );
+        continue;
       }
+
+      rescheduled += 1;
+      console.error(
+        "[processPendingStorageCleanupJobs] Job rescheduled after failure",
+        {
+          jobId: job.id,
+          entityType: job.entityType,
+          entityId: job.entityId,
+          fileUrl: job.fileUrl,
+          error,
+          attempts: job.attempts + 1,
+        },
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unexpected cleanup error";
@@ -407,7 +433,8 @@ export async function processPendingStorageCleanupJobs(limit = 20) {
   }
 
   return {
-    claimed: claimedJobs.length,
+    due: dueIds.length,
+    claimed: claimedCount,
     completed,
     failed,
     rescheduled,
