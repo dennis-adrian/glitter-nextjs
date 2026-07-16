@@ -30,7 +30,6 @@ import {
 import {
   attemptStorageCleanupJob,
   enqueueStorageCleanupJob,
-  processPendingStorageCleanupJobs,
 } from "@/app/lib/uploadthing/actions";
 
 export async function adminAttachPaymentVoucher(
@@ -143,11 +142,6 @@ export async function adminRemovePaymentVoucher(
   if (!profile || profile.role !== "admin") {
     return { success: false, message: "No autorizado." };
   }
-
-  // Opportunistically retry earlier failed voucher cleanups.
-  void processPendingStorageCleanupJobs().catch((error) => {
-    console.error("Failed processing pending storage cleanup jobs", error);
-  });
 
   try {
     const invoice = await db.query.invoices.findFirst({

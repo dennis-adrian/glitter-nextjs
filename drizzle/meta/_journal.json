@@ -1422,6 +1422,13 @@
       "when": 1784233965792,
       "tag": "0202_great_gamma_corps",
       "breakpoints": true
+    },
+    {
+      "idx": 203,
+      "version": "7",
+      "when": 1784235455588,
+      "tag": "0203_sticky_silver_centurion",
+      "breakpoints": true
     }
   ]
 }
