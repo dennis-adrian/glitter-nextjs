@@ -58,17 +58,52 @@ function leaseExpiryDate(from = new Date()) {
   return new Date(from.getTime() + LEASE_DURATION_MS);
 }
 
-export async function deleteFile(url: string) {
+type UtDeleteFilesOptions = NonNullable<
+  Parameters<typeof utapi.deleteFiles>[1]
+>;
+
+/**
+ * UploadThing's DeleteFilesOptions currently only exposes `keyType`.
+ * Flip this when the SDK accepts AbortSignal for delete cancellation.
+ */
+function utapiDeleteFilesSupportsAbortSignal(): boolean {
+  return false;
+}
+
+function deleteFilesOptions(
+  signal?: AbortSignal,
+): UtDeleteFilesOptions | undefined {
+  if (!signal || !utapiDeleteFilesSupportsAbortSignal()) {
+    return undefined;
+  }
+  return { signal } as UtDeleteFilesOptions;
+}
+
+function isAbortError(error: unknown) {
+  return (
+    (error instanceof DOMException && error.name === "AbortError") ||
+    (error instanceof Error && error.name === "AbortError")
+  );
+}
+
+export async function deleteFile(url: string, signal?: AbortSignal) {
   try {
+    if (signal?.aborted) {
+      return { success: false, error: "Storage delete was cancelled" };
+    }
+
     const key = getUploadThingFileKey(url);
-    if (key) {
-      await utapi.deleteFiles(key);
-    } else {
+    if (!key) {
       console.warn("Could not extract UploadThing file key from URL:", url);
       return { success: false, error: "No se pudo identificar el archivo" };
     }
+
+    await utapi.deleteFiles(key, deleteFilesOptions(signal));
     return { success: true };
   } catch (error) {
+    if (isAbortError(error) || signal?.aborted) {
+      return { success: false, error: "Storage delete was cancelled" };
+    }
     console.error("Error deleting file", error);
     return { success: false, error: "Error al eliminar el archivo" };
   }
@@ -223,19 +258,38 @@ async function failOrRescheduleClaimedStorageCleanupJob(
 }
 
 async function deleteFileWithinLease(url: string) {
+  const controller = new AbortController();
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const deletePromise = deleteFile(url, controller.signal);
+
   try {
-    return await Promise.race([
-      deleteFile(url),
-      new Promise<{ success: false; error: string }>((resolve) => {
-        timeoutId = setTimeout(() => {
-          resolve({
-            success: false,
-            error: "Storage delete exceeded lease-safe timeout",
-          });
-        }, DELETE_TIMEOUT_MS);
+    const outcome = await Promise.race([
+      deletePromise.then((result) => ({ type: "settled" as const, result })),
+      new Promise<{ type: "timeout" }>((resolve) => {
+        timeoutId = setTimeout(
+          () => resolve({ type: "timeout" }),
+          DELETE_TIMEOUT_MS,
+        );
       }),
     ]);
+
+    if (outcome.type === "settled") {
+      return outcome.result;
+    }
+
+    // Cancel the UploadThing request when the SDK supports AbortSignal.
+    if (utapiDeleteFilesSupportsAbortSignal()) {
+      controller.abort();
+    }
+
+    // Always wait for the in-flight delete to settle so callers cannot
+    // reschedule while the original deletion remains in flight.
+    await deletePromise;
+
+    return {
+      success: false as const,
+      error: "Storage delete exceeded lease-safe timeout",
+    };
   } finally {
     if (timeoutId !== undefined) {
       clearTimeout(timeoutId);
@@ -305,10 +359,8 @@ export async function attemptStorageCleanupJob(
     };
   }
 
-  const { deleteResult, outcome, error } = await processClaimedStorageCleanupJob(
-    claimed,
-    owner,
-  );
+  const { deleteResult, outcome, error } =
+    await processClaimedStorageCleanupJob(claimed, owner);
 
   if (outcome === "completed") {
     return deleteResult;
