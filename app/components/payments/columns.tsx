@@ -25,7 +25,9 @@ export const columnTitles = {
   reservationStatus: "Estado de la reserva",
 };
 
-export const columns: ColumnDef<InvoiceWithParticipants>[] = [
+export const columns = (
+  isAdmin = false,
+): ColumnDef<InvoiceWithParticipants>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -139,7 +141,7 @@ export const columns: ColumnDef<InvoiceWithParticipants>[] = [
   {
     id: "actions",
     cell: ({ row }) => {
-      return <ActionsCell invoice={row.original} />;
+      return <ActionsCell invoice={row.original} isAdmin={isAdmin} />;
     },
   },
 ];

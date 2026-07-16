@@ -9,13 +9,14 @@ type PaymentsTableProps = {
   invoices: InvoiceWithParticipants[];
   status?: InvoiceWithParticipants["status"];
   columnVisbility?: Record<string, boolean>;
+  isAdmin?: boolean;
 };
 
 export default function PaymentsTable(props: PaymentsTableProps) {
   return (
     <>
       <DataTable
-        columns={columns}
+        columns={columns(props.isAdmin ?? false)}
         columnTitles={columnTitles}
         data={props.invoices}
         filters={[

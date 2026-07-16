@@ -12,11 +12,13 @@ import { toast } from "sonner";
 type DiscountCodeInputProps = {
   invoiceId: number;
   festivalId: number;
+  onApplied?: () => void;
 };
 
 export default function DiscountCodeInput({
   invoiceId,
   festivalId,
+  onApplied,
 }: DiscountCodeInputProps) {
   const [code, setCode] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -39,6 +41,7 @@ export default function DiscountCodeInput({
           code: code.trim().toUpperCase(),
         });
         toast.success(result.message);
+        onApplied?.();
         router.refresh();
       } else {
         toast.error(result.message);

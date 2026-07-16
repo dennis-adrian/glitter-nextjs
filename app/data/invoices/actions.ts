@@ -21,6 +21,110 @@ import {
 } from "@/db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { UTApi } from "uploadthing/server";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { revalidatePath } from "next/cache";
+
+export async function adminAttachPaymentVoucher(
+  invoiceId: number,
+  voucherUrl: string,
+): Promise<{ success: boolean; message: string }> {
+  const profile = await getCurrentUserProfile();
+  if (!profile || profile.role !== "admin") {
+    return { success: false, message: "No autorizado." };
+  }
+
+  try {
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.id, invoiceId),
+      with: { payments: true },
+    });
+    if (!invoice) {
+      return { success: false, message: "Pago no encontrado." };
+    }
+
+    const currentPayment = invoice.payments.at(-1);
+    await db.transaction(async (tx) => {
+      if (currentPayment) {
+        await tx
+          .update(payments)
+          .set({
+            amount: invoice.amount,
+            date: new Date(),
+            voucherUrl,
+            updatedAt: new Date(),
+          })
+          .where(eq(payments.id, currentPayment.id));
+      } else {
+        await tx.insert(payments).values({
+          invoiceId,
+          amount: invoice.amount,
+          date: new Date(),
+          voucherUrl,
+        });
+      }
+
+      await tx
+        .update(invoices)
+        .set({ status: "paid", updatedAt: new Date() })
+        .where(eq(invoices.id, invoiceId));
+    });
+
+    revalidatePath("/dashboard/payments");
+    revalidatePath("/dashboard/festivals/[id]/payments", "page");
+    return { success: true, message: "Comprobante guardado correctamente." };
+  } catch (error) {
+    console.error("Error attaching payment voucher", error);
+    return { success: false, message: "No se pudo guardar el comprobante." };
+  }
+}
+
+export async function adminRemovePaymentVoucher(
+  invoiceId: number,
+): Promise<{ success: boolean; message: string }> {
+  const profile = await getCurrentUserProfile();
+  if (!profile || profile.role !== "admin") {
+    return { success: false, message: "No autorizado." };
+  }
+
+  try {
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.id, invoiceId),
+      with: { payments: true },
+    });
+    if (!invoice) {
+      return { success: false, message: "Pago no encontrado." };
+    }
+    if (invoice.payments.length === 0) {
+      return { success: false, message: "El pago no tiene un comprobante." };
+    }
+
+    await db.transaction(async (tx) => {
+      await tx.delete(payments).where(eq(payments.invoiceId, invoiceId));
+      await tx
+        .update(invoices)
+        .set({ status: "pending", updatedAt: new Date() })
+        .where(eq(invoices.id, invoiceId));
+    });
+
+    const uploadThingKeys = invoice.payments
+      .map((payment) => payment.voucherUrl.split("/f/")[1])
+      .filter((key): key is string => Boolean(key));
+    if (uploadThingKeys.length > 0) {
+      try {
+        await new UTApi().deleteFiles(uploadThingKeys);
+      } catch (error) {
+        console.error("Error deleting payment voucher files", error);
+      }
+    }
+
+    revalidatePath("/dashboard/payments");
+    revalidatePath("/dashboard/festivals/[id]/payments", "page");
+    return { success: true, message: "Comprobante eliminado correctamente." };
+  } catch (error) {
+    console.error("Error removing payment voucher", error);
+    return { success: false, message: "No se pudo eliminar el comprobante." };
+  }
+}
 
 export async function fetchLatestInvoiceByProfileId(
   profileId: number,

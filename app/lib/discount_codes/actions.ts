@@ -236,6 +236,9 @@ export async function validateAndApplyDiscountCode({
         })
         .where(eq(discountCodes.id, discountCode.id));
 
+      revalidatePath("/dashboard/payments");
+      revalidatePath("/dashboard/festivals/[id]/payments", "page");
+
       return {
         success: true,
         message: "Código de descuento aplicado correctamente.",

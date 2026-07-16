@@ -11,6 +11,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 const ParamsSchema = z.object({
   id: z.coerce.number(),
@@ -26,7 +27,11 @@ export default async function PaymentsPage(props: {
     return notFound();
   }
 
-  const invoices = await fetchInvoicesByFestival(validatedParams.data.id);
+  const [invoices, profile] = await Promise.all([
+    fetchInvoicesByFestival(validatedParams.data.id),
+    getCurrentUserProfile(),
+  ]);
+  const isAdmin = profile?.role === "admin";
 
   return (
     <div className="container p-4 md:p-6">
@@ -51,13 +56,17 @@ export default async function PaymentsPage(props: {
           <TabsTrigger value="pending">Pendientes</TabsTrigger>
         </TabsList>
         <TabsContent value="all">
-          <PaymentsTable invoices={invoices} />
+          <PaymentsTable invoices={invoices} isAdmin={isAdmin} />
         </TabsContent>
         <TabsContent value="paid">
-          <PaymentsTable invoices={invoices} status="paid" />
+          <PaymentsTable invoices={invoices} status="paid" isAdmin={isAdmin} />
         </TabsContent>
         <TabsContent value="pending">
-          <PaymentsTable invoices={invoices} status="pending" />
+          <PaymentsTable
+            invoices={invoices}
+            status="pending"
+            isAdmin={isAdmin}
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -4,7 +4,12 @@ import { and, desc, eq, not, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
-import { scheduledTasks, standReservations, stands } from "@/db/schema";
+import {
+  invoices,
+  scheduledTasks,
+  standReservations,
+  stands,
+} from "@/db/schema";
 
 import { BaseProfile } from "@/app/api/users/definitions";
 import { sendEmail } from "@/app/vendors/resend";
@@ -21,6 +26,7 @@ import { getUserName } from "@/app/lib/users/utils";
 import { buildWhereClauseForReservationsFetching } from "@/app/api/reservations/helpers";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { ReservationParticipantWithUser } from "@/app/data/invoices/definitions";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export async function fetchReservations(options: {
   query?: string;
@@ -235,7 +241,15 @@ export async function confirmReservation(
   standLabel: string,
   festival: FestivalWithDates,
   participants: ReservationParticipantWithUser[],
+  paidInvoiceId?: number,
 ) {
+  if (paidInvoiceId !== undefined) {
+    const profile = await getCurrentUserProfile();
+    if (!profile || profile.role !== "admin") {
+      return { success: false, message: "No autorizado para marcar el pago." };
+    }
+  }
+
   try {
     await db.transaction(async (tx) => {
       await tx
@@ -257,6 +271,18 @@ export async function confirmReservation(
             eq(scheduledTasks.taskType, "stand_reservation"),
           ),
         );
+
+      if (paidInvoiceId !== undefined) {
+        await tx
+          .update(invoices)
+          .set({ status: "paid", updatedAt: new Date() })
+          .where(
+            and(
+              eq(invoices.id, paidInvoiceId),
+              eq(invoices.reservationId, reservationId),
+            ),
+          );
+      }
     });
 
     const targets: { to: string; profile: BaseProfile }[] = [];
