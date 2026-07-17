@@ -284,7 +284,10 @@ async function deleteFileWithinLease(url: string) {
 
     // Always wait for the in-flight delete to settle so callers cannot
     // reschedule while the original deletion remains in flight.
-    await deletePromise;
+    const settled = await deletePromise;
+    if (settled.success) {
+      return settled;
+    }
 
     return {
       success: false as const,
