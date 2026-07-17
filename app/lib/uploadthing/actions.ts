@@ -7,7 +7,7 @@ import { utapi } from "@/app/server/uploadthing";
 import { db } from "@/db";
 import { storageCleanupJobs } from "@/db/schema";
 
-export const STORAGE_CLEANUP_ENTITY_TYPES = [
+const STORAGE_CLEANUP_ENTITY_TYPES = [
   "invoice_voucher",
   "profile_image",
   "activity_proof",
