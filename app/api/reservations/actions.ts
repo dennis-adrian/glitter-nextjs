@@ -311,14 +311,14 @@ export async function sendReservationConfirmationEmails({
   festival,
   participants,
 }: {
-  user: BaseProfile;
+  user?: BaseProfile;
   standLabel: string;
   festival: FestivalWithDates;
   participants: ReservationParticipantWithUser[];
 }) {
   try {
     const targets: { to: string; profile: BaseProfile }[] = [];
-    if (user.email?.trim())
+    if (user?.email?.trim())
       targets.push({ to: user.email.trim(), profile: user });
     for (const p of participants) {
       const email = p.user?.email?.trim();
@@ -370,19 +370,16 @@ export async function sendReservationConfirmationEmails({
 
 export async function confirmReservation(
   reservationId: number,
-  user: BaseProfile,
   standId: number,
-  standLabel: string,
-  festival: FestivalWithDates,
-  participants: ReservationParticipantWithUser[],
   paidInvoiceId?: number,
   tx?: ConfirmReservationTx,
 ) {
-  if (paidInvoiceId !== undefined) {
-    const profile = await getCurrentUserProfile();
-    if (!profile || profile.role !== "admin") {
-      return { success: false, message: "No autorizado para marcar el pago." };
-    }
+  const profile = await getCurrentUserProfile();
+  if (!profile || profile.role !== "admin") {
+    return {
+      success: false,
+      message: "No autorizado para confirmar la reserva.",
+    };
   }
 
   try {
@@ -408,13 +405,27 @@ export async function confirmReservation(
     return { success: false, message: "Error al confirmar la reserva" };
   }
 
-  // Emails run only after a successful commit and must not alter the result.
-  await sendReservationConfirmationEmails({
-    user,
-    standLabel,
-    festival,
-    participants,
+  // Load canonical reservation data so confirmation emails are addressed from
+  // server-side records rather than caller-supplied values.
+  const reservation = await db.query.standReservations.findFirst({
+    where: eq(standReservations.id, reservationId),
+    with: {
+      stand: true,
+      festival: { with: { festivalDates: true } },
+      participants: { with: { user: true } },
+      invoices: { with: { user: true } },
+    },
   });
+
+  if (reservation) {
+    // Emails run only after a successful commit and must not alter the result.
+    await sendReservationConfirmationEmails({
+      user: reservation.invoices[0]?.user,
+      standLabel: `${reservation.stand.label}${reservation.stand.standNumber}`,
+      festival: reservation.festival,
+      participants: reservation.participants,
+    });
+  }
 
   revalidatePath("/dashboard/payments");
   revalidatePath("/dashboard/festivals/[id]/payments", "page");

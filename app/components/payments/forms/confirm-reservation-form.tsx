@@ -20,11 +20,7 @@ export function ConfirmReservationForm(props: ConfirmReservationFormProps) {
   const action = form.handleSubmit(async () => {
     const result = await confirmReservation(
       props.invoice.reservationId,
-      props.invoice.user,
       props.invoice.reservation.standId,
-      `${props.invoice.reservation.stand.label}${props.invoice.reservation.stand.standNumber}`,
-      props.invoice.reservation.festival,
-      props.invoice.reservation.participants,
       props.markAsPaid ? props.invoice.id : undefined,
     );
     if (result.success) {

@@ -94,11 +94,7 @@ export async function adminAttachPaymentVoucher(
       if (shouldConfirmReservation) {
         const confirmationResult = await confirmReservation(
           invoice.reservationId,
-          invoice.user,
           invoice.reservation.standId,
-          standLabel,
-          invoice.reservation.festival,
-          invoice.reservation.participants,
           invoice.id,
           tx,
         );
