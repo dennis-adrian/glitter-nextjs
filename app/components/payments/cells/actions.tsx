@@ -21,6 +21,10 @@ import ConfirmReservationModal from "@/app/components/payments/confirm-reservati
 import ApplyDiscountDialog from "@/app/components/payments/apply-discount-dialog";
 import AdminPaymentProofDialog from "@/app/components/payments/admin-payment-proof-dialog";
 import RemovePaymentProofDialog from "@/app/components/payments/remove-payment-proof-dialog";
+import { updateInvoiceStatus } from "@/app/data/invoices/actions";
+import { getInvoiceStatusLabel } from "@/app/lib/payments/helpers";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 type ActionsCellProps = {
   invoice: InvoiceWithParticipants;
@@ -28,6 +32,7 @@ type ActionsCellProps = {
 };
 
 export default function ActionsCell(props: ActionsCellProps) {
+  const router = useRouter();
   const [openConfirmReservationModal, setOpenConfirmReservationModal] =
     useState(false);
   const [openDiscountDialog, setOpenDiscountDialog] = useState(false);
@@ -36,6 +41,16 @@ export default function ActionsCell(props: ActionsCellProps) {
   const hasPaymentProof = props.invoice.payments.some(
     (payment) => payment.voucherUrl,
   );
+
+  async function handleStatusChange(status: InvoiceWithParticipants["status"]) {
+    const result = await updateInvoiceStatus(props.invoice.id, status);
+    if (result.success) {
+      toast.success(result.message);
+      router.refresh();
+    } else {
+      toast.error(result.message);
+    }
+  }
 
   return (
     <>
@@ -51,6 +66,17 @@ export default function ActionsCell(props: ActionsCellProps) {
           <DropdownMenuSeparator />
           {props.isAdmin && (
             <>
+              <DropdownMenuLabel>Estado del pago</DropdownMenuLabel>
+              {(["pending", "paid", "cancelled"] as const).map((status) => (
+                <DropdownMenuItem
+                  key={status}
+                  disabled={props.invoice.status === status}
+                  onSelect={() => void handleStatusChange(status)}
+                >
+                  {getInvoiceStatusLabel(status)}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 disabled={
                   props.invoice.status !== "pending" ||

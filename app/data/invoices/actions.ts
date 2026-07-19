@@ -32,6 +32,39 @@ import {
   enqueueStorageCleanupJob,
 } from "@/app/lib/uploadthing/actions";
 
+export async function updateInvoiceStatus(
+  invoiceId: number,
+  status: InvoiceWithParticipants["status"],
+): Promise<{ success: boolean; message: string }> {
+  const profile = await getCurrentUserProfile();
+  if (!profile || profile.role !== "admin") {
+    return { success: false, message: "No autorizado." };
+  }
+
+  if (!["pending", "paid", "cancelled"].includes(status)) {
+    return { success: false, message: "Estado de pago inválido." };
+  }
+
+  try {
+    const result = await db
+      .update(invoices)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(invoices.id, invoiceId))
+      .returning({ id: invoices.id });
+
+    if (result.length === 0) {
+      return { success: false, message: "Pago no encontrado." };
+    }
+
+    revalidatePath("/dashboard/payments");
+    revalidatePath("/dashboard/festivals/[id]/payments", "page");
+    return { success: true, message: "Estado del pago actualizado." };
+  } catch (error) {
+    console.error("Error updating invoice status", error);
+    return { success: false, message: "No se pudo actualizar el estado." };
+  }
+}
+
 export async function adminAttachPaymentVoucher(
   invoiceId: number,
   voucherUrl: string,

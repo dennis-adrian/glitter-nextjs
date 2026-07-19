@@ -38,7 +38,7 @@ export default function PaymentsTable(props: PaymentsTableProps) {
         ]}
         initialState={{
           columnVisibility: {
-            status: false,
+            status: props.status === undefined,
             ...props.columnVisbility,
           },
           columnFilters: [

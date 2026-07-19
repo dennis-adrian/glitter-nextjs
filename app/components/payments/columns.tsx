@@ -1,6 +1,7 @@
 "use client";
 
 import CategoryBadge from "@/app/components/category-badge";
+import PaymentStatus from "@/app/components/payments/payment-status";
 import ActionsCell from "@/app/components/payments/cells/actions";
 import ViewPaymentProofCell from "@/app/components/payments/cells/view-payment-proof-cell";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
@@ -9,7 +10,6 @@ import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-hea
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
-import { getInvoiceStatusLabel } from "@/app/lib/payments/helpers";
 import { ColumnDef } from "@tanstack/react-table";
 import { DateTime } from "luxon";
 
@@ -69,7 +69,7 @@ export const columns = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.status} />
     ),
-    cell: ({ row }) => getInvoiceStatusLabel(row.original.status),
+    cell: ({ row }) => <PaymentStatus status={row.original.status} />,
     filterFn: (row, columnId, filterStatus) => {
       if (!filterStatus) return true;
       const status = row.getValue(columnId);
