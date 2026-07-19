@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import PaymentProofUpload from "@/app/components/payments/payment-proof-upload";
@@ -28,19 +28,23 @@ export default function AdminPaymentProofDialog({
 }) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const [isUploading, setIsUploading] = useState(false);
-  // Local toggle only; a paid invoice forces the box checked via derivation
-  // below, so no effect is needed to mirror invoice.status into state.
-  const [markAsPaid, setMarkAsPaid] = useState(false);
+  const [markAsPaid, setMarkAsPaid] = useState(invoice.status === "paid");
   const router = useRouter();
 
   const isPaid = invoice.status === "paid";
-  const markAsPaidChecked = isPaid || markAsPaid;
+
+  // Keep local toggle aligned with invoice.status (e.g. after voucher removal
+  // flips the invoice back to pending while this dialog stays mounted).
+  useEffect(() => {
+    setMarkAsPaid(isPaid);
+  }, [isPaid]);
 
   async function handleUploadComplete(imageUrl: string) {
+    const submittedMarkAsPaid = markAsPaid;
     const result = await adminAttachPaymentVoucher(
       invoice.id,
       imageUrl,
-      markAsPaidChecked,
+      submittedMarkAsPaid,
     );
     if (!result.success) {
       toast.error(result.message);
@@ -48,6 +52,10 @@ export default function AdminPaymentProofDialog({
     }
 
     toast.success(result.message);
+    // Closes via the parent callback, bypassing DrawerDialog's onOpenChange.
+    // Optimistically mirror the submitted choice until refresh updates status;
+    // useEffect realigns if status later changes (e.g. voucher removal).
+    setMarkAsPaid(submittedMarkAsPaid);
     onOpenChange(false);
     router.refresh();
   }
@@ -58,7 +66,7 @@ export default function AdminPaymentProofDialog({
       open={open}
       onOpenChange={(next) => {
         if (!isUploading) {
-          if (!next) setMarkAsPaid(false);
+          if (!next) setMarkAsPaid(isPaid);
           onOpenChange(next);
         }
       }}
@@ -80,7 +88,7 @@ export default function AdminPaymentProofDialog({
           )}
           <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
             <Checkbox
-              checked={markAsPaidChecked}
+              checked={markAsPaid}
               onCheckedChange={(checked) => setMarkAsPaid(checked === true)}
               disabled={isPaid || isUploading}
               className="mt-0.5"
