@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import PaymentProofUpload from "@/app/components/payments/payment-proof-upload";
@@ -28,18 +28,19 @@ export default function AdminPaymentProofDialog({
 }) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const [isUploading, setIsUploading] = useState(false);
-  const [markAsPaid, setMarkAsPaid] = useState(invoice.status === "paid");
+  // Local toggle only; a paid invoice forces the box checked via derivation
+  // below, so no effect is needed to mirror invoice.status into state.
+  const [markAsPaid, setMarkAsPaid] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    setMarkAsPaid(invoice.status === "paid");
-  }, [invoice.status]);
+  const isPaid = invoice.status === "paid";
+  const markAsPaidChecked = isPaid || markAsPaid;
 
   async function handleUploadComplete(imageUrl: string) {
     const result = await adminAttachPaymentVoucher(
       invoice.id,
       imageUrl,
-      markAsPaid,
+      markAsPaidChecked,
     );
     if (!result.success) {
       toast.error(result.message);
@@ -47,9 +48,6 @@ export default function AdminPaymentProofDialog({
     }
 
     toast.success(result.message);
-    // Status prop is stale until refresh; keep the submitted choice, then the
-    // invoice.status effect corrects after router.refresh().
-    setMarkAsPaid(markAsPaid || invoice.status === "paid");
     onOpenChange(false);
     router.refresh();
   }
@@ -60,7 +58,7 @@ export default function AdminPaymentProofDialog({
       open={open}
       onOpenChange={(next) => {
         if (!isUploading) {
-          if (!next) setMarkAsPaid(invoice.status === "paid");
+          if (!next) setMarkAsPaid(false);
           onOpenChange(next);
         }
       }}
@@ -82,9 +80,9 @@ export default function AdminPaymentProofDialog({
           )}
           <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
             <Checkbox
-              checked={markAsPaid}
+              checked={markAsPaidChecked}
               onCheckedChange={(checked) => setMarkAsPaid(checked === true)}
-              disabled={invoice.status === "paid" || isUploading}
+              disabled={isPaid || isUploading}
               className="mt-0.5"
             />
             <span className="space-y-1">
@@ -92,7 +90,7 @@ export default function AdminPaymentProofDialog({
                 Marcar el pago como pagado
               </span>
               <span className="block text-xs text-muted-foreground">
-                {invoice.status === "paid"
+                {isPaid
                   ? "El pago ya figura como pagado."
                   : "También actualizará el estado del pago."}
               </span>

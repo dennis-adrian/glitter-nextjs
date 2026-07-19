@@ -293,11 +293,7 @@ async function processClaimedStorageCleanupJob(
   owner: string,
 ) {
   // Keep the claim lease valid for the full in-flight UploadThing delete.
-  const deleteResult = await deleteFileWithinLease(
-    job.fileUrl,
-    job.id,
-    owner,
-  );
+  const deleteResult = await deleteFileWithinLease(job.fileUrl, job.id, owner);
   if (deleteResult.success) {
     const completed = await completeClaimedStorageCleanupJob(job, owner);
     return {

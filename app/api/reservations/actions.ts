@@ -434,9 +434,7 @@ export async function confirmReservation(
       // back to the reservation's first invoice owner otherwise.
       const paidInvoice =
         paidInvoiceId !== undefined
-          ? reservation.invoices.find(
-              (invoice) => invoice.id === paidInvoiceId,
-            )
+          ? reservation.invoices.find((invoice) => invoice.id === paidInvoiceId)
           : undefined;
       const owner = paidInvoice?.user ?? reservation.invoices[0]?.user;
 
@@ -448,10 +446,7 @@ export async function confirmReservation(
       });
     }
   } catch (error) {
-    console.error(
-      "[confirmReservation] Post-commit processing failed:",
-      error,
-    );
+    console.error("[confirmReservation] Post-commit processing failed:", error);
   }
 
   revalidatePath("/dashboard/payments");

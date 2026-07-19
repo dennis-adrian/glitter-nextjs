@@ -127,7 +127,18 @@ export async function adminAttachPaymentVoucher(
     });
 
     if (cleanupJobId !== undefined) {
-      await attemptStorageCleanupJob(cleanupJobId, { invoiceId });
+      // The voucher transaction already committed; a failed immediate cleanup
+      // attempt must not fail the request or block the confirmation emails and
+      // revalidation below. The job stays persisted for cron retry.
+      try {
+        await attemptStorageCleanupJob(cleanupJobId, { invoiceId });
+      } catch (cleanupError) {
+        console.error("Immediate storage cleanup attempt failed", {
+          cleanupJobId,
+          invoiceId,
+          error: cleanupError,
+        });
+      }
     }
 
     if (shouldConfirmReservation) {
@@ -208,7 +219,18 @@ export async function adminRemovePaymentVoucher(
     });
 
     if (cleanupJobId !== undefined) {
-      await attemptStorageCleanupJob(cleanupJobId, { invoiceId });
+      // The delete transaction already committed; a failed immediate cleanup
+      // attempt must not fail the request or block revalidation below. The job
+      // stays persisted for cron retry.
+      try {
+        await attemptStorageCleanupJob(cleanupJobId, { invoiceId });
+      } catch (cleanupError) {
+        console.error("Immediate storage cleanup attempt failed", {
+          cleanupJobId,
+          invoiceId,
+          error: cleanupError,
+        });
+      }
     }
 
     revalidatePath("/dashboard/payments");
