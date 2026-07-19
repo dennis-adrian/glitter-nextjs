@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import PaymentProofUpload from "@/app/components/payments/payment-proof-upload";
@@ -31,6 +31,10 @@ export default function AdminPaymentProofDialog({
   const [markAsPaid, setMarkAsPaid] = useState(invoice.status === "paid");
   const router = useRouter();
 
+  useEffect(() => {
+    setMarkAsPaid(invoice.status === "paid");
+  }, [invoice.status]);
+
   async function handleUploadComplete(imageUrl: string) {
     const result = await adminAttachPaymentVoucher(
       invoice.id,
@@ -43,6 +47,9 @@ export default function AdminPaymentProofDialog({
     }
 
     toast.success(result.message);
+    // Status prop is stale until refresh; keep the submitted choice, then the
+    // invoice.status effect corrects after router.refresh().
+    setMarkAsPaid(markAsPaid || invoice.status === "paid");
     onOpenChange(false);
     router.refresh();
   }

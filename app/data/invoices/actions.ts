@@ -70,9 +70,25 @@ export async function adminAttachPaymentVoucher(
     const standLabel = `${invoice.reservation.stand.label}${invoice.reservation.stand.standNumber}`;
     const shouldConfirmReservation =
       markAsPaid && invoice.reservation.status !== "accepted";
+    let cleanupJobId: number | undefined;
 
     await db.transaction(async (tx) => {
       if (currentPayment) {
+        // The previous voucher is orphaned in storage once we overwrite it;
+        // enqueue a cleanup job so the old file is removed after commit.
+        const previousVoucherUrl = currentPayment.voucherUrl;
+        if (previousVoucherUrl && previousVoucherUrl !== voucherUrl) {
+          const cleanupJob = await enqueueStorageCleanupJob(
+            {
+              entityType: "invoice_voucher",
+              entityId: invoiceId,
+              fileUrl: previousVoucherUrl,
+            },
+            tx,
+          );
+          cleanupJobId = cleanupJob.id;
+        }
+
         await tx
           .update(payments)
           .set({
@@ -109,6 +125,10 @@ export async function adminAttachPaymentVoucher(
           .where(eq(invoices.id, invoiceId));
       }
     });
+
+    if (cleanupJobId !== undefined) {
+      await attemptStorageCleanupJob(cleanupJobId, { invoiceId });
+    }
 
     if (shouldConfirmReservation) {
       await sendReservationConfirmationEmails({

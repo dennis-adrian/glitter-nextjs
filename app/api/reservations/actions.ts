@@ -353,9 +353,17 @@ export async function sendReservationConfirmationEmails({
 
     results.forEach((result, index) => {
       if (result.status === "rejected") {
+        // Identify the recipient only by index and log sanitized error
+        // metadata, so we never leak email addresses or provider-sensitive
+        // details (stack, request config, response headers) into logs.
+        const { reason } = result;
+        const error =
+          reason instanceof Error
+            ? { name: reason.name }
+            : { name: typeof reason };
         console.error(
-          `[sendReservationConfirmationEmails] Failed to send confirmation email to ${uniqueTargets[index]?.to ?? "unknown"}:`,
-          result.reason,
+          `[sendReservationConfirmationEmails] Failed to send confirmation email for recipient #${index}:`,
+          error,
         );
       }
     });
@@ -405,26 +413,45 @@ export async function confirmReservation(
     return { success: false, message: "Error al confirmar la reserva" };
   }
 
-  // Load canonical reservation data so confirmation emails are addressed from
-  // server-side records rather than caller-supplied values.
-  const reservation = await db.query.standReservations.findFirst({
-    where: eq(standReservations.id, reservationId),
-    with: {
-      stand: true,
-      festival: { with: { festivalDates: true } },
-      participants: { with: { user: true } },
-      invoices: { with: { user: true } },
-    },
-  });
-
-  if (reservation) {
-    // Emails run only after a successful commit and must not alter the result.
-    await sendReservationConfirmationEmails({
-      user: reservation.invoices[0]?.user,
-      standLabel: `${reservation.stand.label}${reservation.stand.standNumber}`,
-      festival: reservation.festival,
-      participants: reservation.participants,
+  // Post-commit side effects (canonical lookup + emails) must never fail a
+  // confirmation that already committed: guard them and log without
+  // propagating, then always revalidate and return success.
+  try {
+    // Load canonical reservation data so confirmation emails are addressed from
+    // server-side records rather than caller-supplied values.
+    const reservation = await db.query.standReservations.findFirst({
+      where: eq(standReservations.id, reservationId),
+      with: {
+        stand: true,
+        festival: { with: { festivalDates: true } },
+        participants: { with: { user: true } },
+        invoices: { with: { user: true } },
+      },
     });
+
+    if (reservation) {
+      // Address the email from the paid invoice's owner when known, falling
+      // back to the reservation's first invoice owner otherwise.
+      const paidInvoice =
+        paidInvoiceId !== undefined
+          ? reservation.invoices.find(
+              (invoice) => invoice.id === paidInvoiceId,
+            )
+          : undefined;
+      const owner = paidInvoice?.user ?? reservation.invoices[0]?.user;
+
+      await sendReservationConfirmationEmails({
+        user: owner,
+        standLabel: `${reservation.stand.label}${reservation.stand.standNumber}`,
+        festival: reservation.festival,
+        participants: reservation.participants,
+      });
+    }
+  } catch (error) {
+    console.error(
+      "[confirmReservation] Post-commit processing failed:",
+      error,
+    );
   }
 
   revalidatePath("/dashboard/payments");
