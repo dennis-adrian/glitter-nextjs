@@ -3,5 +3,11 @@
     "app/**/*": {
       "maxDuration": 100
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/morning/storageCleanup",
+      "schedule": "0 */2 * * *"
+    }
+  ]
 }
