@@ -915,6 +915,45 @@ export const paymentsRelations = relations(payments, ({ one }) => ({
   }),
 }));
 
+export const storageCleanupJobStatusEnum = pgEnum(
+  "storage_cleanup_job_status",
+  ["pending", "processing", "completed", "failed"],
+);
+/**
+ * Generic UploadThing cleanup outbox. Provenance is polymorphic
+ * (`entityType` + `entityId`) so any file-owning domain can enqueue deletes
+ * without per-entity foreign keys.
+ *
+ * Consumers claim jobs into `processing` with a lease before calling UploadThing;
+ * only the claimant may complete/retry. Retries use `nextAttemptAt` backoff;
+ * exhausted retries move to terminal `failed`.
+ */
+export const storageCleanupJobs = pgTable(
+  "storage_cleanup_jobs",
+  {
+    id: serial("id").primaryKey(),
+    entityType: text("entity_type").notNull(),
+    entityId: integer("entity_id"),
+    fileUrl: text("file_url").notNull(),
+    status: storageCleanupJobStatusEnum("status").default("pending").notNull(),
+    lastError: text("last_error"),
+    attempts: integer("attempts").default(0).notNull(),
+    nextAttemptAt: timestamp("next_attempt_at").defaultNow().notNull(),
+    leaseOwner: text("lease_owner"),
+    leaseExpiresAt: timestamp("lease_expires_at"),
+    completedAt: timestamp("completed_at"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("storage_cleanup_jobs_status_next_attempt_idx").on(
+      t.status,
+      t.nextAttemptAt,
+    ),
+    index("storage_cleanup_jobs_entity_idx").on(t.entityType, t.entityId),
+  ],
+);
+
 export const qrCodes = pgTable("qr_codes", {
   id: serial("id").primaryKey(),
   qrCodeUrl: text("qr_code_url").notNull(),

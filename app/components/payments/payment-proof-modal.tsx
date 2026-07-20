@@ -34,11 +34,7 @@ export default function PaymentProofModal(props: PaymentProofModalProps) {
     try {
       const result = await confirmReservation(
         props.invoice.reservationId,
-        props.invoice.user,
         props.invoice.reservation.standId,
-        `${props.invoice.reservation.stand.label}${props.invoice.reservation.stand.standNumber}`,
-        props.invoice.reservation.festival,
-        props.invoice.reservation.participants,
       );
       if (result.success) {
         toast.success("Reserva confirmada");

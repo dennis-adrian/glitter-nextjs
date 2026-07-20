@@ -13,6 +13,7 @@ export default async function Page() {
           <TabsTrigger value="all">Todos</TabsTrigger>
           <TabsTrigger value="paid">Pagados</TabsTrigger>
           <TabsTrigger value="pending">Pendientes</TabsTrigger>
+          <TabsTrigger value="cancelled">Cancelados</TabsTrigger>
         </TabsList>
         <TabsContent value="all">
           <PaymentsTable invoices={invoices} />
@@ -22,6 +23,9 @@ export default async function Page() {
         </TabsContent>
         <TabsContent value="pending">
           <PaymentsTable invoices={invoices} status="pending" />
+        </TabsContent>
+        <TabsContent value="cancelled">
+          <PaymentsTable invoices={invoices} status="cancelled" />
         </TabsContent>
       </Tabs>
     </div>

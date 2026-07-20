@@ -1,144 +1,105 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
+import { AlertCircleIcon, ExternalLinkIcon } from "lucide-react";
+
+import { Checkbox } from "@/app/components/ui/checkbox";
 import {
-  TransformWrapper,
-  TransformComponent,
-  useControls,
-} from "react-zoom-pan-pinch";
-import { Modal } from "@/app/components/atoms/modal";
+  DrawerDialog,
+  DrawerDialogContent,
+  DrawerDialogDescription,
+  DrawerDialogHeader,
+  DrawerDialogTitle,
+} from "@/app/components/ui/drawer-dialog";
 import { ConfirmReservationForm } from "@/app/components/payments/forms/confirm-reservation-form";
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
-import {
-  AlertCircleIcon,
-  ExternalLinkIcon,
-  Minus,
-  Minimize2,
-  Plus,
-} from "lucide-react";
-import { Button } from "@/app/components/ui/button";
+import { useMediaQuery } from "@/app/hooks/use-media-query";
 
 type ConfirmReservationModalProps = {
   invoice: InvoiceWithParticipants;
   show: boolean;
   onOpenChange: (open: boolean) => void;
+  canMarkAsPaid?: boolean;
 };
 
-function VoucherControls({ voucherUrl }: { voucherUrl: string }) {
-  const { zoomIn, zoomOut, resetTransform } = useControls();
-  return (
-    <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-      <Button
-        variant="outline"
-        size="icon"
-        className="h-7 w-7 bg-background/80"
-        onClick={() => zoomIn()}
-        aria-label="Acercar"
-      >
-        <Plus className="h-3.5 w-3.5" />
-      </Button>
-      <Button
-        variant="outline"
-        size="icon"
-        className="h-7 w-7 bg-background/80"
-        onClick={() => zoomOut()}
-        aria-label="Alejar"
-      >
-        <Minus className="h-3.5 w-3.5" />
-      </Button>
-      <Button
-        variant="outline"
-        size="icon"
-        className="h-7 w-7 bg-background/80"
-        onClick={() => resetTransform()}
-        aria-label="Restablecer zoom"
-      >
-        <Minimize2 className="h-3.5 w-3.5" />
-      </Button>
-      <Button
-        asChild
-        variant="outline"
-        size="icon"
-        className="h-7 w-7 bg-background/80"
-        aria-label="Abrir en nueva pestaña"
-      >
-        <a href={voucherUrl} target="_blank" rel="noopener noreferrer">
-          <ExternalLinkIcon className="h-3.5 w-3.5" />
-        </a>
-      </Button>
-    </div>
-  );
-}
-
-export default function ConfirmReservationModal(
-  props: ConfirmReservationModalProps,
-) {
-  const voucherUrl = props.invoice.payments[0]?.voucherUrl;
-  const [failedVoucherUrl, setFailedVoucherUrl] = useState<string | null>(null);
-  const imgError = voucherUrl != null && failedVoucherUrl === voucherUrl;
+export default function ConfirmReservationModal({
+  invoice,
+  show,
+  onOpenChange,
+  canMarkAsPaid = false,
+}: ConfirmReservationModalProps) {
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const [markAsPaid, setMarkAsPaid] = useState(false);
+  const isPending = invoice.status !== "paid";
+  const standLabel = `${invoice.reservation.stand.label}${invoice.reservation.stand.standNumber}`;
+  const voucherUrl = invoice.payments.find(
+    (payment) => payment.voucherUrl,
+  )?.voucherUrl;
 
   return (
-    <Modal isOpen={props.show} onClose={() => props.onOpenChange(false)}>
-      <div className="flex flex-col items-center gap-3 text-center my-4">
-        <AlertCircleIcon size={48} className="text-amber-500" />
-        <div className="flex flex-col gap-2">
-          <p>
-            ¿Estás seguro que deseas confirmar la reserva para el espacio{" "}
-            <strong>{`${props.invoice.reservation.stand.label}${props.invoice.reservation.stand.standNumber}`}</strong>
-            ?
-          </p>
-          <p>
-            El usuario que hizo la reserva recibirá una notificación por correo
-            electrónico.
-          </p>
-        </div>
-        {voucherUrl && (
-          <div className="w-full text-left space-y-2">
-            <p className="text-sm font-medium">Comprobante de pago</p>
-            {!imgError ? (
-              <div className="relative w-full overflow-hidden rounded-lg border">
-                <TransformWrapper
-                  minScale={1}
-                  maxScale={4}
-                  wheel={{ disabled: true }}
-                >
-                  <VoucherControls voucherUrl={voucherUrl} />
-                  <TransformComponent
-                    wrapperStyle={{ width: "100%" }}
-                    contentStyle={{ width: "100%" }}
-                  >
-                    <div className="relative w-full h-64">
-                      <Image
-                        src={voucherUrl}
-                        alt="Comprobante de pago"
-                        fill
-                        sizes="(max-width: 640px) 100vw, 500px"
-                        className="object-contain"
-                        onError={() => setFailedVoucherUrl(voucherUrl)}
-                      />
-                    </div>
-                  </TransformComponent>
-                </TransformWrapper>
-              </div>
-            ) : (
-              <a
-                href={voucherUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-              >
-                Ver comprobante de pago
-                <ExternalLinkIcon className="h-3.5 w-3.5" />
-              </a>
-            )}
+    <DrawerDialog
+      isDesktop={isDesktop}
+      open={show}
+      onOpenChange={(open) => {
+        if (!open) setMarkAsPaid(false);
+        onOpenChange(open);
+      }}
+    >
+      <DrawerDialogContent isDesktop={isDesktop} className="sm:max-w-md">
+        <DrawerDialogHeader isDesktop={isDesktop}>
+          <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+            <AlertCircleIcon className="h-5 w-5" />
           </div>
-        )}
-        <ConfirmReservationForm
-          invoice={props.invoice}
-          onSuccess={() => props.onOpenChange(false)}
-        />
-      </div>
-    </Modal>
+          <DrawerDialogTitle isDesktop={isDesktop}>
+            Confirmar reserva
+          </DrawerDialogTitle>
+          <DrawerDialogDescription isDesktop={isDesktop}>
+            Se confirmará el espacio {standLabel} y se notificará por correo a
+            las personas de la reserva.
+          </DrawerDialogDescription>
+        </DrawerDialogHeader>
+
+        <div className="space-y-4 px-4 pb-6 md:px-0 md:pb-0">
+          {voucherUrl && (
+            <a
+              href={voucherUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            >
+              Ver comprobante de pago
+              <ExternalLinkIcon className="h-3.5 w-3.5" />
+            </a>
+          )}
+
+          {isPending && canMarkAsPaid && (
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+              <Checkbox
+                checked={markAsPaid}
+                onCheckedChange={(checked) => setMarkAsPaid(checked === true)}
+                className="mt-0.5"
+              />
+              <span className="space-y-1">
+                <span className="block text-sm font-medium">
+                  Marcar el pago como pagado
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  El pago todavía figura como pendiente.
+                </span>
+              </span>
+            </label>
+          )}
+
+          <ConfirmReservationForm
+            invoice={invoice}
+            markAsPaid={isPending && markAsPaid}
+            onSuccess={() => {
+              setMarkAsPaid(false);
+              onOpenChange(false);
+            }}
+          />
+        </div>
+      </DrawerDialogContent>
+    </DrawerDialog>
   );
 }

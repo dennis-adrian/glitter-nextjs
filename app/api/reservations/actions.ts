@@ -4,7 +4,12 @@ import { and, desc, eq, not, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
-import { scheduledTasks, standReservations, stands } from "@/db/schema";
+import {
+  invoices,
+  scheduledTasks,
+  standReservations,
+  stands,
+} from "@/db/schema";
 
 import { BaseProfile } from "@/app/api/users/definitions";
 import { sendEmail } from "@/app/vendors/resend";
@@ -21,6 +26,7 @@ import { getUserName } from "@/app/lib/users/utils";
 import { buildWhereClauseForReservationsFetching } from "@/app/api/reservations/helpers";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { ReservationParticipantWithUser } from "@/app/data/invoices/definitions";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 export async function fetchReservations(options: {
   query?: string;
@@ -228,39 +234,91 @@ export async function deleteReservation(
   return { success: true, message: "Reserva eliminada" };
 }
 
-export async function confirmReservation(
-  reservationId: number,
-  user: BaseProfile,
-  standId: number,
-  standLabel: string,
-  festival: FestivalWithDates,
-  participants: ReservationParticipantWithUser[],
+type ConfirmReservationTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function applyConfirmReservationMutations(
+  tx: ConfirmReservationTx,
+  {
+    reservationId,
+    standId,
+    paidInvoiceId,
+  }: {
+    reservationId: number;
+    standId: number;
+    paidInvoiceId?: number;
+  },
 ) {
+  const updatedReservations = await tx
+    .update(standReservations)
+    .set({ status: "accepted", updatedAt: new Date() })
+    .where(
+      and(
+        eq(standReservations.id, reservationId),
+        eq(standReservations.standId, standId),
+      ),
+    )
+    .returning({ id: standReservations.id });
+
+  if (updatedReservations.length === 0) {
+    throw new Error(
+      "No se encontró una reserva coincidente para el espacio indicado.",
+    );
+  }
+
+  const updatedStands = await tx
+    .update(stands)
+    .set({ status: "confirmed" })
+    .where(eq(stands.id, standId))
+    .returning({ id: stands.id });
+
+  if (updatedStands.length === 0) {
+    throw new Error("No se encontró el espacio a confirmar.");
+  }
+
+  await tx
+    .update(scheduledTasks)
+    .set({ completedAt: new Date(), updatedAt: new Date() })
+    .where(
+      and(
+        eq(scheduledTasks.reservationId, reservationId),
+        eq(scheduledTasks.taskType, "stand_reservation"),
+      ),
+    );
+
+  if (paidInvoiceId !== undefined) {
+    const updatedInvoices = await tx
+      .update(invoices)
+      .set({ status: "paid", updatedAt: new Date() })
+      .where(
+        and(
+          eq(invoices.id, paidInvoiceId),
+          eq(invoices.reservationId, reservationId),
+        ),
+      )
+      .returning({ id: invoices.id });
+
+    if (updatedInvoices.length === 0) {
+      throw new Error(
+        "No se encontró un pago coincidente para marcar como pagado.",
+      );
+    }
+  }
+}
+
+export async function sendReservationConfirmationEmails({
+  user,
+  standLabel,
+  festival,
+  participants,
+}: {
+  user?: BaseProfile;
+  standLabel: string;
+  festival: FestivalWithDates;
+  participants: ReservationParticipantWithUser[];
+}) {
   try {
-    await db.transaction(async (tx) => {
-      await tx
-        .update(standReservations)
-        .set({ status: "accepted", updatedAt: new Date() })
-        .where(eq(standReservations.id, reservationId));
-
-      await tx
-        .update(stands)
-        .set({ status: "confirmed" })
-        .where(eq(stands.id, standId));
-
-      await tx
-        .update(scheduledTasks)
-        .set({ completedAt: new Date(), updatedAt: new Date() })
-        .where(
-          and(
-            eq(scheduledTasks.reservationId, reservationId),
-            eq(scheduledTasks.taskType, "stand_reservation"),
-          ),
-        );
-    });
-
     const targets: { to: string; profile: BaseProfile }[] = [];
-    if (user.email?.trim())
+    if (user?.email?.trim())
       targets.push({ to: user.email.trim(), profile: user });
     for (const p of participants) {
       const email = p.user?.email?.trim();
@@ -275,26 +333,124 @@ export async function confirmReservation(
       return true;
     });
 
-    await Promise.allSettled(
+    // Wrap each send in an async boundary so sync EmailTemplate errors become
+    // rejections instead of escaping Promise.allSettled construction.
+    const results = await Promise.allSettled(
       uniqueTargets.map(({ to, profile }) =>
-        sendEmail({
-          to: [to],
-          from: "Reservas Glitter <reservas@productoraglitter.com>",
-          subject: `Reserva confirmada para el festival ${festival.name}`,
-          react: EmailTemplate({
-            profile,
-            standLabel,
-            festival,
-          }) as React.ReactElement,
-        }),
+        (async () =>
+          sendEmail({
+            to: [to],
+            from: "Reservas Glitter <reservas@productoraglitter.com>",
+            subject: `Reserva confirmada para el festival ${festival.name}`,
+            react: EmailTemplate({
+              profile,
+              standLabel,
+              festival,
+            }) as React.ReactElement,
+          }))(),
       ),
     );
+
+    results.forEach((result, index) => {
+      if (result.status === "rejected") {
+        // Identify the recipient only by index and log sanitized error
+        // metadata, so we never leak email addresses or provider-sensitive
+        // details (stack, request config, response headers) into logs.
+        const { reason } = result;
+        const error =
+          reason instanceof Error
+            ? { name: reason.name }
+            : { name: typeof reason };
+        console.error(
+          `[sendReservationConfirmationEmails] Failed to send confirmation email for recipient #${index}:`,
+          error,
+        );
+      }
+    });
+  } catch (error) {
+    // Post-commit side effect: never propagate to callers.
+    console.error(
+      "[sendReservationConfirmationEmails] Unexpected failure after commit:",
+      error,
+    );
+  }
+}
+
+export async function confirmReservation(
+  reservationId: number,
+  standId: number,
+  paidInvoiceId?: number,
+  tx?: ConfirmReservationTx,
+) {
+  const profile = await getCurrentUserProfile();
+  if (!profile || profile.role !== "admin") {
+    return {
+      success: false,
+      message: "No autorizado para confirmar la reserva.",
+    };
+  }
+
+  try {
+    if (tx) {
+      await applyConfirmReservationMutations(tx, {
+        reservationId,
+        standId,
+        paidInvoiceId,
+      });
+      // Side effects run after the caller's transaction commits.
+      return { success: true, message: "Reserva confirmada" };
+    }
+
+    await db.transaction(async (innerTx) => {
+      await applyConfirmReservationMutations(innerTx, {
+        reservationId,
+        standId,
+        paidInvoiceId,
+      });
+    });
   } catch (error) {
     console.error(error);
     return { success: false, message: "Error al confirmar la reserva" };
   }
 
+  // Post-commit side effects (canonical lookup + emails) must never fail a
+  // confirmation that already committed: guard them and log without
+  // propagating, then always revalidate and return success.
+  try {
+    // Load canonical reservation data so confirmation emails are addressed from
+    // server-side records rather than caller-supplied values.
+    const reservation = await db.query.standReservations.findFirst({
+      where: eq(standReservations.id, reservationId),
+      with: {
+        stand: true,
+        festival: { with: { festivalDates: true } },
+        participants: { with: { user: true } },
+        invoices: { with: { user: true } },
+      },
+    });
+
+    if (reservation) {
+      // Address the email from the paid invoice's owner when known, falling
+      // back to the reservation's first invoice owner otherwise.
+      const paidInvoice =
+        paidInvoiceId !== undefined
+          ? reservation.invoices.find((invoice) => invoice.id === paidInvoiceId)
+          : undefined;
+      const owner = paidInvoice?.user ?? reservation.invoices[0]?.user;
+
+      await sendReservationConfirmationEmails({
+        user: owner,
+        standLabel: `${reservation.stand.label}${reservation.stand.standNumber}`,
+        festival: reservation.festival,
+        participants: reservation.participants,
+      });
+    }
+  } catch (error) {
+    console.error("[confirmReservation] Post-commit processing failed:", error);
+  }
+
   revalidatePath("/dashboard/payments");
+  revalidatePath("/dashboard/festivals/[id]/payments", "page");
   return { success: true, message: "Reserva confirmada" };
 }
 
