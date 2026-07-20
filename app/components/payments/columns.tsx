@@ -69,7 +69,13 @@ export const columns = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.status} />
     ),
-    cell: ({ row }) => <PaymentStatus status={row.original.status} />,
+    cell: ({ row }) => (
+      <PaymentStatus
+        invoiceId={row.original.id}
+        status={row.original.status}
+        isAdmin={isAdmin}
+      />
+    ),
     filterFn: (row, columnId, filterStatus) => {
       if (!filterStatus) return true;
       const status = row.getValue(columnId);
