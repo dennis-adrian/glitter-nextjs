@@ -172,7 +172,7 @@ export default function AdminOverviewMapTooltip({
             </div>
             {cancelledInvoices.slice(0, 3).map((cancelledInvoice) => (
               <div
-                key={cancelledInvoice.reservation.id}
+                key={cancelledInvoice.id}
                 className="flex items-center justify-between gap-3 text-xs"
               >
                 <span>

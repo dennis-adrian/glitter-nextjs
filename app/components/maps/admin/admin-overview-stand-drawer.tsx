@@ -251,6 +251,7 @@ export default function AdminOverviewStandDrawer({
                       className={cn("", isOverdue ? "text-destructive" : "")}
                     >
                       {new Intl.DateTimeFormat("es-BO", {
+                        timeZone: "America/La_Paz",
                         day: "numeric",
                         month: "long",
                         year: "numeric",
@@ -317,6 +318,7 @@ export default function AdminOverviewStandDrawer({
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {new Intl.DateTimeFormat("es-BO", {
+                            timeZone: "America/La_Paz",
                             day: "numeric",
                             month: "long",
                             year: "numeric",
