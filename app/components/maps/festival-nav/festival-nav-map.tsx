@@ -13,6 +13,7 @@ import FestivalNavStandDrawer, {
   CouponProof,
 } from "@/app/components/maps/festival-nav/festival-nav-stand-drawer";
 import FestivalNavMapLegend from "@/app/components/maps/festival-nav/festival-nav-map-legend";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 type FestivalNavMapProps = {
   festivalName: string;
@@ -61,7 +62,7 @@ export default function FestivalNavMap({
     sectors.forEach((sector, sectorIndex) => {
       sector.stands.forEach((stand) => {
         if (stand.status === "disabled") return;
-        const standLabel = `${stand.label}${stand.standNumber}`;
+        const standLabel = formatStandLabel(stand);
         stand.reservations
           .filter((r) => r.status !== "rejected")
           .flatMap((r) => r.participants)

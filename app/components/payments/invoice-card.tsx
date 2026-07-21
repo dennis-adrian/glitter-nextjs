@@ -21,6 +21,7 @@ import {
   ReservationWithStandAndInvoicesAndFestival,
 } from "@/app/data/invoices/definitions";
 import { formatDate } from "@/app/lib/formatters";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { cn } from "@/app/lib/utils";
 
 const PAYMENT_DUE_DAYS = 5;
@@ -42,7 +43,7 @@ export default function InvoiceCard({ invoice, profileId, festivalId }: Props) {
   const isPending = invoice.status === "pending";
   const isOverdue = isPending && DateTime.now() > dueDate;
   const isOwner = invoice.userId === profileId;
-  const standLabel = `${invoice.reservation.stand.label ?? ""}${invoice.reservation.stand.standNumber}`;
+  const standLabel = formatStandLabel(invoice.reservation.stand);
   const sectorName = invoice.reservation.stand.festivalSector?.name;
 
   return (

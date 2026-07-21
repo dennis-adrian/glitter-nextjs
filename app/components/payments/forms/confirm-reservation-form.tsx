@@ -6,27 +6,28 @@ import { useForm } from "react-hook-form";
 import { Form } from "@/app/components/ui/form";
 import { toast } from "sonner";
 import SubmitButton from "@/app/components/simple-submit-button";
+import { useRouter } from "next/navigation";
 
 type ConfirmReservationFormProps = {
   invoice: InvoiceWithParticipants;
   onSuccess: () => void;
+  markAsPaid?: boolean;
 };
 export function ConfirmReservationForm(props: ConfirmReservationFormProps) {
   const form = useForm();
+  const router = useRouter();
 
   const action = form.handleSubmit(async () => {
     const result = await confirmReservation(
       props.invoice.reservationId,
-      props.invoice.user,
       props.invoice.reservation.standId,
-      `${props.invoice.reservation.stand.label}${props.invoice.reservation.stand.standNumber}`,
-      props.invoice.reservation.festival,
-      props.invoice.reservation.participants,
+      props.markAsPaid ? props.invoice.id : undefined,
     );
     if (result.success) {
       toast.success("Reserva confirmada");
       props.onSuccess();
       form.reset();
+      router.refresh();
     } else {
       toast.error(result.message);
     }
@@ -34,7 +35,7 @@ export function ConfirmReservationForm(props: ConfirmReservationFormProps) {
 
   return (
     <Form {...form}>
-      <form className="w-full mt-4" onSubmit={action}>
+      <form className="w-full" onSubmit={action}>
         <SubmitButton
           disabled={form.formState.isSubmitting}
           loading={form.formState.isSubmitting}

@@ -1,6 +1,7 @@
 "use client";
 
 import CategoryBadge from "@/app/components/category-badge";
+import PaymentStatus from "@/app/components/payments/payment-status";
 import ActionsCell from "@/app/components/payments/cells/actions";
 import ViewPaymentProofCell from "@/app/components/payments/cells/view-payment-proof-cell";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
@@ -9,7 +10,7 @@ import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-hea
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
-import { getInvoiceStatusLabel } from "@/app/lib/payments/helpers";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { ColumnDef } from "@tanstack/react-table";
 import { DateTime } from "luxon";
 
@@ -25,7 +26,9 @@ export const columnTitles = {
   reservationStatus: "Estado de la reserva",
 };
 
-export const columns: ColumnDef<InvoiceWithParticipants>[] = [
+export const columns = (
+  isAdmin = false,
+): ColumnDef<InvoiceWithParticipants>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -67,7 +70,13 @@ export const columns: ColumnDef<InvoiceWithParticipants>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.status} />
     ),
-    cell: ({ row }) => getInvoiceStatusLabel(row.original.status),
+    cell: ({ row }) => (
+      <PaymentStatus
+        invoiceId={row.original.id}
+        status={row.original.status}
+        isAdmin={isAdmin}
+      />
+    ),
     filterFn: (row, columnId, filterStatus) => {
       if (!filterStatus) return true;
       const status = row.getValue(columnId);
@@ -107,8 +116,7 @@ export const columns: ColumnDef<InvoiceWithParticipants>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.stand} />
     ),
-    accessorFn: (row) =>
-      `${row.reservation.stand.label}${row.reservation.stand.standNumber}`,
+    accessorFn: (row) => formatStandLabel(row.reservation.stand),
   },
   {
     accessorKey: "createdAt",
@@ -139,7 +147,7 @@ export const columns: ColumnDef<InvoiceWithParticipants>[] = [
   {
     id: "actions",
     cell: ({ row }) => {
-      return <ActionsCell invoice={row.original} />;
+      return <ActionsCell invoice={row.original} isAdmin={isAdmin} />;
     },
   },
 ];

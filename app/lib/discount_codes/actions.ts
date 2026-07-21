@@ -99,7 +99,7 @@ export async function validateAndApplyDiscountCode({
   }
 
   try {
-    return await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
       // Fetch invoice to validate it has no discount yet
       const [invoice] = await tx
         .select({
@@ -243,6 +243,12 @@ export async function validateAndApplyDiscountCode({
         newAmount,
       };
     });
+
+    if (result.success) {
+      revalidatePath("/dashboard/festivals/[id]/payments", "page");
+    }
+
+    return result;
   } catch (error) {
     console.error(error);
     return {

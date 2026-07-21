@@ -1,4 +1,5 @@
 import { Participation } from "@/app/api/users/definitions";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 export type GroupedParticipationsByFestival = {
   festivalId: number;
@@ -37,10 +38,7 @@ export function getGroupedParticipationsByFestival(
           participation?.reservation?.festival?.name ??
           `Festival ${festivalId}`;
         const stand = participation.reservation?.stand;
-        const standNumber = stand?.standNumber;
-        const standLabel = stand?.label
-          ? stand.label + (standNumber ?? "")
-          : undefined;
+        const standLabel = stand != null ? formatStandLabel(stand) : undefined;
         const reservationStatus = participation.reservation?.status;
         const currentFestival = acc.get(festivalId);
 

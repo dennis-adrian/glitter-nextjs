@@ -19,6 +19,10 @@ import MapToolbar from "@/app/components/maps/map-toolbar";
 import MapTransformWrapper from "@/app/components/maps/map-transform-wrapper";
 import AdminOverviewStandDrawer from "@/app/components/maps/admin/admin-overview-stand-drawer";
 import AdminOverviewMapTooltip from "@/app/components/maps/admin/admin-overview-map-tooltip";
+import {
+  getStandReservationSummary,
+  StandReservationSummary,
+} from "@/app/components/maps/admin/admin-overview-reservations";
 import { Tabs, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
 import { Switch } from "@/app/components/ui/switch";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
@@ -117,13 +121,29 @@ export default function AdminOverviewMap({
     activeSector?.mapElements ?? [],
   );
 
+  const reservationSummaries = useMemo(() => {
+    const summaries = new Map<number, StandReservationSummary>();
+
+    for (const stand of sectors.flatMap((sector) => sector.stands)) {
+      summaries.set(stand.id, getStandReservationSummary(invoices, stand.id));
+    }
+
+    return summaries;
+  }, [invoices, sectors]);
+
+  const getReservationSummary = useCallback(
+    (standId: number): StandReservationSummary =>
+      reservationSummaries.get(standId) ?? {
+        activeInvoice: null,
+        cancelledInvoices: [],
+      },
+    [reservationSummaries],
+  );
+
   const findInvoiceForStand = useCallback(
-    (standId: number): InvoiceWithParticipants | null => {
-      return (
-        invoices.find((inv) => inv.reservation.standId === standId) ?? null
-      );
-    },
-    [invoices],
+    (standId: number): InvoiceWithParticipants | null =>
+      getReservationSummary(standId).activeInvoice,
+    [getReservationSummary],
   );
 
   const getReservationStatus = useCallback(
@@ -231,7 +251,12 @@ export default function AdminOverviewMap({
     (stand: StandWithReservationsWithParticipants, rect?: DOMRect) => {
       if (isSimplifiedMode) {
         // Drawer is completely disabled in simplified mode
-        if (rect && findInvoiceForStand(stand.id)) {
+        const reservationSummary = getReservationSummary(stand.id);
+        if (
+          rect &&
+          (reservationSummary.activeInvoice ||
+            reservationSummary.cancelledInvoices.length > 0)
+        ) {
           setTooltipStand(stand);
           setTooltipAnchorRect(rect);
         }
@@ -240,7 +265,7 @@ export default function AdminOverviewMap({
         setDrawerOpen(true);
       }
     },
-    [isSimplifiedMode, findInvoiceForStand],
+    [isSimplifiedMode, getReservationSummary],
   );
 
   const handleHoverChange = useCallback(
@@ -268,10 +293,16 @@ export default function AdminOverviewMap({
   const selectedInvoice = selectedStand
     ? findInvoiceForStand(selectedStand.id)
     : null;
+  const selectedCancelledInvoices = selectedStand
+    ? getReservationSummary(selectedStand.id).cancelledInvoices
+    : [];
 
   const tooltipInvoice = tooltipStand
     ? findInvoiceForStand(tooltipStand.id)
     : null;
+  const tooltipCancelledInvoices = tooltipStand
+    ? getReservationSummary(tooltipStand.id).cancelledInvoices
+    : [];
 
   return (
     <div className="space-y-4">
@@ -342,13 +373,13 @@ export default function AdminOverviewMap({
           maxScale={4}
           centerOnInit
         >
-          <div className="flex w-full max-w-[500px] items-center justify-between pb-2">
+          <div className="flex w-full max-w-125 items-center justify-between pb-2">
             <p className="text-sm text-muted-foreground font-medium">
               {activeSector?.name}
             </p>
             <MapToolbar />
           </div>
-          <div className="relative w-full max-w-[500px] rounded-lg border bg-background shadow-sm overflow-hidden pb-8 md:pb-0">
+          <div className="relative w-full max-w-125 rounded-lg border bg-background shadow-sm overflow-hidden pb-8 md:pb-0">
             <TransformComponent
               wrapperStyle={{ width: "100%" }}
               contentStyle={{ width: "100%" }}
@@ -395,20 +426,24 @@ export default function AdminOverviewMap({
       </div>
 
       {/* Tooltip (hover for mouse, tap for simplified touch mode) */}
-      {tooltipStand && tooltipAnchorRect && tooltipInvoice && (
-        <AdminOverviewMapTooltip
-          stand={tooltipStand}
-          invoice={tooltipInvoice}
-          anchorRect={tooltipAnchorRect}
-          dueDate={getDueDate(tooltipStand.id)}
-          isOverdue={getIsOverdue(tooltipStand.id)}
-        />
-      )}
+      {tooltipStand &&
+        tooltipAnchorRect &&
+        (tooltipInvoice || tooltipCancelledInvoices.length > 0) && (
+          <AdminOverviewMapTooltip
+            stand={tooltipStand}
+            invoice={tooltipInvoice}
+            cancelledInvoices={tooltipCancelledInvoices}
+            anchorRect={tooltipAnchorRect}
+            dueDate={getDueDate(tooltipStand.id)}
+            isOverdue={getIsOverdue(tooltipStand.id)}
+          />
+        )}
 
       {/* Stand detail drawer */}
       <AdminOverviewStandDrawer
         stand={selectedStand}
         invoice={selectedInvoice}
+        cancelledInvoices={selectedCancelledInvoices}
         sectorName={activeSector?.name ?? ""}
         open={drawerOpen}
         onOpenChange={setDrawerOpen}

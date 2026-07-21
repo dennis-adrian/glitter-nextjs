@@ -22,6 +22,7 @@ import { RESERVATION_EXPIRATION_HOURS } from "@/app/lib/constants";
 import { getExternalParticipantCategoryLabel } from "@/app/lib/external_participants/definitions";
 import { formatDate, formatDateWithTime } from "@/app/lib/formatters";
 import { isReservationHidden } from "@/app/lib/reservations/reveal";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { EyeOffIcon } from "lucide-react";
 import {
   DisplayPaymentStatus,
@@ -72,7 +73,7 @@ export const columns: ColumnDef<FullReservation>[] = [
   },
   {
     id: "stand",
-    accessorFn: (row) => `${row.stand.label}${row.stand.standNumber}`,
+    accessorFn: (row) => formatStandLabel(row.stand),
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.stand} />
     ),
@@ -81,10 +82,7 @@ export const columns: ColumnDef<FullReservation>[] = [
       const hidden = isReservationHidden(reservation);
       return (
         <div className="flex items-center gap-1.5">
-          <span>
-            {reservation.stand.label ?? ""}
-            {reservation.stand.standNumber}
-          </span>
+          <span>{formatStandLabel(reservation.stand)}</span>
           {hidden && reservation.revealAt && (
             <TooltipProvider>
               <Tooltip>

@@ -9,6 +9,8 @@ import { Building2Icon, Loader2Icon, UserIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import { twMerge } from "tailwind-merge";
 
+import { formatStandLabel } from "@/app/lib/stands/helpers";
+
 import { BaseProfile } from "@/app/api/users/definitions";
 import ComboboxInput from "@/app/components/form/fields/combobox";
 import SelectInput from "@/app/components/form/fields/select";
@@ -123,7 +125,7 @@ export default function CreateReservationForm({
   const standOptions = sectors.flatMap((sector) =>
     sector.stands.map((stand) => ({
       value: String(stand.id),
-      label: `${stand.label ?? ""}${stand.standNumber} — ${sector.name} (${stand.status})`,
+      label: `${formatStandLabel(stand)} — ${sector.name} (${stand.status})`,
     })),
   );
 
@@ -132,7 +134,7 @@ export default function CreateReservationForm({
       .filter((stand) => stand.status === "available")
       .map((stand) => ({
         value: String(stand.id),
-        label: `${stand.label ?? ""}${stand.standNumber} — ${sector.name}`,
+        label: `${formatStandLabel(stand)} — ${sector.name}`,
       })),
   );
 

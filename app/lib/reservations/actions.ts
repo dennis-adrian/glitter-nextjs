@@ -284,6 +284,6 @@ export async function updateReservationStatus(data: {
     return { success: false, message: "Error al actualizar la reserva" };
   }
 
-  revalidatePath("/dashboard/reservations");
+  revalidatePath("/dashboard/festivals/[id]/reservations", "page");
   return { success: true, message: "Reserva actualizada" };
 }

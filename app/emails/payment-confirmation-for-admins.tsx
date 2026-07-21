@@ -60,7 +60,7 @@ export default function PaymentConfirmationForAdminsEmailTemplate(
               botón y busca el ID #{props.invoice.id}
             </Text>
             <Button
-              href={`${baseUrl}/dashboard/payments`}
+              href={`${baseUrl}/dashboard/festivals/${props.invoice.reservation.festival.id}/payments`}
               style={styles.button}
             >
               Ver reservas
@@ -82,6 +82,7 @@ PaymentConfirmationForAdminsEmailTemplate.PreviewProps = {
     },
     reservation: {
       festival: {
+        id: 1,
         name: "Festival de prueba",
       },
       stand: {

@@ -7,6 +7,7 @@ import {
   ActivityDetailsWithParticipants,
   FullFestival,
 } from "@/app/lib/festivals/definitions";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { RefreshCcwIcon } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
@@ -70,7 +71,7 @@ export default function PublicFestivalActivityDetail({
         reservation.participants.some((p) => p.userId === participant.userId),
       );
       const stand = reservation?.stand;
-      const standLabel = `${stand?.label}${stand?.standNumber}`.trim();
+      const standLabel = stand != null ? formatStandLabel(stand) : "";
 
       return {
         participantId: participant.id,

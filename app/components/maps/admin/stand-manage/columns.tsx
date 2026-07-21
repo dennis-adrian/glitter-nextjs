@@ -69,7 +69,7 @@ function StatusCell({
             "inline-flex items-center rounded-md transition-opacity focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1",
             isPending && "opacity-50",
           )}
-          aria-label={`Cambiar estado de ${standDisplayLabel(stand.label, stand.standNumber)}`}
+          aria-label={`Cambiar estado de ${standDisplayLabel(stand)}`}
           disabled={isPending}
         >
           <StandStatusBadge status={stand.status} />
@@ -128,7 +128,7 @@ export function createColumns({
         <Checkbox
           checked={isSelected(row.original.id)}
           onCheckedChange={() => onToggle(row.original.id)}
-          aria-label={`Seleccionar ${standDisplayLabel(row.original.label, row.original.standNumber)}`}
+          aria-label={`Seleccionar ${standDisplayLabel(row.original)}`}
         />
       ),
       enableSorting: false,
@@ -140,7 +140,7 @@ export function createColumns({
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={columnTitles.label} />
       ),
-      accessorFn: (row) => standDisplayLabel(row.label, row.standNumber),
+      accessorFn: (row) => standDisplayLabel(row),
       cell: ({ row }) => {
         const hasReservation = row.original.reservations.length > 0;
         return (
@@ -151,7 +151,7 @@ export function createColumns({
             )}
           >
             <span className="text-sm font-medium">
-              {standDisplayLabel(row.original.label, row.original.standNumber)}
+              {standDisplayLabel(row.original)}
             </span>
           </div>
         );
@@ -260,7 +260,7 @@ export function createColumns({
             variant="ghost"
             size="sm"
             onClick={() => onEdit(row.original)}
-            aria-label={`Editar ${standDisplayLabel(row.original.label, row.original.standNumber)}`}
+            aria-label={`Editar ${standDisplayLabel(row.original)}`}
           >
             <EditIcon className="mr-1 h-4 w-4" />
             Editar

@@ -1,4 +1,5 @@
 import { isReservationHidden } from "@/app/lib/reservations/reveal";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { db } from "@/db";
 import { stands, standReservations } from "@/db/schema";
 import { and, eq, inArray, isNotNull, or } from "drizzle-orm";
@@ -119,10 +120,7 @@ export async function GET(
     standId: stand.id,
     standLabel: stand.label,
     standNumber: stand.standNumber,
-    standDisplayLabel:
-      stand.label != null && stand.standNumber != null
-        ? `${stand.label}${stand.standNumber}`
-        : "",
+    standDisplayLabel: formatStandLabel(stand),
     revealAt:
       stand.reservations
         .map((reservation) => reservation.revealAt)

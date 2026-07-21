@@ -1,5 +1,14 @@
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
+import {
+  StandBase,
+  StandWithReservationsWithParticipants,
+} from "@/app/api/stands/definitions";
 import { BaseProfile } from "@/app/api/users/definitions";
+
+export type StandLabelParts = Pick<StandBase, "label" | "standNumber">;
+
+export function formatStandLabel(stand: StandLabelParts): string {
+  return `${stand.label ?? ""}${stand.standNumber}`;
+}
 
 export function canStandBeReserved(
   stand: StandWithReservationsWithParticipants,

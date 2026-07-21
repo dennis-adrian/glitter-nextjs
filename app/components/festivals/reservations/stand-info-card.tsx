@@ -13,7 +13,7 @@ import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { profileHasReservation } from "@/app/helpers/next_event";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
-import { canStandBeReserved } from "@/app/lib/stands/helpers";
+import { canStandBeReserved, formatStandLabel } from "@/app/lib/stands/helpers";
 import { toast } from "sonner";
 
 type ActiveHold = { id: number; standId: number } | null;
@@ -167,7 +167,7 @@ export function StandInfoCard({
   };
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 animate-slide-up-fast md:bottom-6 md:left-auto md:right-6 md:w-[400px]">
+    <div className="fixed bottom-4 left-4 right-4 z-50 animate-slide-up-fast md:bottom-6 md:left-auto md:right-6 md:w-100">
       <div className="bg-card rounded-xl border border-border shadow-lg flex flex-col">
         <Button
           className="self-end m-2 text-muted-foreground"
@@ -203,7 +203,7 @@ export function StandInfoCard({
               </div>
               <div className="flex items-baseline gap-2">
                 <h4 className="text-xl font-bold">
-                  Stand #{(stand.label ?? "") + stand.standNumber}
+                  Stand #{formatStandLabel(stand)}
                 </h4>
                 <span className="text-sm sm:text-base text-muted-foreground">
                   <span className="hidden sm:block">Sector</span> {sectorName}

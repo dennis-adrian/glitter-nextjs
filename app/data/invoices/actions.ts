@@ -21,6 +21,257 @@ import {
 } from "@/db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { UTApi } from "uploadthing/server";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { revalidatePath } from "next/cache";
+import {
+  confirmReservation,
+  sendReservationConfirmationEmails,
+} from "@/app/api/reservations/actions";
+import {
+  attemptStorageCleanupJob,
+  enqueueStorageCleanupJob,
+} from "@/app/lib/uploadthing/actions";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
+
+export async function updateInvoiceStatus(
+  invoiceId: number,
+  status: InvoiceWithParticipants["status"],
+): Promise<{ success: boolean; message: string }> {
+  const profile = await getCurrentUserProfile();
+  if (!profile || profile.role !== "admin") {
+    return { success: false, message: "No autorizado." };
+  }
+
+  if (!["pending", "paid", "cancelled"].includes(status)) {
+    return { success: false, message: "Estado de pago inválido." };
+  }
+
+  try {
+    const result = await db
+      .update(invoices)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(invoices.id, invoiceId))
+      .returning({ id: invoices.id });
+
+    if (result.length === 0) {
+      return { success: false, message: "Pago no encontrado." };
+    }
+
+    revalidatePath("/dashboard/festivals/[id]/payments", "page");
+    return { success: true, message: "Estado del pago actualizado." };
+  } catch (error) {
+    console.error("Error updating invoice status", error);
+    return { success: false, message: "No se pudo actualizar el estado." };
+  }
+}
+
+export async function adminAttachPaymentVoucher(
+  invoiceId: number,
+  voucherUrl: string,
+  markAsPaid: boolean,
+): Promise<{ success: boolean; message: string }> {
+  const profile = await getCurrentUserProfile();
+  if (!profile || profile.role !== "admin") {
+    return { success: false, message: "No autorizado." };
+  }
+
+  let confirmationFailure: string | null = null;
+
+  try {
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.id, invoiceId),
+      with: {
+        payments: {
+          orderBy: [desc(payments.createdAt), desc(payments.id)],
+          limit: 1,
+        },
+        user: true,
+        reservation: {
+          with: {
+            stand: true,
+            festival: { with: { festivalDates: true } },
+            participants: { with: { user: true } },
+          },
+        },
+      },
+    });
+    if (!invoice) {
+      return { success: false, message: "Pago no encontrado." };
+    }
+
+    const currentPayment = invoice.payments[0];
+    const standLabel = formatStandLabel(invoice.reservation.stand);
+    const shouldConfirmReservation =
+      markAsPaid && invoice.reservation.status !== "accepted";
+    let cleanupJobId: number | undefined;
+
+    await db.transaction(async (tx) => {
+      if (currentPayment) {
+        // The previous voucher is orphaned in storage once we overwrite it;
+        // enqueue a cleanup job so the old file is removed after commit.
+        const previousVoucherUrl = currentPayment.voucherUrl;
+        if (previousVoucherUrl && previousVoucherUrl !== voucherUrl) {
+          const cleanupJob = await enqueueStorageCleanupJob(
+            {
+              entityType: "invoice_voucher",
+              entityId: invoiceId,
+              fileUrl: previousVoucherUrl,
+            },
+            tx,
+          );
+          cleanupJobId = cleanupJob.id;
+        }
+
+        await tx
+          .update(payments)
+          .set({
+            amount: invoice.amount,
+            date: new Date(),
+            voucherUrl,
+            updatedAt: new Date(),
+          })
+          .where(eq(payments.id, currentPayment.id));
+      } else {
+        await tx.insert(payments).values({
+          invoiceId,
+          amount: invoice.amount,
+          date: new Date(),
+          voucherUrl,
+        });
+      }
+
+      if (shouldConfirmReservation) {
+        const confirmationResult = await confirmReservation(
+          invoice.reservationId,
+          invoice.reservation.standId,
+          invoice.id,
+          tx,
+        );
+        if (!confirmationResult.success) {
+          confirmationFailure = confirmationResult.message;
+          throw new Error(confirmationResult.message);
+        }
+      } else if (markAsPaid) {
+        await tx
+          .update(invoices)
+          .set({ status: "paid", updatedAt: new Date() })
+          .where(eq(invoices.id, invoiceId));
+      }
+    });
+
+    if (cleanupJobId !== undefined) {
+      // The voucher transaction already committed; a failed immediate cleanup
+      // attempt must not fail the request or block the confirmation emails and
+      // revalidation below. The job stays persisted for cron retry.
+      try {
+        await attemptStorageCleanupJob(cleanupJobId, { invoiceId });
+      } catch (cleanupError) {
+        console.error("Immediate storage cleanup attempt failed", {
+          cleanupJobId,
+          invoiceId,
+          error: cleanupError,
+        });
+      }
+    }
+
+    if (shouldConfirmReservation) {
+      await sendReservationConfirmationEmails({
+        user: invoice.user,
+        standLabel,
+        festival: invoice.reservation.festival,
+        participants: invoice.reservation.participants,
+      });
+    }
+
+    revalidatePath("/dashboard/festivals/[id]/payments", "page");
+    return { success: true, message: "Comprobante guardado correctamente." };
+  } catch (error) {
+    console.error("Error attaching payment voucher", error);
+    if (confirmationFailure) {
+      return { success: false, message: confirmationFailure };
+    }
+    return { success: false, message: "No se pudo guardar el comprobante." };
+  }
+}
+
+export async function adminRemovePaymentVoucher(
+  invoiceId: number,
+): Promise<{ success: boolean; message: string }> {
+  const profile = await getCurrentUserProfile();
+  if (!profile || profile.role !== "admin") {
+    return { success: false, message: "No autorizado." };
+  }
+
+  try {
+    const invoice = await db.query.invoices.findFirst({
+      where: eq(invoices.id, invoiceId),
+      with: {
+        payments: {
+          orderBy: [desc(payments.createdAt), desc(payments.id)],
+        },
+      },
+    });
+    if (!invoice) {
+      return { success: false, message: "Pago no encontrado." };
+    }
+
+    const targetPayment = invoice.payments.find(
+      (payment) => payment.voucherUrl,
+    );
+    if (!targetPayment) {
+      return { success: false, message: "El pago no tiene un comprobante." };
+    }
+
+    const voucherUrlToDelete = targetPayment.voucherUrl;
+    let cleanupJobId: number | undefined;
+
+    await db.transaction(async (tx) => {
+      await tx.delete(payments).where(eq(payments.id, targetPayment.id));
+
+      // Paid state is invoice-level, not derived from remaining payment rows.
+      await tx
+        .update(invoices)
+        .set({
+          status: "pending",
+          updatedAt: new Date(),
+        })
+        .where(eq(invoices.id, invoiceId));
+
+      // Persist outbox entry in the same transaction so the URL survives
+      // immediate delete failures and can be retried asynchronously.
+      const cleanupJob = await enqueueStorageCleanupJob(
+        {
+          entityType: "invoice_voucher",
+          entityId: invoiceId,
+          fileUrl: voucherUrlToDelete,
+        },
+        tx,
+      );
+      cleanupJobId = cleanupJob.id;
+    });
+
+    if (cleanupJobId !== undefined) {
+      // The delete transaction already committed; a failed immediate cleanup
+      // attempt must not fail the request or block revalidation below. The job
+      // stays persisted for cron retry.
+      try {
+        await attemptStorageCleanupJob(cleanupJobId, { invoiceId });
+      } catch (cleanupError) {
+        console.error("Immediate storage cleanup attempt failed", {
+          cleanupJobId,
+          invoiceId,
+          error: cleanupError,
+        });
+      }
+    }
+
+    revalidatePath("/dashboard/festivals/[id]/payments", "page");
+    return { success: true, message: "Comprobante eliminado correctamente." };
+  } catch (error) {
+    console.error("Error removing payment voucher", error);
+    return { success: false, message: "No se pudo eliminar el comprobante." };
+  }
+}
 
 export async function fetchLatestInvoiceByProfileId(
   profileId: number,
@@ -185,33 +436,6 @@ export async function confirmFreeInvoice(data: {
   }
 
   return { success: true, message: "Reserva confirmada" };
-}
-
-export async function fetchInvoices(): Promise<InvoiceWithParticipants[]> {
-  try {
-    return await db.query.invoices.findMany({
-      with: {
-        payments: true,
-        reservation: {
-          with: {
-            stand: true,
-            festival: {
-              with: {
-                festivalDates: true,
-              },
-            },
-            participants: {
-              with: { user: true },
-            },
-          },
-        },
-        user: true,
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching invoices", error);
-    return [] as InvoiceWithParticipants[];
-  }
 }
 
 export async function fetchInvoicesByReservation(

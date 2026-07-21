@@ -19,6 +19,7 @@ import {
   TooltipTrigger,
 } from "@/app/components/ui/tooltip";
 import { Subcategory } from "@/app/lib/subcategories/definitions";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 import {
   SectorWithStandsAndSubcategories,
   StandWithSubcategories,
@@ -65,7 +66,7 @@ function StandSubcategoryDialog({
     });
   }
 
-  const standLabel = `${stand.label ?? ""}${stand.standNumber}`;
+  const standLabel = formatStandLabel(stand);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -301,7 +302,7 @@ export default function StandSubcategoryEditor({
                 <div className="rounded-lg border divide-y">
                   {sector.stands.map((stand) => {
                     const isSelected = selectedIds.has(stand.id);
-                    const standLabel = `${stand.label ?? ""}${stand.standNumber}`;
+                    const standLabel = formatStandLabel(stand);
 
                     return (
                       <div
