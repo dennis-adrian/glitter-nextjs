@@ -303,8 +303,7 @@ export async function confirmStandHold(
           festivalName: festival?.name || "Festival",
           reservationId: result.reservationId,
           creatorName: creator?.displayName || "Usuario",
-          standName:
-            stand?.label != null ? formatStandLabel(stand) : "sin stand",
+          standName: stand != null ? formatStandLabel(stand) : "sin stand",
           standCategory: getCategoryOccupationLabel(stand?.standCategory, {
             singular: false,
           }),

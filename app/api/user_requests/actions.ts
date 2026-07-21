@@ -234,7 +234,7 @@ export async function createReservation(
         festivalName: festival?.name || "Festival",
         reservationId: newReservation.id,
         creatorName: creator?.displayName || "Usuario",
-        standName: stand?.label != null ? formatStandLabel(stand) : "sin stand",
+        standName: stand != null ? formatStandLabel(stand) : "sin stand",
         standCategory: getCategoryOccupationLabel(stand?.standCategory, {
           singular: false,
         }),

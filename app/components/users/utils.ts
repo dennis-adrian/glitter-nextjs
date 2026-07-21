@@ -38,7 +38,7 @@ export function getGroupedParticipationsByFestival(
           participation?.reservation?.festival?.name ??
           `Festival ${festivalId}`;
         const stand = participation.reservation?.stand;
-        const standLabel = stand?.label ? formatStandLabel(stand) : undefined;
+        const standLabel = stand != null ? formatStandLabel(stand) : undefined;
         const reservationStatus = participation.reservation?.status;
         const currentFestival = acc.get(festivalId);
 
