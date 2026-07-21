@@ -41,6 +41,19 @@ const FormSchema = z
         message: "Indicá cuándo el participante dio aviso",
       });
     }
+
+    if (data.gaveNoticeAt) {
+      const parsed = DateTime.fromISO(data.gaveNoticeAt, {
+        zone: STORE_TIMEZONE,
+      });
+      if (!parsed.isValid) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["gaveNoticeAt"],
+          message: "Fecha de aviso inválida",
+        });
+      }
+    }
   });
 
 export default function EditInfractionForm({
