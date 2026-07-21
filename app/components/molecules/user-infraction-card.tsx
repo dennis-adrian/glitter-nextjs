@@ -56,14 +56,14 @@ export default function UserInfractionCard({
         <span className="font-medium text-sm">{infraction.type.label}</span>
         <Badge
           className={cn("text-xs font-normal min-w-fit mb-1", {})}
-          variant={infraction.handled ? "dark" : "outline"}
+          variant={infraction.status === "resolved" ? "dark" : "outline"}
         >
-          {infraction.handled ? (
+          {infraction.status === "resolved" ? (
             <CheckCircleIcon className="w-4 h-4 mr-1" />
           ) : (
             <ClockIcon className="w-4 h-4 mr-1" />
           )}
-          {getInfractionStatusLabel(infraction.handled)}
+          {getInfractionStatusLabel(infraction.status)}
         </Badge>
         <span className="text-sm text-muted-foreground">
           {infraction.type.description}

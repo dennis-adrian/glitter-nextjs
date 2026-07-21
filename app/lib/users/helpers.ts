@@ -49,6 +49,24 @@ export async function getCurrentNavbarProfile() {
   }
 }
 
+export function isAdminOrFestivalAdmin(
+  role: BaseProfile["role"] | null | undefined,
+): role is "admin" | "festival_admin" {
+  return role === "admin" || role === "festival_admin";
+}
+
+/**
+ * Returns the current profile when the caller is an admin or festival_admin.
+ * Returns null when unauthenticated or unauthorized.
+ */
+export async function requireAdminOrFestivalAdmin() {
+  const profile = await getCurrentUserProfile();
+  if (!profile || !isAdminOrFestivalAdmin(profile.role)) {
+    return null;
+  }
+  return profile;
+}
+
 type ProtectRouteOptions = {
   allowedStatuses?: BaseProfile["status"][];
 };

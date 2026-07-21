@@ -15,6 +15,7 @@ import {
   festivalDates,
   festivals,
   festivalSectors,
+  infractions,
   profileSubcategories,
   reservationParticipants,
   stands,
@@ -1128,6 +1129,7 @@ export async function fetchFestivalParticipants(
         user: {
           with: {
             infractions: {
+              where: eq(infractions.festivalId, festivalId),
               with: {
                 type: true,
               },

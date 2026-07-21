@@ -5,7 +5,13 @@ import { desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
-import { scheduledTasks, userRequests, userSocials, users } from "@/db/schema";
+import {
+  infractions,
+  scheduledTasks,
+  userRequests,
+  userSocials,
+  users,
+} from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { BaseProfile, ProfileType, UserCategory } from "./definitions";
 import { buildNewUser, buildUserSocials } from "@/app/api/users/helpers";
@@ -294,6 +300,18 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
 
     if (!userToDelete) {
       return { success: false, message: "Error al eliminar el perfil" };
+    }
+
+    const existingInfraction = await db.query.infractions.findFirst({
+      where: eq(infractions.userId, profileId),
+      columns: { id: true },
+    });
+    if (existingInfraction) {
+      return {
+        success: false,
+        message:
+          "No se puede eliminar un perfil con historial de infracciones.",
+      };
     }
 
     await deleteClerkUser(userToDelete.clerkId);

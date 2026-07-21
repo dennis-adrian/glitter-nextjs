@@ -27,13 +27,17 @@ export default function InfractionsCell({ participant }: InfractionsCellProps) {
               {infraction.userGaveNotice ? (
                 <MailCheckIcon
                   data-tooltip-id="tooltip"
-                  data-tooltip-content="Infracción notificada previamente"
+                  data-tooltip-content={
+                    infraction.gaveNoticeAt
+                      ? "El participante dio aviso previo"
+                      : "El participante dio aviso previo (fecha no registrada)"
+                  }
                   className="w-4 h-4 text-green-500"
                 />
               ) : (
                 <MailXIcon
                   data-tooltip-id="tooltip"
-                  data-tooltip-content="Infracción sin notificar"
+                  data-tooltip-content="Sin aviso previo del participante"
                   className="w-4 h-4 text-red-500"
                 />
               )}
