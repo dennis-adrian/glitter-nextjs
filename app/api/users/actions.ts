@@ -6,8 +6,11 @@ import { z } from "zod";
 
 import { db } from "@/db";
 import {
+  infractionEvidence,
+  infractionNotes,
   infractions,
   pendingUserDeletions,
+  rentalReturnLogs,
   scheduledTasks,
   userRequests,
   userSocials,
@@ -296,6 +299,74 @@ type FormState = {
 const INFRACTION_BLOCK_MESSAGE =
   "No se puede eliminar un perfil con historial de infracciones.";
 
+const RESTRICT_ACTOR_BLOCK_MESSAGE =
+  "No se puede eliminar un perfil con registros administrativos vinculados.";
+
+const PERMANENT_ERROR_PREFIX = "PERMANENT:";
+
+type DeletionTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function hasRestrictActorReferences(
+  tx: DeletionTx,
+  profileId: number,
+): Promise<boolean> {
+  const [note] = await tx
+    .select({ id: infractionNotes.id })
+    .from(infractionNotes)
+    .where(eq(infractionNotes.authorUserId, profileId))
+    .limit(1);
+  if (note) return true;
+
+  const [evidence] = await tx
+    .select({ id: infractionEvidence.id })
+    .from(infractionEvidence)
+    .where(eq(infractionEvidence.addedByUserId, profileId))
+    .limit(1);
+  if (evidence) return true;
+
+  const [returnLog] = await tx
+    .select({ id: rentalReturnLogs.id })
+    .from(rentalReturnLogs)
+    .where(eq(rentalReturnLogs.processedByUserId, profileId))
+    .limit(1);
+
+  return Boolean(returnLog);
+}
+
+function isPermanentDeletionBlocker(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  if (
+    message === INFRACTION_BLOCK_MESSAGE ||
+    message === RESTRICT_ACTOR_BLOCK_MESSAGE ||
+    message.startsWith(PERMANENT_ERROR_PREFIX)
+  ) {
+    return true;
+  }
+
+  // Postgres foreign_key_violation
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "23503"
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function toPendingDeletionError(error: unknown): string {
+  const message =
+    error instanceof Error ? error.message : "local_delete_failed";
+  if (isPermanentDeletionBlocker(error)) {
+    return message.startsWith(PERMANENT_ERROR_PREFIX)
+      ? message
+      : `${PERMANENT_ERROR_PREFIX} ${message}`;
+  }
+  return message;
+}
+
 export async function deleteProfile(profileId: number, prevState: FormState) {
   try {
     const preparation = await db.transaction(async (tx) => {
@@ -318,6 +389,13 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
         return { ok: false as const, reason: "has_infractions" as const };
       }
 
+      if (await hasRestrictActorReferences(tx, profileId)) {
+        return {
+          ok: false as const,
+          reason: "has_restrict_references" as const,
+        };
+      }
+
       const [pending] = await tx
         .insert(pendingUserDeletions)
         .values({
@@ -338,6 +416,12 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
         return {
           success: false,
           message: INFRACTION_BLOCK_MESSAGE,
+        };
+      }
+      if (preparation.reason === "has_restrict_references") {
+        return {
+          success: false,
+          message: RESTRICT_ACTOR_BLOCK_MESSAGE,
         };
       }
       return { success: false, message: "Error al eliminar el perfil" };
@@ -382,6 +466,10 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
           throw new Error(INFRACTION_BLOCK_MESSAGE);
         }
 
+        if (await hasRestrictActorReferences(tx, profileId)) {
+          throw new Error(RESTRICT_ACTOR_BLOCK_MESSAGE);
+        }
+
         await tx.delete(users).where(eq(users.id, profileId));
         await tx
           .update(pendingUserDeletions)
@@ -393,8 +481,7 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
       await db
         .update(pendingUserDeletions)
         .set({
-          lastError:
-            error instanceof Error ? error.message : "local_delete_failed",
+          lastError: toPendingDeletionError(error),
           updatedAt: new Date(),
         })
         .where(eq(pendingUserDeletions.id, preparation.pendingId));
