@@ -1,5 +1,3 @@
-"use server";
-
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import {
   cachedFetchBaseUserProfileByClerkId,
@@ -49,7 +47,7 @@ export async function getCurrentNavbarProfile() {
   }
 }
 
-export function isAdminOrFestivalAdmin(
+function isAdminOrFestivalAdmin(
   role: BaseProfile["role"] | null | undefined,
 ): role is "admin" | "festival_admin" {
   return role === "admin" || role === "festival_admin";

@@ -13,29 +13,28 @@ import {
   FormMessage,
 } from "@/app/components/ui/form";
 import { Input } from "@/app/components/ui/input";
-import { registerInfraction } from "@/app/lib/infractions/actions";
+import SearchInput from "@/app/components/ui/search-input/input";
+import type { SearchOption } from "@/app/components/ui/search-input/search-content";
+import {
+  registerInfraction,
+  searchUsersForInfraction,
+} from "@/app/lib/infractions/actions";
 import type { DuplicateInfractionCandidate } from "@/app/lib/infractions/definitions";
 import { InfractionType } from "@/app/lib/infractions/definitions";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
+import { participantDisplayName } from "@/app/lib/infractions/mappers";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DateTime } from "luxon";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
 const FormSchema = z
   .object({
-    infractionType: z
-      .string({
-        error: (issue) =>
-          issue.input === undefined
-            ? "El tipo de infracción requerido"
-            : undefined,
-      })
-      .min(1, {
-        error: "El tipo de infracción requerido",
-      }),
+    userId: z.number().int().positive("Seleccioná un participante"),
+    infractionType: z.string().min(1, "El tipo de infracción es requerido"),
+    festivalId: z.string().optional(),
     description: z.string().max(2000).optional(),
     userGaveNotice: z.boolean(),
     gaveNoticeAt: z.string().optional(),
@@ -48,7 +47,6 @@ const FormSchema = z
         message: "Indicá cuándo el participante dio aviso",
       });
     }
-
     if (data.gaveNoticeAt) {
       const parsed = DateTime.fromISO(data.gaveNoticeAt, {
         zone: STORE_TIMEZONE,
@@ -63,19 +61,23 @@ const FormSchema = z
     }
   });
 
-type RegisterInfractionFormProps = {
-  participantId: number;
-  festivalId: number;
+type FestivalOption = { id: number; name: string };
+
+type GlobalRegisterInfractionFormProps = {
   infractionTypes: InfractionType[];
-  onSuccess: () => void;
+  festivals: FestivalOption[];
+  defaultUserId?: number;
+  defaultFestivalId?: number | null;
+  onSuccess: (infractionId: number) => void;
 };
 
-export default function RegisterInfractionForm({
-  participantId,
-  festivalId,
+export default function GlobalRegisterInfractionForm({
   infractionTypes,
+  festivals,
+  defaultUserId,
+  defaultFestivalId,
   onSuccess,
-}: RegisterInfractionFormProps) {
+}: GlobalRegisterInfractionFormProps) {
   const [idempotencyKey, setIdempotencyKey] = useState(() =>
     crypto.randomUUID(),
   );
@@ -86,13 +88,19 @@ export default function RegisterInfractionForm({
   const [confirmedDuplicateKey, setConfirmedDuplicateKey] = useState<
     string | null
   >(null);
+  const [userOptions, setUserOptions] = useState<SearchOption[]>([]);
+  const [selectedUserLabel, setSelectedUserLabel] = useState("");
+  const [isSearching, startSearch] = useTransition();
 
   const form = useForm({
     resolver: zodResolver(FormSchema),
     defaultValues: {
+      userId: defaultUserId,
       description: "",
       userGaveNotice: false,
       gaveNoticeAt: "",
+      festivalId:
+        defaultFestivalId != null ? String(defaultFestivalId) : "none",
     },
   });
 
@@ -104,30 +112,64 @@ export default function RegisterInfractionForm({
     control: form.control,
     name: "infractionType",
   });
+  const selectedUserId = useWatch({
+    control: form.control,
+    name: "userId",
+  });
+  const selectedFestivalId = useWatch({
+    control: form.control,
+    name: "festivalId",
+  });
 
-  const duplicateContextKey = infractionType ?? "";
+  const duplicateContextKey = `${selectedUserId ?? ""}:${infractionType ?? ""}:${selectedFestivalId ?? "none"}`;
   const duplicates =
     duplicateWarning?.contextKey === duplicateContextKey
       ? duplicateWarning.candidates
       : [];
   const confirmDuplicate = confirmedDuplicateKey === duplicateContextKey;
 
-  const infractionOptions = infractionTypes.map((infraction) => ({
-    value: infraction.id.toString(),
-    label: infraction.label,
+  const festivalOptions = [
+    { value: "none", label: "Global (sin festival)" },
+    ...festivals.map((festival) => ({
+      value: String(festival.id),
+      label: festival.name,
+    })),
+  ];
+
+  const typeOptions = infractionTypes.map((type) => ({
+    value: String(type.id),
+    label: type.label,
   }));
 
+  const handleUserSearch = (term: string) => {
+    startSearch(async () => {
+      const users = await searchUsersForInfraction(term);
+      setUserOptions(
+        users.map((user) => ({
+          value: user.id,
+          label: `${participantDisplayName(user)} · ${user.email}`,
+        })),
+      );
+    });
+  };
+
   const action = form.handleSubmit(async (data) => {
-    const { infractionType, userGaveNotice, description, gaveNoticeAt } = data;
+    const festivalId =
+      !data.festivalId || data.festivalId === "none"
+        ? null
+        : Number(data.festivalId);
+
     const response = await registerInfraction({
-      userId: participantId,
-      typeId: Number(infractionType),
+      userId: data.userId,
+      typeId: Number(data.infractionType),
       festivalId,
-      description: description || undefined,
-      userGaveNotice,
+      description: data.description || undefined,
+      userGaveNotice: data.userGaveNotice,
       gaveNoticeAt:
-        userGaveNotice && gaveNoticeAt
-          ? DateTime.fromISO(gaveNoticeAt, { zone: STORE_TIMEZONE }).toJSDate()
+        data.userGaveNotice && data.gaveNoticeAt
+          ? DateTime.fromISO(data.gaveNoticeAt, {
+              zone: STORE_TIMEZONE,
+            }).toJSDate()
           : null,
       idempotencyKey,
       confirmDuplicate,
@@ -138,7 +180,7 @@ export default function RegisterInfractionForm({
       setIdempotencyKey(crypto.randomUUID());
       setDuplicateWarning(null);
       setConfirmedDuplicateKey(null);
-      onSuccess();
+      onSuccess(response.infractionId);
       return;
     }
 
@@ -156,19 +198,67 @@ export default function RegisterInfractionForm({
 
   return (
     <Form {...form}>
-      <form className="flex flex-col gap-4 py-2" onSubmit={action}>
+      <form className="flex flex-col gap-4" onSubmit={action}>
+        <div className="space-y-2">
+          <FormLabel>Participante</FormLabel>
+          {selectedUserLabel ? (
+            <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+              <span>{selectedUserLabel}</span>
+              {!defaultUserId && (
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    form.setValue("userId", undefined as unknown as number, {
+                      shouldDirty: true,
+                    });
+                    setSelectedUserLabel("");
+                  }}
+                >
+                  Cambiar
+                </button>
+              )}
+            </div>
+          ) : (
+            <SearchInput
+              id="infraction-participant-search"
+              placeholder="Buscar por nombre o correo"
+              options={userOptions}
+              isLoading={isSearching}
+              onSearch={handleUserSearch}
+              onSelect={(userId) => {
+                const option = userOptions.find(
+                  (item) => Number(item.value) === userId,
+                );
+                form.setValue("userId", userId, { shouldValidate: true });
+                setSelectedUserLabel(option?.label ?? String(userId));
+              }}
+            />
+          )}
+          <FormMessage>
+            {form.formState.errors.userId?.message as string | undefined}
+          </FormMessage>
+        </div>
+
         <ComboboxInput
           form={form}
           name="infractionType"
-          options={infractionOptions}
+          options={typeOptions}
           label="Tipo de infracción"
           placeholder="Selecciona una opción"
+        />
+        <ComboboxInput
+          form={form}
+          name="festivalId"
+          options={festivalOptions}
+          label="Festival"
+          placeholder="Global o festival"
         />
         <TextareaInput
           formControl={form.control}
           name="description"
           label="Detalles del incidente"
-          placeholder="Descripción opcional del incidente"
+          placeholder="Descripción opcional"
           maxLength={2000}
         />
         <FormField
@@ -182,14 +272,11 @@ export default function RegisterInfractionForm({
                   checked={field.value}
                   onCheckedChange={(checked) => {
                     field.onChange(checked === true);
-                    if (checked !== true) {
-                      form.setValue("gaveNoticeAt", "");
-                    }
+                    if (checked !== true) form.setValue("gaveNoticeAt", "");
                   }}
                 />
                 <FormDescription>
-                  El participante avisó a la organización antes del
-                  incumplimiento o incidente
+                  Avisó a la organización antes del incumplimiento o incidente
                 </FormDescription>
               </div>
               <FormMessage />
@@ -242,12 +329,9 @@ export default function RegisterInfractionForm({
           </div>
         )}
         <SubmitButton
-          loading={form.formState.isLoading}
+          loading={form.formState.isSubmitting}
           disabled={
-            !form.formState.isDirty ||
-            form.formState.isLoading ||
             form.formState.isSubmitting ||
-            form.formState.isSubmitSuccessful ||
             (duplicates.length > 0 && !confirmDuplicate)
           }
           label={

@@ -1,9 +1,7 @@
 import { Badge, type BadgeVariant } from "@/app/components/ui/badge";
 import { Separator } from "@/app/components/ui/separator";
 import { formatDate } from "@/app/lib/formatters";
-import {
-  getInfractionStatusLabel,
-} from "@/app/lib/infractions/mappers";
+import { getInfractionStatusLabel } from "@/app/lib/infractions/mappers";
 import type { InfractionStatus } from "@/app/lib/infractions/definitions";
 import { UserInfraction } from "@/app/lib/users/definitions";
 import { cn } from "@/app/lib/utils";

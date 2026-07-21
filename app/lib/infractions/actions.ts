@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, sql, asc, ilike, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { INFRACTION_DUPLICATE_WINDOW_HOURS } from "@/app/lib/infractions/constants";
@@ -17,14 +17,21 @@ import {
   changeInfractionStatusSchema,
   editInfractionSchema,
   registerInfractionSchema,
+  addInfractionNoteSchema,
+  addInfractionEvidenceSchema,
+  searchInfractionUsersSchema,
   type ChangeInfractionStatusInput,
   type EditInfractionInput,
   type RegisterInfractionInput,
+  type AddInfractionNoteInput,
+  type AddInfractionEvidenceInput,
 } from "@/app/lib/infractions/schema";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
   festivals,
+  infractionEvidence,
+  infractionNotes,
   infractions,
   infractionTypes,
   reservationParticipants,
@@ -80,7 +87,7 @@ async function validateInfractionReferences(
 ): Promise<ReferenceValidationResult> {
   const [user, type, festival] = await Promise.all([
     database.query.users.findFirst({
-      where: eq(users.id, input.userId),
+      where: and(eq(users.id, input.userId), eq(users.role, "user")),
       columns: { id: true },
     }),
     database.query.infractionTypes.findFirst({
@@ -183,8 +190,12 @@ async function findDuplicateCandidates(input: {
 function revalidateInfractionPaths(input: {
   festivalIds?: readonly (number | null | undefined)[];
   userId?: number;
+  infractionId?: number;
 }) {
   revalidatePath("/dashboard/infractions");
+  if (input.infractionId) {
+    revalidatePath(`/dashboard/infractions/${input.infractionId}`);
+  }
   const festivalIds = new Set(
     (input.festivalIds ?? []).filter(
       (festivalId): festivalId is number => festivalId != null,
@@ -588,4 +599,129 @@ export async function changeInfractionStatus(
           : "Error al cambiar el estado de la infracción",
     };
   }
+}
+
+export async function addInfractionNote(rawInput: AddInfractionNoteInput) {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) {
+    return { success: false as const, message: "No autorizado" };
+  }
+
+  const parsed = addInfractionNoteSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return {
+      success: false as const,
+      message: parsed.error.issues[0]?.message ?? "Datos inválidos",
+    };
+  }
+
+  try {
+    const existing = await db.query.infractions.findFirst({
+      where: eq(infractions.id, parsed.data.infractionId),
+      columns: { id: true, userId: true, festivalId: true },
+    });
+    if (!existing) {
+      return { success: false as const, message: "Infracción no encontrada" };
+    }
+
+    await db.insert(infractionNotes).values({
+      infractionId: parsed.data.infractionId,
+      authorUserId: profile.id,
+      content: parsed.data.content.trim(),
+    });
+
+    revalidateInfractionPaths({
+      festivalIds: [existing.festivalId],
+      userId: existing.userId,
+      infractionId: existing.id,
+    });
+
+    return { success: true as const, message: "Nota agregada" };
+  } catch (error) {
+    console.error(error);
+    return { success: false as const, message: "Error al agregar la nota" };
+  }
+}
+
+export async function addInfractionEvidence(
+  rawInput: AddInfractionEvidenceInput,
+) {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) {
+    return { success: false as const, message: "No autorizado" };
+  }
+
+  const parsed = addInfractionEvidenceSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return {
+      success: false as const,
+      message: parsed.error.issues[0]?.message ?? "Datos inválidos",
+    };
+  }
+
+  try {
+    const existing = await db.query.infractions.findFirst({
+      where: eq(infractions.id, parsed.data.infractionId),
+      columns: { id: true, userId: true, festivalId: true },
+    });
+    if (!existing) {
+      return { success: false as const, message: "Infracción no encontrada" };
+    }
+
+    await db.insert(infractionEvidence).values({
+      infractionId: parsed.data.infractionId,
+      addedByUserId: profile.id,
+      url: parsed.data.url,
+      label: emptyToNull(parsed.data.label),
+      mimeType: emptyToNull(parsed.data.mimeType),
+    });
+
+    revalidateInfractionPaths({
+      festivalIds: [existing.festivalId],
+      userId: existing.userId,
+      infractionId: existing.id,
+    });
+
+    return {
+      success: true as const,
+      message: "Evidencia agregada",
+    };
+  } catch (error) {
+    console.error(error);
+    return {
+      success: false as const,
+      message: "Error al agregar la evidencia",
+    };
+  }
+}
+
+export async function searchUsersForInfraction(query: string, limit = 8) {
+  const profile = await requireAdminOrFestivalAdmin();
+  const parsed = searchInfractionUsersSchema.safeParse({ query, limit });
+  if (!profile || !parsed.success) return [];
+
+  const pattern = `%${parsed.data.query}%`;
+
+  return db
+    .select({
+      id: users.id,
+      displayName: users.displayName,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      email: users.email,
+    })
+    .from(users)
+    .where(
+      and(
+        eq(users.role, "user"),
+        or(
+          ilike(users.displayName, pattern),
+          ilike(users.firstName, pattern),
+          ilike(users.lastName, pattern),
+          ilike(users.email, pattern),
+        ),
+      ),
+    )
+    .orderBy(asc(users.displayName), asc(users.id))
+    .limit(parsed.data.limit);
 }

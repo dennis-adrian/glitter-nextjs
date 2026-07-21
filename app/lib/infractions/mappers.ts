@@ -44,3 +44,14 @@ export function getPriorNoticeLabel(input: {
   }
   return "Con aviso previo del participante";
 }
+
+export function participantDisplayName(user: {
+  displayName: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+}) {
+  if (user.displayName?.trim()) return user.displayName.trim();
+  const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ");
+  return fullName || user.email;
+}
