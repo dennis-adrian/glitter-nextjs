@@ -10,14 +10,17 @@ import {
 import { createPortal } from "react-dom";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
-import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
+import { StandStatusBadge } from "@/app/components/stands/status-badge";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
-import { ClockIcon } from "lucide-react";
+import { Badge } from "@/app/components/ui/badge";
+import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
+import { ClockIcon, HistoryIcon } from "lucide-react";
 
 type AdminOverviewMapTooltipProps = {
   stand: StandWithReservationsWithParticipants;
-  invoice: InvoiceWithParticipants;
+  invoice: InvoiceWithParticipants | null;
+  cancelledInvoices: InvoiceWithParticipants[];
   anchorRect: DOMRect;
   dueDate?: Date | null;
   isOverdue?: boolean;
@@ -28,6 +31,7 @@ const GAP = 8;
 export default function AdminOverviewMapTooltip({
   stand,
   invoice,
+  cancelledInvoices,
   anchorRect,
   dueDate,
   isOverdue,
@@ -78,9 +82,10 @@ export default function AdminOverviewMapTooltip({
     };
   }, [recomputePosition]);
 
-  const coParticipants = invoice.reservation.participants.filter(
-    (p) => p.user.id !== invoice.user.id,
-  );
+  const coParticipants =
+    invoice?.reservation.participants.filter(
+      (p) => p.user.id !== invoice.user.id,
+    ) ?? [];
 
   const tooltip = (
     <div
@@ -92,50 +97,58 @@ export default function AdminOverviewMapTooltip({
         pointerEvents: "none",
       }}
     >
-      <div className="flex flex-col gap-2 min-w-[180px]">
+      <div className="flex flex-col gap-2 min-w-45">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold">
               Espacio {stand.label}
               {stand.standNumber}
             </p>
-            <p className="text-xs text-muted-foreground">
-              Reserva #{invoice.reservation.id}
-            </p>
+            {invoice && (
+              <p className="text-xs text-muted-foreground">
+                Reserva #{invoice.reservation.id}
+              </p>
+            )}
           </div>
-          <ReservationStatus reservation={invoice.reservation} />
+          {invoice ? (
+            <ReservationStatus reservation={invoice.reservation} />
+          ) : (
+            <StandStatusBadge status={stand.status} />
+          )}
         </div>
 
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <Avatar className="h-7 w-7 shrink-0">
-              <AvatarImage
-                src={invoice.user.imageUrl ?? undefined}
-                alt={invoice.user.displayName ?? ""}
-              />
-            </Avatar>
-            <span className="text-sm leading-tight">
-              {invoice.user.displayName}{" "}
-              <span className="text-xs text-muted-foreground">(titular)</span>
-            </span>
-          </div>
-          {coParticipants.map((p) => (
-            <div key={p.id} className="flex items-center gap-2">
+        {invoice && (
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
               <Avatar className="h-7 w-7 shrink-0">
                 <AvatarImage
-                  src={p.user.imageUrl ?? undefined}
-                  alt={p.user.displayName ?? ""}
+                  src={invoice.user.imageUrl ?? undefined}
+                  alt={invoice.user.displayName ?? ""}
                 />
               </Avatar>
               <span className="text-sm leading-tight">
-                {p.user.displayName}
+                {invoice.user.displayName}{" "}
+                <span className="text-xs text-muted-foreground">(titular)</span>
               </span>
             </div>
-          ))}
-        </div>
+            {coParticipants.map((p) => (
+              <div key={p.id} className="flex items-center gap-2">
+                <Avatar className="h-7 w-7 shrink-0">
+                  <AvatarImage
+                    src={p.user.imageUrl ?? undefined}
+                    alt={p.user.displayName ?? ""}
+                  />
+                </Avatar>
+                <span className="text-sm leading-tight">
+                  {p.user.displayName}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {dueDate && (
-          <div className="flex items-center gap-1.5 pt-1.5 border-t text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <ClockIcon className="h-3 w-3 shrink-0" />
             <span>
               {isOverdue ? "Venció el " : "Vence el "}
@@ -148,6 +161,34 @@ export default function AdminOverviewMapTooltip({
                 }).format(dueDate)}
               </span>
             </span>
+          </div>
+        )}
+
+        {cancelledInvoices.length > 0 && (
+          <div className="space-y-1.5 border-t pt-2">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <HistoryIcon className="h-3.5 w-3.5" />
+              <span>Historial</span>
+            </div>
+            {cancelledInvoices.slice(0, 3).map((cancelledInvoice) => (
+              <div
+                key={cancelledInvoice.reservation.id}
+                className="flex items-center justify-between gap-3 text-xs"
+              >
+                <span>
+                  Reserva #{cancelledInvoice.reservation.id} ·{" "}
+                  {cancelledInvoice.user.displayName}
+                </span>
+                <Badge variant="destructive" size="sm">
+                  Cancelada
+                </Badge>
+              </div>
+            ))}
+            {cancelledInvoices.length > 3 && (
+              <p className="text-[11px] text-muted-foreground">
+                +{cancelledInvoices.length - 3} reservas canceladas
+              </p>
+            )}
           </div>
         )}
       </div>

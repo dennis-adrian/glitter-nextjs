@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ClockIcon, ExternalLinkIcon } from "lucide-react";
+import { ClockIcon, ExternalLinkIcon, HistoryIcon } from "lucide-react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
@@ -19,6 +19,7 @@ import {
 } from "@/app/components/ui/drawer";
 import { Button } from "@/app/components/ui/button";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import { Badge } from "@/app/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -31,6 +32,7 @@ import { cn } from "@/app/lib/utils";
 type AdminOverviewStandDrawerProps = {
   stand: StandWithReservationsWithParticipants | null;
   invoice: InvoiceWithParticipants | null;
+  cancelledInvoices: InvoiceWithParticipants[];
   sectorName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -65,6 +67,7 @@ function formatPrice(amount: number) {
 export default function AdminOverviewStandDrawer({
   stand,
   invoice,
+  cancelledInvoices,
   sectorName,
   open,
   onOpenChange,
@@ -288,6 +291,43 @@ export default function AdminOverviewStandDrawer({
               <p className="text-sm text-muted-foreground text-center py-2">
                 Sin reserva activa
               </p>
+            )}
+
+            {cancelledInvoices.length > 0 && (
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <HistoryIcon className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">
+                    Historial de reservas
+                  </span>
+                </div>
+
+                <div className="divide-y">
+                  {cancelledInvoices.map((cancelledInvoice) => (
+                    <div
+                      key={cancelledInvoice.reservation.id}
+                      className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                    >
+                      <div className="min-w-0 space-y-0.5">
+                        <p className="text-sm font-medium">
+                          Reserva #{cancelledInvoice.reservation.id}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {cancelledInvoice.user.displayName}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Intl.DateTimeFormat("es-BO", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          }).format(cancelledInvoice.reservation.updatedAt)}
+                        </p>
+                      </div>
+                      <Badge variant="destructive">Cancelada</Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         </DrawerContent>
