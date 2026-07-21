@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq, not, sql } from "drizzle-orm";
+import { and, eq, not, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/db";
@@ -19,63 +19,12 @@ import {
   ReservationWithParticipantsAndUsersAndStand,
   ReservationWithParticipantsAndUsersAndStandAndCollaborators,
   ReservationWithParticipantsAndUsersAndStandAndFestival,
-  ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments,
 } from "@/app/api/reservations/definitions";
 import ReservationRejectionEmailTemplate from "@/app/emails/reservation-rejection";
 import { getUserName } from "@/app/lib/users/utils";
-import { buildWhereClauseForReservationsFetching } from "@/app/api/reservations/helpers";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { ReservationParticipantWithUser } from "@/app/data/invoices/definitions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-
-export async function fetchReservations(options: {
-  query?: string;
-  festivalId?: number;
-}): Promise<
-  ReservationWithParticipantsAndUsersAndStandAndFestivalAndInvoicesWithPayments[]
-> {
-  const whereClause = await buildWhereClauseForReservationsFetching({
-    ...options,
-  });
-
-  try {
-    return db.query.standReservations.findMany({
-      with: {
-        participants: {
-          with: {
-            user: {
-              with: {
-                userSocials: true,
-              },
-            },
-          },
-        },
-        externalParticipants: {
-          with: {
-            externalParticipant: true,
-          },
-        },
-        stand: true,
-        festival: {
-          with: {
-            festivalDates: true,
-          },
-        },
-        invoices: {
-          with: {
-            payments: true,
-          },
-        },
-        scheduledTasks: true,
-      },
-      orderBy: desc(standReservations.updatedAt),
-      where: whereClause.queryChunks.length > 0 ? and(whereClause) : undefined,
-    });
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
-}
 
 export async function fetchConfirmedReservationsByFestival(
   festivalId: number,
@@ -202,7 +151,7 @@ export async function updateReservation(
     return { success: false, message: "Error al actualizar la reserva" };
   }
 
-  revalidatePath("/dashboard/reservations");
+  revalidatePath("/dashboard/festivals/[id]/reservations", "page");
   return { success: true, message: "Reserva actualizada" };
 }
 
@@ -230,7 +179,7 @@ export async function deleteReservation(
     return { success: false, message: "Error al eliminar la reserva" };
   }
 
-  revalidatePath("/dashboard/reservations");
+  revalidatePath("/dashboard/festivals/[id]/reservations", "page");
   return { success: true, message: "Reserva eliminada" };
 }
 
@@ -449,7 +398,6 @@ export async function confirmReservation(
     console.error("[confirmReservation] Post-commit processing failed:", error);
   }
 
-  revalidatePath("/dashboard/payments");
   revalidatePath("/dashboard/festivals/[id]/payments", "page");
   return { success: true, message: "Reserva confirmada" };
 }
@@ -515,6 +463,6 @@ export async function rejectReservation(
     return { success: false, message: "Error al cancelar la reserva" };
   }
 
-  revalidatePath("/dashboard/reservations");
+  revalidatePath("/dashboard/festivals/[id]/reservations", "page");
   return { success: true, message: "Reserva cancelada correctamente" };
 }

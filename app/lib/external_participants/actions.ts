@@ -365,7 +365,6 @@ export async function createExternalParticipantReservation(
 
     revalidatePath("/dashboard/external_participants");
     revalidatePath("/dashboard/festivals");
-    revalidatePath("/dashboard/reservations");
     revalidatePath(`/dashboard/festivals/${festivalId}`);
     revalidatePath(`/dashboard/festivals/${festivalId}/reservations`);
     revalidatePath("/", "layout");

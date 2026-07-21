@@ -16,13 +16,11 @@ import {
 } from "@/app/components/ui/sheet";
 import { Button } from "@/app/components/ui/button";
 import {
-  AlbumIcon,
   BookImageIcon,
   BoxesIcon,
   Building2Icon,
   CalendarCheck2Icon,
   CalendarIcon,
-  CreditCardIcon,
   HomeIcon,
   ImagesIcon,
   LogOutIcon,
@@ -159,14 +157,6 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
                 <MobileSidebarItem href="/dashboard/profile_requests?limit=10&offset=0&includeAdmins=false&sort=updatedAt&direction=desc&profileCompletion=complete">
                   <UsersIcon className="mr-2 h-6 w-6" />
                   Solicitudes de perfil
-                </MobileSidebarItem>
-                <MobileSidebarItem href="/dashboard/reservations">
-                  <AlbumIcon className="mr-2 h-6 w-6" />
-                  Reservas
-                </MobileSidebarItem>
-                <MobileSidebarItem href="/dashboard/payments">
-                  <CreditCardIcon className="mr-2 h-6 w-6" />
-                  Pagos
                 </MobileSidebarItem>
                 <li>
                   <h4 className="flex items-center p-2 text-lg">
