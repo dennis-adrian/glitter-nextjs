@@ -1,14 +1,43 @@
-import { Badge } from "@/app/components/ui/badge";
+import { Badge, type BadgeVariant } from "@/app/components/ui/badge";
 import { Separator } from "@/app/components/ui/separator";
 import { formatDate } from "@/app/lib/formatters";
 import {
   getInfractionStatusLabel,
-  infractionSeverityLabel,
 } from "@/app/lib/infractions/mappers";
+import type { InfractionStatus } from "@/app/lib/infractions/definitions";
 import { UserInfraction } from "@/app/lib/users/definitions";
 import { cn } from "@/app/lib/utils";
-import { AlertCircleIcon, CheckCircleIcon, ClockIcon } from "lucide-react";
+import {
+  AlertCircleIcon,
+  BanIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  EyeIcon,
+  type LucideIcon,
+} from "lucide-react";
 import { DateTime } from "luxon";
+
+function getStatusBadgePresentation(status: InfractionStatus): {
+  variant: BadgeVariant;
+  Icon: LucideIcon;
+  className?: string;
+} {
+  switch (status) {
+    case "resolved":
+      return { variant: "dark", Icon: CheckCircleIcon };
+    case "under_review":
+      return { variant: "secondary", Icon: EyeIcon };
+    case "voided":
+      return {
+        variant: "outline",
+        Icon: BanIcon,
+        className: "text-muted-foreground",
+      };
+    case "pending":
+    default:
+      return { variant: "outline", Icon: ClockIcon };
+  }
+}
 
 export default function UserInfractionCard({
   infraction,
@@ -47,6 +76,9 @@ export default function UserInfractionCard({
       break;
   }
 
+  const statusBadge = getStatusBadgePresentation(infraction.status);
+  const StatusIcon = statusBadge.Icon;
+
   return (
     <div className="bg-card p-4 rounded-md shadow-md border flex items-start gap-2">
       <div className={cn("p-2 rounded-lg", iconBgColor)}>
@@ -55,14 +87,13 @@ export default function UserInfractionCard({
       <div className="flex flex-col gap-1">
         <span className="font-medium text-sm">{infraction.type.label}</span>
         <Badge
-          className={cn("text-xs font-normal min-w-fit mb-1", {})}
-          variant={infraction.status === "resolved" ? "dark" : "outline"}
-        >
-          {infraction.status === "resolved" ? (
-            <CheckCircleIcon className="w-4 h-4 mr-1" />
-          ) : (
-            <ClockIcon className="w-4 h-4 mr-1" />
+          className={cn(
+            "text-xs font-normal min-w-fit mb-1",
+            statusBadge.className,
           )}
+          variant={statusBadge.variant}
+        >
+          <StatusIcon className="w-4 h-4 mr-1" />
           {getInfractionStatusLabel(infraction.status)}
         </Badge>
         <span className="text-sm text-muted-foreground">

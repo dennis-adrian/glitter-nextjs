@@ -16,7 +16,7 @@ import { Input } from "@/app/components/ui/input";
 import { registerInfraction } from "@/app/lib/infractions/actions";
 import type { DuplicateInfractionCandidate } from "@/app/lib/infractions/definitions";
 import { InfractionType } from "@/app/lib/infractions/definitions";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DateTime } from "luxon";
 import { useEffect, useRef, useState } from "react";
@@ -47,6 +47,19 @@ const FormSchema = z
         path: ["gaveNoticeAt"],
         message: "Indicá cuándo el participante dio aviso",
       });
+    }
+
+    if (data.gaveNoticeAt) {
+      const parsed = DateTime.fromISO(data.gaveNoticeAt, {
+        zone: STORE_TIMEZONE,
+      });
+      if (!parsed.isValid) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["gaveNoticeAt"],
+          message: "Fecha de aviso inválida",
+        });
+      }
     }
   });
 
@@ -107,7 +120,7 @@ export default function RegisterInfractionForm({
       userGaveNotice,
       gaveNoticeAt:
         userGaveNotice && gaveNoticeAt
-          ? DateTime.fromISO(gaveNoticeAt, { zone: "local" }).toJSDate()
+          ? DateTime.fromISO(gaveNoticeAt, { zone: STORE_TIMEZONE }).toJSDate()
           : null,
       idempotencyKey: idempotencyKeyRef.current,
       confirmDuplicate,

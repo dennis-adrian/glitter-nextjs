@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import {
   infractions,
+  pendingUserDeletions,
   scheduledTasks,
   userRequests,
   userSocials,
@@ -291,31 +292,114 @@ type FormState = {
   success: boolean;
   message: string;
 };
+
+const INFRACTION_BLOCK_MESSAGE =
+  "No se puede eliminar un perfil con historial de infracciones.";
+
 export async function deleteProfile(profileId: number, prevState: FormState) {
   try {
-    const [userToDelete] = await db
-      .select({ clerkId: users.clerkId })
-      .from(users)
-      .where(eq(users.id, profileId));
+    const preparation = await db.transaction(async (tx) => {
+      const [lockedUser] = await tx
+        .select({ id: users.id, clerkId: users.clerkId })
+        .from(users)
+        .where(eq(users.id, profileId))
+        .limit(1)
+        .for("update");
 
-    if (!userToDelete) {
+      if (!lockedUser) {
+        return { ok: false as const, reason: "not_found" as const };
+      }
+
+      const existingInfraction = await tx.query.infractions.findFirst({
+        where: eq(infractions.userId, profileId),
+        columns: { id: true },
+      });
+      if (existingInfraction) {
+        return { ok: false as const, reason: "has_infractions" as const };
+      }
+
+      const [pending] = await tx
+        .insert(pendingUserDeletions)
+        .values({
+          userId: lockedUser.id,
+          clerkId: lockedUser.clerkId,
+        })
+        .returning({ id: pendingUserDeletions.id });
+
+      return {
+        ok: true as const,
+        pendingId: pending.id,
+        clerkId: lockedUser.clerkId,
+      };
+    });
+
+    if (!preparation.ok) {
+      if (preparation.reason === "has_infractions") {
+        return {
+          success: false,
+          message: INFRACTION_BLOCK_MESSAGE,
+        };
+      }
       return { success: false, message: "Error al eliminar el perfil" };
     }
 
-    const existingInfraction = await db.query.infractions.findFirst({
-      where: eq(infractions.userId, profileId),
-      columns: { id: true },
-    });
-    if (existingInfraction) {
-      return {
-        success: false,
-        message:
-          "No se puede eliminar un perfil con historial de infracciones.",
-      };
+    const clerkResult = await deleteClerkUser(preparation.clerkId);
+    if (!clerkResult.success) {
+      await db
+        .delete(pendingUserDeletions)
+        .where(eq(pendingUserDeletions.id, preparation.pendingId));
+      return { success: false, message: "Error al eliminar el perfil" };
     }
 
-    await deleteClerkUser(userToDelete.clerkId);
-    await db.delete(users).where(eq(users.id, profileId));
+    const now = new Date();
+    await db
+      .update(pendingUserDeletions)
+      .set({ clerkDeletedAt: now, updatedAt: now })
+      .where(eq(pendingUserDeletions.id, preparation.pendingId));
+
+    try {
+      await db.transaction(async (tx) => {
+        const [lockedUser] = await tx
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.id, profileId))
+          .limit(1)
+          .for("update");
+
+        if (!lockedUser) {
+          await tx
+            .update(pendingUserDeletions)
+            .set({ localDeletedAt: now, updatedAt: now })
+            .where(eq(pendingUserDeletions.id, preparation.pendingId));
+          return;
+        }
+
+        const existingInfraction = await tx.query.infractions.findFirst({
+          where: eq(infractions.userId, profileId),
+          columns: { id: true },
+        });
+        if (existingInfraction) {
+          throw new Error(INFRACTION_BLOCK_MESSAGE);
+        }
+
+        await tx.delete(users).where(eq(users.id, profileId));
+        await tx
+          .update(pendingUserDeletions)
+          .set({ localDeletedAt: now, updatedAt: now })
+          .where(eq(pendingUserDeletions.id, preparation.pendingId));
+      });
+    } catch (error) {
+      console.error(error);
+      await db
+        .update(pendingUserDeletions)
+        .set({
+          lastError:
+            error instanceof Error ? error.message : "local_delete_failed",
+          updatedAt: new Date(),
+        })
+        .where(eq(pendingUserDeletions.id, preparation.pendingId));
+      return { success: false, message: "Error al eliminar el perfil" };
+    }
   } catch (error) {
     console.error(error);
     return { success: false, message: "Error al eliminar el perfil" };

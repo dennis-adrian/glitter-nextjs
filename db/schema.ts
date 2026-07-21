@@ -103,6 +103,35 @@ export const users = pgTable(
   },
   (users) => [index("display_name_idx").on(users.displayName)],
 );
+
+/**
+ * Durable outbox for profile deletions that cross Clerk + local DB.
+ * If Clerk succeeds and the local delete fails, rows with
+ * `clerkDeletedAt` set and `localDeletedAt` null can be reconciled.
+ */
+export const pendingUserDeletions = pgTable(
+  "pending_user_deletions",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    clerkId: text("clerk_id").notNull(),
+    clerkDeletedAt: timestamp("clerk_deleted_at"),
+    localDeletedAt: timestamp("local_deleted_at"),
+    lastError: text("last_error"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("pending_user_deletions_clerk_id_idx").on(t.clerkId),
+    index("pending_user_deletions_reconcile_idx").on(
+      t.clerkDeletedAt,
+      t.localDeletedAt,
+    ),
+  ],
+);
+
 export const userStatusEvents = pgTable("user_status_events", {
   id: serial("id").primaryKey(),
   userId: integer("user_id")
