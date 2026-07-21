@@ -14,6 +14,7 @@ import {
 import { ConfirmReservationForm } from "@/app/components/payments/forms/confirm-reservation-form";
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { useMediaQuery } from "@/app/hooks/use-media-query";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 type ConfirmReservationModalProps = {
   invoice: InvoiceWithParticipants;
@@ -30,8 +31,8 @@ export default function ConfirmReservationModal({
 }: ConfirmReservationModalProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const [markAsPaid, setMarkAsPaid] = useState(false);
-  const isPending = invoice.status !== "paid";
-  const standLabel = `${invoice.reservation.stand.label}${invoice.reservation.stand.standNumber}`;
+  const isPending = invoice.status === "pending";
+  const standLabel = formatStandLabel(invoice.reservation.stand);
   const voucherUrl = invoice.payments.find(
     (payment) => payment.voucherUrl,
   )?.voucherUrl;

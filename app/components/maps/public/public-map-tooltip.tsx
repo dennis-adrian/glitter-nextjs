@@ -13,6 +13,7 @@ import { StandWithReservationsWithParticipants } from "@/app/api/stands/definiti
 import { getStandMapParticipants } from "@/app/components/maps/map-participants";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 import CategoryBadge from "@/app/components/category-badge";
 
 type PublicMapTooltipProps = {
@@ -33,7 +34,7 @@ export default function PublicMapTooltip({
 	});
 
 	const participants = getStandMapParticipants(stand);
-	const standLabel = `${stand.label}${stand.standNumber}`;
+	const standLabel = formatStandLabel(stand);
 	const countLabel =
 		participants.length === 1
 			? "1 participante"
@@ -80,7 +81,7 @@ export default function PublicMapTooltip({
 	const tooltip = (
 		<div
 			ref={tooltipRef}
-			className="fixed z-50 rounded-xl border bg-popover text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 min-w-[180px]"
+			className="fixed z-50 rounded-xl border bg-popover text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 min-w-45"
 			style={{
 				top: pos.top,
 				left: pos.left,

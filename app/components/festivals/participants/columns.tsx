@@ -7,6 +7,7 @@ import InfractionsCell from "@/app/components/festivals/participants/cells/infra
 import { ReservationStatus } from "@/app/components/reservations/cells/status";
 import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-header";
 import { InfractionType } from "@/app/lib/infractions/definitions";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { ColumnDef } from "@tanstack/react-table";
 
 export const columnTitles = {
@@ -47,15 +48,13 @@ export const columns: ColumnDef<{
   },
   {
     id: "stand",
-    accessorFn: (row) =>
-      `${row.participant.reservation.stand.label}${row.participant.reservation.stand.standNumber}`,
+    accessorFn: (row) => formatStandLabel(row.participant.reservation.stand),
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.stand} />
     ),
     cell: ({ row }) => (
       <span>
-        {row.original.participant.reservation.stand.label}
-        {row.original.participant.reservation.stand.standNumber}
+        {formatStandLabel(row.original.participant.reservation.stand)}
       </span>
     ),
   },

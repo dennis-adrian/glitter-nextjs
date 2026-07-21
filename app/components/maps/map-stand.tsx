@@ -15,6 +15,7 @@ import {
   SELECTED_RING,
 } from "./map-utils";
 import type { StandColors } from "./map-utils";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 type MapStandProps = {
   stand: StandWithReservationsWithParticipants;
@@ -121,7 +122,7 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
           outline: "none",
         }}
         role={onClick ? "button" : undefined}
-        aria-label={`Espacio ${stand.label || ""}${standNumber} - ${status}`}
+        aria-label={`Espacio ${formatStandLabel(stand)} - ${status}`}
         tabIndex={onClick ? 0 : undefined}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {

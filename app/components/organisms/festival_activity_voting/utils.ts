@@ -6,6 +6,7 @@ import {
   FestivalActivityWithDetailsAndParticipants,
   ParticipantWithUserAndProofs,
 } from "@/app/lib/festivals/definitions";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 export function getValidParticipantsByCategory(
   activity: FestivalActivityWithDetailsAndParticipants,
@@ -51,7 +52,7 @@ export function mapStandsAndParticipantsToVotingItem(
     return {
       // In the best stand activity, only one image is allowed per participant.
       standImage,
-      standName: `Espacio ${stand.label}${stand.standNumber}`,
+      standName: `Espacio ${formatStandLabel(stand)}`,
       standId: stand.id,
     };
   });

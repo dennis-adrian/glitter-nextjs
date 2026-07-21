@@ -31,6 +31,7 @@ import {
   attemptStorageCleanupJob,
   enqueueStorageCleanupJob,
 } from "@/app/lib/uploadthing/actions";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 export async function updateInvoiceStatus(
   invoiceId: number,
@@ -99,7 +100,7 @@ export async function adminAttachPaymentVoucher(
     }
 
     const currentPayment = invoice.payments[0];
-    const standLabel = `${invoice.reservation.stand.label}${invoice.reservation.stand.standNumber}`;
+    const standLabel = formatStandLabel(invoice.reservation.stand);
     const shouldConfirmReservation =
       markAsPaid && invoice.reservation.status !== "accepted";
     let cleanupJobId: number | undefined;

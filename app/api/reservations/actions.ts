@@ -25,6 +25,7 @@ import { getUserName } from "@/app/lib/users/utils";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { ReservationParticipantWithUser } from "@/app/data/invoices/definitions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 export async function fetchConfirmedReservationsByFestival(
   festivalId: number,
@@ -389,7 +390,7 @@ export async function confirmReservation(
 
       await sendReservationConfirmationEmails({
         user: owner,
-        standLabel: `${reservation.stand.label}${reservation.stand.standNumber}`,
+        standLabel: formatStandLabel(reservation.stand),
         festival: reservation.festival,
         participants: reservation.participants,
       });

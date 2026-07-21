@@ -72,12 +72,12 @@ export default function StandManageCardList({
                 className="mt-1"
                 checked={isSelected}
                 onCheckedChange={() => onToggle(stand.id)}
-                aria-label={`Seleccionar ${standDisplayLabel(stand.label, stand.standNumber)}`}
+                aria-label={`Seleccionar ${standDisplayLabel(stand)}`}
               />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-semibold">
-                    Stand {standDisplayLabel(stand.label, stand.standNumber)}
+                    Stand {standDisplayLabel(stand)}
                   </span>
                   <StandStatusBadge status={stand.status} />
                   {hasReservation && (
@@ -102,7 +102,7 @@ export default function StandManageCardList({
                 variant="ghost"
                 size="sm"
                 onClick={() => onEdit(stand)}
-                aria-label={`Editar ${standDisplayLabel(stand.label, stand.standNumber)}`}
+                aria-label={`Editar ${standDisplayLabel(stand)}`}
               >
                 <EditIcon className="h-4 w-4" />
               </Button>

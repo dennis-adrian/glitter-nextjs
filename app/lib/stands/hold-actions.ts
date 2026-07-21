@@ -4,6 +4,7 @@ import { fetchStandById } from "@/app/api/stands/actions";
 import { fetchAdminUsers, fetchBaseProfileById } from "@/app/api/users/actions";
 import ReservationCreatedEmailTemplate from "@/app/emails/reservation-created";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
@@ -303,9 +304,7 @@ export async function confirmStandHold(
           reservationId: result.reservationId,
           creatorName: creator?.displayName || "Usuario",
           standName:
-            stand?.label && stand?.standNumber
-              ? `${stand.label}${stand.standNumber}`
-              : "sin stand",
+            stand?.label != null ? formatStandLabel(stand) : "sin stand",
           standCategory: getCategoryOccupationLabel(stand?.standCategory, {
             singular: false,
           }),

@@ -1,5 +1,6 @@
 import { fetchReservation } from "@/app/api/reservations/actions";
 import EditReservationForm from "@/app/components/reservations/edit-form";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -41,7 +42,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
   );
 
   return (
-    <div className="max-w-screen-md px-4 md:px-6 m-auto">
+    <div className="max-w-3xl px-4 md:px-6 m-auto">
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
@@ -61,8 +62,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
       <Card>
         <CardHeader>
           <CardTitle>
-            Espacio{" "}
-            {`${reservation?.stand.label}${reservation?.stand.standNumber}`}
+            Espacio {reservation ? formatStandLabel(reservation.stand) : null}
           </CardTitle>
           <CardDescription>
             Puedes agregar o eliminar al acompañante de la reserva.

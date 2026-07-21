@@ -14,6 +14,7 @@ import {
   DrawerHeader,
 } from "@/app/components/ui/drawer";
 import { socialsUrls, socialsIcons } from "@/app/lib/users/utils";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 export type CouponProof = {
   promoHighlight: string | null;
@@ -43,12 +44,6 @@ function getCategoryLabel(category: string): string {
     default:
       return "";
   }
-}
-
-function formatStandLabel(
-  stand: Pick<StandWithReservationsWithParticipants, "label" | "standNumber">,
-): string {
-  return `${stand.label ?? ""}${stand.standNumber}`;
 }
 
 export default function FestivalNavStandDrawer({
@@ -142,7 +137,7 @@ export default function FestivalNavStandDrawer({
                           alt={p.displayName}
                         />
                       </Avatar>
-                      <span className="text-xs font-medium truncate max-w-[100px]">
+                      <span className="text-xs font-medium truncate max-w-25">
                         {p.displayName}
                       </span>
                     </button>

@@ -5,6 +5,7 @@ import { UserRequest } from "@/app/api/user_requests/definitions";
 import { fetchAdminUsers, fetchBaseProfileById } from "@/app/api/users/actions";
 import ReservationCreatedEmailTemplate from "@/app/emails/reservation-created";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { db } from "@/db";
 import {
   invoices,
@@ -233,7 +234,7 @@ export async function createReservation(
         festivalName: festival?.name || "Festival",
         reservationId: newReservation.id,
         creatorName: creator?.displayName || "Usuario",
-        standName: `${stand?.label}${stand?.standNumber}` || "sin stand",
+        standName: stand?.label != null ? formatStandLabel(stand) : "sin stand",
         standCategory: getCategoryOccupationLabel(stand?.standCategory, {
           singular: false,
         }),
@@ -316,7 +317,7 @@ export async function updateReservationSimple(
     });
 
     if (prev?.status !== "accepted" && status === "accepted") {
-      const standLabel = `${stand.label ?? ""}${stand.standNumber ?? ""}`;
+      const standLabel = formatStandLabel(stand);
 
       const targets = (participants ?? [])
         .map((p) => p.user)

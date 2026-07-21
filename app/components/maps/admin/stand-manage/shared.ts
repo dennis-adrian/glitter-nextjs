@@ -41,6 +41,4 @@ export function getCategoryLabel(category: StandCategory) {
   return CATEGORY_OPTIONS.find((o) => o.value === category)?.label ?? category;
 }
 
-export function standDisplayLabel(label: string | null, standNumber: number) {
-  return `${label ?? ""}${standNumber}`;
-}
+export { formatStandLabel as standDisplayLabel } from "@/app/lib/stands/helpers";

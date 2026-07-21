@@ -8,6 +8,7 @@ import { getStandMapParticipants } from "@/app/components/maps/map-participants"
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
 import { socialsUrls, socialsIcons } from "@/app/lib/users/utils";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 type PublicMapStandCardProps = {
 	stand: StandWithReservationsWithParticipants | null;
@@ -46,7 +47,7 @@ export default function PublicMapStandCard({
 	if (participants.length === 0) return null;
 
 	const currentParticipant = participants[clampedTab] ?? participants[0];
-	const standLabel = `${stand.label}${stand.standNumber}`;
+	const standLabel = formatStandLabel(stand);
 	const categoryLabel = getCategoryLabel(stand.standCategory);
 	const products = stand.standSubcategories.map((sc) => sc.subcategory.label);
 
@@ -91,7 +92,7 @@ export default function PublicMapStandCard({
 											alt={p.displayName}
 										/>
 									</Avatar>
-									<span className="text-xs font-medium text-foreground truncate max-w-[100px]">
+									<span className="text-xs font-medium text-foreground truncate max-w-25">
 										{p.displayName}
 									</span>
 								</button>

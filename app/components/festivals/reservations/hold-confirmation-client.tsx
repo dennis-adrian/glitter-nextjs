@@ -39,6 +39,7 @@ import {
 import PartnerSelection from "./partner-selection";
 import { RecentSharedStandPartner } from "@/app/lib/festivals/definitions";
 import { cn } from "@/app/lib/utils";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 const TERMS_AND_CONDITIONS_REASON =
   "No ha aceptado los términos y condiciones del festival";
@@ -462,7 +463,7 @@ export default function HoldConfirmationClient({
                     Stand seleccionado
                   </p>
                   <p className="text-lg font-bold text-primary">
-                    Stand #{(stand.label ?? "") + stand.standNumber}
+                    Stand #{formatStandLabel(stand)}
                   </p>
                 </div>
                 <div>

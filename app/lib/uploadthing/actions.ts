@@ -67,7 +67,7 @@ export async function deleteFile(url: string) {
     }
 
     const result = await utapi.deleteFiles(key);
-    if (!result.success || result.deletedCount === 0) {
+    if (!result.success) {
       return { success: false, error: "Error al eliminar el archivo" };
     }
     return { success: true };

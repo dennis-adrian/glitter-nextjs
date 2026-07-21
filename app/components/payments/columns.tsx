@@ -10,6 +10,7 @@ import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-hea
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { formatDate } from "@/app/lib/formatters";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { ColumnDef } from "@tanstack/react-table";
 import { DateTime } from "luxon";
 
@@ -115,8 +116,7 @@ export const columns = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.stand} />
     ),
-    accessorFn: (row) =>
-      `${row.reservation.stand.label}${row.reservation.stand.standNumber}`,
+    accessorFn: (row) => formatStandLabel(row.reservation.stand),
   },
   {
     accessorKey: "createdAt",
