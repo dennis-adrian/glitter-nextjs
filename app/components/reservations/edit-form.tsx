@@ -79,7 +79,7 @@ export default function EditReservationForm({
           },
         },
       });
-      redirect("/dashboard/reservations");
+      redirect(`/dashboard/festivals/${reservation.festivalId}/reservations`);
     } else {
       toast.error(res.message, {
         duration: 3000,

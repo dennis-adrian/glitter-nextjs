@@ -56,7 +56,6 @@ export async function updateInvoiceStatus(
       return { success: false, message: "Pago no encontrado." };
     }
 
-    revalidatePath("/dashboard/payments");
     revalidatePath("/dashboard/festivals/[id]/payments", "page");
     return { success: true, message: "Estado del pago actualizado." };
   } catch (error) {
@@ -183,7 +182,6 @@ export async function adminAttachPaymentVoucher(
       });
     }
 
-    revalidatePath("/dashboard/payments");
     revalidatePath("/dashboard/festivals/[id]/payments", "page");
     return { success: true, message: "Comprobante guardado correctamente." };
   } catch (error) {
@@ -266,7 +264,6 @@ export async function adminRemovePaymentVoucher(
       }
     }
 
-    revalidatePath("/dashboard/payments");
     revalidatePath("/dashboard/festivals/[id]/payments", "page");
     return { success: true, message: "Comprobante eliminado correctamente." };
   } catch (error) {
@@ -438,33 +435,6 @@ export async function confirmFreeInvoice(data: {
   }
 
   return { success: true, message: "Reserva confirmada" };
-}
-
-export async function fetchInvoices(): Promise<InvoiceWithParticipants[]> {
-  try {
-    return await db.query.invoices.findMany({
-      with: {
-        payments: true,
-        reservation: {
-          with: {
-            stand: true,
-            festival: {
-              with: {
-                festivalDates: true,
-              },
-            },
-            participants: {
-              with: { user: true },
-            },
-          },
-        },
-        user: true,
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching invoices", error);
-    return [] as InvoiceWithParticipants[];
-  }
 }
 
 export async function fetchInvoicesByReservation(

@@ -245,7 +245,6 @@ export async function validateAndApplyDiscountCode({
     });
 
     if (result.success) {
-      revalidatePath("/dashboard/payments");
       revalidatePath("/dashboard/festivals/[id]/payments", "page");
     }
 

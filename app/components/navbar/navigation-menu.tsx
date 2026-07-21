@@ -69,7 +69,7 @@ const NavbarNavigationMenu = ({
               </div>
             </NavigationMenuTrigger>
             <NavigationMenuContent>
-              <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2">
+              <ul className="grid w-100 gap-3 p-4 md:w-125 md:grid-cols-2">
                 <NavigationMenuListItem title="Merch" href="/merch">
                   Mercha oficial de nuestros festivales
                 </NavigationMenuListItem>
@@ -102,7 +102,7 @@ const NavbarNavigationMenu = ({
             </div>
           </NavigationMenuTrigger>
           <NavigationMenuContent>
-            <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
+            <ul className="grid w-100 gap-3 p-4 md:w-125 md:grid-cols-2 lg:w-150">
               <NavigationMenuListItem
                 title="Festicker"
                 href="/festivals/festicker"
@@ -146,7 +146,7 @@ const NavbarNavigationMenu = ({
               </div>
             </NavigationMenuTrigger>
             <NavigationMenuContent>
-              <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
+              <ul className="grid w-100 gap-3 p-4 md:w-125 md:grid-cols-2 lg:w-150">
                 <NavigationMenuListItem
                   title="Participantes"
                   href="/dashboard/users?limit=10&offset=0&includeAdmins=false&sort=updatedAt&direction=desc"
@@ -158,18 +158,6 @@ const NavbarNavigationMenu = ({
                   href="/dashboard/profile_requests?limit=10&offset=0&includeAdmins=false&sort=updatedAt&direction=desc&profileCompletion=complete"
                 >
                   Perfiles pendientes o rechazados
-                </NavigationMenuListItem>
-                <NavigationMenuListItem
-                  title="Reservas"
-                  href="/dashboard/reservations"
-                >
-                  Todas las reservas que se han hecho
-                </NavigationMenuListItem>
-                <NavigationMenuListItem
-                  title="Pagos"
-                  href="/dashboard/payments"
-                >
-                  Verifica los pagos hechos por reservas
                 </NavigationMenuListItem>
                 <NavigationMenuListItem
                   title="Festivales"

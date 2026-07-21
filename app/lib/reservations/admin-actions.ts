@@ -154,7 +154,7 @@ export async function createAdminReservation(params: {
 
     const reservationId = result as number;
     revalidatePath("/dashboard/festivals");
-    revalidatePath("/dashboard/reservations");
+    revalidatePath(`/dashboard/festivals/${festivalId}/reservations`);
 
     return { success: true, message: "Reserva creada", reservationId };
   } catch (error: unknown) {
@@ -315,8 +315,8 @@ export async function extendReservationPaymentDeadline(params: {
       ),
     );
 
-    revalidatePath("/dashboard/reservations");
-    revalidatePath("/dashboard/payments");
+    revalidatePath("/dashboard/festivals/[id]/reservations", "page");
+    revalidatePath("/dashboard/festivals/[id]/payments", "page");
 
     return { success: true, message: "Plazo de pago extendido" };
   } catch (error) {

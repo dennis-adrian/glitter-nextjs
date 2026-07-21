@@ -45,7 +45,9 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
-            <BreadcrumbLink href="/dashboard/reservations">
+            <BreadcrumbLink
+              href={`/dashboard/festivals/${reservation.festivalId}/reservations`}
+            >
               Reservas
             </BreadcrumbLink>
           </BreadcrumbItem>
