@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/form";
 import { updateReservationSimple } from "@/app/api/user_requests/actions";
 import { toast } from "sonner";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { BaseProfile } from "@/app/api/users/definitions";
 import {
   Card,
@@ -48,6 +48,7 @@ export default function EditReservationForm({
   artistsOptions: SearchOption[];
   reservation: ReservationWithParticipantsAndUsersAndStandAndFestival;
 }) {
+  const router = useRouter();
   const [partner, setPartner] = useState<Artist | undefined>(
     reservation.participants[1]?.user,
   );
@@ -79,7 +80,9 @@ export default function EditReservationForm({
           },
         },
       });
-      redirect(`/dashboard/festivals/${reservation.festivalId}/reservations`);
+      router.replace(
+        `/dashboard/festivals/${reservation.festivalId}/reservations`,
+      );
     } else {
       toast.error(res.message, {
         duration: 3000,
