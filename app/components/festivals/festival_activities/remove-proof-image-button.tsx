@@ -53,23 +53,26 @@ export default function RemoveProofImageButton({
 
   const handleConfirm = async () => {
     setIsDeleting(true);
-    const result = await deleteFestivalActivityParticipantProof(
-      proofId,
-      participationId,
-      forProfileId,
-      festivalId,
-    );
-    setIsDeleting(false);
-    setOpen(false);
-    if (result.success) {
-      toast.success(result.message);
-      if (onRemoved) {
-        onRemoved();
+    try {
+      const result = await deleteFestivalActivityParticipantProof(
+        proofId,
+        participationId,
+        forProfileId,
+        festivalId,
+      );
+      setOpen(false);
+      if (result.success) {
+        toast.success(result.message);
+        if (onRemoved) {
+          onRemoved();
+        } else {
+          router.refresh();
+        }
       } else {
-        router.refresh();
+        toast.error(result.message);
       }
-    } else {
-      toast.error(result.message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 

@@ -184,11 +184,17 @@ export default function EnrollBestStandForm({
 
     // Removed participants can never upload proof, even if the upload window is
     // still open or was extended after their removal.
-    if (userParticipation?.removedAt) {
+    const isUserRemoved =
+      userParticipation?.removedAt != null ||
+      userParticipation?.proofs.some(
+        (proof) => proof.proofStatus === "rejected_removed",
+      );
+
+    if (isUserRemoved) {
       return (
         <div className="flex flex-col gap-1 border border-red-200 rounded-md p-4 bg-red-50 text-red-800">
           <p className="text-sm font-medium">Fuiste removido de la actividad</p>
-          {userParticipation.removalReason && (
+          {userParticipation?.removalReason && (
             <p className="text-xs text-red-700">
               {userParticipation.removalReason}
             </p>

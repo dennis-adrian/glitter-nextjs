@@ -11,6 +11,7 @@ import type { ProofDisplayState } from "@/app/lib/festival_activites/types";
 import {
   getMaterialConfig,
   getProofUploadExpiredMessage,
+  isProofUploadExpired,
 } from "@/app/lib/festival_activites/helpers";
 import { getUserWaitlistEntry } from "@/app/lib/festival_sectors/helpers";
 
@@ -24,10 +25,6 @@ export function isActivityInVotingWindow(
     now >= activity.votingStartDate &&
     now <= activity.votingEndDate
   );
-}
-
-function isProofUploadExpired(deadlineDate: Date | null | undefined): boolean {
-  return !!deadlineDate && new Date() > new Date(deadlineDate);
 }
 
 function getExpiredUploadConfig(

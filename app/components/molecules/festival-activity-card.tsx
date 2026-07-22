@@ -12,7 +12,7 @@ import {
 } from "@/app/lib/festival_activites/helpers";
 import {
   FestivalActivity,
-  FestivalActivityParticipant,
+  ParticipantWithUserAndProofs,
 } from "@/app/lib/festivals/definitions";
 import { CheckCircleIcon, CircleAlertIcon, ThumbsUpIcon } from "lucide-react";
 import Image from "next/image";
@@ -22,7 +22,7 @@ type FestivalActivityCardProps = {
   forProfile: BaseProfile;
   hasUploadedProof?: boolean;
   isUserInActivity?: boolean;
-  userParticipation?: FestivalActivityParticipant;
+  userParticipation?: ParticipantWithUserAndProofs;
 };
 
 export default function FestivalActivityCard({
@@ -35,6 +35,11 @@ export default function FestivalActivityCard({
   const proofUploadExpired = isProofUploadExpired(
     activity.proofUploadLimitDate,
   );
+  const isUserRemoved =
+    userParticipation?.removedAt != null ||
+    userParticipation?.proofs.some(
+      (proof) => proof.proofStatus === "rejected_removed",
+    );
 
   return (
     <Card>
@@ -54,10 +59,10 @@ export default function FestivalActivityCard({
             <p className="text-sm mt-2 leading-tight">{activity.description}</p>
           </div>
           {isUserInActivity &&
-            (userParticipation?.removedAt ? (
+            (isUserRemoved ? (
               <div className="flex flex-col gap-1 border border-red-200 text-red-800 bg-red-50 rounded-md p-3 text-sm">
                 <p className="font-medium">Fuiste removido de la actividad</p>
-                {userParticipation.removalReason && (
+                {userParticipation?.removalReason && (
                   <p className="text-xs text-red-700">
                     {userParticipation.removalReason}
                   </p>
