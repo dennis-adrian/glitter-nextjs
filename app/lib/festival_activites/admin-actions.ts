@@ -23,7 +23,10 @@ import ActivityProofReviewEmail from "@/app/emails/activity-proof-review";
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
 import { promoteFromWaitlist } from "@/app/lib/festival_activites/actions";
 import { validateCouponBookHeaderImageInput } from "@/app/lib/festival_activites/coupon-book-header-image";
-import { getMaterialConfig, getProofUploadExpiredMessage } from "@/app/lib/festival_activites/helpers";
+import {
+  getMaterialConfig,
+  getProofUploadExpiredMessage,
+} from "@/app/lib/festival_activites/helpers";
 import React from "react";
 
 export type FestivalActivityDetailInput = {

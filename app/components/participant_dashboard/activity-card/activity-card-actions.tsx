@@ -1,11 +1,11 @@
 import Link from "next/link";
 
-import { ChevronRight, Clock, Hourglass, VoteIcon } from "lucide-react";
+import { ChevronRight, Hourglass, VoteIcon } from "lucide-react";
 
 import { BaseProfile } from "@/app/api/users/definitions";
+import DeadlineStamp from "@/app/components/participant_dashboard/activity-card/deadline-stamp";
 import EnrolledUsersCta from "@/app/components/participant_dashboard/activity-card/enrolled-users-cta";
 import PendingActionNotice from "@/app/components/participant_dashboard/activity-card/pending-action-notice";
-import RegistrationDeadlineStamp from "@/app/components/participant_dashboard/activity-card/registration-deadline-stamp";
 import {
   ActivityTheme,
   EnrolledConfig,
@@ -32,47 +32,29 @@ type ActivityCardActionsProps = {
   enrollmentIsOpen: boolean;
 };
 
-function RemovedNotice() {
-  return (
-    <div className="mt-2 border-2 border-dashed p-3 text-red-600 bg-red-50 border-red-500">
-      <p className="text-xs">No podés volver a inscribirte en esta actividad</p>
-    </div>
-  );
-}
-
-function VotingDeadlineStamp({
+function RemovedNotice({
+  activityHref,
   theme,
-  deadlineDate,
 }: {
+  activityHref: string;
   theme: ActivityTheme;
-  deadlineDate: Date;
 }) {
   return (
-    <div className="pt-2">
-      <div
-        className="inline-flex items-center gap-2 px-4 py-2 border-2"
-        style={{
-          borderColor: theme.textSecondary,
-          transform: "rotate(-2deg)",
-          borderStyle: "dashed",
-        }}
-      >
-        <Clock className="w-3.5 h-3.5" style={{ color: theme.textSecondary }} />
-        <p
-          className="text-xs font-bold uppercase tracking-wide"
-          style={{ color: theme.textSecondary }}
-        >
-          Hasta:{" "}
-          {new Date(deadlineDate).toLocaleString("es-ES", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-            hour: "numeric",
-            minute: "2-digit",
-          })}
+    <>
+      <div className="mt-2 border-2 border-dashed p-3 text-red-600 bg-red-50 border-red-500">
+        <p className="text-xs">
+          No podés volver a inscribirte en esta actividad
         </p>
       </div>
-    </div>
+      <Link
+        href={activityHref}
+        className="flex items-center justify-center gap-1 text-sm font-semibold transition-opacity hover:opacity-80"
+        style={{ color: theme.textPrimary }}
+      >
+        Ver detalles
+        <ChevronRight className="w-4 h-4" />
+      </Link>
+    </>
   );
 }
 
@@ -96,9 +78,10 @@ function EnrolledActions({
       )}
 
       {enrolledConfig.ctaType === "link" && enrolledConfig.deadlineDate && (
-        <VotingDeadlineStamp
+        <DeadlineStamp
           theme={theme}
-          deadlineDate={enrolledConfig.deadlineDate}
+          label="Hasta:"
+          date={enrolledConfig.deadlineDate}
         />
       )}
 
@@ -228,7 +211,11 @@ function UnenrolledActions({
   return (
     <>
       {activity.registrationEndDate && (
-        <RegistrationDeadlineStamp theme={theme} activity={activity} />
+        <DeadlineStamp
+          theme={theme}
+          label="Hasta:"
+          date={activity.registrationEndDate}
+        />
       )}
 
       {enrollment.waitlistEntry && (
@@ -263,7 +250,7 @@ export default function ActivityCardActions({
   enrollmentIsOpen,
 }: ActivityCardActionsProps) {
   if (enrollment.isEnrolled && enrollment.isRemoved) {
-    return <RemovedNotice />;
+    return <RemovedNotice activityHref={activityHref} theme={theme} />;
   }
 
   if (enrollment.isEnrolled && enrolledConfig) {
