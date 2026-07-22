@@ -386,13 +386,21 @@ export default function EnrollRedirectButton({
       ? "pending_proof"
       : proof.proofStatus;
 
-    // Removed participant — show disabled state
-    if (proofDisplayState === "rejected_removed") {
+    // Removed participant — show disabled state. Guard on removedAt so a removed
+    // participant is never shown the upload UI, regardless of proof status or
+    // whether the proof upload window was later extended. This covers both admin
+    // removal (removeActivityParticipant) and proof rejection with removal.
+    if (
+      userParticipation?.removedAt ||
+      proofDisplayState === "rejected_removed"
+    ) {
+      const removalMessage =
+        proof?.adminFeedback ?? userParticipation?.removalReason ?? null;
       return (
         <div className="flex flex-col gap-1 border border-red-200 rounded-md p-4 bg-red-50 text-red-800">
           <p className="text-sm font-medium">Fuiste removido de la actividad</p>
-          {proof?.adminFeedback && (
-            <p className="text-xs text-red-700">{proof.adminFeedback}</p>
+          {removalMessage && (
+            <p className="text-xs text-red-700">{removalMessage}</p>
           )}
         </div>
       );

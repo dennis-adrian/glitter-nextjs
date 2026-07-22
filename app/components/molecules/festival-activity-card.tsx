@@ -45,7 +45,16 @@ export default function FestivalActivityCard({
           </div>
           {isUserInActivity &&
             activity.proofType &&
-            (!hasUploadedProof ? (
+            (userParticipation?.removedAt ? (
+              <div className="flex flex-col gap-1 border border-red-200 text-red-800 bg-red-50 rounded-md p-3 text-sm">
+                <p className="font-medium">Fuiste removido de la actividad</p>
+                {userParticipation.removalReason && (
+                  <p className="text-xs text-red-700">
+                    {userParticipation.removalReason}
+                  </p>
+                )}
+              </div>
+            ) : !hasUploadedProof ? (
               <div className="flex flex-col gap-2 md:gap-3 text-sm border border-amber-200 text-amber-900 bg-amber-50 rounded-md p-3">
                 <div className="flex gap-2 md:gap-3">
                   <CircleAlertIcon className="w-5 h-5 text-amber-900" />

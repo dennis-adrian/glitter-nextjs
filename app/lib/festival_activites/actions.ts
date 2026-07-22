@@ -648,6 +648,7 @@ export async function addFestivalActivityParticipantProof(
     where: and(
       eq(festivalActivityParticipants.id, participationId),
       eq(festivalActivityParticipants.userId, activeProfile.id),
+      isNull(festivalActivityParticipants.removedAt),
     ),
     with: {
       activityDetail: {
@@ -741,6 +742,7 @@ export async function deleteFestivalActivityParticipantProof(
         where: and(
           eq(festivalActivityParticipants.id, activityParticipationId),
           eq(festivalActivityParticipants.userId, activeProfile.id),
+          isNull(festivalActivityParticipants.removedAt),
         ),
         with: {
           activityDetail: {
