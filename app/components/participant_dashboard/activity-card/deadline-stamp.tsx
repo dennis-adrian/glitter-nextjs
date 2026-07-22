@@ -1,17 +1,21 @@
 import { Clock } from "lucide-react";
 
-import { FestivalActivity } from "@/app/lib/festivals/definitions";
 import { ActivityTheme } from "@/app/components/participant_dashboard/activity-card/types";
 
-type RegistrationDeadlineStampProps = {
+type DeadlineStampProps = {
   theme: ActivityTheme;
-  activity: FestivalActivity;
+  label: string;
+  date: Date | string;
 };
 
-export default function RegistrationDeadlineStamp({
+/**
+ * Shared dashed deadline stamp used for registration and voting windows.
+ */
+export default function DeadlineStamp({
   theme,
-  activity,
-}: RegistrationDeadlineStampProps) {
+  label,
+  date,
+}: DeadlineStampProps) {
   return (
     <div className="pt-2">
       <div
@@ -27,11 +31,13 @@ export default function RegistrationDeadlineStamp({
           className="text-xs font-bold uppercase tracking-wide"
           style={{ color: theme.textSecondary }}
         >
-          Hasta:{" "}
-          {new Date(activity.registrationEndDate).toLocaleDateString("es-ES", {
+          {label}{" "}
+          {new Date(date).toLocaleString("es-ES", {
             day: "numeric",
             month: "short",
             year: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
           })}
         </p>
       </div>

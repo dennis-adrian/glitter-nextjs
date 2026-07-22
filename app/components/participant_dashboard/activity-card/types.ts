@@ -18,4 +18,5 @@ export type EnrolledConfig = {
   deadlineDate: Date | null;
   isPending: boolean;
   isDestructive?: boolean;
+  isUploadExpired?: boolean;
 };

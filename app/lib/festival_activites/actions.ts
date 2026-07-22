@@ -27,7 +27,11 @@ import {
   stands,
   users,
 } from "@/db/schema";
-import { deleteFile } from "@/app/lib/uploadthing/actions";
+import {
+  attemptStorageCleanupJob,
+  enqueueStorageCleanupJob,
+} from "@/app/lib/uploadthing/actions";
+import { getProofUploadExpiredMessage } from "@/app/lib/festival_activites/helpers";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
 import {
@@ -45,6 +49,9 @@ import {
 } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+
+const PROOF_STATUS_CHANGED = "PROOF_STATUS_CHANGED";
 
 export const fetchFestivalActivity = async (
   activityId: number,
@@ -648,6 +655,7 @@ export async function addFestivalActivityParticipantProof(
     where: and(
       eq(festivalActivityParticipants.id, participationId),
       eq(festivalActivityParticipants.userId, activeProfile.id),
+      isNull(festivalActivityParticipants.removedAt),
     ),
     with: {
       activityDetail: {
@@ -663,16 +671,16 @@ export async function addFestivalActivityParticipantProof(
     };
   }
 
-  const proofType =
-    participation.activityDetail?.festivalActivity?.proofType ?? null;
-  const proofUploadLimitDate =
-    participation.activityDetail?.festivalActivity?.proofUploadLimitDate ??
-    null;
+  const activity = participation.activityDetail?.festivalActivity;
+  const proofType = activity?.proofType ?? null;
+  const proofUploadLimitDate = activity?.proofUploadLimitDate ?? null;
 
   if (proofUploadLimitDate && new Date() > new Date(proofUploadLimitDate)) {
     return {
       success: false,
-      message: "El período de subida ha finalizado",
+      message: activity?.type
+        ? getProofUploadExpiredMessage(activity.type)
+        : "El período de subida ha finalizado",
     };
   }
 
@@ -741,6 +749,7 @@ export async function deleteFestivalActivityParticipantProof(
         where: and(
           eq(festivalActivityParticipants.id, activityParticipationId),
           eq(festivalActivityParticipants.userId, activeProfile.id),
+          isNull(festivalActivityParticipants.removedAt),
         ),
         with: {
           activityDetail: {
@@ -780,26 +789,100 @@ export async function deleteFestivalActivityParticipantProof(
       return { success: false, message: "Diseño no encontrado" };
     }
 
-    // Delete the image from UploadThing (imageUrl may be null for text-only proofs)
-    if (proof.imageUrl) {
-      const imageDeleted = await deleteFile(proof.imageUrl);
-      if (!imageDeleted.success) {
-        return { success: false, message: "Error al eliminar el diseño" };
-      }
+    // Removing to upload a replacement must respect the upload window: once the
+    // deadline passes the design is frozen, mirroring the upload action's guard.
+    const activity = participation.activityDetail?.festivalActivity;
+    const proofUploadLimitDate = activity?.proofUploadLimitDate ?? null;
+    if (proofUploadLimitDate && new Date() > new Date(proofUploadLimitDate)) {
+      return {
+        success: false,
+        message: activity?.type
+          ? getProofUploadExpiredMessage(activity.type)
+          : "El período de subida ha finalizado",
+      };
     }
 
-    await db
-      .delete(festivalActivityParticipantProofs)
-      .where(
-        and(
-          eq(festivalActivityParticipantProofs.id, proofId),
-          eq(
-            festivalActivityParticipantProofs.participationId,
-            activityParticipationId,
+    // Only proofs that have not yet been approved may be removed. An approved
+    // proof is locked so a participant cannot silently undo their confirmation.
+    if (
+      proof.proofStatus !== "pending_review" &&
+      proof.proofStatus !== "rejected_resubmit"
+    ) {
+      return {
+        success: false,
+        message: "Este diseño ya fue aprobado y no se puede eliminar",
+      };
+    }
+
+    // Delete the proof row and, when it has an image, enqueue a durable storage
+    // cleanup job in the same transaction. The orphaned UploadThing file is then
+    // removed after commit (with cron retry) instead of a synchronous delete
+    // whose failure would block the user from removing/replacing their design.
+    let cleanupJobId: number | undefined;
+
+    await db.transaction(async (tx) => {
+      const deletedProofs = await tx
+        .delete(festivalActivityParticipantProofs)
+        .where(
+          and(
+            eq(festivalActivityParticipantProofs.id, proofId),
+            eq(
+              festivalActivityParticipantProofs.participationId,
+              activityParticipationId,
+            ),
+            inArray(festivalActivityParticipantProofs.proofStatus, [
+              "pending_review",
+              "rejected_resubmit",
+            ]),
           ),
-        ),
-      );
+        )
+        .returning({ id: festivalActivityParticipantProofs.id });
+
+      if (deletedProofs.length === 0) {
+        throw new Error(PROOF_STATUS_CHANGED);
+      }
+
+      // imageUrl is null for text-only proofs — nothing to clean up in storage.
+      if (proof.imageUrl) {
+        const cleanupJob = await enqueueStorageCleanupJob(
+          {
+            entityType: "activity_proof",
+            entityId: activityParticipationId,
+            fileUrl: proof.imageUrl,
+          },
+          tx,
+        );
+        cleanupJobId = cleanupJob.id;
+      }
+    });
+
+    if (cleanupJobId !== undefined) {
+      // The proof row is already committed as deleted; a failed immediate cleanup
+      // attempt must not fail the request. The job stays persisted for cron retry.
+      const cleanupJobIdToAttempt = cleanupJobId;
+      after(async () => {
+        try {
+          await attemptStorageCleanupJob(cleanupJobIdToAttempt, {
+            proofId,
+            activityParticipationId,
+          });
+        } catch (cleanupError) {
+          console.error("Immediate storage cleanup attempt failed", {
+            cleanupJobId: cleanupJobIdToAttempt,
+            proofId,
+            error: cleanupError,
+          });
+        }
+      });
+    }
   } catch (error) {
+    if (error instanceof Error && error.message === PROOF_STATUS_CHANGED) {
+      return {
+        success: false,
+        message: "Este diseño ya fue aprobado y no se puede eliminar",
+      };
+    }
+
     console.error("Error deleting festival activity participant proof", error);
     return { success: false, message: "Error al eliminar el diseño" };
   }
