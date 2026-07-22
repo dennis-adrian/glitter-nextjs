@@ -71,6 +71,8 @@ export default function RemoveProofImageButton({
       } else {
         toast.error(result.message);
       }
+    } catch {
+      toast.error("Ocurrió un error al eliminar la imagen. Intentá de nuevo.");
     } finally {
       setIsDeleting(false);
     }
