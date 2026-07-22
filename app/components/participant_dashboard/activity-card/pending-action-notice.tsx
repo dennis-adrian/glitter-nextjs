@@ -48,6 +48,8 @@ export default function PendingActionNotice({
               {formatDate(enrolledConfig.deadlineDate).toLocaleString({
                 month: "short",
                 day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
               })}
             </span>
           </div>

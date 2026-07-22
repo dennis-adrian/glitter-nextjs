@@ -28,10 +28,12 @@ export default function RegistrationDeadlineStamp({
           style={{ color: theme.textSecondary }}
         >
           Hasta:{" "}
-          {new Date(activity.registrationEndDate).toLocaleDateString("es-ES", {
+          {new Date(activity.registrationEndDate).toLocaleString("es-ES", {
             day: "numeric",
             month: "short",
             year: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
           })}
         </p>
       </div>

@@ -1,23 +1,16 @@
 "use client";
 
-import Link from "next/link";
-
-import { ChevronRight, Clock, Hourglass, VoteIcon } from "lucide-react";
-
 import { BaseProfile } from "@/app/api/users/definitions";
 import Heading from "@/app/components/atoms/heading";
+import ActivityCardActions from "@/app/components/participant_dashboard/activity-card/activity-card-actions";
 import ActivityTypeBadge from "@/app/components/participant_dashboard/activity-card/activity-type-badge";
 import EnrolledBadge from "@/app/components/participant_dashboard/activity-card/enrolled-badge";
-import EnrolledUsersCta from "@/app/components/participant_dashboard/activity-card/enrolled-users-cta";
-import PendingActionNotice from "@/app/components/participant_dashboard/activity-card/pending-action-notice";
-import RegistrationDeadlineStamp from "@/app/components/participant_dashboard/activity-card/registration-deadline-stamp";
 import {
   getActivityTheme,
   getEnrolledConfig,
   getEnrollmentInfo,
   isActivityInVotingWindow,
 } from "@/app/components/participant_dashboard/activity-card/utils";
-import { Button } from "@/app/components/ui/button";
 import type { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 
 interface FestivalActivityCardProps {
@@ -77,7 +70,6 @@ export default function FestivalActivityCard({
             )}
           </div>
 
-          {/* Title */}
           <Heading
             level={3}
             className="leading-none"
@@ -86,7 +78,6 @@ export default function FestivalActivityCard({
             {activity.name}
           </Heading>
 
-          {/* Description */}
           {activity.description && (
             <p
               className="text-sm leading-relaxed"
@@ -99,137 +90,16 @@ export default function FestivalActivityCard({
             </p>
           )}
 
-          {enrollment.isEnrolled && enrollment.isRemoved ? (
-            <div className="mt-2 border rounded-md p-3 text-destructive bg-destructive-50">
-              <p className="text-sm font-medium text-destructive">
-                Ya no podés participar en esta actividad
-              </p>
-            </div>
-          ) : enrollment.isEnrolled && enrolledConfig ? (
-            <>
-              {enrolledConfig.isPending && (
-                <PendingActionNotice enrolledConfig={enrolledConfig} />
-              )}
-
-              {/* Deadline stamp for voting activities */}
-              {enrolledConfig.ctaType === "link" &&
-                enrolledConfig.deadlineDate && (
-                  <div className="pt-2">
-                    <div
-                      className="inline-flex items-center gap-2 px-4 py-2 border-2"
-                      style={{
-                        borderColor: theme.textSecondary,
-                        transform: "rotate(-2deg)",
-                        borderStyle: "dashed",
-                      }}
-                    >
-                      <Clock
-                        className="w-3.5 h-3.5"
-                        style={{ color: theme.textSecondary }}
-                      />
-                      <p
-                        className="text-xs font-bold uppercase tracking-wide"
-                        style={{ color: theme.textSecondary }}
-                      >
-                        Hasta:{" "}
-                        {new Date(
-                          enrolledConfig.deadlineDate,
-                        ).toLocaleDateString("es-ES", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-              <EnrolledUsersCta
-                enrolledConfig={enrolledConfig}
-                participationId={enrollment.participationId}
-                festivalId={activity.festivalId}
-                activityId={activity.id}
-                forProfile={forProfile}
-                theme={theme}
-                proofType={activity.proofType}
-                proofDisplayState={enrollment.proofDisplayState}
-                adminFeedback={enrollment.adminFeedback}
-                existingPromoHighlight={enrollment.existingPromoHighlight}
-                existingPromoDescription={enrollment.existingPromoDescription}
-                existingPromoConditions={enrollment.existingPromoConditions}
-              />
-            </>
-          ) : (
-            <>
-              {/* Registration deadline stamp */}
-              {activity.registrationEndDate && (
-                <RegistrationDeadlineStamp theme={theme} activity={activity} />
-              )}
-
-              {/* Waitlist status badge */}
-              {!enrollment.isEnrolled && enrollment.waitlistEntry && (
-                <div className="flex items-center gap-2 text-sm rounded-md border border-amber-200 bg-amber-50 text-amber-800 px-3 py-2">
-                  <Hourglass className="w-3 h-3 shrink-0" />
-                  {enrollment.waitlistEntry.notifiedAt &&
-                  enrollment.waitlistEntry.expiresAt &&
-                  new Date() < new Date(enrollment.waitlistEntry.expiresAt) ? (
-                    <p className="font-medium">¡Tenés un cupo disponible!</p>
-                  ) : (
-                    <p>
-                      Estás en la lista de espera en la posición{" "}
-                      <strong>#{enrollment.waitlistEntry.position}</strong>
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* CTA for unenrolled users */}
-              <div className="pt-2">
-                {isInVotingWindow ? (
-                  <Button
-                    className="w-full font-bold border-0 hover:opacity-90 transition-opacity bg-amber-500 hover:bg-amber-600 text-white"
-                    style={{
-                      clipPath:
-                        "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))",
-                    }}
-                    size="lg"
-                    asChild
-                  >
-                    <Link href={`${activityHref}/voting`}>
-                      <VoteIcon className="w-5 h-5 mr-1" />
-                      Votar ahora
-                    </Link>
-                  </Button>
-                ) : enrollment.waitlistEntry || enrollmentIsOpen ? (
-                  <Button
-                    className="w-full font-bold border-0 hover:opacity-90 transition-opacity"
-                    style={{
-                      backgroundColor: theme.buttonBg,
-                      color: theme.buttonText,
-                      clipPath:
-                        "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))",
-                    }}
-                    size="lg"
-                    asChild
-                  >
-                    <Link href={activityHref}>
-                      {enrollment.waitlistEntry ? "Ver estado" : "Participar"}
-                      <ChevronRight className="w-5 h-5 ml-1" />
-                    </Link>
-                  </Button>
-                ) : (
-                  <Link
-                    href={activityHref}
-                    className="flex items-center justify-center gap-1 text-sm font-semibold transition-opacity hover:opacity-80"
-                    style={{ color: theme.textPrimary }}
-                  >
-                    Ver detalles
-                    <ChevronRight className="w-4 h-4" />
-                  </Link>
-                )}
-              </div>
-            </>
-          )}
+          <ActivityCardActions
+            activity={activity}
+            forProfile={forProfile}
+            theme={theme}
+            enrollment={enrollment}
+            enrolledConfig={enrolledConfig}
+            activityHref={activityHref}
+            isInVotingWindow={isInVotingWindow}
+            enrollmentIsOpen={enrollmentIsOpen}
+          />
         </div>
       </div>
     </div>

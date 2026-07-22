@@ -1,3 +1,7 @@
+import { AlertCircleIcon, VoteIcon } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+
 import { BaseProfile } from "@/app/api/users/definitions";
 import DateSpan from "@/app/components/atoms/date-span";
 import Heading from "@/app/components/atoms/heading";
@@ -6,10 +10,7 @@ import { isActivityInVotingWindow } from "@/app/components/participant_dashboard
 import { Button } from "@/app/components/ui/button";
 import { fetchFestivalParticipants } from "@/app/lib/festivals/actions";
 import { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
-import { VoteIcon } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
-import { notFound } from "next/navigation";
+import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import BestStandDisclaimer from "./best-stand-disclaimer";
 
 type BestStandActivityPageProps = {
@@ -31,8 +32,10 @@ export default async function BestStandActivityPage({
   const activityVariantForProfile = activity.details.find(
     (detail) => detail.category === forProfile.category,
   );
-
-  if (!activityVariantForProfile) return notFound();
+  const categoryLabel =
+    forProfile.category !== "none"
+      ? getCategoryLabel(forProfile.category)
+      : null;
 
   return (
     <div className="container p-2 md:p-4 space-y-4 md:space-y-5">
@@ -40,10 +43,27 @@ export default async function BestStandActivityPage({
         <Heading level={1}>{activity.name}</Heading>
         <p>{activity.description}</p>
       </section>
+      {!activityVariantForProfile && (
+        <div className="flex gap-2 bg-amber-50 border border-amber-200 rounded-md p-4 text-amber-800">
+          <AlertCircleIcon className="w-6 h-6 shrink-0" />
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium">
+              Esta actividad no está disponible para tu categoría
+              {categoryLabel ? ` (${categoryLabel})` : ""}
+            </p>
+            <p className="text-xs text-amber-700">
+              Stand Icónico se organiza por categoría (Ilustración, Gastronomía
+              y Emprendimiento creativo). En esta edición, la actividad no está
+              habilitada para la categoría de tu perfil. Sí vas a poder votar
+              cuando abra la votación.
+            </p>
+          </div>
+        </div>
+      )}
       {activity.promotionalArtUrl && (
         <section>
           <figure className="relative mx-auto mb-2 md:mb-3">
-            <div className="relative w-full max-w-[425px] h-auto aspect-3/4 mx-auto">
+            <div className="relative w-full max-w-106 h-auto aspect-3/4 mx-auto">
               <Image
                 className="object-cover rounded-md"
                 src={activity.promotionalArtUrl}
@@ -317,14 +337,14 @@ export default async function BestStandActivityPage({
             Votar ahora
           </Link>
         </Button>
-      ) : (
+      ) : activityVariantForProfile ? (
         <EnrollBestStandForm
           forProfile={forProfile}
           activity={activity}
           festivalParticipants={confirmedParticipants}
           activityVariantForProfile={activityVariantForProfile}
         />
-      )}
+      ) : null}
     </div>
   );
 }
