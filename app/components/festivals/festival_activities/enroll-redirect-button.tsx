@@ -27,8 +27,10 @@ import {
   isActivityDetailFull,
   isProfileEnrolledInActivity,
 } from "@/app/lib/festival_sectors/helpers";
+import Image from "next/image";
 import UploadStickerDesignModal from "@/app/components/festivals/festival_activities/upload-sticker-design-modal";
 import CouponBookProofModal from "@/app/components/festivals/festival_activities/coupon-book-proof-modal";
+import RemoveProofImageButton from "@/app/components/festivals/festival_activities/remove-proof-image-button";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import type { ProofDisplayState } from "@/app/lib/festival_activites/types";
 import { z } from "zod";
@@ -38,6 +40,10 @@ import { getCategoryLabel } from "@/app/lib/maps/helpers";
 import ConsentFormField from "@/app/components/molecules/consent-form-field";
 import { Alert, AlertDescription, AlertTitle } from "@/app/components/ui/alert";
 import { CheckCircle2Icon, InfoIcon } from "lucide-react";
+import {
+  getProofUploadExpiredMessage,
+  getProofUploadReminderMessage,
+} from "@/app/lib/festival_activites/helpers";
 import { formatDate } from "@/app/lib/formatters";
 
 const FormSchema = z.object({
@@ -406,11 +412,39 @@ export default function EnrollRedirectButton({
       );
     }
 
-    // Under review
+    // Under review — image proofs can be pulled back and re-uploaded while the
+    // upload window is open (server enforces the same window + before-approval
+    // rule). Text/both keep their edit flow via the coupon modal elsewhere.
     if (proofDisplayState === "pending_review") {
+      const removableImageProof =
+        activity.proofType === "image" && proof?.imageUrl ? proof : null;
+      const isUploadWindowOpen =
+        !activity.proofUploadLimitDate ||
+        new Date() <= new Date(activity.proofUploadLimitDate);
+
       return (
-        <div className="flex flex-col text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
+        <div className="flex flex-col gap-3 text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
           <p className="text-sm">Tu información está en revisión</p>
+          {removableImageProof?.imageUrl && (
+            <div className="relative mx-auto w-40 aspect-square overflow-hidden rounded-md bg-white">
+              <Image
+                src={removableImageProof.imageUrl}
+                alt="Tu diseño en revisión"
+                fill
+                className="object-contain"
+              />
+            </div>
+          )}
+          {removableImageProof && isUploadWindowOpen && userParticipation && (
+            <RemoveProofImageButton
+              proofId={removableImageProof.id}
+              participationId={userParticipation.id}
+              forProfileId={forProfile.id}
+              festivalId={festivalId}
+              label="Quitar y subir otro"
+              className="mx-auto"
+            />
+          )}
         </div>
       );
     }
@@ -435,6 +469,22 @@ export default function EnrollRedirectButton({
       );
     }
 
+    const isProofUploadExpired =
+      !!activity.proofUploadLimitDate &&
+      new Date() > new Date(activity.proofUploadLimitDate);
+
+    // Upload window closed — enrolled users without an approved/in-review proof
+    // cannot upload or resubmit anymore.
+    if (isProofUploadExpired) {
+      return (
+        <div className="border border-stone-200 rounded-md p-4 bg-stone-50 text-stone-800">
+          <p className="text-sm">
+            {getProofUploadExpiredMessage(activity.type)}
+          </p>
+        </div>
+      );
+    }
+
     // Pending proof or rejected_resubmit — show upload UI
     if (userParticipation) {
       if (proofType === "text" || proofType === "both") {
@@ -443,7 +493,7 @@ export default function EnrollRedirectButton({
             <p>
               {proofDisplayState === "rejected_resubmit"
                 ? "Se solicitaron correcciones en los detalles de tu promoción"
-                : "Ya estás inscrito. No te olvidés de cargar los detalles de tu promoción"}
+                : `Ya estás inscrito. ${getProofUploadReminderMessage(activity.type)}`}
             </p>
             <CouponBookProofModal
               participationId={userParticipation.id}
@@ -466,7 +516,7 @@ export default function EnrollRedirectButton({
       return (
         <div className="flex gap-2 text-sm flex-col text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
           <p>
-            Ya estás inscrito. No te olvides de subir el diseño de tu sello.
+            Ya estás inscrito. {getProofUploadReminderMessage(activity.type)}.
           </p>
           <UploadStickerDesignModal
             participationId={userParticipation.id}

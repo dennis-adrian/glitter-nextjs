@@ -23,7 +23,7 @@ import ActivityProofReviewEmail from "@/app/emails/activity-proof-review";
 import ActivityWaitlistInvitationEmail from "@/app/emails/activity-waitlist-invitation";
 import { promoteFromWaitlist } from "@/app/lib/festival_activites/actions";
 import { validateCouponBookHeaderImageInput } from "@/app/lib/festival_activites/coupon-book-header-image";
-import { getMaterialConfig } from "@/app/lib/festival_activites/helpers";
+import { getMaterialConfig, getProofUploadExpiredMessage } from "@/app/lib/festival_activites/helpers";
 import React from "react";
 
 export type FestivalActivityDetailInput = {
@@ -418,16 +418,16 @@ export async function upsertActivityParticipantProof(
       };
     }
 
-    const proofType =
-      participation.activityDetail?.festivalActivity?.proofType ?? null;
-    const proofUploadLimitDate =
-      participation.activityDetail?.festivalActivity?.proofUploadLimitDate ??
-      null;
+    const activity = participation.activityDetail?.festivalActivity;
+    const proofType = activity?.proofType ?? null;
+    const proofUploadLimitDate = activity?.proofUploadLimitDate ?? null;
 
     if (proofUploadLimitDate && new Date() > new Date(proofUploadLimitDate)) {
       return {
         success: false,
-        message: "El período de subida de pruebas ha finalizado",
+        message: activity?.type
+          ? getProofUploadExpiredMessage(activity.type)
+          : "El período de subida ha finalizado",
       };
     }
 

@@ -54,7 +54,7 @@ export default function EnrolledUsersCta({
     <div className="pt-2 flex flex-col gap-3">
       {enrolledConfig.isPending &&
         (enrolledConfig.ctaType === "upload" ? (
-          proofType === "both" ? (
+          enrolledConfig.isUploadExpired ? null : proofType === "both" ? (
             <div className="flex flex-col gap-2">
               <CouponBookProofModal
                 participationId={participationId}

@@ -40,6 +40,10 @@ import {
   enrollInBestStandActivity,
 } from "@/app/lib/festival_activites/actions";
 import {
+  getProofUploadExpiredMessage,
+  getProofUploadReminderMessage,
+} from "@/app/lib/festival_activites/helpers";
+import {
   ActivityDetailsWithParticipants,
   FestivalActivityWithDetailsAndParticipants,
 } from "@/app/lib/festivals/definitions";
@@ -193,11 +197,25 @@ export default function EnrollBestStandForm({
     }
 
     if (userParticipation?.proofs.length === 0) {
+      const isProofUploadExpired =
+        !!activity.proofUploadLimitDate &&
+        new Date() > new Date(activity.proofUploadLimitDate);
+
+      if (isProofUploadExpired) {
+        return (
+          <div className="border border-stone-200 rounded-md p-4 bg-stone-50 text-stone-800">
+            <p className="text-sm">
+              {getProofUploadExpiredMessage(activity.type)}
+            </p>
+          </div>
+        );
+      }
+
       return (
         <div className="flex gap-2 text-sm flex-col text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
           <p>
-            Ya estás inscrito en esta actividad. No te olvides de subir la
-            imagen de tu stand.
+            Ya estás inscrito en esta actividad.{" "}
+            {getProofUploadReminderMessage(activity.type)}.
           </p>
           <UploadStickerDesignModal
             participationId={userParticipation.id}
@@ -210,49 +228,64 @@ export default function EnrollBestStandForm({
 
     // Show uploaded images with delete option
     if (userParticipation?.proofs && userParticipation.proofs.length > 0) {
+      const isProofUploadExpired =
+        !!activity.proofUploadLimitDate &&
+        new Date() > new Date(activity.proofUploadLimitDate);
+
       return (
         <div className="flex gap-3 text-sm flex-col border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
           <p className="text-center">
             Ya estás inscrito en esta actividad. Tus imágenes subidas:
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {userParticipation.proofs.map((proof) => (
-              <div
-                key={proof.id}
-                className="flex flex-col gap-2 border border-amber-300 rounded-md p-2 bg-white"
-              >
-                <div className="relative w-full aspect-square rounded-md overflow-hidden">
-                  <Image
-                    src={
-                      proof.imageUrl ??
-                      "/img/placeholders/placeholder-300x300.png"
-                    }
-                    alt={`Imagen de stand ${proof.id}`}
-                    fill
-                    className="object-contain"
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full bg-red-50 hover:bg-red-100 text-red-800 border-red-300"
-                  onClick={() => setConfirmDeleteProofId(proof.id)}
-                  disabled={deletingProofId === proof.id}
+            {userParticipation.proofs.map((proof) => {
+              // Only proofs still awaiting review can be removed, and only while
+              // the upload window is open — matching the server-side guard.
+              const canRemoveProof =
+                !isProofUploadExpired &&
+                (proof.proofStatus === "pending_review" ||
+                  proof.proofStatus === "rejected_resubmit");
+
+              return (
+                <div
+                  key={proof.id}
+                  className="flex flex-col gap-2 border border-amber-300 rounded-md p-2 bg-white"
                 >
-                  {deletingProofId === proof.id ? (
-                    <>
-                      <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />
-                      <span>Eliminando...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2Icon className="w-4 h-4 mr-2" />
-                      <span>Eliminar</span>
-                    </>
+                  <div className="relative w-full aspect-square rounded-md overflow-hidden">
+                    <Image
+                      src={
+                        proof.imageUrl ??
+                        "/img/placeholders/placeholder-300x300.png"
+                      }
+                      alt={`Imagen de stand ${proof.id}`}
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
+                  {canRemoveProof && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full bg-red-50 hover:bg-red-100 text-red-800 border-red-300"
+                      onClick={() => setConfirmDeleteProofId(proof.id)}
+                      disabled={deletingProofId === proof.id}
+                    >
+                      {deletingProofId === proof.id ? (
+                        <>
+                          <Loader2Icon className="w-4 h-4 mr-2 animate-spin" />
+                          <span>Eliminando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Trash2Icon className="w-4 h-4 mr-2" />
+                          <span>Eliminar</span>
+                        </>
+                      )}
+                    </Button>
                   )}
-                </Button>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
           <AlertDialog
             open={confirmDeleteProofId !== null}
