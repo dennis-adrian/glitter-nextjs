@@ -1,4 +1,5 @@
 import {
+  FestivalActivity,
   FestivalActivityWithDetailsAndParticipants,
   WaitlistEntryWithUser,
 } from "@/app/lib/festivals/definitions";
@@ -7,7 +8,10 @@ import {
   EnrolledConfig,
 } from "@/app/components/participant_dashboard/activity-card/types";
 import type { ProofDisplayState } from "@/app/lib/festival_activites/types";
-import { getMaterialConfig } from "@/app/lib/festival_activites/helpers";
+import {
+  getMaterialConfig,
+  getProofUploadExpiredMessage,
+} from "@/app/lib/festival_activites/helpers";
 import { getUserWaitlistEntry } from "@/app/lib/festival_sectors/helpers";
 
 export function isActivityInVotingWindow(
@@ -22,6 +26,25 @@ export function isActivityInVotingWindow(
   );
 }
 
+function isProofUploadExpired(deadlineDate: Date | null | undefined): boolean {
+  return !!deadlineDate && new Date() > new Date(deadlineDate);
+}
+
+function getExpiredUploadConfig(
+  activityType: FestivalActivity["type"],
+  deadlineDate: Date | null,
+): EnrolledConfig {
+  return {
+    pendingLabel: getProofUploadExpiredMessage(activityType),
+    pendingDescription: "",
+    ctaLabel: "",
+    ctaType: "upload",
+    deadlineDate,
+    isPending: true,
+    isUploadExpired: true,
+  };
+}
+
 export function getEnrolledConfig(
   activity: FestivalActivityWithDetailsAndParticipants,
   profileId: number,
@@ -33,6 +56,13 @@ export function getEnrolledConfig(
 
   if (activity.allowsVoting) {
     if (isProofPending) {
+      if (isProofUploadExpired(activity.proofUploadLimitDate)) {
+        return getExpiredUploadConfig(
+          activity.type,
+          activity.proofUploadLimitDate,
+        );
+      }
+
       const isResubmit = proofDisplayState === "rejected_resubmit";
       return {
         pendingLabel: isResubmit
@@ -40,7 +70,7 @@ export function getEnrolledConfig(
           : "Imagen del stand pendiente",
         pendingDescription: isResubmit
           ? "Se solicitaron correcciones en la imagen de tu stand"
-          : "Sube una imagen de tu stand para participar en la votación",
+          : "Subí una imagen de tu stand para participar en la votación",
         ctaLabel: isResubmit ? "Editar y reenviar" : "Subir Imagen",
         ctaType: "upload",
         deadlineDate: activity.proofUploadLimitDate,
@@ -66,6 +96,13 @@ export function getEnrolledConfig(
   }
 
   if (activity.proofType === "text" && activity.type === "coupon_book") {
+    if (isProofPending && isProofUploadExpired(activity.proofUploadLimitDate)) {
+      return getExpiredUploadConfig(
+        activity.type,
+        activity.proofUploadLimitDate,
+      );
+    }
+
     const isResubmit = proofDisplayState === "rejected_resubmit";
     return {
       pendingLabel: isResubmit
@@ -82,6 +119,10 @@ export function getEnrolledConfig(
     };
   }
 
+  if (isProofPending && isProofUploadExpired(activity.proofUploadLimitDate)) {
+    return getExpiredUploadConfig(activity.type, activity.proofUploadLimitDate);
+  }
+
   const isResubmit = proofDisplayState === "rejected_resubmit";
   const { noun } = getMaterialConfig(activity.type);
   return {
@@ -90,7 +131,7 @@ export function getEnrolledConfig(
       : `Diseño de ${noun} pendiente`,
     pendingDescription: isResubmit
       ? `Se solicitaron correcciones en el diseño de tu ${noun}`
-      : `Sube el diseño de tu ${noun} personalizado para confirmar tu participación`,
+      : `Subí el diseño de tu ${noun} personalizado para confirmar tu participación`,
     ctaLabel: isResubmit ? "Editar y reenviar" : "Subir Diseño",
     ctaType: "upload",
     deadlineDate: activity.proofUploadLimitDate,
