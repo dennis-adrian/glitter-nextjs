@@ -43,6 +43,7 @@ import { CheckCircle2Icon, InfoIcon } from "lucide-react";
 import {
   getProofUploadExpiredMessage,
   getProofUploadReminderMessage,
+  isProofUploadExpired,
 } from "@/app/lib/festival_activites/helpers";
 import { formatDate } from "@/app/lib/formatters";
 
@@ -418,17 +419,17 @@ export default function EnrollRedirectButton({
     if (proofDisplayState === "pending_review") {
       const removableImageProof =
         activity.proofType === "image" && proof?.imageUrl ? proof : null;
-      const isUploadWindowOpen =
-        !activity.proofUploadLimitDate ||
-        new Date() <= new Date(activity.proofUploadLimitDate);
+      const isUploadWindowOpen = !isProofUploadExpired(
+        activity.proofUploadLimitDate,
+      );
 
       return (
         <div className="flex flex-col gap-3 text-center border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
           <p className="text-sm">Tu información está en revisión</p>
-          {removableImageProof?.imageUrl && (
+          {proof?.imageUrl && (
             <div className="relative mx-auto w-40 aspect-square overflow-hidden rounded-md bg-white">
               <Image
-                src={removableImageProof.imageUrl}
+                src={proof.imageUrl}
                 alt="Tu diseño en revisión"
                 fill
                 className="object-contain"
@@ -469,13 +470,13 @@ export default function EnrollRedirectButton({
       );
     }
 
-    const isProofUploadExpired =
-      !!activity.proofUploadLimitDate &&
-      new Date() > new Date(activity.proofUploadLimitDate);
+    const proofUploadExpired = isProofUploadExpired(
+      activity.proofUploadLimitDate,
+    );
 
     // Upload window closed — enrolled users without an approved/in-review proof
     // cannot upload or resubmit anymore.
-    if (isProofUploadExpired) {
+    if (proofUploadExpired) {
       return (
         <div className="border border-stone-200 rounded-md p-4 bg-stone-50 text-stone-800">
           <p className="text-sm">

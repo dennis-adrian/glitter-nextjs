@@ -68,6 +68,13 @@ export function getMaterialConfig(
   return MATERIAL_CONFIG[activityType] ?? FALLBACK;
 }
 
+/** Whether the deadline for uploading proof has passed. */
+export function isProofUploadExpired(
+  proofUploadLimitDate: FestivalActivity["proofUploadLimitDate"],
+): boolean {
+  return !!proofUploadLimitDate && new Date() > new Date(proofUploadLimitDate);
+}
+
 /** Copy for when the proof upload window has closed. */
 export function getProofUploadExpiredMessage(
   activityType: FestivalActivity["type"],

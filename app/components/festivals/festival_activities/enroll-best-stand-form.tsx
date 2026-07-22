@@ -42,6 +42,7 @@ import {
 import {
   getProofUploadExpiredMessage,
   getProofUploadReminderMessage,
+  isProofUploadExpired,
 } from "@/app/lib/festival_activites/helpers";
 import {
   ActivityDetailsWithParticipants,
@@ -197,11 +198,11 @@ export default function EnrollBestStandForm({
     }
 
     if (userParticipation?.proofs.length === 0) {
-      const isProofUploadExpired =
-        !!activity.proofUploadLimitDate &&
-        new Date() > new Date(activity.proofUploadLimitDate);
+      const proofUploadExpired = isProofUploadExpired(
+        activity.proofUploadLimitDate,
+      );
 
-      if (isProofUploadExpired) {
+      if (proofUploadExpired) {
         return (
           <div className="border border-stone-200 rounded-md p-4 bg-stone-50 text-stone-800">
             <p className="text-sm">
@@ -228,9 +229,9 @@ export default function EnrollBestStandForm({
 
     // Show uploaded images with delete option
     if (userParticipation?.proofs && userParticipation.proofs.length > 0) {
-      const isProofUploadExpired =
-        !!activity.proofUploadLimitDate &&
-        new Date() > new Date(activity.proofUploadLimitDate);
+      const proofUploadExpired = isProofUploadExpired(
+        activity.proofUploadLimitDate,
+      );
 
       return (
         <div className="flex gap-3 text-sm flex-col border border-amber-200 rounded-md p-4 bg-amber-50 text-amber-800">
@@ -242,7 +243,7 @@ export default function EnrollBestStandForm({
               // Only proofs still awaiting review can be removed, and only while
               // the upload window is open — matching the server-side guard.
               const canRemoveProof =
-                !isProofUploadExpired &&
+                !proofUploadExpired &&
                 (proof.proofStatus === "pending_review" ||
                   proof.proofStatus === "rejected_resubmit");
 

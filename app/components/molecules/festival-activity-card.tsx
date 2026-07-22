@@ -8,6 +8,7 @@ import {
   getMaterialConfig,
   getProofUploadExpiredMessage,
   getProofUploadReminderMessage,
+  isProofUploadExpired,
 } from "@/app/lib/festival_activites/helpers";
 import {
   FestivalActivity,
@@ -31,9 +32,9 @@ export default function FestivalActivityCard({
   isUserInActivity,
   userParticipation,
 }: FestivalActivityCardProps) {
-  const isProofUploadExpired =
-    !!activity.proofUploadLimitDate &&
-    new Date() > new Date(activity.proofUploadLimitDate);
+  const proofUploadExpired = isProofUploadExpired(
+    activity.proofUploadLimitDate,
+  );
 
   return (
     <Card>
@@ -65,7 +66,7 @@ export default function FestivalActivityCard({
             ) : (
               activity.proofType &&
               (!hasUploadedProof ? (
-                isProofUploadExpired ? (
+                proofUploadExpired ? (
                   <div className="flex gap-2 md:gap-3 text-sm border border-stone-200 text-stone-800 bg-stone-50 rounded-md p-3">
                     <CircleAlertIcon className="w-5 h-5 shrink-0" />
                     <p>{getProofUploadExpiredMessage(activity.type)}</p>

@@ -49,6 +49,9 @@ import {
 } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+
+const PROOF_STATUS_CHANGED = "PROOF_STATUS_CHANGED";
 
 export const fetchFestivalActivity = async (
   activityId: number,
@@ -818,7 +821,7 @@ export async function deleteFestivalActivityParticipantProof(
     let cleanupJobId: number | undefined;
 
     await db.transaction(async (tx) => {
-      await tx
+      const deletedProofs = await tx
         .delete(festivalActivityParticipantProofs)
         .where(
           and(
@@ -827,8 +830,17 @@ export async function deleteFestivalActivityParticipantProof(
               festivalActivityParticipantProofs.participationId,
               activityParticipationId,
             ),
+            inArray(festivalActivityParticipantProofs.proofStatus, [
+              "pending_review",
+              "rejected_resubmit",
+            ]),
           ),
-        );
+        )
+        .returning({ id: festivalActivityParticipantProofs.id });
+
+      if (deletedProofs.length === 0) {
+        throw new Error(PROOF_STATUS_CHANGED);
+      }
 
       // imageUrl is null for text-only proofs — nothing to clean up in storage.
       if (proof.imageUrl) {
@@ -847,20 +859,30 @@ export async function deleteFestivalActivityParticipantProof(
     if (cleanupJobId !== undefined) {
       // The proof row is already committed as deleted; a failed immediate cleanup
       // attempt must not fail the request. The job stays persisted for cron retry.
-      try {
-        await attemptStorageCleanupJob(cleanupJobId, {
-          proofId,
-          activityParticipationId,
-        });
-      } catch (cleanupError) {
-        console.error("Immediate storage cleanup attempt failed", {
-          cleanupJobId,
-          proofId,
-          error: cleanupError,
-        });
-      }
+      const cleanupJobIdToAttempt = cleanupJobId;
+      after(async () => {
+        try {
+          await attemptStorageCleanupJob(cleanupJobIdToAttempt, {
+            proofId,
+            activityParticipationId,
+          });
+        } catch (cleanupError) {
+          console.error("Immediate storage cleanup attempt failed", {
+            cleanupJobId: cleanupJobIdToAttempt,
+            proofId,
+            error: cleanupError,
+          });
+        }
+      });
     }
   } catch (error) {
+    if (error instanceof Error && error.message === PROOF_STATUS_CHANGED) {
+      return {
+        success: false,
+        message: "Este diseño ya fue aprobado y no se puede eliminar",
+      };
+    }
+
     console.error("Error deleting festival activity participant proof", error);
     return { success: false, message: "Error al eliminar el diseño" };
   }
