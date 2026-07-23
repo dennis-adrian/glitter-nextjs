@@ -35,9 +35,8 @@ export default function RegisterInfractionButton({
           <GlobalRegisterInfractionForm
             infractionTypes={infractionTypes}
             festivals={festivals}
-            onSuccess={(infractionId) => {
+            onSuccess={() => {
               setOpen(false);
-              router.push(`/dashboard/infractions/${infractionId}`);
               router.refresh();
             }}
           />
