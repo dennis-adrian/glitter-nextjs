@@ -77,7 +77,9 @@ export const InfractionSearchParamsSchema = z
     status: statusSchema,
     userGaveNotice: optionalBoolean,
     hasSanction: optionalBoolean,
-    sanctionStatus: z.enum(["active", "inactive"]).optional(),
+    sanctionStatus: z
+      .enum(["scheduled", "active", "expired", "revoked"])
+      .optional(),
     createdFrom: isoDateSchema,
     createdTo: isoDateSchema,
     resolvedFrom: isoDateSchema,

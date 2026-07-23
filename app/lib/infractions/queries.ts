@@ -31,10 +31,18 @@ import {
   infractionNotes,
   infractions,
   infractionTypes,
+  sanctionInfractions,
   sanctions,
   users,
 } from "@/db/schema";
 import { DateTime } from "luxon";
+
+export type InfractionLinkedSanction = {
+  id: number;
+  type: (typeof sanctions.$inferSelect)["type"];
+  status: (typeof sanctions.$inferSelect)["status"];
+  active: boolean;
+};
 
 export type InfractionListItem = InfractionBase & {
   user: {
@@ -55,11 +63,11 @@ export type InfractionListItem = InfractionBase & {
     name: string;
     festivalType: (typeof festivals.$inferSelect)["festivalType"];
   } | null;
-  sanctions: {
-    id: number;
-    type: (typeof sanctions.$inferSelect)["type"];
-    active: boolean;
+  sanctionLinks: {
+    sanction: InfractionLinkedSanction;
   }[];
+  /** @deprecated Prefer `sanctionLinks`. */
+  sanctions: InfractionLinkedSanction[];
 };
 
 export type InfractionDetail = InfractionListItem & {
@@ -194,33 +202,36 @@ function buildInfractionConditions(
     conditions.push(
       exists(
         db
-          .select({ id: sanctions.id })
-          .from(sanctions)
-          .where(eq(sanctions.infractionId, infractions.id)),
+          .select({ sanctionId: sanctionInfractions.sanctionId })
+          .from(sanctionInfractions)
+          .where(eq(sanctionInfractions.infractionId, infractions.id)),
       ),
     );
   } else if (filters.hasSanction === false) {
     conditions.push(
       notExists(
         db
-          .select({ id: sanctions.id })
-          .from(sanctions)
-          .where(eq(sanctions.infractionId, infractions.id)),
+          .select({ sanctionId: sanctionInfractions.sanctionId })
+          .from(sanctionInfractions)
+          .where(eq(sanctionInfractions.infractionId, infractions.id)),
       ),
     );
   }
 
   if (filters.sanctionStatus) {
-    const active = filters.sanctionStatus === "active";
     conditions.push(
       exists(
         db
-          .select({ id: sanctions.id })
-          .from(sanctions)
+          .select({ sanctionId: sanctionInfractions.sanctionId })
+          .from(sanctionInfractions)
+          .innerJoin(
+            sanctions,
+            eq(sanctions.id, sanctionInfractions.sanctionId),
+          )
           .where(
             and(
-              eq(sanctions.infractionId, infractions.id),
-              eq(sanctions.active, active),
+              eq(sanctionInfractions.infractionId, infractions.id),
+              eq(sanctions.status, filters.sanctionStatus),
             ),
           ),
       ),
@@ -330,10 +341,23 @@ export async function fetchInfractionsPage(filters: InfractionSearchParams) {
           festivalType: true,
         },
       },
+      sanctionLinks: {
+        with: {
+          sanction: {
+            columns: {
+              id: true,
+              type: true,
+              status: true,
+              active: true,
+            },
+          },
+        },
+      },
       sanctions: {
         columns: {
           id: true,
           type: true,
+          status: true,
           active: true,
         },
       },
@@ -382,10 +406,23 @@ export async function fetchInfractionDetail(
           festivalType: true,
         },
       },
+      sanctionLinks: {
+        with: {
+          sanction: {
+            columns: {
+              id: true,
+              type: true,
+              status: true,
+              active: true,
+            },
+          },
+        },
+      },
       sanctions: {
         columns: {
           id: true,
           type: true,
+          status: true,
           active: true,
         },
       },

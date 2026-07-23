@@ -9,6 +9,8 @@ import {
   InfractionSeverityBadge,
   InfractionStatusBadge,
 } from "@/app/components/infractions/status-badge";
+import CreateSanctionButton from "@/app/components/sanctions/create-button";
+import { SanctionStatusBadge } from "@/app/components/sanctions/status-badge";
 import { fetchInfractionTypes } from "@/app/lib/infractions/actions";
 import {
   getPriorNoticeLabel,
@@ -19,6 +21,7 @@ import {
   fetchInfractionDetail,
   fetchParticipantOtherInfractions,
 } from "@/app/lib/infractions/queries";
+import { sanctionTypeLabel } from "@/app/lib/sanctions/mappers";
 import { formatDate } from "@/app/lib/formatters";
 import { ArrowLeftIcon } from "lucide-react";
 import { DateTime } from "luxon";
@@ -47,7 +50,8 @@ export default async function InfractionDetailPage({
     excludeInfractionId: infraction.id,
   });
 
-  const sanction = infraction.sanctions[0];
+  const sanction =
+    infraction.sanctionLinks[0]?.sanction ?? infraction.sanctions[0] ?? null;
 
   return (
     <div className="container mx-auto space-y-6 p-3 md:p-6">
@@ -134,14 +138,41 @@ export default async function InfractionDetailPage({
             </p>
           )}
           {sanction && (
-            <p className="text-sm">
-              <span className="text-muted-foreground">Sanción: </span>#
-              {sanction.id} · {sanction.type}
-              {sanction.active ? "" : " (inactiva)"}
-            </p>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Sanción:</span>
+              <Link
+                href={`/dashboard/sanctions/${sanction.id}`}
+                className="text-primary hover:underline"
+              >
+                #{sanction.id} · {sanctionTypeLabel[sanction.type]}
+              </Link>
+              <SanctionStatusBadge status={sanction.status} />
+            </div>
           )}
         </section>
       </div>
+
+      {!sanction && infraction.status !== "voided" && (
+        <CreateSanctionButton
+          userId={infraction.userId}
+          participantLabel={participantDisplayName(infraction.user)}
+          preselectedInfraction={{
+            id: infraction.id,
+            status: infraction.status,
+            description: infraction.description,
+            festivalId: infraction.festivalId,
+            createdAt: infraction.createdAt,
+            type: {
+              id: infraction.type.id,
+              label: infraction.type.label,
+              severity: infraction.type.severity,
+            },
+            festival: infraction.festival
+              ? { id: infraction.festival.id, name: infraction.festival.name }
+              : null,
+          }}
+        />
+      )}
 
       <InfractionStatusActions
         infractionId={infraction.id}

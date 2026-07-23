@@ -21,9 +21,19 @@ import {
   participantDisplayName,
 } from "@/app/lib/infractions/mappers";
 import type { InfractionListItem } from "@/app/lib/infractions/queries";
+import {
+  sanctionStatusLabel,
+  sanctionTypeLabel,
+} from "@/app/lib/sanctions/mappers";
 import { DateTime } from "luxon";
 import Link from "next/link";
 import { use } from "react";
+
+function linkedSanction(infraction: InfractionListItem) {
+  return (
+    infraction.sanctionLinks[0]?.sanction ?? infraction.sanctions[0] ?? null
+  );
+}
 
 type InfractionsListProps = {
   fetchPromise: Promise<{ items: InfractionListItem[]; total: number }>;
@@ -69,7 +79,7 @@ export default function InfractionsList({
               </TableRow>
             ) : (
               items.map((infraction) => {
-                const sanction = infraction.sanctions[0];
+                const sanction = linkedSanction(infraction);
                 return (
                   <TableRow key={infraction.id}>
                     <TableCell>
@@ -110,9 +120,17 @@ export default function InfractionsList({
                       <InfractionStatusBadge status={infraction.status} />
                     </TableCell>
                     <TableCell className="text-xs">
-                      {sanction
-                        ? `${sanction.type}${sanction.active ? "" : " (inactiva)"}`
-                        : "—"}
+                      {sanction ? (
+                        <Link
+                          href={`/dashboard/sanctions/${sanction.id}`}
+                          className="text-primary hover:underline"
+                        >
+                          {sanctionTypeLabel[sanction.type]} ·{" "}
+                          {sanctionStatusLabel[sanction.status]}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-sm">
                       {formatDate(infraction.createdAt).toLocaleString(
@@ -141,7 +159,7 @@ export default function InfractionsList({
           </p>
         ) : (
           items.map((infraction) => {
-            const sanction = infraction.sanctions[0];
+            const sanction = linkedSanction(infraction);
             return (
               <Link
                 key={infraction.id}
@@ -183,7 +201,7 @@ export default function InfractionsList({
                   <dt className="text-muted-foreground">Sanción:</dt>
                   <dd>
                     {sanction
-                      ? `${sanction.type}${sanction.active ? "" : " (inactiva)"}`
+                      ? `${sanctionTypeLabel[sanction.type]} · ${sanctionStatusLabel[sanction.status]}`
                       : "—"}
                   </dd>
                 </dl>

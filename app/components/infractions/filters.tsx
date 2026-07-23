@@ -224,10 +224,14 @@ export default function InfractionsFilters({
       ? [
           {
             key: "sanctionStatus",
-            label:
-              sanctionStatus === "active"
-                ? "Sanción activa"
-                : "Sanción inactiva",
+            label: `Sanción: ${
+              {
+                scheduled: "programada",
+                active: "activa",
+                expired: "expirada",
+                revoked: "revocada",
+              }[sanctionStatus] ?? sanctionStatus
+            }`,
           },
         ]
       : []),
@@ -340,8 +344,10 @@ export default function InfractionsFilters({
         placeholder="Todos"
         options={[
           { value: "all", label: "Todos" },
+          { value: "scheduled", label: "Programada" },
           { value: "active", label: "Activa" },
-          { value: "inactive", label: "Inactiva" },
+          { value: "expired", label: "Expirada" },
+          { value: "revoked", label: "Revocada" },
         ]}
         onSelect={(_, values) =>
           handleSingleFilter("sanctionStatus", values[0] ?? "")
