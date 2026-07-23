@@ -36,12 +36,12 @@ export async function exportFestivalData(
   festivalId: number,
   options: ExportFestivalDataOptions,
 ): Promise<{ success: boolean; data?: FestivalExport; message: string }> {
-  const actor = await requireAdminOrFestivalAdmin();
-  if (!actor) {
-    return { success: false, message: "No autorizado" };
-  }
-
   try {
+    const actor = await requireAdminOrFestivalAdmin();
+    if (!actor) {
+      return { success: false, message: "No autorizado" };
+    }
+
     const parsedOptions = exportFestivalDataOptionsSchema.parse(options);
 
     const festival = await db.query.festivals.findFirst({
@@ -184,12 +184,12 @@ export async function importFestivalData(
     datesCreated: number;
   };
 }> {
-  const actor = await requireAdminOrFestivalAdmin();
-  if (!actor) {
-    return { success: false, message: "No autorizado" };
-  }
-
   try {
+    const actor = await requireAdminOrFestivalAdmin();
+    if (!actor) {
+      return { success: false, message: "No autorizado" };
+    }
+
     const parsedData = festivalExportSchema.parse(exportData);
     const parsedOptions = importFestivalDataOptionsSchema.parse(options);
 
@@ -342,12 +342,12 @@ export async function createFestivalFromImport(
   message: string;
   festivalId?: number;
 }> {
-  const actor = await requireAdminOrFestivalAdmin();
-  if (!actor) {
-    return { success: false, message: "No autorizado" };
-  }
-
   try {
+    const actor = await requireAdminOrFestivalAdmin();
+    if (!actor) {
+      return { success: false, message: "No autorizado" };
+    }
+
     const parsedData = festivalExportSchema.parse(exportData);
 
     const festivalInfo = parsedData.festival;

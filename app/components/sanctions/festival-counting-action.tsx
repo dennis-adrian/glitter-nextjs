@@ -29,7 +29,7 @@ export default function FestivalCountingAction({
         sanctionId,
         festivalId,
         countsTowardDuration: willCount,
-        reason,
+        reason: reason.trim(),
       });
       if (!response.success) {
         toast.error(response.message);
@@ -59,6 +59,11 @@ export default function FestivalCountingAction({
   return (
     <div className="space-y-2 rounded-md bg-muted/50 p-3">
       <Textarea
+        aria-label={
+          willCount
+            ? "Motivo para restaurar este festival al conteo"
+            : "Motivo para excluir este festival del conteo"
+        }
         value={reason}
         onChange={(event) => setReason(event.target.value)}
         placeholder={
