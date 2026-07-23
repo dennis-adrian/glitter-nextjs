@@ -1,44 +1,15 @@
-import { Badge, type BadgeVariant } from "@/app/components/ui/badge";
+import { getStatusBadgePresentation } from "@/app/components/infractions/status-badge";
+import { Badge } from "@/app/components/ui/badge";
 import { Separator } from "@/app/components/ui/separator";
 import { formatDate } from "@/app/lib/formatters";
 import {
   getInfractionStatusLabel,
   infractionSeverityLabel,
 } from "@/app/lib/infractions/mappers";
-import type { InfractionStatus } from "@/app/lib/infractions/definitions";
 import type { ParticipantInfraction } from "@/app/lib/infractions/participant-queries";
 import { cn } from "@/app/lib/utils";
-import {
-  AlertCircleIcon,
-  BanIcon,
-  CheckCircleIcon,
-  ClockIcon,
-  EyeIcon,
-  type LucideIcon,
-} from "lucide-react";
+import { AlertCircleIcon } from "lucide-react";
 import { DateTime } from "luxon";
-
-function getStatusBadgePresentation(status: InfractionStatus): {
-  variant: BadgeVariant;
-  Icon: LucideIcon;
-  className?: string;
-} {
-  switch (status) {
-    case "resolved":
-      return { variant: "dark", Icon: CheckCircleIcon };
-    case "under_review":
-      return { variant: "secondary", Icon: EyeIcon };
-    case "voided":
-      return {
-        variant: "outline",
-        Icon: BanIcon,
-        className: "text-muted-foreground",
-      };
-    case "pending":
-    default:
-      return { variant: "outline", Icon: ClockIcon };
-  }
-}
 
 export default function UserInfractionCard({
   infraction,
