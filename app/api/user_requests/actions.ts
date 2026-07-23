@@ -1,23 +1,19 @@
 "use server";
 
-import { fetchStandById } from "@/app/api/stands/actions";
 import { UserRequest } from "@/app/api/user_requests/definitions";
-import { fetchAdminUsers, fetchBaseProfileById } from "@/app/api/users/actions";
-import ReservationCreatedEmailTemplate from "@/app/emails/reservation-created";
-import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
+import { fetchAdminUsers } from "@/app/api/users/actions";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { db } from "@/db";
 import {
   invoices,
   reservationParticipants,
-  scheduledTasks,
   standReservations,
   stands,
   userRequests,
   users,
 } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
-import { and, eq, not, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { BaseProfile } from "@/app/api/users/definitions";
 import FestivalParticipationApprovedEmailTemplate from "@/app/emails/festival-participation-approved";
@@ -27,10 +23,11 @@ import {
   FestivalBase,
   FestivalWithDates,
 } from "@/app/lib/festivals/definitions";
-import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import ReservationConfirmationEmailTemplate from "@/app/emails/reservation-confirmation";
 import { ReservationParticipantWithUser } from "@/app/data/invoices/definitions";
 import { StandBase } from "@/app/api/stands/definitions";
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
+import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
 
 export async function fetchRequestsByUserId(userId: number) {
   try {
@@ -147,127 +144,104 @@ export async function fetchRequests(): Promise<UserRequest[]> {
   }
 }
 
-// TODO: Move this to its own file
-export type NewStandReservation = typeof standReservations.$inferInsert & {
-  participantIds: number[];
-};
-export async function createReservation(
-  reservation: NewStandReservation,
-  price: number,
-  forUser: BaseProfile,
-) {
-  try {
-    if (forUser.status !== "verified") {
-      return {
-        success: false,
-        message: "No tienes permisos para realizar esta acción",
-      };
-    }
-
-    const blockingReservations = await db.query.standReservations.findMany({
-      where: and(
-        eq(standReservations.standId, reservation.standId),
-        not(eq(standReservations.status, "rejected")),
-      ),
-    });
-
-    if (blockingReservations.length > 0) {
-      return {
-        success: false,
-        message: "Ups! Ya hay una reserva para este espacio",
-        description: "Recarga la página e intenta de nuevo",
-      };
-    }
-
-    const { festivalId, standId, participantIds } = reservation;
-    const newReservation = await db.transaction(async (tx) => {
-      const rows = await tx
-        .insert(standReservations)
-        .values({
-          festivalId,
-          standId,
-        })
-        .returning();
-
-      const reservationId = rows[0].id;
-
-      const participantValues = participantIds.map((userId) => ({
-        userId,
-        reservationId,
-      }));
-
-      await tx.insert(reservationParticipants).values(participantValues);
-
-      await tx
-        .update(stands)
-        .set({ status: "reserved", updatedAt: new Date() })
-        .where(eq(stands.id, standId));
-
-      await tx.insert(invoices).values({
-        date: new Date(),
-        userId: participantIds[0],
-        reservationId: reservationId,
-        amount: price,
-      });
-
-      await tx.insert(scheduledTasks).values({
-        dueDate: sql`now() + interval '5 days'`,
-        reminderTime: sql`now() + interval '4 days'`,
-        profileId: participantIds[0],
-        reservationId: reservationId,
-        taskType: "stand_reservation",
-      });
-
-      return rows[0];
-    });
-
-    const festival = await fetchBaseFestival(festivalId);
-    const creator = await fetchBaseProfileById(participantIds[0]);
-    const stand = await fetchStandById(standId);
-    const admins = await fetchAdminUsers();
-    const adminEmails = admins.map((admin) => admin.email);
-    await sendEmail({
-      to: [...adminEmails],
-      from: "Reservas Glitter <reservas@productoraglitter.com>",
-      subject: "Nueva reserva creada",
-      react: ReservationCreatedEmailTemplate({
-        festivalName: festival?.name || "Festival",
-        reservationId: newReservation.id,
-        creatorName: creator?.displayName || "Usuario",
-        standName: stand != null ? formatStandLabel(stand) : "sin stand",
-        standCategory: getCategoryOccupationLabel(stand?.standCategory, {
-          singular: false,
-        }),
-      }) as React.ReactElement,
-    });
-
-    revalidatePath("profiles");
-    revalidatePath("/my_profile");
-
-    return {
-      success: true,
-      message: "Reserva creada",
-      reservationId: newReservation.id,
-    };
-  } catch (error) {
-    console.error("Error creating reservation", error);
-    return { success: false, message: "Ups! No pudimos crear la reserva" };
-  }
-}
-
 export async function updateReservationSimple(
   id: number,
   data: ReservationUpdateSimple,
 ) {
-  const { status, standId, partner, stand, participants, festival } = data;
-
-  const prev = await db.query.standReservations.findFirst({
-    where: eq(standReservations.id, id),
-    columns: { status: true },
-  });
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+  if (!Number.isInteger(id) || id <= 0) {
+    return { success: false, message: "Reserva inválida" };
+  }
 
   try {
-    await db.transaction(async (tx) => {
+    const outcome = await db.transaction(async (tx) => {
+      const [reservation] = await tx
+        .select({
+          id: standReservations.id,
+          status: standReservations.status,
+          standId: standReservations.standId,
+          festivalId: standReservations.festivalId,
+        })
+        .from(standReservations)
+        .where(eq(standReservations.id, id))
+        .limit(1)
+        .for("update");
+
+      if (!reservation) {
+        return {
+          success: false as const,
+          message: "La reserva no existe",
+        };
+      }
+
+      const { status, partner } = data;
+
+      if (partner) {
+        const ownerInvoice = await tx.query.invoices.findFirst({
+          where: eq(invoices.reservationId, reservation.id),
+          columns: { userId: true },
+        });
+
+        if (partner.participationId) {
+          const existingPartner =
+            await tx.query.reservationParticipants.findFirst({
+              where: and(
+                eq(reservationParticipants.id, partner.participationId),
+                eq(reservationParticipants.reservationId, reservation.id),
+              ),
+              columns: { id: true, userId: true },
+            });
+          if (!existingPartner) {
+            return {
+              success: false as const,
+              message: "El compañero no pertenece a esta reserva",
+            };
+          }
+          if (ownerInvoice?.userId === existingPartner.userId) {
+            return {
+              success: false as const,
+              message: "No se puede reemplazar al usuario principal",
+            };
+          }
+        }
+
+        if (partner.userId) {
+          const partnerUser = await tx.query.users.findFirst({
+            where: eq(users.id, partner.userId),
+            columns: { id: true, status: true },
+          });
+          if (!partnerUser || partnerUser.status !== "verified") {
+            return {
+              success: false as const,
+              message: "El compañero seleccionado no está verificado",
+            };
+          }
+          if (ownerInvoice?.userId === partner.userId) {
+            return {
+              success: false as const,
+              message: "El compañero no puede ser el usuario principal",
+            };
+          }
+
+          const eligibility = await getReservationEligibility(
+            {
+              userId: partner.userId,
+              festivalId: reservation.festivalId,
+            },
+            tx,
+          );
+          if (!eligibility.eligible) {
+            return {
+              success: false as const,
+              message: `El compañero seleccionado no puede participar en esta reserva. ${eligibility.message}`,
+            };
+          }
+        }
+      }
+
       await tx
         .update(standReservations)
         .set({
@@ -285,7 +259,7 @@ export async function updateReservationSimple(
       await tx
         .update(stands)
         .set({ status: standStatus, updatedAt: new Date() })
-        .where(eq(stands.id, standId));
+        .where(eq(stands.id, reservation.standId));
 
       if (partner) {
         if (partner.participationId) {
@@ -293,11 +267,21 @@ export async function updateReservationSimple(
             await tx
               .update(reservationParticipants)
               .set({ userId: partner.userId, updatedAt: new Date() })
-              .where(eq(reservationParticipants.id, partner.participationId));
+              .where(
+                and(
+                  eq(reservationParticipants.id, partner.participationId),
+                  eq(reservationParticipants.reservationId, reservation.id),
+                ),
+              );
           } else {
             await tx
               .delete(reservationParticipants)
-              .where(eq(reservationParticipants.id, partner.participationId));
+              .where(
+                and(
+                  eq(reservationParticipants.id, partner.participationId),
+                  eq(reservationParticipants.reservationId, reservation.id),
+                ),
+              );
           }
         } else if (partner.userId) {
           await tx
@@ -314,9 +298,17 @@ export async function updateReservationSimple(
             });
         }
       }
+
+      return {
+        success: true as const,
+        previousStatus: reservation.status,
+      };
     });
 
-    if (prev?.status !== "accepted" && status === "accepted") {
+    if (!outcome.success) return outcome;
+
+    const { status, stand, participants, festival } = data;
+    if (outcome.previousStatus !== "accepted" && status === "accepted") {
       const standLabel = formatStandLabel(stand);
 
       const targets = (participants ?? [])
@@ -363,12 +355,6 @@ export async function updateReservationSimple(
 export type ReservationStatus =
   (typeof standReservations.$inferSelect)["status"];
 export type StandStatus = (typeof stands.$inferSelect)["status"];
-export type ReservationUpdate = typeof standReservations.$inferInsert & {
-  updatedParticipants?: {
-    participationId: number | undefined;
-    userId: number | undefined;
-  }[];
-};
 export type ReservationUpdateSimple = typeof standReservations.$inferInsert & {
   participants: ReservationParticipantWithUser[];
   stand: StandBase;
@@ -378,69 +364,6 @@ export type ReservationUpdateSimple = typeof standReservations.$inferInsert & {
     userId: number | undefined;
   };
 };
-export async function updateReservation(id: number, data: ReservationUpdate) {
-  try {
-    const { status, standId, updatedParticipants } = data;
-    await db.transaction(async (tx) => {
-      await tx
-        .update(standReservations)
-        .set({ status, updatedAt: new Date() })
-        .where(eq(standReservations.id, id));
-
-      let standStatus: StandStatus = "available";
-      if (status === "accepted") {
-        standStatus = "confirmed";
-      }
-      if (status === "pending") {
-        standStatus = "reserved";
-      }
-      await tx
-        .update(stands)
-        .set({ status: standStatus, updatedAt: new Date() })
-        .where(eq(stands.id, standId));
-
-      if (updatedParticipants && updatedParticipants.length > 0) {
-        for (const participant of updatedParticipants) {
-          if (participant.participationId) {
-            if (participant.userId) {
-              await tx
-                .update(reservationParticipants)
-                .set({ userId: participant.userId, updatedAt: new Date() })
-                .where(
-                  eq(reservationParticipants.id, participant.participationId),
-                );
-            } else {
-              await tx
-                .delete(reservationParticipants)
-                .where(
-                  eq(reservationParticipants.id, participant.participationId),
-                );
-            }
-          } else if (participant.userId) {
-            await tx
-              .insert(reservationParticipants)
-              .values({
-                userId: participant.userId,
-                reservationId: id,
-              })
-              .onConflictDoNothing({
-                target: [
-                  reservationParticipants.userId,
-                  reservationParticipants.reservationId,
-                ],
-              });
-          }
-        }
-      }
-    });
-  } catch (error) {
-    console.error(error);
-    return { success: false, message: "Error al actualizar la reserva" };
-  }
-
-  revalidatePath("/dashboard/festivals/[id]/reservations", "page");
-  return { success: true, message: "Reserva actualizada" };
-}
 
 export async function createUserEnrollment(params: {
   profileId: BaseProfile["id"];

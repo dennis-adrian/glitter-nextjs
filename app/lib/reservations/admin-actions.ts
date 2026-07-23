@@ -4,6 +4,7 @@ import { fetchStandById } from "@/app/api/stands/actions";
 import { fetchBaseProfileById } from "@/app/api/users/actions";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
 import ReservationPaymentExtensionTemplate from "@/app/emails/reservation-payment-extension";
+import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
@@ -83,6 +84,9 @@ export async function createAdminReservation(params: {
     }
   }
 
+  const participantIds = [userId];
+  if (partnerId && partnerId !== userId) participantIds.push(partnerId);
+
   try {
     const result = await db.transaction(async (tx) => {
       // Lock stand row and re-check status inside transaction to avoid race
@@ -109,13 +113,29 @@ export async function createAdminReservation(params: {
         };
       }
 
+      for (const [index, participantId] of participantIds.entries()) {
+        const eligibility = await getReservationEligibility(
+          {
+            userId: participantId,
+            festivalId: lockedStand.festivalId,
+          },
+          tx,
+        );
+        if (!eligibility.eligible) {
+          return {
+            success: false,
+            message:
+              index === 0
+                ? eligibility.message
+                : `El compañero seleccionado no puede participar en esta reserva. ${eligibility.message}`,
+          };
+        }
+      }
+
       const [reservation] = await tx
         .insert(standReservations)
         .values({ festivalId, standId, revealAt })
         .returning();
-
-      const participantIds = [userId];
-      if (partnerId && partnerId !== userId) participantIds.push(partnerId);
 
       await tx.insert(reservationParticipants).values(
         participantIds.map((uid) => ({
