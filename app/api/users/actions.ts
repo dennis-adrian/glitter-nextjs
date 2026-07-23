@@ -1,7 +1,7 @@
 "use server";
 
 import { User } from "@clerk/nextjs/server";
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
@@ -381,6 +381,32 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
         return { ok: false as const, reason: "not_found" as const };
       }
 
+      const [existingPending] = await tx
+        .select({
+          id: pendingUserDeletions.id,
+          clerkId: pendingUserDeletions.clerkId,
+        })
+        .from(pendingUserDeletions)
+        .where(
+          and(
+            eq(pendingUserDeletions.userId, lockedUser.id),
+            isNotNull(pendingUserDeletions.clerkDeletedAt),
+            isNull(pendingUserDeletions.localDeletedAt),
+          ),
+        )
+        .orderBy(desc(pendingUserDeletions.updatedAt))
+        .limit(1)
+        .for("update");
+
+      if (existingPending) {
+        return {
+          ok: true as const,
+          pendingId: existingPending.id,
+          clerkId: existingPending.clerkId,
+          clerkAlreadyDeleted: true as const,
+        };
+      }
+
       const existingInfraction = await tx.query.infractions.findFirst({
         where: eq(infractions.userId, profileId),
         columns: { id: true },
@@ -408,6 +434,7 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
         ok: true as const,
         pendingId: pending.id,
         clerkId: lockedUser.clerkId,
+        clerkAlreadyDeleted: false as const,
       };
     });
 
@@ -427,20 +454,23 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
       return { success: false, message: "Error al eliminar el perfil" };
     }
 
-    const clerkResult = await deleteClerkUser(preparation.clerkId);
-    if (!clerkResult.success) {
+    if (!preparation.clerkAlreadyDeleted) {
+      const clerkResult = await deleteClerkUser(preparation.clerkId);
+      if (!clerkResult.success) {
+        await db
+          .delete(pendingUserDeletions)
+          .where(eq(pendingUserDeletions.id, preparation.pendingId));
+        return { success: false, message: "Error al eliminar el perfil" };
+      }
+
+      const clerkDeletedAt = new Date();
       await db
-        .delete(pendingUserDeletions)
+        .update(pendingUserDeletions)
+        .set({ clerkDeletedAt, updatedAt: clerkDeletedAt })
         .where(eq(pendingUserDeletions.id, preparation.pendingId));
-      return { success: false, message: "Error al eliminar el perfil" };
     }
 
     const now = new Date();
-    await db
-      .update(pendingUserDeletions)
-      .set({ clerkDeletedAt: now, updatedAt: now })
-      .where(eq(pendingUserDeletions.id, preparation.pendingId));
-
     try {
       await db.transaction(async (tx) => {
         const [lockedUser] = await tx
@@ -453,7 +483,7 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
         if (!lockedUser) {
           await tx
             .update(pendingUserDeletions)
-            .set({ localDeletedAt: now, updatedAt: now })
+            .set({ localDeletedAt: now, lastError: null, updatedAt: now })
             .where(eq(pendingUserDeletions.id, preparation.pendingId));
           return;
         }
@@ -473,7 +503,7 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
         await tx.delete(users).where(eq(users.id, profileId));
         await tx
           .update(pendingUserDeletions)
-          .set({ localDeletedAt: now, updatedAt: now })
+          .set({ localDeletedAt: now, lastError: null, updatedAt: now })
           .where(eq(pendingUserDeletions.id, preparation.pendingId));
       });
     } catch (error) {

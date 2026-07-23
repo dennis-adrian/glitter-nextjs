@@ -148,6 +148,33 @@ describe("createSanctionSchema", () => {
       }).success,
     ).toBe(false);
   });
+
+  it.each([
+    ["festivals", "Indicá cuántos festivales aplican"],
+    ["days", "La duración de calendario es obligatoria"],
+  ] as const)(
+    "uses the validity message for %s",
+    (validityUnit, expectedMessage) => {
+      const parsed = createSanctionSchema.safeParse({
+        ...base,
+        validityUnit,
+        validityDuration: null,
+      });
+
+      expect(parsed.success).toBe(false);
+      if (!parsed.success) {
+        expect(
+          parsed.error.issues.filter(
+            (issue) => issue.path[0] === "validityDuration",
+          ),
+        ).toEqual([
+          expect.objectContaining({
+            message: expectedMessage,
+          }),
+        ]);
+      }
+    },
+  );
 });
 
 describe("edit and revoke schemas", () => {

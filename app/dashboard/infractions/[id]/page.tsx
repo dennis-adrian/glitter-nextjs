@@ -13,6 +13,7 @@ import CreateSanctionButton from "@/app/components/sanctions/create-button";
 import { SanctionStatusBadge } from "@/app/components/sanctions/status-badge";
 import { fetchInfractionTypes } from "@/app/lib/infractions/actions";
 import {
+  getInfractionStatusLabel,
   getPriorNoticeLabel,
   participantDisplayName,
 } from "@/app/lib/infractions/mappers";
@@ -209,7 +210,8 @@ export default async function InfractionDetailPage({
                   href={`/dashboard/infractions/${item.id}`}
                   className="text-sm text-primary hover:underline"
                 >
-                  #{item.id} · {item.type.label} · {item.status} ·{" "}
+                  #{item.id} · {item.type.label} ·{" "}
+                  {getInfractionStatusLabel(item.status)} ·{" "}
                   {item.festival?.name ?? "Global"}
                 </Link>
               </li>

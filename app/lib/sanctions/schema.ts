@@ -48,32 +48,17 @@ export const createSanctionSchema = z
         });
       }
     } else if (data.validityDuration == null || data.validityDuration <= 0) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["validityDuration"],
-        message: "Indicá una duración de validez positiva",
-      });
-    }
+      const message =
+        data.validityUnit === "festivals"
+          ? "Indicá cuántos festivales aplican"
+          : (calendarUnits as readonly string[]).includes(data.validityUnit)
+            ? "La duración de calendario es obligatoria"
+            : "Indicá una duración de validez positiva";
 
-    if (
-      data.validityUnit === "festivals" &&
-      (data.validityDuration == null || data.validityDuration <= 0)
-    ) {
       ctx.addIssue({
         code: "custom",
         path: ["validityDuration"],
-        message: "Indicá cuántos festivales aplican",
-      });
-    }
-
-    if (
-      (calendarUnits as readonly string[]).includes(data.validityUnit) &&
-      (data.validityDuration == null || data.validityDuration <= 0)
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["validityDuration"],
-        message: "La duración de calendario es obligatoria",
+        message,
       });
     }
 

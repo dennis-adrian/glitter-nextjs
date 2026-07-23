@@ -466,16 +466,17 @@ export async function editSanction(
       }
       const validityDuration =
         data.validityUnit === "indefinitely" ? null : data.validityDuration;
+      const description = emptyToNull(data.description);
       const reservationDelayMinutes =
         existing.type === "reservation_delay"
           ? data.reservationDelayMinutes
           : null;
 
       const changes: Record<string, unknown> = {};
-      if (existing.description !== data.description) {
+      if (existing.description !== description) {
         changes.description = {
           from: existing.description,
-          to: data.description,
+          to: description,
         };
       }
       if (existing.festivalScope !== data.festivalScope) {
@@ -515,7 +516,7 @@ export async function editSanction(
       await tx
         .update(sanctions)
         .set({
-          description: data.description,
+          description,
           festivalScope: data.festivalScope,
           validityUnit: data.validityUnit,
           validityDuration,

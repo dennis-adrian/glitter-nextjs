@@ -247,7 +247,6 @@ export default function RegisterInfractionForm({
             !form.formState.isDirty ||
             form.formState.isLoading ||
             form.formState.isSubmitting ||
-            form.formState.isSubmitSuccessful ||
             (duplicates.length > 0 && !confirmDuplicate)
           }
           label={
