@@ -31,6 +31,7 @@ import {
   userSocials,
 } from "@/db/schema";
 import { clerkClient, currentUser } from "@clerk/nextjs/server";
+import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
 import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cache } from "react";
@@ -494,14 +495,29 @@ export async function fetchUserProfilesByEmails(emails: string[]) {
   });
 }
 
-export async function deleteClerkUser(clerkId: string) {
+type DeleteClerkUserResult =
+  | {
+      success: true;
+      status: "deleted" | "already_deleted";
+      message: string;
+    }
+  | {
+      success: false;
+      status: "request_failed";
+      message: string;
+    };
+
+export async function deleteClerkUser(
+  clerkId: string,
+): Promise<DeleteClerkUserResult> {
   try {
     const clerk = await clerkClient();
     const existingUser = await clerk.users.getUser(clerkId);
     if (!existingUser) {
       console.log("Clerk user not found");
       return {
-        success: false,
+        success: true,
+        status: "already_deleted" as const,
         message: "Usuario no encontrado",
       };
     }
@@ -509,12 +525,22 @@ export async function deleteClerkUser(clerkId: string) {
     await clerk.users.deleteUser(clerkId);
     return {
       success: true,
+      status: "deleted" as const,
       message: "Cuenta eliminada correctamente.",
     };
   } catch (error) {
+    if (isClerkAPIResponseError(error) && error.status === 404) {
+      return {
+        success: true,
+        status: "already_deleted" as const,
+        message: "Usuario no encontrado",
+      };
+    }
+
     console.error("Error deleting clerk user", error);
     return {
       success: false,
+      status: "request_failed",
       message: "Error al eliminar la cuenta.",
     };
   }

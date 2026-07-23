@@ -1,7 +1,7 @@
 "use server";
 
 import { User } from "@clerk/nextjs/server";
-import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
@@ -385,12 +385,12 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
         .select({
           id: pendingUserDeletions.id,
           clerkId: pendingUserDeletions.clerkId,
+          clerkDeletedAt: pendingUserDeletions.clerkDeletedAt,
         })
         .from(pendingUserDeletions)
         .where(
           and(
             eq(pendingUserDeletions.userId, lockedUser.id),
-            isNotNull(pendingUserDeletions.clerkDeletedAt),
             isNull(pendingUserDeletions.localDeletedAt),
           ),
         )
@@ -398,12 +398,14 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
         .limit(1)
         .for("update");
 
+      // A null clerkDeletedAt is a durable unknown/in-progress state. Retrying
+      // the idempotent Clerk step reconciles it without creating another row.
       if (existingPending) {
         return {
           ok: true as const,
           pendingId: existingPending.id,
           clerkId: existingPending.clerkId,
-          clerkAlreadyDeleted: true as const,
+          clerkAlreadyDeleted: existingPending.clerkDeletedAt !== null,
         };
       }
 
@@ -456,9 +458,14 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
 
     if (!preparation.clerkAlreadyDeleted) {
       const clerkResult = await deleteClerkUser(preparation.clerkId);
-      if (!clerkResult.success) {
+      if (clerkResult.status === "request_failed") {
+        const failedAt = new Date();
         await db
-          .delete(pendingUserDeletions)
+          .update(pendingUserDeletions)
+          .set({
+            lastError: `clerk_delete_failed: ${clerkResult.message}`,
+            updatedAt: failedAt,
+          })
           .where(eq(pendingUserDeletions.id, preparation.pendingId));
         return { success: false, message: "Error al eliminar el perfil" };
       }
@@ -466,7 +473,11 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
       const clerkDeletedAt = new Date();
       await db
         .update(pendingUserDeletions)
-        .set({ clerkDeletedAt, updatedAt: clerkDeletedAt })
+        .set({
+          clerkDeletedAt,
+          lastError: null,
+          updatedAt: clerkDeletedAt,
+        })
         .where(eq(pendingUserDeletions.id, preparation.pendingId));
     }
 
