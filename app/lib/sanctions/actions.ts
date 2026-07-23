@@ -2,6 +2,7 @@
 
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 
 import { logInfractionEvent } from "@/app/lib/infractions/events";
 import { buildInfractionStatusUpdate } from "@/app/lib/infractions/lifecycle";
@@ -290,7 +291,8 @@ export async function createAndApproveSanction(
       infractionIds: data.infractionIds,
     });
 
-    await attemptDisciplinaryNotificationJob(createdSanction.notificationJobId);
+    const notificationJobId = createdSanction.notificationJobId;
+    after(() => attemptDisciplinaryNotificationJob(notificationJobId));
 
     return {
       success: true,
@@ -610,7 +612,8 @@ export async function editSanction(
 
     revalidateSanctionPaths(result);
 
-    await attemptDisciplinaryNotificationJob(result.notificationJobId);
+    const notificationJobId = result.notificationJobId;
+    after(() => attemptDisciplinaryNotificationJob(notificationJobId));
 
     return {
       success: true,
@@ -703,7 +706,8 @@ export async function revokeSanction(
 
     revalidateSanctionPaths(result);
 
-    await attemptDisciplinaryNotificationJob(result.notificationJobId);
+    const notificationJobId = result.notificationJobId;
+    after(() => attemptDisciplinaryNotificationJob(notificationJobId));
 
     return {
       success: true,

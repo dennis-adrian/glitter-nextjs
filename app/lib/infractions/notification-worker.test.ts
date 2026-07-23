@@ -125,5 +125,41 @@ describe("disciplinary notification worker", () => {
       attempts: 1,
       lastError: null,
     });
+    expect(sendEmailMock.mock.calls[0]?.[1]).toEqual({
+      idempotencyKey: job.deduplicationKey,
+    });
+  });
+
+  it("reuses the same provider idempotency key after a lost completion claim", async () => {
+    const writtenValues: Array<Record<string, unknown>> = [];
+    // First attempt: claim succeeds, send succeeds, complete returns empty (claim lost).
+    // Second attempt: reclaim, send again with the same persisted key, then complete.
+    mockUpdateResults([[job], [], [job], [{ id: job.id }]], writtenValues);
+    sendEmailMock.mockResolvedValue({
+      data: { id: "email-1" },
+      error: null,
+    });
+
+    await expect(
+      attemptDisciplinaryNotificationJob(job.id),
+    ).resolves.toMatchObject({
+      success: false,
+      outcome: "claim_lost",
+    });
+
+    await expect(
+      attemptDisciplinaryNotificationJob(job.id),
+    ).resolves.toMatchObject({
+      success: true,
+      outcome: "completed",
+    });
+
+    expect(sendEmailMock).toHaveBeenCalledTimes(2);
+    expect(sendEmailMock.mock.calls[0]?.[1]).toEqual({
+      idempotencyKey: job.deduplicationKey,
+    });
+    expect(sendEmailMock.mock.calls[1]?.[1]).toEqual({
+      idempotencyKey: job.deduplicationKey,
+    });
   });
 });

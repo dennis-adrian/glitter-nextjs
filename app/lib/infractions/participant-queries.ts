@@ -13,8 +13,6 @@ export type ParticipantInfraction = {
   id: number;
   description: string | null;
   status: (typeof infractions.$inferSelect)["status"];
-  resolutionNotes: string | null;
-  voidReason: string | null;
   createdAt: Date;
   resolvedAt: Date | null;
   type: {
@@ -77,8 +75,6 @@ export async function fetchParticipantDisciplinaryHistory(
         id: true,
         description: true,
         status: true,
-        resolutionNotes: true,
-        voidReason: true,
         createdAt: true,
         resolvedAt: true,
       },
@@ -144,8 +140,6 @@ export async function fetchParticipantDisciplinaryHistory(
       id: row.id,
       description: row.description,
       status: row.status,
-      resolutionNotes: row.resolutionNotes,
-      voidReason: row.voidReason,
       createdAt: row.createdAt,
       resolvedAt: row.resolvedAt,
       type: row.type,

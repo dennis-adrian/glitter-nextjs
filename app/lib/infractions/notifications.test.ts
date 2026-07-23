@@ -216,12 +216,13 @@ describe("disciplinary notification delivery", () => {
     };
 
     await expect(
-      deliverDisciplinaryNotificationPayload(payload),
+      deliverDisciplinaryNotificationPayload(payload, "sanction:7:approved"),
     ).resolves.toEqual({ success: true });
     expect(sendEmailMock).toHaveBeenCalledOnce();
 
-    const email = sendEmailMock.mock.calls[0]?.[0];
+    const [email, options] = sendEmailMock.mock.calls[0] ?? [];
     expect(email.to).toEqual([profile.email]);
+    expect(options).toEqual({ idempotencyKey: "sanction:7:approved" });
     expect(JSON.stringify(email.react)).toContain("No show");
     expect(JSON.stringify(email.react)).toContain("Incumplimiento");
   });
@@ -239,7 +240,10 @@ describe("disciplinary notification delivery", () => {
       participantNote: null,
     };
 
-    await deliverDisciplinaryNotificationPayload(payload);
+    await deliverDisciplinaryNotificationPayload(
+      payload,
+      "infraction:42:edited",
+    );
 
     const email = sendEmailMock.mock.calls[0]?.[0];
     expect(JSON.stringify(email.react)).not.toContain(auditOnlyReason);
@@ -261,7 +265,10 @@ describe("disciplinary notification delivery", () => {
     };
 
     await expect(
-      deliverDisciplinaryNotificationPayload(payload),
+      deliverDisciplinaryNotificationPayload(
+        payload,
+        "infraction:42:registered",
+      ),
     ).resolves.toEqual({
       success: false,
       error: "Provider unavailable",
@@ -284,10 +291,38 @@ describe("disciplinary notification delivery", () => {
       reservationEligibleAt: "2026-08-01T12:00:00.000Z",
     };
 
-    await deliverDisciplinaryNotificationPayload(payload);
+    await deliverDisciplinaryNotificationPayload(
+      payload,
+      "sanction:8:festival:20:reservation-access:2026-08-01T12:00:00.000Z",
+    );
 
     const email = sendEmailMock.mock.calls[0]?.[0];
     expect(JSON.stringify(email.react)).toContain("Glitter Fest");
     expect(JSON.stringify(email.react)).toContain("Ya podés acceder");
+  });
+
+  it("reuses the persisted deduplication key as the provider idempotency key", async () => {
+    sendEmailMock.mockResolvedValue({ data: { id: "email-4" }, error: null });
+    const payload: DisciplinaryNotificationPayload = {
+      entityType: "infraction",
+      kind: "registered",
+      profile,
+      infractionId: 42,
+      typeLabel: "No show",
+      festivalName: null,
+      participantNote: null,
+    };
+    const persistedKey = "infraction:42:registered";
+
+    await deliverDisciplinaryNotificationPayload(payload, persistedKey);
+    await deliverDisciplinaryNotificationPayload(payload, persistedKey);
+
+    expect(sendEmailMock).toHaveBeenCalledTimes(2);
+    expect(sendEmailMock.mock.calls[0]?.[1]).toEqual({
+      idempotencyKey: persistedKey,
+    });
+    expect(sendEmailMock.mock.calls[1]?.[1]).toEqual({
+      idempotencyKey: persistedKey,
+    });
   });
 });

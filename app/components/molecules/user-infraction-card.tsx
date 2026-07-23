@@ -115,18 +115,6 @@ export default function UserInfractionCard({
             {infraction.description}
           </span>
         )}
-        {infraction.resolutionNotes && (
-          <span className="text-sm">
-            <span className="text-muted-foreground">Resolución: </span>
-            {infraction.resolutionNotes}
-          </span>
-        )}
-        {infraction.voidReason && (
-          <span className="text-sm">
-            <span className="text-muted-foreground">Anulación: </span>
-            {infraction.voidReason}
-          </span>
-        )}
         <Separator className="my-1" />
         <span className="text-xs text-muted-foreground">
           Registrada el{" "}

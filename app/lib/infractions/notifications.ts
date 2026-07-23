@@ -347,6 +347,7 @@ async function claimNotificationJob(jobId: number, owner: string) {
 
 export async function deliverDisciplinaryNotificationPayload(
   rawPayload: unknown,
+  idempotencyKey: string,
 ): Promise<{ success: true } | { success: false; error: string }> {
   const parsed = disciplinaryNotificationPayloadSchema.safeParse(rawPayload);
   if (!parsed.success) {
@@ -360,36 +361,42 @@ export async function deliverDisciplinaryNotificationPayload(
   const { sendEmail } = await import("@/app/vendors/resend");
   const result =
     payload.entityType === "infraction"
-      ? await sendEmail({
-          to: [payload.profile.email],
-          from: FROM,
-          subject: getInfractionEmailSubject(payload.kind),
-          react: InfractionLifecycleEmail({
-            profile: payload.profile,
-            kind: payload.kind,
-            infractionId: payload.infractionId,
-            typeLabel: payload.typeLabel,
-            festivalName: payload.festivalName,
-            note: payload.participantNote,
-          }) as ReactElement,
-        })
-      : await sendEmail({
-          to: [payload.profile.email],
-          from: FROM,
-          subject: getSanctionEmailSubject(payload.kind),
-          react: SanctionLifecycleEmail({
-            profile: payload.profile,
-            kind: payload.kind,
-            sanctionId: payload.sanctionId,
-            typeLabel: payload.typeLabel,
-            statusLabel: payload.statusLabel,
-            scopeLabel: payload.scopeLabel,
-            infractionLabels: payload.infractionLabels,
-            note: payload.participantNote,
-            festivalName: payload.festivalName,
-            reservationEligibleAt: payload.reservationEligibleAt,
-          }) as ReactElement,
-        });
+      ? await sendEmail(
+          {
+            to: [payload.profile.email],
+            from: FROM,
+            subject: getInfractionEmailSubject(payload.kind),
+            react: InfractionLifecycleEmail({
+              profile: payload.profile,
+              kind: payload.kind,
+              infractionId: payload.infractionId,
+              typeLabel: payload.typeLabel,
+              festivalName: payload.festivalName,
+              note: payload.participantNote,
+            }) as ReactElement,
+          },
+          { idempotencyKey },
+        )
+      : await sendEmail(
+          {
+            to: [payload.profile.email],
+            from: FROM,
+            subject: getSanctionEmailSubject(payload.kind),
+            react: SanctionLifecycleEmail({
+              profile: payload.profile,
+              kind: payload.kind,
+              sanctionId: payload.sanctionId,
+              typeLabel: payload.typeLabel,
+              statusLabel: payload.statusLabel,
+              scopeLabel: payload.scopeLabel,
+              infractionLabels: payload.infractionLabels,
+              note: payload.participantNote,
+              festivalName: payload.festivalName,
+              reservationEligibleAt: payload.reservationEligibleAt,
+            }) as ReactElement,
+          },
+          { idempotencyKey },
+        );
 
   if (result.error) {
     return { success: false, error: errorMessage(result.error) };
@@ -463,7 +470,10 @@ async function processClaimedNotificationJob(
     ReturnType<typeof deliverDisciplinaryNotificationPayload>
   >;
   try {
-    result = await deliverDisciplinaryNotificationPayload(job.payload);
+    result = await deliverDisciplinaryNotificationPayload(
+      job.payload,
+      job.deduplicationKey,
+    );
   } catch (error) {
     result = { success: false, error: errorMessage(error) };
   }
