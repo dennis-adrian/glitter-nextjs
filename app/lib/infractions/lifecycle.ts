@@ -41,7 +41,6 @@ export function buildInfractionStatusUpdate({
 }: BuildInfractionStatusUpdateInput) {
   return {
     status,
-    handled: status === "resolved",
     resolvedAt: status === "resolved" ? now : null,
     resolvedByUserId: status === "resolved" ? actorUserId : null,
     resolutionNotes: status === "resolved" ? resolutionNotes : null,

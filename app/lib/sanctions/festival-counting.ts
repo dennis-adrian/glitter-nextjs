@@ -127,7 +127,6 @@ async function activateScheduledSanctions(tx: DbTx, now: Date) {
     .update(sanctions)
     .set({
       status: "active",
-      active: true,
       updatedAt: now,
     })
     .where(
@@ -275,7 +274,6 @@ export async function reconcileSanctionFestivalCounting(input?: {
         .update(sanctions)
         .set({
           status: "expired",
-          active: false,
           updatedAt: now,
         })
         .where(
@@ -331,7 +329,6 @@ export async function reconcileSanctionFestivalCounting(input?: {
         .update(sanctions)
         .set({
           status: "expired",
-          active: false,
           updatedAt: now,
         })
         .where(

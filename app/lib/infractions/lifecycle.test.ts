@@ -39,7 +39,6 @@ describe("infraction lifecycle transitions", () => {
     });
 
     expect(update).toMatchObject({
-      handled: false,
       resolvedAt: null,
       resolvedByUserId: null,
       resolutionNotes: null,
@@ -47,6 +46,7 @@ describe("infraction lifecycle transitions", () => {
       voidedByUserId: null,
       voidReason: null,
     });
+    expect(update).not.toHaveProperty("handled");
   });
 
   it("sets only resolution metadata when resolving", () => {
@@ -60,7 +60,6 @@ describe("infraction lifecycle transitions", () => {
     });
 
     expect(update).toMatchObject({
-      handled: true,
       resolvedAt: now,
       resolvedByUserId: 12,
       resolutionNotes: "Resolved with a warning",
@@ -68,6 +67,7 @@ describe("infraction lifecycle transitions", () => {
       voidedByUserId: null,
       voidReason: null,
     });
+    expect(update).not.toHaveProperty("handled");
   });
 });
 

@@ -51,8 +51,7 @@ export default async function InfractionDetailPage({
     excludeInfractionId: infraction.id,
   });
 
-  const sanction =
-    infraction.sanctionLinks[0]?.sanction ?? infraction.sanctions[0] ?? null;
+  const sanction = infraction.sanctionLinks[0]?.sanction ?? null;
 
   return (
     <div className="container mx-auto space-y-6 p-3 md:p-6">

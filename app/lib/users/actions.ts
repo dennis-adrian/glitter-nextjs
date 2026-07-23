@@ -601,7 +601,11 @@ export async function fetchUserInfractions(
       with: {
         type: true,
         festival: true,
-        sanctions: true,
+        sanctionLinks: {
+          with: {
+            sanction: true,
+          },
+        },
       },
       where: eq(infractions.userId, profileId),
       orderBy: desc(infractions.createdAt),

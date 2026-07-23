@@ -20,7 +20,6 @@ import {
   calculateSanctionEndsAt,
   canEditSanction,
   canRevokeSanction,
-  isLegacyActiveEquivalent,
   isSanctionValidityExtension,
   resolveSanctionStatusOnApproval,
 } from "@/app/lib/sanctions/lifecycle";
@@ -174,7 +173,6 @@ export async function createAndApproveSanction(
         .insert(sanctions)
         .values({
           userId: data.userId,
-          infractionId: data.infractionIds[0],
           type: data.type,
           status,
           description,
@@ -187,9 +185,6 @@ export async function createAndApproveSanction(
           createdByUserId: profile.id,
           approvedByUserId: profile.id,
           approvedAt: now,
-          duration: validityDuration,
-          durationUnit: data.validityUnit,
-          active: isLegacyActiveEquivalent(status),
           updatedAt: now,
           createdAt: now,
         })
@@ -549,10 +544,6 @@ export async function editSanction(
           endsAt,
           status,
           reservationDelayMinutes,
-          infractionId: remainingLinks[0]?.infractionId ?? null,
-          duration: validityDuration,
-          durationUnit: data.validityUnit,
-          active: isLegacyActiveEquivalent(status),
           updatedAt: now,
         })
         .where(eq(sanctions.id, existing.id));
@@ -671,7 +662,6 @@ export async function revokeSanction(
         .update(sanctions)
         .set({
           status: "revoked",
-          active: false,
           revokedAt: now,
           revokedByUserId: profile.id,
           revocationReason: data.revocationReason,

@@ -299,7 +299,6 @@ export async function registerInfraction(
           festivalId,
           description: emptyToNull(data.description),
           status: "pending",
-          handled: false,
           userGaveNotice: data.userGaveNotice,
           gaveNoticeAt: data.userGaveNotice ? data.gaveNoticeAt! : null,
           createdByUserId: profile.id,

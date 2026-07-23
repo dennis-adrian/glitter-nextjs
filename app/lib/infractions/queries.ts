@@ -41,7 +41,6 @@ export type InfractionLinkedSanction = {
   id: number;
   type: (typeof sanctions.$inferSelect)["type"];
   status: (typeof sanctions.$inferSelect)["status"];
-  active: boolean;
 };
 
 export type InfractionListItem = InfractionBase & {
@@ -66,8 +65,6 @@ export type InfractionListItem = InfractionBase & {
   sanctionLinks: {
     sanction: InfractionLinkedSanction;
   }[];
-  /** @deprecated Prefer `sanctionLinks`. */
-  sanctions: InfractionLinkedSanction[];
 };
 
 export type InfractionDetail = InfractionListItem & {
@@ -348,17 +345,8 @@ export async function fetchInfractionsPage(filters: InfractionSearchParams) {
               id: true,
               type: true,
               status: true,
-              active: true,
             },
           },
-        },
-      },
-      sanctions: {
-        columns: {
-          id: true,
-          type: true,
-          status: true,
-          active: true,
         },
       },
     },
@@ -413,17 +401,8 @@ export async function fetchInfractionDetail(
               id: true,
               type: true,
               status: true,
-              active: true,
             },
           },
-        },
-      },
-      sanctions: {
-        columns: {
-          id: true,
-          type: true,
-          status: true,
-          active: true,
         },
       },
       events: {

@@ -109,7 +109,3 @@ export function canRevokeSanction(status: SanctionStatus): boolean {
 export function canEditSanction(status: SanctionStatus): boolean {
   return status === "scheduled" || status === "active";
 }
-
-export function isLegacyActiveEquivalent(status: SanctionStatus): boolean {
-  return status === "scheduled" || status === "active";
-}

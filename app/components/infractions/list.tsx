@@ -30,9 +30,7 @@ import Link from "next/link";
 import { use } from "react";
 
 function linkedSanction(infraction: InfractionListItem) {
-  return (
-    infraction.sanctionLinks[0]?.sanction ?? infraction.sanctions[0] ?? null
-  );
+  return infraction.sanctionLinks[0]?.sanction ?? null;
 }
 
 type InfractionsListProps = {

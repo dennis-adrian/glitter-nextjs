@@ -2,7 +2,7 @@
 
 **Product:** Glitter  
 **Date:** 2026-07-21  
-**Status:** Planned  
+**Status:** Phases 1–6 implemented; Phase 7 compatibility code complete, destructive schema cleanup deferred
 **Scope:** Global administration, participant history, and reservation enforcement
 
 ---
@@ -860,6 +860,24 @@ No prior-notice date will be invented for legacy records. The interface displays
 - Future transitions to **active** are recorded after deployment of the new central service.
 - Historical activation data is loaded only from a reliable source and is not inferred from current status alone.
 
+### 18.4 Deferred Final Schema Cleanup
+
+The application compatibility release stops depending on and dual-writing the
+legacy disciplinary fields, but the database columns and their deprecated
+Drizzle definitions remain temporarily. Migration `0210` is intentionally not
+part of this release.
+
+At the time this decision was made, production contained no infractions or
+sanctions. That condition must be checked again before the later cleanup.
+
+Deployment order for the later cleanup:
+
+1. Deploy and verify the compatibility release while the legacy columns remain.
+2. Confirm all old application instances have drained and review database/query errors.
+3. Remove the deprecated Drizzle fields and generate a new cleanup migration.
+4. Apply that migration only after the compatible application is serving traffic.
+5. Monitor disciplinary pages, actions, reservation enforcement, and database errors.
+
 ---
 
 ## 19. Implementation Plan
@@ -918,11 +936,11 @@ No prior-notice date will be invented for legacy records. The interface displays
 
 ### Phase 7 — Migration, Verification, and Deployment
 
-- Legacy-data audit.
-- Backfill and final constraints.
-- Automated tests.
-- Load testing for paginated queries.
-- Gradual activation and monitoring.
+- Application logic no longer depends on or dual-writes `handled`, `active`,
+  `infractionId`, `duration`, or `durationUnit`.
+- Deprecated database columns and Drizzle definitions remain for the compatibility release.
+- Destructive schema cleanup is deferred to a later, separately applied migration.
+- The required deployment order and verification steps are documented in section 18.4.
 
 ---
 
