@@ -3,6 +3,7 @@
 import { and, desc, eq, gte, isNull, sql, asc, ilike, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
+import { fetchActiveInfractionTypes } from "@/app/lib/infraction-types/actions";
 import { INFRACTION_DUPLICATE_WINDOW_HOURS } from "@/app/lib/infractions/constants";
 import type {
   DuplicateInfractionCandidate,
@@ -87,6 +88,7 @@ async function validateInfractionReferences(
     userId: number;
     typeId: number;
     festivalId: number | null;
+    requireActiveType: boolean;
   },
 ): Promise<ReferenceValidationResult> {
   const [user, type, festival] = await Promise.all([
@@ -96,7 +98,7 @@ async function validateInfractionReferences(
     }),
     database.query.infractionTypes.findFirst({
       where: eq(infractionTypes.id, input.typeId),
-      columns: { id: true },
+      columns: { id: true, active: true },
     }),
     input.festivalId == null
       ? Promise.resolve(null)
@@ -118,6 +120,13 @@ async function validateInfractionReferences(
       success: false,
       message: "Tipo de infracción no encontrado",
       code: "not_found",
+    };
+  }
+  if (input.requireActiveType && !type.active) {
+    return {
+      success: false,
+      message: "El tipo de infracción seleccionado está archivado",
+      code: "validation",
     };
   }
   if (input.festivalId != null && !festival) {
@@ -214,17 +223,7 @@ function revalidateInfractionPaths(input: {
 }
 
 export async function fetchInfractionTypes() {
-  const profile = await requireAdminOrFestivalAdmin();
-  if (!profile) return [];
-
-  try {
-    return db.query.infractionTypes.findMany({
-      orderBy: (infractionTypes, { asc }) => [asc(infractionTypes.label)],
-    });
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
+  return fetchActiveInfractionTypes();
 }
 
 export async function registerInfraction(
@@ -269,6 +268,7 @@ export async function registerInfraction(
       userId: data.userId,
       typeId: data.typeId,
       festivalId,
+      requireActiveType: true,
     });
     if (!references.success) {
       return references;
@@ -436,6 +436,7 @@ export async function editInfraction(rawInput: EditInfractionInput) {
         userId: existing.userId,
         typeId: data.typeId,
         festivalId: data.festivalId,
+        requireActiveType: data.typeId !== existing.typeId,
       });
       if (!references.success) {
         return references;

@@ -1,6 +1,7 @@
 "use client";
 
 import ComboboxInput from "@/app/components/form/fields/combobox";
+import InfractionTypeDescription from "@/app/components/infractions/type-description";
 import TextareaInput from "@/app/components/form/fields/textarea";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Checkbox } from "@/app/components/ui/checkbox";
@@ -116,6 +117,9 @@ export default function RegisterInfractionForm({
     value: infraction.id.toString(),
     label: infraction.label,
   }));
+  const selectedInfractionType = infractionTypes.find(
+    (type) => String(type.id) === infractionType,
+  );
 
   const action = form.handleSubmit(async (data) => {
     const { infractionType, userGaveNotice, description, gaveNoticeAt } = data;
@@ -164,6 +168,7 @@ export default function RegisterInfractionForm({
           label="Tipo de infracción"
           placeholder="Selecciona una opción"
         />
+        <InfractionTypeDescription type={selectedInfractionType} />
         <TextareaInput
           formControl={form.control}
           name="description"

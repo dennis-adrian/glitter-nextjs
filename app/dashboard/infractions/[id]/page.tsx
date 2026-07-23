@@ -11,7 +11,7 @@ import {
 } from "@/app/components/infractions/status-badge";
 import CreateSanctionButton from "@/app/components/sanctions/create-button";
 import { SanctionStatusBadge } from "@/app/components/sanctions/status-badge";
-import { fetchInfractionTypes } from "@/app/lib/infractions/actions";
+import { fetchAllInfractionTypes } from "@/app/lib/infraction-types/actions";
 import {
   getInfractionStatusLabel,
   getPriorNoticeLabel,
@@ -40,7 +40,7 @@ export default async function InfractionDetailPage({
 
   const [infraction, infractionTypes, festivals] = await Promise.all([
     fetchInfractionDetail(infractionId),
-    fetchInfractionTypes(),
+    fetchAllInfractionTypes(),
     fetchFestivalsForInfractionFilters(),
   ]);
 

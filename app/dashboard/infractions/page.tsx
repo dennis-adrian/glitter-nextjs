@@ -1,8 +1,10 @@
 import InfractionsFilters from "@/app/components/infractions/filters";
 import InfractionsList from "@/app/components/infractions/list";
 import RegisterInfractionButton from "@/app/components/infractions/register-button";
+import { Button } from "@/app/components/ui/button";
 import TableSkeleton from "@/app/components/users/skeletons/table";
 import { InfractionSearchParamsSchema } from "@/app/dashboard/infractions/schemas";
+import { fetchAllInfractionTypes } from "@/app/lib/infraction-types/actions";
 import { fetchInfractionTypes } from "@/app/lib/infractions/actions";
 import {
   fetchFestivalsForInfractionFilters,
@@ -12,6 +14,8 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { DateTime } from "luxon";
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
+import { Settings2Icon } from "lucide-react";
+import Link from "next/link";
 
 export default async function InfractionsPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -25,10 +29,12 @@ export default async function InfractionsPage(props: {
     .setZone(STORE_TIMEZONE)
     .minus({ days: 30 })
     .toISODate();
-  const [infractionTypes, festivals] = await Promise.all([
-    fetchInfractionTypes(),
-    fetchFestivalsForInfractionFilters(),
-  ]);
+  const [activeInfractionTypes, allInfractionTypes, festivals] =
+    await Promise.all([
+      fetchInfractionTypes(),
+      fetchAllInfractionTypes(),
+      fetchFestivalsForInfractionFilters(),
+    ]);
 
   const fetchPromise = fetchInfractionsPage(filters);
 
@@ -38,13 +44,21 @@ export default async function InfractionsPage(props: {
         <h1 className="text-xl font-bold sm:text-2xl md:text-3xl">
           Infracciones
         </h1>
-        <RegisterInfractionButton
-          infractionTypes={infractionTypes}
-          festivals={festivals.map((festival) => ({
-            id: festival.id,
-            name: festival.name,
-          }))}
-        />
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/dashboard/infractions/types">
+              <Settings2Icon className="mr-2 size-4" />
+              Gestionar tipos
+            </Link>
+          </Button>
+          <RegisterInfractionButton
+            infractionTypes={activeInfractionTypes}
+            festivals={festivals.map((festival) => ({
+              id: festival.id,
+              name: festival.name,
+            }))}
+          />
+        </div>
       </div>
 
       <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
@@ -52,7 +66,7 @@ export default async function InfractionsPage(props: {
           fallback={<div className="h-20 animate-pulse rounded-lg bg-muted" />}
         >
           <InfractionsFilters
-            infractionTypes={infractionTypes}
+            infractionTypes={allInfractionTypes}
             festivals={festivals.map((festival) => ({
               id: festival.id,
               name: festival.name,

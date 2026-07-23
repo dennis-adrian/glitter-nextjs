@@ -2035,15 +2035,38 @@ export const infractionEventTypeEnum = pgEnum("infraction_event_type", [
   "duplicate_confirmed",
 ]);
 
-export const infractionTypes = pgTable("infraction_types", {
-  id: serial("id").primaryKey(),
-  code: text("code").unique().notNull(), // e.g. 'no_show'
-  label: text("label").notNull(), // e.g. 'No Show'
-  description: text("description"), // e.g. Full explanation of the infraction
-  severity: infractionSeverityEnum("severity").default("low").notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const infractionTypes = pgTable(
+  "infraction_types",
+  {
+    id: serial("id").primaryKey(),
+    code: text("code").unique().notNull(), // e.g. 'no_show'
+    label: text("label").notNull(), // e.g. 'No Show'
+    description: text("description"), // e.g. Full explanation of the infraction
+    severity: infractionSeverityEnum("severity").default("low").notNull(),
+    active: boolean("active").default(true).notNull(),
+    archivedAt: timestamp("archived_at"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("infraction_types_label_unique").on(sql`lower(${table.label})`),
+    index("infraction_types_active_label_idx").on(table.active, table.label),
+    check(
+      "infraction_types_archive_state_check",
+      sql`
+        (
+          ${table.active} = true
+          AND ${table.archivedAt} IS NULL
+        )
+        OR
+        (
+          ${table.active} = false
+          AND ${table.archivedAt} IS NOT NULL
+        )
+      `,
+    ),
+  ],
+);
 export const infractionTypesRelations = relations(
   infractionTypes,
   ({ many }) => ({

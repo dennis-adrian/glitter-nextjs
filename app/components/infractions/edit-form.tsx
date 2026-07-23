@@ -1,6 +1,7 @@
 "use client";
 
 import ComboboxInput from "@/app/components/form/fields/combobox";
+import InfractionTypeDescription from "@/app/components/infractions/type-description";
 import TextareaInput from "@/app/components/form/fields/textarea";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Checkbox } from "@/app/components/ui/checkbox";
@@ -87,6 +88,13 @@ export default function EditInfractionForm({
     control: form.control,
     name: "userGaveNotice",
   });
+  const selectedTypeId = useWatch({
+    control: form.control,
+    name: "typeId",
+  });
+  const selectedInfractionType = infractionTypes.find(
+    (type) => String(type.id) === selectedTypeId,
+  );
 
   if (infraction.status === "voided") {
     return (
@@ -131,11 +139,14 @@ export default function EditInfractionForm({
           name="typeId"
           label="Tipo"
           placeholder="Tipo"
-          options={infractionTypes.map((type) => ({
-            value: String(type.id),
-            label: type.label,
-          }))}
+          options={infractionTypes
+            .filter((type) => type.active || type.id === infraction.typeId)
+            .map((type) => ({
+              value: String(type.id),
+              label: type.active ? type.label : `${type.label} (archivado)`,
+            }))}
         />
+        <InfractionTypeDescription type={selectedInfractionType} />
         <ComboboxInput
           form={form}
           name="festivalId"

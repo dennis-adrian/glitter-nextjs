@@ -28,25 +28,27 @@ The global administration page will be available at **/dashboard/infractions**, 
 
 ## 2. Confirmed Product Decisions
 
-| Topic                               | Decision                                                                                                                    |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Administrative roles                | **admin** and **festival_admin** are equivalent administrators for this module.                                             |
-| Module access                       | Only administrators can view the global page or take action on infractions and sanctions.                                   |
-| Infraction festival                 | Optional. An infraction may be global or associated with a festival.                                                        |
-| Editing                             | Infractions and sanctions are editable, with all material changes audited.                                                  |
-| Deletion                            | Disciplinary records are not deleted. Infractions are voided and sanctions are revoked.                                     |
-| Sanction approval                   | Always manual. The administrator creating a sanction may approve it in the same flow.                                       |
-| Severity automation                 | Severity never creates or approves a sanction automatically.                                                                |
-| Sanction-to-infraction relationship | One sanction covers one or several infractions. Each infraction may belong to at most one sanction.                         |
-| Resolution on approval              | Approving a sanction automatically resolves all included infractions that are pending or under review.                      |
-| Appeals                             | Not included in the first implementation.                                                                                   |
-| Duplicates                          | Technical retries are prevented, and possible semantic duplicates generate a warning without blocking legitimate incidents. |
-| Festival brand scope                | A sanction can apply globally or only to **glitter**, **festicker**, or **twinkler** festivals.                             |
-| Festival already active             | A festival that was already active when the sanction was approved does not qualify.                                         |
-| Published festivals                 | **published** does not qualify. Only a later transition to **active** can qualify a festival.                               |
-| Festival-based validity             | A festival qualifies when activated and counts toward validity when its final date passes.                                  |
-| Scope changes                       | Changing brand scope affects only festivals that qualify in the future. Existing associations are not recalculated.         |
-| Reservation delay                   | The waiting period starts at the festival's **reservationsStartDate**.                                                      |
+| Topic                               | Decision                                                                                                                                                  |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Administrative roles                | **admin** and **festival_admin** are equivalent administrators for this module.                                                                           |
+| Module access                       | Only administrators can view the global page or take action on infractions and sanctions.                                                                 |
+| Infraction festival                 | Optional. An infraction may be global or associated with a festival.                                                                                      |
+| Editing                             | Infractions and sanctions are editable, with all material changes audited.                                                                                |
+| Deletion                            | Disciplinary records are not deleted. Infractions are voided and sanctions are revoked.                                                                   |
+| Sanction approval                   | Always manual. The administrator creating a sanction may approve it in the same flow.                                                                     |
+| Severity automation                 | Severity never creates or approves a sanction automatically.                                                                                              |
+| Sanction-to-infraction relationship | One sanction covers one or several infractions. Each infraction may belong to at most one sanction.                                                       |
+| Resolution on approval              | Approving a sanction automatically resolves all included infractions that are pending or under review.                                                    |
+| Appeals                             | Not included in the first implementation.                                                                                                                 |
+| Duplicates                          | Technical retries are prevented, and possible semantic duplicates generate a warning without blocking legitimate incidents.                               |
+| Festival brand scope                | A sanction can apply globally or only to **glitter**, **festicker**, or **twinkler** festivals.                                                           |
+| Festival already active             | A festival that was already active when the sanction was approved does not qualify.                                                                       |
+| Published festivals                 | **published** does not qualify. Only a later transition to **active** can qualify a festival.                                                             |
+| Festival-based validity             | A festival qualifies when activated and counts toward validity when its final date passes.                                                                |
+| Scope changes                       | Changing brand scope affects only festivals that qualify in the future. Existing associations are not recalculated.                                       |
+| Reservation delay                   | The waiting period starts at the festival's **reservationsStartDate**.                                                                                    |
+| Infraction type management          | Administrators can create, edit, archive, and reactivate types. Archived types remain on history but cannot be selected for new infractions.              |
+| Infraction type guidance            | Every type has a required administrator-facing description containing representative situations. Severity is informational and never approves a sanction. |
 
 ---
 
@@ -218,7 +220,42 @@ Final names may be adjusted to existing Drizzle conventions, but the responsibil
 
     pending | under_review | resolved | voided
 
-### 7.2 Table: infractions
+### 7.2 Table: infraction_types
+
+| Field           | Type            | Rule                                                                                                                                |
+| --------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **id**          | serial PK       | —                                                                                                                                   |
+| **code**        | text, unique    | Stable internal identifier. Generated on creation and not changed by later edits.                                                   |
+| **label**       | text, unique    | Administrator-facing name.                                                                                                          |
+| **description** | text, nullable  | Required by management actions; explains the category and includes representative situations. Legacy rows may be null until edited. |
+| **severity**    | enum            | low, medium, high, or critical; informational only.                                                                                 |
+| **active**      | boolean         | Active types may be selected for new infractions.                                                                                   |
+| **archivedAt**  | timestamp, null | Required when inactive and cleared on reactivation.                                                                                 |
+| **createdAt**   | timestamp       | —                                                                                                                                   |
+| **updatedAt**   | timestamp       | Updated on every modification.                                                                                                      |
+
+Types are never deleted through the administration workflow. Archived types remain
+visible on existing infractions and in historical filters. Registration rejects an
+archived type even when a client calls the server action directly.
+
+Initial catalog:
+
+| Code                                        | Label                                      | Severity |
+| ------------------------------------------- | ------------------------------------------ | -------- |
+| **no_show**                                 | Inasistencia al festival                   | high     |
+| **schedule_noncompliance**                  | Incumplimiento de horarios                 | medium   |
+| **stand_rules_violation**                   | Incumplimiento de normas del stand         | medium   |
+| **product_or_content_violation**            | Productos o contenido no autorizado        | high     |
+| **administrative_noncompliance**            | Incumplimiento administrativo              | medium   |
+| **harassment_discrimination_or_threats**    | Acoso, discriminación o amenazas           | critical |
+| **unsafe_conduct_or_prohibited_substances** | Conducta peligrosa o sustancias prohibidas | critical |
+| **unauthorized_use_of_content_or_image**    | Uso no autorizado de contenido o imagen    | high     |
+| **other_policy_violation**                  | Otro incumplimiento                        | medium   |
+
+The approved complete descriptions, including representative situations, are seeded
+through a dedicated custom data migration rather than the structural schema migration.
+
+### 7.3 Table: infractions
 
 | Field                | Type                 | Rule                                                               |
 | -------------------- | -------------------- | ------------------------------------------------------------------ |
@@ -245,7 +282,7 @@ The existing **handled** field is removed after backfill:
 - **handled = false** becomes **status = pending**.
 - **handled = true** becomes **status = resolved**.
 
-### 7.3 Table: infraction_events
+### 7.4 Table: infraction_events
 
 This table stores an immutable history of changes.
 
@@ -261,7 +298,7 @@ This table stores an immutable history of changes.
 | **note**         | text, nullable       | Administrative reason.                                                           |
 | **createdAt**    | timestamp            | —                                                                                |
 
-### 7.4 Table: infraction_notes
+### 7.5 Table: infraction_notes
 
 | Field            | Type       | Description             |
 | ---------------- | ---------- | ----------------------- |
@@ -274,7 +311,7 @@ This table stores an immutable history of changes.
 
 Notes are administrative and are never shown to the participant.
 
-### 7.5 Table: infraction_evidence
+### 7.6 Table: infraction_evidence
 
 | Field             | Type           | Description                        |
 | ----------------- | -------------- | ---------------------------------- |
@@ -288,15 +325,15 @@ Notes are administrative and are never shown to the participant.
 
 The first implementation may reuse the existing upload mechanism. This project does not introduce a new storage provider.
 
-### 7.6 Enum: sanction_status
+### 7.7 Enum: sanction_status
 
     scheduled | active | expired | revoked
 
-### 7.7 Enum: sanction_festival_scope
+### 7.8 Enum: sanction_festival_scope
 
     global | glitter | festicker | twinkler
 
-### 7.8 Table: sanctions
+### 7.9 Table: sanctions
 
 | Field                       | Type                 | Rule                                                                |
 | --------------------------- | -------------------- | ------------------------------------------------------------------- |
@@ -329,7 +366,7 @@ Combination rules:
 - Other types require **reservationDelayMinutes = null**.
 - A revoked sanction requires responsible administrator, timestamp, and reason.
 
-### 7.9 Table: sanction_infractions
+### 7.10 Table: sanction_infractions
 
 | Field              | Type                 | Rule                                  |
 | ------------------ | -------------------- | ------------------------------------- |
@@ -345,7 +382,7 @@ Constraints:
 - The service verifies that all infractions and the sanction have the same **userId**.
 - A sanction must retain at least one relationship; this rule is validated inside the transaction.
 
-### 7.10 Table: sanction_events
+### 7.11 Table: sanction_events
 
 This table records creation, approval, editing, scope changes, extensions, expiration, revocation, and changes to associated infractions.
 
@@ -360,7 +397,7 @@ Minimum fields:
 - **note**, nullable
 - **createdAt**
 
-### 7.11 Table: festival_status_events
+### 7.12 Table: festival_status_events
 
 | Field           | Type                 | Description                         |
 | --------------- | -------------------- | ----------------------------------- |
@@ -373,7 +410,7 @@ Minimum fields:
 
 Every festival status mutation must go through one central service that records this event.
 
-### 7.12 Table: sanction_festivals
+### 7.13 Table: sanction_festivals
 
 | Field                     | Type                | Description                                         |
 | ------------------------- | ------------------- | --------------------------------------------------- |
@@ -388,7 +425,7 @@ Every festival status mutation must go through one central service that records 
 
 There is a unique constraint on **(sanctionId, festivalId)**.
 
-### 7.13 Minimum Indexes
+### 7.14 Minimum Indexes
 
 - **infractions(userId, createdAt desc)**
 - **infractions(festivalId, createdAt desc)**
@@ -864,8 +901,9 @@ No prior-notice date will be invented for legacy records. The interface displays
 
 The application compatibility release stops depending on and dual-writing the
 legacy disciplinary fields, but the database columns and their deprecated
-Drizzle definitions remain temporarily. Migration `0210` is intentionally not
-part of this release.
+Drizzle definitions remain temporarily. The previously generated destructive
+cleanup migration was removed and is intentionally not part of this release.
+Later migration numbers may be reused for unrelated, non-destructive changes.
 
 At the time this decision was made, production contained no infractions or
 sanctions. That condition must be checked again before the later cleanup.
@@ -895,6 +933,10 @@ Deployment order for the later cleanup:
 ### Phase 2 — Global Infraction Administration
 
 - **/dashboard/infractions** route.
+- **/dashboard/infractions/types** catalog management with create, edit, archive,
+  and reactivate actions.
+- Active-only registration choices with the selected type's full guidance displayed.
+- Explicit administrator-facing error state when the type catalog cannot be loaded.
 - Server-side paginated query and filters.
 - Global or festival registration.
 - Detail, editing, review, resolution, and voiding.

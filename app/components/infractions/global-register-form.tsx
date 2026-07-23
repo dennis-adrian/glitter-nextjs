@@ -1,6 +1,7 @@
 "use client";
 
 import ComboboxInput from "@/app/components/form/fields/combobox";
+import InfractionTypeDescription from "@/app/components/infractions/type-description";
 import TextareaInput from "@/app/components/form/fields/textarea";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Checkbox } from "@/app/components/ui/checkbox";
@@ -140,6 +141,9 @@ export default function GlobalRegisterInfractionForm({
     value: String(type.id),
     label: type.label,
   }));
+  const selectedInfractionType = infractionTypes.find(
+    (type) => String(type.id) === infractionType,
+  );
 
   const handleUserSearch = (term: string) => {
     startSearch(async () => {
@@ -199,46 +203,50 @@ export default function GlobalRegisterInfractionForm({
   return (
     <Form {...form}>
       <form className="flex flex-col gap-4" onSubmit={action}>
-        <div className="space-y-2">
-          <FormLabel>Participante</FormLabel>
-          {selectedUserLabel ? (
-            <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-              <span>{selectedUserLabel}</span>
-              {!defaultUserId && (
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => {
-                    form.setValue("userId", undefined as unknown as number, {
-                      shouldDirty: true,
-                    });
-                    setSelectedUserLabel("");
+        <FormField
+          control={form.control}
+          name="userId"
+          render={({ field }) => (
+            <FormItem className="space-y-2">
+              <FormLabel htmlFor="infraction-participant-search">
+                Participante
+              </FormLabel>
+              {selectedUserLabel ? (
+                <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                  <span>{selectedUserLabel}</span>
+                  {!defaultUserId && (
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        field.onChange(undefined);
+                        setSelectedUserLabel("");
+                      }}
+                    >
+                      Cambiar
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <SearchInput
+                  id="infraction-participant-search"
+                  placeholder="Buscar por nombre o correo"
+                  options={userOptions}
+                  isLoading={isSearching}
+                  onSearch={handleUserSearch}
+                  onSelect={(userId) => {
+                    const option = userOptions.find(
+                      (item) => Number(item.value) === userId,
+                    );
+                    field.onChange(userId);
+                    setSelectedUserLabel(option?.label ?? String(userId));
                   }}
-                >
-                  Cambiar
-                </button>
+                />
               )}
-            </div>
-          ) : (
-            <SearchInput
-              id="infraction-participant-search"
-              placeholder="Buscar por nombre o correo"
-              options={userOptions}
-              isLoading={isSearching}
-              onSearch={handleUserSearch}
-              onSelect={(userId) => {
-                const option = userOptions.find(
-                  (item) => Number(item.value) === userId,
-                );
-                form.setValue("userId", userId, { shouldValidate: true });
-                setSelectedUserLabel(option?.label ?? String(userId));
-              }}
-            />
+              <FormMessage />
+            </FormItem>
           )}
-          <FormMessage>
-            {form.formState.errors.userId?.message as string | undefined}
-          </FormMessage>
-        </div>
+        />
 
         <ComboboxInput
           form={form}
@@ -247,6 +255,7 @@ export default function GlobalRegisterInfractionForm({
           label="Tipo de infracción"
           placeholder="Selecciona una opción"
         />
+        <InfractionTypeDescription type={selectedInfractionType} />
         <ComboboxInput
           form={form}
           name="festivalId"
