@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "crypto";
 
+import { processPendingDisciplinaryNotificationJobs } from "@/app/lib/infractions/notifications";
 import { reconcileSanctionFestivalCounting } from "@/app/lib/sanctions/festival-counting";
 
 function isAuthorizedCronRequest(request: Request): boolean {
@@ -31,8 +32,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await reconcileSanctionFestivalCounting();
-    return new Response(JSON.stringify({ data: result }), { status: 200 });
+    const reconciliation = await reconcileSanctionFestivalCounting();
+    const notifications = await processPendingDisciplinaryNotificationJobs();
+    return new Response(
+      JSON.stringify({ data: { reconciliation, notifications } }),
+      { status: 200 },
+    );
   } catch (error) {
     console.error("Error reconciling sanction festival counting", error);
     return new Response(

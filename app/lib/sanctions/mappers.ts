@@ -64,3 +64,24 @@ export function formatSanctionValidity(input: {
   }
   return `${input.validityDuration} ${validityUnitLabel[input.validityUnit].toLowerCase()}`;
 }
+
+export function getParticipantSanctionConsequence(input: {
+  type: SanctionType;
+  status: SanctionStatus;
+}): string {
+  if (input.type === "warning") {
+    return "Esta advertencia es informativa y no bloquea tus reservas.";
+  }
+
+  const isCurrent = input.status === "active" || input.status === "scheduled";
+
+  if (input.type === "ban") {
+    return isCurrent
+      ? "Mientras esta sanción esté vigente, no podés acceder a las reservas de los festivales incluidos en su alcance."
+      : "Mientras estuvo vigente, esta sanción bloqueó el acceso a las reservas de los festivales incluidos en su alcance.";
+  }
+
+  return isCurrent
+    ? "En cada festival calificado, podés acceder a las reservas cuando finaliza el período de espera indicado."
+    : "Mientras estuvo vigente, esta sanción retrasó el acceso a las reservas de cada festival calificado.";
+}

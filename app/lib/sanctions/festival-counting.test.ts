@@ -1,10 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dbTransactionMock = vi.hoisted(() => vi.fn());
+const enqueueAccessNotificationsMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue([]),
+);
+const enqueueSanctionNotificationMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(1),
+);
 vi.mock("@/db", () => ({
   db: {
     transaction: dbTransactionMock,
   },
+}));
+vi.mock("@/app/lib/infractions/notifications", () => ({
+  enqueueEnabledReservationAccessNotifications: enqueueAccessNotificationsMock,
+  enqueueSanctionLifecycleNotification: enqueueSanctionNotificationMock,
 }));
 
 import {
@@ -163,6 +173,8 @@ function createReconciliationTransaction(input: {
 describe("reconcileSanctionFestivalCounting", () => {
   beforeEach(() => {
     dbTransactionMock.mockReset();
+    enqueueAccessNotificationsMock.mockClear();
+    enqueueSanctionNotificationMock.mockClear();
   });
 
   it("activates scheduled sanctions and records the lifecycle event once", async () => {
@@ -181,6 +193,10 @@ describe("reconcileSanctionFestivalCounting", () => {
     expect(result.expiredSanctionIds).toEqual([]);
     expect(update).toHaveBeenCalledOnce();
     expect(insert).toHaveBeenCalledOnce();
+    expect(enqueueAccessNotificationsMock).toHaveBeenCalledWith(
+      tx,
+      new Date("2026-07-20T12:00:00.000Z"),
+    );
   });
 
   it("does not log expiration when a concurrent mutation wins", async () => {
@@ -198,5 +214,6 @@ describe("reconcileSanctionFestivalCounting", () => {
 
     expect(result.expiredSanctionIds).toEqual([]);
     expect(insert).not.toHaveBeenCalled();
+    expect(enqueueSanctionNotificationMock).not.toHaveBeenCalled();
   });
 });

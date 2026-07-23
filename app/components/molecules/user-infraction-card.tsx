@@ -1,9 +1,12 @@
 import { Badge, type BadgeVariant } from "@/app/components/ui/badge";
 import { Separator } from "@/app/components/ui/separator";
 import { formatDate } from "@/app/lib/formatters";
-import { getInfractionStatusLabel } from "@/app/lib/infractions/mappers";
+import {
+  getInfractionStatusLabel,
+  infractionSeverityLabel,
+} from "@/app/lib/infractions/mappers";
 import type { InfractionStatus } from "@/app/lib/infractions/definitions";
-import { UserInfraction } from "@/app/lib/users/definitions";
+import type { ParticipantInfraction } from "@/app/lib/infractions/participant-queries";
 import { cn } from "@/app/lib/utils";
 import {
   AlertCircleIcon,
@@ -40,7 +43,7 @@ function getStatusBadgePresentation(status: InfractionStatus): {
 export default function UserInfractionCard({
   infraction,
 }: {
-  infraction: UserInfraction;
+  infraction: ParticipantInfraction;
 }) {
   let iconColor = "";
   switch (infraction.type.severity) {
@@ -78,34 +81,67 @@ export default function UserInfractionCard({
   const StatusIcon = statusBadge.Icon;
 
   return (
-    <div className="bg-card p-4 rounded-md shadow-md border flex items-start gap-2">
+    <div
+      id={`infraction-${infraction.id}`}
+      className="bg-card p-4 rounded-md shadow-md border flex items-start gap-2 scroll-mt-20"
+    >
       <div className={cn("p-2 rounded-lg", iconBgColor)}>
         <AlertCircleIcon className={cn("w-5 h-5", iconColor)} />
       </div>
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1 min-w-0">
         <span className="font-medium text-sm">{infraction.type.label}</span>
-        <Badge
-          className={cn(
-            "text-xs font-normal min-w-fit mb-1",
-            statusBadge.className,
-          )}
-          variant={statusBadge.variant}
-        >
-          <StatusIcon className="w-4 h-4 mr-1" />
-          {getInfractionStatusLabel(infraction.status)}
-        </Badge>
-        <span className="text-sm text-muted-foreground">
-          {infraction.type.description}
-        </span>
+        <div className="flex flex-wrap gap-1">
+          <Badge
+            className={cn(
+              "text-xs font-normal min-w-fit",
+              statusBadge.className,
+            )}
+            variant={statusBadge.variant}
+          >
+            <StatusIcon className="w-4 h-4 mr-1" />
+            {getInfractionStatusLabel(infraction.status)}
+          </Badge>
+          <Badge variant="outline" className="text-xs font-normal">
+            {infractionSeverityLabel[infraction.type.severity]}
+          </Badge>
+        </div>
+        {infraction.type.description && (
+          <span className="text-sm text-muted-foreground">
+            {infraction.type.description}
+          </span>
+        )}
+        {infraction.description && (
+          <span className="text-sm whitespace-pre-wrap">
+            {infraction.description}
+          </span>
+        )}
+        {infraction.resolutionNotes && (
+          <span className="text-sm">
+            <span className="text-muted-foreground">Resolución: </span>
+            {infraction.resolutionNotes}
+          </span>
+        )}
+        {infraction.voidReason && (
+          <span className="text-sm">
+            <span className="text-muted-foreground">Anulación: </span>
+            {infraction.voidReason}
+          </span>
+        )}
         <Separator className="my-1" />
         <span className="text-xs text-muted-foreground">
-          Registrado el{" "}
+          Registrada el{" "}
           {formatDate(infraction.createdAt).toLocaleString(DateTime.DATE_MED)}
         </span>
-        {infraction.festival && (
-          <span className="text-xs text-muted-foreground">
-            {infraction.festival.name}
-          </span>
+        <span className="text-xs text-muted-foreground">
+          {infraction.festival?.name ?? "Ámbito global"}
+        </span>
+        {infraction.sanctionId != null && (
+          <a
+            href={`#sanction-${infraction.sanctionId}`}
+            className="text-xs text-primary hover:underline"
+          >
+            Ver sanción #{infraction.sanctionId}
+          </a>
         )}
       </div>
     </div>

@@ -11,7 +11,7 @@
     },
     {
       "path": "/api/cron/morning/sanctionFestivalCounting",
-      "schedule": "15 6 * * *"
+      "schedule": "*/15 * * * *"
     }
   ]
 }

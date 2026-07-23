@@ -5,6 +5,10 @@ import { revalidatePath } from "next/cache";
 
 import { logInfractionEvent } from "@/app/lib/infractions/events";
 import { buildInfractionStatusUpdate } from "@/app/lib/infractions/lifecycle";
+import {
+  attemptDisciplinaryNotificationJob,
+  enqueueSanctionLifecycleNotification,
+} from "@/app/lib/infractions/notifications";
 import type { SanctionMutationResult } from "@/app/lib/sanctions/definitions";
 import {
   mapSanctionMutationError,
@@ -126,7 +130,7 @@ export async function createAndApproveSanction(
         ? null
         : (data.validityDuration ?? null);
 
-    const sanctionId = await db.transaction(async (tx) => {
+    const createdSanction = await db.transaction(async (tx) => {
       const selected = await lockInfractionsForMutation(tx, data.infractionIds);
 
       if (selected.length !== data.infractionIds.length) {
@@ -267,19 +271,31 @@ export async function createAndApproveSanction(
         }
       }
 
-      return created.id;
+      const notificationJobId = await enqueueSanctionLifecycleNotification(tx, {
+        sanctionId: created.id,
+        kind: "approved",
+        deduplicationKey: `sanction:${created.id}:approved`,
+        now,
+      });
+
+      return {
+        sanctionId: created.id,
+        notificationJobId,
+      };
     });
 
     revalidateSanctionPaths({
-      sanctionId,
+      sanctionId: createdSanction.sanctionId,
       userId: data.userId,
       infractionIds: data.infractionIds,
     });
 
+    await attemptDisciplinaryNotificationJob(createdSanction.notificationJobId);
+
     return {
       success: true,
       message: "Sanción creada y aprobada",
-      sanctionId,
+      sanctionId: createdSanction.sanctionId,
     };
   } catch (error) {
     console.error(error);
@@ -574,6 +590,13 @@ export async function editSanction(
         note: data.reason,
       });
 
+      const notificationJobId = await enqueueSanctionLifecycleNotification(tx, {
+        sanctionId: existing.id,
+        kind: "edited",
+        deduplicationKey: `sanction:${existing.id}:edited:${now.toISOString()}`,
+        now,
+      });
+
       return {
         sanctionId: existing.id,
         userId: existing.userId,
@@ -581,10 +604,13 @@ export async function editSanction(
           ...remainingLinks.map((link) => link.infractionId),
           ...removeIds,
         ],
+        notificationJobId,
       };
     });
 
     revalidateSanctionPaths(result);
+
+    await attemptDisciplinaryNotificationJob(result.notificationJobId);
 
     return {
       success: true,
@@ -659,14 +685,25 @@ export async function revokeSanction(
         note: data.revocationReason,
       });
 
+      const notificationJobId = await enqueueSanctionLifecycleNotification(tx, {
+        sanctionId: existing.id,
+        kind: "revoked",
+        deduplicationKey: `sanction:${existing.id}:revoked:${now.toISOString()}`,
+        participantNote: data.revocationReason,
+        now,
+      });
+
       return {
         sanctionId: existing.id,
         userId: existing.userId,
         infractionIds: currentLinks.map((link) => link.infractionId),
+        notificationJobId,
       };
     });
 
     revalidateSanctionPaths(result);
+
+    await attemptDisciplinaryNotificationJob(result.notificationJobId);
 
     return {
       success: true,

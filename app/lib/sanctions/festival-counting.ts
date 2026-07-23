@@ -1,5 +1,9 @@
 import { and, eq, gt, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 
+import {
+  enqueueEnabledReservationAccessNotifications,
+  enqueueSanctionLifecycleNotification,
+} from "@/app/lib/infractions/notifications";
 import { logSanctionEvent } from "@/app/lib/sanctions/events";
 import {
   calculateReservationEligibleAt,
@@ -297,6 +301,13 @@ export async function reconcileSanctionFestivalCounting(input?: {
         note: "Expirada automáticamente al completar la validez por festivales",
       });
 
+      await enqueueSanctionLifecycleNotification(tx, {
+        sanctionId,
+        kind: "expired",
+        deduplicationKey: `sanction:${sanctionId}:expired`,
+        now,
+      });
+
       expiredSanctionIds.push(sanctionId);
     }
 
@@ -342,8 +353,16 @@ export async function reconcileSanctionFestivalCounting(input?: {
         toStatus: "expired",
         note: "Expirada automáticamente por validez de calendario",
       });
+      await enqueueSanctionLifecycleNotification(tx, {
+        sanctionId: sanction.id,
+        kind: "expired",
+        deduplicationKey: `sanction:${sanction.id}:expired`,
+        now,
+      });
       expiredSanctionIds.push(sanction.id);
     }
+
+    await enqueueEnabledReservationAccessNotifications(tx, now);
 
     return {
       activatedSanctionIds,

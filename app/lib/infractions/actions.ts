@@ -14,6 +14,10 @@ import {
   buildInfractionStatusUpdate,
 } from "@/app/lib/infractions/lifecycle";
 import {
+  attemptDisciplinaryNotificationJob,
+  enqueueInfractionLifecycleNotification,
+} from "@/app/lib/infractions/notifications";
+import {
   changeInfractionStatusSchema,
   editInfractionSchema,
   registerInfractionSchema,
@@ -312,7 +316,11 @@ export async function registerInfraction(
         if (!reused) {
           throw new Error("No se pudo crear la infracción");
         }
-        return { id: reused.id, reused: true as const };
+        return {
+          id: reused.id,
+          reused: true as const,
+          notificationJobId: null,
+        };
       }
 
       await logInfractionEvent(tx, {
@@ -345,13 +353,31 @@ export async function registerInfraction(
         });
       }
 
-      return { id: infraction.id, reused: false as const };
+      const notificationJobId = await enqueueInfractionLifecycleNotification(
+        tx,
+        {
+          userId: data.userId,
+          infractionId: infraction.id,
+          kind: "registered",
+          deduplicationKey: `infraction:${infraction.id}:registered`,
+        },
+      );
+
+      return {
+        id: infraction.id,
+        reused: false as const,
+        notificationJobId,
+      };
     });
 
     revalidateInfractionPaths({
       festivalIds: [festivalId],
       userId: data.userId,
     });
+
+    if (created.notificationJobId != null) {
+      await attemptDisciplinaryNotificationJob(created.notificationJobId);
+    }
 
     return {
       success: true,
@@ -385,6 +411,7 @@ export async function editInfraction(rawInput: EditInfractionInput) {
   }
 
   const data = parsed.data;
+  const now = new Date();
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -461,7 +488,7 @@ export async function editInfraction(rawInput: EditInfractionInput) {
           description: nextDescription,
           userGaveNotice: data.userGaveNotice,
           gaveNoticeAt: nextGaveNoticeAt,
-          updatedAt: new Date(),
+          updatedAt: now,
         })
         .where(eq(infractions.id, data.infractionId));
 
@@ -475,10 +502,22 @@ export async function editInfraction(rawInput: EditInfractionInput) {
         note: data.reason,
       });
 
+      const notificationJobId = await enqueueInfractionLifecycleNotification(
+        tx,
+        {
+          userId: existing.userId,
+          infractionId: data.infractionId,
+          kind: "edited",
+          deduplicationKey: `infraction:${data.infractionId}:edited:${now.toISOString()}`,
+          now,
+        },
+      );
+
       return {
         success: true as const,
         existingFestivalId: existing.festivalId,
         userId: existing.userId,
+        notificationJobId,
       };
     });
 
@@ -488,6 +527,8 @@ export async function editInfraction(rawInput: EditInfractionInput) {
       festivalIds: [result.existingFestivalId, data.festivalId],
       userId: result.userId,
     });
+
+    await attemptDisciplinaryNotificationJob(result.notificationJobId);
 
     return {
       success: true as const,
@@ -571,10 +612,26 @@ export async function changeInfractionStatus(
             : (emptyToNull(data.note) ?? emptyToNull(data.resolutionNotes)),
       });
 
+      const notificationJobId =
+        data.toStatus === "resolved" || data.toStatus === "voided"
+          ? await enqueueInfractionLifecycleNotification(tx, {
+              userId: existing.userId,
+              infractionId: data.infractionId,
+              kind: data.toStatus,
+              deduplicationKey: `infraction:${data.infractionId}:${data.toStatus}:${now.toISOString()}`,
+              participantNote:
+                data.toStatus === "voided"
+                  ? emptyToNull(data.voidReason)
+                  : emptyToNull(data.resolutionNotes),
+              now,
+            })
+          : null;
+
       return {
         success: true as const,
         festivalId: existing.festivalId,
         userId: existing.userId,
+        notificationJobId,
       };
     });
 
@@ -584,6 +641,10 @@ export async function changeInfractionStatus(
       festivalIds: [result.festivalId],
       userId: result.userId,
     });
+
+    if (result.notificationJobId != null) {
+      await attemptDisciplinaryNotificationJob(result.notificationJobId);
+    }
 
     return {
       success: true as const,

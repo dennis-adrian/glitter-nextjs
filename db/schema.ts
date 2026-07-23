@@ -2535,6 +2535,9 @@ export const sanctionFestivals = pgTable(
       .references(() => festivals.id, { onDelete: "restrict" }),
     qualifiedAt: timestamp("qualified_at").notNull(),
     reservationEligibleAt: timestamp("reservation_eligible_at"),
+    reservationAccessNotificationQueuedAt: timestamp(
+      "reservation_access_notification_queued_at",
+    ),
     countedAt: timestamp("counted_at"),
     festivalEndAt: timestamp("festival_end_at"),
     countsTowardDuration: boolean("counts_toward_duration")
@@ -2577,6 +2580,66 @@ export const sanctionFestivalsRelations = relations(
     festival: one(festivals, {
       fields: [sanctionFestivals.festivalId],
       references: [festivals.id],
+    }),
+  }),
+);
+
+export const disciplinaryNotificationJobStatusEnum = pgEnum(
+  "disciplinary_notification_job_status",
+  ["pending", "processing", "completed", "failed"],
+);
+
+/**
+ * Durable participant-email outbox for infraction and sanction lifecycle
+ * notifications. Payloads are participant-safe snapshots so retries cannot
+ * expose later audit-only changes or describe a different lifecycle state.
+ */
+export const disciplinaryNotificationJobs = pgTable(
+  "disciplinary_notification_jobs",
+  {
+    id: serial("id").primaryKey(),
+    deduplicationKey: text("deduplication_key").notNull(),
+    userId: integer("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    entityType: text("entity_type").notNull(),
+    entityId: integer("entity_id").notNull(),
+    notificationKind: text("notification_kind").notNull(),
+    recipientEmail: text("recipient_email").notNull(),
+    payload: jsonb("payload").notNull(),
+    status: disciplinaryNotificationJobStatusEnum("status")
+      .default("pending")
+      .notNull(),
+    lastError: text("last_error"),
+    attempts: integer("attempts").default(0).notNull(),
+    nextAttemptAt: timestamp("next_attempt_at").defaultNow().notNull(),
+    leaseOwner: text("lease_owner"),
+    leaseExpiresAt: timestamp("lease_expires_at"),
+    completedAt: timestamp("completed_at"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("disciplinary_notification_jobs_deduplication_key_unique").on(
+      table.deduplicationKey,
+    ),
+    index("disciplinary_notification_jobs_status_next_attempt_idx").on(
+      table.status,
+      table.nextAttemptAt,
+    ),
+    index("disciplinary_notification_jobs_entity_idx").on(
+      table.entityType,
+      table.entityId,
+    ),
+  ],
+);
+
+export const disciplinaryNotificationJobsRelations = relations(
+  disciplinaryNotificationJobs,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [disciplinaryNotificationJobs.userId],
+      references: [users.id],
     }),
   }),
 );
