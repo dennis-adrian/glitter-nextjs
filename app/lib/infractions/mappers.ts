@@ -4,10 +4,10 @@ export const infractionSeverityLabel: Record<
   (typeof infractionSeverityEnum.enumValues)[number],
   string
 > = {
-  low: "Severidad Baja",
-  medium: "Severidad Media",
-  high: "Severidad Alta",
-  critical: "Severidad Crítica",
+  low: "Baja",
+  medium: "Media",
+  high: "Alta",
+  critical: "Crítica",
 };
 
 export const infractionStatusLabel: Record<

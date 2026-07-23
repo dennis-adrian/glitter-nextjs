@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
 import {
   ArchiveIcon,
   CheckCircle2Icon,
   PencilIcon,
   PlusIcon,
 } from "lucide-react";
+import { useState } from "react";
 
+import { InfractionSeverityBadge } from "@/app/components/atoms/infraction-severity-badge";
 import InfractionTypeActivityAction from "@/app/components/infractions/types/type-activity-action";
 import InfractionTypeForm from "@/app/components/infractions/types/type-form";
 import { Badge } from "@/app/components/ui/badge";
@@ -20,7 +21,6 @@ import {
   DialogTitle,
 } from "@/app/components/ui/dialog";
 import type { InfractionType } from "@/app/lib/infractions/definitions";
-import { infractionSeverityLabel } from "@/app/lib/infractions/mappers";
 
 export default function InfractionTypesManager({
   types,
@@ -65,10 +65,8 @@ export default function InfractionTypesManager({
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant="outline">
-                    {infractionSeverityLabel[type.severity]}
-                  </Badge>
-                  <Badge variant={type.active ? "secondary" : "outline"}>
+                  <InfractionSeverityBadge severity={type.severity} />
+                  <Badge variant={type.active ? "green" : "amber"}>
                     {type.active ? (
                       <CheckCircle2Icon className="mr-1 size-3" />
                     ) : (
