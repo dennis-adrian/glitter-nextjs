@@ -29,11 +29,18 @@ import {
   StandTemplate,
 } from "@/app/lib/map_templates/definitions";
 import { importTemplateToFestival } from "@/app/lib/map_templates/actions";
+import { recordFestivalCreatedStatus } from "@/app/lib/festivals/status-transitions";
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 
 export async function exportFestivalData(
   festivalId: number,
   options: ExportFestivalDataOptions,
 ): Promise<{ success: boolean; data?: FestivalExport; message: string }> {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     const parsedOptions = exportFestivalDataOptionsSchema.parse(options);
 
@@ -177,6 +184,11 @@ export async function importFestivalData(
     datesCreated: number;
   };
 }> {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     const parsedData = festivalExportSchema.parse(exportData);
     const parsedOptions = importFestivalDataOptionsSchema.parse(options);
@@ -330,6 +342,11 @@ export async function createFestivalFromImport(
   message: string;
   festivalId?: number;
 }> {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     const parsedData = festivalExportSchema.parse(exportData);
 
@@ -431,6 +448,12 @@ export async function createFestivalFromImport(
           }
         }
       }
+
+      await recordFestivalCreatedStatus(tx, {
+        festivalId: newFestival.id,
+        status: newFestival.status,
+        actorUserId: actor.id,
+      });
 
       return newFestival;
     });

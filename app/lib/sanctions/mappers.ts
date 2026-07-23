@@ -9,10 +9,14 @@ import type {
 export const sanctionEventTypeLabel: Record<SanctionEventType, string> = {
   created: "Sanción creada",
   approved: "Sanción aprobada",
+  activated: "Sanción activada",
   edited: "Sanción editada",
   extended: "Validez extendida",
   scope_changed: "Alcance modificado",
   infractions_changed: "Infracciones modificadas",
+  festival_excluded: "Festival excluido del conteo",
+  festival_restored: "Festival restaurado al conteo",
+  reservation_eligibility_changed: "Elegibilidad de reserva actualizada",
   expired: "Sanción expirada",
   revoked: "Sanción revocada",
 };

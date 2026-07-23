@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { logInfractionEvent } from "@/app/lib/infractions/events";
@@ -31,14 +31,21 @@ import {
   editSanctionSchema,
   revokeSanctionSchema,
   searchEligibleInfractionsSchema,
+  updateSanctionFestivalCountingSchema,
   type CreateSanctionInput,
   type EditSanctionInput,
   type RevokeSanctionInput,
   type SearchEligibleInfractionsInput,
+  type UpdateSanctionFestivalCountingInput,
 } from "@/app/lib/sanctions/schema";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
-import { infractions, sanctionInfractions, sanctions } from "@/db/schema";
+import {
+  infractions,
+  sanctionFestivals,
+  sanctionInfractions,
+  sanctions,
+} from "@/db/schema";
 
 function emptyToNull(value?: string | null) {
   const trimmed = value?.trim();
@@ -669,5 +676,128 @@ export async function revokeSanction(
   } catch (error) {
     console.error(error);
     return mapSanctionMutationError(error, "No se pudo revocar la sanción");
+  }
+}
+
+export async function updateSanctionFestivalCounting(
+  rawInput: UpdateSanctionFestivalCountingInput,
+): Promise<SanctionMutationResult> {
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) {
+    return {
+      success: false,
+      message: "No autorizado",
+      code: "unauthorized",
+    };
+  }
+
+  const parsed = updateSanctionFestivalCountingSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return {
+      success: false,
+      message: parsed.error.issues[0]?.message ?? "Datos inválidos",
+      code: "validation",
+    };
+  }
+
+  const data = parsed.data;
+
+  try {
+    await db.transaction(async (tx) => {
+      const [association] = await tx
+        .select({
+          sanctionId: sanctionFestivals.sanctionId,
+          festivalId: sanctionFestivals.festivalId,
+          countedAt: sanctionFestivals.countedAt,
+          countsTowardDuration: sanctionFestivals.countsTowardDuration,
+          excludedReason: sanctionFestivals.excludedReason,
+        })
+        .from(sanctionFestivals)
+        .where(
+          and(
+            eq(sanctionFestivals.sanctionId, data.sanctionId),
+            eq(sanctionFestivals.festivalId, data.festivalId),
+          ),
+        )
+        .for("update");
+
+      if (!association) {
+        throw sanctionDomainError(
+          "La asociación con el festival no existe",
+          "not_found",
+        );
+      }
+      const sanction = await tx.query.sanctions.findFirst({
+        where: eq(sanctions.id, data.sanctionId),
+        columns: { validityUnit: true },
+      });
+      if (!sanction || sanction.validityUnit !== "festivals") {
+        throw sanctionDomainError(
+          "La exclusión solo aplica a sanciones con validez por festivales",
+          "validation",
+        );
+      }
+      if (association.countedAt) {
+        throw sanctionDomainError(
+          "No se puede cambiar un festival que ya fue contabilizado",
+          "validation",
+        );
+      }
+      if (association.countsTowardDuration === data.countsTowardDuration) {
+        throw sanctionDomainError(
+          data.countsTowardDuration
+            ? "El festival ya cuenta para la duración"
+            : "El festival ya está excluido",
+          "validation",
+        );
+      }
+
+      await tx
+        .update(sanctionFestivals)
+        .set({
+          countsTowardDuration: data.countsTowardDuration,
+          excludedReason: data.countsTowardDuration ? null : data.reason,
+        })
+        .where(
+          and(
+            eq(sanctionFestivals.sanctionId, data.sanctionId),
+            eq(sanctionFestivals.festivalId, data.festivalId),
+            isNull(sanctionFestivals.countedAt),
+          ),
+        );
+
+      await logSanctionEvent(tx, {
+        sanctionId: data.sanctionId,
+        actorUserId: profile.id,
+        eventType: data.countsTowardDuration
+          ? "festival_restored"
+          : "festival_excluded",
+        changes: {
+          festivalId: data.festivalId,
+          countsTowardDuration: {
+            from: association.countsTowardDuration,
+            to: data.countsTowardDuration,
+          },
+          previousExcludedReason: association.excludedReason,
+        },
+        note: data.reason,
+      });
+    });
+
+    revalidatePath(`/dashboard/sanctions/${data.sanctionId}`);
+
+    return {
+      success: true,
+      message: data.countsTowardDuration
+        ? "Festival restaurado al conteo"
+        : "Festival excluido del conteo",
+      sanctionId: data.sanctionId,
+    };
+  } catch (error) {
+    console.error(error);
+    return mapSanctionMutationError(
+      error,
+      "No se pudo actualizar el conteo del festival",
+    );
   }
 }

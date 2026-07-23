@@ -1,4 +1,5 @@
 import EditSanctionForm from "@/app/components/sanctions/edit-form";
+import FestivalCountingAction from "@/app/components/sanctions/festival-counting-action";
 import RevokeSanctionActions from "@/app/components/sanctions/revoke-actions";
 import { SanctionStatusBadge } from "@/app/components/sanctions/status-badge";
 import {
@@ -36,6 +37,11 @@ const auditFieldLabel: Record<string, string> = {
   removed: "Quitadas",
   unit: "Unidad",
   duration: "Duración",
+  festivalId: "Festival",
+  countsTowardDuration: "Cuenta para la duración",
+  previousExcludedReason: "Motivo de exclusión anterior",
+  from: "Anterior",
+  to: "Nuevo",
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -224,6 +230,83 @@ export default async function SanctionDetailPage({
                 <span className="text-muted-foreground">
                   {link.infraction.festival?.name ?? "Global"}
                 </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="space-y-3 rounded-md border p-4">
+        <h2 className="font-medium">Festivales calificados</h2>
+        {sanction.validityUnit === "festivals" && (
+          <p className="text-sm text-muted-foreground">
+            Contados:{" "}
+            {
+              sanction.sanctionFestivals.filter(
+                (item) => item.countsTowardDuration && item.countedAt,
+              ).length
+            }{" "}
+            / {sanction.validityDuration ?? "—"}
+          </p>
+        )}
+        {sanction.sanctionFestivals.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Ningún festival calificado todavía
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {sanction.sanctionFestivals.map((item) => (
+              <li
+                key={`${item.sanctionId}-${item.festivalId}`}
+                className="rounded-md border p-3 text-sm space-y-1"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href={`/dashboard/festivals/${item.festival.id}`}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    {item.festival.name}
+                  </Link>
+                  <span className="text-muted-foreground">
+                    {item.festival.festivalType} · {item.festival.status}
+                  </span>
+                </div>
+                <p className="text-muted-foreground">
+                  Calificado:{" "}
+                  {formatDate(item.qualifiedAt).toLocaleString(
+                    DateTime.DATETIME_MED,
+                  )}
+                </p>
+                {item.reservationEligibleAt && (
+                  <p className="text-muted-foreground">
+                    Elegible para reservar:{" "}
+                    {formatDate(item.reservationEligibleAt).toLocaleString(
+                      DateTime.DATETIME_MED,
+                    )}
+                  </p>
+                )}
+                {item.festivalEndAt && (
+                  <p className="text-muted-foreground">
+                    Fecha final usada para el conteo:{" "}
+                    {formatDate(item.festivalEndAt).toLocaleString(
+                      DateTime.DATETIME_MED,
+                    )}
+                  </p>
+                )}
+                <p className="text-muted-foreground">
+                  {item.countsTowardDuration
+                    ? item.countedAt
+                      ? `Contado el ${formatDate(item.countedAt).toLocaleString(DateTime.DATETIME_MED)}`
+                      : "Pendiente de conteo"
+                    : `Excluido${item.excludedReason ? `: ${item.excludedReason}` : ""}`}
+                </p>
+                {sanction.validityUnit === "festivals" && !item.countedAt && (
+                  <FestivalCountingAction
+                    sanctionId={item.sanctionId}
+                    festivalId={item.festivalId}
+                    countsTowardDuration={item.countsTowardDuration}
+                  />
+                )}
               </li>
             ))}
           </ul>

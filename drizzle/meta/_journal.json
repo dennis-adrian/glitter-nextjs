@@ -1457,6 +1457,13 @@
       "when": 1784775126256,
       "tag": "0207_calm_the_leader",
       "breakpoints": true
+    },
+    {
+      "idx": 208,
+      "version": "7",
+      "when": 1784780608713,
+      "tag": "0208_acoustic_guardsmen",
+      "breakpoints": true
     }
   ]
 }

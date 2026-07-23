@@ -334,7 +334,44 @@ export const festivalsRelations = relations(festivals, ({ many, one }) => ({
   festivalActivities: many(festivalActivities),
   badge: one(badges),
   infractions: many(infractions),
+  statusEvents: many(festivalStatusEvents),
+  sanctionFestivals: many(sanctionFestivals),
 }));
+
+export const festivalStatusEvents = pgTable(
+  "festival_status_events",
+  {
+    id: serial("id").primaryKey(),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "restrict" }),
+    fromStatus: festivalStatusEnum("from_status"),
+    toStatus: festivalStatusEnum("to_status").notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("festival_status_events_festival_id_created_at_idx").on(
+      table.festivalId,
+      table.createdAt,
+    ),
+  ],
+);
+export const festivalStatusEventsRelations = relations(
+  festivalStatusEvents,
+  ({ one }) => ({
+    festival: one(festivals, {
+      fields: [festivalStatusEvents.festivalId],
+      references: [festivals.id],
+    }),
+    actor: one(users, {
+      fields: [festivalStatusEvents.actorUserId],
+      references: [users.id],
+    }),
+  }),
+);
 
 export const marketingBanners = pgTable(
   "marketing_banners",
@@ -2254,10 +2291,14 @@ export const sanctionFestivalScopeEnum = pgEnum("sanction_festival_scope", [
 export const sanctionEventTypeEnum = pgEnum("sanction_event_type", [
   "created",
   "approved",
+  "activated",
   "edited",
   "extended",
   "scope_changed",
   "infractions_changed",
+  "festival_excluded",
+  "festival_restored",
+  "reservation_eligibility_changed",
   "expired",
   "revoked",
 ]);
@@ -2405,6 +2446,7 @@ export const sanctionsRelations = relations(sanctions, ({ one, many }) => ({
   }),
   sanctionInfractions: many(sanctionInfractions),
   events: many(sanctionEvents),
+  sanctionFestivals: many(sanctionFestivals),
 }));
 
 export const sanctionInfractions = pgTable(
@@ -2481,6 +2523,63 @@ export const sanctionEventsRelations = relations(sanctionEvents, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+export const sanctionFestivals = pgTable(
+  "sanction_festivals",
+  {
+    sanctionId: integer("sanction_id")
+      .notNull()
+      .references(() => sanctions.id, { onDelete: "cascade" }),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "restrict" }),
+    qualifiedAt: timestamp("qualified_at").notNull(),
+    reservationEligibleAt: timestamp("reservation_eligible_at"),
+    countedAt: timestamp("counted_at"),
+    festivalEndAt: timestamp("festival_end_at"),
+    countsTowardDuration: boolean("counts_toward_duration")
+      .default(true)
+      .notNull(),
+    excludedReason: text("excluded_reason"),
+  },
+  (table) => [
+    unique().on(table.sanctionId, table.festivalId),
+    check(
+      "sanction_festivals_exclusion_reason_check",
+      sql`(
+        (${table.countsTowardDuration} = true AND ${table.excludedReason} IS NULL)
+        OR
+        (${table.countsTowardDuration} = false AND NULLIF(BTRIM(${table.excludedReason}), '') IS NOT NULL)
+      )`,
+    ),
+    check(
+      "sanction_festivals_count_snapshot_check",
+      sql`(
+        (${table.countedAt} IS NULL AND ${table.festivalEndAt} IS NULL)
+        OR
+        (${table.countedAt} IS NOT NULL AND ${table.festivalEndAt} IS NOT NULL)
+      )`,
+    ),
+    index("sanction_festivals_sanction_id_counted_at_idx").on(
+      table.sanctionId,
+      table.countedAt,
+    ),
+    index("sanction_festivals_festival_id_idx").on(table.festivalId),
+  ],
+);
+export const sanctionFestivalsRelations = relations(
+  sanctionFestivals,
+  ({ one }) => ({
+    sanction: one(sanctions, {
+      fields: [sanctionFestivals.sanctionId],
+      references: [sanctions.id],
+    }),
+    festival: one(festivals, {
+      fields: [sanctionFestivals.festivalId],
+      references: [festivals.id],
+    }),
+  }),
+);
 
 export const submissionStatusEnum = pgEnum("submission_status", [
   "pending_review",

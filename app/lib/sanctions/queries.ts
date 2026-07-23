@@ -18,6 +18,7 @@ import {
   infractions,
   infractionTypes,
   sanctionEvents,
+  sanctionFestivals,
   sanctionInfractions,
   sanctions,
 } from "@/db/schema";
@@ -93,6 +94,16 @@ export type SanctionDetail = typeof sanctions.$inferSelect & {
       } | null;
     }
   >;
+  sanctionFestivals: Array<
+    typeof sanctionFestivals.$inferSelect & {
+      festival: {
+        id: number;
+        name: string;
+        festivalType: (typeof festivals.$inferSelect)["festivalType"];
+        status: (typeof festivals.$inferSelect)["status"];
+      };
+    }
+  >;
 };
 
 const userColumns = {
@@ -140,6 +151,18 @@ export async function fetchSanctionDetail(
         orderBy: (events, { desc: d }) => [d(events.createdAt)],
         with: {
           actor: { columns: userColumns },
+        },
+      },
+      sanctionFestivals: {
+        with: {
+          festival: {
+            columns: {
+              id: true,
+              name: true,
+              festivalType: true,
+              status: true,
+            },
+          },
         },
       },
     },

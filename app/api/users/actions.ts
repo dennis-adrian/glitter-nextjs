@@ -466,7 +466,13 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
             lastError: `clerk_delete_failed: ${clerkResult.message}`,
             updatedAt: failedAt,
           })
-          .where(eq(pendingUserDeletions.id, preparation.pendingId));
+          .where(
+            and(
+              eq(pendingUserDeletions.id, preparation.pendingId),
+              isNull(pendingUserDeletions.clerkDeletedAt),
+              isNull(pendingUserDeletions.localDeletedAt),
+            ),
+          );
         return { success: false, message: "Error al eliminar el perfil" };
       }
 

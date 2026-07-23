@@ -13,6 +13,7 @@ import { db } from "@/db";
 import {
   festivalActivities,
   festivalDates,
+  festivalStatusEnum,
   festivals,
   festivalSectors,
   infractions,
@@ -45,7 +46,21 @@ import {
   FullFestival,
   RecentSharedStandPartner,
 } from "./definitions";
+import {
+  recordFestivalCreatedStatus,
+  transitionFestivalStatus,
+} from "./status-transitions";
 import { groupVisitorEmails } from "./utils";
+import { recalculateReservationEligibleAtForFestival } from "@/app/lib/sanctions/festival-counting";
+import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
+
+function isValidFestivalStatus(
+  status: unknown,
+): status is (typeof festivalStatusEnum.enumValues)[number] {
+  return festivalStatusEnum.enumValues.includes(
+    status as (typeof festivalStatusEnum.enumValues)[number],
+  );
+}
 
 export async function createFestival(
   festivalData: Omit<typeof festivals.$inferInsert, "id"> & {
@@ -66,6 +81,11 @@ export async function createFestival(
     }>;
   },
 ) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     const result = await db.transaction(async (tx) => {
       const [newFestival] = await tx
@@ -129,6 +149,13 @@ export async function createFestival(
           });
         }
       }
+
+      await recordFestivalCreatedStatus(tx, {
+        festivalId: newFestival.id,
+        status: newFestival.status,
+        actorUserId: actor.id,
+      });
+
       return newFestival;
     });
 
@@ -148,6 +175,11 @@ export async function createFestival(
 }
 
 export async function deleteFestival(festivalId: number) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+
   try {
     await db.delete(festivals).where(eq(festivals.id, festivalId));
   } catch (error) {
@@ -199,8 +231,37 @@ export async function updateFestival(
     deletedSectorIds?: number[];
   },
 ) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+  if (!Number.isInteger(data.id) || data.id <= 0) {
+    return { success: false, message: "Festival inválido" };
+  }
+
   try {
     const result = await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({
+          id: festivals.id,
+          status: festivals.status,
+          reservationsStartDate: festivals.reservationsStartDate,
+        })
+        .from(festivals)
+        .where(eq(festivals.id, data.id))
+        .for("update");
+
+      if (!existing) {
+        throw new Error("Festival no encontrado");
+      }
+
+      const nextStatus = data.status || "draft";
+      if (!isValidFestivalStatus(nextStatus)) {
+        throw new Error("INVALID_FESTIVAL_STATUS");
+      }
+      const nextReservationsStartDate =
+        data.reservationsStartDate ?? existing.reservationsStartDate;
+
       const [updatedFestival] = await tx
         .update(festivals)
         .set({
@@ -209,12 +270,14 @@ export async function updateFestival(
           address: data.address || null,
           locationLabel: data.locationLabel || null,
           locationUrl: data.locationUrl || null,
-          status: data.status || "draft",
+          // Status changes go through transitionFestivalStatus below.
+          status: existing.status,
           mapsVersion: data.mapsVersion || "v1",
           publicRegistration: data.publicRegistration || false,
           eventDayRegistration: data.eventDayRegistration || false,
           keepStoreOpen: data.keepStoreOpen || false,
           festivalType: data.festivalType || "glitter",
+          reservationsStartDate: nextReservationsStartDate,
           generalMapUrl: data.generalMapUrl || null,
           mascotUrl: data.mascotUrl || null,
           illustrationPaymentQrCodeUrl:
@@ -337,14 +400,55 @@ export async function updateFestival(
         }
       }
 
-      return updatedFestival;
+      const affectedSanctionIds = new Set<number>();
+
+      if (existing.status !== nextStatus) {
+        const transition = await transitionFestivalStatus(
+          {
+            festivalId: data.id,
+            toStatus: nextStatus,
+            actorUserId: actor.id,
+          },
+          tx,
+        );
+        updatedFestival.status = nextStatus;
+        for (const sanctionId of transition.associatedSanctionIds) {
+          affectedSanctionIds.add(sanctionId);
+        }
+      }
+
+      if (
+        existing.reservationsStartDate.getTime() !==
+        nextReservationsStartDate.getTime()
+      ) {
+        const recalculated = await recalculateReservationEligibleAtForFestival(
+          tx,
+          {
+            festivalId: data.id,
+            reservationsStartDate: nextReservationsStartDate,
+            actorUserId: actor.id,
+          },
+        );
+        for (const sanctionId of recalculated) {
+          affectedSanctionIds.add(sanctionId);
+        }
+      }
+
+      return {
+        festival: updatedFestival,
+        affectedSanctionIds: [...affectedSanctionIds],
+      };
     });
 
     revalidatePath("/dashboard/festivals");
+    revalidatePath(`/dashboard/festivals/${data.id}`);
+    for (const sanctionId of result.affectedSanctionIds) {
+      revalidatePath(`/dashboard/sanctions/${sanctionId}`);
+    }
     return {
       success: true,
       message: "Festival actualizado correctamente.",
-      data: result,
+      data: result.festival,
     };
   } catch (error) {
     if (error instanceof Error && error.message === "SECTOR_HAS_RESERVATIONS") {
@@ -622,17 +726,35 @@ export async function fetchFestivals(): Promise<FestivalWithDates[]> {
 // TODO: Improve this by running actions in the background
 // ------ BEGIN
 export async function updateFestivalStatusTemp(festival: FestivalBase) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+  if (
+    !Number.isInteger(festival.id) ||
+    festival.id <= 0 ||
+    !isValidFestivalStatus(festival.status)
+  ) {
+    return { success: false, message: "Festival inválido" };
+  }
+
   try {
-    await db
-      .update(festivals)
-      .set({ status: festival.status })
-      .where(eq(festivals.id, festival.id));
+    const transition = await transitionFestivalStatus({
+      festivalId: festival.id,
+      toStatus: festival.status,
+      actorUserId: actor.id,
+    });
+
+    revalidatePath("/dashboard/festivals");
+    revalidatePath(`/dashboard/festivals/${festival.id}`);
+    for (const sanctionId of transition.associatedSanctionIds) {
+      revalidatePath(`/dashboard/sanctions/${sanctionId}`);
+    }
   } catch (error) {
     console.error(error);
     return { success: false, message: "Error al actualizar el festival" };
   }
 
-  revalidatePath("/dashboard/festivals");
   return { success: true, message: "Festival actualizado con éxito" };
 }
 
@@ -681,17 +803,31 @@ export async function sendUserEmailsTemp(
 // ------ END
 
 export async function updateFestivalStatus(festival: FestivalBase) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+  if (
+    !Number.isInteger(festival.id) ||
+    festival.id <= 0 ||
+    !isValidFestivalStatus(festival.status)
+  ) {
+    return { success: false, message: "Festival inválido" };
+  }
+
+  let associatedSanctionIds: number[] = [];
   try {
     const { status } = festival;
-    const [updatedFestival] = await db
-      .update(festivals)
-      .set({ status })
-      .where(eq(festivals.id, festival.id))
-      .returning();
+    const transition = await transitionFestivalStatus({
+      festivalId: festival.id,
+      toStatus: status,
+      actorUserId: actor.id,
+    });
+    associatedSanctionIds = transition.associatedSanctionIds;
 
-    const festivalWithDates = await fetchFestivalWithDates(updatedFestival.id);
+    const festivalWithDates = await fetchFestivalWithDates(festival.id);
 
-    if (updatedFestival.status === "active") {
+    if (transition.toStatus === "active" && transition.changed) {
       const sectors = await db.query.festivalSectors.findMany({
         with: {
           stands: true,
@@ -735,6 +871,10 @@ export async function updateFestivalStatus(festival: FestivalBase) {
   }
 
   revalidatePath("/dashboard/festivals");
+  revalidatePath(`/dashboard/festivals/${festival.id}`);
+  for (const sanctionId of associatedSanctionIds) {
+    revalidatePath(`/dashboard/sanctions/${sanctionId}`);
+  }
   return { success: true, message: "Festival actualizado con éxito" };
 }
 

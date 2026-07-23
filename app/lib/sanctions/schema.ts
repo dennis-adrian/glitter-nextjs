@@ -155,6 +155,17 @@ export const revokeSanctionSchema = z.object({
 
 export type RevokeSanctionInput = z.infer<typeof revokeSanctionSchema>;
 
+export const updateSanctionFestivalCountingSchema = z.object({
+  sanctionId: positiveInt,
+  festivalId: positiveInt,
+  countsTowardDuration: z.boolean(),
+  reason: z.string().trim().min(1, "Indicá el motivo del cambio").max(2000),
+});
+
+export type UpdateSanctionFestivalCountingInput = z.infer<
+  typeof updateSanctionFestivalCountingSchema
+>;
+
 export const searchEligibleInfractionsSchema = z.object({
   userId: positiveInt,
   query: z.string().trim().max(100).optional().default(""),
