@@ -185,7 +185,7 @@ export async function updateReservationSimple(
       if (!festival) {
         return {
           success: false as const,
-          message: "La reserva no existe",
+          message: "El festival asociado a la reserva no existe",
         };
       }
 

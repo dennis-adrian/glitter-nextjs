@@ -127,11 +127,13 @@ describe("reservation mutation exposure", () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("treats a reservation with a missing festival as not found", async () => {
+  it("rejects a reservation whose festival is missing without mutations", async () => {
     requireAdminMock.mockResolvedValue({ id: 1, role: "admin" });
     eligibilityMock.mockClear();
 
     const update = vi.fn();
+    const insert = vi.fn();
+    const deleteMutation = vi.fn();
     const tx = {
       select: vi.fn(() => ({
         from: vi.fn(() => ({
@@ -155,6 +157,8 @@ describe("reservation mutation exposure", () => {
         },
       },
       update,
+      insert,
+      delete: deleteMutation,
     };
     transactionMock.mockImplementation(
       async (callback: (value: unknown) => unknown) => callback(tx),
@@ -167,9 +171,11 @@ describe("reservation mutation exposure", () => {
 
     expect(result).toEqual({
       success: false,
-      message: "La reserva no existe",
+      message: "El festival asociado a la reserva no existe",
     });
     expect(eligibilityMock).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
+    expect(insert).not.toHaveBeenCalled();
+    expect(deleteMutation).not.toHaveBeenCalled();
   });
 });
