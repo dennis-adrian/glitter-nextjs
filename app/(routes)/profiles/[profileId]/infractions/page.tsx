@@ -80,7 +80,7 @@ export default async function InfractionsPage(props: InfractionsPageProps) {
 
           {history.infractions.length > 0 && (
             <section className="space-y-3">
-              <Title level={1}>Infracciones</Title>
+              <Title level={2}>Infracciones</Title>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {history.infractions.map((infraction) => (
                   <UserInfractionCard

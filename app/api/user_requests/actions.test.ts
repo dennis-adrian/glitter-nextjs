@@ -94,6 +94,9 @@ describe("reservation mutation exposure", () => {
         })),
       })),
       query: {
+        festivals: {
+          findFirst: vi.fn().mockResolvedValue({ id: 20 }),
+        },
         users: {
           findFirst: vi.fn().mockResolvedValue({ id: 4, status: "verified" }),
         },
@@ -121,6 +124,52 @@ describe("reservation mutation exposure", () => {
       { userId: 4, festivalId: 20 },
       tx,
     );
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("treats a reservation with a missing festival as not found", async () => {
+    requireAdminMock.mockResolvedValue({ id: 1, role: "admin" });
+    eligibilityMock.mockClear();
+
+    const update = vi.fn();
+    const tx = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(() => ({
+              for: vi.fn().mockResolvedValue([
+                {
+                  id: 10,
+                  status: "pending",
+                  standId: 7,
+                  festivalId: 20,
+                },
+              ]),
+            })),
+          })),
+        })),
+      })),
+      query: {
+        festivals: {
+          findFirst: vi.fn().mockResolvedValue(null),
+        },
+      },
+      update,
+    };
+    transactionMock.mockImplementation(
+      async (callback: (value: unknown) => unknown) => callback(tx),
+    );
+
+    const result = await userRequestActions.updateReservationSimple(10, {
+      status: "pending",
+      partner: { participationId: undefined, userId: 4 },
+    } as never);
+
+    expect(result).toEqual({
+      success: false,
+      message: "La reserva no existe",
+    });
+    expect(eligibilityMock).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
   });
 });

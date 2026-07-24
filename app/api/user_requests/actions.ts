@@ -5,6 +5,7 @@ import { fetchAdminUsers } from "@/app/api/users/actions";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { db } from "@/db";
 import {
+  festivals,
   invoices,
   reservationParticipants,
   standReservations,
@@ -171,6 +172,17 @@ export async function updateReservationSimple(
         .for("update");
 
       if (!reservation) {
+        return {
+          success: false as const,
+          message: "La reserva no existe",
+        };
+      }
+
+      const festival = await tx.query.festivals.findFirst({
+        where: eq(festivals.id, reservation.festivalId),
+        columns: { id: true },
+      });
+      if (!festival) {
         return {
           success: false as const,
           message: "La reserva no existe",

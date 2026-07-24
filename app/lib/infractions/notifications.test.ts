@@ -275,17 +275,19 @@ describe("disciplinary notification delivery", () => {
       })),
     };
 
-    await expect(
-      enqueueEnabledReservationAccessNotifications(tx as never, now),
-    ).resolves.toEqual([56]);
-    expect(tx.query.sanctions.findFirst).toHaveBeenCalledTimes(2);
-    expect(tx.update).toHaveBeenCalledOnce();
-    expect(consoleError).toHaveBeenCalledWith(
-      "[disciplinary-notifications] Failed to enqueue reservation-access notification",
-      { sanctionId: 8, festivalId: 20, error },
-    );
-
-    consoleError.mockRestore();
+    try {
+      await expect(
+        enqueueEnabledReservationAccessNotifications(tx as never, now),
+      ).resolves.toEqual([56]);
+      expect(tx.query.sanctions.findFirst).toHaveBeenCalledTimes(2);
+      expect(tx.update).toHaveBeenCalledOnce();
+      expect(consoleError).toHaveBeenCalledWith(
+        "[disciplinary-notifications] Failed to enqueue reservation-access notification",
+        { sanctionId: 8, festivalId: 20, error },
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("sends one sanction email summarizing every linked infraction", async () => {

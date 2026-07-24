@@ -760,6 +760,44 @@ export async function updateFestivalStatusTemp(festival: FestivalBase) {
   return { success: true, message: "Festival actualizado con éxito" };
 }
 
+export async function archiveFestival(festivalId: number) {
+  const actor = await requireAdminOrFestivalAdmin();
+  if (!actor) {
+    return { success: false, message: "No autorizado" };
+  }
+  if (!Number.isInteger(festivalId) || festivalId <= 0) {
+    return { success: false, message: "Festival inválido" };
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      await transitionFestivalStatus(
+        {
+          festivalId,
+          toStatus: "archived",
+          actorUserId: actor.id,
+        },
+        tx,
+      );
+
+      await tx
+        .update(festivals)
+        .set({
+          publicRegistration: false,
+          eventDayRegistration: false,
+          updatedAt: new Date(),
+        })
+        .where(eq(festivals.id, festivalId));
+    });
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Error al actualizar el festival" };
+  }
+
+  revalidatePath("/dashboard/festivals", "layout");
+  return { success: true, message: "Festival actualizado con éxito" };
+}
+
 export async function getFestivalAvailableUsers(festivalId: number) {
   try {
     const sectors = await db.query.festivalSectors.findMany({
