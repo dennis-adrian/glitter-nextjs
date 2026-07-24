@@ -592,6 +592,35 @@ export async function enqueueEnabledReservationAccessNotifications(
   for (const candidate of candidates) {
     if (!candidate.reservationEligibleAt) continue;
 
+    let jobId: number;
+    try {
+      jobId = await enqueueSanctionLifecycleNotification(tx, {
+        sanctionId: candidate.sanctionId,
+        kind: "reservation_access_enabled",
+        deduplicationKey: [
+          "sanction",
+          candidate.sanctionId,
+          "festival",
+          candidate.festivalId,
+          "reservation-access",
+          candidate.reservationEligibleAt.toISOString(),
+        ].join(":"),
+        festivalName: candidate.festivalName,
+        reservationEligibleAt: candidate.reservationEligibleAt,
+        now,
+      });
+    } catch (error) {
+      console.error(
+        "[disciplinary-notifications] Failed to enqueue reservation-access notification",
+        {
+          sanctionId: candidate.sanctionId,
+          festivalId: candidate.festivalId,
+          error,
+        },
+      );
+      continue;
+    }
+
     const [claimed] = await tx
       .update(sanctionFestivals)
       .set({ reservationAccessNotificationQueuedAt: now })
@@ -605,21 +634,6 @@ export async function enqueueEnabledReservationAccessNotifications(
       .returning({ sanctionId: sanctionFestivals.sanctionId });
     if (!claimed) continue;
 
-    const jobId = await enqueueSanctionLifecycleNotification(tx, {
-      sanctionId: candidate.sanctionId,
-      kind: "reservation_access_enabled",
-      deduplicationKey: [
-        "sanction",
-        candidate.sanctionId,
-        "festival",
-        candidate.festivalId,
-        "reservation-access",
-        candidate.reservationEligibleAt.toISOString(),
-      ].join(":"),
-      festivalName: candidate.festivalName,
-      reservationEligibleAt: candidate.reservationEligibleAt,
-      now,
-    });
     jobIds.push(jobId);
   }
 

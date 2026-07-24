@@ -299,12 +299,19 @@ export async function reconcileSanctionFestivalCounting(input?: {
         note: "Expirada automáticamente al completar la validez por festivales",
       });
 
-      await enqueueSanctionLifecycleNotification(tx, {
-        sanctionId,
-        kind: "expired",
-        deduplicationKey: `sanction:${sanctionId}:expired`,
-        now,
-      });
+      try {
+        await enqueueSanctionLifecycleNotification(tx, {
+          sanctionId,
+          kind: "expired",
+          deduplicationKey: `sanction:${sanctionId}:expired`,
+          now,
+        });
+      } catch (error) {
+        console.error(
+          "[sanction-festival-counting] Failed to enqueue expiration notification",
+          { sanctionId, error },
+        );
+      }
 
       expiredSanctionIds.push(sanctionId);
     }
@@ -350,12 +357,19 @@ export async function reconcileSanctionFestivalCounting(input?: {
         toStatus: "expired",
         note: "Expirada automáticamente por validez de calendario",
       });
-      await enqueueSanctionLifecycleNotification(tx, {
-        sanctionId: sanction.id,
-        kind: "expired",
-        deduplicationKey: `sanction:${sanction.id}:expired`,
-        now,
-      });
+      try {
+        await enqueueSanctionLifecycleNotification(tx, {
+          sanctionId: sanction.id,
+          kind: "expired",
+          deduplicationKey: `sanction:${sanction.id}:expired`,
+          now,
+        });
+      } catch (error) {
+        console.error(
+          "[sanction-festival-counting] Failed to enqueue expiration notification",
+          { sanctionId: sanction.id, error },
+        );
+      }
       expiredSanctionIds.push(sanction.id);
     }
 

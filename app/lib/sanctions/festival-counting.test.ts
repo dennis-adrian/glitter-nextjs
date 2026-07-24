@@ -216,4 +216,39 @@ describe("reconcileSanctionFestivalCounting", () => {
     expect(insert).not.toHaveBeenCalled();
     expect(enqueueSanctionNotificationMock).not.toHaveBeenCalled();
   });
+
+  it("continues expiring sanctions when one notification cannot be enqueued", async () => {
+    const error = new Error("Missing participant");
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const { tx } = createReconciliationTransaction({
+      updateResults: [[], [{ id: 11 }], [{ id: 12 }]],
+      calendarDue: [
+        { id: 11, status: "active" },
+        { id: 12, status: "active" },
+      ],
+    });
+    dbTransactionMock.mockImplementation(
+      async (callback: (transaction: unknown) => unknown) => callback(tx),
+    );
+    enqueueSanctionNotificationMock
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce(1);
+
+    await expect(
+      reconcileSanctionFestivalCounting({
+        now: new Date("2026-07-20T12:00:00.000Z"),
+      }),
+    ).resolves.toMatchObject({
+      expiredSanctionIds: [11, 12],
+    });
+    expect(enqueueSanctionNotificationMock).toHaveBeenCalledTimes(2);
+    expect(consoleError).toHaveBeenCalledWith(
+      "[sanction-festival-counting] Failed to enqueue expiration notification",
+      { sanctionId: 11, error },
+    );
+
+    consoleError.mockRestore();
+  });
 });

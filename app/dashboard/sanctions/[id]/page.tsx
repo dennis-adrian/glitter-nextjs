@@ -44,22 +44,38 @@ const auditFieldLabel: Record<string, string> = {
   to: "Nuevo",
 };
 
+const auditDateFields = new Set(["startsAt", "endsAt", "qualifiedAt"]);
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function formatAuditValue(value: unknown): string {
+function formatAuditDate(value: Date | string): string {
+  const dateTime = formatDate(value);
+  if (!dateTime.isValid) return String(value);
+  return dateTime.toLocaleString(DateTime.DATETIME_MED);
+}
+
+function formatAuditValue(value: unknown, fieldKey?: string): string {
   if (value == null || value === "") return "—";
+  if (value instanceof Date) return formatAuditDate(value);
   if (Array.isArray(value)) return value.map((item) => `#${item}`).join(", ");
   if (isRecord(value)) {
     return Object.entries(value)
       .map(
         ([key, nestedValue]) =>
-          `${auditFieldLabel[key] ?? key}: ${formatAuditValue(nestedValue)}`,
+          `${auditFieldLabel[key] ?? key}: ${formatAuditValue(nestedValue, key)}`,
       )
       .join(" · ");
   }
   if (typeof value === "boolean") return value ? "Sí" : "No";
+  if (
+    typeof value === "string" &&
+    fieldKey != null &&
+    auditDateFields.has(fieldKey)
+  ) {
+    return formatAuditDate(value);
+  }
   return String(value);
 }
 
@@ -70,13 +86,13 @@ function describeAuditChanges(changes: unknown) {
     if (isRecord(value) && ("from" in value || "to" in value)) {
       return {
         label: auditFieldLabel[key] ?? key,
-        value: `${formatAuditValue(value.from)} → ${formatAuditValue(value.to)}`,
+        value: `${formatAuditValue(value.from, key)} → ${formatAuditValue(value.to, key)}`,
       };
     }
 
     return {
       label: auditFieldLabel[key] ?? key,
-      value: formatAuditValue(value),
+      value: formatAuditValue(value, key),
     };
   });
 }

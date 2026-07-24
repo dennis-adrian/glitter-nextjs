@@ -255,7 +255,9 @@ export async function updateFestival(
         throw new Error("Festival no encontrado");
       }
 
-      const nextStatus = data.status || "draft";
+      // Authoritative status from the locked row — ignore client status so
+      // concurrent transitions are preserved and this path has no side effects.
+      const nextStatus = existing.status;
       if (!isValidFestivalStatus(nextStatus)) {
         throw new Error("INVALID_FESTIVAL_STATUS");
       }
@@ -270,7 +272,7 @@ export async function updateFestival(
           address: data.address || null,
           locationLabel: data.locationLabel || null,
           locationUrl: data.locationUrl || null,
-          // Status changes go through transitionFestivalStatus below.
+          // Status is owned by the locked row; transitions use dedicated APIs.
           status: existing.status,
           mapsVersion: data.mapsVersion || "v1",
           publicRegistration: data.publicRegistration || false,

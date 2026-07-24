@@ -2,7 +2,10 @@
 
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
-import { updateFestival } from "@/app/lib/festivals/actions";
+import {
+  updateFestival,
+  updateFestivalStatusTemp,
+} from "@/app/lib/festivals/actions";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -16,9 +19,17 @@ export default function ArchiveFestivalForm(props: ArchiveFestivalFormProps) {
   const form = useForm();
 
   const action: () => void = form.handleSubmit(async () => {
-    const res = await updateFestival({
+    const statusRes = await updateFestivalStatusTemp({
       ...props.festival,
       status: "archived",
+    });
+    if (!statusRes.success) {
+      toast.error(statusRes.message);
+      return;
+    }
+
+    const res = await updateFestival({
+      ...props.festival,
       publicRegistration: false,
       eventDayRegistration: false,
     });

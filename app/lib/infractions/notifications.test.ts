@@ -199,6 +199,95 @@ describe("disciplinary notification delivery", () => {
     });
   });
 
+  it("continues reservation-access notifications after one missing profile", async () => {
+    const now = new Date("2026-08-01T12:00:00.000Z");
+    const error = new Error("No se encontró al participante de la sanción");
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const tx = {
+      query: {
+        users: {
+          findFirst: vi
+            .fn()
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce(profile),
+        },
+        sanctions: {
+          findFirst: vi
+            .fn()
+            .mockResolvedValueOnce({
+              id: 8,
+              userId: 80,
+              type: "reservation_delay",
+              status: "active",
+              festivalScope: "glitter",
+              sanctionInfractions: [],
+            })
+            .mockResolvedValueOnce({
+              id: 9,
+              userId: profile.id,
+              type: "reservation_delay",
+              status: "active",
+              festivalScope: "glitter",
+              sanctionInfractions: [],
+            }),
+        },
+        disciplinaryNotificationJobs: {
+          findFirst: vi.fn(),
+        },
+      },
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          innerJoin: vi.fn(() => ({
+            innerJoin: vi.fn(() => ({
+              where: vi.fn().mockResolvedValue([
+                {
+                  sanctionId: 8,
+                  festivalId: 20,
+                  festivalName: "Glitter Fest",
+                  reservationEligibleAt: now,
+                },
+                {
+                  sanctionId: 9,
+                  festivalId: 21,
+                  festivalName: "Glitter Fest 2",
+                  reservationEligibleAt: now,
+                },
+              ]),
+            })),
+          })),
+        })),
+      })),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(() => ({
+            returning: vi.fn().mockResolvedValue([{ sanctionId: 9 }]),
+          })),
+        })),
+      })),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoNothing: vi.fn(() => ({
+            returning: vi.fn().mockResolvedValue([{ id: 56 }]),
+          })),
+        })),
+      })),
+    };
+
+    await expect(
+      enqueueEnabledReservationAccessNotifications(tx as never, now),
+    ).resolves.toEqual([56]);
+    expect(tx.query.sanctions.findFirst).toHaveBeenCalledTimes(2);
+    expect(tx.update).toHaveBeenCalledOnce();
+    expect(consoleError).toHaveBeenCalledWith(
+      "[disciplinary-notifications] Failed to enqueue reservation-access notification",
+      { sanctionId: 8, festivalId: 20, error },
+    );
+
+    consoleError.mockRestore();
+  });
+
   it("sends one sanction email summarizing every linked infraction", async () => {
     sendEmailMock.mockResolvedValue({ data: { id: "email-1" }, error: null });
     const payload: DisciplinaryNotificationPayload = {

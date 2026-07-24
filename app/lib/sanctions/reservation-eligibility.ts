@@ -36,12 +36,7 @@ export async function getReservationEligibility(
   });
 
   if (!festival) {
-    return {
-      eligible: false,
-      reason: "ban",
-      sanctionIds: [],
-      message: "Festival no encontrado",
-    };
+    throw new Error("Festival no encontrado");
   }
 
   const rows = await executor
