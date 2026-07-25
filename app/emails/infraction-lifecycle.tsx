@@ -38,27 +38,47 @@ type InfractionLifecycleEmailProps = {
 
 const copy: Record<
   InfractionEmailKind,
-  { preview: string; subject: string; intro: string }
+  {
+    preview: string;
+    subject: string;
+    intro: string;
+    historyPrompt: string;
+    noteLabel: string;
+  }
 > = {
   registered: {
     preview: "Se registró una infracción en tu historial",
     subject: "Se registró una infracción en tu historial",
-    intro: "Registramos una infracción asociada a tu perfil.",
+    intro:
+      "Queremos informarte que registramos una infracción en tu historial.",
+    historyPrompt:
+      "En tu historial podés revisar todos los detalles de este registro.",
+    noteLabel: "Información adicional:",
   },
   edited: {
     preview: "Actualizamos una infracción de tu historial",
     subject: "Actualizamos una infracción de tu historial",
-    intro: "Actualizamos información de una infracción en tu historial.",
+    intro: "Hicimos una actualización en una infracción de tu historial.",
+    historyPrompt: "En tu historial podés revisar la información actualizada.",
+    noteLabel: "Información adicional:",
   },
   resolved: {
     preview: "Se resolvió una infracción de tu historial",
     subject: "Se resolvió una infracción de tu historial",
-    intro: "Una infracción de tu historial fue marcada como resuelta.",
+    intro:
+      "La infracción registrada en tu historial fue resuelta. No necesitás realizar ninguna acción.",
+    historyPrompt:
+      "El registro seguirá disponible en tu historial para que puedas consultarlo.",
+    noteLabel: "Detalle de la resolución:",
   },
   voided: {
     preview: "Se anuló una infracción de tu historial",
     subject: "Se anuló una infracción de tu historial",
-    intro: "Una infracción de tu historial fue anulada.",
+    intro:
+      "Anulamos una infracción de tu historial, por lo que ya no se tendrá en cuenta.",
+    historyPrompt:
+      "El registro seguirá disponible en tu historial para que puedas consultarlo.",
+    noteLabel: "Motivo de la anulación:",
   },
 };
 
@@ -82,19 +102,34 @@ export default function InfractionLifecycleEmail(
         <Container style={styles.container}>
           <EmailHeader />
           <Section style={styles.sectionWithBanner}>
-            <Text style={styles.text}>¡Hola {userName}!</Text>
-            <Text style={styles.text}>{content.intro}</Text>
-            <Text style={styles.standoutText}>
-              Infracción #{props.infractionId} · {props.typeLabel}
-              {props.festivalName ? ` · ${props.festivalName}` : " · Global"}
-            </Text>
-            {props.note && <Text style={styles.text}>{props.note}</Text>}
+            <Text style={styles.text}>¡Hola, {userName}!</Text>
             <Text style={styles.text}>
-              Podés revisar el detalle completo en tu historial disciplinario.
+              {content.intro} El motivo registrado es{" "}
+              <strong>{props.typeLabel}</strong>.{" "}
+              {props.festivalName ? (
+                <>
+                  Corresponde a tu participación en{" "}
+                  <strong>{props.festivalName}</strong>.
+                </>
+              ) : (
+                "No está relacionada con un festival específico."
+              )}
             </Text>
+            {props.note && (
+              <>
+                <Text style={styles.text}>
+                  <strong>{content.noteLabel}</strong>
+                </Text>
+                <Text style={styles.standoutText}>{props.note}</Text>
+              </>
+            )}
+            <Text style={styles.text}>{content.historyPrompt}</Text>
             <Button href={historyUrl} style={styles.buttonWithBanner}>
-              Ver historial
+              Ver mi historial
             </Button>
+            <Text style={{ ...styles.textSmall, marginTop: "16px" }}>
+              Referencia: infracción #{props.infractionId}
+            </Text>
             <Text style={styles.text}>
               Si tenés dudas, escribinos a{" "}
               <Link

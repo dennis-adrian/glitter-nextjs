@@ -45,37 +45,95 @@ type SanctionLifecycleEmailProps = {
 
 const copy: Record<
   SanctionEmailKind,
-  { preview: string; subject: string; intro: string }
+  {
+    preview: string;
+    subject: string;
+    intro: string;
+    historyPrompt: string;
+    noteLabel: string;
+  }
 > = {
   approved: {
     preview: "Se aprobó una sanción en tu historial",
     subject: "Se aprobó una sanción en tu historial",
-    intro: "Se aprobó una sanción asociada a tu perfil.",
+    intro:
+      "Queremos informarte que, luego de revisar tu historial, se aprobó una sanción para tu perfil.",
+    historyPrompt:
+      "En tu historial podés revisar cuánto dura y cómo afecta tus próximas participaciones.",
+    noteLabel: "Información adicional:",
   },
   edited: {
     preview: "Actualizamos una sanción de tu historial",
     subject: "Actualizamos una sanción de tu historial",
-    intro: "Actualizamos una sanción de tu historial disciplinario.",
+    intro: "Hicimos una actualización en una sanción de tu historial.",
+    historyPrompt:
+      "En tu historial podés revisar la información actualizada y cómo afecta tus próximas participaciones.",
+    noteLabel: "Información adicional:",
   },
   expired: {
     preview: "Expiró una sanción de tu historial",
     subject: "Expiró una sanción de tu historial",
-    intro: "Una sanción de tu historial llegó al final de su validez.",
+    intro: "Una sanción de tu historial finalizó y ya no está vigente.",
+    historyPrompt:
+      "El registro seguirá disponible en tu historial para que puedas consultarlo.",
+    noteLabel: "Información adicional:",
   },
   revoked: {
     preview: "Se revocó una sanción de tu historial",
     subject: "Se revocó una sanción de tu historial",
-    intro: "Una sanción de tu historial fue revocada.",
+    intro: "Revocamos una sanción de tu historial y ya no está vigente.",
+    historyPrompt:
+      "El registro seguirá disponible en tu historial para que puedas consultarlo.",
+    noteLabel: "Motivo de la revocación:",
   },
   reservation_access_enabled: {
     preview: "Ya podés acceder a las reservas",
     subject: "Ya podés acceder a las reservas",
-    intro: "El período de espera de tu sanción finalizó.",
+    intro: "¡Buenas noticias! El período de espera de tu sanción finalizó.",
+    historyPrompt: "Podés consultar la sanción y sus detalles en tu historial.",
+    noteLabel: "Información adicional:",
   },
+};
+
+const reasonsList = {
+  margin: "-2px 0 16px",
+  paddingLeft: "24px",
+  textAlign: "left" as const,
+};
+
+const reasonListItem = {
+  margin: "0 0 6px",
 };
 
 export function getSanctionEmailSubject(kind: SanctionEmailKind) {
   return copy[kind].subject;
+}
+
+function getSanctionDescription(typeLabel: string) {
+  const descriptions: Record<string, string> = {
+    advertencia: "una advertencia",
+    ban: "un bloqueo del acceso a las reservas",
+    "retraso de reserva": "un retraso para acceder a las reservas",
+  };
+
+  return descriptions[typeLabel.toLocaleLowerCase("es")] ?? typeLabel;
+}
+
+function getSanctionScopeDescription(
+  scopeLabel: string,
+  isCurrentSanction: boolean,
+) {
+  const isGlobalScope = scopeLabel.toLocaleLowerCase("es") === "global";
+
+  if (isGlobalScope) {
+    return isCurrentSanction
+      ? "Esta medida se aplicará empezando el próximo festival."
+      : "Mientras estuvo vigente, esta medida se aplicó a todos los festivales.";
+  }
+
+  return isCurrentSanction
+    ? `Esta medida se aplica a los festivales de ${scopeLabel}.`
+    : `Mientras estuvo vigente, esta medida se aplicó a los festivales de ${scopeLabel}.`;
 }
 
 export default function SanctionLifecycleEmail(
@@ -85,10 +143,18 @@ export default function SanctionLifecycleEmail(
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const historyUrl = `${baseUrl}/profiles/${props.profile.id}/infractions`;
   const content = copy[props.kind];
-  const infractionsSummary =
-    props.infractionLabels.length > 0
-      ? props.infractionLabels.join(", ")
-      : "Sin infracciones listadas";
+  const isCurrentSanction =
+    props.kind === "approved" || props.kind === "edited";
+  const sanctionDescription = getSanctionDescription(props.typeLabel);
+  const sanctionScopeDescription = getSanctionScopeDescription(
+    props.scopeLabel,
+    isCurrentSanction,
+  );
+  const formattedReservationDate = props.reservationEligibleAt
+    ? formatDate(new Date(props.reservationEligibleAt)).toLocaleString(
+        DateTime.DATETIME_MED,
+      )
+    : null;
 
   return (
     <Html>
@@ -98,34 +164,66 @@ export default function SanctionLifecycleEmail(
         <Container style={styles.container}>
           <EmailHeader />
           <Section style={styles.sectionWithBanner}>
-            <Text style={styles.text}>¡Hola {userName}!</Text>
-            <Text style={styles.text}>{content.intro}</Text>
-            <Text style={styles.standoutText}>
-              Sanción #{props.sanctionId} · {props.typeLabel} ·{" "}
-              {props.statusLabel} · {props.scopeLabel}
-            </Text>
+            <Text style={styles.text}>¡Hola, {userName}!</Text>
             <Text style={styles.text}>
-              Infracciones relacionadas: {infractionsSummary}
-            </Text>
-            {props.note && <Text style={styles.text}>{props.note}</Text>}
-            {props.kind === "reservation_access_enabled" &&
-              props.festivalName &&
-              props.reservationEligibleAt && (
-                <Text style={styles.text}>
-                  Ya podés acceder a las reservas de {props.festivalName} desde{" "}
-                  {formatDate(
-                    new Date(props.reservationEligibleAt),
-                  ).toLocaleString(DateTime.DATETIME_MED)}
+              {content.intro}{" "}
+              {props.kind === "reservation_access_enabled" ? (
+                <>
+                  Ya podés acceder a las reservas
+                  {props.festivalName ? (
+                    <>
+                      {" "}
+                      de <strong>{props.festivalName}</strong>
+                    </>
+                  ) : null}
+                  {formattedReservationDate ? (
+                    <>
+                      {" "}
+                      desde el <strong>{formattedReservationDate}</strong>
+                    </>
+                  ) : null}
                   .
-                </Text>
+                </>
+              ) : (
+                <>
+                  La sanción {isCurrentSanction ? "consiste" : "consistía"} en{" "}
+                  <strong>{sanctionDescription}</strong>.{" "}
+                  {sanctionScopeDescription}{" "}
+                  {props.infractionLabels.length > 0 && (
+                    <>
+                      {props.infractionLabels.length === 1
+                        ? "La medida se tomó por el siguiente motivo:"
+                        : "La medida se tomó por los siguientes motivos:"}
+                    </>
+                  )}
+                </>
               )}
-            <Text style={styles.text}>
-              Podés revisar el detalle, la validez y las consecuencias en tu
-              historial.
             </Text>
+            {props.kind !== "reservation_access_enabled" &&
+              props.infractionLabels.length > 0 && (
+                <ul style={reasonsList}>
+                  {props.infractionLabels.map((label, index) => (
+                    <li key={`${label}-${index}`} style={reasonListItem}>
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            {props.note && (
+              <>
+                <Text style={styles.text}>
+                  <strong>{content.noteLabel}</strong>
+                </Text>
+                <Text style={styles.standoutText}>{props.note}</Text>
+              </>
+            )}
+            <Text style={styles.text}>{content.historyPrompt}</Text>
             <Button href={historyUrl} style={styles.buttonWithBanner}>
-              Ver historial
+              Ver mi historial
             </Button>
+            <Text style={{ ...styles.textSmall, marginTop: "16px" }}>
+              Referencia: sanción #{props.sanctionId}
+            </Text>
             <Text style={styles.text}>
               Si tenés dudas, escribinos a{" "}
               <Link
