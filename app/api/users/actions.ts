@@ -26,6 +26,7 @@ import {
   getFestivalCategories,
 } from "@/app/lib/festivals/utils";
 import ProfileRejectionEmailTemplate from "@/app/emails/profile-rejection";
+import { scrubDisciplinaryNotificationJobsForUser } from "@/app/lib/infractions/notifications";
 import { deleteClerkUser } from "@/app/lib/users/actions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import {
@@ -517,6 +518,9 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
           throw new Error(RESTRICT_ACTOR_BLOCK_MESSAGE);
         }
 
+        // Scrub outbox PII before the user row is removed; FK only nulls user_id.
+        await scrubDisciplinaryNotificationJobsForUser(tx, profileId, now);
+
         await tx.delete(users).where(eq(users.id, profileId));
         await tx
           .update(pendingUserDeletions)
@@ -525,13 +529,23 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
       });
     } catch (error) {
       console.error(error);
+      const lastError = toPendingDeletionError(error);
       await db
         .update(pendingUserDeletions)
         .set({
-          lastError: toPendingDeletionError(error),
+          lastError,
           updatedAt: new Date(),
         })
         .where(eq(pendingUserDeletions.id, preparation.pendingId));
+
+      const blockerMessage = error instanceof Error ? error.message : undefined;
+      if (
+        blockerMessage === INFRACTION_BLOCK_MESSAGE ||
+        blockerMessage === RESTRICT_ACTOR_BLOCK_MESSAGE
+      ) {
+        return { success: false, message: blockerMessage };
+      }
+
       return { success: false, message: "Error al eliminar el perfil" };
     }
   } catch (error) {

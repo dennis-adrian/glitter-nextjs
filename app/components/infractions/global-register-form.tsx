@@ -90,8 +90,11 @@ export default function GlobalRegisterInfractionForm({
     string | null
   >(null);
   const [userOptions, setUserOptions] = useState<SearchOption[]>([]);
-  const [selectedUserLabel, setSelectedUserLabel] = useState("");
+  const [selectedUserLabel, setSelectedUserLabel] = useState(
+    defaultUserId != null ? `Participante #${defaultUserId}` : "",
+  );
   const [isSearching, startSearch] = useTransition();
+  const isParticipantLocked = defaultUserId != null;
 
   const form = useForm({
     resolver: zodResolver(FormSchema),
@@ -211,10 +214,15 @@ export default function GlobalRegisterInfractionForm({
               <FormLabel htmlFor="infraction-participant-search">
                 Participante
               </FormLabel>
-              {selectedUserLabel ? (
+              {isParticipantLocked || selectedUserLabel ? (
                 <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-                  <span>{selectedUserLabel}</span>
-                  {!defaultUserId && (
+                  <span>
+                    {selectedUserLabel ||
+                      (defaultUserId != null
+                        ? `Participante #${defaultUserId}`
+                        : "")}
+                  </span>
+                  {!isParticipantLocked && (
                     <button
                       type="button"
                       className="text-xs text-muted-foreground hover:text-foreground"
@@ -239,7 +247,9 @@ export default function GlobalRegisterInfractionForm({
                       (item) => Number(item.value) === userId,
                     );
                     field.onChange(userId);
-                    setSelectedUserLabel(option?.label ?? String(userId));
+                    setSelectedUserLabel(
+                      option?.label ?? `Participante #${userId}`,
+                    );
                   }}
                 />
               )}

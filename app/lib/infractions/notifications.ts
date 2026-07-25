@@ -41,6 +41,11 @@ const FROM = "Perfiles Glitter <perfiles@productoraglitter.com>";
 const MAX_ATTEMPTS = 5;
 const LEASE_DURATION_MS = 5 * 60 * 1000;
 const MAX_BACKOFF_MS = 24 * 60 * 60 * 1000;
+/** Keep completed outbox rows briefly for ops/dedupe, then drop retained PII. */
+export const COMPLETED_NOTIFICATION_JOB_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const SCRUBBED_RECIPIENT_EMAIL = "";
+const SCRUBBED_PAYLOAD = {} as const;
+const PROFILE_DELETED_JOB_ERROR = "profile_deleted";
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type NotificationExecutor = typeof db | DbTx;
@@ -135,6 +140,65 @@ async function loadParticipant(executor: NotificationExecutor, userId: number) {
   });
 }
 
+/**
+ * Deletes completed outbox rows past the retention window so delivered
+ * participant snapshots (email + payload) are not retained indefinitely.
+ */
+export async function purgeCompletedDisciplinaryNotificationJobs(
+  executor: NotificationExecutor = db,
+  now = new Date(),
+) {
+  const cutoff = new Date(
+    now.getTime() - COMPLETED_NOTIFICATION_JOB_RETENTION_MS,
+  );
+  await executor
+    .delete(disciplinaryNotificationJobs)
+    .where(
+      and(
+        eq(disciplinaryNotificationJobs.status, "completed"),
+        isNotNull(disciplinaryNotificationJobs.completedAt),
+        lt(disciplinaryNotificationJobs.completedAt, cutoff),
+      ),
+    );
+}
+
+/**
+ * Removes identifying notification data for a user being deleted while keeping
+ * job rows (status / dedupe keys) so history and uniqueness are preserved.
+ * Undelivered jobs are failed so they cannot send after scrubbing.
+ */
+export async function scrubDisciplinaryNotificationJobsForUser(
+  executor: NotificationExecutor,
+  userId: number,
+  now = new Date(),
+) {
+  await executor
+    .update(disciplinaryNotificationJobs)
+    .set({
+      status: "failed",
+      lastError: PROFILE_DELETED_JOB_ERROR,
+      leaseOwner: null,
+      leaseExpiresAt: null,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(disciplinaryNotificationJobs.userId, userId),
+        inArray(disciplinaryNotificationJobs.status, ["pending", "processing"]),
+      ),
+    );
+
+  await executor
+    .update(disciplinaryNotificationJobs)
+    .set({
+      recipientEmail: SCRUBBED_RECIPIENT_EMAIL,
+      payload: SCRUBBED_PAYLOAD,
+      userId: null,
+      updatedAt: now,
+    })
+    .where(eq(disciplinaryNotificationJobs.userId, userId));
+}
+
 async function insertNotificationJob(
   executor: NotificationExecutor,
   input: {
@@ -149,6 +213,8 @@ async function insertNotificationJob(
   },
 ) {
   const now = input.now ?? new Date();
+  await purgeCompletedDisciplinaryNotificationJobs(executor, now);
+
   const [inserted] = await executor
     .insert(disciplinaryNotificationJobs)
     .values({
@@ -242,7 +308,7 @@ export async function enqueueInfractionLifecycleNotification(
  * infractions support the sanction.
  */
 export async function enqueueSanctionLifecycleNotification(
-  tx: DbTx,
+  executor: NotificationExecutor,
   input: {
     sanctionId: number;
     kind: SanctionEmailKind;
@@ -253,7 +319,7 @@ export async function enqueueSanctionLifecycleNotification(
     now?: Date;
   },
 ): Promise<number> {
-  const sanction = await tx.query.sanctions.findFirst({
+  const sanction = await executor.query.sanctions.findFirst({
     where: eq(sanctions.id, input.sanctionId),
     columns: {
       id: true,
@@ -272,7 +338,7 @@ export async function enqueueSanctionLifecycleNotification(
     throw new Error("No se pudo preparar la notificación de la sanción");
   }
 
-  const profile = await loadParticipant(tx, sanction.userId);
+  const profile = await loadParticipant(executor, sanction.userId);
   if (!profile) {
     throw new Error("No se encontró al participante de la sanción");
   }
@@ -283,7 +349,7 @@ export async function enqueueSanctionLifecycleNotification(
   const linkedTypes =
     infractionIds.length === 0
       ? []
-      : await tx
+      : await executor
           .select({ label: infractionTypes.label })
           .from(infractions)
           .innerJoin(
@@ -292,7 +358,7 @@ export async function enqueueSanctionLifecycleNotification(
           )
           .where(inArray(infractions.id, infractionIds));
 
-  return insertNotificationJob(tx, {
+  return insertNotificationJob(executor, {
     deduplicationKey: input.deduplicationKey,
     userId: profile.id,
     entityType: "sanction",
@@ -533,6 +599,8 @@ async function selectDueNotificationJobIds(limit: number) {
 }
 
 export async function processPendingDisciplinaryNotificationJobs(limit = 50) {
+  await purgeCompletedDisciplinaryNotificationJobs();
+
   const due = await selectDueNotificationJobIds(limit);
   let completed = 0;
   let failed = 0;

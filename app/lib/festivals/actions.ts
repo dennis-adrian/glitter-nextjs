@@ -255,10 +255,9 @@ export async function updateFestival(
         throw new Error("Festival no encontrado");
       }
 
-      // Authoritative status from the locked row — ignore client status so
-      // concurrent transitions are preserved and this path has no side effects.
-      const nextStatus = existing.status;
-      if (!isValidFestivalStatus(nextStatus)) {
+      // Status is immutable here — transitions go through updateFestivalStatus /
+      // archiveFestival so concurrent transitions stay authoritative.
+      if (!isValidFestivalStatus(existing.status)) {
         throw new Error("INVALID_FESTIVAL_STATUS");
       }
       const nextReservationsStartDate =
@@ -403,21 +402,6 @@ export async function updateFestival(
       }
 
       const affectedSanctionIds = new Set<number>();
-
-      if (existing.status !== nextStatus) {
-        const transition = await transitionFestivalStatus(
-          {
-            festivalId: data.id,
-            toStatus: nextStatus,
-            actorUserId: actor.id,
-          },
-          tx,
-        );
-        updatedFestival.status = nextStatus;
-        for (const sanctionId of transition.associatedSanctionIds) {
-          affectedSanctionIds.add(sanctionId);
-        }
-      }
 
       if (
         existing.reservationsStartDate.getTime() !==

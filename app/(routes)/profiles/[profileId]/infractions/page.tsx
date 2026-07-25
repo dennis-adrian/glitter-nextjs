@@ -41,6 +41,7 @@ export default async function InfractionsPage(props: InfractionsPageProps) {
   const history = await fetchParticipantDisciplinaryHistory(paramsProfileId);
   const hasContent =
     history.infractions.length > 0 || history.sanctions.length > 0;
+  const referenceTimestamp = Date.now();
 
   return (
     <div className="container p-3 md:p-6 space-y-6">
@@ -72,7 +73,11 @@ export default async function InfractionsPage(props: InfractionsPageProps) {
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {history.sanctions.map((sanction) => (
-                  <UserSanctionCard key={sanction.id} sanction={sanction} />
+                  <UserSanctionCard
+                    key={sanction.id}
+                    sanction={sanction}
+                    referenceTimestamp={referenceTimestamp}
+                  />
                 ))}
               </div>
             </section>

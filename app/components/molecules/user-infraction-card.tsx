@@ -94,14 +94,16 @@ export default function UserInfractionCard({
         <span className="text-xs text-muted-foreground">
           {infraction.festival?.name ?? "Ámbito global"}
         </span>
-        {infraction.sanctionId != null && (
-          <a
-            href={`#sanction-${infraction.sanctionId}`}
-            className="text-xs text-primary hover:underline"
-          >
-            Ver sanción #{infraction.sanctionId}
-          </a>
-        )}
+        {infraction.sanctionIds.length > 0 &&
+          infraction.sanctionIds.map((sanctionId) => (
+            <a
+              key={sanctionId}
+              href={`#sanction-${sanctionId}`}
+              className="text-xs text-primary hover:underline"
+            >
+              Ver sanción #{sanctionId}
+            </a>
+          ))}
       </div>
     </div>
   );

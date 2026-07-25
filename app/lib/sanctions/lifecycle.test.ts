@@ -94,6 +94,21 @@ describe("sanction lifecycle helpers", () => {
         },
       ),
     ).toBe(true);
+
+    expect(
+      isSanctionValidityExtension(
+        {
+          validityUnit: "indefinitely",
+          validityDuration: null,
+          endsAt: null,
+        },
+        {
+          validityUnit: "days",
+          validityDuration: 10,
+          endsAt: new Date("2026-08-01T12:00:00.000Z"),
+        },
+      ),
+    ).toBe(false);
   });
 
   it("only allows edit/revoke on scheduled or active sanctions", () => {

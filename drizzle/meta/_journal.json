@@ -1485,6 +1485,13 @@
       "when": 1784835184429,
       "tag": "0211_seed_infraction_types",
       "breakpoints": true
+    },
+    {
+      "idx": 212,
+      "version": "7",
+      "when": 1784952025275,
+      "tag": "0212_backfill_infraction_resolved_at",
+      "breakpoints": true
     }
   ]
 }

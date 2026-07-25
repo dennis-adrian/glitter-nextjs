@@ -247,10 +247,9 @@ export default function RegisterInfractionForm({
           </div>
         )}
         <SubmitButton
-          loading={form.formState.isLoading}
+          loading={form.formState.isSubmitting}
           disabled={
             !form.formState.isDirty ||
-            form.formState.isLoading ||
             form.formState.isSubmitting ||
             (duplicates.length > 0 && !confirmDuplicate)
           }

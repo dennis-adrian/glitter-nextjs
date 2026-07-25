@@ -167,7 +167,7 @@ export async function reconcileSanctionFestivalCounting(input?: {
 }> {
   const now = input?.now ?? new Date();
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const activatedSanctionIds = await activateScheduledSanctions(tx, now);
 
     const pending = await tx
@@ -299,20 +299,6 @@ export async function reconcileSanctionFestivalCounting(input?: {
         note: "Expirada automáticamente al completar la validez por festivales",
       });
 
-      try {
-        await enqueueSanctionLifecycleNotification(tx, {
-          sanctionId,
-          kind: "expired",
-          deduplicationKey: `sanction:${sanctionId}:expired`,
-          now,
-        });
-      } catch (error) {
-        console.error(
-          "[sanction-festival-counting] Failed to enqueue expiration notification",
-          { sanctionId, error },
-        );
-      }
-
       expiredSanctionIds.push(sanctionId);
     }
 
@@ -357,19 +343,6 @@ export async function reconcileSanctionFestivalCounting(input?: {
         toStatus: "expired",
         note: "Expirada automáticamente por validez de calendario",
       });
-      try {
-        await enqueueSanctionLifecycleNotification(tx, {
-          sanctionId: sanction.id,
-          kind: "expired",
-          deduplicationKey: `sanction:${sanction.id}:expired`,
-          now,
-        });
-      } catch (error) {
-        console.error(
-          "[sanction-festival-counting] Failed to enqueue expiration notification",
-          { sanctionId: sanction.id, error },
-        );
-      }
       expiredSanctionIds.push(sanction.id);
     }
 
@@ -381,6 +354,26 @@ export async function reconcileSanctionFestivalCounting(input?: {
       expiredSanctionIds,
     };
   });
+
+  // Enqueue outside the reconciliation transaction so a notification failure
+  // cannot abort expiration state updates for later sanctions.
+  for (const sanctionId of result.expiredSanctionIds) {
+    try {
+      await enqueueSanctionLifecycleNotification(db, {
+        sanctionId,
+        kind: "expired",
+        deduplicationKey: `sanction:${sanctionId}:expired`,
+        now,
+      });
+    } catch (error) {
+      console.error(
+        "[sanction-festival-counting] Failed to enqueue expiration notification",
+        { sanctionId, error },
+      );
+    }
+  }
+
+  return result;
 }
 
 /**

@@ -94,6 +94,9 @@ export function isSanctionValidityExtension(
   }
 
   if (next.endsAt) {
+    if (previous.validityUnit === "indefinitely") {
+      return false;
+    }
     return (
       !previous.endsAt || next.endsAt.getTime() > previous.endsAt.getTime()
     );

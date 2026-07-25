@@ -282,6 +282,29 @@ The existing **handled** field is removed after backfill:
 - **handled = false** becomes **status = pending**.
 - **handled = true** becomes **status = resolved**.
 
+#### 7.3.1 Table: infraction_idempotency_records
+
+Idempotency keys are persisted in the database, not only in application memory or
+a cache.
+
+| Field            | Type       | Rule                                                                |
+| ---------------- | ---------- | ------------------------------------------------------------------- |
+| **id**           | serial PK  | —                                                                   |
+| **operation**    | text       | Stable action scope; initially **create_infraction**.               |
+| **actorUserId**  | integer FK | Administrator who submitted the request.                            |
+| **key**          | text       | Client-generated idempotency key.                                   |
+| **requestHash**  | text       | Rejects reuse of the same scoped key with a different payload.      |
+| **infractionId** | integer FK | Infraction created by the first successful submission.              |
+| **result**       | jsonb      | Original response, or enough stable data to reconstruct its result. |
+| **createdAt**    | timestamp  | —                                                                   |
+
+The database enforces **UNIQUE(operation, actorUserId, key)**. The idempotency
+record, infraction, and **created** event are committed in one transaction.
+Concurrent conflicts wait for or read the winning committed record, verify
+**requestHash**, and return its stored or equivalently reconstructed result.
+Records are retained durably for at least the supported client retry period;
+any cleanup policy must be longer than that period and documented before launch.
+
 ### 7.4 Table: infraction_events
 
 This table stores an immutable history of changes.
@@ -473,7 +496,9 @@ The existing participant-table form reuses the same secure action:
 #### Technical Idempotency
 
 - Each submission includes a unique idempotency key.
-- The database prevents the same key from being processed twice.
+- The database-backed record and scoped unique constraint defined in Section 7.3.1
+  prevent the same request from being processed twice across restarts and
+  concurrent application instances.
 - Network retries return the original or equivalent result without creating duplicate records.
 
 #### Possible Semantic Duplicate
@@ -554,7 +579,10 @@ On confirmation, one transaction:
 
 Allowed:
 
-- Edit description, validity, start time, and reservation delay.
+- Edit description, validity, start time, and reservation delay. Changing
+  **reservationDelayMinutes** recalculates **reservationEligibleAt** in the same
+  transaction for associated festivals whose previous eligibility time has not
+  passed. Associations whose eligibility has already begun are not changed.
 - Add eligible infractions from the same participant.
 - Remove an incorrect relationship while at least one remains.
 - Change brand scope for future qualifying festivals.
@@ -568,6 +596,13 @@ Not allowed:
 - Link voided infractions.
 - Remove the final infraction without appropriately revoking or replacing the sanction.
 - Retroactively recalculate festivals already associated when changing scope.
+
+Each eligibility-time change caused by editing **reservationDelayMinutes**
+creates a **reservation_eligibility_changed** sanction event containing the
+festival and previous and new values, in addition to the sanction edit event.
+After commit, one deduplicated participant notification summarizes the changed
+delay and affected festival eligibility times; it is not sent once per
+association. Subsequent reservation checks use the recalculated stored values.
 
 ---
 
@@ -595,22 +630,34 @@ The central festival transition service performs in one transaction:
 4. Create idempotent **sanction_festivals** records.
 5. Calculate **reservationEligibleAt** for reservation-delay sanctions.
 
-### 10.3 Counting at Festival End
+### 10.3 Recurring Reconciliation
 
 An idempotent recurring process:
 
-1. Finds qualified festivals whose effective final date has passed.
-2. Sets **countedAt** and stores the final date used.
-3. Counts completed festivals for each sanction.
-4. Changes the sanction to **expired** when the count reaches **validityDuration**.
-5. Records the event and notifies the participant.
+1. Finds qualified festivals whose effective final date has passed, sets
+   **countedAt**, stores the final date used, and counts completed festivals.
+2. Changes a festival-based sanction to **expired** when the count reaches
+   **validityDuration**.
+3. In the same run, finds active or scheduled calendar-based sanctions with a
+   non-null **endsAt** at or before the reconciliation time and conditionally
+   changes them to **expired**.
+4. For each successful status transition, records exactly one **expired**
+   sanction event and queues one deduplicated participant notification.
 
 Festivals excluded with **countsTowardDuration = false** do not increase the count and require an audited reason.
+Festival counting and calendar expiration run together, but conditional status
+updates and stable notification deduplication keys prevent repeated or
+concurrent runs from duplicating expiration events or notifications. Sanctions
+whose **endsAt** is still in the future remain unchanged.
 
 ### 10.4 Date Changes
 
 - Before counting, the current official final date is used.
-- If **reservationsStartDate** changes, **reservationEligibleAt** is recalculated for associations that have not begun, according to festival operating policy, with an audit event.
+- If **reservationsStartDate** changes, **reservationEligibleAt** is recalculated
+  transactionally for associations whose previous eligibility time has not
+  passed, with a **reservation_eligibility_changed** audit event containing the
+  previous and new values. One deduplicated participant notification summarizes
+  the affected eligibility changes after commit.
 - Once a festival has counted, its result is not changed automatically.
 
 ---
@@ -676,13 +723,20 @@ If several sanctions apply:
 
 ### 11.6 Enforcement Points
 
-Validation is integrated at least into:
+Neither **admin** nor **festival_admin** may bypass a participant's applicable
+ban or reservation delay in v1, including when acting on the participant's
+behalf. There is no implicit UI, role, API, or emergency override. An
+administrator must instead edit or revoke the sanction through the audited
+sanction workflow before reserving. Any separate ability to bypass festival
+opening times or hidden-stand rules does not bypass sanctions.
+
+The same central eligibility result is enforced without a role exception at:
 
 - Initial reservation-page access.
 - Sector and stand selection.
 - Stand-hold creation.
 - Reservation confirmation.
-- Any administrative action or API that reserves on behalf of a participant, according to the final administrator-override policy.
+- Any administrative action or API that reserves on behalf of a participant.
 
 The interface is informational. The server is always authoritative.
 
@@ -886,8 +940,11 @@ Before applying new restrictions:
 7. Use legacy **createdAt** as **approvedAt** when no better evidence exists and leave **approvedByUserId = null**.
 8. Review legacy **reservation_delay** sanctions because the old duration field does not distinguish validity from delay.
 9. Change destructive foreign keys to **restrict** or an equivalent history-preserving strategy.
-10. Add constraints and indexes after data cleanup.
-11. Remove **infractions.handled**, **sanctions.active**, and **sanctions.infractionId** after the new code is active and verified.
+10. Create **infraction_idempotency_records** and its database-level
+    **UNIQUE(operation, actorUserId, key)** constraint before enabling
+    idempotent infraction registration.
+11. Add remaining constraints and indexes after data cleanup.
+12. Remove **infractions.handled**, **sanctions.active**, and **sanctions.infractionId** after the new code is active and verified.
 
 No prior-notice date will be invented for legacy records. The interface displays “date not recorded.”
 
@@ -1001,7 +1058,12 @@ Deployment order for the later cleanup:
 ### 20.2 Database Integration Tests
 
 - Consistent pagination, filtering, and counts.
-- Idempotency uniqueness.
+- Retrying infraction registration with the same scoped idempotency key returns
+  the original or equivalent result and creates exactly one infraction, one
+  **created** event, and one idempotency record.
+- Concurrent submissions with the same scoped idempotency key create exactly
+  one infraction and return the same result to every caller.
+- Reusing a scoped idempotency key with a different request payload is rejected.
 - One infraction cannot link to two sanctions.
 - A sanction cannot remain without infractions.
 - Users cannot be mixed within a sanction.
@@ -1010,6 +1072,10 @@ Deployment order for the later cleanup:
 - A festival active before approval does not qualify.
 - **published** does not qualify.
 - Expiration after a configured number of festivals.
+- Calendar-based sanctions with **endsAt** at or before reconciliation expire
+  with one audit event and one participant notification.
+- Repeating calendar-expiration reconciliation does not create another event or
+  notification, and sanctions with a future **endsAt** remain unchanged.
 - Brand changes do not alter past associations.
 
 ### 20.3 Security Tests
@@ -1020,6 +1086,10 @@ Deployment order for the later cleanup:
 - Manipulated or missing IDs are rejected.
 - A festival cannot be assigned without participant participation.
 - A participant cannot reserve through direct server actions during a ban or delay.
+- Parameterized authorization tests verify that neither **admin** nor
+  **festival_admin** can bypass either a ban or a reservation delay at initial
+  access, sector/stand selection, stand-hold creation, confirmation, or an
+  administrative/API reservation.
 
 ### 20.4 End-to-End Tests
 

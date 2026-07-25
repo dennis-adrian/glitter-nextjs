@@ -25,7 +25,7 @@ describe("SanctionInfractionOption", () => {
     expect(text).toContain("#42");
     expect(text).toContain("Incumplimiento");
     expect(text).toContain("En revisión");
-    expect(text).toContain("Severidad Alta");
+    expect(text).toContain("Severidad: Alta");
     expect(text).toContain("Glitter Central");
     expect(text).toMatch(/20.*jul.*2026/i);
   });

@@ -14,14 +14,16 @@ import { ScaleIcon } from "lucide-react";
 
 export default function UserSanctionCard({
   sanction,
+  referenceTimestamp,
 }: {
   sanction: ParticipantSanction;
+  referenceTimestamp: number;
 }) {
   const upcomingEligibility = sanction.festivals
     .filter(
       (item) =>
         item.reservationEligibleAt &&
-        item.reservationEligibleAt.getTime() > Date.now(),
+        item.reservationEligibleAt.getTime() > referenceTimestamp,
     )
     .sort(
       (a, b) =>

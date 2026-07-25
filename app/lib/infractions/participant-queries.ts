@@ -25,7 +25,7 @@ export type ParticipantInfraction = {
     id: number;
     name: string;
   } | null;
-  sanctionId: number | null;
+  sanctionIds: number[];
 };
 
 export type ParticipantSanctionFestival = {
@@ -144,7 +144,7 @@ export async function fetchParticipantDisciplinaryHistory(
       resolvedAt: row.resolvedAt,
       type: row.type,
       festival: row.festival,
-      sanctionId: row.sanctionLinks[0]?.sanctionId ?? null,
+      sanctionIds: row.sanctionLinks.map((link) => link.sanctionId),
     }),
   );
 

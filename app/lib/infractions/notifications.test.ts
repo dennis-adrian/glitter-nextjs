@@ -10,9 +10,12 @@ vi.mock("@/db", () => ({ db: {} }));
 import { getInfractionEmailSubject } from "@/app/emails/infraction-lifecycle";
 import { getSanctionEmailSubject } from "@/app/emails/sanction-lifecycle";
 import {
+  COMPLETED_NOTIFICATION_JOB_RETENTION_MS,
   deliverDisciplinaryNotificationPayload,
   enqueueEnabledReservationAccessNotifications,
   enqueueInfractionLifecycleNotification,
+  purgeCompletedDisciplinaryNotificationJobs,
+  scrubDisciplinaryNotificationJobsForUser,
   type DisciplinaryNotificationPayload,
 } from "@/app/lib/infractions/notifications";
 
@@ -45,6 +48,9 @@ function createInfractionEnqueueTransaction() {
         }),
       },
     },
+    delete: vi.fn(() => ({
+      where: vi.fn().mockResolvedValue(undefined),
+    })),
     insert: vi.fn(() => ({
       values: vi.fn(
         (values: {
@@ -110,7 +116,8 @@ describe("disciplinary notification delivery", () => {
     );
 
     expect(firstId).toBe(secondId);
-    expect(jobs).toHaveLength(1);
+    expect(jobs.size).toBe(1);
+    expect(tx.delete).toHaveBeenCalled();
   });
 
   it("queues reservation-access delivery when the eligibility time is reached", async () => {
@@ -170,6 +177,9 @@ describe("disciplinary notification delivery", () => {
             returning: vi.fn().mockResolvedValue([{ sanctionId: 8 }]),
           })),
         })),
+      })),
+      delete: vi.fn(() => ({
+        where: vi.fn().mockResolvedValue(undefined),
       })),
       insert: vi.fn(() => ({
         values: vi.fn((values: Record<string, unknown>) => {
@@ -265,6 +275,9 @@ describe("disciplinary notification delivery", () => {
             returning: vi.fn().mockResolvedValue([{ sanctionId: 9 }]),
           })),
         })),
+      })),
+      delete: vi.fn(() => ({
+        where: vi.fn().mockResolvedValue(undefined),
       })),
       insert: vi.fn(() => ({
         values: vi.fn(() => ({
@@ -415,5 +428,59 @@ describe("disciplinary notification delivery", () => {
     expect(sendEmailMock.mock.calls[1]?.[1]).toEqual({
       idempotencyKey: persistedKey,
     });
+  });
+});
+
+describe("disciplinary notification PII lifecycle", () => {
+  it("purges completed jobs older than the retention window", async () => {
+    const whereMock = vi.fn().mockResolvedValue(undefined);
+    const deleteMock = vi.fn(() => ({ where: whereMock }));
+    const now = new Date("2026-07-24T12:00:00.000Z");
+
+    await purgeCompletedDisciplinaryNotificationJobs(
+      { delete: deleteMock } as never,
+      now,
+    );
+
+    expect(deleteMock).toHaveBeenCalledOnce();
+    expect(whereMock).toHaveBeenCalledOnce();
+    expect(COMPLETED_NOTIFICATION_JOB_RETENTION_MS).toBe(
+      7 * 24 * 60 * 60 * 1000,
+    );
+  });
+
+  it("scrubs recipient email and payload while failing undelivered jobs", async () => {
+    const written: Array<Record<string, unknown>> = [];
+    const updateMock = vi.fn(() => ({
+      set: vi.fn((values: Record<string, unknown>) => {
+        written.push(values);
+        return {
+          where: vi.fn().mockResolvedValue(undefined),
+        };
+      }),
+    }));
+    const now = new Date("2026-07-24T12:00:00.000Z");
+
+    await scrubDisciplinaryNotificationJobsForUser(
+      { update: updateMock } as never,
+      profile.id,
+      now,
+    );
+
+    expect(written).toEqual([
+      {
+        status: "failed",
+        lastError: "profile_deleted",
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        updatedAt: now,
+      },
+      {
+        recipientEmail: "",
+        payload: {},
+        userId: null,
+        updatedAt: now,
+      },
+    ]);
   });
 });

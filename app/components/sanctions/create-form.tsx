@@ -98,7 +98,6 @@ export default function CreateSanctionForm({
   const [reviewValues, setReviewValues] = useState<z.infer<
     typeof FormSchema
   > | null>(null);
-  const [formOpenedAt] = useState(() => Date.now());
   const latestSearchId = useRef(0);
 
   const form = useForm({
@@ -183,7 +182,8 @@ export default function CreateSanctionForm({
       validityDuration,
       values.validityUnit,
     );
-    if (endsAt && endsAt.getTime() <= formOpenedAt) {
+    const now = Date.now();
+    if (endsAt && endsAt.getTime() <= now) {
       toast.error(
         "La validez de la sanción debe finalizar después del momento de aprobación",
       );
@@ -236,7 +236,7 @@ export default function CreateSanctionForm({
     ? DateTime.fromJSDate(reviewEndsAtDate).setZone(STORE_TIMEZONE)
     : null;
   const reviewStatus =
-    reviewStartsAt?.isValid && reviewStartsAt.toMillis() > formOpenedAt
+    reviewStartsAt?.isValid && reviewStartsAt.toMillis() > Date.now()
       ? "scheduled"
       : "active";
 
