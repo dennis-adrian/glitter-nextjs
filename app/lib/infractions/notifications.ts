@@ -10,6 +10,7 @@ import {
   isNull,
   lt,
   lte,
+  ne,
   or,
 } from "drizzle-orm";
 
@@ -198,10 +199,18 @@ export async function scrubDisciplinaryNotificationJobsForUser(
       where: and(
         isNull(disciplinaryNotificationJobs.userId),
         eq(disciplinaryNotificationJobs.entityType, "sanction"),
+        or(
+          isNull(disciplinaryNotificationJobs.lastError),
+          ne(
+            disciplinaryNotificationJobs.lastError,
+            UNRESOLVED_SANCTION_RETRY_OWNER_ERROR,
+          ),
+        ),
       ),
       columns: { id: true, payload: true },
     });
 
+  const retryJobs: Array<{ id: number; sanctionId: number | null }> = [];
   for (const job of legacySanctionJobs) {
     const payload = job.payload;
     if (
@@ -221,18 +230,42 @@ export async function scrubDisciplinaryNotificationJobsForUser(
       payload.sanctionId > 0
         ? payload.sanctionId
         : null;
-    const sanction =
-      sanctionId === null
-        ? null
-        : await executor.query.sanctions.findFirst({
-            where: eq(sanctions.id, sanctionId),
-            columns: { userId: true },
-          });
+    retryJobs.push({ id: job.id, sanctionId });
+  }
 
-    if (sanction) {
+  const sanctionIds = [
+    ...new Set(
+      retryJobs
+        .map((job) => job.sanctionId)
+        .filter((id): id is number => id !== null),
+    ),
+  ];
+  const ownerBySanctionId = new Map<number, number>();
+  if (sanctionIds.length > 0) {
+    const resolvedSanctions = await executor.query.sanctions.findMany({
+      where: and(
+        inArray(sanctions.id, sanctionIds),
+        isNotNull(sanctions.userId),
+      ),
+      columns: { id: true, userId: true },
+    });
+    for (const sanction of resolvedSanctions) {
+      if (sanction.userId !== null) {
+        ownerBySanctionId.set(sanction.id, sanction.userId);
+      }
+    }
+  }
+
+  for (const job of retryJobs) {
+    const ownerId =
+      job.sanctionId === null
+        ? undefined
+        : ownerBySanctionId.get(job.sanctionId);
+
+    if (ownerId !== undefined) {
       await executor
         .update(disciplinaryNotificationJobs)
-        .set({ userId: sanction.userId, updatedAt: now })
+        .set({ userId: ownerId, updatedAt: now })
         .where(
           and(
             eq(disciplinaryNotificationJobs.id, job.id),
@@ -242,7 +275,8 @@ export async function scrubDisciplinaryNotificationJobsForUser(
       continue;
     }
 
-    // An ownerless retry that cannot be resolved is quarantined in place.
+    // Quarantine unresolved retries under the deleting user so they enter the
+    // scoped fail/scrub path and are excluded from later ownerless rescans.
     await executor
       .update(disciplinaryNotificationJobs)
       .set({
@@ -250,6 +284,7 @@ export async function scrubDisciplinaryNotificationJobsForUser(
         recipientEmail: SCRUBBED_RECIPIENT_EMAIL,
         payload: SCRUBBED_PAYLOAD,
         lastError: UNRESOLVED_SANCTION_RETRY_OWNER_ERROR,
+        userId,
         leaseOwner: null,
         leaseExpiresAt: null,
         updatedAt: now,

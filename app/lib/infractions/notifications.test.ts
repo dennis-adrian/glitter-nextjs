@@ -589,11 +589,11 @@ describe("disciplinary notification PII lifecycle", () => {
         };
       }),
     }));
-    const sanctionFindFirst = vi
-      .fn()
-      .mockResolvedValueOnce({ userId: profile.id })
-      .mockResolvedValueOnce({ userId: 99 })
-      .mockResolvedValueOnce(null);
+    const sanctionFindMany = vi.fn().mockResolvedValue([
+      { id: 11, userId: profile.id },
+      { id: 22, userId: 99 },
+      { id: 44, userId: null },
+    ]);
     const now = new Date("2026-07-24T12:00:00.000Z");
 
     await scrubDisciplinaryNotificationJobsForUser(
@@ -619,13 +619,20 @@ describe("disciplinary notification PII lifecycle", () => {
                 id: 3,
                 payload: {
                   entityType: "sanction_enqueue_retry",
+                  sanctionId: 44,
+                },
+              },
+              {
+                id: 4,
+                payload: {
+                  entityType: "sanction_enqueue_retry",
                   sanctionId: 33,
                 },
               },
             ]),
           },
           sanctions: {
-            findFirst: sanctionFindFirst,
+            findMany: sanctionFindMany,
           },
         },
         update: updateMock,
@@ -634,6 +641,7 @@ describe("disciplinary notification PII lifecycle", () => {
       now,
     );
 
+    expect(sanctionFindMany).toHaveBeenCalledOnce();
     expect(written).toEqual([
       { userId: profile.id, updatedAt: now },
       { userId: 99, updatedAt: now },
@@ -642,6 +650,17 @@ describe("disciplinary notification PII lifecycle", () => {
         recipientEmail: "",
         payload: {},
         lastError: "unresolved_sanction_retry_owner",
+        userId: profile.id,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        updatedAt: now,
+      },
+      {
+        status: "failed",
+        recipientEmail: "",
+        payload: {},
+        lastError: "unresolved_sanction_retry_owner",
+        userId: profile.id,
         leaseOwner: null,
         leaseExpiresAt: null,
         updatedAt: now,
