@@ -29,7 +29,15 @@ const profile = {
 };
 
 function createInfractionEnqueueTransaction() {
-  const jobs = new Map<string, { id: number; payload: unknown }>();
+  const jobs = new Map<
+    string,
+    {
+      id: number;
+      payload: unknown;
+      userId: number | null;
+      lastError: string | null;
+    }
+  >();
   let nextId = 1;
   const tx = {
     query: {
@@ -42,6 +50,9 @@ function createInfractionEnqueueTransaction() {
           type: { label: "No show" },
           festival: null,
         }),
+      },
+      sanctions: {
+        findFirst: vi.fn().mockResolvedValue({ userId: profile.id }),
       },
       disciplinaryNotificationJobs: {
         findFirst: vi.fn(() => {
@@ -56,14 +67,21 @@ function createInfractionEnqueueTransaction() {
       values: vi.fn(
         (values: {
           deduplicationKey: string;
-          payload: DisciplinaryNotificationPayload;
+          payload: unknown;
+          userId: number | null;
+          lastError: string | null;
         }) => ({
           onConflictDoNothing: vi.fn(() => ({
             returning: vi.fn(() => {
               if (jobs.has(values.deduplicationKey)) {
                 return Promise.resolve([]);
               }
-              const stored = { id: nextId++, payload: values.payload };
+              const stored = {
+                id: nextId++,
+                payload: values.payload,
+                userId: values.userId,
+                lastError: values.lastError,
+              };
               jobs.set(values.deduplicationKey, stored);
               return Promise.resolve([{ id: stored.id }]);
             }),
@@ -143,6 +161,10 @@ describe("disciplinary notification delivery", () => {
       participantNote: null,
       festivalName: null,
       reservationEligibleAt: null,
+    });
+    expect(jobs.get("sanction:11:expired")).toMatchObject({
+      userId: profile.id,
+      lastError: "Missing participant",
     });
   });
 

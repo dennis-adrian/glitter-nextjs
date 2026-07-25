@@ -257,25 +257,26 @@ through a dedicated custom data migration rather than the structural schema migr
 
 ### 7.3 Table: infractions
 
-| Field                | Type                 | Rule                                                               |
-| -------------------- | -------------------- | ------------------------------------------------------------------ |
-| **id**               | serial PK            | —                                                                  |
-| **userId**           | integer FK           | Required participant.                                              |
-| **typeId**           | integer FK           | Required. Deletion restricted.                                     |
-| **festivalId**       | integer FK, nullable | Optional festival. Deletion restricted or archived, never cascade. |
-| **description**      | text, nullable       | Incident-specific details.                                         |
-| **status**           | enum                 | Defaults to **pending**.                                           |
-| **userGaveNotice**   | boolean              | Defaults to false.                                                 |
-| **gaveNoticeAt**     | timestamp, nullable  | Required for new records with prior notice.                        |
-| **createdByUserId**  | integer FK, nullable | Creating administrator; nullable for legacy data.                  |
-| **resolvedAt**       | timestamp, nullable  | Resolution time.                                                   |
-| **resolvedByUserId** | integer FK, nullable | Resolving administrator.                                           |
-| **resolutionNotes**  | text, nullable       | Resolution explanation according to visibility rules.              |
-| **voidedAt**         | timestamp, nullable  | Void time.                                                         |
-| **voidedByUserId**   | integer FK, nullable | Administrator who voided it.                                       |
-| **voidReason**       | text, nullable       | Required when voiding.                                             |
-| **createdAt**        | timestamp            | —                                                                  |
-| **updatedAt**        | timestamp            | Updated on every modification.                                     |
+| Field                                        | Type                 | Rule                                                                                           |
+| -------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------- |
+| **id**                                       | serial PK            | —                                                                                              |
+| **userId**                                   | integer FK           | Required participant.                                                                          |
+| **typeId**                                   | integer FK           | Required. Deletion restricted.                                                                 |
+| **festivalId**                               | integer FK, nullable | Optional festival. Deletion restricted or archived, never cascade.                             |
+| **description**                              | text, nullable       | Incident-specific details.                                                                     |
+| **status**                                   | enum                 | Defaults to **pending**.                                                                       |
+| **userGaveNotice**                           | boolean              | Defaults to false.                                                                             |
+| **gaveNoticeAt**                             | timestamp, nullable  | Required for new records with prior notice.                                                    |
+| **createdByUserId**                          | integer FK, nullable | Creating administrator; nullable for legacy data.                                              |
+| **idempotencyKey** (DB: **idempotency_key**) | text, nullable       | Shipped legacy column; globally unique when present. Removed after migration to Section 7.3.1. |
+| **resolvedAt**                               | timestamp, nullable  | Resolution time.                                                                               |
+| **resolvedByUserId**                         | integer FK, nullable | Resolving administrator.                                                                       |
+| **resolutionNotes**                          | text, nullable       | Resolution explanation according to visibility rules.                                          |
+| **voidedAt**                                 | timestamp, nullable  | Void time.                                                                                     |
+| **voidedByUserId**                           | integer FK, nullable | Administrator who voided it.                                                                   |
+| **voidReason**                               | text, nullable       | Required when voiding.                                                                         |
+| **createdAt**                                | timestamp            | —                                                                                              |
+| **updatedAt**                                | timestamp            | Updated on every modification.                                                                 |
 
 The existing **handled** field is removed after backfill:
 
@@ -955,7 +956,23 @@ Before applying new restrictions:
 10. Migrate the shipped global **infractions.idempotency_key** implementation
     to **infraction_idempotency_records** with database-level
     **UNIQUE(operation, actorUserId, key)** and request-hash validation before
-    enabling the scoped transaction semantics described in Section 7.3.1.
+    enabling the scoped transaction semantics described in Section 7.3.1:
+    - Backfill only legacy rows with a non-null key, a valid non-null
+      **createdByUserId**, and enough original request/result data to reproduce
+      the canonical **requestHash** and stored result. Map
+      **actorUserId = createdByUserId** and
+      **operation = create_infraction**.
+    - Do not invent an administrator for rows where **createdByUserId** is null.
+      Quarantine those rows outside the live idempotency table, and keep the
+      legacy lookup available through the supported retry window before
+      excluding them from migration.
+    - If preflight finds duplicate target tuples, conflicting ownership, or
+      several possible source requests, quarantine every ambiguous row for
+      manual resolution instead of choosing a winner.
+    - Enforce required **actorUserId** and
+      **UNIQUE(operation, actorUserId, key)** only after the live target table
+      contains no unresolved rows; quarantined rows do not participate in the
+      constraint.
 11. Add remaining constraints and indexes after data cleanup.
 12. Remove **infractions.handled**, **sanctions.active**, and **sanctions.infractionId** after the new code is active and verified.
 

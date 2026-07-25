@@ -184,7 +184,8 @@ export async function purgeCompletedDisciplinaryNotificationJobs(
 /**
  * Removes identifying notification data for a user being deleted while keeping
  * job rows (status / dedupe keys) so history and uniqueness are preserved.
- * Undelivered jobs are failed so they cannot send after scrubbing.
+ * Undelivered jobs, including sanction enqueue retries keyed to their owner,
+ * are failed so they cannot send after scrubbing.
  */
 export async function scrubDisciplinaryNotificationJobsForUser(
   executor: NotificationExecutor,
@@ -423,7 +424,8 @@ async function buildSanctionLifecycleNotificationSnapshot(
 
 /**
  * Persists enough information to rebuild a sanction notification when its
- * participant-safe snapshot could not be prepared immediately.
+ * participant-safe snapshot could not be prepared immediately. The sanction
+ * owner is retained so profile deletion can find and scrub the retry row.
  */
 export async function recordSanctionLifecycleNotificationEnqueueFailure(
   executor: NotificationExecutor,
@@ -438,9 +440,17 @@ export async function recordSanctionLifecycleNotificationEnqueueFailure(
   },
   error: unknown,
 ): Promise<number> {
+  const sanction = await executor.query.sanctions.findFirst({
+    where: eq(sanctions.id, input.sanctionId),
+    columns: { userId: true },
+  });
+  if (!sanction) {
+    throw new Error("No se encontró la sanción para registrar el reintento");
+  }
+
   return insertNotificationJob(executor, {
     deduplicationKey: input.deduplicationKey,
-    userId: null,
+    userId: sanction.userId,
     entityType: "sanction",
     entityId: input.sanctionId,
     notificationKind: input.kind,
