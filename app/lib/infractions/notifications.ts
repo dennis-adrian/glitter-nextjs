@@ -10,7 +10,6 @@ import {
   isNull,
   lt,
   lte,
-  ne,
   or,
 } from "drizzle-orm";
 
@@ -47,7 +46,6 @@ export const COMPLETED_NOTIFICATION_JOB_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const SCRUBBED_RECIPIENT_EMAIL = "";
 const SCRUBBED_PAYLOAD = {} as const;
 const PROFILE_DELETED_JOB_ERROR = "profile_deleted";
-const UNRESOLVED_SANCTION_RETRY_OWNER_ERROR = "unresolved_sanction_retry_owner";
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type NotificationExecutor = typeof db | DbTx;
@@ -194,23 +192,28 @@ export async function scrubDisciplinaryNotificationJobsForUser(
   userId: number,
   now = new Date(),
 ) {
-  const legacySanctionJobs =
-    await executor.query.disciplinaryNotificationJobs.findMany({
-      where: and(
+  const legacySanctionJobs = await executor
+    .select({
+      id: disciplinaryNotificationJobs.id,
+      entityId: disciplinaryNotificationJobs.entityId,
+      payload: disciplinaryNotificationJobs.payload,
+    })
+    .from(disciplinaryNotificationJobs)
+    .innerJoin(
+      sanctions,
+      and(
+        eq(sanctions.id, disciplinaryNotificationJobs.entityId),
+        eq(sanctions.userId, userId),
+      ),
+    )
+    .where(
+      and(
         isNull(disciplinaryNotificationJobs.userId),
         eq(disciplinaryNotificationJobs.entityType, "sanction"),
-        or(
-          isNull(disciplinaryNotificationJobs.lastError),
-          ne(
-            disciplinaryNotificationJobs.lastError,
-            UNRESOLVED_SANCTION_RETRY_OWNER_ERROR,
-          ),
-        ),
       ),
-      columns: { id: true, payload: true },
-    });
+    );
 
-  const retryJobs: Array<{ id: number; sanctionId: number | null }> = [];
+  const retryJobIds: number[] = [];
   for (const job of legacySanctionJobs) {
     const payload = job.payload;
     if (
@@ -223,75 +226,23 @@ export async function scrubDisciplinaryNotificationJobsForUser(
       continue;
     }
 
-    const sanctionId =
+    const hasValidSanctionId =
       "sanctionId" in payload &&
       typeof payload.sanctionId === "number" &&
       Number.isInteger(payload.sanctionId) &&
-      payload.sanctionId > 0
-        ? payload.sanctionId
-        : null;
-    retryJobs.push({ id: job.id, sanctionId });
-  }
-
-  const sanctionIds = [
-    ...new Set(
-      retryJobs
-        .map((job) => job.sanctionId)
-        .filter((id): id is number => id !== null),
-    ),
-  ];
-  const ownerBySanctionId = new Map<number, number>();
-  if (sanctionIds.length > 0) {
-    const resolvedSanctions = await executor.query.sanctions.findMany({
-      where: and(
-        inArray(sanctions.id, sanctionIds),
-        isNotNull(sanctions.userId),
-      ),
-      columns: { id: true, userId: true },
-    });
-    for (const sanction of resolvedSanctions) {
-      if (sanction.userId !== null) {
-        ownerBySanctionId.set(sanction.id, sanction.userId);
-      }
+      payload.sanctionId === job.entityId;
+    if (hasValidSanctionId) {
+      retryJobIds.push(job.id);
     }
   }
 
-  for (const job of retryJobs) {
-    const ownerId =
-      job.sanctionId === null
-        ? undefined
-        : ownerBySanctionId.get(job.sanctionId);
-
-    if (ownerId !== undefined) {
-      await executor
-        .update(disciplinaryNotificationJobs)
-        .set({ userId: ownerId, updatedAt: now })
-        .where(
-          and(
-            eq(disciplinaryNotificationJobs.id, job.id),
-            isNull(disciplinaryNotificationJobs.userId),
-          ),
-        );
-      continue;
-    }
-
-    // Quarantine unresolved retries under the deleting user so they enter the
-    // scoped fail/scrub path and are excluded from later ownerless rescans.
+  if (retryJobIds.length > 0) {
     await executor
       .update(disciplinaryNotificationJobs)
-      .set({
-        status: "failed",
-        recipientEmail: SCRUBBED_RECIPIENT_EMAIL,
-        payload: SCRUBBED_PAYLOAD,
-        lastError: UNRESOLVED_SANCTION_RETRY_OWNER_ERROR,
-        userId,
-        leaseOwner: null,
-        leaseExpiresAt: null,
-        updatedAt: now,
-      })
+      .set({ userId, updatedAt: now })
       .where(
         and(
-          eq(disciplinaryNotificationJobs.id, job.id),
+          inArray(disciplinaryNotificationJobs.id, retryJobIds),
           isNull(disciplinaryNotificationJobs.userId),
         ),
       );

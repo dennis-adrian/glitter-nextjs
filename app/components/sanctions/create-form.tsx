@@ -36,7 +36,7 @@ import {
   sanctionTypeEnum,
 } from "@/db/schema";
 import { DateTime } from "luxon";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
@@ -98,6 +98,9 @@ export default function CreateSanctionForm({
   const [reviewValues, setReviewValues] = useState<z.infer<
     typeof FormSchema
   > | null>(null);
+  const [reviewStatus, setReviewStatus] = useState<"scheduled" | "active">(
+    "active",
+  );
   const latestSearchId = useRef(0);
 
   const form = useForm({
@@ -235,10 +238,36 @@ export default function CreateSanctionForm({
   const reviewEndsAt = reviewEndsAtDate
     ? DateTime.fromJSDate(reviewEndsAtDate).setZone(STORE_TIMEZONE)
     : null;
-  const reviewStatus =
-    reviewStartsAt?.isValid && reviewStartsAt.toMillis() > Date.now()
-      ? "scheduled"
-      : "active";
+
+  useEffect(() => {
+    if (!reviewValues?.startsAt) {
+      setReviewStatus("active");
+      return;
+    }
+
+    const startsAt = DateTime.fromISO(reviewValues.startsAt, {
+      zone: STORE_TIMEZONE,
+    });
+    if (!startsAt.isValid) {
+      setReviewStatus("active");
+      return;
+    }
+
+    const startsAtMs = startsAt.toMillis();
+    const syncStatus = () => {
+      setReviewStatus(startsAtMs > Date.now() ? "scheduled" : "active");
+    };
+
+    syncStatus();
+
+    const delay = startsAtMs - Date.now();
+    if (delay <= 0) {
+      return;
+    }
+
+    const timer = window.setTimeout(syncStatus, delay);
+    return () => window.clearTimeout(timer);
+  }, [reviewValues?.startsAt]);
 
   return (
     <Form {...form}>

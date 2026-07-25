@@ -548,14 +548,15 @@ describe("disciplinary notification PII lifecycle", () => {
       }),
     }));
     const now = new Date("2026-07-24T12:00:00.000Z");
+    const legacyJobsWhere = vi.fn().mockResolvedValue([]);
 
     await scrubDisciplinaryNotificationJobsForUser(
       {
-        query: {
-          disciplinaryNotificationJobs: {
-            findMany: vi.fn().mockResolvedValue([]),
-          },
-        },
+        select: vi.fn(() => ({
+          from: vi.fn(() => ({
+            innerJoin: vi.fn(() => ({ where: legacyJobsWhere })),
+          })),
+        })),
         update: updateMock,
       } as never,
       profile.id,
@@ -579,7 +580,7 @@ describe("disciplinary notification PII lifecycle", () => {
     ]);
   });
 
-  it("repairs or quarantines ownerless legacy sanction retries before scrubbing", async () => {
+  it("repairs target-owned legacy sanction retries in one batch before scrubbing", async () => {
     const written: Array<Record<string, unknown>> = [];
     const updateMock = vi.fn(() => ({
       set: vi.fn((values: Record<string, unknown>) => {
@@ -589,82 +590,50 @@ describe("disciplinary notification PII lifecycle", () => {
         };
       }),
     }));
-    const sanctionFindMany = vi.fn().mockResolvedValue([
-      { id: 11, userId: profile.id },
-      { id: 22, userId: 99 },
-      { id: 44, userId: null },
+    const legacyJobsWhere = vi.fn().mockResolvedValue([
+      {
+        id: 1,
+        entityId: 11,
+        payload: {
+          entityType: "sanction_enqueue_retry",
+          sanctionId: 11,
+        },
+      },
+      {
+        id: 2,
+        entityId: 22,
+        payload: {
+          entityType: "sanction_enqueue_retry",
+          sanctionId: 22,
+        },
+      },
+      {
+        id: 3,
+        entityId: 33,
+        payload: {
+          entityType: "sanction_enqueue_retry",
+          sanctionId: null,
+        },
+      },
     ]);
+    const innerJoinMock = vi.fn(() => ({ where: legacyJobsWhere }));
+    const fromMock = vi.fn(() => ({ innerJoin: innerJoinMock }));
+    const selectMock = vi.fn(() => ({ from: fromMock }));
     const now = new Date("2026-07-24T12:00:00.000Z");
 
     await scrubDisciplinaryNotificationJobsForUser(
       {
-        query: {
-          disciplinaryNotificationJobs: {
-            findMany: vi.fn().mockResolvedValue([
-              {
-                id: 1,
-                payload: {
-                  entityType: "sanction_enqueue_retry",
-                  sanctionId: 11,
-                },
-              },
-              {
-                id: 2,
-                payload: {
-                  entityType: "sanction_enqueue_retry",
-                  sanctionId: 22,
-                },
-              },
-              {
-                id: 3,
-                payload: {
-                  entityType: "sanction_enqueue_retry",
-                  sanctionId: 44,
-                },
-              },
-              {
-                id: 4,
-                payload: {
-                  entityType: "sanction_enqueue_retry",
-                  sanctionId: 33,
-                },
-              },
-            ]),
-          },
-          sanctions: {
-            findMany: sanctionFindMany,
-          },
-        },
+        select: selectMock,
         update: updateMock,
       } as never,
       profile.id,
       now,
     );
 
-    expect(sanctionFindMany).toHaveBeenCalledOnce();
+    expect(selectMock).toHaveBeenCalledOnce();
+    expect(innerJoinMock).toHaveBeenCalledOnce();
     expect(written).toEqual([
       { userId: profile.id, updatedAt: now },
-      { userId: 99, updatedAt: now },
-      {
-        status: "failed",
-        recipientEmail: "",
-        payload: {},
-        lastError: "unresolved_sanction_retry_owner",
-        userId: profile.id,
-        leaseOwner: null,
-        leaseExpiresAt: null,
-        updatedAt: now,
-      },
-      {
-        status: "failed",
-        recipientEmail: "",
-        payload: {},
-        lastError: "unresolved_sanction_retry_owner",
-        userId: profile.id,
-        leaseOwner: null,
-        leaseExpiresAt: null,
-        updatedAt: now,
-      },
       {
         status: "failed",
         lastError: "profile_deleted",
