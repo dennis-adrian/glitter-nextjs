@@ -15,6 +15,7 @@ import {
   enqueueEnabledReservationAccessNotifications,
   enqueueInfractionLifecycleNotification,
   purgeCompletedDisciplinaryNotificationJobs,
+  recordSanctionLifecycleNotificationEnqueueFailure,
   scrubDisciplinaryNotificationJobsForUser,
   type DisciplinaryNotificationPayload,
 } from "@/app/lib/infractions/notifications";
@@ -43,7 +44,7 @@ function createInfractionEnqueueTransaction() {
         }),
       },
       disciplinaryNotificationJobs: {
-        findFirst: vi.fn(({ where: _where }: { where: unknown }) => {
+        findFirst: vi.fn(() => {
           return Promise.resolve([...jobs.values()][0] ?? null);
         }),
       },
@@ -118,6 +119,31 @@ describe("disciplinary notification delivery", () => {
     expect(firstId).toBe(secondId);
     expect(jobs.size).toBe(1);
     expect(tx.delete).toHaveBeenCalled();
+  });
+
+  it("persists failed sanction enqueue details for worker retry", async () => {
+    const { tx, jobs } = createInfractionEnqueueTransaction();
+    const now = new Date("2026-07-20T12:00:00.000Z");
+
+    await recordSanctionLifecycleNotificationEnqueueFailure(
+      tx as never,
+      {
+        sanctionId: 11,
+        kind: "expired",
+        deduplicationKey: "sanction:11:expired",
+        now,
+      },
+      new Error("Missing participant"),
+    );
+
+    expect(jobs.get("sanction:11:expired")?.payload).toEqual({
+      entityType: "sanction_enqueue_retry",
+      sanctionId: 11,
+      kind: "expired",
+      participantNote: null,
+      festivalName: null,
+      reservationEligibleAt: null,
+    });
   });
 
   it("queues reservation-access delivery when the eligibility time is reached", async () => {

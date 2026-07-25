@@ -89,14 +89,33 @@ const sanctionNotificationPayloadSchema = z.object({
   reservationEligibleAt: z.string().datetime().nullable(),
 });
 
-const disciplinaryNotificationPayloadSchema = z.discriminatedUnion(
+const deliverableDisciplinaryNotificationPayloadSchema = z.discriminatedUnion(
   "entityType",
   [infractionNotificationPayloadSchema, sanctionNotificationPayloadSchema],
 );
 
 export type DisciplinaryNotificationPayload = z.infer<
-  typeof disciplinaryNotificationPayloadSchema
+  typeof deliverableDisciplinaryNotificationPayloadSchema
 >;
+
+const sanctionNotificationEnqueueRetryPayloadSchema = z.object({
+  entityType: z.literal("sanction_enqueue_retry"),
+  sanctionId: z.number().int().positive(),
+  kind: z.enum([
+    "approved",
+    "edited",
+    "expired",
+    "revoked",
+    "reservation_access_enabled",
+  ]),
+  participantNote: z.string().nullable(),
+  festivalName: z.string().nullable(),
+  reservationEligibleAt: z.string().datetime().nullable(),
+});
+
+type StoredDisciplinaryNotificationPayload =
+  | DisciplinaryNotificationPayload
+  | z.infer<typeof sanctionNotificationEnqueueRetryPayloadSchema>;
 
 function computeNextAttemptAt(attemptCount: number, now = new Date()) {
   const delayMs = Math.min(
@@ -203,12 +222,13 @@ async function insertNotificationJob(
   executor: NotificationExecutor,
   input: {
     deduplicationKey: string;
-    userId: number;
+    userId: number | null;
     entityType: "infraction" | "sanction";
     entityId: number;
     notificationKind: string;
     recipientEmail: string;
-    payload: DisciplinaryNotificationPayload;
+    payload: StoredDisciplinaryNotificationPayload;
+    lastError?: string | null;
     now?: Date;
   },
 ) {
@@ -226,6 +246,7 @@ async function insertNotificationJob(
       recipientEmail: input.recipientEmail,
       payload: input.payload,
       status: "pending",
+      lastError: input.lastError ?? null,
       attempts: 0,
       nextAttemptAt: now,
       updatedAt: now,
@@ -319,6 +340,33 @@ export async function enqueueSanctionLifecycleNotification(
     now?: Date;
   },
 ): Promise<number> {
+  const snapshot = await buildSanctionLifecycleNotificationSnapshot(
+    executor,
+    input,
+  );
+
+  return insertNotificationJob(executor, {
+    deduplicationKey: input.deduplicationKey,
+    userId: snapshot.profile.id,
+    entityType: "sanction",
+    entityId: snapshot.sanctionId,
+    notificationKind: input.kind,
+    recipientEmail: snapshot.profile.email,
+    now: input.now,
+    payload: snapshot,
+  });
+}
+
+async function buildSanctionLifecycleNotificationSnapshot(
+  executor: NotificationExecutor,
+  input: {
+    sanctionId: number;
+    kind: SanctionEmailKind;
+    participantNote?: string | null;
+    festivalName?: string | null;
+    reservationEligibleAt?: Date | null;
+  },
+): Promise<z.infer<typeof sanctionNotificationPayloadSchema>> {
   const sanction = await executor.query.sanctions.findFirst({
     where: eq(sanctions.id, input.sanctionId),
     columns: {
@@ -358,27 +406,55 @@ export async function enqueueSanctionLifecycleNotification(
           )
           .where(inArray(infractions.id, infractionIds));
 
+  return {
+    entityType: "sanction",
+    kind: input.kind,
+    profile,
+    sanctionId: sanction.id,
+    typeLabel: sanctionTypeLabel[sanction.type],
+    statusLabel: sanctionStatusLabel[sanction.status],
+    scopeLabel: sanctionFestivalScopeLabel[sanction.festivalScope],
+    infractionLabels: linkedTypes.map((row) => row.label),
+    participantNote: input.participantNote ?? null,
+    festivalName: input.festivalName ?? null,
+    reservationEligibleAt: input.reservationEligibleAt?.toISOString() ?? null,
+  };
+}
+
+/**
+ * Persists enough information to rebuild a sanction notification when its
+ * participant-safe snapshot could not be prepared immediately.
+ */
+export async function recordSanctionLifecycleNotificationEnqueueFailure(
+  executor: NotificationExecutor,
+  input: {
+    sanctionId: number;
+    kind: SanctionEmailKind;
+    deduplicationKey: string;
+    participantNote?: string | null;
+    festivalName?: string | null;
+    reservationEligibleAt?: Date | null;
+    now?: Date;
+  },
+  error: unknown,
+): Promise<number> {
   return insertNotificationJob(executor, {
     deduplicationKey: input.deduplicationKey,
-    userId: profile.id,
+    userId: null,
     entityType: "sanction",
-    entityId: sanction.id,
+    entityId: input.sanctionId,
     notificationKind: input.kind,
-    recipientEmail: profile.email,
-    now: input.now,
+    recipientEmail: "",
     payload: {
-      entityType: "sanction",
+      entityType: "sanction_enqueue_retry",
+      sanctionId: input.sanctionId,
       kind: input.kind,
-      profile,
-      sanctionId: sanction.id,
-      typeLabel: sanctionTypeLabel[sanction.type],
-      statusLabel: sanctionStatusLabel[sanction.status],
-      scopeLabel: sanctionFestivalScopeLabel[sanction.festivalScope],
-      infractionLabels: linkedTypes.map((row) => row.label),
       participantNote: input.participantNote ?? null,
       festivalName: input.festivalName ?? null,
       reservationEligibleAt: input.reservationEligibleAt?.toISOString() ?? null,
     },
+    lastError: errorMessage(error),
+    now: input.now,
   });
 }
 
@@ -415,7 +491,8 @@ export async function deliverDisciplinaryNotificationPayload(
   rawPayload: unknown,
   idempotencyKey: string,
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const parsed = disciplinaryNotificationPayloadSchema.safeParse(rawPayload);
+  const parsed =
+    deliverableDisciplinaryNotificationPayloadSchema.safeParse(rawPayload);
   if (!parsed.success) {
     return {
       success: false,
@@ -532,24 +609,63 @@ async function processClaimedNotificationJob(
   job: NotificationJob,
   owner: string,
 ) {
+  let deliverableJob = job;
   let result: Awaited<
     ReturnType<typeof deliverDisciplinaryNotificationPayload>
   >;
   try {
+    const retryPayload =
+      sanctionNotificationEnqueueRetryPayloadSchema.safeParse(job.payload);
+    if (retryPayload.success) {
+      const input = retryPayload.data;
+      const payload = await buildSanctionLifecycleNotificationSnapshot(db, {
+        sanctionId: input.sanctionId,
+        kind: input.kind,
+        participantNote: input.participantNote,
+        festivalName: input.festivalName,
+        reservationEligibleAt: input.reservationEligibleAt
+          ? new Date(input.reservationEligibleAt)
+          : null,
+      });
+      const [prepared] = await db
+        .update(disciplinaryNotificationJobs)
+        .set({
+          userId: payload.profile.id,
+          recipientEmail: payload.profile.email,
+          payload,
+          lastError: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(disciplinaryNotificationJobs.id, job.id),
+            eq(disciplinaryNotificationJobs.status, "processing"),
+            eq(disciplinaryNotificationJobs.leaseOwner, owner),
+          ),
+        )
+        .returning();
+      if (!prepared) return "claim_lost" as const;
+      deliverableJob = prepared;
+    }
+
     result = await deliverDisciplinaryNotificationPayload(
-      job.payload,
-      job.deduplicationKey,
+      deliverableJob.payload,
+      deliverableJob.deduplicationKey,
     );
   } catch (error) {
     result = { success: false, error: errorMessage(error) };
   }
 
   if (result.success) {
-    const completed = await completeNotificationJob(job, owner);
+    const completed = await completeNotificationJob(deliverableJob, owner);
     return completed ? ("completed" as const) : ("claim_lost" as const);
   }
 
-  const status = await rescheduleNotificationJob(job, owner, result.error);
+  const status = await rescheduleNotificationJob(
+    deliverableJob,
+    owner,
+    result.error,
+  );
   if (status === "failed") return "failed" as const;
   if (status === "pending") return "rescheduled" as const;
   return "claim_lost" as const;

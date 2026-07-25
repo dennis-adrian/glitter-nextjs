@@ -3,6 +3,7 @@ import { and, eq, gt, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 import {
   enqueueEnabledReservationAccessNotifications,
   enqueueSanctionLifecycleNotification,
+  recordSanctionLifecycleNotificationEnqueueFailure,
 } from "@/app/lib/infractions/notifications";
 import { logSanctionEvent } from "@/app/lib/sanctions/events";
 import {
@@ -358,18 +359,32 @@ export async function reconcileSanctionFestivalCounting(input?: {
   // Enqueue outside the reconciliation transaction so a notification failure
   // cannot abort expiration state updates for later sanctions.
   for (const sanctionId of result.expiredSanctionIds) {
+    const notification = {
+      sanctionId,
+      kind: "expired" as const,
+      deduplicationKey: `sanction:${sanctionId}:expired`,
+      now,
+    };
     try {
-      await enqueueSanctionLifecycleNotification(db, {
-        sanctionId,
-        kind: "expired",
-        deduplicationKey: `sanction:${sanctionId}:expired`,
-        now,
-      });
+      await enqueueSanctionLifecycleNotification(db, notification);
     } catch (error) {
-      console.error(
-        "[sanction-festival-counting] Failed to enqueue expiration notification",
-        { sanctionId, error },
-      );
+      try {
+        const retryJobId =
+          await recordSanctionLifecycleNotificationEnqueueFailure(
+            db,
+            notification,
+            error,
+          );
+        console.error(
+          "[sanction-festival-counting] Failed to enqueue expiration notification; retry recorded",
+          { sanctionId, retryJobId, error },
+        );
+      } catch (recordError) {
+        console.error(
+          "[sanction-festival-counting] Failed to record expiration notification retry",
+          { sanctionId, notification, error, recordError },
+        );
+      }
     }
   }
 

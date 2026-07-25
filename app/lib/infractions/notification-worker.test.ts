@@ -2,10 +2,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const updateMock = vi.hoisted(() => vi.fn());
 const sendEmailMock = vi.hoisted(() => vi.fn());
+const sanctionFindFirstMock = vi.hoisted(() => vi.fn());
+const userFindFirstMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/db", () => ({
   db: {
     update: updateMock,
+    query: {
+      sanctions: {
+        findFirst: sanctionFindFirstMock,
+      },
+      users: {
+        findFirst: userFindFirstMock,
+      },
+    },
   },
 }));
 vi.mock("@/app/vendors/resend", () => ({
@@ -78,6 +88,8 @@ describe("disciplinary notification worker", () => {
   beforeEach(() => {
     updateMock.mockReset();
     sendEmailMock.mockReset();
+    sanctionFindFirstMock.mockReset();
+    userFindFirstMock.mockReset();
   });
 
   it("reschedules a durable job when the email provider rejects it", async () => {
@@ -160,6 +172,83 @@ describe("disciplinary notification worker", () => {
     });
     expect(sendEmailMock.mock.calls[1]?.[1]).toEqual({
       idempotencyKey: job.deduplicationKey,
+    });
+  });
+
+  it("hydrates and delivers a persisted sanction enqueue retry", async () => {
+    const retryJob = {
+      ...job,
+      id: 92,
+      deduplicationKey: "sanction:11:expired",
+      userId: null,
+      entityType: "sanction",
+      entityId: 11,
+      notificationKind: "expired",
+      recipientEmail: "",
+      payload: {
+        entityType: "sanction_enqueue_retry",
+        sanctionId: 11,
+        kind: "expired",
+        participantNote: null,
+        festivalName: null,
+        reservationEligibleAt: null,
+      },
+      lastError: "Missing participant",
+    };
+    const preparedPayload: DisciplinaryNotificationPayload = {
+      entityType: "sanction",
+      kind: "expired",
+      profile: payload.profile,
+      sanctionId: 11,
+      typeLabel: "Ban",
+      statusLabel: "Expirada",
+      scopeLabel: "Global",
+      infractionLabels: [],
+      participantNote: null,
+      festivalName: null,
+      reservationEligibleAt: null,
+    };
+    const preparedJob = {
+      ...retryJob,
+      userId: payload.profile.id,
+      recipientEmail: payload.profile.email,
+      payload: preparedPayload,
+      lastError: null,
+    };
+    const writtenValues: Array<Record<string, unknown>> = [];
+    mockUpdateResults(
+      [[retryJob], [preparedJob], [{ id: retryJob.id }]],
+      writtenValues,
+    );
+    sanctionFindFirstMock.mockResolvedValue({
+      id: 11,
+      userId: payload.profile.id,
+      type: "ban",
+      status: "expired",
+      festivalScope: "global",
+      sanctionInfractions: [],
+    });
+    userFindFirstMock.mockResolvedValue(payload.profile);
+    sendEmailMock.mockResolvedValue({
+      data: { id: "email-2" },
+      error: null,
+    });
+
+    await expect(
+      attemptDisciplinaryNotificationJob(retryJob.id),
+    ).resolves.toMatchObject({
+      success: true,
+      outcome: "completed",
+    });
+
+    expect(writtenValues[1]).toMatchObject({
+      userId: payload.profile.id,
+      recipientEmail: payload.profile.email,
+      payload: preparedPayload,
+      lastError: null,
+    });
+    expect(sendEmailMock.mock.calls[0]?.[1]).toEqual({
+      idempotencyKey: retryJob.deduplicationKey,
     });
   });
 });

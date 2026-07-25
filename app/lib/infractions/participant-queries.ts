@@ -59,6 +59,7 @@ export type ParticipantSanction = {
 export type ParticipantDisciplinaryHistory = {
   infractions: ParticipantInfraction[];
   sanctions: ParticipantSanction[];
+  referenceTimestamp: number;
 };
 
 /**
@@ -68,6 +69,7 @@ export type ParticipantDisciplinaryHistory = {
 export async function fetchParticipantDisciplinaryHistory(
   userId: number,
 ): Promise<ParticipantDisciplinaryHistory> {
+  const referenceTimestamp = Date.now();
   const [infractionRows, sanctionRows] = await Promise.all([
     db.query.infractions.findMany({
       where: eq(infractions.userId, userId),
@@ -190,5 +192,6 @@ export async function fetchParticipantDisciplinaryHistory(
   return {
     infractions: participantInfractions,
     sanctions: participantSanctions,
+    referenceTimestamp,
   };
 }

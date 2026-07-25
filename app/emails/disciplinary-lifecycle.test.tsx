@@ -4,6 +4,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { Text } from "@react-email/components";
 import { describe, expect, it } from "vitest";
 
@@ -65,7 +66,7 @@ describe("disciplinary lifecycle email content", () => {
       festivalName: null,
       note: null,
     });
-    const content = JSON.stringify(email);
+    const content = renderToStaticMarkup(email);
 
     expect(content).toContain("El motivo registrado es");
     expect(content).toContain(
@@ -87,7 +88,7 @@ describe("disciplinary lifecycle email content", () => {
       infractionLabels: ["No Show", "Incumplimiento administrativo"],
       note: null,
     });
-    const content = JSON.stringify(email);
+    const content = renderToStaticMarkup(email);
 
     expect(content).toContain("un bloqueo del acceso a las reservas");
     expect(content).toContain(
@@ -132,7 +133,7 @@ describe("disciplinary lifecycle email content", () => {
       festivalName: "Glitter Fest",
       reservationEligibleAt: "2026-08-01T12:00:00.000Z",
     });
-    const content = JSON.stringify(email);
+    const content = renderToStaticMarkup(email);
 
     expect(content).toContain("Ya podés acceder a las reservas");
     expect(content).toContain("Glitter Fest");

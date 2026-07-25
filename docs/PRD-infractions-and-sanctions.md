@@ -282,10 +282,12 @@ The existing **handled** field is removed after backfill:
 - **handled = false** becomes **status = pending**.
 - **handled = true** becomes **status = resolved**.
 
-#### 7.3.1 Table: infraction_idempotency_records
+#### 7.3.1 Planned table: infraction_idempotency_records
 
-Idempotency keys are persisted in the database, not only in application memory or
-a cache.
+The scoped durable model below is planned migration work, not the currently
+shipped implementation. Today, the application persists the client-generated
+key directly in **infractions.idempotency_key**, which has a global unique
+constraint.
 
 | Field            | Type       | Rule                                                                |
 | ---------------- | ---------- | ------------------------------------------------------------------- |
@@ -298,12 +300,14 @@ a cache.
 | **result**       | jsonb      | Original response, or enough stable data to reconstruct its result. |
 | **createdAt**    | timestamp  | —                                                                   |
 
-The database enforces **UNIQUE(operation, actorUserId, key)**. The idempotency
-record, infraction, and **created** event are committed in one transaction.
-Concurrent conflicts wait for or read the winning committed record, verify
-**requestHash**, and return its stored or equivalently reconstructed result.
-Records are retained durably for at least the supported client retry period;
-any cleanup policy must be longer than that period and documented before launch.
+As future migration work, the database will enforce
+**UNIQUE(operation, actorUserId, key)**. The idempotency record, infraction, and
+**created** event will be committed in one transaction. Concurrent conflicts
+will wait for or read the winning committed record, verify **requestHash**, and
+return its stored or equivalently reconstructed result. Records will be retained
+durably for at least the supported client retry period; any cleanup policy must
+be longer than that period and documented before launch. Section 18.2 defines
+this migration step.
 
 ### 7.4 Table: infraction_events
 
@@ -496,10 +500,18 @@ The existing participant-table form reuses the same secure action:
 #### Technical Idempotency
 
 - Each submission includes a unique idempotency key.
-- The database-backed record and scoped unique constraint defined in Section 7.3.1
-  prevent the same request from being processed twice across restarts and
-  concurrent application instances.
-- Network retries return the original or equivalent result without creating duplicate records.
+- The currently shipped implementation stores the key in
+  **infractions.idempotency_key** under a global unique constraint. Retries with
+  the same key reuse the existing infraction across restarts and concurrent
+  application instances.
+- Because the key is not scoped by administrator or operation, a collision from
+  a different administrator also resolves to the first matching infraction.
+  The current implementation does not compare a request hash, so clients must
+  generate globally unique keys.
+- The scoped durable **infraction_idempotency_records** model in Section 7.3.1,
+  including atomic persistence of the idempotency record, infraction, and
+  **created** event plus request-hash validation, remains future migration work
+  under Section 18.2.
 
 #### Possible Semantic Duplicate
 
@@ -940,9 +952,10 @@ Before applying new restrictions:
 7. Use legacy **createdAt** as **approvedAt** when no better evidence exists and leave **approvedByUserId = null**.
 8. Review legacy **reservation_delay** sanctions because the old duration field does not distinguish validity from delay.
 9. Change destructive foreign keys to **restrict** or an equivalent history-preserving strategy.
-10. Create **infraction_idempotency_records** and its database-level
-    **UNIQUE(operation, actorUserId, key)** constraint before enabling
-    idempotent infraction registration.
+10. Migrate the shipped global **infractions.idempotency_key** implementation
+    to **infraction_idempotency_records** with database-level
+    **UNIQUE(operation, actorUserId, key)** and request-hash validation before
+    enabling the scoped transaction semantics described in Section 7.3.1.
 11. Add remaining constraints and indexes after data cleanup.
 12. Remove **infractions.handled**, **sanctions.active**, and **sanctions.infractionId** after the new code is active and verified.
 

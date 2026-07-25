@@ -1,4 +1,5 @@
 import * as styles from "@/app/emails/styles";
+import DisciplinaryHistoryDetails from "@/app/emails/disciplinary-history-details";
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
 import { BaseProfile } from "@/app/api/users/definitions";
@@ -7,7 +8,6 @@ import { PARTICIPANT_SUPPORT_EMAIL } from "@/app/lib/participants/helpers";
 import { getUserName } from "@/app/lib/users/utils";
 import {
   Body,
-  Button,
   Container,
   Head,
   Html,
@@ -209,21 +209,13 @@ export default function SanctionLifecycleEmail(
                   ))}
                 </ul>
               )}
-            {props.note && (
-              <>
-                <Text style={styles.text}>
-                  <strong>{content.noteLabel}</strong>
-                </Text>
-                <Text style={styles.standoutText}>{props.note}</Text>
-              </>
-            )}
-            <Text style={styles.text}>{content.historyPrompt}</Text>
-            <Button href={historyUrl} style={styles.buttonWithBanner}>
-              Ver mi historial
-            </Button>
-            <Text style={{ ...styles.textSmall, marginTop: "16px" }}>
-              Referencia: sanción #{props.sanctionId}
-            </Text>
+            <DisciplinaryHistoryDetails
+              note={props.note}
+              noteLabel={content.noteLabel}
+              historyPrompt={content.historyPrompt}
+              historyUrl={historyUrl}
+              identifier={`sanción #${props.sanctionId}`}
+            />
             <Text style={styles.text}>
               Si tenés dudas, escribinos a{" "}
               <Link

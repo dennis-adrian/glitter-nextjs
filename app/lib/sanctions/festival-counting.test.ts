@@ -7,6 +7,9 @@ const enqueueAccessNotificationsMock = vi.hoisted(() =>
 const enqueueSanctionNotificationMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue(1),
 );
+const recordSanctionNotificationFailureMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(2),
+);
 vi.mock("@/db", () => ({
   db: {
     transaction: dbTransactionMock,
@@ -15,6 +18,8 @@ vi.mock("@/db", () => ({
 vi.mock("@/app/lib/infractions/notifications", () => ({
   enqueueEnabledReservationAccessNotifications: enqueueAccessNotificationsMock,
   enqueueSanctionLifecycleNotification: enqueueSanctionNotificationMock,
+  recordSanctionLifecycleNotificationEnqueueFailure:
+    recordSanctionNotificationFailureMock,
 }));
 
 import {
@@ -175,6 +180,7 @@ describe("reconcileSanctionFestivalCounting", () => {
     dbTransactionMock.mockReset();
     enqueueAccessNotificationsMock.mockClear();
     enqueueSanctionNotificationMock.mockClear();
+    recordSanctionNotificationFailureMock.mockClear();
   });
 
   it("activates scheduled sanctions and records the lifecycle event once", async () => {
@@ -244,9 +250,19 @@ describe("reconcileSanctionFestivalCounting", () => {
       expiredSanctionIds: [11, 12],
     });
     expect(enqueueSanctionNotificationMock).toHaveBeenCalledTimes(2);
+    expect(recordSanctionNotificationFailureMock).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        sanctionId: 11,
+        kind: "expired",
+        deduplicationKey: "sanction:11:expired",
+        now: new Date("2026-07-20T12:00:00.000Z"),
+      },
+      error,
+    );
     expect(consoleError).toHaveBeenCalledWith(
-      "[sanction-festival-counting] Failed to enqueue expiration notification",
-      { sanctionId: 11, error },
+      "[sanction-festival-counting] Failed to enqueue expiration notification; retry recorded",
+      { sanctionId: 11, retryJobId: 2, error },
     );
 
     consoleError.mockRestore();
