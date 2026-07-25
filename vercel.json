@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/morning/storageCleanup",
       "schedule": "0 */2 * * *"
+    },
+    {
+      "path": "/api/cron/morning/sanctionFestivalCounting",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

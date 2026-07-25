@@ -16,6 +16,7 @@ import {
   BookImageIcon,
   BoxesIcon,
   CalendarCheck2Icon,
+  CircleAlertIcon,
   HomeIcon,
   ImagesIcon,
   LayoutDashboardIcon,
@@ -123,19 +124,34 @@ const NavbarNavigationMenu = ({
           </NavigationMenuLink>
         </NavigationMenuItem>
         {profile && profile.role === "festival_admin" && (
-          <NavigationMenuItem>
-            <NavigationMenuLink
-              asChild
-              className={navigationMenuTriggerStyle()}
-            >
-              <Link href="/dashboard/banners">
-                <div className="flex items-center">
-                  <ImagesIcon className="w-4 h-4 mr-1" />
-                  Carrusel inicio
-                </div>
-              </Link>
-            </NavigationMenuLink>
-          </NavigationMenuItem>
+          <>
+            <NavigationMenuItem>
+              <NavigationMenuLink
+                asChild
+                className={navigationMenuTriggerStyle()}
+              >
+                <Link href="/dashboard/infractions?limit=25&offset=0">
+                  <div className="flex items-center">
+                    <CircleAlertIcon className="w-4 h-4 mr-1" />
+                    Infracciones
+                  </div>
+                </Link>
+              </NavigationMenuLink>
+            </NavigationMenuItem>
+            <NavigationMenuItem>
+              <NavigationMenuLink
+                asChild
+                className={navigationMenuTriggerStyle()}
+              >
+                <Link href="/dashboard/banners">
+                  <div className="flex items-center">
+                    <ImagesIcon className="w-4 h-4 mr-1" />
+                    Carrusel inicio
+                  </div>
+                </Link>
+              </NavigationMenuLink>
+            </NavigationMenuItem>
+          </>
         )}
         {profile && profile.role === "admin" && (
           <NavigationMenuItem>
@@ -152,6 +168,12 @@ const NavbarNavigationMenu = ({
                   href="/dashboard/users?limit=10&offset=0&includeAdmins=false&sort=updatedAt&direction=desc"
                 >
                   Participantes activos, pausados y vetados
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
+                  title="Infracciones"
+                  href="/dashboard/infractions?limit=25&offset=0"
+                >
+                  Gestión global de infracciones y sanciones
                 </NavigationMenuListItem>
                 <NavigationMenuListItem
                   title="Solicitudes de perfil"

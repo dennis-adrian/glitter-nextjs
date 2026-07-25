@@ -103,6 +103,35 @@ export const users = pgTable(
   },
   (users) => [index("display_name_idx").on(users.displayName)],
 );
+
+/**
+ * Durable outbox for profile deletions that cross Clerk + local DB.
+ * If Clerk succeeds and the local delete fails, rows with
+ * `clerkDeletedAt` set and `localDeletedAt` null can be reconciled.
+ */
+export const pendingUserDeletions = pgTable(
+  "pending_user_deletions",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    clerkId: text("clerk_id").notNull(),
+    clerkDeletedAt: timestamp("clerk_deleted_at"),
+    localDeletedAt: timestamp("local_deleted_at"),
+    lastError: text("last_error"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("pending_user_deletions_clerk_id_idx").on(t.clerkId),
+    index("pending_user_deletions_reconcile_idx").on(
+      t.clerkDeletedAt,
+      t.localDeletedAt,
+    ),
+  ],
+);
+
 export const userStatusEvents = pgTable("user_status_events", {
   id: serial("id").primaryKey(),
   userId: integer("user_id")
@@ -143,6 +172,16 @@ export const usersRelations = relations(users, ({ many }) => ({
   profileSubcategories: many(profileSubcategories),
   userBadges: many(userBadges),
   infractions: many(infractions),
+  sanctions: many(sanctions),
+  createdSanctions: many(sanctions, {
+    relationName: "createdSanctions",
+  }),
+  approvedSanctions: many(sanctions, {
+    relationName: "approvedSanctions",
+  }),
+  revokedSanctions: many(sanctions, {
+    relationName: "revokedSanctions",
+  }),
   participantProducts: many(participantProducts),
   festivalActivityVotes: many(festivalActivityVotes),
   standHolds: many(standHolds),
@@ -295,7 +334,44 @@ export const festivalsRelations = relations(festivals, ({ many, one }) => ({
   festivalActivities: many(festivalActivities),
   badge: one(badges),
   infractions: many(infractions),
+  statusEvents: many(festivalStatusEvents),
+  sanctionFestivals: many(sanctionFestivals),
 }));
+
+export const festivalStatusEvents = pgTable(
+  "festival_status_events",
+  {
+    id: serial("id").primaryKey(),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "restrict" }),
+    fromStatus: festivalStatusEnum("from_status"),
+    toStatus: festivalStatusEnum("to_status").notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("festival_status_events_festival_id_created_at_idx").on(
+      table.festivalId,
+      table.createdAt,
+    ),
+  ],
+);
+export const festivalStatusEventsRelations = relations(
+  festivalStatusEvents,
+  ({ one }) => ({
+    festival: one(festivals, {
+      fields: [festivalStatusEvents.festivalId],
+      references: [festivals.id],
+    }),
+    actor: one(users, {
+      fields: [festivalStatusEvents.actorUserId],
+      references: [users.id],
+    }),
+  }),
+);
 
 export const marketingBanners = pgTable(
   "marketing_banners",
@@ -1941,15 +2017,56 @@ export const infractionSeverityEnum = pgEnum("infraction_severity", [
   "critical", // Severe breach, usually results in a ban or multiple sanctions
 ]);
 
-export const infractionTypes = pgTable("infraction_types", {
-  id: serial("id").primaryKey(),
-  code: text("code").unique().notNull(), // e.g. 'no_show'
-  label: text("label").notNull(), // e.g. 'No Show'
-  description: text("description"), // e.g. Full explanation of the infraction
-  severity: infractionSeverityEnum("severity").default("low").notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const infractionStatusEnum = pgEnum("infraction_status", [
+  "pending",
+  "under_review",
+  "resolved",
+  "voided",
+]);
+
+export const infractionEventTypeEnum = pgEnum("infraction_event_type", [
+  "created",
+  "edited",
+  "review_started",
+  "resolved",
+  "voided",
+  "reopened",
+  "sanction_linked",
+  "duplicate_confirmed",
+]);
+
+export const infractionTypes = pgTable(
+  "infraction_types",
+  {
+    id: serial("id").primaryKey(),
+    code: text("code").unique().notNull(), // e.g. 'no_show'
+    label: text("label").notNull(), // e.g. 'No Show'
+    description: text("description"), // e.g. Full explanation of the infraction
+    severity: infractionSeverityEnum("severity").default("low").notNull(),
+    active: boolean("active").default(true).notNull(),
+    archivedAt: timestamp("archived_at"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("infraction_types_label_unique").on(sql`lower(${table.label})`),
+    index("infraction_types_active_label_idx").on(table.active, table.label),
+    check(
+      "infraction_types_archive_state_check",
+      sql`
+        (
+          ${table.active} = true
+          AND ${table.archivedAt} IS NULL
+        )
+        OR
+        (
+          ${table.active} = false
+          AND ${table.archivedAt} IS NOT NULL
+        )
+      `,
+    ),
+  ],
+);
 export const infractionTypesRelations = relations(
   infractionTypes,
   ({ many }) => ({
@@ -1957,24 +2074,68 @@ export const infractionTypesRelations = relations(
   }),
 );
 
-export const infractions = pgTable("infractions", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  typeId: integer("type_id")
-    .notNull()
-    .references(() => infractionTypes.id, { onDelete: "cascade" }),
-  festivalId: integer("festival_id").references(() => festivals.id, {
-    onDelete: "cascade",
-  }),
-  description: text("description"), // e.g. Full explanation of the infraction
-  handled: boolean("handled").default(false).notNull(), // Whether an admin has reviewed the infraction
-  userGaveNotice: boolean("user_gave_notice").default(false).notNull(),
-  gaveNoticeAt: timestamp("gave_notice_at"),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const infractions = pgTable(
+  "infractions",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    typeId: integer("type_id")
+      .notNull()
+      .references(() => infractionTypes.id, { onDelete: "restrict" }),
+    festivalId: integer("festival_id").references(() => festivals.id, {
+      onDelete: "restrict",
+    }),
+    description: text("description"), // e.g. Full explanation of the infraction
+    /** @deprecated Prefer `status`. Kept for backward-compatible migration. */
+    handled: boolean("handled").default(false).notNull(),
+    status: infractionStatusEnum("status").default("pending").notNull(),
+    userGaveNotice: boolean("user_gave_notice").default(false).notNull(),
+    gaveNoticeAt: timestamp("gave_notice_at"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    resolvedAt: timestamp("resolved_at"),
+    resolvedByUserId: integer("resolved_by_user_id").references(
+      () => users.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    resolutionNotes: text("resolution_notes"),
+    voidedAt: timestamp("voided_at"),
+    voidedByUserId: integer("voided_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    voidReason: text("void_reason"),
+    idempotencyKey: text("idempotency_key").unique(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("infractions_user_id_created_at_idx").on(
+      table.userId,
+      table.createdAt,
+    ),
+    index("infractions_festival_id_created_at_idx").on(
+      table.festivalId,
+      table.createdAt,
+    ),
+    index("infractions_type_id_created_at_idx").on(
+      table.typeId,
+      table.createdAt,
+    ),
+    index("infractions_status_created_at_idx").on(
+      table.status,
+      table.createdAt,
+    ),
+    index("infractions_user_gave_notice_created_at_idx").on(
+      table.userGaveNotice,
+      table.createdAt,
+    ),
+  ],
+);
 export const infractionsRelations = relations(infractions, ({ one, many }) => ({
   user: one(users, {
     fields: [infractions.userId],
@@ -1988,8 +2149,137 @@ export const infractionsRelations = relations(infractions, ({ one, many }) => ({
     fields: [infractions.festivalId],
     references: [festivals.id],
   }),
+  createdBy: one(users, {
+    fields: [infractions.createdByUserId],
+    references: [users.id],
+    relationName: "createdInfractions",
+  }),
+  resolvedBy: one(users, {
+    fields: [infractions.resolvedByUserId],
+    references: [users.id],
+    relationName: "resolvedInfractions",
+  }),
+  voidedBy: one(users, {
+    fields: [infractions.voidedByUserId],
+    references: [users.id],
+    relationName: "voidedInfractions",
+  }),
+  /** @deprecated Prefer `sanctionLinks` (Phase 3 junction). */
   sanctions: many(sanctions),
+  sanctionLinks: many(sanctionInfractions),
+  events: many(infractionEvents),
+  notes: many(infractionNotes),
+  evidence: many(infractionEvidence),
 }));
+
+export const infractionEvents = pgTable(
+  "infraction_events",
+  {
+    id: serial("id").primaryKey(),
+    infractionId: integer("infraction_id")
+      .notNull()
+      .references(() => infractions.id, { onDelete: "cascade" }),
+    actorUserId: integer("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    eventType: infractionEventTypeEnum("event_type").notNull(),
+    fromStatus: infractionStatusEnum("from_status"),
+    toStatus: infractionStatusEnum("to_status"),
+    changes: jsonb("changes"),
+    note: text("note"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("infraction_events_infraction_id_created_at_idx").on(
+      table.infractionId,
+      table.createdAt,
+    ),
+  ],
+);
+export const infractionEventsRelations = relations(
+  infractionEvents,
+  ({ one }) => ({
+    infraction: one(infractions, {
+      fields: [infractionEvents.infractionId],
+      references: [infractions.id],
+    }),
+    actor: one(users, {
+      fields: [infractionEvents.actorUserId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const infractionNotes = pgTable(
+  "infraction_notes",
+  {
+    id: serial("id").primaryKey(),
+    infractionId: integer("infraction_id")
+      .notNull()
+      .references(() => infractions.id, { onDelete: "cascade" }),
+    authorUserId: integer("author_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    content: text("content").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("infraction_notes_infraction_id_created_at_idx").on(
+      table.infractionId,
+      table.createdAt,
+    ),
+  ],
+);
+export const infractionNotesRelations = relations(
+  infractionNotes,
+  ({ one }) => ({
+    infraction: one(infractions, {
+      fields: [infractionNotes.infractionId],
+      references: [infractions.id],
+    }),
+    author: one(users, {
+      fields: [infractionNotes.authorUserId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const infractionEvidence = pgTable(
+  "infraction_evidence",
+  {
+    id: serial("id").primaryKey(),
+    infractionId: integer("infraction_id")
+      .notNull()
+      .references(() => infractions.id, { onDelete: "cascade" }),
+    addedByUserId: integer("added_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    label: text("label"),
+    url: text("url").notNull(),
+    mimeType: text("mime_type"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("infraction_evidence_infraction_id_created_at_idx").on(
+      table.infractionId,
+      table.createdAt,
+    ),
+  ],
+);
+export const infractionEvidenceRelations = relations(
+  infractionEvidence,
+  ({ one }) => ({
+    infraction: one(infractions, {
+      fields: [infractionEvidence.infractionId],
+      references: [infractions.id],
+    }),
+    addedBy: one(users, {
+      fields: [infractionEvidence.addedByUserId],
+      references: [users.id],
+    }),
+  }),
+);
 
 export const sanctionTypeEnum = pgEnum("sanction_type", [
   "ban",
@@ -2007,34 +2297,375 @@ export const durationUnitEnum = pgEnum("duration_unit", [
   "indefinitely",
 ]);
 
-export const sanctions = pgTable("sanctions", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  infractionId: integer("infraction_id")
-    .notNull()
-    .references(() => infractions.id, { onDelete: "cascade" }),
-  type: sanctionTypeEnum("type").notNull(),
-  description: text("description"), // e.g. Custom explanation or extra instructions
-  duration: integer("duration"), // e.g. 2 festivals, 10 days, 1 month, 1 year
-  durationUnit: durationUnitEnum("duration_unit")
-    .default("indefinitely")
-    .notNull(),
-  active: boolean("active").default(true).notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-export const sanctionsRelations = relations(sanctions, ({ one }) => ({
+export const sanctionStatusEnum = pgEnum("sanction_status", [
+  "scheduled",
+  "active",
+  "expired",
+  "revoked",
+]);
+
+export const sanctionFestivalScopeEnum = pgEnum("sanction_festival_scope", [
+  "global",
+  "glitter",
+  "festicker",
+  "twinkler",
+]);
+
+export const sanctionEventTypeEnum = pgEnum("sanction_event_type", [
+  "created",
+  "approved",
+  "activated",
+  "edited",
+  "extended",
+  "scope_changed",
+  "infractions_changed",
+  "festival_excluded",
+  "festival_restored",
+  "reservation_eligibility_changed",
+  "expired",
+  "revoked",
+]);
+
+export const sanctions = pgTable(
+  "sanctions",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    /**
+     * @deprecated Prefer `sanction_infractions`. Kept nullable for Phase 7 cleanup.
+     * New writes still set this to the first linked infraction for backward compatibility.
+     */
+    infractionId: integer("infraction_id").references(() => infractions.id, {
+      onDelete: "restrict",
+    }),
+    type: sanctionTypeEnum("type").notNull(),
+    status: sanctionStatusEnum("status").default("active").notNull(),
+    description: text("description"),
+    festivalScope: sanctionFestivalScopeEnum("festival_scope")
+      .default("global")
+      .notNull(),
+    validityDuration: integer("validity_duration"),
+    validityUnit: durationUnitEnum("validity_unit")
+      .default("indefinitely")
+      .notNull(),
+    startsAt: timestamp("starts_at").defaultNow().notNull(),
+    endsAt: timestamp("ends_at"),
+    reservationDelayMinutes: integer("reservation_delay_minutes"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    approvedByUserId: integer("approved_by_user_id").references(
+      () => users.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    approvedAt: timestamp("approved_at").defaultNow().notNull(),
+    revokedByUserId: integer("revoked_by_user_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    revokedAt: timestamp("revoked_at"),
+    revocationReason: text("revocation_reason"),
+    /** @deprecated Prefer `validityDuration`. */
+    duration: integer("duration"),
+    /** @deprecated Prefer `validityUnit`. */
+    durationUnit: durationUnitEnum("duration_unit")
+      .default("indefinitely")
+      .notNull(),
+    /** @deprecated Prefer `status`. */
+    active: boolean("active").default(true).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("sanctions_user_id_status_idx").on(table.userId, table.status),
+    index("sanctions_festival_scope_status_idx").on(
+      table.festivalScope,
+      table.status,
+    ),
+    index("sanctions_ends_at_idx").on(table.endsAt),
+    check(
+      "sanctions_validity_configuration_check",
+      sql`
+        (
+          ${table.validityUnit} = 'indefinitely'
+          AND ${table.validityDuration} IS NULL
+          AND ${table.endsAt} IS NULL
+        )
+        OR
+        (
+          ${table.validityUnit} = 'festivals'
+          AND ${table.validityDuration} > 0
+          AND ${table.endsAt} IS NULL
+        )
+        OR
+        (
+          ${table.validityUnit} IN ('minutes', 'hours', 'days', 'months', 'years')
+          AND ${table.validityDuration} > 0
+          AND ${table.endsAt} > ${table.startsAt}
+        )
+      `,
+    ),
+    check(
+      "sanctions_reservation_delay_configuration_check",
+      sql`
+        (
+          ${table.type} = 'reservation_delay'
+          AND ${table.reservationDelayMinutes} > 0
+        )
+        OR
+        (
+          ${table.type} <> 'reservation_delay'
+          AND ${table.reservationDelayMinutes} IS NULL
+        )
+      `,
+    ),
+    check(
+      "sanctions_revocation_configuration_check",
+      sql`
+        (
+          ${table.status} = 'revoked'
+          AND ${table.revokedByUserId} IS NOT NULL
+          AND ${table.revokedAt} IS NOT NULL
+          AND NULLIF(BTRIM(${table.revocationReason}), '') IS NOT NULL
+        )
+        OR
+        (
+          ${table.status} <> 'revoked'
+          AND ${table.revokedByUserId} IS NULL
+          AND ${table.revokedAt} IS NULL
+          AND ${table.revocationReason} IS NULL
+        )
+      `,
+    ),
+  ],
+);
+export const sanctionsRelations = relations(sanctions, ({ one, many }) => ({
   user: one(users, {
     fields: [sanctions.userId],
     references: [users.id],
   }),
+  /** @deprecated Prefer `sanctionInfractions`. */
   infraction: one(infractions, {
     fields: [sanctions.infractionId],
     references: [infractions.id],
   }),
+  createdBy: one(users, {
+    fields: [sanctions.createdByUserId],
+    references: [users.id],
+    relationName: "createdSanctions",
+  }),
+  approvedBy: one(users, {
+    fields: [sanctions.approvedByUserId],
+    references: [users.id],
+    relationName: "approvedSanctions",
+  }),
+  revokedBy: one(users, {
+    fields: [sanctions.revokedByUserId],
+    references: [users.id],
+    relationName: "revokedSanctions",
+  }),
+  sanctionInfractions: many(sanctionInfractions),
+  events: many(sanctionEvents),
+  sanctionFestivals: many(sanctionFestivals),
 }));
+
+export const sanctionInfractions = pgTable(
+  "sanction_infractions",
+  {
+    sanctionId: integer("sanction_id")
+      .notNull()
+      .references(() => sanctions.id, { onDelete: "cascade" }),
+    infractionId: integer("infraction_id")
+      .notNull()
+      .references(() => infractions.id, { onDelete: "restrict" }),
+    linkedByUserId: integer("linked_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    linkedAt: timestamp("linked_at").defaultNow().notNull(),
+  },
+  (table) => [
+    unique().on(table.sanctionId, table.infractionId),
+    uniqueIndex("sanction_infractions_infraction_id_unique").on(
+      table.infractionId,
+    ),
+    index("sanction_infractions_sanction_id_idx").on(table.sanctionId),
+  ],
+);
+export const sanctionInfractionsRelations = relations(
+  sanctionInfractions,
+  ({ one }) => ({
+    sanction: one(sanctions, {
+      fields: [sanctionInfractions.sanctionId],
+      references: [sanctions.id],
+    }),
+    infraction: one(infractions, {
+      fields: [sanctionInfractions.infractionId],
+      references: [infractions.id],
+    }),
+    linkedBy: one(users, {
+      fields: [sanctionInfractions.linkedByUserId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const sanctionEvents = pgTable(
+  "sanction_events",
+  {
+    id: serial("id").primaryKey(),
+    sanctionId: integer("sanction_id")
+      .notNull()
+      .references(() => sanctions.id, { onDelete: "cascade" }),
+    actorUserId: integer("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    eventType: sanctionEventTypeEnum("event_type").notNull(),
+    fromStatus: sanctionStatusEnum("from_status"),
+    toStatus: sanctionStatusEnum("to_status"),
+    changes: jsonb("changes"),
+    note: text("note"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("sanction_events_sanction_id_created_at_idx").on(
+      table.sanctionId,
+      table.createdAt,
+    ),
+  ],
+);
+export const sanctionEventsRelations = relations(sanctionEvents, ({ one }) => ({
+  sanction: one(sanctions, {
+    fields: [sanctionEvents.sanctionId],
+    references: [sanctions.id],
+  }),
+  actor: one(users, {
+    fields: [sanctionEvents.actorUserId],
+    references: [users.id],
+  }),
+}));
+
+export const sanctionFestivals = pgTable(
+  "sanction_festivals",
+  {
+    sanctionId: integer("sanction_id")
+      .notNull()
+      .references(() => sanctions.id, { onDelete: "cascade" }),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "restrict" }),
+    qualifiedAt: timestamp("qualified_at").notNull(),
+    reservationEligibleAt: timestamp("reservation_eligible_at"),
+    reservationAccessNotificationQueuedAt: timestamp(
+      "reservation_access_notification_queued_at",
+    ),
+    countedAt: timestamp("counted_at"),
+    festivalEndAt: timestamp("festival_end_at"),
+    countsTowardDuration: boolean("counts_toward_duration")
+      .default(true)
+      .notNull(),
+    excludedReason: text("excluded_reason"),
+  },
+  (table) => [
+    unique().on(table.sanctionId, table.festivalId),
+    check(
+      "sanction_festivals_exclusion_reason_check",
+      sql`(
+        (${table.countsTowardDuration} = true AND ${table.excludedReason} IS NULL)
+        OR
+        (${table.countsTowardDuration} = false AND NULLIF(BTRIM(${table.excludedReason}), '') IS NOT NULL)
+      )`,
+    ),
+    check(
+      "sanction_festivals_count_snapshot_check",
+      sql`(
+        (${table.countedAt} IS NULL AND ${table.festivalEndAt} IS NULL)
+        OR
+        (${table.countedAt} IS NOT NULL AND ${table.festivalEndAt} IS NOT NULL)
+      )`,
+    ),
+    index("sanction_festivals_sanction_id_counted_at_idx").on(
+      table.sanctionId,
+      table.countedAt,
+    ),
+    index("sanction_festivals_festival_id_idx").on(table.festivalId),
+  ],
+);
+export const sanctionFestivalsRelations = relations(
+  sanctionFestivals,
+  ({ one }) => ({
+    sanction: one(sanctions, {
+      fields: [sanctionFestivals.sanctionId],
+      references: [sanctions.id],
+    }),
+    festival: one(festivals, {
+      fields: [sanctionFestivals.festivalId],
+      references: [festivals.id],
+    }),
+  }),
+);
+
+export const disciplinaryNotificationJobStatusEnum = pgEnum(
+  "disciplinary_notification_job_status",
+  ["pending", "processing", "completed", "failed"],
+);
+
+/**
+ * Durable participant-email outbox for infraction and sanction lifecycle
+ * notifications. Payloads are participant-safe snapshots so retries cannot
+ * expose later audit-only changes or describe a different lifecycle state.
+ */
+export const disciplinaryNotificationJobs = pgTable(
+  "disciplinary_notification_jobs",
+  {
+    id: serial("id").primaryKey(),
+    deduplicationKey: text("deduplication_key").notNull(),
+    userId: integer("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    entityType: text("entity_type").notNull(),
+    entityId: integer("entity_id").notNull(),
+    notificationKind: text("notification_kind").notNull(),
+    recipientEmail: text("recipient_email").notNull(),
+    payload: jsonb("payload").notNull(),
+    status: disciplinaryNotificationJobStatusEnum("status")
+      .default("pending")
+      .notNull(),
+    lastError: text("last_error"),
+    attempts: integer("attempts").default(0).notNull(),
+    nextAttemptAt: timestamp("next_attempt_at").defaultNow().notNull(),
+    leaseOwner: text("lease_owner"),
+    leaseExpiresAt: timestamp("lease_expires_at"),
+    completedAt: timestamp("completed_at"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("disciplinary_notification_jobs_deduplication_key_unique").on(
+      table.deduplicationKey,
+    ),
+    index("disciplinary_notification_jobs_status_next_attempt_idx").on(
+      table.status,
+      table.nextAttemptAt,
+    ),
+    index("disciplinary_notification_jobs_entity_idx").on(
+      table.entityType,
+      table.entityId,
+    ),
+  ],
+);
+
+export const disciplinaryNotificationJobsRelations = relations(
+  disciplinaryNotificationJobs,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [disciplinaryNotificationJobs.userId],
+      references: [users.id],
+    }),
+  }),
+);
 
 export const submissionStatusEnum = pgEnum("submission_status", [
   "pending_review",

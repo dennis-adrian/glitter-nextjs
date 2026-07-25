@@ -21,6 +21,7 @@ import {
   Building2Icon,
   CalendarCheck2Icon,
   CalendarIcon,
+  CircleAlertIcon,
   HomeIcon,
   ImagesIcon,
   LogOutIcon,
@@ -139,10 +140,16 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
             Categorías Glitter
           </MobileSidebarItem>
           {profile && profile.role === "festival_admin" && (
-            <MobileSidebarItem href="/dashboard/banners">
-              <ImagesIcon className="mr-2 h-6 w-6" />
-              Carrusel inicio
-            </MobileSidebarItem>
+            <>
+              <MobileSidebarItem href="/dashboard/infractions?limit=25&offset=0">
+                <CircleAlertIcon className="mr-2 h-6 w-6" />
+                Infracciones
+              </MobileSidebarItem>
+              <MobileSidebarItem href="/dashboard/banners">
+                <ImagesIcon className="mr-2 h-6 w-6" />
+                Carrusel inicio
+              </MobileSidebarItem>
+            </>
           )}
           {profile && profile.role === "admin" && (
             <>
@@ -153,6 +160,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
                 <MobileSidebarItem href="/dashboard/users?limit=10&offset=0&includeAdmins=false&sort=updatedAt&direction=desc">
                   <UsersIcon className="mr-2 h-6 w-6" />
                   Participantes
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/infractions?limit=25&offset=0">
+                  <CircleAlertIcon className="mr-2 h-6 w-6" />
+                  Infracciones
                 </MobileSidebarItem>
                 <MobileSidebarItem href="/dashboard/profile_requests?limit=10&offset=0&includeAdmins=false&sort=updatedAt&direction=desc&profileCompletion=complete">
                   <UsersIcon className="mr-2 h-6 w-6" />

@@ -6,6 +6,8 @@ import ReservationCreatedEmailTemplate from "@/app/emails/reservation-created";
 import { getCategoryOccupationLabel } from "@/app/lib/maps/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
 import {
@@ -15,11 +17,46 @@ import {
   standHolds,
   standReservations,
   stands,
+  users,
 } from "@/db/schema";
-import { and, eq, gt, lte, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, lte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 const HOLD_DURATION_MINUTES = 5;
+
+function canActOnBehalfOfUser(
+  actor: { id: number; role: string } | null | undefined,
+  targetUserId: number,
+): boolean {
+  if (!actor) return false;
+  if (actor.id === targetUserId) return true;
+  return actor.role === "admin" || actor.role === "festival_admin";
+}
+
+type HoldTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function rejectIfAnyParticipantIsIneligible(
+  userIds: readonly number[],
+  festivalId: number,
+  tx: HoldTx,
+) {
+  for (const [index, userId] of [...new Set(userIds)].entries()) {
+    const eligibility = await getReservationEligibility(
+      { userId, festivalId },
+      tx,
+    );
+    if (!eligibility.eligible) {
+      return {
+        success: false as const,
+        message:
+          index === 0
+            ? eligibility.message
+            : `El compañero seleccionado no puede participar en esta reserva. ${eligibility.message}`,
+      };
+    }
+  }
+  return null;
+}
 
 export async function fetchHoldWithStand(
   holdId: number,
@@ -61,8 +98,58 @@ export async function createStandHold(
   holdId?: number;
   alreadyHeld?: boolean;
 }> {
+  const actor = await getCurrentUserProfile();
+  if (!canActOnBehalfOfUser(actor, userId)) {
+    return {
+      success: false,
+      message: "No autorizado",
+    };
+  }
+
   try {
     const result = await db.transaction(async (tx) => {
+      const [stand] = await tx
+        .select({
+          id: stands.id,
+          status: stands.status,
+          festivalId: stands.festivalId,
+        })
+        .from(stands)
+        .where(eq(stands.id, standId))
+        .limit(1)
+        .for("update");
+
+      if (!stand) {
+        return {
+          success: false,
+          message: "Este espacio no existe",
+        };
+      }
+      if (stand.festivalId !== festivalId) {
+        return {
+          success: false,
+          message: "El espacio no pertenece a este festival",
+        };
+      }
+
+      const forUser = await tx.query.users.findFirst({
+        where: eq(users.id, userId),
+        columns: { status: true },
+      });
+      if (!forUser || forUser.status !== "verified") {
+        return {
+          success: false,
+          message: "El participante no está verificado",
+        };
+      }
+
+      const blocked = await rejectIfAnyParticipantIsIneligible(
+        [userId],
+        stand.festivalId,
+        tx,
+      );
+      if (blocked) return blocked;
+
       // Check user doesn't already have an active hold for this festival
       const existingHold = await tx
         .select({ id: standHolds.id, standId: standHolds.standId })
@@ -102,15 +189,7 @@ export async function createStandHold(
           );
       }
 
-      // Lock the stand row and verify it's available
-      const standResult = await tx.execute(
-        sql`SELECT id, status FROM stands WHERE id = ${standId} FOR UPDATE`,
-      );
-      const stand = standResult.rows[0] as
-        | { id: number; status: string }
-        | undefined;
-
-      if (!stand || stand.status !== "available") {
+      if (stand.status !== "available") {
         return {
           success: false,
           message: "Este espacio ya no está disponible",
@@ -123,7 +202,12 @@ export async function createStandHold(
       );
       const [hold] = await tx
         .insert(standHolds)
-        .values({ standId, userId, festivalId, expiresAt })
+        .values({
+          standId: stand.id,
+          userId,
+          festivalId: stand.festivalId,
+          expiresAt,
+        })
         .returning();
 
       // Update stand status to "held"
@@ -154,6 +238,14 @@ export async function cancelStandHold(
   holdId: number,
   userId: number,
 ): Promise<{ success: boolean; message: string }> {
+  const actor = await getCurrentUserProfile();
+  if (!canActOnBehalfOfUser(actor, userId)) {
+    return {
+      success: false,
+      message: "No autorizado",
+    };
+  }
+
   try {
     await db.transaction(async (tx) => {
       const [hold] = await tx
@@ -197,6 +289,14 @@ export async function confirmStandHold(
   reservationId?: number;
   description?: string;
 }> {
+  const actor = await getCurrentUserProfile();
+  if (!canActOnBehalfOfUser(actor, userId)) {
+    return {
+      success: false,
+      message: "No autorizado",
+    };
+  }
+
   try {
     const result = await db.transaction(async (tx) => {
       // Validate the hold is still active
@@ -205,8 +305,11 @@ export async function confirmStandHold(
           id: standHolds.id,
           standId: standHolds.standId,
           festivalId: standHolds.festivalId,
+          standFestivalId: stands.festivalId,
+          standPrice: stands.price,
         })
         .from(standHolds)
+        .innerJoin(stands, eq(stands.id, standHolds.standId))
         .where(
           and(
             eq(standHolds.id, holdId),
@@ -214,7 +317,8 @@ export async function confirmStandHold(
             gt(standHolds.expiresAt, new Date()),
           ),
         )
-        .limit(1);
+        .limit(1)
+        .for("update");
 
       if (!hold) {
         return {
@@ -223,6 +327,44 @@ export async function confirmStandHold(
             "Tu reserva temporal expiró. Vuelve al mapa para seleccionar otro espacio.",
         };
       }
+      if (hold.festivalId !== hold.standFestivalId) {
+        return {
+          success: false,
+          message:
+            "La reserva temporal no coincide con el festival del espacio",
+        };
+      }
+
+      const participantIds = [
+        ...new Set([userId, ...(partnerId ? [partnerId] : [])]),
+      ];
+      if (partnerId === userId) {
+        return {
+          success: false,
+          message: "El compañero no puede ser el usuario principal",
+        };
+      }
+
+      const participantRows = await tx
+        .select({ id: users.id, status: users.status })
+        .from(users)
+        .where(inArray(users.id, participantIds));
+      if (
+        participantRows.length !== participantIds.length ||
+        participantRows.some((participant) => participant.status !== "verified")
+      ) {
+        return {
+          success: false,
+          message: "Todos los participantes deben estar verificados",
+        };
+      }
+
+      const blocked = await rejectIfAnyParticipantIsIneligible(
+        participantIds,
+        hold.standFestivalId,
+        tx,
+      );
+      if (blocked) return blocked;
 
       // Create the actual reservation
       const [reservation] = await tx
@@ -234,9 +376,6 @@ export async function confirmStandHold(
         .returning();
 
       // Insert participants
-      const participantIds = [userId];
-      if (partnerId) participantIds.push(partnerId);
-
       await tx.insert(reservationParticipants).values(
         participantIds.map((uid) => ({
           userId: uid,
@@ -250,15 +389,8 @@ export async function confirmStandHold(
         .set({ status: "reserved", updatedAt: new Date() })
         .where(eq(stands.id, hold.standId));
 
-      // Get stand price for invoice
-      const [stand] = await tx
-        .select({ price: stands.price })
-        .from(stands)
-        .where(eq(stands.id, hold.standId))
-        .limit(1);
-
       // Create invoice
-      const standPrice = stand?.price ?? 0;
+      const standPrice = hold.standPrice ?? 0;
       await tx.insert(invoices).values({
         date: new Date(),
         userId: userId,

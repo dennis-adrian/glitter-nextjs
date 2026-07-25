@@ -19,6 +19,10 @@ const badgeVariants = cva(
         illustration: "bg-purple-100 border border-purple-300 text-purple-900",
         entrepreneurship: "bg-pink-100 border border-pink-300 text-pink-900",
         gastronomy: "bg-orange-100 border border-orange-300 text-orange-900",
+        green: "bg-green-100 border border-green-300 text-green-900",
+        amber: "bg-amber-100 border border-amber-300 text-amber-900",
+        red: "bg-red-100 border border-red-300 text-red-900",
+        orange: "bg-orange-100 border border-orange-300 text-orange-900",
       },
       size: {
         default: "text-xs",

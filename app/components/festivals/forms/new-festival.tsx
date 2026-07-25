@@ -47,6 +47,13 @@ const FormSchema = z.object({
   publicRegistration: z.boolean().prefault(false),
   eventDayRegistration: z.boolean().prefault(false),
   festivalType: z.enum([...festivalTypeEnum.enumValues]),
+  reservationsStartDate: z
+    .string()
+    .min(1, "El inicio de reservaciones es requerido")
+    .refine(
+      (value) => !Number.isNaN(new Date(value).getTime()),
+      "Fecha de inicio de reservaciones inválida",
+    ),
   dates: z
     .array(
       z.object({
@@ -145,6 +152,7 @@ export default function NewFestivalForm() {
       publicRegistration: false,
       eventDayRegistration: false,
       festivalType: "glitter",
+      reservationsStartDate: DateTime.local().toFormat("yyyy-MM-dd'T'HH:mm"),
       address: "",
       locationLabel: "",
       locationUrl: "",
@@ -223,7 +231,7 @@ export default function NewFestivalForm() {
       dateDetails: processedDates,
       createdAt: new Date(),
       updatedAt: new Date(),
-      reservationsStartDate: new Date(),
+      reservationsStartDate: new Date(data.reservationsStartDate),
     });
 
     if (result.success) {
@@ -345,6 +353,12 @@ export default function NewFestivalForm() {
                   <CalendarDaysIcon className="w-5 h-5" />
                   Fechas del Evento
                 </h3>
+                <TextInput
+                  name="reservationsStartDate"
+                  label="Inicio de reservaciones"
+                  type="datetime-local"
+                  required
+                />
                 {datesErrorMessage && (
                   <p className="text-sm text-destructive">
                     {datesErrorMessage}

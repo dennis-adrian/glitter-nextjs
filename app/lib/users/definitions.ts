@@ -18,5 +18,5 @@ export type QuickViewProfile = BaseProfile & {
 export type UserInfraction = InfractionBase & {
   type: InfractionType;
   festival: FestivalBase | null;
-  sanctions: SanctionBase[];
+  sanctionLinks: { sanction: SanctionBase }[];
 };

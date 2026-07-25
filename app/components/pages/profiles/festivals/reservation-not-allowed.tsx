@@ -8,6 +8,7 @@ import {
 } from "@/app/components/ui/card";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
 import { formatDate } from "@/app/lib/formatters";
+import type { ReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility-logic";
 import { DateTime } from "luxon";
 import dynamic from "next/dynamic";
 
@@ -18,11 +19,21 @@ const CopyLinkButtonComponent = dynamic(
 
 type ReservationNotAllowedProps = {
   festival: FestivalBase;
+  sanctionBlock?: Extract<ReservationEligibility, { eligible: false }>;
 };
 
 export default function ReservationNotAllowed(
   props: ReservationNotAllowedProps,
 ) {
+  if (props.sanctionBlock) {
+    return (
+      <SanctionReservationBlocked
+        festival={props.festival}
+        block={props.sanctionBlock}
+      />
+    );
+  }
+
   const today = formatDate(DateTime.now().toISO());
   const formattedStartDate = formatDate(
     props.festival.reservationsStartDate.toISOString(),
@@ -69,6 +80,56 @@ export default function ReservationNotAllowed(
                   Si te quedaste en la página, te aconsejamos recargarla cuando
                   las reservas ya estén habilitadas.
                 </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function SanctionReservationBlocked({
+  festival,
+  block,
+}: {
+  festival: FestivalBase;
+  block: Extract<ReservationEligibility, { eligible: false }>;
+}) {
+  const title =
+    block.reason === "ban"
+      ? "Reserva no disponible por sanción"
+      : "Reserva temporalmente restringida";
+
+  return (
+    <div className="container flex flex-col items-center justify-center p-4 md:p-6">
+      <Card className="max-w-[600px] w-full">
+        <CardHeader>
+          <CardTitle className="text-center text-xl">{festival.name}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center text-center gap-4">
+            <p className="font-semibold text-lg">{title}</p>
+            <p className="text-sm text-muted-foreground">{block.message}</p>
+            {block.reason === "reservation_delay" && block.eligibleAt && (
+              <div className="flex flex-col">
+                <span className="text-muted-foreground text-sm">
+                  Podrás reservar desde
+                </span>
+                <span className="font-semibold text-2xl">
+                  {formatDate(block.eligibleAt).toLocaleString(
+                    DateTime.DATETIME_MED,
+                  )}
+                </span>
+              </div>
+            )}
+            {block.reason === "reservation_delay" && (
+              <div className="flex flex-col items-center gap-2 text-sm">
+                <span>
+                  Copia el enlace de esta página para volver cuando puedas
+                  reservar.
+                </span>
+                <CopyLinkButtonComponent />
               </div>
             )}
           </div>
