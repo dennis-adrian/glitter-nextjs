@@ -42,6 +42,8 @@ import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
 import { z } from "zod";
 
+const MAX_BROWSER_TIMEOUT_MS = 2_147_483_647;
+
 const FormSchema = z
   .object({
     type: z.enum(sanctionTypeEnum.enumValues),
@@ -260,13 +262,26 @@ export default function CreateSanctionForm({
 
     syncStatus();
 
-    const delay = startsAtMs - Date.now();
-    if (delay <= 0) {
-      return;
-    }
+    let timer: number | undefined;
+    const scheduleStatusSync = () => {
+      const delay = startsAtMs - Date.now();
+      if (delay <= 0) {
+        syncStatus();
+        return;
+      }
 
-    const timer = window.setTimeout(syncStatus, delay);
-    return () => window.clearTimeout(timer);
+      timer = window.setTimeout(
+        scheduleStatusSync,
+        Math.min(delay, MAX_BROWSER_TIMEOUT_MS),
+      );
+    };
+
+    scheduleStatusSync();
+    return () => {
+      if (timer !== undefined) {
+        window.clearTimeout(timer);
+      }
+    };
   }, [reviewValues?.startsAt]);
 
   return (

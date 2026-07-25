@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 const sendEmailMock = vi.hoisted(() => vi.fn());
 
@@ -582,11 +584,16 @@ describe("disciplinary notification PII lifecycle", () => {
 
   it("repairs target-owned legacy sanction retries in one batch before scrubbing", async () => {
     const written: Array<Record<string, unknown>> = [];
+    const whereConditions: unknown[] = [];
+    const whereMock = vi.fn((condition: unknown) => {
+      whereConditions.push(condition);
+      return Promise.resolve();
+    });
     const updateMock = vi.fn(() => ({
       set: vi.fn((values: Record<string, unknown>) => {
         written.push(values);
         return {
-          where: vi.fn().mockResolvedValue(undefined),
+          where: whereMock,
         };
       }),
     }));
@@ -632,6 +639,8 @@ describe("disciplinary notification PII lifecycle", () => {
 
     expect(selectMock).toHaveBeenCalledOnce();
     expect(innerJoinMock).toHaveBeenCalledOnce();
+    const repairQuery = new PgDialect().sqlToQuery(whereConditions[0] as SQL);
+    expect(repairQuery.params).toEqual([1, 2]);
     expect(written).toEqual([
       { userId: profile.id, updatedAt: now },
       {
