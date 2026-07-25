@@ -7,8 +7,10 @@ import {
   fetchRecentSharedStandPartners,
 } from "@/app/lib/festivals/actions";
 import { fetchHoldWithStand } from "@/app/lib/stands/hold-actions";
+import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { notFound, redirect } from "next/navigation";
+import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/reservation-not-allowed";
 
 type HoldConfirmationPageProps = {
   profileId: number;
@@ -28,6 +30,16 @@ export default async function HoldConfirmationPage(
 
   const forProfile = await fetchUserProfileById(props.profileId);
   if (!forProfile) notFound();
+
+  const eligibility = await getReservationEligibility({
+    userId: forProfile.id,
+    festivalId: festival.id,
+  });
+  if (!eligibility.eligible) {
+    return (
+      <ReservationNotAllowed festival={festival} sanctionBlock={eligibility} />
+    );
+  }
 
   // Fetch and validate the hold
   const hold = await fetchHoldWithStand(

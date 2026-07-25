@@ -64,6 +64,13 @@ const FormSchema = z.object({
   eventDayRegistration: z.boolean().prefault(false),
   keepStoreOpen: z.boolean().prefault(false),
   festivalType: z.enum([...festivalTypeEnum.enumValues]),
+  reservationsStartDate: z
+    .string()
+    .min(1, "El inicio de reservaciones es requerido")
+    .refine(
+      (value) => !Number.isNaN(new Date(value).getTime()),
+      "Fecha de inicio de reservaciones inválida",
+    ),
   dates: z
     .array(
       z.object({
@@ -206,6 +213,9 @@ export default function UpdateFestivalForm({
       eventDayRegistration: festival.eventDayRegistration ?? false,
       keepStoreOpen: festival.keepStoreOpen ?? false,
       festivalType: festival.festivalType,
+      reservationsStartDate: DateTime.fromJSDate(
+        festival.reservationsStartDate,
+      ).toFormat("yyyy-MM-dd'T'HH:mm"),
       description: festival.description || "",
       address: festival.address || "",
       locationLabel: festival.locationLabel || "",
@@ -336,6 +346,7 @@ export default function UpdateFestivalForm({
     const festivalData = {
       ...data,
       id: festival.id,
+      reservationsStartDate: new Date(data.reservationsStartDate),
       deletedSectorIds: deletedSectorIdsRef.current,
       dates: processedDates.map((d) => ({
         id: d.id,
@@ -500,6 +511,16 @@ export default function UpdateFestivalForm({
                   <CalendarDaysIcon className="w-5 h-5" />
                   Fechas del Evento
                 </h3>
+                <TextInput
+                  name="reservationsStartDate"
+                  label="Inicio de reservaciones"
+                  type="datetime-local"
+                  required
+                />
+                <p className="text-sm text-muted-foreground">
+                  Cambiar esta fecha recalcula los retrasos de reserva que
+                  todavía no hayan comenzado.
+                </p>
                 {datesErrorMessage && (
                   <p className="text-sm text-destructive">
                     {datesErrorMessage}

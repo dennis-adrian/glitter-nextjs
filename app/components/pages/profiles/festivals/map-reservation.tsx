@@ -5,6 +5,7 @@ import ReservationNotAllowed from "@/app/components/pages/profiles/festivals/res
 import { fetchFestivalSectorsByUserCategory } from "@/app/lib/festival_sectors/actions";
 import { stripHiddenReservationsFromSectors } from "@/app/lib/reservations/reveal";
 import { fetchBaseFestival } from "@/app/lib/festivals/actions";
+import { getReservationEligibility } from "@/app/lib/sanctions/reservation-eligibility";
 import { getCurrentUserProfile, protectRoute } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { standHolds } from "@/db/schema";
@@ -43,6 +44,16 @@ export default async function MapReservationPage(
       <div className="text-muted-foreground flex pt-8 justify-center">
         No estás habilitado para participar en este evento
       </div>
+    );
+  }
+
+  const eligibility = await getReservationEligibility({
+    userId: forProfile.id,
+    festivalId: festival.id,
+  });
+  if (!eligibility.eligible) {
+    return (
+      <ReservationNotAllowed festival={festival} sanctionBlock={eligibility} />
     );
   }
 
