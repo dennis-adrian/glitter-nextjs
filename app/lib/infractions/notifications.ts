@@ -46,6 +46,7 @@ export const COMPLETED_NOTIFICATION_JOB_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const SCRUBBED_RECIPIENT_EMAIL = "";
 const SCRUBBED_PAYLOAD = {} as const;
 const PROFILE_DELETED_JOB_ERROR = "profile_deleted";
+const UNRESOLVED_SANCTION_RETRY_OWNER_ERROR = "unresolved_sanction_retry_owner";
 
 type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type NotificationExecutor = typeof db | DbTx;
@@ -192,6 +193,75 @@ export async function scrubDisciplinaryNotificationJobsForUser(
   userId: number,
   now = new Date(),
 ) {
+  const legacySanctionJobs =
+    await executor.query.disciplinaryNotificationJobs.findMany({
+      where: and(
+        isNull(disciplinaryNotificationJobs.userId),
+        eq(disciplinaryNotificationJobs.entityType, "sanction"),
+      ),
+      columns: { id: true, payload: true },
+    });
+
+  for (const job of legacySanctionJobs) {
+    const payload = job.payload;
+    if (
+      !payload ||
+      typeof payload !== "object" ||
+      Array.isArray(payload) ||
+      !("entityType" in payload) ||
+      payload.entityType !== "sanction_enqueue_retry"
+    ) {
+      continue;
+    }
+
+    const sanctionId =
+      "sanctionId" in payload &&
+      typeof payload.sanctionId === "number" &&
+      Number.isInteger(payload.sanctionId) &&
+      payload.sanctionId > 0
+        ? payload.sanctionId
+        : null;
+    const sanction =
+      sanctionId === null
+        ? null
+        : await executor.query.sanctions.findFirst({
+            where: eq(sanctions.id, sanctionId),
+            columns: { userId: true },
+          });
+
+    if (sanction) {
+      await executor
+        .update(disciplinaryNotificationJobs)
+        .set({ userId: sanction.userId, updatedAt: now })
+        .where(
+          and(
+            eq(disciplinaryNotificationJobs.id, job.id),
+            isNull(disciplinaryNotificationJobs.userId),
+          ),
+        );
+      continue;
+    }
+
+    // An ownerless retry that cannot be resolved is quarantined in place.
+    await executor
+      .update(disciplinaryNotificationJobs)
+      .set({
+        status: "failed",
+        recipientEmail: SCRUBBED_RECIPIENT_EMAIL,
+        payload: SCRUBBED_PAYLOAD,
+        lastError: UNRESOLVED_SANCTION_RETRY_OWNER_ERROR,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(disciplinaryNotificationJobs.id, job.id),
+          isNull(disciplinaryNotificationJobs.userId),
+        ),
+      );
+  }
+
   await executor
     .update(disciplinaryNotificationJobs)
     .set({
@@ -265,11 +335,24 @@ async function insertNotificationJob(
       disciplinaryNotificationJobs.deduplicationKey,
       input.deduplicationKey,
     ),
-    columns: { id: true },
+    columns: { id: true, userId: true },
   });
   if (!existing) {
     throw new Error("No se pudo encolar la notificación disciplinaria");
   }
+
+  if (existing.userId === null && input.userId !== null) {
+    await executor
+      .update(disciplinaryNotificationJobs)
+      .set({ userId: input.userId, updatedAt: now })
+      .where(
+        and(
+          eq(disciplinaryNotificationJobs.id, existing.id),
+          isNull(disciplinaryNotificationJobs.userId),
+        ),
+      );
+  }
+
   return existing.id;
 }
 

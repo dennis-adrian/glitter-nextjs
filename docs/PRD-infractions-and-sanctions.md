@@ -963,16 +963,50 @@ Before applying new restrictions:
       **actorUserId = createdByUserId** and
       **operation = create_infraction**.
     - Do not invent an administrator for rows where **createdByUserId** is null.
-      Quarantine those rows outside the live idempotency table, and keep the
-      legacy lookup available through the supported retry window before
-      excluding them from migration.
+      Move them to the durable
+      **infraction_idempotency_legacy_quarantine** table, keyed by the source
+      infraction ID and storing the legacy key, operation, available canonical
+      request hash/result snapshot, **quarantinedAt**, **retryEligibleUntil**,
+      reason, and resolution metadata. The quarantine is outside the live
+      uniqueness constraint but remains queryable and auditable.
     - If preflight finds duplicate target tuples, conflicting ownership, or
       several possible source requests, quarantine every ambiguous row for
       manual resolution instead of choosing a winner.
+    - Define the supported retry window as 30 days beginning when the
+      compatibility release reaches 100% of application traffic and all older
+      instances have drained. During that window the create path must resolve
+      an idempotency key in this order: (1) the scoped live record by
+      **(operation, actorUserId, key)**, (2) an eligible quarantine record by
+      **(operation, legacy key)**, (3) the read-only legacy source lookup, and
+      only then (4) insert a new scoped record. A matching stored hash replays
+      its result; a conflicting or unreconstructable quarantined request is
+      rejected for manual resolution, never bypassed with a new insert.
+    - Perform the backfill/quarantine classification and record the common
+      **retryEligibleUntil** cutoff in one migration transaction. Enable the
+      ordered lookup/create path only after that transaction commits. At the
+      end of the window, atomically mark quarantine rows ineligible; retain
+      their audit metadata (and redact snapshots under the retention policy),
+      but stop using them to satisfy retries.
+    - Before making **actorUserId** required or enabling
+      **UNIQUE(operation, actorUserId, key)**, produce a reconciliation report
+      with source keyed-row count, migrated-live count, quarantined count by
+      reason, duplicate/conflicting tuple count, invalid-owner count,
+      reconstructable-hash/result count, and unresolved count. The report must
+      prove that every source row is represented exactly once in the live
+      table or durable quarantine, that live rows have non-null owners and no
+      duplicate target tuples, and that every quarantine row has a deterministic
+      retry disposition. Any unresolved row (count greater than zero) aborts
+      the cutover and constraint migration.
+    - Legacy lookup removal is authorized only at the post-window checkpoint:
+      the 30-day cutoff has passed, all older instances are confirmed drained,
+      the reconciliation report passes with zero unresolved rows, and telemetry
+      shows zero legacy-source lookup hits for the preceding seven consecutive
+      days. Remove the fallback and clean up the read-only legacy source in the
+      same release; quarantined records remain durable but are no longer retry
+      eligible.
     - Enforce required **actorUserId** and
-      **UNIQUE(operation, actorUserId, key)** only after the live target table
-      contains no unresolved rows; quarantined rows do not participate in the
-      constraint.
+      **UNIQUE(operation, actorUserId, key)** only after that reconciliation
+      report passes; quarantined rows do not participate in the constraint.
 11. Add remaining constraints and indexes after data cleanup.
 12. Remove **infractions.handled**, **sanctions.active**, and **sanctions.infractionId** after the new code is active and verified.
 

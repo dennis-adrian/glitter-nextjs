@@ -89,6 +89,19 @@ function createInfractionEnqueueTransaction() {
         }),
       ),
     })),
+    update: vi.fn(() => ({
+      set: vi.fn((values: { userId?: number; updatedAt?: Date }) => ({
+        where: vi.fn(() => {
+          const existing = [...jobs.values()].find(
+            (job) => job.userId === null,
+          );
+          if (existing && values.userId !== undefined) {
+            existing.userId = values.userId;
+          }
+          return Promise.resolve(undefined);
+        }),
+      })),
+    })),
   };
 
   return { tx, jobs };
@@ -166,6 +179,33 @@ describe("disciplinary notification delivery", () => {
       userId: profile.id,
       lastError: "Missing participant",
     });
+  });
+
+  it("repairs the owner on a deduplicated legacy sanction retry", async () => {
+    const { tx, jobs } = createInfractionEnqueueTransaction();
+    jobs.set("sanction:11:expired", {
+      id: 77,
+      payload: {
+        entityType: "sanction_enqueue_retry",
+        sanctionId: 11,
+      },
+      userId: null,
+      lastError: "Missing participant",
+    });
+
+    await expect(
+      recordSanctionLifecycleNotificationEnqueueFailure(
+        tx as never,
+        {
+          sanctionId: 11,
+          kind: "expired",
+          deduplicationKey: "sanction:11:expired",
+        },
+        new Error("Missing participant"),
+      ),
+    ).resolves.toBe(77);
+
+    expect(jobs.get("sanction:11:expired")?.userId).toBe(profile.id);
   });
 
   it("queues reservation-access delivery when the eligibility time is reached", async () => {
@@ -510,12 +550,102 @@ describe("disciplinary notification PII lifecycle", () => {
     const now = new Date("2026-07-24T12:00:00.000Z");
 
     await scrubDisciplinaryNotificationJobsForUser(
-      { update: updateMock } as never,
+      {
+        query: {
+          disciplinaryNotificationJobs: {
+            findMany: vi.fn().mockResolvedValue([]),
+          },
+        },
+        update: updateMock,
+      } as never,
       profile.id,
       now,
     );
 
     expect(written).toEqual([
+      {
+        status: "failed",
+        lastError: "profile_deleted",
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        updatedAt: now,
+      },
+      {
+        recipientEmail: "",
+        payload: {},
+        userId: null,
+        updatedAt: now,
+      },
+    ]);
+  });
+
+  it("repairs or quarantines ownerless legacy sanction retries before scrubbing", async () => {
+    const written: Array<Record<string, unknown>> = [];
+    const updateMock = vi.fn(() => ({
+      set: vi.fn((values: Record<string, unknown>) => {
+        written.push(values);
+        return {
+          where: vi.fn().mockResolvedValue(undefined),
+        };
+      }),
+    }));
+    const sanctionFindFirst = vi
+      .fn()
+      .mockResolvedValueOnce({ userId: profile.id })
+      .mockResolvedValueOnce({ userId: 99 })
+      .mockResolvedValueOnce(null);
+    const now = new Date("2026-07-24T12:00:00.000Z");
+
+    await scrubDisciplinaryNotificationJobsForUser(
+      {
+        query: {
+          disciplinaryNotificationJobs: {
+            findMany: vi.fn().mockResolvedValue([
+              {
+                id: 1,
+                payload: {
+                  entityType: "sanction_enqueue_retry",
+                  sanctionId: 11,
+                },
+              },
+              {
+                id: 2,
+                payload: {
+                  entityType: "sanction_enqueue_retry",
+                  sanctionId: 22,
+                },
+              },
+              {
+                id: 3,
+                payload: {
+                  entityType: "sanction_enqueue_retry",
+                  sanctionId: 33,
+                },
+              },
+            ]),
+          },
+          sanctions: {
+            findFirst: sanctionFindFirst,
+          },
+        },
+        update: updateMock,
+      } as never,
+      profile.id,
+      now,
+    );
+
+    expect(written).toEqual([
+      { userId: profile.id, updatedAt: now },
+      { userId: 99, updatedAt: now },
+      {
+        status: "failed",
+        recipientEmail: "",
+        payload: {},
+        lastError: "unresolved_sanction_retry_owner",
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        updatedAt: now,
+      },
       {
         status: "failed",
         lastError: "profile_deleted",
