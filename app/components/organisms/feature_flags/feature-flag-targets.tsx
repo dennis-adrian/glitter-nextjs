@@ -124,6 +124,7 @@ export default function FeatureFlagTargets({ flagKey, targets }: Props) {
           placeholder="persona@ejemplo.com"
           disabled={isPending}
         />
+        <Label htmlFor={`${flagKey}-target-note`}>Nota (opcional)</Label>
         <Input
           id={`${flagKey}-target-note`}
           value={note}

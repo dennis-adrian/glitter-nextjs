@@ -199,7 +199,7 @@ A free session:
 - A buyer may add multiple individual sessions to the same cart.
 - Checkout produces one combined total and one voucher for the entire purchase.
 - Capacity for every line is reserved together.
-- After approval, one distinct QR is issued per person and session.
+- After approval, one distinct ticket is issued per person and session. Individual purchases deliver one QR per ticket; a Week Pass delivers a single pass QR scanned at every included session.
 - A person cannot buy more than one ticket for themselves in the same occurrence.
 
 ### 7.2 Week Pass
@@ -342,7 +342,7 @@ Active participants review purchases, vouchers, and tickets from a dedicated pro
 
 - Voucher submitted and seats reserved.
 - Changes requested.
-- Payment approved, with secure link and QR code per session.
+- Payment approved, with secure link and QR code per session, or the single pass QR for a Week Pass.
 - Cancellation confirmation and reminder that no refund is due.
 - Cancellation or rescheduling by Glitter, with refund instructions when applicable.
 

@@ -104,7 +104,7 @@ Phase 0: contracts and architecture
 - Server-side evaluation of the three audience modes:
   - Active participants and guests.
   - Active participants only.
-  - Guests only.
+  - Guests or general public only.
 - Applicable-price engine and eligibility snapshot.
 - Registration for guests/public users and active participants.
 - Secure guest access and an initial purchase/ticket area in the active participant's profile.
@@ -175,7 +175,8 @@ Phase 0: contracts and architecture
   - One reserved seat in every session.
   - Festival Fast Pass represented as an optional benefit without operational fulfillment.
 - Week Pass recommendation when the cart contains every individual session, including displayed savings.
-- One QR per session after approval.
+- One ticket per person and session after approval, presented to the pass holder as a single pass QR
+  scanned at every included session.
 - Self-service upgrade from an individual ticket to Week Pass:
   - Preserves the existing seat.
   - Verifies capacity in every remaining session.

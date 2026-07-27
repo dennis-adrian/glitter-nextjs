@@ -275,8 +275,24 @@ Immutable reschedule history. Insert-only; never updated or deleted.
 Checks: prices `>= 0`; `participantPrice IS NULL OR participantPrice <= publicPrice`.
 
 `program_pass_sessions` (`passId`, `sessionId`, `unique(passId, sessionId)`) is populated only when
-`inclusionMode = 'explicit'`. The MVP always uses `all_program_sessions`, resolved at purchase time
-against currently published sessions, and the resolved set is snapshotted as purchase lines.
+`inclusionMode = 'explicit'`. Both modes name _sessions_, which carry no inventory, so inclusion is
+resolved to **occurrences** before anything can be reserved:
+
+1. Take the included sessions — every `published` session in the program for `all_program_sessions`,
+   the `program_pass_sessions` rows for `explicit`.
+2. For each, take exactly one occurrence: the earliest still-purchasable one, ordered by
+   (`startsAt`, `id`). A session whose occurrences are all past, cancelled, or closed to sales
+   contributes nothing.
+3. The result is a set of `occurrenceId`s — the pass's resolved inventory set.
+
+That set is what the checkout transaction locks and counts against capacity (§9.2), and it is
+snapshotted as one `session_purchase_lines` row per occurrence, so a pass purchase and an individual
+purchase are the same shape downstream. The ordering rule is deterministic and total, which is what
+lets two concurrent pass checkouts resolve to identical occurrence ids and serialize on the same row
+locks. Resolution happens once, at checkout: publishing a session or adding an occurrence afterwards
+never widens an existing purchase, and a buyer's entitlement is readable from the snapshotted lines
+without replaying today's catalogue. Phase 1 implements this rule as written — it is a contract, not
+a default.
 
 ### 6.9 `program_pass_benefits`
 
@@ -599,6 +615,13 @@ than five ticket codes: at a busy door, finding the right QR in an email is the 
 presenting the wrong session's code is the most common failure. The credential is decoupled from
 the tickets, which stay one-per-occurrence.
 
+This refines — it does not contradict — the PRD's "one distinct QR per person and session"
+(PRD §7.1, §11.2) and roadmap Phase 4's "one QR per session". _Issuance_ is unchanged and still
+satisfies those criteria: one ticket per person and occurrence, each with its own code, each scanned
+at its own door. What changes is only what a **pass** buyer is _delivered_: one pass QR instead of
+one per session. An individual purchase — including a multi-session cart — still delivers one QR per
+ticket, because those buyers have no pass code. Roadmap and PRD wording is updated to match.
+
 - `passCode` is generated in the same transaction that issues the pass's tickets, guarded by
   `WHERE passCode IS NULL` so re-approval cannot rotate it.
 - Check-in always happens from a specific occurrence's page, so the scanner resolves a scanned
@@ -631,8 +654,13 @@ the tickets, which stay one-per-occurrence.
 
 1. Validate the source purchase is `approved`, holds a `valid` ticket, and its program has a
    published pass.
-2. Compute the pass price for the buyer's _current_ eligibility and
-   `creditedAmount = sum(paid amounts for the tickets being folded in)`.
+2. Compute the pass price for the buyer's _current_ eligibility, let
+   `priorPaidAmount = sum(paid amounts for the tickets being folded in)`, and set
+   `creditedAmount = min(subtotalAmount, priorPaidAmount)`. The cap is what keeps
+   `totalAmount = subtotalAmount - creditedAmount` non-negative and the row's check constraints
+   (§6.10) satisfiable when the buyer already paid more than the pass costs. The uncapped
+   `priorPaidAmount` is recorded on the `upgrade_initiated` event, so the amount forgone stays
+   auditable rather than being lost to the cap.
 3. Open a transaction: lock every remaining included occurrence in ascending id order, verify
    availability for all of them, and insert the new purchase plus one line per remaining
    occurrence. Occurrences the buyer already holds a valid ticket for are skipped, never
@@ -753,7 +781,7 @@ one: v1 was status alone, v2 is status plus the ban check. Bump it in
 
 ### 9.1 Availability is derived, never stored
 
-```
+```text
 occupied(occurrence) =
     count(session_tickets where occurrenceId = o and status = 'valid')
   + count(session_purchase_lines l join session_purchases p on l.purchaseId = p.id
@@ -777,7 +805,7 @@ Consequences that satisfy the PRD's capacity invariants directly:
 
 ### 9.2 Checkout transaction
 
-```
+```sql
 BEGIN
   -- deterministic order prevents deadlock between a Week Pass and an individual sale
   SELECT id, capacity FROM session_occurrences
@@ -1002,7 +1030,7 @@ semantics.
 Following the repository's conventions — `app/lib/<domain>/` for server logic, `app/components/`
 for every component (route folders stay routing-only, one component per file):
 
-```
+```text
 app/lib/programs/
   eligibility.ts          # delivered in Phase 0
   eligibility.test.ts

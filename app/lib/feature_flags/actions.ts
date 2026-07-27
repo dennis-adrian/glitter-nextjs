@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, ilike } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -101,12 +101,13 @@ export async function addFeatureFlagTarget(input: AddFeatureFlagTargetInput) {
     return { success: false, message: "Funcionalidad desconocida" } as const;
   }
 
-  // ilike with no wildcards is a case-insensitive exact match — an admin typing
-  // an email by hand should not have to match the stored casing.
+  // Compared lowercased rather than with `ilike`, so an admin typing an email by
+  // hand need not match the stored casing while `%` and `_` stay literal
+  // characters instead of pattern wildcards.
   const [target] = await db
     .select({ id: users.id })
     .from(users)
-    .where(ilike(users.email, email))
+    .where(eq(sql`lower(${users.email})`, email.toLowerCase()))
     .limit(1);
 
   if (!target) {

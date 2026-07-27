@@ -68,7 +68,7 @@ app/lib/feature_flags/
   visibility.ts             # the whole rule, pure
   visibility.test.ts
   data.ts                   # server-only reads, react cache(), lazy row creation
-  helpers.ts                # isFeatureEnabled / requireFeatureEnabled / resolveFeatureFlagMap
+  helpers.ts                # isFeatureEnabled / requireFeatureEnabled / featureFlagGuard / resolveFeatureFlagMap
   actions.ts                # admin-only mutations
 app/components/organisms/feature_flags/
   feature-gate.tsx          # gate part of a page (server)
