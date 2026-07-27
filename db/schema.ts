@@ -3084,3 +3084,427 @@ export const featureFlagUserTargetsRelations = relations(
     }),
   }),
 );
+
+/* -------------------------------------------------------------------------- */
+/* Paid programs and sessions                                                  */
+/* See docs/ARCHITECTURE-paid-programs-and-sessions.md §6.                     */
+/* Deliberately independent of festivalType, sectors, stands, reservations,    */
+/* festival activities, store products, and the visitor `tickets` table. The   */
+/* only link into an existing domain is the optional `programs.festivalId`.    */
+/* -------------------------------------------------------------------------- */
+
+/** Editorial publication state, for both programs and their sessions. */
+export const programStatusEnum = pgEnum("program_status", [
+  "draft",
+  "published",
+]);
+
+export const sessionTypeEnum = pgEnum("session_type", ["talk", "workshop"]);
+
+/** Aligned with `marketingBannerAudienceEnum` vocabulary. */
+export const sessionAudienceEnum = pgEnum("session_audience", [
+  "all",
+  "participants_only",
+  "public_only",
+]);
+
+export const sessionSkillLevelEnum = pgEnum("session_skill_level", [
+  "beginner",
+  "intermediate",
+  "advanced",
+]);
+
+/**
+ * Operational state of one scheduled occurrence. Sales state is derived from the
+ * sales window rather than stored, and `rescheduled` is a flag (`rescheduledAt`)
+ * rather than a status, so a rescheduled occurrence keeps selling.
+ */
+export const occurrenceLifecycleStatusEnum = pgEnum(
+  "occurrence_lifecycle_status",
+  ["scheduled", "completed", "cancelled"],
+);
+
+/** A reusable place. Resolution is occurrence → session → program. */
+export const venues = pgTable("venues", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  address: text("address"),
+  locationLabel: text("location_label"),
+  locationUrl: text("location_url"),
+  isActive: boolean("is_active").default(true).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+/**
+ * Singleton defaults for the programs domain, following the `storeSettings`
+ * precedent. The row is created on first read, so no seed migration is needed.
+ */
+export const programSettings = pgTable(
+  "program_settings",
+  {
+    id: serial("id").primaryKey(),
+    key: text("key").notNull().unique(),
+    defaultParticipantDiscountPercent: numeric(
+      "default_participant_discount_percent",
+      { precision: 5, scale: 2, mode: "number" },
+    )
+      .default(0)
+      .notNull(),
+    defaultHoldMinutes: integer("default_hold_minutes").default(20).notNull(),
+    defaultOccurrenceCapacity: integer("default_occurrence_capacity")
+      .default(20)
+      .notNull(),
+    defaultWaitlistInvitationWindowMinutes: integer(
+      "default_waitlist_invitation_window_minutes",
+    )
+      .default(1440)
+      .notNull(),
+    attendeeCancellationCutoffHours: integer(
+      "attendee_cancellation_cutoff_hours",
+    )
+      .default(48)
+      .notNull(),
+    bankQrImageUrl: text("bank_qr_image_url"),
+    noRefundPolicyVersion: text("no_refund_policy_version")
+      .default("v1")
+      .notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check(
+      "program_settings_positive_durations",
+      sql`${t.defaultHoldMinutes} > 0
+        AND ${t.defaultOccurrenceCapacity} > 0
+        AND ${t.defaultWaitlistInvitationWindowMinutes} > 0
+        AND ${t.attendeeCancellationCutoffHours} > 0`,
+    ),
+    check(
+      "program_settings_discount_range",
+      sql`${t.defaultParticipantDiscountPercent} >= 0
+        AND ${t.defaultParticipantDiscountPercent} <= 100`,
+    ),
+  ],
+);
+
+/**
+ * A thematic grouping of sessions. The festival link is optional: a program may
+ * exist with no festival at all, and the link adds context, never dependency.
+ */
+export const programs = pgTable(
+  "programs",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull().unique(),
+    summary: text("summary"),
+    description: text("description"),
+    bannerUrl: text("banner_url"),
+    thumbnailUrl: text("thumbnail_url"),
+    startDate: timestamp("start_date"),
+    endDate: timestamp("end_date"),
+    status: programStatusEnum("status").default("draft").notNull(),
+    festivalId: integer("festival_id").references(() => festivals.id, {
+      onDelete: "set null",
+    }),
+    defaultVenueId: integer("default_venue_id").references(() => venues.id, {
+      onDelete: "restrict",
+    }),
+    /** Overrides `program_settings.defaultParticipantDiscountPercent`. */
+    participantDiscountPercent: numeric("participant_discount_percent", {
+      precision: 5,
+      scale: 2,
+      mode: "number",
+    }),
+    waitlistInvitationWindowMinutes: integer(
+      "waitlist_invitation_window_minutes",
+    ),
+    holdMinutes: integer("hold_minutes"),
+    publishedAt: timestamp("published_at"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("programs_status_idx").on(t.status),
+    index("programs_festival_id_idx").on(t.festivalId),
+    check(
+      "programs_date_range_valid",
+      sql`${t.endDate} IS NULL OR ${t.startDate} IS NULL OR ${t.endDate} >= ${t.startDate}`,
+    ),
+    check(
+      "programs_discount_range",
+      sql`${t.participantDiscountPercent} IS NULL
+        OR (${t.participantDiscountPercent} >= 0 AND ${t.participantDiscountPercent} <= 100)`,
+    ),
+    check(
+      "programs_positive_overrides",
+      sql`(${t.waitlistInvitationWindowMinutes} IS NULL OR ${t.waitlistInvitationWindowMinutes} > 0)
+        AND (${t.holdMinutes} IS NULL OR ${t.holdMinutes} > 0)`,
+    ),
+  ],
+);
+export const programsRelations = relations(programs, ({ one, many }) => ({
+  festival: one(festivals, {
+    fields: [programs.festivalId],
+    references: [festivals.id],
+  }),
+  defaultVenue: one(venues, {
+    fields: [programs.defaultVenueId],
+    references: [venues.id],
+  }),
+  sessions: many(programSessions),
+}));
+
+/**
+ * Purchasable content: what the session is about, who gives it, what it costs.
+ * Carries no schedule and no inventory — those belong to its occurrences.
+ */
+export const programSessions = pgTable(
+  "program_sessions",
+  {
+    id: serial("id").primaryKey(),
+    programId: integer("program_id")
+      .notNull()
+      .references(() => programs.id, { onDelete: "cascade" }),
+    slug: text("slug").notNull(),
+    title: text("title").notNull(),
+    type: sessionTypeEnum("type").notNull(),
+    topic: text("topic"),
+    description: text("description"),
+    /** Array of strings; the "what you'll take away" bullets. */
+    learningOutcomes: jsonb("learning_outcomes").$type<string[]>().default([]),
+    skillLevel: sessionSkillLevelEnum("skill_level"),
+    imageUrl: text("image_url"),
+    audience: sessionAudienceEnum("audience").default("all").notNull(),
+    publicPrice: numeric("public_price", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    })
+      .default(0)
+      .notNull(),
+    /** Explicit override of the participant discount rule. */
+    participantPrice: numeric("participant_price", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }),
+    status: programStatusEnum("status").default("draft").notNull(),
+    publishedAt: timestamp("published_at"),
+    venueId: integer("venue_id").references(() => venues.id, {
+      onDelete: "restrict",
+    }),
+    displayOrder: integer("display_order").default(0).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique().on(t.programId, t.slug),
+    index("program_sessions_program_id_status_idx").on(t.programId, t.status),
+    check("program_sessions_public_price_positive", sql`${t.publicPrice} >= 0`),
+    check(
+      "program_sessions_participant_price_valid",
+      sql`${t.participantPrice} IS NULL
+        OR (${t.participantPrice} >= 0 AND ${t.participantPrice} <= ${t.publicPrice})`,
+    ),
+  ],
+);
+export const programSessionsRelations = relations(
+  programSessions,
+  ({ one, many }) => ({
+    program: one(programs, {
+      fields: [programSessions.programId],
+      references: [programs.id],
+    }),
+    venue: one(venues, {
+      fields: [programSessions.venueId],
+      references: [venues.id],
+    }),
+    occurrences: many(sessionOccurrences),
+    sessionSpeakers: many(sessionSpeakers),
+  }),
+);
+
+/**
+ * One scheduled instance of a session: its time, place, capacity, sales window,
+ * and inventory. A repeat group created for demand is a separate occurrence and
+ * shares no inventory with the original.
+ */
+export const sessionOccurrences = pgTable(
+  "session_occurrences",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: integer("session_id")
+      .notNull()
+      .references(() => programSessions.id, { onDelete: "cascade" }),
+    startsAt: timestamp("starts_at").notNull(),
+    endsAt: timestamp("ends_at").notNull(),
+    venueId: integer("venue_id").references(() => venues.id, {
+      onDelete: "restrict",
+    }),
+    room: text("room"),
+    capacity: integer("capacity").default(20).notNull(),
+    salesStartAt: timestamp("sales_start_at"),
+    salesEndAt: timestamp("sales_end_at"),
+    /** Manual close, independent of the window. */
+    salesClosedAt: timestamp("sales_closed_at"),
+    lifecycleStatus: occurrenceLifecycleStatusEnum("lifecycle_status")
+      .default("scheduled")
+      .notNull(),
+    cancelledAt: timestamp("cancelled_at"),
+    cancelledReason: text("cancelled_reason"),
+    completedAt: timestamp("completed_at"),
+    /** Last reschedule; drives the badge and the refund-request right. */
+    rescheduledAt: timestamp("rescheduled_at"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("session_occurrences_session_id_starts_at_idx").on(
+      t.sessionId,
+      t.startsAt,
+    ),
+    index("session_occurrences_lifecycle_starts_at_idx").on(
+      t.lifecycleStatus,
+      t.startsAt,
+    ),
+    check(
+      "session_occurrences_time_range_valid",
+      sql`${t.endsAt} > ${t.startsAt}`,
+    ),
+    check("session_occurrences_capacity_positive", sql`${t.capacity} > 0`),
+    check(
+      "session_occurrences_sales_window_valid",
+      sql`${t.salesEndAt} IS NULL OR ${t.salesStartAt} IS NULL OR ${t.salesEndAt} >= ${t.salesStartAt}`,
+    ),
+    check(
+      "session_occurrences_cancelled_consistent",
+      sql`${t.lifecycleStatus} <> 'cancelled' OR ${t.cancelledAt} IS NOT NULL`,
+    ),
+    check(
+      "session_occurrences_completed_consistent",
+      sql`${t.lifecycleStatus} <> 'completed' OR ${t.completedAt} IS NOT NULL`,
+    ),
+  ],
+);
+export const sessionOccurrencesRelations = relations(
+  sessionOccurrences,
+  ({ one, many }) => ({
+    session: one(programSessions, {
+      fields: [sessionOccurrences.sessionId],
+      references: [programSessions.id],
+    }),
+    venue: one(venues, {
+      fields: [sessionOccurrences.venueId],
+      references: [venues.id],
+    }),
+    scheduleChanges: many(sessionOccurrenceScheduleChanges),
+  }),
+);
+
+/**
+ * A speaker or facilitator. Admin-maintained and account-free: a speaker never
+ * needs a Glitter profile.
+ */
+export const speakers = pgTable("speakers", {
+  id: serial("id").primaryKey(),
+  publicName: text("public_name").notNull(),
+  imageUrl: text("image_url"),
+  bio: text("bio"),
+  /** Array of `{ label, url }`. */
+  links: jsonb("links").$type<{ label: string; url: string }[]>().default([]),
+  isActive: boolean("is_active").default(true).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const speakersRelations = relations(speakers, ({ many }) => ({
+  sessionSpeakers: many(sessionSpeakers),
+}));
+
+/**
+ * `ON DELETE RESTRICT` on the speaker keeps published history intact; retiring
+ * a speaker uses `speakers.isActive` instead of deletion.
+ */
+export const sessionSpeakers = pgTable(
+  "session_speakers",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: integer("session_id")
+      .notNull()
+      .references(() => programSessions.id, { onDelete: "cascade" }),
+    speakerId: integer("speaker_id")
+      .notNull()
+      .references(() => speakers.id, { onDelete: "restrict" }),
+    /** Display label, e.g. "Facilitadora". */
+    role: text("role"),
+    displayOrder: integer("display_order").default(0).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [unique().on(t.sessionId, t.speakerId)],
+);
+export const sessionSpeakersRelations = relations(
+  sessionSpeakers,
+  ({ one }) => ({
+    session: one(programSessions, {
+      fields: [sessionSpeakers.sessionId],
+      references: [programSessions.id],
+    }),
+    speaker: one(speakers, {
+      fields: [sessionSpeakers.speakerId],
+      references: [speakers.id],
+    }),
+  }),
+);
+
+/**
+ * Immutable reschedule history. Insert-only: rescheduling updates the
+ * occurrence in place and appends a row here, so tickets pointing at the
+ * occurrence stay valid with no mutation.
+ */
+export const sessionOccurrenceScheduleChanges = pgTable(
+  "session_occurrence_schedule_changes",
+  {
+    id: serial("id").primaryKey(),
+    occurrenceId: integer("occurrence_id")
+      .notNull()
+      .references(() => sessionOccurrences.id, { onDelete: "cascade" }),
+    fromStartsAt: timestamp("from_starts_at").notNull(),
+    fromEndsAt: timestamp("from_ends_at").notNull(),
+    toStartsAt: timestamp("to_starts_at").notNull(),
+    toEndsAt: timestamp("to_ends_at").notNull(),
+    fromVenueId: integer("from_venue_id").references(() => venues.id, {
+      onDelete: "set null",
+    }),
+    toVenueId: integer("to_venue_id").references(() => venues.id, {
+      onDelete: "set null",
+    }),
+    fromRoom: text("from_room"),
+    toRoom: text("to_room"),
+    reason: text("reason").notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("session_occurrence_schedule_changes_occurrence_idx").on(
+      t.occurrenceId,
+      t.createdAt,
+    ),
+  ],
+);
+export const sessionOccurrenceScheduleChangesRelations = relations(
+  sessionOccurrenceScheduleChanges,
+  ({ one }) => ({
+    occurrence: one(sessionOccurrences, {
+      fields: [sessionOccurrenceScheduleChanges.occurrenceId],
+      references: [sessionOccurrences.id],
+    }),
+    actor: one(users, {
+      fields: [sessionOccurrenceScheduleChanges.actorUserId],
+      references: [users.id],
+    }),
+  }),
+);
