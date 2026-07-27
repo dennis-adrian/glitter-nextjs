@@ -34,6 +34,7 @@ import {
   StoreIcon,
   TagsIcon,
   TicketIcon,
+  ToggleLeftIcon,
   UsersIcon,
 } from "lucide-react";
 import { NavbarProfile } from "@/app/api/users/definitions";
@@ -220,6 +221,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
                 <MobileSidebarItem href="/dashboard/banners">
                   <ImagesIcon className="mr-2 h-6 w-6" />
                   Carrusel inicio
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/feature_flags">
+                  <ToggleLeftIcon className="mr-2 h-6 w-6" />
+                  Funcionalidades
                 </MobileSidebarItem>
               </div>
             </>

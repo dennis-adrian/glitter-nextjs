@@ -2993,3 +2993,94 @@ export const liveActs = pgTable("live_acts", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const featureFlagVisibilityEnum = pgEnum("feature_flag_visibility", [
+  /** Nobody sees the feature, not even admins. */
+  "hidden",
+  /** Admins and festival admins see it in every environment; the public does not. */
+  "admin_only",
+  /** Everyone sees it. */
+  "public",
+]);
+
+/**
+ * Runtime visibility for features that ship before they launch.
+ *
+ * Rows are keyed by the code-owned registry in `app/lib/feature_flags/registry.ts`
+ * and created on first read, so adding a flag never needs a data migration.
+ * A key with no registry entry is ignored, which makes deleting a flag safe.
+ *
+ * Environment isolation comes from database topology, not from a column: local
+ * development, the shared preview/staging database, and production each hold
+ * their own rows.
+ */
+export const featureFlags = pgTable("feature_flags", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  visibility: featureFlagVisibilityEnum("visibility")
+    .default("hidden")
+    .notNull(),
+  updatedByUserId: integer("updated_by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const featureFlagsRelations = relations(
+  featureFlags,
+  ({ one, many }) => ({
+    updatedBy: one(users, {
+      fields: [featureFlags.updatedByUserId],
+      references: [users.id],
+    }),
+    userTargets: many(featureFlagUserTargets),
+  }),
+);
+
+/**
+ * Per-user targeting: these users see the feature regardless of the flag's
+ * visibility, including while it is `hidden`. Used for testers and closed betas.
+ *
+ * Allowlist only — there is no deny list, so a target can never take access away
+ * from someone the visibility already grants it to.
+ */
+export const featureFlagUserTargets = pgTable(
+  "feature_flag_user_targets",
+  {
+    id: serial("id").primaryKey(),
+    flagId: integer("flag_id")
+      .notNull()
+      .references(() => featureFlags.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Why this person was added — "QA", "beta tester", a ticket reference. */
+    note: text("note"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique().on(t.flagId, t.userId),
+    index("feature_flag_user_targets_user_id_idx").on(t.userId),
+  ],
+);
+export const featureFlagUserTargetsRelations = relations(
+  featureFlagUserTargets,
+  ({ one }) => ({
+    flag: one(featureFlags, {
+      fields: [featureFlagUserTargets.flagId],
+      references: [featureFlags.id],
+    }),
+    user: one(users, {
+      fields: [featureFlagUserTargets.userId],
+      references: [users.id],
+    }),
+    createdBy: one(users, {
+      fields: [featureFlagUserTargets.createdByUserId],
+      references: [users.id],
+    }),
+  }),
+);
