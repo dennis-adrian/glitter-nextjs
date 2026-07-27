@@ -24,6 +24,7 @@ describe("roundMoney", () => {
     expect(roundMoney(127.5)).toBe(127.5);
     expect(roundMoney(10.005)).toBe(10.01);
     expect(roundMoney(0.145)).toBe(0.15);
+    expect(roundMoney(10.075)).toBe(10.08);
     expect(roundMoney(100)).toBe(100);
   });
 });
@@ -126,6 +127,22 @@ describe("resolvePrice", () => {
 
     expect(resolved.amount).toBe(0);
     expect(isFreePrice(resolved.amount)).toBe(true);
+  });
+
+  it("rejects discount percents outside [0, 100]", () => {
+    expect(() =>
+      resolvePrice(
+        priceInput({ globalDiscountPercent: -10 }),
+        "active_participant",
+      ),
+    ).toThrow(/Invalid discount percent/);
+
+    expect(() =>
+      resolvePrice(
+        priceInput({ programDiscountPercent: 150 }),
+        "active_participant",
+      ),
+    ).toThrow(/Invalid discount percent/);
   });
 });
 
