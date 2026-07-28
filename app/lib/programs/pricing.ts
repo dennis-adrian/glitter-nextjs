@@ -48,6 +48,16 @@ export function roundMoney(amount: number): number {
   return Math.round(micros / 1e4) / 100;
 }
 
+/** `1234.5` → `"Bs 1.234,50"`. Every price shown to a buyer goes through this. */
+export function formatMoney(amount: number): string {
+  const formatted = new Intl.NumberFormat("es-BO", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+
+  return `Bs ${formatted}`;
+}
+
 /**
  * The applicable price for a buyer, plus the evidence to persist.
  *

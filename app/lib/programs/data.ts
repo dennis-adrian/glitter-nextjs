@@ -51,6 +51,13 @@ export const fetchProgramSettings = cache(
       .where(eq(programSettings.key, SETTINGS_KEY))
       .limit(1);
 
+    // Unreachable short of the row being deleted between the two statements.
+    // Every caller reads fields off the result, so an absent row is a broken
+    // invariant, not a value to hand back.
+    if (!row) {
+      throw new Error(`Missing program settings row for key "${SETTINGS_KEY}"`);
+    }
+
     return row;
   },
 );

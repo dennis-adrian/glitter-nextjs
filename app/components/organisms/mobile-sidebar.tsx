@@ -150,6 +150,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
                 <ImagesIcon className="mr-2 h-6 w-6" />
                 Carrusel inicio
               </MobileSidebarItem>
+              <MobileSidebarItem href="/dashboard/programs">
+                <CalendarIcon className="mr-2 h-6 w-6" />
+                Programas
+              </MobileSidebarItem>
             </>
           )}
           {profile && profile.role === "admin" && (
@@ -221,6 +225,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
                 <MobileSidebarItem href="/dashboard/banners">
                   <ImagesIcon className="mr-2 h-6 w-6" />
                   Carrusel inicio
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/programs">
+                  <CalendarIcon className="mr-2 h-6 w-6" />
+                  Programas
                 </MobileSidebarItem>
                 <MobileSidebarItem href="/dashboard/feature_flags">
                   <ToggleLeftIcon className="mr-2 h-6 w-6" />

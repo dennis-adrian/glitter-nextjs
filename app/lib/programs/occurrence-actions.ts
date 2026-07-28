@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { fetchProgramSettings } from "@/app/lib/programs/data";
+import { OCCURRENCE_REASON_MAX } from "@/app/lib/programs/definitions";
 import {
   canCancelOccurrence,
   canCompleteOccurrence,
@@ -17,7 +18,15 @@ import {
   sessionOccurrences,
 } from "@/db/schema";
 
-const REASON_MAX = 500;
+/** Cancellation takes its reason as a bare argument, so it validates it alone. */
+const reasonSchema = z
+  .string()
+  .trim()
+  .min(1, "La cancelación requiere un motivo")
+  .max(
+    OCCURRENCE_REASON_MAX,
+    `El motivo no puede superar los ${OCCURRENCE_REASON_MAX} caracteres`,
+  );
 
 const occurrenceSchema = z
   .object({
@@ -51,7 +60,14 @@ const rescheduleSchema = z
     endsAt: z.coerce.date(),
     venueId: z.number().int().positive().nullish(),
     room: z.string().trim().max(120).nullish(),
-    reason: z.string().trim().min(1).max(REASON_MAX),
+    reason: z
+      .string()
+      .trim()
+      .min(1, "El motivo es obligatorio")
+      .max(
+        OCCURRENCE_REASON_MAX,
+        `El motivo no puede superar los ${OCCURRENCE_REASON_MAX} caracteres`,
+      ),
   })
   .refine((data) => data.endsAt > data.startsAt, {
     message: "La hora de fin debe ser posterior a la de inicio",
@@ -127,11 +143,18 @@ export async function updateOccurrence(
 
   const existing = await db.query.sessionOccurrences.findFirst({
     where: eq(sessionOccurrences.id, occurrenceId),
-    columns: { lifecycleStatus: true },
+    columns: { lifecycleStatus: true, sessionId: true },
   });
 
   if (!existing) {
     return { success: false, message: "Horario no encontrado" } as const;
+  }
+
+  // An occurrence belongs to the session it was created under. The input still
+  // carries `sessionId` because it is the same payload `createOccurrence` takes,
+  // so a mismatch is a caller bug, not a request to move the occurrence.
+  if (existing.sessionId !== data.sessionId) {
+    return { success: false, message: "Datos inválidos" } as const;
   }
 
   if (existing.lifecycleStatus !== "scheduled") {
@@ -172,6 +195,22 @@ export async function setOccurrenceSalesClosed(
   const profile = await requireAdminOrFestivalAdmin();
   if (!profile) return { success: false, message: "No autorizado" } as const;
 
+  const existing = await db.query.sessionOccurrences.findFirst({
+    where: eq(sessionOccurrences.id, occurrenceId),
+    columns: { lifecycleStatus: true },
+  });
+
+  if (!existing) {
+    return { success: false, message: "Horario no encontrado" } as const;
+  }
+
+  if (existing.lifecycleStatus !== "scheduled") {
+    return {
+      success: false,
+      message: "Un horario cancelado o finalizado no se puede editar",
+    } as const;
+  }
+
   await db
     .update(sessionOccurrences)
     .set({ salesClosedAt: closed ? new Date() : null, updatedAt: new Date() })
@@ -189,13 +228,17 @@ export async function cancelOccurrence(occurrenceId: number, reason: string) {
   const profile = await requireAdminOrFestivalAdmin();
   if (!profile) return { success: false, message: "No autorizado" } as const;
 
-  const trimmedReason = reason.trim();
-  if (!trimmedReason) {
+  const parsedReason = reasonSchema.safeParse(reason);
+  if (!parsedReason.success) {
     return {
       success: false,
-      message: "La cancelación requiere un motivo",
+      message:
+        parsedReason.error.issues[0]?.message ??
+        "La cancelación requiere un motivo",
     } as const;
   }
+
+  const trimmedReason = parsedReason.data;
 
   const existing = await db.query.sessionOccurrences.findFirst({
     where: eq(sessionOccurrences.id, occurrenceId),
@@ -220,7 +263,7 @@ export async function cancelOccurrence(occurrenceId: number, reason: string) {
     .set({
       lifecycleStatus: "cancelled",
       cancelledAt: now,
-      cancelledReason: trimmedReason.slice(0, REASON_MAX),
+      cancelledReason: trimmedReason,
       updatedAt: now,
     })
     .where(eq(sessionOccurrences.id, occurrenceId));

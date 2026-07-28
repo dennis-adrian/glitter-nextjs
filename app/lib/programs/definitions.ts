@@ -42,6 +42,12 @@ export const SESSION_SKILL_LEVEL_LABELS: Record<SessionSkillLevel, string> = {
   advanced: "Avanzado",
 };
 
+/**
+ * Longest cancellation or reschedule reason. Lives here so the actions that
+ * enforce it and the inputs that collect it cannot drift apart.
+ */
+export const OCCURRENCE_REASON_MAX = 500;
+
 /** A speaker as shown on a session, with the join row's presentation fields. */
 export type SessionSpeakerWithSpeaker = SessionSpeaker & {
   speaker: Speaker;

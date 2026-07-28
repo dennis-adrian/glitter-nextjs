@@ -13,7 +13,7 @@ import {
   SESSION_SKILL_LEVEL_LABELS,
   SESSION_TYPE_LABELS,
 } from "@/app/lib/programs/definitions";
-import { resolvePrice } from "@/app/lib/programs/pricing";
+import { formatMoney, resolvePrice } from "@/app/lib/programs/pricing";
 
 type Props = {
   params: Promise<{ slug: string; sessionSlug: string }>;
@@ -123,10 +123,10 @@ export default async function SessionPage({ params }: Props) {
 
       <section className="space-y-2">
         <h2 className="text-xl font-semibold">Precio</h2>
-        <p className="text-lg font-medium">Bs {publicPrice}</p>
+        <p className="text-lg font-medium">{formatMoney(publicPrice)}</p>
         {participantPrice !== publicPrice ? (
           <p className="text-muted-foreground">
-            Bs {participantPrice} para participantes activos
+            {formatMoney(participantPrice)} para participantes activos
           </p>
         ) : null}
       </section>

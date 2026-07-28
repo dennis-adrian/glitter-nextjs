@@ -11,9 +11,10 @@ import {
 import { formatDate } from "@/app/lib/formatters";
 import {
   SESSION_TYPE_LABELS,
+  type SessionOccurrence,
   type SessionWithOccurrences,
 } from "@/app/lib/programs/definitions";
-import { resolvePrice } from "@/app/lib/programs/pricing";
+import { formatMoney, resolvePrice } from "@/app/lib/programs/pricing";
 import { resolveOccurrenceState } from "@/app/lib/programs/state";
 import type { ProgramStatus } from "@/app/lib/programs/definitions";
 import { DateTime } from "luxon";
@@ -27,6 +28,27 @@ type Props = {
 };
 
 /**
+ * The occurrence the card speaks for: the earliest one still ahead, ignoring
+ * cancelled and completed ones. Once every occurrence is behind us the last one
+ * stands in, so a finished session still shows a date and its final state.
+ *
+ * Relies on `occurrences` arriving ordered by `startsAt` (see `data.ts`).
+ */
+function pickNextOccurrence(
+  occurrences: SessionOccurrence[],
+): SessionOccurrence | undefined {
+  const now = Date.now();
+
+  const upcoming = occurrences.find(
+    (occurrence) =>
+      occurrence.lifecycleStatus === "scheduled" &&
+      occurrence.startsAt.getTime() >= now,
+  );
+
+  return upcoming ?? occurrences.at(-1);
+}
+
+/**
  * One session on the public program page. Shows the next occurrence's schedule
  * and state; the session page lists them all.
  */
@@ -37,7 +59,7 @@ export default function SessionSummaryCard({
   programDiscountPercent,
   globalDiscountPercent,
 }: Props) {
-  const nextOccurrence = session.occurrences[0];
+  const nextOccurrence = pickNextOccurrence(session.occurrences);
 
   const priceInput = {
     publicPrice: session.publicPrice,
@@ -100,11 +122,11 @@ export default function SessionSummaryCard({
           </p>
         ) : null}
         <p>
-          <span className="font-medium">Bs {publicPrice}</span>
+          <span className="font-medium">{formatMoney(publicPrice)}</span>
           {participantPrice !== publicPrice ? (
             <span className="text-muted-foreground">
               {" "}
-              · Bs {participantPrice} para participantes activos
+              · {formatMoney(participantPrice)} para participantes activos
             </span>
           ) : null}
         </p>

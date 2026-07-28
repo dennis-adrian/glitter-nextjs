@@ -81,7 +81,7 @@ export async function updateVenue(venueId: number, input: VenueInput) {
     return { success: false, message: "Datos inválidos" } as const;
   }
 
-  await db
+  const [updated] = await db
     .update(venues)
     .set({
       name: parsed.data.name,
@@ -93,7 +93,12 @@ export async function updateVenue(venueId: number, input: VenueInput) {
         : { isActive: parsed.data.isActive }),
       updatedAt: new Date(),
     })
-    .where(eq(venues.id, venueId));
+    .where(eq(venues.id, venueId))
+    .returning({ id: venues.id });
+
+  if (!updated) {
+    return { success: false, message: "Lugar no encontrado" } as const;
+  }
 
   revalidateCatalog();
 
@@ -138,7 +143,7 @@ export async function updateSpeaker(speakerId: number, input: SpeakerInput) {
     return { success: false, message: "Datos inválidos" } as const;
   }
 
-  await db
+  const [updated] = await db
     .update(speakers)
     .set({
       publicName: parsed.data.publicName,
@@ -150,7 +155,12 @@ export async function updateSpeaker(speakerId: number, input: SpeakerInput) {
         : { isActive: parsed.data.isActive }),
       updatedAt: new Date(),
     })
-    .where(eq(speakers.id, speakerId));
+    .where(eq(speakers.id, speakerId))
+    .returning({ id: speakers.id });
+
+  if (!updated) {
+    return { success: false, message: "Expositor no encontrado" } as const;
+  }
 
   revalidateCatalog();
 

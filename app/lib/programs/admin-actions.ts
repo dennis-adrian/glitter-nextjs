@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -138,7 +138,19 @@ export async function updateProgram(programId: number, input: ProgramInput) {
   }
 
   await db.transaction(async (tx) => {
-    const slug = await ensureUniqueProgramSlug(tx, data.name, programId);
+    const [existing] = await tx
+      .select({ slug: programs.slug, publishedAt: programs.publishedAt })
+      .from(programs)
+      .where(eq(programs.id, programId))
+      .limit(1);
+
+    // Renaming a published program must not move its public URL — links already
+    // shared would break. Only a program that was never published follows its
+    // name.
+    const slug =
+      existing?.publishedAt && existing.slug
+        ? existing.slug
+        : await ensureUniqueProgramSlug(tx, data.name, programId);
 
     await tx
       .update(programs)
@@ -168,14 +180,19 @@ export async function publishProgram(programId: number) {
   const profile = await requireAdminOrFestivalAdmin();
   if (!profile) return { success: false, message: "No autorizado" } as const;
 
-  await db
+  const [updated] = await db
     .update(programs)
     .set({
       status: "published",
       publishedAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(eq(programs.id, programId));
+    .where(eq(programs.id, programId))
+    .returning({ id: programs.id });
+
+  if (!updated) {
+    return { success: false, message: "Programa no encontrado" } as const;
+  }
 
   revalidatePrograms();
 
@@ -265,12 +282,26 @@ export async function updateSession(sessionId: number, input: SessionInput) {
   if (priceError) return priceError;
 
   await db.transaction(async (tx) => {
-    const slug = await ensureUniqueSessionSlug(
-      tx,
-      data.programId,
-      data.title,
-      sessionId,
-    );
+    const [existing] = await tx
+      .select({
+        slug: programSessions.slug,
+        publishedAt: programSessions.publishedAt,
+      })
+      .from(programSessions)
+      .where(eq(programSessions.id, sessionId))
+      .limit(1);
+
+    // Same rule as programs: a published session keeps the URL it was published
+    // under, however its title changes afterwards.
+    const slug =
+      existing?.publishedAt && existing.slug
+        ? existing.slug
+        : await ensureUniqueSessionSlug(
+            tx,
+            data.programId,
+            data.title,
+            sessionId,
+          );
 
     await tx
       .update(programSessions)
@@ -534,10 +565,13 @@ export async function detachSpeakerFromSession(
 
 /** Occurrence count, used by the dashboard to warn before unpublishing. */
 export async function countSessionOccurrences(sessionId: number) {
-  const rows = await db
-    .select({ id: sessionOccurrences.id })
+  const profile = await requireAdminOrFestivalAdmin();
+  if (!profile) return { success: false, message: "No autorizado" } as const;
+
+  const [row] = await db
+    .select({ total: count() })
     .from(sessionOccurrences)
     .where(eq(sessionOccurrences.sessionId, sessionId));
 
-  return rows.length;
+  return { success: true, count: row?.total ?? 0 } as const;
 }
