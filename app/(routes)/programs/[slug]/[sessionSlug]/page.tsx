@@ -13,7 +13,12 @@ import {
   SESSION_SKILL_LEVEL_LABELS,
   SESSION_TYPE_LABELS,
 } from "@/app/lib/programs/definitions";
-import { formatMoney, resolvePrice } from "@/app/lib/programs/pricing";
+import {
+  formatMoney,
+  globalDiscountFrom,
+  programDiscountFrom,
+  resolvePrice,
+} from "@/app/lib/programs/pricing";
 
 type Props = {
   params: Promise<{ slug: string; sessionSlug: string }>;
@@ -51,8 +56,8 @@ export default async function SessionPage({ params }: Props) {
   const priceInput = {
     publicPrice: session.publicPrice,
     participantPrice: session.participantPrice,
-    programDiscountPercent: session.program.participantDiscountPercent,
-    globalDiscountPercent: settings.defaultParticipantDiscountPercent,
+    programDiscount: programDiscountFrom(session.program),
+    globalDiscount: globalDiscountFrom(settings),
   };
   const publicPrice = resolvePrice(priceInput, "public").amount;
   const participantPrice = resolvePrice(

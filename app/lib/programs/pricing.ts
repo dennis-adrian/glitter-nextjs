@@ -12,14 +12,26 @@ export type PriceRule =
   | "program_discount"
   | "global_discount";
 
+/**
+ * How a discount is expressed. `percent` takes a share off the public price;
+ * `fixed` takes a flat amount off it.
+ */
+export type ParticipantDiscountType = "percent" | "fixed";
+
+export type ParticipantDiscount = {
+  type: ParticipantDiscountType;
+  /** Percentage points when `percent`, Bs when `fixed`. */
+  value: number;
+};
+
 export type PriceInput = {
   publicPrice: number;
   /** Explicit per-session or per-pass participant price, when set. */
   participantPrice: number | null;
-  /** `programs.participantDiscountPercent`, when set. */
-  programDiscountPercent: number | null;
-  /** `program_settings.defaultParticipantDiscountPercent`. */
-  globalDiscountPercent: number;
+  /** The program's own discount, when it overrides the global default. */
+  programDiscount: ParticipantDiscount | null;
+  /** `program_settings` default, applied when the program has no override. */
+  globalDiscount: ParticipantDiscount;
 };
 
 export type ResolvedPrice = {
@@ -34,9 +46,50 @@ export type PriceSnapshot = {
   basis: ParticipantEligibility;
   publicPrice: number;
   participantPrice: number | null;
-  appliedDiscountPercent: number | null;
+  appliedDiscount: ParticipantDiscount | null;
   amount: number;
 };
+
+export const PARTICIPANT_DISCOUNT_TYPE_LABELS: Record<
+  ParticipantDiscountType,
+  string
+> = {
+  percent: "Porcentaje (%)",
+  fixed: "Monto fijo (Bs)",
+};
+
+/**
+ * Reads a program's discount override off its row. Both columns move together,
+ * enforced by `programs_discount_pair_complete`, so null means "inherit the
+ * global default".
+ */
+export function programDiscountFrom(program: {
+  participantDiscountType: ParticipantDiscountType | null;
+  participantDiscountValue: number | null;
+}): ParticipantDiscount | null {
+  if (
+    program.participantDiscountType === null ||
+    program.participantDiscountValue === null
+  ) {
+    return null;
+  }
+
+  return {
+    type: program.participantDiscountType,
+    value: program.participantDiscountValue,
+  };
+}
+
+/** Reads the global default off the settings row. */
+export function globalDiscountFrom(settings: {
+  defaultParticipantDiscountType: ParticipantDiscountType;
+  defaultParticipantDiscountValue: number;
+}): ParticipantDiscount {
+  return {
+    type: settings.defaultParticipantDiscountType,
+    value: settings.defaultParticipantDiscountValue,
+  };
+}
 
 /**
  * Rounds half-up to two decimals via integer cents. Scaling through
@@ -56,6 +109,25 @@ export function formatMoney(amount: number): string {
   }).format(amount);
 
   return `Bs ${formatted}`;
+}
+
+/**
+ * Applies one discount to a price. A fixed discount larger than the price
+ * clamps to zero rather than going negative — the resulting free session then
+ * flows through the normal free-registration path.
+ */
+export function applyDiscount(
+  publicPrice: number,
+  discount: ParticipantDiscount,
+): number {
+  assertDiscount(discount);
+
+  const discounted =
+    discount.type === "percent"
+      ? publicPrice * (1 - discount.value / 100)
+      : publicPrice - discount.value;
+
+  return roundMoney(Math.max(0, discounted));
 }
 
 /**
@@ -85,30 +157,37 @@ export function resolvePrice(
     );
   }
 
-  const usesProgramDiscount = input.programDiscountPercent !== null;
-  const discountPercent = usesProgramDiscount
-    ? input.programDiscountPercent!
-    : input.globalDiscountPercent;
-  assertDiscountPercent(discountPercent);
+  const usesProgramDiscount = input.programDiscount !== null;
+  const discount = usesProgramDiscount
+    ? input.programDiscount!
+    : input.globalDiscount;
 
   const rule: PriceRule = usesProgramDiscount
     ? "program_discount"
     : "global_discount";
 
-  const amount = roundMoney(publicPrice * (1 - discountPercent / 100));
-
-  return build(amount, rule, eligibility, input, discountPercent);
+  return build(
+    applyDiscount(publicPrice, discount),
+    rule,
+    eligibility,
+    input,
+    discount,
+  );
 }
 
-/** Rejects discounts outside the inclusive [0, 100] range. */
-function assertDiscountPercent(discountPercent: number): void {
-  if (
-    !Number.isFinite(discountPercent) ||
-    discountPercent < 0 ||
-    discountPercent > 100
-  ) {
+/** Rejects a negative value, or a percentage above 100. */
+function assertDiscount(discount: ParticipantDiscount): void {
+  const { type, value } = discount;
+
+  if (!Number.isFinite(value) || value < 0) {
     throw new Error(
-      `Invalid discount percent: ${discountPercent}. Expected a value in [0, 100].`,
+      `Invalid discount value: ${value}. Expected a non-negative number.`,
+    );
+  }
+
+  if (type === "percent" && value > 100) {
+    throw new Error(
+      `Invalid discount percent: ${value}. Expected a value in [0, 100].`,
     );
   }
 }
@@ -118,7 +197,7 @@ function build(
   rule: PriceRule,
   basis: ParticipantEligibility,
   input: PriceInput,
-  appliedDiscountPercent: number | null,
+  appliedDiscount: ParticipantDiscount | null,
 ): ResolvedPrice {
   return {
     amount,
@@ -132,7 +211,7 @@ function build(
         input.participantPrice === null
           ? null
           : roundMoney(input.participantPrice),
-      appliedDiscountPercent,
+      appliedDiscount,
       amount,
     },
   };

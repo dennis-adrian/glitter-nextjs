@@ -19,7 +19,8 @@ export const programFormSchema = z.object({
   endDate: optionalText,
   festivalId: optionalText,
   defaultVenueId: optionalText,
-  participantDiscountPercent: optionalText,
+  participantDiscountType: optionalText,
+  participantDiscountValue: optionalText,
 });
 
 export const sessionFormSchema = z.object({

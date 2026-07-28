@@ -14,7 +14,11 @@ import {
   type SessionOccurrence,
   type SessionWithOccurrences,
 } from "@/app/lib/programs/definitions";
-import { formatMoney, resolvePrice } from "@/app/lib/programs/pricing";
+import {
+  formatMoney,
+  resolvePrice,
+  type ParticipantDiscount,
+} from "@/app/lib/programs/pricing";
 import { resolveOccurrenceState } from "@/app/lib/programs/state";
 import type { ProgramStatus } from "@/app/lib/programs/definitions";
 import { DateTime } from "luxon";
@@ -23,8 +27,8 @@ type Props = {
   session: SessionWithOccurrences;
   programSlug: string;
   programStatus: ProgramStatus;
-  programDiscountPercent: number | null;
-  globalDiscountPercent: number;
+  programDiscount: ParticipantDiscount | null;
+  globalDiscount: ParticipantDiscount;
 };
 
 /**
@@ -56,16 +60,16 @@ export default function SessionSummaryCard({
   session,
   programSlug,
   programStatus,
-  programDiscountPercent,
-  globalDiscountPercent,
+  programDiscount,
+  globalDiscount,
 }: Props) {
   const nextOccurrence = pickNextOccurrence(session.occurrences);
 
   const priceInput = {
     publicPrice: session.publicPrice,
     participantPrice: session.participantPrice,
-    programDiscountPercent,
-    globalDiscountPercent,
+    programDiscount,
+    globalDiscount,
   };
   const publicPrice = resolvePrice(priceInput, "public").amount;
   const participantPrice = resolvePrice(

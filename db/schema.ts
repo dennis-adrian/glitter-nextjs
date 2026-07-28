@@ -3124,6 +3124,15 @@ export const occurrenceLifecycleStatusEnum = pgEnum(
   ["scheduled", "completed", "cancelled"],
 );
 
+/**
+ * How a participant discount is expressed. `percent` takes a share off the
+ * public price; `fixed` takes a flat amount off it, clamped at zero.
+ */
+export const participantDiscountTypeEnum = pgEnum("participant_discount_type", [
+  "percent",
+  "fixed",
+]);
+
 /** A reusable place. Resolution is occurrence → session → program. */
 export const venues = pgTable("venues", {
   id: serial("id").primaryKey(),
@@ -3145,9 +3154,15 @@ export const programSettings = pgTable(
   {
     id: serial("id").primaryKey(),
     key: text("key").notNull().unique(),
-    defaultParticipantDiscountPercent: numeric(
-      "default_participant_discount_percent",
-      { precision: 5, scale: 2, mode: "number" },
+    defaultParticipantDiscountType: participantDiscountTypeEnum(
+      "default_participant_discount_type",
+    )
+      .default("percent")
+      .notNull(),
+    /** Percentage points when the type is `percent`, Bs when it is `fixed`. */
+    defaultParticipantDiscountValue: numeric(
+      "default_participant_discount_value",
+      { precision: 10, scale: 2, mode: "number" },
     )
       .default(0)
       .notNull(),
@@ -3182,8 +3197,9 @@ export const programSettings = pgTable(
     ),
     check(
       "program_settings_discount_range",
-      sql`${t.defaultParticipantDiscountPercent} >= 0
-        AND ${t.defaultParticipantDiscountPercent} <= 100`,
+      sql`${t.defaultParticipantDiscountValue} >= 0
+        AND (${t.defaultParticipantDiscountType} <> 'percent'
+             OR ${t.defaultParticipantDiscountValue} <= 100)`,
     ),
   ],
 );
@@ -3211,9 +3227,15 @@ export const programs = pgTable(
     defaultVenueId: integer("default_venue_id").references(() => venues.id, {
       onDelete: "restrict",
     }),
-    /** Overrides `program_settings.defaultParticipantDiscountPercent`. */
-    participantDiscountPercent: numeric("participant_discount_percent", {
-      precision: 5,
+    /**
+     * Overrides the global default. Both columns move together: null means
+     * "inherit", and a set pair means "this program discounts like so".
+     */
+    participantDiscountType: participantDiscountTypeEnum(
+      "participant_discount_type",
+    ),
+    participantDiscountValue: numeric("participant_discount_value", {
+      precision: 10,
       scale: 2,
       mode: "number",
     }),
@@ -3233,9 +3255,16 @@ export const programs = pgTable(
       sql`${t.endDate} IS NULL OR ${t.startDate} IS NULL OR ${t.endDate} >= ${t.startDate}`,
     ),
     check(
+      "programs_discount_pair_complete",
+      sql`(${t.participantDiscountType} IS NULL AND ${t.participantDiscountValue} IS NULL)
+        OR (${t.participantDiscountType} IS NOT NULL AND ${t.participantDiscountValue} IS NOT NULL)`,
+    ),
+    check(
       "programs_discount_range",
-      sql`${t.participantDiscountPercent} IS NULL
-        OR (${t.participantDiscountPercent} >= 0 AND ${t.participantDiscountPercent} <= 100)`,
+      sql`${t.participantDiscountValue} IS NULL
+        OR (${t.participantDiscountValue} >= 0
+            AND (${t.participantDiscountType} <> 'percent'
+                 OR ${t.participantDiscountValue} <= 100))`,
     ),
     check(
       "programs_positive_overrides",

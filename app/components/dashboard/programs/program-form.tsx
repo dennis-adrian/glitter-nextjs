@@ -2,9 +2,11 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
+import VenueQuickCreateDialog from "@/app/components/dashboard/programs/venue-quick-create-dialog";
 import SelectInput from "@/app/components/form/fields/select";
 import TextInput from "@/app/components/form/fields/text";
 import TextareaInput from "@/app/components/form/fields/textarea";
@@ -21,6 +23,7 @@ import {
   toDateTimeLocal,
   type ProgramFormValues,
 } from "@/app/lib/programs/form-schemas";
+import { PARTICIPANT_DISCOUNT_TYPE_LABELS } from "@/app/lib/programs/pricing";
 
 type Props = {
   program?: Program;
@@ -30,9 +33,15 @@ type Props = {
 
 const NONE = "none";
 
+type VenueOption = Pick<Venue, "id" | "name">;
+
 export default function ProgramForm({ program, venues, festivals }: Props) {
   const router = useRouter();
   const isEditing = Boolean(program);
+
+  // Local so a venue created from the dialog is selectable immediately, without
+  // a round trip that would discard everything else typed into the form.
+  const [venueOptions, setVenueOptions] = useState<VenueOption[]>(venues);
 
   const form = useForm<ProgramFormValues>({
     resolver: zodResolver(programFormSchema),
@@ -48,14 +57,25 @@ export default function ProgramForm({ program, venues, festivals }: Props) {
       defaultVenueId: program?.defaultVenueId
         ? String(program.defaultVenueId)
         : NONE,
-      participantDiscountPercent:
-        program?.participantDiscountPercent != null
-          ? String(program.participantDiscountPercent)
+      participantDiscountType: program?.participantDiscountType ?? NONE,
+      participantDiscountValue:
+        program?.participantDiscountValue != null
+          ? String(program.participantDiscountValue)
           : "",
     },
   });
 
+  const discountType = useWatch({
+    control: form.control,
+    name: "participantDiscountType",
+  });
+  const usesDiscountOverride = discountType !== NONE && Boolean(discountType);
+
   const action = form.handleSubmit(async (values) => {
+    const overridesDiscount =
+      values.participantDiscountType !== NONE &&
+      Boolean(values.participantDiscountType);
+
     const payload = {
       name: values.name,
       summary: textOrNull(values.summary),
@@ -68,9 +88,13 @@ export default function ProgramForm({ program, venues, festivals }: Props) {
         values.festivalId === NONE ? null : idOrNull(values.festivalId),
       defaultVenueId:
         values.defaultVenueId === NONE ? null : idOrNull(values.defaultVenueId),
-      participantDiscountPercent: numberOrNull(
-        values.participantDiscountPercent,
-      ),
+      // The pair moves together: choosing "inherit" clears both columns.
+      participantDiscountType: overridesDiscount
+        ? (values.participantDiscountType as "percent" | "fixed")
+        : null,
+      participantDiscountValue: overridesDiscount
+        ? (numberOrNull(values.participantDiscountValue) ?? 0)
+        : null,
     };
 
     try {
@@ -131,29 +155,67 @@ export default function ProgramForm({ program, venues, festivals }: Props) {
           ]}
         />
 
-        <SelectInput
-          formControl={form.control}
-          label="Lugar por defecto"
-          name="defaultVenueId"
-          placeholder="Sin lugar"
-          options={[
-            { value: NONE, label: "Sin lugar" },
-            ...venues.map((venue) => ({
-              value: String(venue.id),
-              label: venue.name,
-            })),
-          ]}
-        />
+        <div className="grid gap-2">
+          <SelectInput
+            formControl={form.control}
+            label="Lugar por defecto"
+            name="defaultVenueId"
+            placeholder="Sin lugar"
+            options={[
+              { value: NONE, label: "Sin lugar" },
+              ...venueOptions.map((venue) => ({
+                value: String(venue.id),
+                label: venue.name,
+              })),
+            ]}
+          />
+          <div>
+            <VenueQuickCreateDialog
+              onCreated={(venue) => {
+                setVenueOptions((current) => [...current, venue]);
+                form.setValue("defaultVenueId", String(venue.id), {
+                  shouldDirty: true,
+                });
+              }}
+            />
+          </div>
+        </div>
 
-        <TextInput
-          label="Descuento para participantes (%)"
-          name="participantDiscountPercent"
-          type="number"
-          min="0"
-          max="100"
-          step="0.01"
-          description="Vacío usa el descuento global. Las sesiones pueden tener su propio precio."
-        />
+        <div className="grid gap-4 md:grid-cols-2">
+          <SelectInput
+            formControl={form.control}
+            label="Descuento para participantes"
+            name="participantDiscountType"
+            placeholder="Usar el descuento global"
+            options={[
+              { value: NONE, label: "Usar el descuento global" },
+              ...(["percent", "fixed"] as const).map((value) => ({
+                value,
+                label: PARTICIPANT_DISCOUNT_TYPE_LABELS[value],
+              })),
+            ]}
+          />
+          {usesDiscountOverride ? (
+            <TextInput
+              label={
+                discountType === "fixed"
+                  ? "Monto de descuento (Bs)"
+                  : "Porcentaje de descuento (%)"
+              }
+              name="participantDiscountValue"
+              type="number"
+              min="0"
+              max={discountType === "percent" ? "100" : undefined}
+              step="0.01"
+              description={
+                discountType === "fixed"
+                  ? "Se resta del precio público; nunca baja de 0."
+                  : "Se aplica sobre el precio público."
+              }
+              required
+            />
+          ) : null}
+        </div>
 
         <TextInput label="Imagen de portada (URL)" name="bannerUrl" />
         <TextInput label="Miniatura (URL)" name="thumbnailUrl" />

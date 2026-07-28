@@ -34,7 +34,8 @@ const programSchema = z.object({
   endDate: z.coerce.date().nullish(),
   festivalId: z.number().int().positive().nullish(),
   defaultVenueId: z.number().int().positive().nullish(),
-  participantDiscountPercent: z.number().min(0).max(100).nullish(),
+  participantDiscountType: z.enum(["percent", "fixed"]).nullish(),
+  participantDiscountValue: z.number().min(0).nullish(),
 });
 
 const sessionSchema = z.object({
@@ -63,6 +64,49 @@ function blankToNull(value: string | null | undefined): string | null {
   return value?.trim() || null;
 }
 
+type DiscountFields = {
+  participantDiscountType?: "percent" | "fixed" | null;
+  participantDiscountValue?: number | null;
+};
+
+/**
+ * The discount override is a pair: either both columns are set or neither is.
+ * `programs_discount_pair_complete` enforces it in the database; this turns a
+ * half-filled form into a message instead of a constraint violation.
+ */
+function validateDiscount(data: DiscountFields) {
+  const type = data.participantDiscountType ?? null;
+  const value = data.participantDiscountValue ?? null;
+
+  if ((type === null) !== (value === null)) {
+    return {
+      success: false,
+      message: "Elige el tipo de descuento y su valor, o deja ambos vacíos",
+    } as const;
+  }
+
+  if (type === "percent" && value !== null && value > 100) {
+    return {
+      success: false,
+      message: "Un descuento porcentual no puede superar el 100%",
+    } as const;
+  }
+
+  return null;
+}
+
+/** Normalizes the pair so a cleared discount writes two nulls, never one. */
+function discountColumns(data: DiscountFields) {
+  const type = data.participantDiscountType ?? null;
+  const value = data.participantDiscountValue ?? null;
+  const isComplete = type !== null && value !== null;
+
+  return {
+    participantDiscountType: isComplete ? type : null,
+    participantDiscountValue: isComplete ? value : null,
+  };
+}
+
 function revalidatePrograms() {
   revalidatePath("/dashboard/programs", "layout");
   revalidatePath("/programs", "layout");
@@ -87,6 +131,9 @@ export async function createProgram(input: ProgramInput) {
     } as const;
   }
 
+  const discountError = validateDiscount(data);
+  if (discountError) return discountError;
+
   const program = await db.transaction(async (tx) => {
     const slug = await ensureUniqueProgramSlug(tx, data.name);
 
@@ -103,7 +150,7 @@ export async function createProgram(input: ProgramInput) {
         endDate: data.endDate ?? null,
         festivalId: data.festivalId ?? null,
         defaultVenueId: data.defaultVenueId ?? null,
-        participantDiscountPercent: data.participantDiscountPercent ?? null,
+        ...discountColumns(data),
       })
       .returning();
 
@@ -137,6 +184,9 @@ export async function updateProgram(programId: number, input: ProgramInput) {
     } as const;
   }
 
+  const discountError = validateDiscount(data);
+  if (discountError) return discountError;
+
   await db.transaction(async (tx) => {
     const [existing] = await tx
       .select({ slug: programs.slug, publishedAt: programs.publishedAt })
@@ -165,7 +215,7 @@ export async function updateProgram(programId: number, input: ProgramInput) {
         endDate: data.endDate ?? null,
         festivalId: data.festivalId ?? null,
         defaultVenueId: data.defaultVenueId ?? null,
-        participantDiscountPercent: data.participantDiscountPercent ?? null,
+        ...discountColumns(data),
         updatedAt: new Date(),
       })
       .where(eq(programs.id, programId));

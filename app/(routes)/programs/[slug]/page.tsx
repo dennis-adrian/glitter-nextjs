@@ -8,6 +8,10 @@ import {
   fetchProgramSettings,
   fetchPublishedProgramBySlug,
 } from "@/app/lib/programs/data";
+import {
+  globalDiscountFrom,
+  programDiscountFrom,
+} from "@/app/lib/programs/pricing";
 import { DateTime } from "luxon";
 
 type Props = {
@@ -76,10 +80,8 @@ export default async function ProgramPage({ params }: Props) {
                 session={session}
                 programSlug={program.slug}
                 programStatus={program.status}
-                programDiscountPercent={program.participantDiscountPercent}
-                globalDiscountPercent={
-                  settings.defaultParticipantDiscountPercent
-                }
+                programDiscount={programDiscountFrom(program)}
+                globalDiscount={globalDiscountFrom(settings)}
               />
             ))}
           </div>
