@@ -124,6 +124,16 @@ export async function createOccurrence(input: OccurrenceInput) {
   } as const;
 }
 
+/**
+ * Full in-place edit of a scheduled occurrence, including its times. This is
+ * for correcting data that nobody has acted on yet.
+ *
+ * Once purchases exist (Phase 3), changing `startsAt`/`endsAt` here must be
+ * refused when the occurrence has sold seats and routed through
+ * `rescheduleOccurrence` instead — that path demands a reason, writes an
+ * immutable history row, and gives ticket holders the right to request a
+ * refund. Everything else on this form stays editable either way.
+ */
 export async function updateOccurrence(
   occurrenceId: number,
   input: OccurrenceInput,

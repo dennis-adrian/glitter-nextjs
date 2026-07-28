@@ -3,6 +3,17 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/app/components/ui/alert-dialog";
 import { Button } from "@/app/components/ui/button";
 import {
   Dialog,
@@ -19,7 +30,7 @@ import {
   OCCURRENCE_REASON_MAX,
   type SessionOccurrence,
 } from "@/app/lib/programs/definitions";
-import { toDateTimeLocal } from "@/app/lib/programs/form-schemas";
+import { dateOrNull, toDateTimeLocal } from "@/app/lib/programs/form-schemas";
 import {
   cancelOccurrence,
   completeOccurrence,
@@ -41,6 +52,7 @@ export default function OccurrenceActionsMenu({ occurrence }: Props) {
   const [isPending, startTransition] = useTransition();
   const [cancelReason, setCancelReason] = useState("");
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [reschedule, setReschedule] = useState({
     startsAt: toDateTimeLocal(occurrence.startsAt),
@@ -50,6 +62,8 @@ export default function OccurrenceActionsMenu({ occurrence }: Props) {
 
   const isScheduled = occurrence.lifecycleStatus === "scheduled";
   const salesClosed = occurrence.salesClosedAt !== null;
+  const rescheduleStartsAt = dateOrNull(reschedule.startsAt);
+  const rescheduleEndsAt = dateOrNull(reschedule.endsAt);
 
   function run(promise: Promise<{ success: boolean; message: string }>) {
     startTransition(async () => {
@@ -58,6 +72,7 @@ export default function OccurrenceActionsMenu({ occurrence }: Props) {
         if (result.success) {
           toast.success(result.message);
           setCancelOpen(false);
+          setDeleteOpen(false);
           setRescheduleOpen(false);
         } else {
           toast.error(result.message);
@@ -151,18 +166,24 @@ export default function OccurrenceActionsMenu({ occurrence }: Props) {
           </div>
           <DialogFooter>
             <Button
-              disabled={isPending || !reschedule.reason.trim()}
-              onClick={() =>
+              disabled={
+                isPending ||
+                !reschedule.reason.trim() ||
+                !rescheduleStartsAt ||
+                !rescheduleEndsAt
+              }
+              onClick={() => {
+                if (!rescheduleStartsAt || !rescheduleEndsAt) return;
                 run(
                   rescheduleOccurrence(occurrence.id, {
-                    startsAt: new Date(reschedule.startsAt),
-                    endsAt: new Date(reschedule.endsAt),
+                    startsAt: rescheduleStartsAt,
+                    endsAt: rescheduleEndsAt,
                     venueId: occurrence.venueId,
                     room: occurrence.room,
                     reason: reschedule.reason,
                   }),
-                )
-              }
+                );
+              }}
             >
               Reprogramar
             </Button>
@@ -214,14 +235,31 @@ export default function OccurrenceActionsMenu({ occurrence }: Props) {
         </DialogContent>
       </Dialog>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={isPending}
-        onClick={() => run(deleteOccurrence(occurrence.id))}
-      >
-        Eliminar
-      </Button>
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogTrigger asChild>
+          <Button variant="ghost" size="sm" disabled={isPending}>
+            Eliminar
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar este horario?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Solo elimina horarios sin ventas
+              asociadas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isPending}
+              onClick={() => run(deleteOccurrence(occurrence.id))}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

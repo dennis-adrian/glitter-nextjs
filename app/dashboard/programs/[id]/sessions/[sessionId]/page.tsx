@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import OccurrenceActionsMenu from "@/app/components/dashboard/programs/occurrence-actions-menu";
 import OccurrenceForm from "@/app/components/dashboard/programs/occurrence-form";
+import OccurrenceRow from "@/app/components/dashboard/programs/occurrence-row";
 import PublicationButtons from "@/app/components/dashboard/programs/publication-buttons";
 import SessionForm from "@/app/components/dashboard/programs/session-form";
 import SessionSpeakersPanel from "@/app/components/dashboard/programs/session-speakers-panel";
-import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
 import { Badge } from "@/app/components/ui/badge";
 import {
   Card,
@@ -14,7 +13,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
-import { formatDate } from "@/app/lib/formatters";
 import {
   fetchProgramSettings,
   fetchSessionForAdmin,
@@ -27,11 +25,9 @@ import {
 } from "@/app/lib/programs/definitions";
 import {
   SESSION_PUBLISH_BLOCKER_LABELS,
-  resolveOccurrenceState,
   resolveSessionPublishability,
 } from "@/app/lib/programs/state";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
-import { DateTime } from "luxon";
 
 type Props = {
   params: Promise<{ id: string; sessionId: string }>;
@@ -114,43 +110,16 @@ export default async function SessionDetailPage({ params }: Props) {
               </p>
             ) : (
               <ul className="space-y-3">
-                {session.occurrences.map((occurrence) => {
-                  const resolved = resolveOccurrenceState({
-                    programStatus: session.program.status,
-                    sessionStatus: session.status,
-                    lifecycleStatus: occurrence.lifecycleStatus,
-                    salesStartAt: occurrence.salesStartAt,
-                    salesEndAt: occurrence.salesEndAt,
-                    salesClosedAt: occurrence.salesClosedAt,
-                    rescheduledAt: occurrence.rescheduledAt,
-                  });
-
-                  return (
-                    <li
-                      key={occurrence.id}
-                      className="space-y-3 rounded-lg border border-border/70 p-3"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div>
-                          <p className="font-medium">
-                            {formatDate(occurrence.startsAt).toLocaleString(
-                              DateTime.DATETIME_MED,
-                            )}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {occurrence.capacity} cupos
-                            {occurrence.room ? ` · ${occurrence.room}` : ""}
-                          </p>
-                        </div>
-                        <ProgramStatusBadge
-                          state={resolved.state}
-                          wasRescheduled={resolved.wasRescheduled}
-                        />
-                      </div>
-                      <OccurrenceActionsMenu occurrence={occurrence} />
-                    </li>
-                  );
-                })}
+                {session.occurrences.map((occurrence) => (
+                  <OccurrenceRow
+                    key={occurrence.id}
+                    occurrence={occurrence}
+                    venues={venues}
+                    defaultCapacity={settings.defaultOccurrenceCapacity}
+                    programStatus={session.program.status}
+                    sessionStatus={session.status}
+                  />
+                ))}
               </ul>
             )}
 

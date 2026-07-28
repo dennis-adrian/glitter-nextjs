@@ -60,9 +60,15 @@ export default function OccurrenceForm({
   const action = form.handleSubmit(async (values) => {
     const startsAt = dateOrNull(values.startsAt);
     const endsAt = dateOrNull(values.endsAt);
+    const capacity = numberOrNull(values.capacity);
 
     if (!startsAt || !endsAt) {
       toast.error("Las fechas de inicio y fin son obligatorias");
+      return;
+    }
+
+    if (capacity === null || !Number.isInteger(capacity) || capacity < 1) {
+      toast.error("Los cupos son obligatorios");
       return;
     }
 
@@ -72,7 +78,7 @@ export default function OccurrenceForm({
       endsAt,
       venueId: values.venueId === NONE ? null : idOrNull(values.venueId),
       room: textOrNull(values.room),
-      capacity: numberOrNull(values.capacity) ?? undefined,
+      capacity,
       salesStartAt: dateOrNull(values.salesStartAt),
       salesEndAt: dateOrNull(values.salesEndAt),
     };

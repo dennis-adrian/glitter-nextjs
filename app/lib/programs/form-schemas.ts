@@ -95,6 +95,26 @@ export function idOrNull(value: string | undefined): number | null {
 export function dateOrNull(value: string | undefined): Date | null {
   const trimmed = value?.trim();
   if (!trimmed) return null;
+
+  // Date-only (`YYYY-MM-DD`) is UTC in `new Date`, which shifts the calendar day
+  // relative to `toDateTimeLocal`. Build a local midnight instead.
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (dateOnly) {
+    const year = Number(dateOnly[1]);
+    const month = Number(dateOnly[2]);
+    const day = Number(dateOnly[3]);
+    const parsed = new Date(year, month - 1, day);
+    if (
+      Number.isNaN(parsed.getTime()) ||
+      parsed.getFullYear() !== year ||
+      parsed.getMonth() !== month - 1 ||
+      parsed.getDate() !== day
+    ) {
+      return null;
+    }
+    return parsed;
+  }
+
   const parsed = new Date(trimmed);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
