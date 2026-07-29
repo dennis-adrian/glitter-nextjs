@@ -6,6 +6,7 @@ import {
   ScheduledTaskWithProfile,
   ScheduledTaskWithProfileAndReservation,
 } from "@/app/lib/profile_tasks/definitions";
+import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
 import { db } from "@/db";
 import { scheduledTasks, standReservations, users } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
@@ -82,14 +83,17 @@ export async function handleDeletionEmails(): Promise<
 
       if (overdueTasks.length === 0) return [];
 
+      const profileIds = overdueTasks.map((task) => task.profileId!);
+
+      // Keep program purchases but strip their personal data. Their FK is
+      // RESTRICT, so the delete below would abort without this.
+      for (const profileId of profileIds) {
+        await anonymizeProgramPurchasesForUser(tx, profileId);
+      }
+
       const deletedUsers = await tx
         .delete(users)
-        .where(
-          inArray(
-            users.id,
-            overdueTasks.map((task) => task.profileId!),
-          ),
-        )
+        .where(inArray(users.id, profileIds))
         .returning();
 
       deletedUsers.forEach(async (user) => {
