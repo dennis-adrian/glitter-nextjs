@@ -365,10 +365,21 @@ export async function registerForFreeSession(
         });
         venueName = venue?.name ?? null;
       } catch (error) {
+        // Log only a code/type — never the raw error (message/stack/driver
+        // details). purchaseId and venueId are numeric correlation ids.
+        const errorType =
+          error &&
+          typeof error === "object" &&
+          "code" in error &&
+          typeof error.code === "string"
+            ? error.code
+            : error instanceof Error
+              ? error.name
+              : typeof error;
         console.error("Venue lookup for registration email failed", {
           purchaseId: outcome.purchaseId,
           venueId: outcome.email.venueId,
-          error,
+          errorType,
         });
       }
     }
