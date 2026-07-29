@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -66,6 +66,23 @@ export type FreeRegistrationResult =
     }
   | { success: false; message: string };
 
+function isDuplicateAttendeeTicketError(error: unknown): boolean {
+  let current: unknown = error;
+  while (current && typeof current === "object") {
+    const code = Reflect.get(current, "code");
+    const constraint = Reflect.get(current, "constraint");
+    if (
+      code === "23505" &&
+      typeof constraint === "string" &&
+      constraint.includes("session_tickets_occurrence_attendee")
+    ) {
+      return true;
+    }
+    current = Reflect.get(current, "cause");
+  }
+  return false;
+}
+
 /**
  * Registers one attendee for one free occurrence.
  *
@@ -125,32 +142,31 @@ export async function registerForFreeSession(
 
   try {
     const outcome = await db.transaction(async (tx) => {
+      const buyerPredicate = profile
+        ? eq(sessionPurchases.userId, profile.id)
+        : eq(sessionPurchases.guestEmail, attendee.email);
+
       const existing = await tx
-        .select({
-          id: sessionPurchases.id,
-          ticketCode: sessionTickets.code,
-        })
+        .select({ id: sessionPurchases.id })
         .from(sessionPurchases)
-        .leftJoin(
+        .innerJoin(
           sessionPurchaseLines,
           eq(sessionPurchaseLines.purchaseId, sessionPurchases.id),
         )
-        .leftJoin(
-          sessionTickets,
-          eq(sessionTickets.purchaseLineId, sessionPurchaseLines.id),
+        .where(
+          and(
+            eq(sessionPurchases.idempotencyKey, idempotencyKey),
+            buyerPredicate,
+            eq(sessionPurchaseLines.occurrenceId, data.occurrenceId),
+          ),
         )
-        .where(eq(sessionPurchases.idempotencyKey, idempotencyKey))
         .limit(1);
 
       // A retried submit returns what the first one produced rather than
       // taking a second seat. The token is not recoverable, so the caller has
       // to fall back to the recovery flow for the link.
       if (existing.length > 0) {
-        return {
-          kind: "replayed" as const,
-          purchaseId: existing[0].id,
-          ticketCode: existing[0].ticketCode ?? "",
-        };
+        return { kind: "replayed" as const };
       }
 
       await lockOccurrences(tx, [data.occurrenceId]);
@@ -329,18 +345,16 @@ export async function registerForFreeSession(
       ticketCode: outcome.ticketCode,
     };
   } catch (error) {
-    console.error("Free registration failed", error);
-
     // The partial unique indexes on `session_tickets` are the last line of
     // defence when two requests race past the in-transaction duplicate check.
-    const message = error instanceof Error ? error.message : "";
-    if (message.includes("session_tickets_occurrence_attendee")) {
+    if (isDuplicateAttendeeTicketError(error)) {
       return {
         success: false,
         message: REGISTRATION_BLOCKER_LABELS.already_registered,
       };
     }
 
+    console.error("Free registration failed");
     return {
       success: false,
       message: "No pudimos completar tu inscripción. Intenta de nuevo.",

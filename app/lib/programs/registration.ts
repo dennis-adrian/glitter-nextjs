@@ -49,10 +49,10 @@ export type RegistrationCheck =
  * The full precondition set for a free registration, in the order that gives
  * the most useful message.
  *
- * Ordering matters: audience is checked before availability so an ineligible
- * buyer is told they cannot attend rather than that it is full, and the
- * duplicate check comes last because it is the only one that depends on who the
- * buyer is rather than on the session.
+ * Ordering matters: audience is checked first so an ineligible buyer is told
+ * they cannot attend rather than that it is full, and the duplicate check runs
+ * before availability so a returning buyer is told they already have a ticket
+ * rather than that the session is sold out.
  *
  * This runs twice — once to render the page, once inside the confirming
  * transaction — so a stale page cannot smuggle a registration past a rule.

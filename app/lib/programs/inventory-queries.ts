@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import {
   resolveAvailability,
@@ -28,7 +28,7 @@ export async function lockOccurrences(
 
   await tx.execute(
     sql`SELECT id FROM ${sessionOccurrences}
-        WHERE id IN ${occurrenceIds}
+        WHERE ${inArray(sessionOccurrences.id, occurrenceIds)}
         ORDER BY id
         FOR UPDATE`,
   );
