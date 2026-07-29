@@ -354,12 +354,24 @@ export async function registerForFreeSession(
     // Dispatched only after the transaction has committed. The seat is already
     // the attendee's; a mail failure must never look like a failed
     // registration, so this cannot throw and does not gate the result.
-    const venue = outcome.email.venueId
-      ? await db.query.venues.findFirst({
+    // Venue enrichment is best-effort too: a lookup failure falls back to a
+    // null name so the confirmation email is still attempted.
+    let venueName: string | null = null;
+    if (outcome.email.venueId) {
+      try {
+        const venue = await db.query.venues.findFirst({
           where: eq(venues.id, outcome.email.venueId),
           columns: { name: true },
-        })
-      : null;
+        });
+        venueName = venue?.name ?? null;
+      } catch (error) {
+        console.error("Venue lookup for registration email failed", {
+          purchaseId: outcome.purchaseId,
+          venueId: outcome.email.venueId,
+          error,
+        });
+      }
+    }
 
     const emailed = await sendFreeRegistrationEmail({
       purchaseId: outcome.purchaseId,
@@ -370,7 +382,7 @@ export async function registerForFreeSession(
       sessionType: outcome.email.sessionType,
       startsAt: outcome.email.startsAt,
       endsAt: outcome.email.endsAt,
-      venueName: venue?.name ?? null,
+      venueName,
       room: outcome.email.room,
       ticketCode: outcome.ticketCode,
       accessToken,
