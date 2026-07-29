@@ -1,6 +1,6 @@
 import "server-only";
 
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 
 /**
  * Opaque identifiers for the programs domain.
@@ -35,19 +35,18 @@ export function generateIdempotencyKey(): string {
 }
 
 /**
- * Constant-time comparison for a supplied token against the stored one.
+ * Digest stored in `session_purchases.accessTokenHash`. Hash the token the
+ * visitor presented and match on this — the raw token is never persisted, so a
+ * database dump or a leaked log yields nothing that opens a purchase.
  *
- * The database lookup is already an equality match, so this exists for the
- * paths that compare in application code — it keeps them from becoming a timing
- * oracle by accident.
+ * Plain SHA-256 rather than a password hash or an HMAC: the input is 32 bytes
+ * of CSPRNG output, so there is nothing to brute-force and no secret to manage.
+ * Being deterministic is what lets the lookup stay a single indexed equality.
+ *
+ * The consequence to keep in mind: the raw token exists only in the response
+ * and email at issue time. Re-sending a secure link therefore has to issue a
+ * fresh token, which invalidates any link the buyer had saved.
  */
-export function tokensMatch(supplied: string, stored: string): boolean {
-  if (supplied.length !== stored.length) return false;
-
-  let difference = 0;
-  for (let index = 0; index < supplied.length; index++) {
-    difference |= supplied.charCodeAt(index) ^ stored.charCodeAt(index);
-  }
-
-  return difference === 0;
+export function hashAccessToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
 }

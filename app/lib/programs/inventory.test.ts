@@ -121,6 +121,17 @@ describe("canReserve", () => {
     );
   });
 
+  it("does not stack the invitation on top of ordinary inventory", () => {
+    // One seat left plus an invitation must not satisfy a two-seat request:
+    // the invitation is a key to a released seat, not an extra seat.
+    expect(canReserve(oneLeft, 2, { waitlistInvitationCoversSeat: true })).toBe(
+      false,
+    );
+    expect(canReserve(oneLeft, 1, { waitlistInvitationCoversSeat: true })).toBe(
+      true,
+    );
+  });
+
   it("refuses a non-positive request", () => {
     expect(canReserve(oneLeft, 0)).toBe(false);
     expect(canReserve(oneLeft, -1)).toBe(false);

@@ -3390,6 +3390,10 @@ export const sessionOccurrences = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
+    // Target for the composite foreign key on `session_purchase_lines`, which
+    // is what keeps a line's denormalized `sessionId` agreeing with the session
+    // its occurrence actually belongs to.
+    unique("session_occurrences_id_session_id_unique").on(t.id, t.sessionId),
     index("session_occurrences_session_id_starts_at_idx").on(
       t.sessionId,
       t.startsAt,
@@ -3619,14 +3623,25 @@ export const sessionPurchases = pgTable(
     programId: integer("program_id")
       .notNull()
       .references(() => programs.id, { onDelete: "restrict" }),
+    /**
+     * `restrict`, not `set null`: a purchase is financial history, and nulling
+     * the buyer would leave a row with no identity at all — which the identity
+     * check below now correctly rejects. Deleting a buyer who has purchases has
+     * to be handled deliberately rather than silently orphaning them.
+     */
     userId: integer("user_id").references(() => users.id, {
-      onDelete: "set null",
+      onDelete: "restrict",
     }),
     guestName: text("guest_name"),
     guestEmail: text("guest_email"),
     guestPhone: text("guest_phone"),
-    /** Opaque; issued for every buyer so the confirmation page always has a link. */
-    accessToken: text("access_token").notNull().unique(),
+    /**
+     * SHA-256 of the access token, never the token itself. The raw value is
+     * returned once, to the buyer, in their link and email; a database dump or
+     * a leaked log therefore yields nothing usable. Lookups hash the presented
+     * token and match on the digest.
+     */
+    accessTokenHash: text("access_token_hash").notNull().unique(),
     accessTokenRevokedAt: timestamp("access_token_revoked_at"),
     status: sessionPurchaseStatusEnum("status")
       .default("pending_upload")
@@ -3667,12 +3682,21 @@ export const sessionPurchases = pgTable(
     ),
     index("session_purchases_user_created_idx").on(t.userId, t.createdAt),
     index("session_purchases_program_status_idx").on(t.programId, t.status),
+    /**
+     * Every conjunct is explicitly two-valued. Written with bare
+     * `length(trim(col)) > 0`, a row with no identity at all evaluates to
+     * `unknown` rather than false — and a CHECK accepts `unknown`, so the
+     * constraint would have let identity-less purchases straight through.
+     */
     check(
       "session_purchases_identity_check",
       sql`(
         (${t.userId} IS NOT NULL AND ${t.guestName} IS NULL AND ${t.guestEmail} IS NULL AND ${t.guestPhone} IS NULL)
         OR
-        (${t.userId} IS NULL AND length(trim(${t.guestName})) > 0 AND length(trim(${t.guestEmail})) > 0 AND length(trim(${t.guestPhone})) > 0)
+        (${t.userId} IS NULL
+         AND ${t.guestName} IS NOT NULL AND length(trim(${t.guestName})) > 0
+         AND ${t.guestEmail} IS NOT NULL AND length(trim(${t.guestEmail})) > 0
+         AND ${t.guestPhone} IS NOT NULL AND length(trim(${t.guestPhone})) > 0)
       )`,
     ),
     check(
@@ -3720,12 +3744,10 @@ export const sessionPurchaseLines = pgTable(
     purchaseId: integer("purchase_id")
       .notNull()
       .references(() => sessionPurchases.id, { onDelete: "cascade" }),
-    occurrenceId: integer("occurrence_id")
-      .notNull()
-      .references(() => sessionOccurrences.id, { onDelete: "restrict" }),
-    sessionId: integer("session_id")
-      .notNull()
-      .references(() => programSessions.id, { onDelete: "restrict" }),
+    // Both ids are constrained together by the composite key below, so neither
+    // carries its own single-column reference.
+    occurrenceId: integer("occurrence_id").notNull(),
+    sessionId: integer("session_id").notNull(),
     source: purchaseLineSourceEnum("source")
       .default("individual_session")
       .notNull(),
@@ -3746,6 +3768,21 @@ export const sessionPurchaseLines = pgTable(
   },
   (t) => [
     unique().on(t.purchaseId, t.occurrenceId),
+    // Target for `session_tickets`' composite key.
+    unique("session_purchase_lines_id_occurrence_id_unique").on(
+      t.id,
+      t.occurrenceId,
+    ),
+    /**
+     * The occurrence must exist *and* belong to the denormalized session, so
+     * the two ids can never drift apart. Mirrors
+     * `order_items_product_variant_product_fk`.
+     */
+    foreignKey({
+      name: "session_purchase_lines_occurrence_session_fk",
+      columns: [t.occurrenceId, t.sessionId],
+      foreignColumns: [sessionOccurrences.id, sessionOccurrences.sessionId],
+    }).onDelete("restrict"),
     index("session_purchase_lines_occurrence_idx").on(t.occurrenceId),
     index("session_purchase_lines_purchase_idx").on(t.purchaseId),
     check("session_purchase_lines_price_positive", sql`${t.unitPrice} >= 0`),
@@ -3830,13 +3867,10 @@ export const sessionTickets = pgTable(
   "session_tickets",
   {
     id: serial("id").primaryKey(),
-    purchaseLineId: integer("purchase_line_id")
-      .notNull()
-      .unique()
-      .references(() => sessionPurchaseLines.id, { onDelete: "cascade" }),
-    occurrenceId: integer("occurrence_id")
-      .notNull()
-      .references(() => sessionOccurrences.id, { onDelete: "restrict" }),
+    purchaseLineId: integer("purchase_line_id").notNull().unique(),
+    // Constrained together with `purchaseLineId` below, so a ticket can never
+    // name a different occurrence than the line it was issued from.
+    occurrenceId: integer("occurrence_id").notNull(),
     /** Opaque QR payload. */
     code: text("code").notNull().unique(),
     status: sessionTicketStatusEnum("status").default("valid").notNull(),
@@ -3854,6 +3888,16 @@ export const sessionTickets = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
+    // Target for `session_attendances`' composite key.
+    unique("session_tickets_id_occurrence_id_unique").on(t.id, t.occurrenceId),
+    foreignKey({
+      name: "session_tickets_line_occurrence_fk",
+      columns: [t.purchaseLineId, t.occurrenceId],
+      foreignColumns: [
+        sessionPurchaseLines.id,
+        sessionPurchaseLines.occurrenceId,
+      ],
+    }).onDelete("cascade"),
     // "One person, one seat per occurrence" across every purchase, not just
     // within one. Partial so a cancelled ticket frees the slot for a re-buy.
     uniqueIndex("session_tickets_occurrence_attendee_user_idx")
@@ -3894,13 +3938,10 @@ export const sessionAttendances = pgTable(
   "session_attendances",
   {
     id: serial("id").primaryKey(),
-    ticketId: integer("ticket_id")
-      .notNull()
-      .unique()
-      .references(() => sessionTickets.id, { onDelete: "cascade" }),
-    occurrenceId: integer("occurrence_id")
-      .notNull()
-      .references(() => sessionOccurrences.id, { onDelete: "restrict" }),
+    ticketId: integer("ticket_id").notNull().unique(),
+    // Constrained together with `ticketId` below: an attendance always records
+    // the occurrence its ticket was actually issued for.
+    occurrenceId: integer("occurrence_id").notNull(),
     checkedInAt: timestamp("checked_in_at").defaultNow().notNull(),
     operatorUserId: integer("operator_user_id").references(() => users.id, {
       onDelete: "set null",
@@ -3908,7 +3949,14 @@ export const sessionAttendances = pgTable(
     method: attendanceMethodEnum("method").default("qr_scan").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("session_attendances_occurrence_idx").on(t.occurrenceId)],
+  (t) => [
+    foreignKey({
+      name: "session_attendances_ticket_occurrence_fk",
+      columns: [t.ticketId, t.occurrenceId],
+      foreignColumns: [sessionTickets.id, sessionTickets.occurrenceId],
+    }).onDelete("cascade"),
+    index("session_attendances_occurrence_idx").on(t.occurrenceId),
+  ],
 );
 export const sessionAttendancesRelations = relations(
   sessionAttendances,

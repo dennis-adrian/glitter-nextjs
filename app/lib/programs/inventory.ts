@@ -72,9 +72,12 @@ export function resolveAvailability(input: {
 }
 
 /**
- * Whether a purchase of `seats` seats fits. A live waitlist invitation covers
- * exactly one seat at zero availability, which is why invitations are only
- * issued after a seat has actually been released.
+ * Whether a purchase of `seats` seats fits.
+ *
+ * A live waitlist invitation covers exactly one seat, and only once ordinary
+ * inventory is exhausted — it is a key to a seat that was released for that
+ * person, not an extra seat stacked on top of what is already available. So it
+ * grants its allowance at zero remaining and never widens a normal reservation.
  */
 export function canReserve(
   availability: OccurrenceAvailability,
@@ -83,7 +86,10 @@ export function canReserve(
 ): boolean {
   if (seats <= 0) return false;
 
-  const allowance = options.waitlistInvitationCoversSeat ? 1 : 0;
+  const allowance =
+    options.waitlistInvitationCoversSeat && availability.remaining === 0
+      ? 1
+      : 0;
 
   return availability.remaining + allowance >= seats;
 }

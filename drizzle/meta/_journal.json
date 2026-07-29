@@ -1527,6 +1527,20 @@
       "when": 1785276590823,
       "tag": "0217_pale_power_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 218,
+      "version": "7",
+      "when": 1785291864293,
+      "tag": "0218_elite_slapstick",
+      "breakpoints": true
+    },
+    {
+      "idx": 219,
+      "version": "7",
+      "when": 1785291890900,
+      "tag": "0219_stormy_bullseye",
+      "breakpoints": true
     }
   ]
 }
