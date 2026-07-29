@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 
-import { utcTimestamp } from "@/app/lib/programs/sql-time";
+import { utcTimestamp } from "@/app/lib/sql-time";
 
 import {
   activeBanSanctionIds,

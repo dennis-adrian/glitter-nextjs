@@ -3,7 +3,7 @@ import "server-only";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
-import { utcTimestamp } from "@/app/lib/programs/sql-time";
+import { utcTimestamp } from "@/app/lib/sql-time";
 
 import {
   resolveAvailability,

@@ -6,6 +6,7 @@ import {
   recordSanctionLifecycleNotificationEnqueueFailure,
 } from "@/app/lib/infractions/notifications";
 import { logSanctionEvent } from "@/app/lib/sanctions/events";
+import { utcTimestamp } from "@/app/lib/sql-time";
 import {
   calculateReservationEligibleAt,
   festivalActivationQualifiesSanction,
@@ -200,7 +201,11 @@ export async function reconcileSanctionFestivalCounting(input?: {
       )
       .having(
         and(
-          lte(sql`max(${festivalDates.endDate})`, now),
+          // `utcTimestamp` because the left side is an aggregate expression, so
+          // drizzle has no column type to map the `Date` through and would send
+          // it in the process's local zone. The comparison below is
+          // column-to-column and needs no bound.
+          sql`max(${festivalDates.endDate}) <= ${utcTimestamp(now)}`,
           gt(sql`max(${festivalDates.endDate})`, sanctions.startsAt),
         ),
       );
