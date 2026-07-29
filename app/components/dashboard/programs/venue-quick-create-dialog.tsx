@@ -41,8 +41,9 @@ export default function VenueQuickCreateDialog({ onCreated }: Props) {
   function handleCreate() {
     startTransition(async () => {
       try {
+        const name = values.name.trim();
         const result = await createVenue({
-          name: values.name,
+          name,
           address: values.address || null,
           locationLabel: values.locationLabel || null,
           locationUrl: values.locationUrl || null,
@@ -54,7 +55,7 @@ export default function VenueQuickCreateDialog({ onCreated }: Props) {
         }
 
         toast.success(result.message);
-        onCreated({ id: result.venueId, name: values.name.trim() });
+        onCreated({ id: result.venueId, name });
         setValues(EMPTY);
         setOpen(false);
       } catch (error) {

@@ -1,7 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 
 import SessionForm from "@/app/components/dashboard/programs/session-form";
-import { fetchProgramForAdmin, fetchVenues } from "@/app/lib/programs/data";
+import {
+  fetchProgramForAdmin,
+  fetchSessionTopics,
+  fetchVenues,
+} from "@/app/lib/programs/data";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 
 type Props = {
@@ -16,9 +20,10 @@ export default async function NewSessionPage({ params }: Props) {
   const programId = Number(id);
   if (!Number.isInteger(programId)) notFound();
 
-  const [program, venues] = await Promise.all([
+  const [program, venues, topics] = await Promise.all([
     fetchProgramForAdmin(programId),
     fetchVenues(),
+    fetchSessionTopics(),
   ]);
 
   if (!program) notFound();
@@ -29,7 +34,7 @@ export default async function NewSessionPage({ params }: Props) {
         <h1 className="text-2xl font-bold">Nueva sesión</h1>
         <p className="text-sm text-muted-foreground">{program.name}</p>
       </div>
-      <SessionForm programId={program.id} venues={venues} />
+      <SessionForm programId={program.id} venues={venues} topics={topics} />
     </div>
   );
 }

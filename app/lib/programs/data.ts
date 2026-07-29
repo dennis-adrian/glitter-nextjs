@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
 import { cache } from "react";
 
 import type {
@@ -115,6 +115,26 @@ export const fetchSessionForAdmin = cache(async (sessionId: number) => {
 
 export const fetchVenues = cache(async (): Promise<Venue[]> => {
   return db.select().from(venues).orderBy(asc(venues.name));
+});
+
+/**
+ * Topics already in use, for the session form's picker.
+ *
+ * Topic stays plain text on the session; this distinct list is what makes
+ * separate sessions converge on the same value instead of each inventing its
+ * own spelling. If topics ever need renaming or filtering in their own right,
+ * these values are the seed for a real vocabulary table.
+ */
+export const fetchSessionTopics = cache(async (): Promise<string[]> => {
+  const rows = await db
+    .selectDistinct({ topic: programSessions.topic })
+    .from(programSessions)
+    .where(isNotNull(programSessions.topic))
+    .orderBy(asc(programSessions.topic));
+
+  return rows
+    .map((row) => row.topic)
+    .filter((topic): topic is string => Boolean(topic));
 });
 
 export const fetchSpeakers = cache(async (): Promise<Speaker[]> => {

@@ -71,8 +71,13 @@ export default async function SessionPage({ params }: Props) {
   return (
     <div className="container mx-auto max-w-3xl space-y-8 px-4 py-8">
       <header className="space-y-3">
+        {/* Type, topic, and level sit together as classifiers — the topic is a
+            category the session belongs to, not a subtitle for its title. */}
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{SESSION_TYPE_LABELS[session.type]}</Badge>
+          {session.topic ? (
+            <Badge variant="secondary">{session.topic}</Badge>
+          ) : null}
           {session.skillLevel ? (
             <Badge variant="secondary">
               {SESSION_SKILL_LEVEL_LABELS[session.skillLevel]}
@@ -80,9 +85,6 @@ export default async function SessionPage({ params }: Props) {
           ) : null}
         </div>
         <h1 className="text-3xl font-bold">{session.title}</h1>
-        {session.topic ? (
-          <p className="text-muted-foreground">{session.topic}</p>
-        ) : null}
       </header>
 
       {session.sessionSpeakers.length > 0 ? (

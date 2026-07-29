@@ -3537,3 +3537,389 @@ export const sessionOccurrenceScheduleChangesRelations = relations(
     }),
   }),
 );
+
+/* --- Purchases, tickets, attendance (Phase 2 onward) ---------------------- */
+
+export const sessionPurchaseStatusEnum = pgEnum("session_purchase_status", [
+  "pending_upload",
+  "under_verification",
+  "changes_requested",
+  "approved",
+  "rejected",
+  "expired",
+  "cancelled",
+]);
+
+export const sessionPurchasePaymentModeEnum = pgEnum(
+  "session_purchase_payment_mode",
+  ["bank_qr", "free"],
+);
+
+/** Also used as the price basis on a line. */
+export const participantEligibilityEnum = pgEnum("participant_eligibility", [
+  "active_participant",
+  "public",
+]);
+
+export const purchaseLineSourceEnum = pgEnum("purchase_line_source", [
+  "individual_session",
+  "pass_session",
+]);
+
+export const purchaseActorTypeEnum = pgEnum("purchase_actor_type", [
+  "buyer",
+  "admin",
+  "system",
+]);
+
+export const sessionPurchaseEventTypeEnum = pgEnum(
+  "session_purchase_event_type",
+  [
+    "created",
+    "voucher_uploaded",
+    "voucher_replaced",
+    "changes_requested",
+    "approved",
+    "rejected",
+    "cancelled_by_buyer",
+    "cancelled_by_admin",
+    "expired",
+    "ticket_issued",
+    "ticket_cancelled",
+    "adjusted",
+    "link_resent",
+    "emails_resent",
+    "refund_requested",
+    "refund_resolved",
+    "upgrade_initiated",
+    "upgrade_completed",
+  ],
+);
+
+export const sessionTicketStatusEnum = pgEnum("session_ticket_status", [
+  "valid",
+  "cancelled",
+]);
+
+export const attendanceMethodEnum = pgEnum("attendance_method", [
+  "qr_scan",
+  "manual_code",
+]);
+
+/**
+ * One checkout by one buyer: one total, one secure link, one or more lines.
+ *
+ * Pass, upgrade, and waitlist columns arrive with their own phases — they would
+ * need foreign keys to tables that do not exist yet.
+ */
+export const sessionPurchases = pgTable(
+  "session_purchases",
+  {
+    id: serial("id").primaryKey(),
+    programId: integer("program_id")
+      .notNull()
+      .references(() => programs.id, { onDelete: "restrict" }),
+    userId: integer("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    guestName: text("guest_name"),
+    guestEmail: text("guest_email"),
+    guestPhone: text("guest_phone"),
+    /** Opaque; issued for every buyer so the confirmation page always has a link. */
+    accessToken: text("access_token").notNull().unique(),
+    accessTokenRevokedAt: timestamp("access_token_revoked_at"),
+    status: sessionPurchaseStatusEnum("status")
+      .default("pending_upload")
+      .notNull(),
+    paymentMode: sessionPurchasePaymentModeEnum("payment_mode").notNull(),
+    buyerEligibility: participantEligibilityEnum("buyer_eligibility").notNull(),
+    eligibilityEvaluatedAt: timestamp("eligibility_evaluated_at").notNull(),
+    eligibilitySnapshot: jsonb("eligibility_snapshot").notNull(),
+    subtotalAmount: numeric("subtotal_amount", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    totalAmount: numeric("total_amount", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    holdExpiresAt: timestamp("hold_expires_at"),
+    voucherSubmittedAt: timestamp("voucher_submitted_at"),
+    approvedAt: timestamp("approved_at"),
+    rejectedAt: timestamp("rejected_at"),
+    expiredAt: timestamp("expired_at"),
+    cancelledAt: timestamp("cancelled_at"),
+    noRefundPolicyVersion: text("no_refund_policy_version").notNull(),
+    noRefundPolicyAcceptedAt: timestamp(
+      "no_refund_policy_accepted_at",
+    ).notNull(),
+    /** Client-supplied; a retried submit returns the existing purchase. */
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("session_purchases_status_hold_expires_idx").on(
+      t.status,
+      t.holdExpiresAt,
+    ),
+    index("session_purchases_user_created_idx").on(t.userId, t.createdAt),
+    index("session_purchases_program_status_idx").on(t.programId, t.status),
+    check(
+      "session_purchases_identity_check",
+      sql`(
+        (${t.userId} IS NOT NULL AND ${t.guestName} IS NULL AND ${t.guestEmail} IS NULL AND ${t.guestPhone} IS NULL)
+        OR
+        (${t.userId} IS NULL AND length(trim(${t.guestName})) > 0 AND length(trim(${t.guestEmail})) > 0 AND length(trim(${t.guestPhone})) > 0)
+      )`,
+    ),
+    check(
+      "session_purchases_amounts_valid",
+      sql`${t.subtotalAmount} >= 0 AND ${t.totalAmount} >= 0 AND ${t.totalAmount} <= ${t.subtotalAmount}`,
+    ),
+    check(
+      "session_purchases_free_has_no_hold",
+      sql`${t.paymentMode} <> 'free' OR (${t.totalAmount} = 0 AND ${t.holdExpiresAt} IS NULL)`,
+    ),
+    check(
+      "session_purchases_paid_has_hold",
+      sql`${t.paymentMode} <> 'bank_qr' OR ${t.holdExpiresAt} IS NOT NULL`,
+    ),
+    check(
+      "session_purchases_terminal_timestamps",
+      sql`(${t.status} <> 'approved' OR ${t.approvedAt} IS NOT NULL)
+        AND (${t.status} <> 'rejected' OR ${t.rejectedAt} IS NOT NULL)
+        AND (${t.status} <> 'expired' OR ${t.expiredAt} IS NOT NULL)
+        AND (${t.status} <> 'cancelled' OR ${t.cancelledAt} IS NOT NULL)`,
+    ),
+  ],
+);
+export const sessionPurchasesRelations = relations(
+  sessionPurchases,
+  ({ one, many }) => ({
+    program: one(programs, {
+      fields: [sessionPurchases.programId],
+      references: [programs.id],
+    }),
+    buyer: one(users, {
+      fields: [sessionPurchases.userId],
+      references: [users.id],
+    }),
+    lines: many(sessionPurchaseLines),
+    events: many(sessionPurchaseEvents),
+  }),
+);
+
+/** One seat in one occurrence, with the price that applied to it. */
+export const sessionPurchaseLines = pgTable(
+  "session_purchase_lines",
+  {
+    id: serial("id").primaryKey(),
+    purchaseId: integer("purchase_id")
+      .notNull()
+      .references(() => sessionPurchases.id, { onDelete: "cascade" }),
+    occurrenceId: integer("occurrence_id")
+      .notNull()
+      .references(() => sessionOccurrences.id, { onDelete: "restrict" }),
+    sessionId: integer("session_id")
+      .notNull()
+      .references(() => programSessions.id, { onDelete: "restrict" }),
+    source: purchaseLineSourceEnum("source")
+      .default("individual_session")
+      .notNull(),
+    unitPrice: numeric("unit_price", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    priceBasis: participantEligibilityEnum("price_basis").notNull(),
+    pricingSnapshot: jsonb("pricing_snapshot").notNull(),
+    /** Survives later content edits and reschedules, for audit. */
+    sessionTitleSnapshot: text("session_title_snapshot").notNull(),
+    occurrenceStartsAtSnapshot: timestamp(
+      "occurrence_starts_at_snapshot",
+    ).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique().on(t.purchaseId, t.occurrenceId),
+    index("session_purchase_lines_occurrence_idx").on(t.occurrenceId),
+    index("session_purchase_lines_purchase_idx").on(t.purchaseId),
+    check("session_purchase_lines_price_positive", sql`${t.unitPrice} >= 0`),
+    check(
+      "session_purchase_lines_pass_line_free",
+      sql`${t.source} <> 'pass_session' OR ${t.unitPrice} = 0`,
+    ),
+  ],
+);
+export const sessionPurchaseLinesRelations = relations(
+  sessionPurchaseLines,
+  ({ one }) => ({
+    purchase: one(sessionPurchases, {
+      fields: [sessionPurchaseLines.purchaseId],
+      references: [sessionPurchases.id],
+    }),
+    occurrence: one(sessionOccurrences, {
+      fields: [sessionPurchaseLines.occurrenceId],
+      references: [sessionOccurrences.id],
+    }),
+    session: one(programSessions, {
+      fields: [sessionPurchaseLines.sessionId],
+      references: [programSessions.id],
+    }),
+    ticket: one(sessionTickets),
+  }),
+);
+
+/**
+ * Audit trail, insert-only, mirroring `sanctionEvents`. The reason check is how
+ * "every sensitive admin action requires a reason" becomes an invariant rather
+ * than a convention.
+ */
+export const sessionPurchaseEvents = pgTable(
+  "session_purchase_events",
+  {
+    id: serial("id").primaryKey(),
+    purchaseId: integer("purchase_id")
+      .notNull()
+      .references(() => sessionPurchases.id, { onDelete: "cascade" }),
+    actorType: purchaseActorTypeEnum("actor_type").notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    eventType: sessionPurchaseEventTypeEnum("event_type").notNull(),
+    fromStatus: sessionPurchaseStatusEnum("from_status"),
+    toStatus: sessionPurchaseStatusEnum("to_status"),
+    reason: text("reason"),
+    changes: jsonb("changes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("session_purchase_events_purchase_created_idx").on(
+      t.purchaseId,
+      t.createdAt,
+    ),
+    check(
+      "session_purchase_events_admin_needs_reason",
+      sql`${t.actorType} <> 'admin' OR (${t.reason} IS NOT NULL AND length(trim(${t.reason})) > 0)`,
+    ),
+  ],
+);
+export const sessionPurchaseEventsRelations = relations(
+  sessionPurchaseEvents,
+  ({ one }) => ({
+    purchase: one(sessionPurchases, {
+      fields: [sessionPurchaseEvents.purchaseId],
+      references: [sessionPurchases.id],
+    }),
+    actor: one(users, {
+      fields: [sessionPurchaseEvents.actorUserId],
+      references: [users.id],
+    }),
+  }),
+);
+
+/**
+ * Valid for one person and one occurrence. The unique `purchaseLineId` is what
+ * makes issuance idempotent: approving twice inserts nothing the second time.
+ */
+export const sessionTickets = pgTable(
+  "session_tickets",
+  {
+    id: serial("id").primaryKey(),
+    purchaseLineId: integer("purchase_line_id")
+      .notNull()
+      .unique()
+      .references(() => sessionPurchaseLines.id, { onDelete: "cascade" }),
+    occurrenceId: integer("occurrence_id")
+      .notNull()
+      .references(() => sessionOccurrences.id, { onDelete: "restrict" }),
+    /** Opaque QR payload. */
+    code: text("code").notNull().unique(),
+    status: sessionTicketStatusEnum("status").default("valid").notNull(),
+    attendeeUserId: integer("attendee_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    /** Snapshot so check-in lists work for guests and survive profile edits. */
+    attendeeName: text("attendee_name").notNull(),
+    attendeeEmail: text("attendee_email").notNull(),
+    issuedAt: timestamp("issued_at").defaultNow().notNull(),
+    cancelledAt: timestamp("cancelled_at"),
+    cancelledReason: text("cancelled_reason"),
+    cancelledByActorType: purchaseActorTypeEnum("cancelled_by_actor_type"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    // "One person, one seat per occurrence" across every purchase, not just
+    // within one. Partial so a cancelled ticket frees the slot for a re-buy.
+    uniqueIndex("session_tickets_occurrence_attendee_user_idx")
+      .on(t.occurrenceId, t.attendeeUserId)
+      .where(sql`${t.status} = 'valid' AND ${t.attendeeUserId} IS NOT NULL`),
+    uniqueIndex("session_tickets_occurrence_attendee_email_idx")
+      .on(t.occurrenceId, sql`lower(${t.attendeeEmail})`)
+      .where(sql`${t.status} = 'valid'`),
+    index("session_tickets_occurrence_status_idx").on(t.occurrenceId, t.status),
+    check(
+      "session_tickets_cancelled_consistent",
+      sql`${t.status} <> 'cancelled' OR ${t.cancelledAt} IS NOT NULL`,
+    ),
+  ],
+);
+export const sessionTicketsRelations = relations(sessionTickets, ({ one }) => ({
+  purchaseLine: one(sessionPurchaseLines, {
+    fields: [sessionTickets.purchaseLineId],
+    references: [sessionPurchaseLines.id],
+  }),
+  occurrence: one(sessionOccurrences, {
+    fields: [sessionTickets.occurrenceId],
+    references: [sessionOccurrences.id],
+  }),
+  attendee: one(users, {
+    fields: [sessionTickets.attendeeUserId],
+    references: [users.id],
+  }),
+  attendance: one(sessionAttendances),
+}));
+
+/**
+ * The check-in record. One per ticket — that unique constraint *is* the
+ * duplicate-scan rule. Kept separate from ticket validity so a cancelled ticket
+ * that was already scanned keeps its history.
+ */
+export const sessionAttendances = pgTable(
+  "session_attendances",
+  {
+    id: serial("id").primaryKey(),
+    ticketId: integer("ticket_id")
+      .notNull()
+      .unique()
+      .references(() => sessionTickets.id, { onDelete: "cascade" }),
+    occurrenceId: integer("occurrence_id")
+      .notNull()
+      .references(() => sessionOccurrences.id, { onDelete: "restrict" }),
+    checkedInAt: timestamp("checked_in_at").defaultNow().notNull(),
+    operatorUserId: integer("operator_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    method: attendanceMethodEnum("method").default("qr_scan").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("session_attendances_occurrence_idx").on(t.occurrenceId)],
+);
+export const sessionAttendancesRelations = relations(
+  sessionAttendances,
+  ({ one }) => ({
+    ticket: one(sessionTickets, {
+      fields: [sessionAttendances.ticketId],
+      references: [sessionTickets.id],
+    }),
+    occurrence: one(sessionOccurrences, {
+      fields: [sessionAttendances.occurrenceId],
+      references: [sessionOccurrences.id],
+    }),
+  }),
+);

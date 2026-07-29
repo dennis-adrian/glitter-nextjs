@@ -16,6 +16,7 @@ import {
 import {
   fetchProgramSettings,
   fetchSessionForAdmin,
+  fetchSessionTopics,
   fetchSpeakers,
   fetchVenues,
 } from "@/app/lib/programs/data";
@@ -42,11 +43,12 @@ export default async function SessionDetailPage({ params }: Props) {
   const sessionId = Number(rawSessionId);
   if (!Number.isInteger(programId) || !Number.isInteger(sessionId)) notFound();
 
-  const [session, venues, speakers, settings] = await Promise.all([
+  const [session, venues, speakers, settings, topics] = await Promise.all([
     fetchSessionForAdmin(sessionId),
     fetchVenues(),
     fetchSpeakers(),
     fetchProgramSettings(),
+    fetchSessionTopics(),
   ]);
 
   if (!session || session.programId !== programId) notFound();
@@ -157,6 +159,7 @@ export default async function SessionDetailPage({ params }: Props) {
             programId={programId}
             session={session}
             venues={venues}
+            topics={topics}
           />
         </CardContent>
       </Card>

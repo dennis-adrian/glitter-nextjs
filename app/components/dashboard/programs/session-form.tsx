@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
+import CreatableComboboxInput from "@/app/components/form/fields/creatable-combobox";
 import SelectInput from "@/app/components/form/fields/select";
 import TextInput from "@/app/components/form/fields/text";
 import TextareaInput from "@/app/components/form/fields/textarea";
@@ -32,11 +33,18 @@ type Props = {
   programId: number;
   session?: ProgramSession;
   venues: Venue[];
+  /** Topics already used by other sessions, for the picker. */
+  topics: string[];
 };
 
 const NONE = "none";
 
-export default function SessionForm({ programId, session, venues }: Props) {
+export default function SessionForm({
+  programId,
+  session,
+  venues,
+  topics,
+}: Props) {
   const router = useRouter();
   const isEditing = Boolean(session);
 
@@ -115,7 +123,13 @@ export default function SessionForm({ programId, session, venues }: Props) {
   return (
     <Form {...form}>
       <form className="grid gap-4" onSubmit={action}>
-        <TextInput label="Título" name="title" required />
+        <TextInput
+          label="Título"
+          name="title"
+          placeholder="Cómo cobrar por tu trabajo sin morir en el intento"
+          description="El nombre de esta sesión en particular."
+          required
+        />
 
         <div className="grid gap-4 md:grid-cols-2">
           <SelectInput
@@ -142,7 +156,15 @@ export default function SessionForm({ programId, session, venues }: Props) {
           />
         </div>
 
-        <TextInput label="Tema" name="topic" />
+        <CreatableComboboxInput
+          form={form}
+          name="topic"
+          label="Tema o categoría"
+          placeholder="Elegir o crear un tema"
+          description="El área a la que pertenece la sesión, no su título. Elige uno ya en uso para agrupar sesiones que tratan lo mismo."
+          options={topics}
+          emptyLabel="Aún no hay temas. Escribe para crear el primero."
+        />
         <TextareaInput
           formControl={form.control}
           label="Descripción"

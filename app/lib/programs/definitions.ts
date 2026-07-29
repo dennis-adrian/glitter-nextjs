@@ -2,9 +2,14 @@ import {
   programSessions,
   programSettings,
   programs,
+  sessionAttendances,
   sessionOccurrenceScheduleChanges,
   sessionOccurrences,
+  sessionPurchaseEvents,
+  sessionPurchaseLines,
+  sessionPurchases,
   sessionSpeakers,
+  sessionTickets,
   speakers,
   venues,
 } from "@/db/schema";
@@ -24,6 +29,39 @@ export type SessionType = ProgramSession["type"];
 export type SessionAudience = ProgramSession["audience"];
 export type SessionSkillLevel = NonNullable<ProgramSession["skillLevel"]>;
 export type OccurrenceLifecycleStatus = SessionOccurrence["lifecycleStatus"];
+
+export type SessionPurchase = typeof sessionPurchases.$inferSelect;
+export type SessionPurchaseLine = typeof sessionPurchaseLines.$inferSelect;
+export type SessionPurchaseEvent = typeof sessionPurchaseEvents.$inferSelect;
+export type SessionTicket = typeof sessionTickets.$inferSelect;
+export type SessionAttendance = typeof sessionAttendances.$inferSelect;
+
+export type SessionPurchaseStatus = SessionPurchase["status"];
+export type SessionPurchasePaymentMode = SessionPurchase["paymentMode"];
+export type PurchaseLineSource = SessionPurchaseLine["source"];
+export type PurchaseActorType = SessionPurchaseEvent["actorType"];
+export type SessionPurchaseEventType = SessionPurchaseEvent["eventType"];
+export type SessionTicketStatus = SessionTicket["status"];
+export type AttendanceMethod = SessionAttendance["method"];
+
+export const SESSION_PURCHASE_STATUS_LABELS: Record<
+  SessionPurchaseStatus,
+  string
+> = {
+  pending_upload: "Esperando comprobante",
+  under_verification: "En revisión",
+  changes_requested: "Cambios solicitados",
+  approved: "Aprobada",
+  rejected: "Rechazada",
+  expired: "Expirada",
+  cancelled: "Cancelada",
+};
+
+export const SESSION_TICKET_STATUS_LABELS: Record<SessionTicketStatus, string> =
+  {
+    valid: "Válida",
+    cancelled: "Cancelada",
+  };
 
 export const SESSION_TYPE_LABELS: Record<SessionType, string> = {
   talk: "Charla",

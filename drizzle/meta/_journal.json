@@ -1520,6 +1520,13 @@
       "when": 1785270208970,
       "tag": "0216_glamorous_roulette",
       "breakpoints": true
+    },
+    {
+      "idx": 217,
+      "version": "7",
+      "when": 1785276590823,
+      "tag": "0217_pale_power_pack",
+      "breakpoints": true
     }
   ]
 }
