@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
 import { getBuyerEligibility } from "@/app/lib/programs/eligibility-queries";
+import { sendFreeRegistrationEmail } from "@/app/lib/programs/notifications";
 import {
   fetchOccurrenceAvailability,
   hasValidTicketFor,
@@ -39,6 +40,7 @@ import {
   sessionPurchaseLines,
   sessionPurchases,
   sessionTickets,
+  venues,
 } from "@/db/schema";
 
 const registrationSchema = z.object({
@@ -320,6 +322,18 @@ export async function registerForFreeSession(
         kind: "created" as const,
         purchaseId: purchase.id,
         ticketCode: ticket.code,
+        email: {
+          programName: context.program.name,
+          sessionTitle: context.session.title,
+          sessionType: context.session.type,
+          startsAt: context.occurrence.startsAt,
+          endsAt: context.occurrence.endsAt,
+          venueId:
+            context.occurrence.venueId ??
+            context.session.venueId ??
+            context.program.defaultVenueId,
+          room: context.occurrence.room,
+        },
       };
     });
 
@@ -337,9 +351,36 @@ export async function registerForFreeSession(
       };
     }
 
+    // Dispatched only after the transaction has committed. The seat is already
+    // the attendee's; a mail failure must never look like a failed
+    // registration, so this cannot throw and does not gate the result.
+    const venue = outcome.email.venueId
+      ? await db.query.venues.findFirst({
+          where: eq(venues.id, outcome.email.venueId),
+          columns: { name: true },
+        })
+      : null;
+
+    const emailed = await sendFreeRegistrationEmail({
+      purchaseId: outcome.purchaseId,
+      attendeeName: attendee.name,
+      attendeeEmail: attendee.email,
+      programName: outcome.email.programName,
+      sessionTitle: outcome.email.sessionTitle,
+      sessionType: outcome.email.sessionType,
+      startsAt: outcome.email.startsAt,
+      endsAt: outcome.email.endsAt,
+      venueName: venue?.name ?? null,
+      room: outcome.email.room,
+      ticketCode: outcome.ticketCode,
+      accessToken,
+    });
+
     return {
       success: true,
-      message: "¡Listo! Tu inscripción quedó confirmada",
+      message: emailed
+        ? "¡Listo! Tu inscripción quedó confirmada. Te enviamos el QR por correo."
+        : "¡Listo! Tu inscripción quedó confirmada. No pudimos enviarte el correo, guarda el enlace de esta página.",
       purchaseId: outcome.purchaseId,
       accessToken,
       ticketCode: outcome.ticketCode,
