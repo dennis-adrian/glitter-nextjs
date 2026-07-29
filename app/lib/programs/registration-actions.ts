@@ -8,6 +8,7 @@ import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
 import { getBuyerEligibility } from "@/app/lib/programs/eligibility-queries";
 import { sendFreeRegistrationEmail } from "@/app/lib/programs/notifications";
 import {
+  fetchAvailabilityForOccurrences,
   fetchOccurrenceAvailability,
   hasValidTicketFor,
   lockOccurrences,
@@ -429,4 +430,9 @@ export async function registerForFreeSession(
 /** Availability for the public page, outside any transaction. */
 export async function getOccurrenceAvailability(occurrenceId: number) {
   return fetchOccurrenceAvailability(db, occurrenceId);
+}
+
+/** Availability for every occurrence on a session page, in one round trip. */
+export async function getAvailabilityForOccurrences(occurrenceIds: number[]) {
+  return fetchAvailabilityForOccurrences(db, occurrenceIds);
 }

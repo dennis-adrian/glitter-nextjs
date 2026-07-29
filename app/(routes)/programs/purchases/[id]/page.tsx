@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 
 type Props = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ token?: string }>;
+  searchParams: Promise<{ token?: unknown }>;
 };
 
 export default async function PurchaseAccessPage({
@@ -29,7 +29,14 @@ export default async function PurchaseAccessPage({
 }: Props) {
   await requireFeatureEnabled("paid_programs");
 
-  const [{ id }, { token }] = await Promise.all([params, searchParams]);
+  const [{ id }, resolvedSearchParams] = await Promise.all([
+    params,
+    searchParams,
+  ]);
+  const token =
+    typeof resolvedSearchParams.token === "string"
+      ? resolvedSearchParams.token
+      : undefined;
   const purchaseId = Number(id);
   if (!Number.isInteger(purchaseId) || purchaseId <= 0) notFound();
 

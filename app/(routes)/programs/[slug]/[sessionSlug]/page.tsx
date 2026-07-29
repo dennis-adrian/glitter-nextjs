@@ -13,12 +13,17 @@ import {
   SESSION_SKILL_LEVEL_LABELS,
   SESSION_TYPE_LABELS,
 } from "@/app/lib/programs/definitions";
+import { canPurchaseAudience } from "@/app/lib/programs/eligibility";
+import { getBuyerEligibility } from "@/app/lib/programs/eligibility-queries";
 import {
   formatMoney,
   globalDiscountFrom,
+  isFreePrice,
   programDiscountFrom,
   resolvePrice,
 } from "@/app/lib/programs/pricing";
+import { getAvailabilityForOccurrences } from "@/app/lib/programs/registration-actions";
+import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 type Props = {
   params: Promise<{ slug: string; sessionSlug: string }>;
@@ -45,10 +50,11 @@ export default async function SessionPage({ params }: Props) {
   await requireFeatureEnabled("paid_programs");
 
   const { slug, sessionSlug } = await params;
-  const [session, settings, venues] = await Promise.all([
+  const [session, settings, venues, profile] = await Promise.all([
     fetchPublishedSession(slug, sessionSlug),
     fetchProgramSettings(),
     fetchVenues(),
+    getCurrentUserProfile(),
   ]);
 
   if (!session) notFound();
@@ -64,6 +70,18 @@ export default async function SessionPage({ params }: Props) {
     priceInput,
     "active_participant",
   ).amount;
+
+  // The viewer's own price decides whether registration is even offered. It is
+  // re-derived inside the action, so this only governs what the page shows.
+  const { eligibility } = await getBuyerEligibility(profile);
+  const viewerPrice = resolvePrice(priceInput, eligibility).amount;
+  const canRegisterFree =
+    isFreePrice(viewerPrice) &&
+    canPurchaseAudience(session.audience, eligibility);
+
+  const availabilityByOccurrence = await getAvailabilityForOccurrences(
+    session.occurrences.map((occurrence) => occurrence.id),
+  );
 
   const venuesById = new Map(venues.map((venue) => [venue.id, venue]));
   const outcomes = session.learningOutcomes ?? [];
@@ -147,6 +165,11 @@ export default async function SessionPage({ params }: Props) {
           venuesById={venuesById}
           fallbackVenueId={
             session.venueId ?? session.program.defaultVenueId ?? null
+          }
+          sessionTitle={session.title}
+          availabilityByOccurrence={availabilityByOccurrence}
+          freeRegistration={
+            canRegisterFree ? { isSignedIn: profile !== null } : null
           }
         />
       </section>

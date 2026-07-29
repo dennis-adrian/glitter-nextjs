@@ -87,6 +87,63 @@ export async function fetchOccurrenceAvailability(
 }
 
 /**
+ * Availability for many occurrences in one round trip, for a session page that
+ * lists several. Same predicate as the single-occurrence version.
+ */
+export async function fetchAvailabilityForOccurrences(
+  executor: Executor,
+  occurrenceIds: number[],
+  options: { now?: Date } = {},
+): Promise<Map<number, OccurrenceAvailability>> {
+  const byOccurrence = new Map<number, OccurrenceAvailability>();
+  if (occurrenceIds.length === 0) return byOccurrence;
+
+  const now = options.now ?? new Date();
+
+  const result = await executor.execute(sql`
+    SELECT
+      o.id AS id,
+      o.capacity AS capacity,
+      (
+        SELECT count(*) FROM session_tickets t
+        WHERE t.occurrence_id = o.id AND t.status = 'valid'
+      ) AS valid_tickets,
+      (
+        SELECT count(*)
+        FROM session_purchase_lines l
+        JOIN session_purchases p ON p.id = l.purchase_id
+        WHERE l.occurrence_id = o.id
+          AND (
+            p.status IN ('under_verification', 'changes_requested')
+            OR (p.status = 'pending_upload' AND p.hold_expires_at > ${now})
+          )
+      ) AS active_holds
+    FROM session_occurrences o
+    WHERE ${inArray(sessionOccurrences.id, occurrenceIds)}
+  `);
+
+  for (const raw of result.rows) {
+    const row = raw as {
+      id: number;
+      capacity: number;
+      valid_tickets: string;
+      active_holds: string;
+    };
+
+    byOccurrence.set(
+      Number(row.id),
+      resolveAvailability({
+        capacity: Number(row.capacity),
+        validTickets: Number(row.valid_tickets),
+        activeHolds: Number(row.active_holds),
+      }),
+    );
+  }
+
+  return byOccurrence;
+}
+
+/**
  * Whether this attendee already holds a valid ticket for the occurrence.
  *
  * The partial unique indexes on `session_tickets` are the real guarantee; this

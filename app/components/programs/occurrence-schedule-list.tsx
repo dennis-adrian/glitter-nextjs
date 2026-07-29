@@ -1,3 +1,6 @@
+import { DateTime } from "luxon";
+
+import FreeRegistrationForm from "@/app/components/programs/free-registration-form";
 import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
 import { formatDate } from "@/app/lib/formatters";
 import type {
@@ -5,8 +8,8 @@ import type {
   SessionOccurrence,
   Venue,
 } from "@/app/lib/programs/definitions";
+import type { OccurrenceAvailability } from "@/app/lib/programs/inventory";
 import { resolveOccurrenceState } from "@/app/lib/programs/state";
-import { DateTime } from "luxon";
 
 type Props = {
   occurrences: SessionOccurrence[];
@@ -15,6 +18,13 @@ type Props = {
   /** Already resolved per occurrence: occurrence → session → program. */
   venuesById: Map<number, Venue>;
   fallbackVenueId: number | null;
+  sessionTitle: string;
+  availabilityByOccurrence: Map<number, OccurrenceAvailability>;
+  /**
+   * Present only when this session is free for the current viewer. A priced
+   * session shows no registration button — it needs the voucher flow.
+   */
+  freeRegistration: { isSignedIn: boolean } | null;
 };
 
 /**
@@ -27,6 +37,9 @@ export default function OccurrenceScheduleList({
   sessionStatus,
   venuesById,
   fallbackVenueId,
+  sessionTitle,
+  availabilityByOccurrence,
+  freeRegistration,
 }: Props) {
   if (occurrences.length === 0) {
     return (
@@ -51,6 +64,17 @@ export default function OccurrenceScheduleList({
 
         const venueId = occurrence.venueId ?? fallbackVenueId;
         const venue = venueId === null ? null : venuesById.get(venueId);
+        const availability = availabilityByOccurrence.get(occurrence.id);
+        const remaining = availability?.remaining ?? occurrence.capacity;
+
+        const scheduleLabel = `${formatDate(occurrence.startsAt).toLocaleString(
+          DateTime.DATETIME_MED,
+        )} — ${formatDate(occurrence.endsAt).toLocaleString(
+          DateTime.TIME_SIMPLE,
+        )}`;
+
+        const canRegister =
+          freeRegistration !== null && resolved.isPurchasable && remaining > 0;
 
         return (
           <li
@@ -58,15 +82,7 @@ export default function OccurrenceScheduleList({
             className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border/70 p-4"
           >
             <div className="space-y-1">
-              <p className="font-medium">
-                {formatDate(occurrence.startsAt).toLocaleString(
-                  DateTime.DATETIME_MED,
-                )}
-                {" — "}
-                {formatDate(occurrence.endsAt).toLocaleString(
-                  DateTime.TIME_SIMPLE,
-                )}
-              </p>
+              <p className="font-medium">{scheduleLabel}</p>
               {venue ? (
                 <p className="text-sm text-muted-foreground">
                   {venue.name}
@@ -74,13 +90,26 @@ export default function OccurrenceScheduleList({
                 </p>
               ) : null}
               <p className="text-sm text-muted-foreground">
-                {occurrence.capacity} cupos
+                {remaining > 0
+                  ? `${remaining} de ${occurrence.capacity} cupos disponibles`
+                  : "Sin cupos disponibles"}
               </p>
             </div>
-            <ProgramStatusBadge
-              state={resolved.state}
-              wasRescheduled={resolved.wasRescheduled}
-            />
+
+            <div className="flex flex-col items-end gap-2">
+              <ProgramStatusBadge
+                state={resolved.state}
+                wasRescheduled={resolved.wasRescheduled}
+              />
+              {canRegister ? (
+                <FreeRegistrationForm
+                  occurrenceId={occurrence.id}
+                  sessionTitle={sessionTitle}
+                  scheduleLabel={scheduleLabel}
+                  isSignedIn={freeRegistration.isSignedIn}
+                />
+              ) : null}
+            </div>
           </li>
         );
       })}
