@@ -1,6 +1,9 @@
 import "server-only";
 
 import { and, eq, inArray, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+
+import { utcTimestamp } from "@/app/lib/programs/sql-time";
 
 import {
   resolveAvailability,
@@ -60,7 +63,7 @@ export async function fetchOccurrenceAvailability(
         WHERE l.occurrence_id = o.id
           AND (
             p.status IN ('under_verification', 'changes_requested')
-            OR (p.status = 'pending_upload' AND p.hold_expires_at > ${now})
+            OR (p.status = 'pending_upload' AND p.hold_expires_at > ${utcTimestamp(now)})
           )
       ) AS active_holds
     FROM session_occurrences o
@@ -100,6 +103,18 @@ export async function fetchAvailabilityForOccurrences(
 
   const now = options.now ?? new Date();
 
+  /**
+   * Used only to qualify the column below as `"o"."id"`, matching the alias in
+   * the hand-written FROM clause — `inArray(sessionOccurrences.id, …)` would
+   * emit the unaliased table name, which Postgres rejects once the table
+   * carries an alias.
+   *
+   * The FROM clause stays hand-written on purpose: interpolating this alias
+   * object into a raw `sql` template renders just `"o"`, not
+   * `"session_occurrences" "o"`.
+   */
+  const o = alias(sessionOccurrences, "o");
+
   const result = await executor.execute(sql`
     SELECT
       o.id AS id,
@@ -115,11 +130,11 @@ export async function fetchAvailabilityForOccurrences(
         WHERE l.occurrence_id = o.id
           AND (
             p.status IN ('under_verification', 'changes_requested')
-            OR (p.status = 'pending_upload' AND p.hold_expires_at > ${now})
+            OR (p.status = 'pending_upload' AND p.hold_expires_at > ${utcTimestamp(now)})
           )
       ) AS active_holds
     FROM session_occurrences o
-    WHERE ${inArray(sessionOccurrences.id, occurrenceIds)}
+    WHERE ${inArray(o.id, occurrenceIds)}
   `);
 
   for (const raw of result.rows) {

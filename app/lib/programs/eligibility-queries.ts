@@ -1,4 +1,6 @@
-import { and, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
+
+import { utcTimestamp } from "@/app/lib/programs/sql-time";
 
 import {
   activeBanSanctionIds,
@@ -41,8 +43,14 @@ export async function fetchEligibilityFacts(
         eq(sanctions.userId, userId),
         eq(sanctions.type, "ban"),
         inArray(sanctions.status, ["active", "scheduled"]),
-        lte(sanctions.startsAt, now),
-        or(isNull(sanctions.endsAt), sql`${sanctions.endsAt} > ${now}`),
+        // Both bounds go through `utcTimestamp`: a bare `Date` parameter is
+        // compared in the process's local zone against a UTC wall-clock column,
+        // which shifts every boundary by the server's offset.
+        sql`${sanctions.startsAt} <= ${utcTimestamp(now)}`,
+        or(
+          isNull(sanctions.endsAt),
+          sql`${sanctions.endsAt} > ${utcTimestamp(now)}`,
+        ),
       ),
     );
 
