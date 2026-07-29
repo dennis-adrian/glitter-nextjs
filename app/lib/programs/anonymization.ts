@@ -48,15 +48,21 @@ export async function anonymizeProgramPurchasesForUser(
     .from(sessionPurchases)
     .where(eq(sessionPurchases.userId, userId));
 
-  if (owned.length === 0) return { purchases: 0, tickets: 0 };
-
-  // Scrubbed by attendee, not by purchase: the attendee snapshot is the copy
-  // that outlives the account on check-in lists, and it is the right privacy
-  // scope even once someone can hold a ticket bought by another person.
+  /**
+   * Queried independently of `owned`, not nested behind it: being an attendee
+   * and being the buyer are separate relationships. Someone can hold a ticket
+   * another person bought, and `sessionTickets.attendeeUserId` is
+   * `ON DELETE SET NULL` — so the user row would delete cleanly and leave that
+   * attendee's name and email behind forever.
+   */
   const tickets = await executor
     .select({ id: sessionTickets.id })
     .from(sessionTickets)
     .where(eq(sessionTickets.attendeeUserId, userId));
+
+  if (owned.length === 0 && tickets.length === 0) {
+    return { purchases: 0, tickets: 0 };
+  }
 
   for (const ticket of tickets) {
     await executor
