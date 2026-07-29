@@ -3778,6 +3778,15 @@ export const sessionPurchaseLines = pgTable(
      * the two ids can never drift apart. Mirrors
      * `order_items_product_variant_product_fk`.
      */
+    /**
+     * The occurrence must exist *and* belong to the denormalized session, so
+     * the two ids can never drift apart. Mirrors
+     * `order_items_product_variant_product_fk`.
+     *
+     * Added in a migration after the one creating this table: the unique key it
+     * targets lands on the pre-existing `session_occurrences` as an ALTER, and
+     * drizzle emits foreign keys before such ALTERs within a single migration.
+     */
     foreignKey({
       name: "session_purchase_lines_occurrence_session_fk",
       columns: [t.occurrenceId, t.sessionId],

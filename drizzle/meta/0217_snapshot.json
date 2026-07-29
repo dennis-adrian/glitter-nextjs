@@ -1,5 +1,5 @@
 {
-  "id": "867ce57e-47eb-4184-a7d4-b65c1372fbdb",
+  "id": "08e8e7fc-c90b-46ec-9c10-8f7cdfa87512",
   "prevId": "42682112-1f0b-4e42-b6a9-2014f9475f9f",
   "version": "7",
   "dialect": "postgresql",
@@ -7859,32 +7859,6 @@
         }
       },
       "foreignKeys": {
-        "session_attendances_ticket_id_session_tickets_id_fk": {
-          "name": "session_attendances_ticket_id_session_tickets_id_fk",
-          "tableFrom": "session_attendances",
-          "tableTo": "session_tickets",
-          "columnsFrom": [
-            "ticket_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "session_attendances_occurrence_id_session_occurrences_id_fk": {
-          "name": "session_attendances_occurrence_id_session_occurrences_id_fk",
-          "tableFrom": "session_attendances",
-          "tableTo": "session_occurrences",
-          "columnsFrom": [
-            "occurrence_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
         "session_attendances_operator_user_id_users_id_fk": {
           "name": "session_attendances_operator_user_id_users_id_fk",
           "tableFrom": "session_attendances",
@@ -7896,6 +7870,21 @@
             "id"
           ],
           "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "session_attendances_ticket_occurrence_fk": {
+          "name": "session_attendances_ticket_occurrence_fk",
+          "tableFrom": "session_attendances",
+          "tableTo": "session_tickets",
+          "columnsFrom": [
+            "ticket_id",
+            "occurrence_id"
+          ],
+          "columnsTo": [
+            "id",
+            "occurrence_id"
+          ],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -8265,7 +8254,16 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "session_occurrences_id_session_id_unique": {
+          "name": "session_occurrences_id_session_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "session_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {
         "session_occurrences_time_range_valid": {
@@ -8550,32 +8548,6 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        },
-        "session_purchase_lines_occurrence_id_session_occurrences_id_fk": {
-          "name": "session_purchase_lines_occurrence_id_session_occurrences_id_fk",
-          "tableFrom": "session_purchase_lines",
-          "tableTo": "session_occurrences",
-          "columnsFrom": [
-            "occurrence_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "session_purchase_lines_session_id_program_sessions_id_fk": {
-          "name": "session_purchase_lines_session_id_program_sessions_id_fk",
-          "tableFrom": "session_purchase_lines",
-          "tableTo": "program_sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -8585,6 +8557,14 @@
           "nullsNotDistinct": false,
           "columns": [
             "purchase_id",
+            "occurrence_id"
+          ]
+        },
+        "session_purchase_lines_id_occurrence_id_unique": {
+          "name": "session_purchase_lines_id_occurrence_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
             "occurrence_id"
           ]
         }
@@ -8642,8 +8622,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "access_token": {
-          "name": "access_token",
+        "access_token_hash": {
+          "name": "access_token_hash",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -8858,17 +8838,17 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "session_purchases_access_token_unique": {
-          "name": "session_purchases_access_token_unique",
+        "session_purchases_access_token_hash_unique": {
+          "name": "session_purchases_access_token_hash_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "access_token"
+            "access_token_hash"
           ]
         },
         "session_purchases_idempotency_key_unique": {
@@ -8883,7 +8863,7 @@
       "checkConstraints": {
         "session_purchases_identity_check": {
           "name": "session_purchases_identity_check",
-          "value": "(\n        (\"session_purchases\".\"user_id\" IS NOT NULL AND \"session_purchases\".\"guest_name\" IS NULL AND \"session_purchases\".\"guest_email\" IS NULL AND \"session_purchases\".\"guest_phone\" IS NULL)\n        OR\n        (\"session_purchases\".\"user_id\" IS NULL AND length(trim(\"session_purchases\".\"guest_name\")) > 0 AND length(trim(\"session_purchases\".\"guest_email\")) > 0 AND length(trim(\"session_purchases\".\"guest_phone\")) > 0)\n      )"
+          "value": "(\n        (\"session_purchases\".\"user_id\" IS NOT NULL AND \"session_purchases\".\"guest_name\" IS NULL AND \"session_purchases\".\"guest_email\" IS NULL AND \"session_purchases\".\"guest_phone\" IS NULL)\n        OR\n        (\"session_purchases\".\"user_id\" IS NULL\n         AND \"session_purchases\".\"guest_name\" IS NOT NULL AND length(trim(\"session_purchases\".\"guest_name\")) > 0\n         AND \"session_purchases\".\"guest_email\" IS NOT NULL AND length(trim(\"session_purchases\".\"guest_email\")) > 0\n         AND \"session_purchases\".\"guest_phone\" IS NOT NULL AND length(trim(\"session_purchases\".\"guest_phone\")) > 0)\n      )"
         },
         "session_purchases_amounts_valid": {
           "name": "session_purchases_amounts_valid",
@@ -9161,32 +9141,6 @@
         }
       },
       "foreignKeys": {
-        "session_tickets_purchase_line_id_session_purchase_lines_id_fk": {
-          "name": "session_tickets_purchase_line_id_session_purchase_lines_id_fk",
-          "tableFrom": "session_tickets",
-          "tableTo": "session_purchase_lines",
-          "columnsFrom": [
-            "purchase_line_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "session_tickets_occurrence_id_session_occurrences_id_fk": {
-          "name": "session_tickets_occurrence_id_session_occurrences_id_fk",
-          "tableFrom": "session_tickets",
-          "tableTo": "session_occurrences",
-          "columnsFrom": [
-            "occurrence_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
         "session_tickets_attendee_user_id_users_id_fk": {
           "name": "session_tickets_attendee_user_id_users_id_fk",
           "tableFrom": "session_tickets",
@@ -9198,6 +9152,21 @@
             "id"
           ],
           "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "session_tickets_line_occurrence_fk": {
+          "name": "session_tickets_line_occurrence_fk",
+          "tableFrom": "session_tickets",
+          "tableTo": "session_purchase_lines",
+          "columnsFrom": [
+            "purchase_line_id",
+            "occurrence_id"
+          ],
+          "columnsTo": [
+            "id",
+            "occurrence_id"
+          ],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -9215,6 +9184,14 @@
           "nullsNotDistinct": false,
           "columns": [
             "code"
+          ]
+        },
+        "session_tickets_id_occurrence_id_unique": {
+          "name": "session_tickets_id_occurrence_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "occurrence_id"
           ]
         }
       },

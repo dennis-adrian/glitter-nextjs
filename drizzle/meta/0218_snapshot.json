@@ -1,6 +1,6 @@
 {
-  "id": "cc61dee9-8cb6-487c-87c5-7b6ddfa576fe",
-  "prevId": "867ce57e-47eb-4184-a7d4-b65c1372fbdb",
+  "id": "6be868e9-ac87-47a4-9012-f4d6792aa8de",
+  "prevId": "08e8e7fc-c90b-46ec-9c10-8f7cdfa87512",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -8637,12 +8637,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "access_token": {
-          "name": "access_token",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "access_token_hash": {
           "name": "access_token_hash",
           "type": "text",
@@ -8865,13 +8859,6 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "session_purchases_access_token_unique": {
-          "name": "session_purchases_access_token_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "access_token"
-          ]
-        },
         "session_purchases_access_token_hash_unique": {
           "name": "session_purchases_access_token_hash_unique",
           "nullsNotDistinct": false,

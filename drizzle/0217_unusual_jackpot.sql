@@ -45,6 +45,7 @@ CREATE TABLE "session_purchase_lines" (
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "session_purchase_lines_purchase_id_occurrence_id_unique" UNIQUE("purchase_id","occurrence_id"),
+	CONSTRAINT "session_purchase_lines_id_occurrence_id_unique" UNIQUE("id","occurrence_id"),
 	CONSTRAINT "session_purchase_lines_price_positive" CHECK ("session_purchase_lines"."unit_price" >= 0),
 	CONSTRAINT "session_purchase_lines_pass_line_free" CHECK ("session_purchase_lines"."source" <> 'pass_session' OR "session_purchase_lines"."unit_price" = 0)
 );
@@ -56,7 +57,7 @@ CREATE TABLE "session_purchases" (
 	"guest_name" text,
 	"guest_email" text,
 	"guest_phone" text,
-	"access_token" text NOT NULL,
+	"access_token_hash" text NOT NULL,
 	"access_token_revoked_at" timestamp,
 	"status" "session_purchase_status" DEFAULT 'pending_upload' NOT NULL,
 	"payment_mode" "session_purchase_payment_mode" NOT NULL,
@@ -76,12 +77,15 @@ CREATE TABLE "session_purchases" (
 	"idempotency_key" text NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "session_purchases_access_token_unique" UNIQUE("access_token"),
+	CONSTRAINT "session_purchases_access_token_hash_unique" UNIQUE("access_token_hash"),
 	CONSTRAINT "session_purchases_idempotency_key_unique" UNIQUE("idempotency_key"),
 	CONSTRAINT "session_purchases_identity_check" CHECK ((
         ("session_purchases"."user_id" IS NOT NULL AND "session_purchases"."guest_name" IS NULL AND "session_purchases"."guest_email" IS NULL AND "session_purchases"."guest_phone" IS NULL)
         OR
-        ("session_purchases"."user_id" IS NULL AND length(trim("session_purchases"."guest_name")) > 0 AND length(trim("session_purchases"."guest_email")) > 0 AND length(trim("session_purchases"."guest_phone")) > 0)
+        ("session_purchases"."user_id" IS NULL
+         AND "session_purchases"."guest_name" IS NOT NULL AND length(trim("session_purchases"."guest_name")) > 0
+         AND "session_purchases"."guest_email" IS NOT NULL AND length(trim("session_purchases"."guest_email")) > 0
+         AND "session_purchases"."guest_phone" IS NOT NULL AND length(trim("session_purchases"."guest_phone")) > 0)
       )),
 	CONSTRAINT "session_purchases_amounts_valid" CHECK ("session_purchases"."subtotal_amount" >= 0 AND "session_purchases"."total_amount" >= 0 AND "session_purchases"."total_amount" <= "session_purchases"."subtotal_amount"),
 	CONSTRAINT "session_purchases_free_has_no_hold" CHECK ("session_purchases"."payment_mode" <> 'free' OR ("session_purchases"."total_amount" = 0 AND "session_purchases"."hold_expires_at" IS NULL)),
@@ -109,22 +113,19 @@ CREATE TABLE "session_tickets" (
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "session_tickets_purchase_line_id_unique" UNIQUE("purchase_line_id"),
 	CONSTRAINT "session_tickets_code_unique" UNIQUE("code"),
+	CONSTRAINT "session_tickets_id_occurrence_id_unique" UNIQUE("id","occurrence_id"),
 	CONSTRAINT "session_tickets_cancelled_consistent" CHECK ("session_tickets"."status" <> 'cancelled' OR "session_tickets"."cancelled_at" IS NOT NULL)
 );
 --> statement-breakpoint
-ALTER TABLE "session_attendances" ADD CONSTRAINT "session_attendances_ticket_id_session_tickets_id_fk" FOREIGN KEY ("ticket_id") REFERENCES "public"."session_tickets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "session_attendances" ADD CONSTRAINT "session_attendances_occurrence_id_session_occurrences_id_fk" FOREIGN KEY ("occurrence_id") REFERENCES "public"."session_occurrences"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session_attendances" ADD CONSTRAINT "session_attendances_operator_user_id_users_id_fk" FOREIGN KEY ("operator_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "session_attendances" ADD CONSTRAINT "session_attendances_ticket_occurrence_fk" FOREIGN KEY ("ticket_id","occurrence_id") REFERENCES "public"."session_tickets"("id","occurrence_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session_purchase_events" ADD CONSTRAINT "session_purchase_events_purchase_id_session_purchases_id_fk" FOREIGN KEY ("purchase_id") REFERENCES "public"."session_purchases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session_purchase_events" ADD CONSTRAINT "session_purchase_events_actor_user_id_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session_purchase_lines" ADD CONSTRAINT "session_purchase_lines_purchase_id_session_purchases_id_fk" FOREIGN KEY ("purchase_id") REFERENCES "public"."session_purchases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "session_purchase_lines" ADD CONSTRAINT "session_purchase_lines_occurrence_id_session_occurrences_id_fk" FOREIGN KEY ("occurrence_id") REFERENCES "public"."session_occurrences"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "session_purchase_lines" ADD CONSTRAINT "session_purchase_lines_session_id_program_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."program_sessions"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session_purchases" ADD CONSTRAINT "session_purchases_program_id_programs_id_fk" FOREIGN KEY ("program_id") REFERENCES "public"."programs"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "session_purchases" ADD CONSTRAINT "session_purchases_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "session_tickets" ADD CONSTRAINT "session_tickets_purchase_line_id_session_purchase_lines_id_fk" FOREIGN KEY ("purchase_line_id") REFERENCES "public"."session_purchase_lines"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "session_tickets" ADD CONSTRAINT "session_tickets_occurrence_id_session_occurrences_id_fk" FOREIGN KEY ("occurrence_id") REFERENCES "public"."session_occurrences"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "session_purchases" ADD CONSTRAINT "session_purchases_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session_tickets" ADD CONSTRAINT "session_tickets_attendee_user_id_users_id_fk" FOREIGN KEY ("attendee_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "session_tickets" ADD CONSTRAINT "session_tickets_line_occurrence_fk" FOREIGN KEY ("purchase_line_id","occurrence_id") REFERENCES "public"."session_purchase_lines"("id","occurrence_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "session_attendances_occurrence_idx" ON "session_attendances" USING btree ("occurrence_id");--> statement-breakpoint
 CREATE INDEX "session_purchase_events_purchase_created_idx" ON "session_purchase_events" USING btree ("purchase_id","created_at");--> statement-breakpoint
 CREATE INDEX "session_purchase_lines_occurrence_idx" ON "session_purchase_lines" USING btree ("occurrence_id");--> statement-breakpoint
@@ -134,4 +135,5 @@ CREATE INDEX "session_purchases_user_created_idx" ON "session_purchases" USING b
 CREATE INDEX "session_purchases_program_status_idx" ON "session_purchases" USING btree ("program_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "session_tickets_occurrence_attendee_user_idx" ON "session_tickets" USING btree ("occurrence_id","attendee_user_id") WHERE "session_tickets"."status" = 'valid' AND "session_tickets"."attendee_user_id" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "session_tickets_occurrence_attendee_email_idx" ON "session_tickets" USING btree ("occurrence_id",lower("attendee_email")) WHERE "session_tickets"."status" = 'valid';--> statement-breakpoint
-CREATE INDEX "session_tickets_occurrence_status_idx" ON "session_tickets" USING btree ("occurrence_id","status");
+CREATE INDEX "session_tickets_occurrence_status_idx" ON "session_tickets" USING btree ("occurrence_id","status");--> statement-breakpoint
+ALTER TABLE "session_occurrences" ADD CONSTRAINT "session_occurrences_id_session_id_unique" UNIQUE("id","session_id");
