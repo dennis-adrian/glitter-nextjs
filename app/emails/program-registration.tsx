@@ -1,5 +1,6 @@
 import {
   Body,
+  Button,
   Container,
   Head,
   Hr,
@@ -91,18 +92,34 @@ export default function ProgramRegistrationEmailTemplate({
             </Section>
 
             <Text style={styles.text}>
-              Muestra este código al llegar. Si no puedes abrirlo desde el
-              correo, guarda este enlace para recuperarlo en cualquier momento:
+              Muestra este código al llegar. Si no puedes verlo desde el correo,
+              abre tu entrada aquí:
             </Text>
-            <Text style={{ ...styles.text, wordBreak: "break-all" }}>
+
+            <Section style={{ textAlign: "center", margin: "16px 0" }}>
+              <Button href={secureLinkUrl} style={primaryButton}>
+                Ver mi entrada
+              </Button>
+            </Section>
+
+            <Text style={{ ...styles.text, fontSize: "12px" }}>
+              ¿No funciona el botón? Copia y pega este enlace:
+            </Text>
+            <Text
+              style={{
+                ...styles.text,
+                fontSize: "12px",
+                wordBreak: "break-all",
+              }}
+            >
               <Link href={secureLinkUrl}>{secureLinkUrl}</Link>
             </Text>
 
             <Hr style={{ margin: "16px 0" }} />
             <Text style={{ ...styles.text, fontSize: "12px" }}>
-              Puedes cancelar tu inscripción desde ese enlace hasta dos días
-              antes de la sesión. Guárdalo: es la única forma de recuperar tu
-              entrada si pierdes este correo.
+              Guarda este enlace: es la única forma de recuperar tu entrada si
+              pierdes este correo. <strong>No lo compartas</strong> — cualquier
+              persona que lo tenga puede ver y usar tu entrada.
             </Text>
           </Section>
           <EmailFooter />
@@ -111,6 +128,22 @@ export default function ProgramRegistrationEmailTemplate({
     </Html>
   );
 }
+
+/**
+ * Explicit colours rather than theme tokens: mail clients strip stylesheets,
+ * and the `only light` colour-scheme meta means this never needs a dark
+ * variant.
+ */
+const primaryButton = {
+  backgroundColor: "#7c3aed",
+  color: "#FFFFFF",
+  padding: "12px 24px",
+  borderRadius: "8px",
+  fontWeight: 600,
+  fontSize: "14px",
+  textDecoration: "none",
+  display: "inline-block",
+};
 
 const detailBox = {
   border: "1px solid #dedede",

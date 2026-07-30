@@ -3636,6 +3636,18 @@ export const sessionPurchases = pgTable(
     guestEmail: text("guest_email"),
     guestPhone: text("guest_phone"),
     /**
+     * Demographics for attendees with no account, matching what visitor
+     * registration collects. A signed-in buyer already has these on their
+     * profile, so these stay null for them.
+     *
+     * Deliberately outside the identity check: they are analytics, not
+     * identity, and keeping them out means anonymization can null them
+     * outright instead of inventing a placeholder birthdate. Presence for
+     * guests is enforced in the registration action.
+     */
+    guestGender: genderEnum("guest_gender"),
+    guestBirthdate: timestamp("guest_birthdate"),
+    /**
      * SHA-256 of the access token, never the token itself. The raw value is
      * returned once, to the buyer, in their link and email; a database dump or
      * a leaked log therefore yields nothing usable. Lookups hash the presented

@@ -1,9 +1,21 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
+import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { z } from "zod";
 
+import DateInput from "@/app/components/form/fields/date";
+import PhoneInput from "@/app/components/form/fields/phone";
+import SelectInput from "@/app/components/form/fields/select";
+import TextInput from "@/app/components/form/fields/text";
+import {
+  birthdateValidator,
+  phoneValidator,
+} from "@/app/components/form/input-validators";
 import { Button } from "@/app/components/ui/button";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import {
@@ -15,9 +27,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/app/components/ui/dialog";
-import { Input } from "@/app/components/ui/input";
+import { Form } from "@/app/components/ui/form";
 import { Label } from "@/app/components/ui/label";
 import { registerForFreeSession } from "@/app/lib/programs/registration-actions";
+import { genderOptions } from "@/app/lib/utils";
 
 type Props = {
   occurrenceId: number;
@@ -26,15 +39,27 @@ type Props = {
   isSignedIn: boolean;
 };
 
-const EMPTY_GUEST = { name: "", email: "", phone: "" };
+/**
+ * Guests give the same details a festival visitor does, so attendance can be
+ * reported on consistently. A signed-in attendee already has all of it on their
+ * profile and is only asked to confirm.
+ */
+const guestSchema = z.object({
+  name: z.string().trim().min(2, "Escribe tu nombre completo"),
+  email: z.string().trim().email("El correo no es válido"),
+  phone: phoneValidator(),
+  gender: z.enum(["male", "female", "non_binary", "other", "undisclosed"]),
+  birthdate: birthdateValidator({}),
+});
 
 /**
- * Registration for a free session.
- *
- * On success it navigates to the secure purchase page, which is where the QR
- * and the save-this-link box live — the raw access token exists only in this
- * response, so it has to be handed straight to that URL and never re-fetched.
+ * Input and output diverge because `birthdateValidator` coerces: the field
+ * holds whatever the date input produces, the handler receives a `Date`. Same
+ * three-generic shape `qr-code-form.tsx` uses.
  */
+type GuestInput = z.input<typeof guestSchema>;
+type GuestValues = z.output<typeof guestSchema>;
+
 export default function FreeRegistrationForm({
   occurrenceId,
   sessionTitle,
@@ -43,9 +68,19 @@ export default function FreeRegistrationForm({
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [guest, setGuest] = useState(EMPTY_GUEST);
   const [acceptsPolicy, setAcceptsPolicy] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const form = useForm<GuestInput, unknown, GuestValues>({
+    resolver: zodResolver(guestSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      phone: "",
+      gender: "undisclosed",
+      birthdate: DateTime.now().minus({ years: 18 }).toJSDate(),
+    },
+  });
 
   /**
    * Minted on first submit and kept in a ref, so every retry from this form
@@ -66,54 +101,50 @@ export default function FreeRegistrationForm({
     return idempotencyKeyRef.current;
   }
 
-  const guestComplete =
-    guest.name.trim() && guest.email.trim() && guest.phone.trim();
-  const canSubmit =
-    acceptsPolicy && (isSignedIn || guestComplete) && !isPending;
+  async function submit(guest: GuestValues | null) {
+    setIsSubmitting(true);
+    try {
+      const result = await registerForFreeSession({
+        occurrenceId,
+        acceptsNoRefundPolicy: true,
+        idempotencyKey: ensureIdempotencyKey(),
+        ...(guest
+          ? {
+              guestName: guest.name,
+              guestEmail: guest.email,
+              guestPhone: guest.phone,
+              guestGender: guest.gender,
+              guestBirthdate: guest.birthdate,
+            }
+          : {}),
+      });
 
-  function set(field: keyof typeof EMPTY_GUEST, value: string) {
-    setGuest((current) => ({ ...current, [field]: value }));
-  }
-
-  function handleSubmit() {
-    startTransition(async () => {
-      try {
-        const result = await registerForFreeSession({
-          occurrenceId,
-          acceptsNoRefundPolicy: true,
-          idempotencyKey: ensureIdempotencyKey(),
-          ...(isSignedIn
-            ? {}
-            : {
-                guestName: guest.name,
-                guestEmail: guest.email,
-                guestPhone: guest.phone,
-              }),
-        });
-
-        if (!result.success) {
-          toast.error(result.message);
-          return;
-        }
-
-        toast.success(result.message);
-        setOpen(false);
-        router.push(
-          `/programs/purchases/${result.purchaseId}?token=${result.accessToken}`,
-        );
-      } catch (error) {
-        console.error(error);
-        toast.error("No pudimos completar tu inscripción. Intenta de nuevo.");
+      if (!result.success) {
+        toast.error(result.message);
+        return;
       }
-    });
+
+      toast.success(result.message);
+      setOpen(false);
+      router.push(
+        `/programs/purchases/${result.purchaseId}?token=${result.accessToken}`,
+      );
+    } catch (error) {
+      console.error(error);
+      toast.error("No pudimos completar tu inscripción. Intenta de nuevo.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
+
+  const onGuestSubmit = form.handleSubmit((values) => submit(values));
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm">Inscribirme</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{sessionTitle}</DialogTitle>
           <DialogDescription>
@@ -121,75 +152,100 @@ export default function FreeRegistrationForm({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4">
-          {isSignedIn ? (
+        {isSignedIn ? (
+          <div className="grid gap-4">
             <p className="text-sm text-muted-foreground">
               Usaremos los datos de tu perfil para emitir la entrada.
             </p>
-          ) : (
-            <div className="grid gap-3">
-              <div className="grid gap-2">
-                <Label htmlFor={`guest-name-${occurrenceId}`}>Nombre</Label>
-                <Input
-                  id={`guest-name-${occurrenceId}`}
-                  value={guest.name}
-                  onChange={(event) => set("name", event.target.value)}
-                  disabled={isPending}
-                  autoComplete="name"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor={`guest-email-${occurrenceId}`}>Correo</Label>
-                <Input
-                  id={`guest-email-${occurrenceId}`}
-                  type="email"
-                  value={guest.email}
-                  onChange={(event) => set("email", event.target.value)}
-                  disabled={isPending}
-                  autoComplete="email"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Ahí te enviamos el QR de tu entrada.
-                </p>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor={`guest-phone-${occurrenceId}`}>Teléfono</Label>
-                <Input
-                  id={`guest-phone-${occurrenceId}`}
-                  type="tel"
-                  value={guest.phone}
-                  onChange={(event) => set("phone", event.target.value)}
-                  disabled={isPending}
-                  autoComplete="tel"
-                />
-              </div>
-            </div>
-          )}
-
-          <Label
-            htmlFor={`policy-${occurrenceId}`}
-            className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/70 p-3"
-          >
-            <Checkbox
-              id={`policy-${occurrenceId}`}
+            <PolicyCheckbox
+              occurrenceId={occurrenceId}
               checked={acceptsPolicy}
-              onCheckedChange={(checked) => setAcceptsPolicy(checked === true)}
-              disabled={isPending}
-              className="mt-0.5"
+              onChange={setAcceptsPolicy}
+              disabled={isSubmitting}
             />
-            <span className="text-sm font-normal">
-              Entiendo que puedo cancelar hasta dos días antes de la sesión y
-              que la cancelación no genera reembolso.
-            </span>
-          </Label>
-        </div>
+            <DialogFooter>
+              <Button
+                disabled={!acceptsPolicy || isSubmitting}
+                onClick={() => submit(null)}
+              >
+                {isSubmitting ? "Inscribiendo..." : "Confirmar inscripción"}
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : (
+          <Form {...form}>
+            <form className="grid gap-4" onSubmit={onGuestSubmit}>
+              <TextInput label="Nombre completo" name="name" required />
+              <TextInput
+                label="Correo"
+                name="email"
+                type="email"
+                description="Ahí te enviamos el QR de tu entrada."
+                required
+              />
+              <PhoneInput name="phone" label="Teléfono" required />
+              <div className="grid gap-4 md:grid-cols-2">
+                <DateInput
+                  formControl={form.control}
+                  name="birthdate"
+                  label="Fecha de nacimiento"
+                />
+                <SelectInput
+                  formControl={form.control}
+                  label="Género"
+                  name="gender"
+                  options={genderOptions}
+                />
+              </div>
 
-        <DialogFooter>
-          <Button disabled={!canSubmit} onClick={handleSubmit}>
-            {isPending ? "Inscribiendo..." : "Confirmar inscripción"}
-          </Button>
-        </DialogFooter>
+              <PolicyCheckbox
+                occurrenceId={occurrenceId}
+                checked={acceptsPolicy}
+                onChange={setAcceptsPolicy}
+                disabled={isSubmitting}
+              />
+
+              <DialogFooter>
+                <Button type="submit" disabled={!acceptsPolicy || isSubmitting}>
+                  {isSubmitting ? "Inscribiendo..." : "Confirmar inscripción"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** No refund wording: a free session has nothing to refund. */
+function PolicyCheckbox({
+  occurrenceId,
+  checked,
+  onChange,
+  disabled,
+}: {
+  occurrenceId: number;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  disabled: boolean;
+}) {
+  return (
+    <Label
+      htmlFor={`policy-${occurrenceId}`}
+      className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/70 p-3"
+    >
+      <Checkbox
+        id={`policy-${occurrenceId}`}
+        checked={checked}
+        onCheckedChange={(value) => onChange(value === true)}
+        disabled={disabled}
+        className="mt-0.5"
+      />
+      <span className="text-sm font-normal">
+        Entiendo que puedo cancelar hasta dos días antes de la sesión y que, si
+        no podré asistir, debo liberar mi cupo.
+      </span>
+    </Label>
   );
 }

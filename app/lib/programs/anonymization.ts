@@ -84,6 +84,11 @@ export async function anonymizeProgramPurchasesForUser(
         guestName: ANONYMOUS_NAME,
         guestEmail: anonymousEmail(purchase.id),
         guestPhone: ANONYMOUS_PHONE,
+        // Demographics are personal data too, and unlike the identity fields
+        // they are nullable — so they can be dropped outright rather than
+        // replaced with a placeholder.
+        guestGender: null,
+        guestBirthdate: null,
         // The person is gone; their recovery link must stop working.
         accessTokenRevokedAt: now,
         updatedAt: now,

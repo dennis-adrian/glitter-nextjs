@@ -16,6 +16,7 @@ import {
   BookImageIcon,
   BoxesIcon,
   CalendarCheck2Icon,
+  CalendarIcon,
   CircleAlertIcon,
   HomeIcon,
   ImagesIcon,
@@ -151,6 +152,21 @@ const NavbarNavigationMenu = ({
                 </Link>
               </NavigationMenuLink>
             </NavigationMenuItem>
+            {/* Programs are managed by both admin tiers, matching
+                `requireAdminOrFestivalAdmin` on every program action. */}
+            <NavigationMenuItem>
+              <NavigationMenuLink
+                asChild
+                className={navigationMenuTriggerStyle()}
+              >
+                <Link href="/dashboard/programs">
+                  <div className="flex items-center">
+                    <CalendarIcon className="w-4 h-4 mr-1" />
+                    Programas
+                  </div>
+                </Link>
+              </NavigationMenuLink>
+            </NavigationMenuItem>
           </>
         )}
         {profile && profile.role === "admin" && (
@@ -192,6 +208,12 @@ const NavbarNavigationMenu = ({
                   href="/dashboard/store/analytics"
                 >
                   Gestiona pagos, pedidos y productos de la tienda
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
+                  title="Programas"
+                  href="/dashboard/programs"
+                >
+                  Charlas y talleres, con sus horarios y expositores
                 </NavigationMenuListItem>
                 <NavigationMenuListItem
                   title="Subcategorías"

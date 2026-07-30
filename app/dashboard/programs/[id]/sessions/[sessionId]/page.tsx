@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import OccurrenceForm from "@/app/components/dashboard/programs/occurrence-form";
 import OccurrenceRow from "@/app/components/dashboard/programs/occurrence-row";
+import PublicUrlField from "@/app/components/dashboard/programs/public-url-field";
 import PublicationButtons from "@/app/components/dashboard/programs/publication-buttons";
 import SessionForm from "@/app/components/dashboard/programs/session-form";
 import SessionSpeakersPanel from "@/app/components/dashboard/programs/session-speakers-panel";
@@ -85,6 +86,15 @@ export default async function SessionDetailPage({ params }: Props) {
             </Badge>
           </div>
           <h1 className="text-2xl font-bold">{session.title}</h1>
+          {/* A session is the thing people actually share, so its own URL
+              matters more than the program's. Draft either way hides it. */}
+          <PublicUrlField
+            path={`/programs/${session.program.slug}/${session.slug}`}
+            isDraft={
+              session.status !== "published" ||
+              session.program.status !== "published"
+            }
+          />
         </div>
         <div className="space-y-2">
           <PublicationButtons

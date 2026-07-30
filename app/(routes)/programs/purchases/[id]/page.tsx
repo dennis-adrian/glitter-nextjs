@@ -102,9 +102,16 @@ export default async function PurchaseAccessPage({
         <SecureLinkNotice url={buildSecureLinkUrl(purchase.id, token)} />
       ) : null}
 
+      {/* Future tense on purpose: self-service cancellation is not built yet
+          (Phase 5). Promising a button that does not exist is worse than
+          saying when it will. The refund clause only applies to paid
+          purchases — on a free one there is nothing to refund. */}
       <p className="text-xs text-muted-foreground">
-        Puedes cancelar tu inscripción hasta dos días antes de la sesión. La
-        cancelación no genera reembolso.
+        Podrás cancelar tu inscripción hasta dos días antes de la sesión;
+        habilitaremos esa opción en esta página próximamente.
+        {purchase.paymentMode === "bank_qr"
+          ? " La cancelación no genera reembolso."
+          : ""}
       </p>
     </div>
   );

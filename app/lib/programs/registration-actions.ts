@@ -50,6 +50,11 @@ const registrationSchema = z.object({
   guestName: z.string().trim().min(1).max(200).optional(),
   guestEmail: z.string().trim().email().max(200).optional(),
   guestPhone: z.string().trim().min(1).max(40).optional(),
+  /** Collected only from attendees with no account (see below). */
+  guestGender: z
+    .enum(["male", "female", "non_binary", "other", "undisclosed"])
+    .optional(),
+  guestBirthdate: z.coerce.date().optional(),
   /** PRD §12.1: the no-refund policy needs an explicit acknowledgement. */
   acceptsNoRefundPolicy: z.literal(true),
   /** Supplied by the client so a double submit cannot take two seats. */
@@ -132,6 +137,22 @@ export async function registerForFreeSession(
 
   if (!profile && !data.guestPhone) {
     return { success: false, message: "Necesitamos un teléfono de contacto" };
+  }
+
+  // Required for guests only. A signed-in buyer already has these on their
+  // profile, so asking again would be redundant.
+  if (!profile && (!data.guestGender || !data.guestBirthdate)) {
+    return {
+      success: false,
+      message: "Necesitamos tu fecha de nacimiento y género",
+    };
+  }
+
+  if (data.guestBirthdate && data.guestBirthdate > new Date()) {
+    return {
+      success: false,
+      message: "La fecha de nacimiento no puede ser en el futuro",
+    };
   }
 
   const now = new Date();
@@ -258,6 +279,8 @@ export async function registerForFreeSession(
           guestName: profile ? null : (data.guestName ?? null),
           guestEmail: profile ? null : (data.guestEmail ?? null),
           guestPhone: profile ? null : (data.guestPhone ?? null),
+          guestGender: profile ? null : (data.guestGender ?? null),
+          guestBirthdate: profile ? null : (data.guestBirthdate ?? null),
           accessTokenHash: hashAccessToken(accessToken),
           // Free registration skips the voucher entirely and is approved on
           // the spot, which is what lets the QR be issued immediately.

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import ProgramForm from "@/app/components/dashboard/programs/program-form";
+import PublicUrlField from "@/app/components/dashboard/programs/public-url-field";
 import PublicationButtons from "@/app/components/dashboard/programs/publication-buttons";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
@@ -46,16 +47,12 @@ export default async function ProgramDetailPage({ params }: Props) {
             >
               {program.status === "published" ? "Publicado" : "Borrador"}
             </Badge>
-            {program.status === "published" ? (
-              <Link
-                href={`/programs/${program.slug}`}
-                className="text-sm underline"
-              >
-                Ver página pública
-              </Link>
-            ) : null}
           </div>
           <h1 className="text-2xl font-bold">{program.name}</h1>
+          <PublicUrlField
+            path={`/programs/${program.slug}`}
+            isDraft={program.status !== "published"}
+          />
         </div>
         <PublicationButtons
           scope="program"
