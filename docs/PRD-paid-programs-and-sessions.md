@@ -12,9 +12,27 @@
 
 ---
 
-## 0. Scope change — Week Pass deferred (2026-07-29)
+## 0a. Scope change — multi-session cart deferred (2026-07-30)
 
-The **Week Pass is out of the MVP.** Glitter Week launches selling **individual sessions only**, still with a multi-session cart and a single combined payment.
+The **multi-session cart is out of the MVP.** A buyer registers for one session at a time, from that session's page. No cart, no multi-select, no combined checkout.
+
+Deferred with it:
+
+- Adding several sessions to one purchase with a combined total.
+- One voucher covering several seats.
+- Atomic all-or-none holds across sessions.
+
+**Why:** the cart saves a buyer one pass through a form they are already looking at, and costs atomic multi-line inventory and a combined-payment flow that must be correct on the first attempt. The per-session flow already sells every session in the programme.
+
+**What is unaffected:** everything Phase 3 delivers. Single-session paid purchase, hold, voucher, review, approval, and ticket issuance are the paid flow.
+
+Cart requirements are retained rather than deleted, marked **[Deferred — post-MVP]**.
+
+---
+
+## 0b. Scope change — Week Pass deferred (2026-07-29)
+
+The **Week Pass is out of the MVP.** Glitter Week launches selling **individual sessions only**.
 
 Deferred with it, because each exists only to serve the pass:
 
@@ -26,7 +44,7 @@ Deferred with it, because each exists only to serve the pass:
 
 **Why:** the pass is the most expensive remaining work in the plan — atomic multi-session inventory, a second QR namespace resolved through an upgrade chain, and a differential-payment flow — and none of it is needed to sell Glitter Week. Cutting it protects the launch date.
 
-**What is unaffected:** the multi-session cart survives. It is independent of the pass, far cheaper, and already the mechanism behind one voucher for several sessions.
+**What is unaffected at the time of this decision:** the multi-session cart, which is independent of the pass. §0a has since deferred that too, so the launch flow is one session per checkout.
 
 Pass requirements are preserved in this document rather than deleted, each marked **[Deferred — post-MVP]**, so the work can be picked up without re-deriving it. Section 16 lists what the MVP now includes.
 
@@ -36,7 +54,7 @@ Pass requirements are preserved in this document rather than deleted, each marke
 
 Glitter will add a first-class **paid programs and sessions** capability for organizing talks, workshops, and, in the future, other content-focused gatherings. This capability will remain separate from the current festival, exhibitor, booth, and reservation system.
 
-The first use will be **Glitter Week**, a curated program linked to the August Glitter Festival. However, a program may exist without an associated festival. Sessions are sold individually, one or several per checkout. A **Week Pass** covering every session in the program is a planned extension, deferred out of the MVP (§0).
+The first use will be **Glitter Week**, a curated program linked to the August Glitter Festival. However, a program may exist without an associated festival. Sessions are sold individually, one per checkout (§0a). A **Week Pass** covering every session in the program is a planned extension, deferred out of the MVP (§0b).
 
 The MVP will conceptually reuse existing order, voucher, email, QR code, and check-in patterns, but it will require neutral program, session, purchase, ticket, and attendance models. Talks and workshops will **not** be added as `festivalType` values.
 
@@ -45,7 +63,7 @@ The MVP will conceptually reuse existing order, voucher, email, QR code, and che
 ### 2.1 Goals
 
 - Publish thematic programs composed of purchasable sessions.
-- Sell one or more sessions through a single checkout with one combined payment total.
+- **[Deferred — post-MVP, §0a]** Sell one or more sessions through a single checkout with one combined payment total.
 - Offer differentiated pricing for active participants and the general public.
 - Control capacity, temporary seat reservations, vouchers, ticket issuance, and attendance per session.
 - **[Deferred — post-MVP]** Support an all-access pass and upgrades from an individual ticket.
@@ -193,7 +211,7 @@ Each session has:
 - Public price.
 - Active-participant price.
 
-The Week Pass will carry the same pair when it ships (§0).
+The Week Pass will carry the same pair when it ships (§0b).
 
 Rules:
 
@@ -217,15 +235,19 @@ A free session:
 
 ### 7.1 Purchasing individual sessions
 
-- A buyer may add multiple individual sessions to the same cart.
-- Checkout produces one combined total and one voucher for the entire purchase.
-- Capacity for every line is reserved together.
+- A buyer registers for one session at a time, from that session's page.
 - After approval, one distinct ticket with its own QR is issued per person and session.
 - A person cannot buy more than one ticket for themselves in the same occurrence.
 
+**[Deferred — post-MVP, §0a]** The multi-session cart:
+
+- A buyer may add multiple individual sessions to the same cart.
+- Checkout produces one combined total and one voucher for the entire purchase.
+- Capacity for every line is reserved together.
+
 ### 7.2 Week Pass — **[Deferred — post-MVP]**
 
-Requirements retained for the future delivery; none of this ships with Glitter Week (§0).
+Requirements retained for the future delivery; none of this ships with Glitter Week (§0b).
 
 The Week Pass would:
 
@@ -390,7 +412,9 @@ Transactional emails will use Resend and follow best practices for domain authen
 - Cancellation invalidates the ticket, releases the seat, and notifies the team when a waitlist exists.
 - Transfers are not permitted.
 
-For multi-session purchases, the UI must clearly state what is being cancelled. Attendee-initiated cancellation must never trigger an automatic refund.
+Attendee-initiated cancellation must never trigger an automatic refund.
+
+**[Deferred with the cart, §0a]** For multi-session purchases, the UI must clearly state what is being cancelled.
 
 **[Deferred — post-MVP]** The exact definition of partial Week Pass cancellation must be finalized before the pass is implemented.
 
@@ -425,7 +449,7 @@ It must also support:
 
 - Every sensitive mutation is validated on the server.
 - Eligibility, audience, price, and capacity are recalculated when checkout is confirmed.
-- Holds and multi-item purchases are atomic with respect to inventory. Passes and upgrades must be too, once they ship.
+- Holds are atomic with respect to inventory. Multi-item purchases, passes, and upgrades must be too, once they ship.
 - Every voucher version is immutable and traceable.
 - Every sensitive admin action requires a reason.
 - No-refund policy acceptance is preserved with version and date.
@@ -462,8 +486,7 @@ The expected technical design includes separate concepts for program, session, o
 
 - Glitter Week and standalone programs.
 - Talks and workshops with multiple speakers.
-- Individual sessions.
-- Multi-session cart with one voucher.
+- Individual sessions, purchased one at a time.
 - Eligibility-based pricing and free sessions.
 - Twenty-minute holds.
 - Manual voucher review with history.
@@ -474,7 +497,8 @@ The expected technical design includes separate concepts for program, session, o
 
 ### Out of scope
 
-- **Week Pass in every form** (§0): the pass, its pricing and inventory, its benefits, its single QR, the cart recommendation, and the upgrade from an individual ticket.
+- **Multi-session cart** (§0a): adding several sessions to one purchase, combined totals, and one voucher for several seats.
+- **Week Pass in every form** (§0b): the pass, its pricing and inventory, its benefits, its single QR, the cart recommendation, and the upgrade from an individual ticket.
 - Operational implementation of Festival Fast Pass or bracelets.
 - Separate Fast Pass sales.
 - Ticket transfer or resale.
@@ -492,6 +516,6 @@ The expected technical design includes separate concepts for program, session, o
 - Design transactional seat locking or reservation to prevent overselling and double release.
 - Define how rescheduling is represented: schedule history, a new occurrence, or a version, while preserving ticket validity and traceability.
 - Define the configurable duration of waitlist invitations.
-- Finalize the partial-cancellation UX for multi-session purchases.
+- **[Deferred with the cart, §0a]** Finalize the partial-cancellation UX for multi-session purchases.
 - **[Deferred with the pass]** Finalize the permitted scope of partial Week Pass cancellation, and model Festival Fast Pass as an extensible benefit.
 - Extract shared voucher, email, and QR services where useful; do not use store products as the permanent representation of tickets.

@@ -10,13 +10,27 @@
 
 ---
 
-## 0. Scope change — Week Pass deferred (2026-07-29)
+## 0a. Scope change — multi-session cart deferred (2026-07-30)
 
-The Week Pass, its benefits, its single QR, the cart recommendation, and the upgrade flow are **cut from the MVP** to protect the launch date. See [PRD §0](./PRD-paid-programs-and-sessions.md) for the full rationale.
+The **multi-session cart is out of the MVP.** Buyers sign up for one session at a time, from that session's page. There is no cart, no multi-select, and no combined checkout.
+
+**Why:** the cart only saves a buyer a second trip through a form they are already on. Every rule it needs — atomic multi-line holds, combined totals, one voucher for several seats — is inventory and money logic that has to be right the first time, and none of it buys anything the per-session flow does not already deliver.
+
+**What this leaves:** Phase 3's single-session paid purchase _is_ the paid flow. Phase 4 has no remaining MVP scope, so the sequence runs Phase 3 → Phase 5.
+
+**As-built note.** `startPaidCheckout` already accepts an array of occurrences and writes one line per entry, verified against the database. That capability is kept rather than reverted: the single-occurrence path is the same code, and removing it would mean re-deriving atomic multi-line locking when the cart returns. It is unreachable from the UI, which submits exactly one occurrence. The same applies to the voucher acknowledgement email, which renders every line and today always renders one.
+
+Deferred items are marked **[Deferred — post-MVP]** in place rather than deleted.
+
+---
+
+## 0b. Scope change — Week Pass deferred (2026-07-29)
+
+The Week Pass, its benefits, its single QR, the cart recommendation, and the upgrade flow are **cut from the MVP** to protect the launch date. See [PRD §0b](./PRD-paid-programs-and-sessions.md) for the full rationale.
 
 Effect on this roadmap:
 
-- **Phase 4 is now "Multi-session cart" only.** The cart is independent of the pass and stays in the MVP.
+- **Phase 4 was reduced to "Multi-session cart" only** — and §0a has since deferred that too, leaving Phase 4 with no MVP scope.
 - Pass, benefit, and upgrade deliverables move to §4 Post-MVP.
 - Two Phase 6 concurrency cases (pass vs. individual sale) and one Phase 5 check-in case (pass scanned per session) fall away with them.
 
@@ -32,7 +46,7 @@ Sequencing principles:
 
 - Establish the neutral domain and content administration first.
 - Validate identity, audience, pricing, capacity, and tickets through free sessions before introducing money.
-- Implement and harden single-session paid purchases before adding a multi-session cart.
+- Implement and harden single-session paid purchases. The multi-session cart that would have followed is deferred (§0a).
 - Add operations, cancellations, and check-in before the public pilot.
 - Keep new models separate from festivals, booths, festival activities, and store products.
 
@@ -40,8 +54,8 @@ Sequencing principles:
 Phase 0: contracts and architecture          ✅ delivered
   → Phase 1: catalog and publication         ✅ delivered
     → Phase 2: end-to-end free admission     ✅ delivered
-      → Phase 3: single-session payment
-        → Phase 4: multi-session cart
+      → Phase 3: single-session payment      ✅ delivered
+        → Phase 4: multi-session cart        ⏸ deferred (§0a)
           → Phase 5: event operations
             → Phase 6: hardening, pilot, and launch
 ```
@@ -57,7 +71,7 @@ Phase 0: contracts and architecture          ✅ delivered
 - Glossary and conceptual model for:
   - Program, session, occurrence, speaker, venue, and optional festival link.
   - Audience, public price, active-participant price, and default rules.
-  - Seat hold, purchase, purchase line, and ticket. Pass and benefit are modeled but not built (§0).
+  - Seat hold, purchase, purchase line, and ticket. Pass and benefit are modeled but not built (§0b).
   - Voucher versions, check-in, waitlist, and audit history.
 - Relationship diagram and boundaries with current domains.
 - State and transition contracts for publication, sales, purchases, vouchers, tickets, and attendance.
@@ -174,9 +188,11 @@ Phase 0: contracts and architecture          ✅ delivered
 - An active participant can do so from their profile.
 - Every admin action records actor, date, and reason.
 
-### Phase 4 — Multi-session cart
+### Phase 4 — Multi-session cart — **[Deferred — post-MVP, §0a]**
 
 **Objective:** add commercial composition only after single-session capacity and payment are stable.
+
+Nothing in this phase ships with the MVP. Requirements are retained for the future delivery; the server already satisfies several of them (§0a as-built note).
 
 **Deliverables**
 
@@ -193,7 +209,7 @@ Phase 0: contracts and architecture          ✅ delivered
 
 **[Deferred — post-MVP] Week Pass and upgrades**
 
-Cut from the MVP (§0); the requirements are retained here and in PRD §7.2–7.3 for the future delivery.
+Cut from the MVP (§0b); the requirements are retained here and in PRD §7.2–7.3 for the future delivery.
 
 - Week Pass with every current session in the program, public and active-participant prices, one
   reserved seat in every session, and Festival Fast Pass as an optional benefit without fulfillment.
@@ -291,7 +307,7 @@ Every applicable journey must be tested as a guest, an active participant, and a
 
 These enhancements require additional decisions or infrastructure and do not block Glitter Week:
 
-### Week Pass — deferred out of the MVP (§0)
+### Week Pass — deferred out of the MVP (§0b)
 
 - The pass itself: every session in the program, public and active-participant prices, one seat held
   in every included session.

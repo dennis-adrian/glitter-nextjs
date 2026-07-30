@@ -12,9 +12,19 @@
 
 ---
 
-## 0. Scope change — Week Pass deferred (2026-07-29)
+## 0a. Scope change — multi-session cart deferred (2026-07-30)
 
-The Week Pass is **cut from the MVP** ([PRD §0](./PRD-paid-programs-and-sessions.md)). Everything in this document that exists to serve the pass is marked **[Deferred — post-MVP]** and left in place, because the design work is done and re-deriving it later would be waste.
+The multi-session cart is **cut from the MVP** ([PRD §0a](./PRD-paid-programs-and-sessions.md)). A buyer registers for one session at a time.
+
+Nothing in this document is invalidated. `session_purchase_lines` remains one row per occurrence, and `startPaidCheckout` already accepts several — verified against the database — so the schema and the locking discipline are unchanged. What is deferred is the **UI** that would let a buyer select more than one, and the combined-total presentation that goes with it.
+
+**Do not simplify on the strength of this deferral.** Deterministic `FOR UPDATE` lock ordering (§9) and one line row per occurrence (§6.11) stay exactly as specified: the former prevents deadlock between any two overlapping purchases, and the latter is the shape approval, cancellation, and check-in already read.
+
+---
+
+## 0b. Scope change — Week Pass deferred (2026-07-29)
+
+The Week Pass is **cut from the MVP** ([PRD §0b](./PRD-paid-programs-and-sessions.md)). Everything in this document that exists to serve the pass is marked **[Deferred — post-MVP]** and left in place, because the design work is done and re-deriving it later would be waste.
 
 Deferred here: §6.8 `program_passes`, §6.9 `program_pass_benefits`, the `program_pass_sessions` join, the `passId` / `passCode` / `upgradeOfPurchaseId` columns on §6.10 `session_purchases`, the pass-code branch of §7.3 check-in resolution, and §7.5 upgrade-to-a-pass.
 
@@ -59,7 +69,7 @@ The PRD §17 and roadmap §5 list decisions that must not be deferred. Each is r
 | 4   | How rescheduling is represented                                      | The occurrence keeps its identity and primary key; its schedule columns are updated, `rescheduledAt` is stamped, and an immutable `session_occurrence_schedule_changes` row records from/to. Tickets point at the occurrence, so validity survives with no ticket mutation. §7.1                                                                                                               |
 | 5   | Configurable waitlist invitation duration                            | `programs.waitlistInvitationWindowMinutes` (nullable → falls back to `program_settings`, default 1440). Follows the existing `festivalActivities.waitlistWindowMinutes` precedent. §7.4                                                                                                                                                                                                        |
 | 6   | Partial cancellation for multi-session purchases                     | Cancellation is modeled at the **ticket** level. A purchase's `cancelled` state is derived from all its tickets being cancelled; a partially cancelled purchase stays `approved`. No refund path is reachable from attendee-initiated cancellation. §7.2, §7.3. Remaining work is UX copy only, owed in Phase 5. The ticket-level model already answers the pass case whenever the pass ships. |
-| 7   | Festival Fast Pass as an extensible benefit                          | **[Deferred — post-MVP with the pass, §0.]** `program_pass_benefits` rows typed by `pass_benefit_type`; would store `festival_fast_pass` and perform no fulfillment. §6.9                                                                                                                                                                                                                      |
+| 7   | Festival Fast Pass as an extensible benefit                          | **[Deferred — post-MVP with the pass, §0b.]** `program_pass_benefits` rows typed by `pass_benefit_type`; would store `festival_fast_pass` and perform no fulfillment. §6.9                                                                                                                                                                                                                     |
 | 8   | Do not use store products as the representation of tickets           | `session_tickets` is a first-class table. `products`, `orders`, `orderItems`, and `carts` are untouched. §5                                                                                                                                                                                                                                                                                    |
 
 ## 3. Glossary
@@ -73,8 +83,8 @@ The PRD §17 and roadmap §5 list decisions that must not be deferred. Each is r
 | **Venue**               | A reusable named place. Resolution is occurrence → session → program.                                                                                                                                      |
 | **Audience**            | Which eligibility classes may buy a session: everyone, active participants only, or general public only.                                                                                                   |
 | **Eligibility**         | The buyer's class at the moment of evaluation: `active_participant` or `public`.                                                                                                                           |
-| **Pass**                | **[Deferred — post-MVP, §0.]** A bundle sold as one line that reserves one seat in every included session. The Week Pass would be the first instance.                                                      |
-| **Benefit**             | **[Deferred — post-MVP, §0.]** Extra entitlement attached to a pass, e.g. Festival Fast Pass.                                                                                                              |
+| **Pass**                | **[Deferred — post-MVP, §0b.]** A bundle sold as one line that reserves one seat in every included session. The Week Pass would be the first instance.                                                     |
+| **Benefit**             | **[Deferred — post-MVP, §0b.]** Extra entitlement attached to a pass, e.g. Festival Fast Pass.                                                                                                             |
 | **Seat hold**           | Not a table. A purchase line is _holding_ a seat while its purchase is in a holding state (§9.1).                                                                                                          |
 | **Purchase**            | One checkout by one buyer: one total, one voucher stream, one secure link, one or more lines.                                                                                                              |
 | **Purchase line**       | One seat in one occurrence, with the price and price basis applied to it.                                                                                                                                  |
@@ -86,7 +96,7 @@ The PRD §17 and roadmap §5 list decisions that must not be deferred. Each is r
 
 ## 4. Conceptual model
 
-Entities marked `%% deferred` below belong to the Week Pass and are not built (§0).
+Entities marked `%% deferred` below belong to the Week Pass and are not built (§0b).
 
 ```mermaid
 erDiagram
@@ -97,7 +107,7 @@ erDiagram
 
     programs ||--o{ program_sessions : contains
 
-    %% deferred — Week Pass (§0)
+    %% deferred — Week Pass (§0b)
     programs ||--o| program_passes : "optional pass"
     program_passes ||--o{ program_pass_benefits : grants
     program_passes ||--o{ program_pass_sessions : "explicit includes"
@@ -117,7 +127,7 @@ erDiagram
     session_purchases ||--o{ session_purchase_events : audited_by
     session_purchases ||--o{ session_refund_requests : may_request
 
-    %% deferred — Week Pass (§0)
+    %% deferred — Week Pass (§0b)
     program_passes ||..o{ session_purchases : "pass purchase"
     session_purchases ||..o| session_purchases : "upgrade of"
 
@@ -289,7 +299,7 @@ Immutable reschedule history. Insert-only; never updated or deleted.
 
 ### 6.8 `program_passes` — **[Deferred — post-MVP]**
 
-Not created (§0). Specification retained for the future delivery.
+Not created (§0b). Specification retained for the future delivery.
 
 | Column             | Type                                                            | Notes                                        |
 | ------------------ | --------------------------------------------------------------- | -------------------------------------------- |
@@ -325,7 +335,7 @@ written — it is a contract, not a default.
 
 ### 6.9 `program_pass_benefits` — **[Deferred — post-MVP]**
 
-Not created (§0). Specification retained for the future delivery.
+Not created (§0b). Specification retained for the future delivery.
 
 | Column          | Type                                                         | Notes                                                              |
 | --------------- | ------------------------------------------------------------ | ------------------------------------------------------------------ |
@@ -383,23 +393,23 @@ Indexes: `(status, holdExpiresAt)` for the sweep; `(userId, createdAt desc)`; `(
 
 ### 6.11 `session_purchase_lines`
 
-| Column                       | Type                                                               | Notes                                                |
-| ---------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------- |
-| `purchaseId`                 | integer → `session_purchases.id`, `ON DELETE CASCADE`, not null    |                                                      |
-| `occurrenceId`               | integer → `session_occurrences.id`, `ON DELETE RESTRICT`, not null |                                                      |
-| `sessionId`                  | integer → `program_sessions.id`, `ON DELETE RESTRICT`, not null    | Denormalized for reporting                           |
-| `source`                     | `purchase_line_source`, not null, default `individual_session`     | `pass_session` unreachable until the pass ships (§0) |
-| `unitPrice`                  | numeric(10,2), not null                                            | Snapshot; `0` for every `pass_session` line          |
-| `priceBasis`                 | `participant_eligibility`, not null                                | Which price applied                                  |
-| `pricingSnapshot`            | jsonb, not null                                                    | Which rule produced the price, §8.3                  |
-| `sessionTitleSnapshot`       | text, not null                                                     | Survives later content edits                         |
-| `occurrenceStartsAtSnapshot` | timestamp, not null                                                | Survives reschedules for audit                       |
+| Column                       | Type                                                               | Notes                                                 |
+| ---------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------- |
+| `purchaseId`                 | integer → `session_purchases.id`, `ON DELETE CASCADE`, not null    |                                                       |
+| `occurrenceId`               | integer → `session_occurrences.id`, `ON DELETE RESTRICT`, not null |                                                       |
+| `sessionId`                  | integer → `program_sessions.id`, `ON DELETE RESTRICT`, not null    | Denormalized for reporting                            |
+| `source`                     | `purchase_line_source`, not null, default `individual_session`     | `pass_session` unreachable until the pass ships (§0b) |
+| `unitPrice`                  | numeric(10,2), not null                                            | Snapshot; `0` for every `pass_session` line           |
+| `priceBasis`                 | `participant_eligibility`, not null                                | Which price applied                                   |
+| `pricingSnapshot`            | jsonb, not null                                                    | Which rule produced the price, §8.3                   |
+| `sessionTitleSnapshot`       | text, not null                                                     | Survives later content edits                          |
+| `occurrenceStartsAtSnapshot` | timestamp, not null                                                | Survives reschedules for audit                        |
 
 `unique(purchaseId, occurrenceId)` — one seat per occurrence per purchase (PRD §7.1).
 
 Checks: `unitPrice >= 0`; `source <> 'pass_session' OR unitPrice = 0` (the pass price lives on the
 purchase total, not on its lines). The second check is built and kept, though vacuously true while
-no pass exists — see §0 on why the residue stays.
+no pass exists — see §0b on why the residue stays.
 
 Indexes: `(occurrenceId)`; `(purchaseId)`.
 
@@ -447,7 +457,7 @@ Index: `(purchaseId, createdAt)`.
 `changes_requested`, `approved`, `rejected`, `cancelled_by_buyer`, `cancelled_by_admin`, `expired`,
 `ticket_issued`, `ticket_cancelled`, `adjusted`, `link_resent`, `emails_resent`,
 `refund_requested`, `refund_resolved`, `upgrade_initiated`, `upgrade_completed`. The last two are
-built but unreachable until the pass upgrade ships (§0).
+built but unreachable until the pass upgrade ships (§0b).
 
 ### 6.14 `session_tickets`
 
@@ -647,7 +657,7 @@ Check-in always happens from a specific occurrence's page, so the scanner matche
 reports that the ticket is for another session. Every buyer — including a multi-session cart buyer —
 carries one QR per ticket.
 
-**[Deferred — post-MVP] One QR for a pass.** With the pass cut (§0) there is a single credential
+**[Deferred — post-MVP] One QR for a pass.** With the pass cut (§0b) there is a single credential
 namespace and the resolution below is not built. Retained because the reasoning is the expensive
 part:
 
@@ -689,7 +699,7 @@ code, each scanned at its own door. Only what a **pass** buyer is _delivered_ ch
 
 ### 7.5 Upgrade to a pass — **[Deferred — post-MVP]**
 
-Not built (§0); ships with the pass. Design retained.
+Not built (§0b); ships with the pass. Design retained.
 
 1. Validate the source purchase is `approved`, holds a `valid` ticket, and its program has a
    published pass.
@@ -1052,7 +1062,7 @@ authentication.
 | `pass_benefit_type`             | **[Deferred]** `festival_fast_pass`                                                                         |
 | `session_purchase_status`       | `pending_upload`, `under_verification`, `changes_requested`, `approved`, `rejected`, `expired`, `cancelled` |
 | `session_purchase_payment_mode` | `bank_qr`, `free`                                                                                           |
-| `purchase_line_source`          | `individual_session`, `pass_session` — the second value is built but unreachable (§0)                       |
+| `purchase_line_source`          | `individual_session`, `pass_session` — the second value is built but unreachable (§0b)                      |
 | `purchase_actor_type`           | `buyer`, `admin`, `system`                                                                                  |
 | `session_purchase_event_type`   | see §6.13                                                                                                   |
 | `session_ticket_status`         | `valid`, `cancelled`                                                                                        |
