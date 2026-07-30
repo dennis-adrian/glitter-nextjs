@@ -8,10 +8,8 @@ import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { resolvePurchaseAccess } from "@/app/lib/programs/access";
 import { SESSION_PURCHASE_STATUS_LABELS } from "@/app/lib/programs/definitions";
 import { buildSecureLinkUrl } from "@/app/lib/programs/notifications";
-import {
-  fetchProgramSettings,
-  fetchPurchaseForAccess,
-} from "@/app/lib/programs/purchase-queries";
+import { fetchPurchaseForAccess } from "@/app/lib/programs/purchase-queries";
+import { getQrCodeForAmount } from "@/app/lib/qr_codes/actions";
 import { hashAccessToken } from "@/app/lib/programs/tokens";
 import { acceptsVouchers } from "@/app/lib/programs/vouchers";
 import { generateQrDataUrl } from "@/app/lib/utils";
@@ -77,7 +75,13 @@ export default async function PurchaseAccessPage({
   // what happened.
   const showPaymentStep = acceptsVouchers(purchase);
 
-  const settings = showPaymentStep ? await fetchProgramSettings() : null;
+  /**
+   * Same source the store and stand reservations use: the QR matching this
+   * exact amount, else the zero-amount code the payer fills in themselves.
+   */
+  const qrCode = showPaymentStep
+    ? await getQrCodeForAmount(purchase.totalAmount)
+    : null;
 
   return (
     <div className="container mx-auto max-w-2xl space-y-6 px-4 py-8">
@@ -94,7 +98,12 @@ export default async function PurchaseAccessPage({
           purchaseId={purchase.id}
           token={access.via === "token" && token ? token : undefined}
           totalAmount={purchase.totalAmount}
-          bankQrImageUrl={settings?.bankQrImageUrl ?? null}
+          bankQrImageUrl={qrCode?.qrCodeUrl ?? null}
+          // A zero-amount code needs the payer to type the total in; an
+          // amount-specific one does not. Saying which avoids a wrong transfer.
+          qrCoversAmount={
+            qrCode ? qrCode.amount === purchase.totalAmount : false
+          }
           // Only meaningful before a voucher exists: once under review the seat
           // is held by the review, not the clock.
           holdExpiresAt={

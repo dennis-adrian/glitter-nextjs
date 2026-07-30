@@ -252,12 +252,16 @@ export async function publishProgram(programId: number) {
   const profile = await requireAdminOrFestivalAdmin();
   if (!profile) return { success: false, message: "No autorizado" } as const;
 
+  const now = new Date();
+
   const [updated] = await db
     .update(programs)
     .set({
       status: "published",
-      publishedAt: new Date(),
-      updatedAt: new Date(),
+      // First publication only. `updateProgram` freezes the slug once this is
+      // set, so moving it on a republish could move the program's public URL.
+      publishedAt: sql`coalesce(${programs.publishedAt}, ${now})`,
+      updatedAt: now,
     })
     .where(eq(programs.id, programId))
     .returning({ id: programs.id });
@@ -468,12 +472,16 @@ export async function publishSession(sessionId: number) {
     } as const;
   }
 
+  const now = new Date();
+
   await db
     .update(programSessions)
     .set({
       status: "published",
-      publishedAt: new Date(),
-      updatedAt: new Date(),
+      // Same rule as programs, and the same rule `publishProgramWithSessions`
+      // applies — publishing one session must not differ from publishing all.
+      publishedAt: sql`coalesce(${programSessions.publishedAt}, ${now})`,
+      updatedAt: now,
     })
     .where(eq(programSessions.id, sessionId));
 

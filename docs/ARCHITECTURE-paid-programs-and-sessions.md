@@ -694,7 +694,7 @@ code, each scanned at its own door. Only what a **pass** buyer is _delivered_ ch
 - An invitation grants the right to check out for a specific occurrence even at zero availability:
   the checkout transaction treats a live invitation as capacity for exactly one seat, which is why
   invitations are issued only after a seat has actually been released.
-- Expiry is lazy (`expiresAt > now()` in the predicate) plus a sweep that flips `sent → expired`
+- Expiry is lazy (`expiresAt > :now` in the predicate, §9.1) plus a sweep that flips `sent → expired`
   and notifies the team. There is no automatic promotion, ever.
 
 ### 7.5 Upgrade to a pass — **[Deferred — post-MVP]**

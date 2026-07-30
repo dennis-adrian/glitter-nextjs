@@ -54,6 +54,25 @@ export async function getQRCode(amount: number) {
   }
 }
 
+/**
+ * The QR to show for a given amount, falling back to the zero-amount code.
+ *
+ * The team uploads one QR per common price plus an `amount = 0` code the payer
+ * types the amount into themselves. Exact-match alone leaves a buyer staring at
+ * "no QR found" for any price nobody pre-generated, which is every new price —
+ * so the zero code is the floor, not an edge case.
+ *
+ * Returns null only when even the zero-amount code is missing or expired.
+ */
+export async function getQrCodeForAmount(amount: number) {
+  const exact = await getQRCode(amount);
+  if (exact) return exact;
+
+  // Not `getQRCode(amount)` again: a zero total has already been served above,
+  // and re-querying would just repeat the miss.
+  return amount === 0 ? null : await getQRCode(0);
+}
+
 export async function fetchQrCodes() {
   try {
     return await db.query.qrCodes.findMany({

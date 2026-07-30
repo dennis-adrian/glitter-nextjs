@@ -25,6 +25,8 @@ type Props = {
   token?: string;
   totalAmount: number;
   bankQrImageUrl: string | null;
+  /** False for the shared zero-amount code, which the payer fills in. */
+  qrCoversAmount: boolean;
   /** Null once the purchase is under review — the deadline no longer governs. */
   holdExpiresAt: Date | null;
   /** Newest first; empty before the first upload. */
@@ -45,6 +47,7 @@ export default function VoucherUploadCard({
   token,
   totalAmount,
   bankQrImageUrl,
+  qrCoversAmount,
   holdExpiresAt,
   vouchers,
   changesRequested,
@@ -194,16 +197,23 @@ export default function VoucherUploadCard({
               height={220}
               className="rounded-md border bg-white p-2"
             />
-            <p className="text-xs text-muted-foreground">
-              Escanea el QR desde tu app bancaria.
+            <p className="text-center text-xs text-muted-foreground">
+              {qrCoversAmount ? (
+                <>Escanea el QR desde tu app bancaria. Ya lleva el monto.</>
+              ) : (
+                <>
+                  Escanea el QR desde tu app bancaria y escribe el monto:{" "}
+                  <strong>Bs {totalAmount}</strong>.
+                </>
+              )}
             </p>
           </div>
         ) : null}
 
         {!expired && !bankQrImageUrl ? (
           <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-            El QR de pago no está configurado. Escríbenos para coordinar tu
-            pago.
+            No encontramos un QR de pago disponible. Escríbenos para coordinar
+            tu pago.
           </p>
         ) : null}
 
