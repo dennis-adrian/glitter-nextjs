@@ -1,15 +1,29 @@
+import {
+  ArrowDownIcon,
+  ArrowLeftIcon,
+  Clock3Icon,
+  MapPinIcon,
+  SparklesIcon,
+  UsersIcon,
+} from "lucide-react";
+import { DateTime } from "luxon";
 import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import GlitterWeekLockup from "@/app/components/programs/glitter-week-lockup";
 import OccurrenceScheduleList from "@/app/components/programs/occurrence-schedule-list";
-import { Badge } from "@/app/components/ui/badge";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { formatDate } from "@/app/lib/formatters";
+import { resolveSessionArtwork } from "@/app/lib/programs/artwork";
 import {
   fetchProgramSettings,
   fetchPublishedSession,
   fetchVenues,
 } from "@/app/lib/programs/data";
 import {
+  SESSION_AUDIENCE_LABELS,
   SESSION_SKILL_LEVEL_LABELS,
   SESSION_TYPE_LABELS,
 } from "@/app/lib/programs/definitions";
@@ -24,6 +38,7 @@ import {
 } from "@/app/lib/programs/pricing";
 import { getAvailabilityForOccurrences } from "@/app/lib/programs/registration-actions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { citrusGothicSolid } from "@/app/ui/fonts";
 
 type Props = {
   params: Promise<{ slug: string; sessionSlug: string }>;
@@ -41,7 +56,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: session.title,
       description: session.description ?? undefined,
-      images: session.imageUrl ? [session.imageUrl] : undefined,
+      images: [resolveSessionArtwork(session)],
     },
   };
 }
@@ -71,12 +86,15 @@ export default async function SessionPage({ params }: Props) {
     "active_participant",
   ).amount;
 
-  // The viewer's own price decides whether registration is even offered. It is
-  // re-derived inside the action, so this only governs what the page shows.
+  // The action derives this again after the click; here it only controls which
+  // registration entry point the current viewer is offered.
   const { eligibility } = await getBuyerEligibility(profile);
   const viewerPrice = resolvePrice(priceInput, eligibility).amount;
   const canRegisterFree =
     isFreePrice(viewerPrice) &&
+    canPurchaseAudience(session.audience, eligibility);
+  const canRegisterPaid =
+    !isFreePrice(viewerPrice) &&
     canPurchaseAudience(session.audience, eligibility);
 
   const availabilityByOccurrence = await getAvailabilityForOccurrences(
@@ -85,94 +103,311 @@ export default async function SessionPage({ params }: Props) {
 
   const venuesById = new Map(venues.map((venue) => [venue.id, venue]));
   const outcomes = session.learningOutcomes ?? [];
+  const artwork = resolveSessionArtwork(session);
+  const nextOccurrence =
+    session.occurrences.find(
+      (occurrence) => occurrence.lifecycleStatus === "scheduled",
+    ) ?? session.occurrences[0];
+  const primaryVenueId =
+    nextOccurrence?.venueId ??
+    session.venueId ??
+    session.program.defaultVenueId ??
+    null;
+  const primaryVenue =
+    primaryVenueId === null ? null : venuesById.get(primaryVenueId);
+  const durationMinutes = nextOccurrence
+    ? Math.round(
+        (nextOccurrence.endsAt.getTime() - nextOccurrence.startsAt.getTime()) /
+          60_000,
+      )
+    : null;
 
   return (
-    <div className="container mx-auto max-w-3xl space-y-8 px-4 py-8">
-      <header className="space-y-3">
-        {/* Type, topic, and level sit together as classifiers — the topic is a
-            category the session belongs to, not a subtitle for its title. */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">{SESSION_TYPE_LABELS[session.type]}</Badge>
-          {session.topic ? (
-            <Badge variant="secondary">{session.topic}</Badge>
-          ) : null}
-          {session.skillLevel ? (
-            <Badge variant="secondary">
-              {SESSION_SKILL_LEVEL_LABELS[session.skillLevel]}
-            </Badge>
-          ) : null}
+    <div className="overflow-hidden bg-[#fffaf3] text-[#4b255f]">
+      <section className="relative overflow-hidden bg-[#9347f5] text-[#fffaf3]">
+        <div
+          aria-hidden="true"
+          className="absolute -left-28 top-28 size-80 rounded-full bg-[#ffc1fd]/30"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute -right-24 -top-20 size-72 rounded-full bg-[#72e5e7]/20"
+        />
+
+        <div className="container relative mx-auto flex max-w-7xl items-center justify-between gap-6 px-5 py-6 sm:px-8 lg:px-12">
+          <Link
+            href={`/programs/${session.program.slug}`}
+            className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] decoration-[#ffbe57] decoration-2 underline-offset-4 hover:underline"
+          >
+            <ArrowLeftIcon className="size-4" aria-hidden="true" />
+            Volver al programa
+          </Link>
+          <GlitterWeekLockup compact />
         </div>
-        <h1 className="text-3xl font-bold">{session.title}</h1>
-      </header>
+
+        <div className="container relative mx-auto grid max-w-7xl gap-12 px-5 pb-16 pt-4 sm:px-8 lg:grid-cols-[minmax(340px,0.86fr)_minmax(0,1.14fr)] lg:items-center lg:gap-16 lg:px-12 lg:pb-24">
+          <div className="relative mx-auto w-full max-w-[580px] lg:max-w-none">
+            <div
+              aria-hidden="true"
+              className="absolute -left-5 -top-5 size-28 rounded-full bg-[#ffbe57]"
+            />
+            <div className="relative aspect-[4/5] overflow-hidden rounded-[3rem_3rem_3rem_1rem] bg-[#72e5e7]">
+              <Image
+                src={artwork}
+                alt={`Ilustración de ${session.title}`}
+                fill
+                priority
+                sizes="(min-width: 1024px) 42vw, 100vw"
+                className="object-cover"
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-6 flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-[#ffbe57] px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-[#4b255f]">
+                {SESSION_TYPE_LABELS[session.type]}
+              </span>
+              {session.topic ? (
+                <span className="rounded-full bg-[#fffaf3] px-4 py-2 text-xs font-black uppercase tracking-[0.11em] text-[#4b255f]">
+                  {session.topic}
+                </span>
+              ) : null}
+              {session.skillLevel ? (
+                <span className="rounded-full bg-[#ffbe57] px-4 py-2 text-xs font-black uppercase tracking-[0.11em] text-[#4b255f]">
+                  {SESSION_SKILL_LEVEL_LABELS[session.skillLevel]}
+                </span>
+              ) : null}
+            </div>
+
+            <h1
+              className={`${citrusGothicSolid.className} max-w-[13ch] text-balance text-[clamp(3.5rem,12vw,6rem)] uppercase leading-[0.87] tracking-[0.01em] lg:text-[clamp(4.5rem,6.5vw,7rem)]`}
+            >
+              {session.title}
+            </h1>
+
+            {session.sessionSpeakers.length > 0 ? (
+              <p className="mt-6 max-w-xl text-lg font-black sm:text-xl">
+                {session.type === "workshop" ? "Facilitan" : "Exponen"}{" "}
+                <span className="text-[#c9f4ef]">
+                  {session.sessionSpeakers
+                    .map((entry) => entry.speaker.publicName)
+                    .join(", ")}
+                </span>
+              </p>
+            ) : null}
+
+            <dl className="mt-8 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[1.5rem] bg-white/12 p-4">
+                <dt className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#dff8f4]">
+                  <Clock3Icon className="size-4" />
+                  Primera fecha
+                </dt>
+                <dd className="font-black">
+                  {nextOccurrence
+                    ? formatDate(nextOccurrence.startsAt).toLocaleString(
+                        DateTime.DATETIME_MED,
+                      )
+                    : "Por anunciar"}
+                </dd>
+              </div>
+              <div className="rounded-[1.5rem] bg-white/12 p-4">
+                <dt className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#dff8f4]">
+                  <MapPinIcon className="size-4" />
+                  Lugar
+                </dt>
+                <dd className="font-black">
+                  {primaryVenue?.name ?? "Por anunciar"}
+                </dd>
+              </div>
+              <div className="rounded-[1.5rem] bg-white/12 p-4">
+                <dt className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#dff8f4]">
+                  <UsersIcon className="size-4" />
+                  Para quién
+                </dt>
+                <dd className="font-black">
+                  {SESSION_AUDIENCE_LABELS[session.audience]}
+                </dd>
+              </div>
+              <div className="rounded-[1.5rem] bg-white/12 p-4">
+                <dt className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#dff8f4]">
+                  <SparklesIcon className="size-4" />
+                  Inversión
+                </dt>
+                <dd className="font-black">
+                  {formatMoney(publicPrice)}
+                  {durationMinutes ? (
+                    <span className="ml-2 text-sm font-semibold text-[#e5d5ff]">
+                      · {durationMinutes} min
+                    </span>
+                  ) : null}
+                </dd>
+              </div>
+            </dl>
+
+            {participantPrice !== publicPrice ? (
+              <p className="mt-3 text-sm font-bold text-[#dff8f4]">
+                {formatMoney(participantPrice)} para participantes activos
+              </p>
+            ) : null}
+
+            <Link
+              href="#horarios"
+              className="mt-7 inline-flex min-h-12 items-center gap-2 rounded-full bg-[#ffbe57] px-6 text-sm font-black uppercase tracking-[0.08em] text-[#4b255f] transition hover:-translate-y-0.5 hover:bg-[#ffd477] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/70"
+            >
+              Elegir horario
+              <ArrowDownIcon className="size-4" aria-hidden="true" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-[#fffaf3]">
+        <div className="container mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 md:py-24 lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)] lg:gap-20 lg:px-12">
+          <div>
+            {session.description ? (
+              <section>
+                <p className="mb-4 text-xs font-black uppercase tracking-[0.18em] text-[#e639b5]">
+                  Sobre la sesión
+                </p>
+                <h2
+                  className={`${citrusGothicSolid.className} mb-7 text-5xl uppercase leading-[0.92] sm:text-6xl`}
+                >
+                  Lo que vamos a explorar
+                </h2>
+                <p className="whitespace-pre-line text-lg font-medium leading-relaxed text-[#644868]">
+                  {session.description}
+                </p>
+              </section>
+            ) : null}
+
+            {outcomes.length > 0 ? (
+              <section className="mt-14">
+                <p className="mb-4 text-xs font-black uppercase tracking-[0.18em] text-[#9347f5]">
+                  Al terminar
+                </p>
+                <h2
+                  className={`${citrusGothicSolid.className} mb-7 text-5xl uppercase leading-[0.92] sm:text-6xl`}
+                >
+                  Te llevas
+                </h2>
+                <ol className="grid gap-4 sm:grid-cols-2">
+                  {outcomes.map((outcome, index) => (
+                    <li
+                      key={outcome}
+                      className={`rounded-[1.7rem] p-5 font-bold leading-relaxed ${
+                        index % 3 === 0
+                          ? "bg-[#dff8f4]"
+                          : index % 3 === 1
+                            ? "bg-[#ffe3a9]"
+                            : "bg-[#f7d2ef]"
+                      }`}
+                    >
+                      <span className="mb-4 block text-xs font-black uppercase tracking-[0.15em] text-[#9347f5]">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      {outcome}
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ) : null}
+          </div>
+
+          <section id="horarios" className="scroll-mt-28">
+            <div className="rounded-[2.5rem] bg-[#ffbe57] p-5 sm:p-7 lg:sticky lg:top-28">
+              <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-[#7b3b76]">
+                Reserva tu lugar
+              </p>
+              <h2
+                className={`${citrusGothicSolid.className} mb-6 text-5xl uppercase leading-[0.92]`}
+              >
+                Elige un horario
+              </h2>
+              <OccurrenceScheduleList
+                occurrences={session.occurrences}
+                programStatus={session.program.status}
+                sessionStatus={session.status}
+                venuesById={venuesById}
+                fallbackVenueId={
+                  session.venueId ?? session.program.defaultVenueId ?? null
+                }
+                sessionTitle={session.title}
+                availabilityByOccurrence={availabilityByOccurrence}
+                freeRegistration={
+                  canRegisterFree ? { isSignedIn: profile !== null } : null
+                }
+                paidRegistration={
+                  canRegisterPaid
+                    ? { isSignedIn: profile !== null, price: viewerPrice }
+                    : null
+                }
+              />
+              <p className="mt-5 px-2 text-xs font-semibold leading-relaxed text-[#6d4b62]">
+                Los cupos se gestionan por horario. Si la sesión es pagada, tu
+                lugar se confirma después de validar el comprobante.
+              </p>
+            </div>
+          </section>
+        </div>
+      </section>
 
       {session.sessionSpeakers.length > 0 ? (
-        <section className="space-y-3">
-          <h2 className="text-xl font-semibold">
-            {session.type === "workshop" ? "Facilitan" : "Exponen"}
-          </h2>
-          <ul className="space-y-3">
-            {session.sessionSpeakers.map((entry) => (
-              <li key={entry.id}>
-                <p className="font-medium">{entry.speaker.publicName}</p>
-                {entry.role ? (
-                  <p className="text-sm text-muted-foreground">{entry.role}</p>
-                ) : null}
-                {entry.speaker.bio ? (
-                  <p className="text-sm text-muted-foreground">
-                    {entry.speaker.bio}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+        <section className="bg-[#72e5e7] py-16 sm:py-24">
+          <div className="container mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
+            <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-[#7b3b76]">
+              Quienes comparten
+            </p>
+            <h2
+              className={`${citrusGothicSolid.className} mb-10 text-5xl uppercase leading-none sm:text-7xl`}
+            >
+              Detrás de la sesión
+            </h2>
+
+            <ul className="grid gap-6 md:grid-cols-2">
+              {session.sessionSpeakers.map((entry) => (
+                <li
+                  key={entry.id}
+                  className="grid grid-cols-[92px_1fr] gap-5 rounded-[2rem] bg-[#fffaf3] p-5 sm:grid-cols-[120px_1fr]"
+                >
+                  <div className="relative aspect-square overflow-hidden rounded-[1.5rem] bg-[#f7aee8]">
+                    {entry.speaker.imageUrl ? (
+                      <Image
+                        src={entry.speaker.imageUrl}
+                        alt={entry.speaker.publicName}
+                        fill
+                        sizes="120px"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <span
+                        className={`${citrusGothicSolid.className} absolute inset-0 grid place-items-center text-5xl text-[#4b255f]`}
+                      >
+                        {entry.speaker.publicName.slice(0, 1)}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-black">
+                      {entry.speaker.publicName}
+                    </h3>
+                    {entry.role ? (
+                      <p className="mt-1 text-xs font-black uppercase tracking-[0.13em] text-[#9347f5]">
+                        {entry.role}
+                      </p>
+                    ) : null}
+                    {entry.speaker.bio ? (
+                      <p className="mt-3 text-sm font-medium leading-relaxed text-[#70566f]">
+                        {entry.speaker.bio}
+                      </p>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
         </section>
       ) : null}
-
-      {session.description ? (
-        <section className="space-y-2">
-          <h2 className="text-xl font-semibold">Sobre la sesión</h2>
-          <p className="whitespace-pre-line">{session.description}</p>
-        </section>
-      ) : null}
-
-      {outcomes.length > 0 ? (
-        <section className="space-y-2">
-          <h2 className="text-xl font-semibold">Qué te llevas</h2>
-          <ul className="list-disc space-y-1 pl-5">
-            {outcomes.map((outcome) => (
-              <li key={outcome}>{outcome}</li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      <section className="space-y-2">
-        <h2 className="text-xl font-semibold">Precio</h2>
-        <p className="text-lg font-medium">{formatMoney(publicPrice)}</p>
-        {participantPrice !== publicPrice ? (
-          <p className="text-muted-foreground">
-            {formatMoney(participantPrice)} para participantes activos
-          </p>
-        ) : null}
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Horarios</h2>
-        <OccurrenceScheduleList
-          occurrences={session.occurrences}
-          programStatus={session.program.status}
-          sessionStatus={session.status}
-          venuesById={venuesById}
-          fallbackVenueId={
-            session.venueId ?? session.program.defaultVenueId ?? null
-          }
-          sessionTitle={session.title}
-          availabilityByOccurrence={availabilityByOccurrence}
-          freeRegistration={
-            canRegisterFree ? { isSignedIn: profile !== null } : null
-          }
-        />
-      </section>
     </div>
   );
 }

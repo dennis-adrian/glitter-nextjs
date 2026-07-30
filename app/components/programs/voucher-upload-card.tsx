@@ -104,15 +104,16 @@ export default function VoucherUploadCard({
         ...(token ? { token } : {}),
       });
 
-      const imageUrl = uploaded?.[0]?.serverData?.results?.imageUrl;
-      if (!imageUrl) {
+      const results = uploaded?.[0]?.serverData?.results;
+      if (!results?.imageUrl || !results?.fileKey) {
         toast.error("No pudimos subir la imagen. Intenta de nuevo.");
         return;
       }
 
       const result = await submitPurchaseVoucher({
         purchaseId,
-        fileUrl: imageUrl,
+        fileUrl: results.imageUrl,
+        fileKey: results.fileKey,
         ...(token ? { token } : {}),
       });
 

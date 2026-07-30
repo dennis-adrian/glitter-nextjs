@@ -8,6 +8,7 @@ import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
 import { resolvePurchaseAccess } from "@/app/lib/programs/access";
 import { hashAccessToken } from "@/app/lib/programs/tokens";
 import {
+  isAuthorizedVoucherUrl,
   resolveVoucherSubmission,
   VOUCHER_BLOCKER_LABELS,
 } from "@/app/lib/programs/vouchers";
@@ -19,13 +20,21 @@ import {
   sessionPurchases,
 } from "@/db/schema";
 
-const submitSchema = z.object({
-  purchaseId: z.number().int().positive(),
-  /** UploadThing URL, produced by the endpoint that already authorized this. */
-  fileUrl: z.string().trim().url().max(2000),
-  /** Present when the buyer arrived by secure link rather than signed in. */
-  token: z.string().trim().min(1).max(200).optional(),
-});
+const submitSchema = z
+  .object({
+    purchaseId: z.number().int().positive(),
+    /** UploadThing URL, produced by the endpoint that already authorized this. */
+    fileUrl: z.string().trim().url().max(2000),
+    /** The `key` from the same upload response, which pins `fileUrl`. */
+    fileKey: z.string().trim().min(1).max(200),
+    /** Present when the buyer arrived by secure link rather than signed in. */
+    token: z.string().trim().min(1).max(200).optional(),
+  })
+  // Rejected at the schema boundary so no later branch can forget to ask.
+  .refine((value) => isAuthorizedVoucherUrl(value.fileUrl, value.fileKey), {
+    path: ["fileUrl"],
+    message: "El comprobante no corresponde a un archivo subido",
+  });
 
 export type SubmitVoucherInput = z.input<typeof submitSchema>;
 

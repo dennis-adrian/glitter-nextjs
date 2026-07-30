@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  acceptsVouchers,
+  isAuthorizedVoucherUrl,
   resolveVoucherSubmission,
   type VoucherSubmissionSubject,
 } from "@/app/lib/programs/vouchers";
@@ -85,5 +87,91 @@ describe("resolveVoucherSubmission", () => {
         NOW,
       ),
     ).toEqual({ allowed: true });
+  });
+});
+
+describe("acceptsVouchers", () => {
+  it.each([
+    "pending_upload",
+    "under_verification",
+    "changes_requested",
+  ] as const)("accepts a bank_qr purchase in %s", (status) => {
+    expect(acceptsVouchers({ paymentMode: "bank_qr", status })).toBe(true);
+  });
+
+  it("ignores the hold, so an expired pending purchase still shows the step", () => {
+    // The page relies on this: `resolveVoucherSubmission` would refuse, but the
+    // buyer still needs to be told their reservation lapsed.
+    expect(
+      acceptsVouchers({ paymentMode: "bank_qr", status: "pending_upload" }),
+    ).toBe(true);
+  });
+
+  it.each(["approved", "rejected", "expired", "cancelled"] as const)(
+    "refuses a %s purchase",
+    (status) => {
+      expect(acceptsVouchers({ paymentMode: "bank_qr", status })).toBe(false);
+    },
+  );
+
+  it("refuses a free purchase", () => {
+    expect(
+      acceptsVouchers({ paymentMode: "free", status: "pending_upload" }),
+    ).toBe(false);
+  });
+});
+
+describe("isAuthorizedVoucherUrl", () => {
+  const KEY = "abc123XYZkey";
+
+  it("accepts the per-app ufs.sh host", () => {
+    expect(
+      isAuthorizedVoucherUrl(`https://ja4q35y666.ufs.sh/f/${KEY}`, KEY),
+    ).toBe(true);
+  });
+
+  it("accepts the legacy utfs.io host", () => {
+    expect(isAuthorizedVoucherUrl(`https://utfs.io/f/${KEY}`, KEY)).toBe(true);
+  });
+
+  it("rejects an arbitrary host carrying the right key", () => {
+    expect(isAuthorizedVoucherUrl(`https://evil.example/f/${KEY}`, KEY)).toBe(
+      false,
+    );
+  });
+
+  it("rejects a lookalike host that merely contains an allowed one", () => {
+    expect(
+      isAuthorizedVoucherUrl(`https://utfs.io.evil.com/f/${KEY}`, KEY),
+    ).toBe(false);
+  });
+
+  it("rejects a key that is only a suffix of the final segment", () => {
+    expect(isAuthorizedVoucherUrl(`https://utfs.io/f/other-${KEY}`, KEY)).toBe(
+      false,
+    );
+  });
+
+  it("rejects a mismatched key", () => {
+    expect(
+      isAuthorizedVoucherUrl(`https://utfs.io/f/${KEY}`, "different"),
+    ).toBe(false);
+  });
+
+  it("rejects plain http", () => {
+    expect(isAuthorizedVoucherUrl(`http://utfs.io/f/${KEY}`, KEY)).toBe(false);
+  });
+
+  it("rejects a non-URL and an empty key", () => {
+    expect(isAuthorizedVoucherUrl("not a url", KEY)).toBe(false);
+    expect(isAuthorizedVoucherUrl(`https://utfs.io/f/${KEY}`, "  ")).toBe(
+      false,
+    );
+  });
+
+  it("rejects the key appearing somewhere other than the last segment", () => {
+    expect(
+      isAuthorizedVoucherUrl(`https://utfs.io/f/${KEY}/evil.png`, KEY),
+    ).toBe(false);
   });
 });

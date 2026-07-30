@@ -45,6 +45,75 @@ export type VoucherSubmissionSubject = {
   holdExpiresAt: Date | null;
 };
 
+/**
+ * Hosts UploadThing serves files from. Both shapes are in use in this app:
+ * the legacy `utfs.io` and the per-app `<appId>.ufs.sh`. Mirrors the
+ * `remotePatterns` allowlist in `next.config`.
+ */
+const UPLOADTHING_HOSTS = ["utfs.io", "ufs.sh"];
+
+function isUploadThingHost(hostname: string): boolean {
+  return UPLOADTHING_HOSTS.some(
+    (host) => hostname === host || hostname.endsWith(`.${host}`),
+  );
+}
+
+/**
+ * Whether a submitted URL really is the file the upload flow just authorized.
+ *
+ * The action receives the URL from the browser, so on its own it proves
+ * nothing: a buyer past the access check could submit any address and have it
+ * stored — and reviewed — as their payment proof. That would break the
+ * append-only guarantee outright, since a remote URL's contents can change
+ * after an admin approves it.
+ *
+ * Binding the URL to the `key` returned by the upload, and pinning the host,
+ * is what makes the stored proof the uploaded artifact. It is not a
+ * cryptographic proof of provenance — a key is bearer data — but it removes
+ * arbitrary-URL injection, which is the part that matters here.
+ */
+export function isAuthorizedVoucherUrl(
+  fileUrl: string,
+  fileKey: string,
+): boolean {
+  if (fileKey.trim().length === 0) return false;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(fileUrl);
+  } catch {
+    return false;
+  }
+
+  if (parsed.protocol !== "https:") return false;
+  if (!isUploadThingHost(parsed.hostname)) return false;
+
+  // The key is the final path segment; comparing the whole segment stops
+  // `…/other-key-suffixed-with-ourkey` from passing.
+  const segments = parsed.pathname.split("/").filter(Boolean);
+  return segments[segments.length - 1] === fileKey;
+}
+
+/**
+ * Whether a purchase is still in the paying part of its life — deliberately
+ * without the hold check.
+ *
+ * This is what the page asks to decide whether to render the payment step, and
+ * it must stay true for a `pending_upload` whose hold already lapsed: "your
+ * reservation expired" is exactly what that buyer needs to read, and
+ * `resolveVoucherSubmission` would say no. Hiding the card there would leave
+ * them on a page that explains nothing.
+ */
+export function acceptsVouchers(purchase: {
+  paymentMode: "bank_qr" | "free";
+  status: SessionPurchaseStatus;
+}): boolean {
+  return (
+    purchase.paymentMode === "bank_qr" &&
+    ACCEPTING_STATUSES.includes(purchase.status)
+  );
+}
+
 export type VoucherSubmissionCheck =
   | { allowed: true }
   | { allowed: false; blocker: VoucherBlocker };

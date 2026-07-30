@@ -1,6 +1,8 @@
 import { DateTime } from "luxon";
+import { Clock3Icon, MapPinIcon, UsersIcon } from "lucide-react";
 
 import FreeRegistrationForm from "@/app/components/programs/free-registration-form";
+import PaidRegistrationForm from "@/app/components/programs/paid-registration-form";
 import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
 import { formatDate } from "@/app/lib/formatters";
 import type {
@@ -21,10 +23,11 @@ type Props = {
   sessionTitle: string;
   availabilityByOccurrence: Map<number, OccurrenceAvailability>;
   /**
-   * Present only when this session is free for the current viewer. A priced
-   * session shows no registration button — it needs the voucher flow.
+   * Exactly one registration mode is present for an eligible viewer; the
+   * server action still re-checks price and audience after the click.
    */
   freeRegistration: { isSignedIn: boolean } | null;
+  paidRegistration: { isSignedIn: boolean; price: number } | null;
 };
 
 /**
@@ -40,6 +43,7 @@ export default function OccurrenceScheduleList({
   sessionTitle,
   availabilityByOccurrence,
   freeRegistration,
+  paidRegistration,
 }: Props) {
   if (occurrences.length === 0) {
     return (
@@ -50,7 +54,7 @@ export default function OccurrenceScheduleList({
   }
 
   return (
-    <ul className="space-y-3">
+    <ul className="overflow-hidden rounded-[2rem] bg-[#fffaf3] text-[#4b255f]">
       {occurrences.map((occurrence) => {
         const resolved = resolveOccurrenceState({
           programStatus,
@@ -74,39 +78,70 @@ export default function OccurrenceScheduleList({
         )}`;
 
         const canRegister =
-          freeRegistration !== null && resolved.isPurchasable && remaining > 0;
+          resolved.isPurchasable &&
+          remaining > 0 &&
+          (freeRegistration !== null || paidRegistration !== null);
 
         return (
           <li
             key={occurrence.id}
-            className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border/70 p-4"
+            className="grid gap-5 border-b border-[#4b255f]/15 p-5 last:border-b-0 sm:grid-cols-[78px_1fr_auto] sm:items-center md:p-6"
           >
-            <div className="space-y-1">
-              <p className="font-medium">{scheduleLabel}</p>
+            <div className="flex items-baseline gap-2 sm:grid sm:size-[68px] sm:place-content-center sm:rounded-full sm:bg-[#dff7f3] sm:text-center">
+              <span className="text-4xl font-black leading-none text-[#4b255f]">
+                {formatDate(occurrence.startsAt).toFormat("dd")}
+              </span>
+              <span className="text-xs font-black uppercase tracking-[0.16em] text-[#e639b5] sm:mt-0.5 sm:block">
+                {formatDate(occurrence.startsAt).toFormat("LLL")}
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              <p className="flex items-center gap-2 font-black text-[#4b255f]">
+                <Clock3Icon className="size-4 text-[#9347f5]" />
+                {formatDate(occurrence.startsAt).toLocaleString(
+                  DateTime.TIME_SIMPLE,
+                )}{" "}
+                —{" "}
+                {formatDate(occurrence.endsAt).toLocaleString(
+                  DateTime.TIME_SIMPLE,
+                )}
+              </p>
               {venue ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="flex items-center gap-2 text-sm font-medium text-[#70566f]">
+                  <MapPinIcon className="size-4 shrink-0 text-[#9347f5]" />
                   {venue.name}
                   {occurrence.room ? ` · ${occurrence.room}` : ""}
                 </p>
               ) : null}
-              <p className="text-sm text-muted-foreground">
+              <p className="flex items-center gap-2 text-sm font-medium text-[#70566f]">
+                <UsersIcon className="size-4 shrink-0 text-[#9347f5]" />
                 {remaining > 0
                   ? `${remaining} de ${occurrence.capacity} cupos disponibles`
                   : "Sin cupos disponibles"}
               </p>
             </div>
 
-            <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
               <ProgramStatusBadge
                 state={resolved.state}
                 wasRescheduled={resolved.wasRescheduled}
               />
-              {canRegister ? (
+              {canRegister && freeRegistration ? (
                 <FreeRegistrationForm
                   occurrenceId={occurrence.id}
                   sessionTitle={sessionTitle}
                   scheduleLabel={scheduleLabel}
                   isSignedIn={freeRegistration.isSignedIn}
+                />
+              ) : null}
+              {canRegister && paidRegistration ? (
+                <PaidRegistrationForm
+                  occurrenceId={occurrence.id}
+                  sessionTitle={sessionTitle}
+                  scheduleLabel={scheduleLabel}
+                  isSignedIn={paidRegistration.isSignedIn}
+                  price={paidRegistration.price}
                 />
               ) : null}
             </div>

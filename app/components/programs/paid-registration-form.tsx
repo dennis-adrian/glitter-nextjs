@@ -28,7 +28,8 @@ import {
 } from "@/app/components/ui/dialog";
 import { Form } from "@/app/components/ui/form";
 import { Label } from "@/app/components/ui/label";
-import { registerForFreeSession } from "@/app/lib/programs/registration-actions";
+import { startPaidCheckout } from "@/app/lib/programs/checkout-actions";
+import { formatMoney } from "@/app/lib/programs/pricing";
 import { genderOptions } from "@/app/lib/utils";
 
 type Props = {
@@ -36,13 +37,9 @@ type Props = {
   sessionTitle: string;
   scheduleLabel: string;
   isSignedIn: boolean;
+  price: number;
 };
 
-/**
- * Guests give the same details a festival visitor does, so attendance can be
- * reported on consistently. A signed-in attendee already has all of it on their
- * profile and is only asked to confirm.
- */
 const guestSchema = z.object({
   name: z.string().trim().min(2, "Escribe tu nombre completo"),
   email: z.string().trim().email("El correo no es válido"),
@@ -51,25 +48,26 @@ const guestSchema = z.object({
   birthdate: birthdateValidator({}),
 });
 
-/**
- * Input and output diverge because `birthdateValidator` coerces: the field
- * holds whatever the date input produces, the handler receives a `Date`. Same
- * three-generic shape `qr-code-form.tsx` uses.
- */
 type GuestInput = z.input<typeof guestSchema>;
 type GuestValues = z.output<typeof guestSchema>;
 
-export default function FreeRegistrationForm({
+/**
+ * Opens the hold-and-voucher flow already enforced by `startPaidCheckout`.
+ * The price is presentation only; the server resolves it again after locking
+ * the occurrence, so a stale tab can never submit a stale amount.
+ */
+export default function PaidRegistrationForm({
   occurrenceId,
   sessionTitle,
   scheduleLabel,
   isSignedIn,
+  price,
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [acceptsPolicy, setAcceptsPolicy] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
+  const idempotencyKeyRef = useRef<string | null>(null);
   const form = useForm<GuestInput, unknown, GuestValues>({
     resolver: zodResolver(guestSchema),
     defaultValues: {
@@ -80,15 +78,6 @@ export default function FreeRegistrationForm({
       birthdate: "",
     },
   });
-
-  /**
-   * Minted on first submit and kept in a ref, so every retry from this form
-   * carries the same key and cannot take a second seat.
-   *
-   * Deliberately not generated during render: `crypto.randomUUID()` is impure,
-   * and a re-render must not produce a fresh key.
-   */
-  const idempotencyKeyRef = useRef<string | null>(null);
 
   function ensureIdempotencyKey(): string {
     if (idempotencyKeyRef.current === null) {
@@ -103,7 +92,7 @@ export default function FreeRegistrationForm({
   async function submit(guest: GuestValues | null) {
     setIsSubmitting(true);
     try {
-      const result = await registerForFreeSession({
+      const result = await startPaidCheckout({
         occurrenceId,
         acceptsNoRefundPolicy: true,
         idempotencyKey: ensureIdempotencyKey(),
@@ -128,9 +117,8 @@ export default function FreeRegistrationForm({
       router.push(
         `/programs/purchases/${result.purchaseId}?token=${result.accessToken}`,
       );
-    } catch (error) {
-      console.error(error);
-      toast.error("No pudimos completar tu inscripción. Intenta de nuevo.");
+    } catch {
+      toast.error("No pudimos reservar tu cupo. Intenta de nuevo.");
     } finally {
       setIsSubmitting(false);
     }
@@ -147,21 +135,22 @@ export default function FreeRegistrationForm({
           size="sm"
           className="rounded-full bg-[#9347f5] px-5 font-black text-white hover:bg-[#7f36dc]"
         >
-          Inscribirme
+          Reservar · {formatMoney(price)}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{sessionTitle}</DialogTitle>
           <DialogDescription>
-            {scheduleLabel} · Inscripción sin costo
+            {scheduleLabel} · {formatMoney(price)}
           </DialogDescription>
         </DialogHeader>
 
         {isSignedIn ? (
           <div className="grid gap-4">
             <p className="text-sm text-muted-foreground">
-              Usaremos los datos de tu perfil para emitir la entrada.
+              Reservaremos tu cupo por unos minutos para que subas el
+              comprobante de pago.
             </p>
             <PolicyCheckbox
               occurrenceId={occurrenceId}
@@ -174,7 +163,9 @@ export default function FreeRegistrationForm({
                 disabled={!acceptsPolicy || isSubmitting}
                 onClick={() => submit(null)}
               >
-                {isSubmitting ? "Inscribiendo..." : "Confirmar inscripción"}
+                {isSubmitting
+                  ? "Reservando..."
+                  : `Reservar por ${formatMoney(price)}`}
               </Button>
             </DialogFooter>
           </div>
@@ -186,7 +177,7 @@ export default function FreeRegistrationForm({
                 label="Correo"
                 name="email"
                 type="email"
-                description="Ahí te enviamos el QR de tu entrada."
+                description="Ahí te enviamos la confirmación y tu entrada."
                 required
               />
               <PhoneInput name="phone" label="Teléfono" required />
@@ -217,7 +208,9 @@ export default function FreeRegistrationForm({
 
               <DialogFooter>
                 <Button type="submit" disabled={!acceptsPolicy || isSubmitting}>
-                  {isSubmitting ? "Inscribiendo..." : "Confirmar inscripción"}
+                  {isSubmitting
+                    ? "Reservando..."
+                    : `Reservar por ${formatMoney(price)}`}
                 </Button>
               </DialogFooter>
             </form>
@@ -228,7 +221,6 @@ export default function FreeRegistrationForm({
   );
 }
 
-/** No refund wording: a free session has nothing to refund. */
 function PolicyCheckbox({
   occurrenceId,
   checked,
@@ -242,19 +234,19 @@ function PolicyCheckbox({
 }) {
   return (
     <Label
-      htmlFor={`policy-${occurrenceId}`}
+      htmlFor={`paid-policy-${occurrenceId}`}
       className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/70 p-3"
     >
       <Checkbox
-        id={`policy-${occurrenceId}`}
+        id={`paid-policy-${occurrenceId}`}
         checked={checked}
         onCheckedChange={(value) => onChange(value === true)}
         disabled={disabled}
         className="mt-0.5"
       />
       <span className="text-sm font-normal">
-        Entiendo que puedo cancelar hasta dos días antes de la sesión y que, si
-        no podré asistir, debo liberar mi cupo.
+        Entiendo que puedo cancelar hasta dos días antes, que la cancelación no
+        genera reembolso y que mi cupo se confirma al validar el comprobante.
       </span>
     </Label>
   );

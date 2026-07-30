@@ -175,8 +175,13 @@ export const ourFileRouter = {
 
       return { purchaseId: purchase.id };
     })
+    // The key travels with the URL so `submitPurchaseVoucher` can verify the
+    // address it is handed is this upload and not an arbitrary one.
     .onUploadComplete(({ file }) => ({
-      results: { imageUrl: (file as { url: string }).url },
+      results: {
+        imageUrl: (file as { url: string }).url,
+        fileKey: (file as { key: string }).key,
+      },
     })),
   guestOrderPayment: f({ image: { maxFileSize: "4MB" } })
     .input(

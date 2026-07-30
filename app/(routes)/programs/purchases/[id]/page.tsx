@@ -13,6 +13,7 @@ import {
   fetchPurchaseForAccess,
 } from "@/app/lib/programs/purchase-queries";
 import { hashAccessToken } from "@/app/lib/programs/tokens";
+import { acceptsVouchers } from "@/app/lib/programs/vouchers";
 import { generateQrDataUrl } from "@/app/lib/utils";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
@@ -71,17 +72,10 @@ export default async function PurchaseAccessPage({
     })),
   );
 
-  /**
-   * The payment step is shown while money is still outstanding — including a
-   * `pending_upload` whose hold already lapsed, because "your reservation
-   * expired" is exactly what that buyer needs to be told. Terminal states get
-   * no card; the status line above already says what happened.
-   */
-  const showPaymentStep =
-    purchase.paymentMode === "bank_qr" &&
-    (purchase.status === "pending_upload" ||
-      purchase.status === "under_verification" ||
-      purchase.status === "changes_requested");
+  // Shared with the action and the upload endpoint, so the status list lives in
+  // one place. Terminal states get no card; the status line above already says
+  // what happened.
+  const showPaymentStep = acceptsVouchers(purchase);
 
   const settings = showPaymentStep ? await fetchProgramSettings() : null;
 
