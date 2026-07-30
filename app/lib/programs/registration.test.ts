@@ -90,6 +90,62 @@ describe("resolveRegistrationCheck", () => {
     ).toEqual({ allowed: false, blocker: "sold_out" });
   });
 
+  describe("paid mode", () => {
+    it("allows a priced session", () => {
+      expect(
+        resolveRegistrationCheck(checkInput({ price: 50, mode: "paid" })),
+      ).toEqual({ allowed: true });
+    });
+
+    it("refuses a free session — a hold and voucher for zero makes no sense", () => {
+      expect(
+        resolveRegistrationCheck(checkInput({ price: 0, mode: "paid" })),
+      ).toEqual({ allowed: false, blocker: "not_paid" });
+    });
+
+    it("applies every non-price rule exactly as the free path does", () => {
+      expect(
+        resolveRegistrationCheck(
+          checkInput({
+            price: 50,
+            mode: "paid",
+            occurrenceState: CLOSED,
+          }),
+        ),
+      ).toEqual({ allowed: false, blocker: "not_purchasable" });
+
+      expect(
+        resolveRegistrationCheck(
+          checkInput({ price: 50, mode: "paid", availability: SOLD_OUT }),
+        ),
+      ).toEqual({ allowed: false, blocker: "sold_out" });
+
+      expect(
+        resolveRegistrationCheck(
+          checkInput({ price: 50, mode: "paid", hasExistingTicket: true }),
+        ),
+      ).toEqual({ allowed: false, blocker: "already_registered" });
+
+      expect(
+        resolveRegistrationCheck(
+          checkInput({
+            price: 50,
+            mode: "paid",
+            audience: "participants_only",
+            eligibility: "public",
+          }),
+        ),
+      ).toEqual({ allowed: false, blocker: "audience_excluded" });
+    });
+
+    it("keeps the free path the default when no mode is given", () => {
+      expect(resolveRegistrationCheck(checkInput({ price: 50 }))).toEqual({
+        allowed: false,
+        blocker: "not_free",
+      });
+    });
+  });
+
   it("refuses a duplicate registration", () => {
     expect(
       resolveRegistrationCheck(checkInput({ hasExistingTicket: true })),

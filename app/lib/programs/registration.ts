@@ -17,6 +17,7 @@ export type RegistrationBlocker =
   | "not_purchasable"
   | "audience_excluded"
   | "not_free"
+  | "not_paid"
   | "sold_out"
   | "already_registered";
 
@@ -25,20 +26,31 @@ export const REGISTRATION_BLOCKER_LABELS: Record<RegistrationBlocker, string> =
     not_purchasable: "Esta sesión no está aceptando inscripciones ahora mismo",
     audience_excluded: "Esta sesión no está disponible para tu perfil",
     not_free: "Esta sesión tiene costo; la inscripción gratuita no aplica",
+    not_paid: "Esta sesión es gratuita; no necesitas pagar para inscribirte",
     sold_out: "Ya no quedan cupos para este horario",
     already_registered: "Ya tienes una entrada para este horario",
   };
+
+/**
+ * Which checkout the caller is attempting. The price is re-resolved server-side
+ * either way, so this is what stops a paid session being taken through the free
+ * path — and a free one through the paid path, which would otherwise create a
+ * hold and demand a voucher for a zero total.
+ */
+export type RegistrationMode = "free" | "paid";
 
 export type RegistrationCheckInput = {
   occurrenceState: ResolvedOccurrenceState;
   audience: SessionAudience;
   eligibility: ParticipantEligibility;
-  /** Price resolved for this buyer. Only zero routes through free registration. */
+  /** Price resolved for this buyer, matched against `mode`. */
   price: number;
   availability: OccurrenceAvailability;
   /** A valid ticket this attendee already holds for this occurrence. */
   hasExistingTicket: boolean;
   waitlistInvitationCoversSeat?: boolean;
+  /** Defaults to `free` so existing free-registration callers are unchanged. */
+  mode?: RegistrationMode;
 };
 
 export type RegistrationCheck =
@@ -46,8 +58,9 @@ export type RegistrationCheck =
   | { allowed: false; blocker: RegistrationBlocker };
 
 /**
- * The full precondition set for a free registration, in the order that gives
- * the most useful message.
+ * The full precondition set for taking a seat, in the order that gives the most
+ * useful message. Shared by free registration and paid checkout: the two differ
+ * only in which price they accept, so they must not drift on anything else.
  *
  * Ordering matters: audience is checked first so an ineligible buyer is told
  * they cannot attend rather than that it is full, and the duplicate check runs
@@ -68,8 +81,12 @@ export function resolveRegistrationCheck(
     return { allowed: false, blocker: "audience_excluded" };
   }
 
-  if (!isFreePrice(input.price)) {
-    return { allowed: false, blocker: "not_free" };
+  const free = isFreePrice(input.price);
+
+  if ((input.mode ?? "free") === "free") {
+    if (!free) return { allowed: false, blocker: "not_free" };
+  } else if (free) {
+    return { allowed: false, blocker: "not_paid" };
   }
 
   if (input.hasExistingTicket) {

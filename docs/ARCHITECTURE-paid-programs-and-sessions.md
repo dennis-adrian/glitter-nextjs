@@ -291,15 +291,15 @@ Immutable reschedule history. Insert-only; never updated or deleted.
 
 Not created (§0). Specification retained for the future delivery.
 
-| Column             | Type                                                            | Notes                                |
-| ------------------ | --------------------------------------------------------------- | ------------------------------------ |
-| `programId`        | integer → `programs.id`, `ON DELETE CASCADE`, not null, unique  | One pass per program in the MVP      |
-| `name`             | text, not null                                                  | "Week Pass"                          |
-| `description`      | text                                                            |                                      |
-| `inclusionMode`    | `pass_inclusion_mode`, not null, default `all_program_sessions` | `all_program_sessions` \| `explicit` |
-| `publicPrice`      | numeric(10,2), not null                                         |                                      |
-| `participantPrice` | numeric(10,2), nullable                                         | Override of the discount rule        |
-| `status`           | `program_status`, not null, default `draft`                     |                                      |
+| Column             | Type                                                            | Notes                                        |
+| ------------------ | --------------------------------------------------------------- | -------------------------------------------- |
+| `programId`        | integer → `programs.id`, `ON DELETE CASCADE`, not null, unique  | One pass per program when pass support ships |
+| `name`             | text, not null                                                  | "Week Pass"                                  |
+| `description`      | text                                                            |                                              |
+| `inclusionMode`    | `pass_inclusion_mode`, not null, default `all_program_sessions` | `all_program_sessions` \| `explicit`         |
+| `publicPrice`      | numeric(10,2), not null                                         |                                              |
+| `participantPrice` | numeric(10,2), nullable                                         | Override of the discount rule                |
+| `status`           | `program_status`, not null, default `draft`                     |                                              |
 
 Checks: prices `>= 0`; `participantPrice IS NULL OR participantPrice <= publicPrice`.
 
@@ -330,9 +330,9 @@ Not created (§0). Specification retained for the future delivery.
 | Column          | Type                                                         | Notes                                                              |
 | --------------- | ------------------------------------------------------------ | ------------------------------------------------------------------ |
 | `passId`        | integer → `program_passes.id`, `ON DELETE CASCADE`, not null |                                                                    |
-| `type`          | `pass_benefit_type`, not null                                | MVP: `festival_fast_pass`                                          |
+| `type`          | `pass_benefit_type`, not null                                | At first ship: `festival_fast_pass`                                |
 | `config`        | jsonb                                                        | e.g. `{ "festivalId": 12, "dates": ["2026-08-15", "2026-08-16"] }` |
-| `isFulfillable` | boolean, not null, default false                             | MVP stores `false`: represented, never fulfilled                   |
+| `isFulfillable` | boolean, not null, default false                             | Stores `false` at first ship: represented, never fulfilled         |
 
 `unique(passId, type)`.
 
@@ -651,9 +651,10 @@ carries one QR per ticket.
 namespace and the resolution below is not built. Retained because the reasoning is the expensive
 part:
 
-A pass holder would carry a single `passCode` rather than five ticket codes: at a busy door,
-finding the right QR in an email is the slowest step, and presenting the wrong session's code is the
-most common failure. The credential is decoupled from the tickets, which stay one-per-occurrence.
+A pass holder would carry a single `passCode` rather than one ticket code per included occurrence:
+at a busy door, finding the right QR in an email is the slowest step, and presenting the wrong
+session's code is the most common failure. The credential is decoupled from the tickets, which stay
+one-per-occurrence.
 
 That refines — it does not contradict — the PRD's "one distinct QR per person and session"
 (PRD §7.1, §11.2). _Issuance_ is unchanged: one ticket per person and occurrence, each with its own

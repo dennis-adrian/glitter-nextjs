@@ -3746,6 +3746,7 @@ export const sessionPurchasesRelations = relations(
     }),
     lines: many(sessionPurchaseLines),
     events: many(sessionPurchaseEvents),
+    vouchers: many(sessionPurchaseVouchers),
   }),
 );
 
@@ -3830,6 +3831,75 @@ export const sessionPurchaseLinesRelations = relations(
       references: [programSessions.id],
     }),
     ticket: one(sessionTickets),
+  }),
+);
+
+/**
+ * Payment proofs for a bank-QR purchase. Append-only: a replacement is a new
+ * row at the next version, never an update, so the file the team actually
+ * reviewed stays recoverable after the buyer swaps it.
+ *
+ * The newest version is `max(version)`. Callers must lock the purchase row
+ * before computing the next one — two concurrent uploads that both read
+ * `max(version) = 2` would otherwise collide on the unique key, and the loser
+ * would surface as a constraint error rather than a queued version.
+ *
+ * Superseded files are kept for audit. Removing one from storage goes through
+ * the existing `storageCleanupJobs` outbox rather than an inline delete.
+ */
+export const sessionPurchaseVouchers = pgTable(
+  "session_purchase_vouchers",
+  {
+    id: serial("id").primaryKey(),
+    purchaseId: integer("purchase_id")
+      .notNull()
+      .references(() => sessionPurchases.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    fileUrl: text("file_url").notNull(),
+    /** Null for a guest uploading through their secure link. */
+    uploadedByUserId: integer("uploaded_by_user_id").references(
+      () => users.id,
+      { onDelete: "set null" },
+    ),
+    uploadedVia: purchaseActorTypeEnum("uploaded_via").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    // Also the lookup index for "newest version of this purchase" — Postgres
+    // backs a unique constraint with a btree index, so a separate one on the
+    // same columns would only cost writes.
+    unique("session_purchase_vouchers_purchase_version_unique").on(
+      t.purchaseId,
+      t.version,
+    ),
+    check("session_purchase_vouchers_version_positive", sql`${t.version} >= 1`),
+    check(
+      "session_purchase_vouchers_file_present",
+      sql`length(trim(${t.fileUrl})) > 0`,
+    ),
+    /**
+     * A voucher is uploaded by the buyer or entered on their behalf by an
+     * admin. `system` never uploads one, and allowing it would let an
+     * unattributable proof into the audit trail.
+     */
+    check(
+      "session_purchase_vouchers_uploaded_via_valid",
+      sql`${t.uploadedVia} IN ('buyer', 'admin')`,
+    ),
+  ],
+);
+
+export const sessionPurchaseVouchersRelations = relations(
+  sessionPurchaseVouchers,
+  ({ one }) => ({
+    purchase: one(sessionPurchases, {
+      fields: [sessionPurchaseVouchers.purchaseId],
+      references: [sessionPurchases.id],
+    }),
+    uploadedBy: one(users, {
+      fields: [sessionPurchaseVouchers.uploadedByUserId],
+      references: [users.id],
+    }),
   }),
 );
 
