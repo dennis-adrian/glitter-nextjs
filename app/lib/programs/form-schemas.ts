@@ -10,7 +10,7 @@ import { isAllowedProgramArtworkUrl } from "@/app/lib/programs/artwork";
  */
 
 const optionalText = z.string().trim().optional();
-const optionalProgramArtworkUrl = optionalText.refine(
+const optionalAllowedImageUrl = optionalText.refine(
   (value) => !value || isAllowedProgramArtworkUrl(value),
   "Usa una URL de imagen permitida",
 );
@@ -19,7 +19,7 @@ export const programFormSchema = z.object({
   name: z.string().trim().min(1, "El nombre es obligatorio"),
   summary: optionalText,
   description: optionalText,
-  bannerUrl: optionalProgramArtworkUrl,
+  bannerUrl: optionalAllowedImageUrl,
   thumbnailUrl: optionalText,
   startDate: optionalText,
   endDate: optionalText,
@@ -71,7 +71,7 @@ export const venueFormSchema = z.object({
 
 export const speakerFormSchema = z.object({
   publicName: z.string().trim().min(1, "El nombre es obligatorio"),
-  imageUrl: optionalText,
+  imageUrl: optionalAllowedImageUrl,
   bio: optionalText,
 });
 

@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { isAllowedProgramArtworkUrl } from "@/app/lib/programs/artwork";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { speakers, venues } from "@/db/schema";
@@ -21,7 +22,14 @@ const venueSchema = z.object({
 
 const speakerSchema = z.object({
   publicName: z.string().trim().min(1).max(NAME_MAX),
-  imageUrl: z.string().trim().url().max(500).nullish().or(z.literal("")),
+  imageUrl: z
+    .string()
+    .trim()
+    .url()
+    .max(500)
+    .refine(isAllowedProgramArtworkUrl)
+    .nullish()
+    .or(z.literal("")),
   bio: z.string().trim().max(BIO_MAX).nullish(),
   links: z
     .array(

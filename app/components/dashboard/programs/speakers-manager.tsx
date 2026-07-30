@@ -95,7 +95,11 @@ export default function SpeakersManager({ speakers }: Props) {
           <Form {...form}>
             <form className="grid gap-4" onSubmit={action}>
               <TextInput label="Nombre público" name="publicName" required />
-              <TextInput label="Foto (URL)" name="imageUrl" />
+              <TextInput
+                label="Foto (URL)"
+                name="imageUrl"
+                description="Usa una imagen alojada en Clerk, Edge Store o UploadThing."
+              />
               <TextareaInput
                 formControl={form.control}
                 label="Biografía"

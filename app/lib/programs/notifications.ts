@@ -9,6 +9,7 @@ import ProgramVoucherReceivedEmailTemplate from "@/app/emails/program-voucher-re
 import { formatDate } from "@/app/lib/formatters";
 import { SESSION_TYPE_LABELS } from "@/app/lib/programs/definitions";
 import type { SessionType } from "@/app/lib/programs/definitions";
+import { formatMoney } from "@/app/lib/programs/pricing";
 import { generateQrBuffer } from "@/app/lib/utils";
 import { sendEmail } from "@/app/vendors/resend";
 
@@ -182,7 +183,7 @@ export async function sendVoucherReceivedEmail(
           sessionTitle: input.sessionTitle,
           sessionTypeLabel: SESSION_TYPE_LABELS[input.sessionType],
           scheduleLabel: buildScheduleLabel(input.startsAt, input.endsAt),
-          totalLabel: `Bs ${input.totalAmount}`,
+          totalLabel: formatMoney(input.totalAmount),
           secureLinkUrl: input.landingUrl,
           isReplacement: input.version > 1,
         }) as React.ReactElement,

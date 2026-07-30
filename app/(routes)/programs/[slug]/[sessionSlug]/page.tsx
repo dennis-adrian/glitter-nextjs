@@ -16,7 +16,10 @@ import GlitterWeekLockup from "@/app/components/programs/glitter-week-lockup";
 import OccurrenceScheduleList from "@/app/components/programs/occurrence-schedule-list";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { formatDate } from "@/app/lib/formatters";
-import { DEFAULT_PROGRAM_ARTWORK } from "@/app/lib/programs/artwork";
+import {
+  DEFAULT_PROGRAM_ARTWORK,
+  isAllowedProgramArtworkUrl,
+} from "@/app/lib/programs/artwork";
 import {
   fetchProgramSettings,
   fetchPublishedSession,
@@ -52,8 +55,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!session) return { title: "Sesión" };
 
   const socialImage =
-    session.sessionSpeakers.find((entry) => entry.speaker.imageUrl)?.speaker
-      .imageUrl ??
+    session.sessionSpeakers.find((entry) =>
+      isAllowedProgramArtworkUrl(entry.speaker.imageUrl),
+    )?.speaker.imageUrl ??
     session.program.bannerUrl ??
     DEFAULT_PROGRAM_ARTWORK;
 
@@ -111,7 +115,7 @@ export default async function SessionPage({ params }: Props) {
   const venuesById = new Map(venues.map((venue) => [venue.id, venue]));
   const outcomes = session.learningOutcomes ?? [];
   const speakerPortraits = session.sessionSpeakers.flatMap((entry) =>
-    entry.speaker.imageUrl
+    isAllowedProgramArtworkUrl(entry.speaker.imageUrl)
       ? [{ ...entry, imageUrl: entry.speaker.imageUrl }]
       : [],
   );
@@ -417,45 +421,53 @@ export default async function SessionPage({ params }: Props) {
             </h2>
 
             <ul className="grid gap-6 md:grid-cols-2">
-              {session.sessionSpeakers.map((entry) => (
-                <li
-                  key={entry.id}
-                  className="grid grid-cols-[92px_1fr] gap-5 rounded-[2rem] bg-[#fffaf3] p-5 sm:grid-cols-[120px_1fr]"
-                >
-                  <div className="relative aspect-square overflow-hidden rounded-[1.5rem] bg-[#f7aee8]">
-                    {entry.speaker.imageUrl ? (
-                      <Image
-                        src={entry.speaker.imageUrl}
-                        alt={entry.speaker.publicName}
-                        fill
-                        sizes="120px"
-                        className="object-cover"
-                      />
-                    ) : (
-                      <span
-                        className={`${citrusGothicSolid.className} absolute inset-0 grid place-items-center text-5xl text-[#4b255f]`}
-                      >
-                        {entry.speaker.publicName.slice(0, 1)}
-                      </span>
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-black">
-                      {entry.speaker.publicName}
-                    </h3>
-                    {entry.role ? (
-                      <p className="mt-1 text-xs font-black uppercase tracking-[0.13em] text-[#9347f5]">
-                        {entry.role}
-                      </p>
-                    ) : null}
-                    {entry.speaker.bio ? (
-                      <p className="mt-3 text-sm font-medium leading-relaxed text-[#70566f]">
-                        {entry.speaker.bio}
-                      </p>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
+              {session.sessionSpeakers.map((entry) => {
+                const imageUrl = isAllowedProgramArtworkUrl(
+                  entry.speaker.imageUrl,
+                )
+                  ? entry.speaker.imageUrl
+                  : null;
+
+                return (
+                  <li
+                    key={entry.id}
+                    className="grid grid-cols-[92px_1fr] gap-5 rounded-[2rem] bg-[#fffaf3] p-5 sm:grid-cols-[120px_1fr]"
+                  >
+                    <div className="relative aspect-square overflow-hidden rounded-[1.5rem] bg-[#f7aee8]">
+                      {imageUrl ? (
+                        <Image
+                          src={imageUrl}
+                          alt={entry.speaker.publicName}
+                          fill
+                          sizes="120px"
+                          className="object-cover"
+                        />
+                      ) : (
+                        <span
+                          className={`${citrusGothicSolid.className} absolute inset-0 grid place-items-center text-5xl text-[#4b255f]`}
+                        >
+                          {entry.speaker.publicName.slice(0, 1)}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-black">
+                        {entry.speaker.publicName}
+                      </h3>
+                      {entry.role ? (
+                        <p className="mt-1 text-xs font-black uppercase tracking-[0.13em] text-[#9347f5]">
+                          {entry.role}
+                        </p>
+                      ) : null}
+                      {entry.speaker.bio ? (
+                        <p className="mt-3 text-sm font-medium leading-relaxed text-[#70566f]">
+                          {entry.speaker.bio}
+                        </p>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </section>

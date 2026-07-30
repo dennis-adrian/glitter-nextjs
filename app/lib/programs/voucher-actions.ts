@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -163,13 +163,22 @@ export async function submitPurchaseVoucher(
         changes: { version },
       });
 
-      // Title comes from the snapshot (it survives later edits); type and end
-      // time are only on the live rows, so they are joined.
-      const [line] = await tx
+      /**
+       * Title comes from the snapshot — it survives later content edits. The
+       * schedule comes wholly from the live occurrence: mixing a snapshot
+       * `startsAt` with a live `endsAt` would print an interval that never
+       * existed once a session is rescheduled, and the buyer is being told
+       * when to show up, not what they booked weeks ago.
+       *
+       * Ordered and unlimited rather than `limit(1)`: a purchase carries one
+       * line today, but Phase 4's cart will make that false, and an arbitrary
+       * row would silently name one of several sessions.
+       */
+      const lines = await tx
         .select({
           sessionTitle: sessionPurchaseLines.sessionTitleSnapshot,
-          startsAt: sessionPurchaseLines.occurrenceStartsAtSnapshot,
           sessionType: programSessions.type,
+          startsAt: sessionOccurrences.startsAt,
           endsAt: sessionOccurrences.endsAt,
         })
         .from(sessionPurchaseLines)
@@ -182,9 +191,15 @@ export async function submitPurchaseVoucher(
           eq(sessionOccurrences.id, sessionPurchaseLines.occurrenceId),
         )
         .where(eq(sessionPurchaseLines.purchaseId, purchase.id))
-        .limit(1);
+        .orderBy(asc(sessionPurchaseLines.id));
 
-      return { kind: "recorded" as const, version, purchase, line };
+      return {
+        kind: "recorded" as const,
+        version,
+        purchase,
+        lines,
+        accessVia: access.via,
+      };
     });
 
     if (outcome.kind === "denied") {
@@ -198,32 +213,56 @@ export async function submitPurchaseVoucher(
     revalidatePath("/dashboard/programs", "layout");
 
     /**
-     * After the commit, and unable to fail the request. The voucher is
-     * recorded and the seat held; a mail outage must not read as a rejected
-     * upload. The buyer also just watched the page confirm it.
+     * Isolated from the outer catch. The transaction has committed: the
+     * voucher exists and the seat is held. Letting a failure here reach the
+     * handler below would tell the buyer their upload failed, and their retry
+     * would file a redundant replacement version.
+     *
+     * The send itself already swallows its errors; this guards the buyer
+     * lookup, which queries the database.
      */
-    const buyerEmail =
-      outcome.purchase.guestEmail ??
-      (await resolveBuyerEmail(outcome.purchase));
+    try {
+      const buyerEmail =
+        outcome.purchase.guestEmail ??
+        (await resolveBuyerEmail(outcome.purchase));
 
-    if (buyerEmail && outcome.line) {
-      await sendVoucherReceivedEmail({
-        purchaseId: outcome.purchase.id,
-        buyerName: outcome.purchase.guestName ?? buyerEmail,
-        buyerEmail,
-        sessionTitle: outcome.line.sessionTitle,
-        sessionType: outcome.line.sessionType,
-        startsAt: outcome.line.startsAt,
-        endsAt: outcome.line.endsAt,
-        totalAmount: outcome.purchase.totalAmount,
-        version: outcome.version,
-        landingUrl: buildBuyerLandingUrl({
+      const [first, ...rest] = outcome.lines;
+
+      if (rest.length > 0) {
+        // Phase 4 tripwire: the template describes one session, so a cart
+        // purchase would silently omit the others.
+        console.warn("Voucher acknowledgement covered only the first line", {
           purchaseId: outcome.purchase.id,
-          // The buyer just presented it, so unlike an admin action this one
-          // can offer the real secure link.
-          accessToken: data.token ?? null,
-          isSignedInBuyer: outcome.purchase.userId !== null,
-        }),
+          lineCount: outcome.lines.length,
+        });
+      }
+
+      if (buyerEmail && first) {
+        await sendVoucherReceivedEmail({
+          purchaseId: outcome.purchase.id,
+          buyerName: outcome.purchase.guestName ?? buyerEmail,
+          buyerEmail,
+          sessionTitle: first.sessionTitle,
+          sessionType: first.sessionType,
+          startsAt: first.startsAt,
+          endsAt: first.endsAt,
+          totalAmount: outcome.purchase.totalAmount,
+          version: outcome.version,
+          landingUrl: buildBuyerLandingUrl({
+            purchaseId: outcome.purchase.id,
+            // Only when the token is what granted access. An owner reaching
+            // this from their profile gets the profile link instead, so no
+            // bearer credential is mailed to someone who does not need one.
+            accessToken:
+              outcome.accessVia === "token" ? (data.token ?? null) : null,
+            isSignedInBuyer: outcome.purchase.userId !== null,
+          }),
+        });
+      }
+    } catch (error) {
+      console.error("Voucher acknowledgement failed", {
+        purchaseId: data.purchaseId,
+        errorType: error instanceof Error ? error.name : typeof error,
       });
     }
 
