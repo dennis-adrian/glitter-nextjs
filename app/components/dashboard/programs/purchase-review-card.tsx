@@ -18,6 +18,10 @@ import { Label } from "@/app/components/ui/label";
 import { Textarea } from "@/app/components/ui/textarea";
 import { formatDateWithTime } from "@/app/lib/formatters";
 import { reviewPurchase } from "@/app/lib/programs/review-actions";
+import {
+  cancelPurchaseAsAdmin,
+  resendPurchaseLink,
+} from "@/app/lib/programs/support-actions";
 import type { ReviewDecision } from "@/app/lib/programs/review";
 
 type Props = {
@@ -52,7 +56,9 @@ export default function PurchaseReviewCard({
 }: Props) {
   const router = useRouter();
   const [reason, setReason] = useState("");
-  const [pending, setPending] = useState<ReviewDecision | null>(null);
+  const [pending, setPending] = useState<
+    ReviewDecision | "resend" | "cancel" | null
+  >(null);
   const [showHistory, setShowHistory] = useState(false);
 
   const current = vouchers[0];
@@ -80,6 +86,39 @@ export default function PurchaseReviewCard({
       setPending(null);
     }
   }
+
+  /** Support actions share `decide`'s reason requirement and refresh. */
+  async function runSupport(
+    kind: "resend" | "cancel",
+    run: (input: { purchaseId: number; reason: string }) => Promise<{
+      success: boolean;
+      message: string;
+    }>,
+  ) {
+    if (reason.trim().length < 3) {
+      toast.error("Escribe el motivo");
+      return;
+    }
+
+    setPending(kind);
+    try {
+      const result = await run({ purchaseId, reason });
+      if (!result.success) {
+        toast.error(result.message);
+        return;
+      }
+      toast.success(result.message);
+      setReason("");
+      router.refresh();
+    } catch {
+      toast.error("No pudimos completar la acción. Intenta de nuevo.");
+    } finally {
+      setPending(null);
+    }
+  }
+
+  const resend = () => runSupport("resend", resendPurchaseLink);
+  const cancel = () => runSupport("cancel", cancelPurchaseAsAdmin);
 
   const busy = pending !== null;
 
@@ -199,6 +238,20 @@ export default function PurchaseReviewCard({
             {pending === "reject" ? "Rechazando..." : "Rechazar"}
           </Button>
         </div>
+
+        {/* Support actions, separated from the review decision: these are not
+            verdicts on the payment and share the same reason field. */}
+        <div className="flex flex-wrap gap-2 border-t pt-4">
+          <Button variant="ghost" size="sm" onClick={resend} disabled={busy}>
+            {pending === "resend" ? "Enviando..." : "Reenviar enlace"}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={cancel} disabled={busy}>
+            {pending === "cancel" ? "Cancelando..." : "Cancelar compra"}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Reenviar genera un enlace nuevo y desactiva el anterior.
+        </p>
       </CardContent>
     </Card>
   );

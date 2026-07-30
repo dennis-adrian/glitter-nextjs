@@ -25,42 +25,48 @@ export type ExpiredHoldSweepResult = {
  * expiring it would silently discard a payment the team has not looked at.
  *
  * The UPDATE is the claim: overlapping runs cannot both process a row, because
- * only one of them gets it back from `RETURNING`. That is what makes the audit
- * insert below safe to do outside any extra locking.
+ * only one of them gets it back from `RETURNING`. It shares a transaction with
+ * the audit insert so a purchase can never end up `expired` with no record of
+ * why — either both land or neither does.
  */
 export async function expireAbandonedHolds(
   now = new Date(),
 ): Promise<ExpiredHoldSweepResult> {
-  const claimed = await db
-    .update(sessionPurchases)
-    .set({ status: "expired", expiredAt: now, updatedAt: now })
-    .where(
-      and(
-        eq(sessionPurchases.status, "pending_upload"),
-        eq(sessionPurchases.paymentMode, "bank_qr"),
-        isNotNull(sessionPurchases.holdExpiresAt),
-        // `utcTimestamp` because a bare Date parameter serializes in the
-        // server's local zone while Postgres reads `timestamp` as zoneless —
-        // the same skew that once miscounted holds.
-        lte(sessionPurchases.holdExpiresAt, utcTimestamp(now)),
-      ),
-    )
-    .returning({ id: sessionPurchases.id });
+  const purchaseIds = await db.transaction(async (tx) => {
+    const claimed = await tx
+      .update(sessionPurchases)
+      .set({ status: "expired", expiredAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(sessionPurchases.status, "pending_upload"),
+          eq(sessionPurchases.paymentMode, "bank_qr"),
+          isNotNull(sessionPurchases.holdExpiresAt),
+          // Explicit UTC. Drizzle's own column mapping already encodes a bare
+          // `Date` correctly here, but the wrapper keeps the intent legible
+          // next to the raw-SQL availability predicates, where a bare `Date`
+          // *is* silently local-zone and once miscounted holds.
+          lte(sessionPurchases.holdExpiresAt, utcTimestamp(now)),
+        ),
+      )
+      .returning({ id: sessionPurchases.id });
 
-  if (claimed.length === 0) return { expired: 0, purchaseIds: [] };
+    if (claimed.length === 0) return [];
 
-  const purchaseIds = claimed.map((row) => row.id);
+    const ids = claimed.map((row) => row.id);
 
-  await db.insert(sessionPurchaseEvents).values(
-    purchaseIds.map((purchaseId) => ({
-      purchaseId,
-      actorType: "system" as const,
-      eventType: "expired" as const,
-      fromStatus: "pending_upload" as const,
-      toStatus: "expired" as const,
-      changes: { sweptAt: now.toISOString() },
-    })),
-  );
+    await tx.insert(sessionPurchaseEvents).values(
+      ids.map((purchaseId) => ({
+        purchaseId,
+        actorType: "system" as const,
+        eventType: "expired" as const,
+        fromStatus: "pending_upload" as const,
+        toStatus: "expired" as const,
+        changes: { sweptAt: now.toISOString() },
+      })),
+    );
+
+    return ids;
+  });
 
   return { expired: purchaseIds.length, purchaseIds };
 }

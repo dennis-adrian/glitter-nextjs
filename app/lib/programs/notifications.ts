@@ -3,6 +3,7 @@ import "server-only";
 import { DateTime } from "luxon";
 import type React from "react";
 
+import ProgramPurchaseLinkEmailTemplate from "@/app/emails/program-purchase-link";
 import ProgramRegistrationEmailTemplate from "@/app/emails/program-registration";
 import ProgramVoucherChangesEmailTemplate from "@/app/emails/program-voucher-changes";
 import ProgramVoucherReceivedEmailTemplate from "@/app/emails/program-voucher-received";
@@ -261,6 +262,11 @@ export type PaymentApprovedEmailInput = {
   room: string | null;
   ticketCode: string;
   landingUrl: string | null;
+  /**
+   * Distinguishes a deliberate re-delivery from the original approval. Without
+   * it the idempotency key would suppress a support resend as a duplicate.
+   */
+  deliveryKey?: string;
 };
 
 /**
@@ -303,13 +309,56 @@ export async function sendPaymentApprovedEmail(
       },
       {
         // Keyed on the ticket, so re-approval cannot deliver a second QR.
-        idempotencyKey: `program-payment-approved-${input.purchaseId}-${input.ticketCode}`,
+        idempotencyKey:
+          `program-payment-approved-${input.purchaseId}-${input.ticketCode}` +
+          (input.deliveryKey ? `-${input.deliveryKey}` : ""),
       },
     );
 
     return true;
   } catch (error) {
     console.error("Payment approved email failed", {
+      purchaseId: input.purchaseId,
+      errorType: error instanceof Error ? error.name : typeof error,
+    });
+    return false;
+  }
+}
+
+export type PurchaseLinkEmailInput = {
+  purchaseId: number;
+  buyerName: string;
+  buyerEmail: string;
+  sessionTitle: string;
+  secureLinkUrl: string;
+  /** Keys the send so each resend is delivered, not deduped as a repeat. */
+  resentAt: Date;
+};
+
+/** Sends a replacement secure link. Never throws. */
+export async function sendPurchaseLinkEmail(
+  input: PurchaseLinkEmailInput,
+): Promise<boolean> {
+  try {
+    await sendEmail(
+      {
+        from: "Equipo Glitter <entradas@productoraglitter.com>",
+        to: [input.buyerEmail],
+        subject: `Tu enlace para ${input.sessionTitle}`,
+        react: ProgramPurchaseLinkEmailTemplate({
+          buyerName: input.buyerName,
+          sessionTitle: input.sessionTitle,
+          secureLinkUrl: input.secureLinkUrl,
+        }) as React.ReactElement,
+      },
+      {
+        idempotencyKey: `program-purchase-link-${input.purchaseId}-${input.resentAt.getTime()}`,
+      },
+    );
+
+    return true;
+  } catch (error) {
+    console.error("Purchase link email failed", {
       purchaseId: input.purchaseId,
       errorType: error instanceof Error ? error.name : typeof error,
     });
