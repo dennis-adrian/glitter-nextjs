@@ -170,9 +170,8 @@ export async function submitPurchaseVoucher(
        * existed once a session is rescheduled, and the buyer is being told
        * when to show up, not what they booked weeks ago.
        *
-       * Ordered and unlimited rather than `limit(1)`: a purchase carries one
-       * line today, but Phase 4's cart will make that false, and an arbitrary
-       * row would silently name one of several sessions.
+       * Ordered and unlimited: a cart purchase has several lines and the
+       * acknowledgement names every one of them.
        */
       const lines = await tx
         .select({
@@ -180,6 +179,7 @@ export async function submitPurchaseVoucher(
           sessionType: programSessions.type,
           startsAt: sessionOccurrences.startsAt,
           endsAt: sessionOccurrences.endsAt,
+          unitPrice: sessionPurchaseLines.unitPrice,
         })
         .from(sessionPurchaseLines)
         .innerJoin(
@@ -226,26 +226,12 @@ export async function submitPurchaseVoucher(
         outcome.purchase.guestEmail ??
         (await resolveBuyerEmail(outcome.purchase));
 
-      const [first, ...rest] = outcome.lines;
-
-      if (rest.length > 0) {
-        // Phase 4 tripwire: the template describes one session, so a cart
-        // purchase would silently omit the others.
-        console.warn("Voucher acknowledgement covered only the first line", {
-          purchaseId: outcome.purchase.id,
-          lineCount: outcome.lines.length,
-        });
-      }
-
-      if (buyerEmail && first) {
+      if (buyerEmail && outcome.lines.length > 0) {
         await sendVoucherReceivedEmail({
           purchaseId: outcome.purchase.id,
           buyerName: outcome.purchase.guestName ?? buyerEmail,
           buyerEmail,
-          sessionTitle: first.sessionTitle,
-          sessionType: first.sessionType,
-          startsAt: first.startsAt,
-          endsAt: first.endsAt,
+          lines: outcome.lines,
           totalAmount: outcome.purchase.totalAmount,
           version: outcome.version,
           landingUrl: buildBuyerLandingUrl({

@@ -149,14 +149,20 @@ export async function sendFreeRegistrationEmail(
   }
 }
 
-export type VoucherReceivedEmailInput = {
-  purchaseId: number;
-  buyerName: string;
-  buyerEmail: string;
+export type VoucherReceivedLine = {
   sessionTitle: string;
   sessionType: SessionType;
   startsAt: Date;
   endsAt: Date;
+  unitPrice: number;
+};
+
+export type VoucherReceivedEmailInput = {
+  purchaseId: number;
+  buyerName: string;
+  buyerEmail: string;
+  /** Every line in the purchase, in line order. Never empty. */
+  lines: VoucherReceivedLine[];
   totalAmount: number;
   /** Voucher version, so a replacement reads correctly and keys the send. */
   version: number;
@@ -178,12 +184,18 @@ export async function sendVoucherReceivedEmail(
       {
         from: "Equipo Glitter <entradas@productoraglitter.com>",
         to: [input.buyerEmail],
-        subject: `Recibimos tu comprobante para ${input.sessionTitle}`,
+        subject:
+          input.lines.length > 1
+            ? `Recibimos tu comprobante para ${input.lines.length} sesiones`
+            : `Recibimos tu comprobante para ${input.lines[0]?.sessionTitle}`,
         react: ProgramVoucherReceivedEmailTemplate({
           attendeeName: input.buyerName,
-          sessionTitle: input.sessionTitle,
-          sessionTypeLabel: SESSION_TYPE_LABELS[input.sessionType],
-          scheduleLabel: buildScheduleLabel(input.startsAt, input.endsAt),
+          sessions: input.lines.map((line) => ({
+            title: line.sessionTitle,
+            typeLabel: SESSION_TYPE_LABELS[line.sessionType],
+            scheduleLabel: buildScheduleLabel(line.startsAt, line.endsAt),
+            priceLabel: formatMoney(line.unitPrice),
+          })),
           totalLabel: formatMoney(input.totalAmount),
           secureLinkUrl: input.landingUrl,
           isReplacement: input.version > 1,

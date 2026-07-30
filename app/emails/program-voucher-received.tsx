@@ -14,12 +14,18 @@ import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
 import * as styles from "@/app/emails/styles";
 
-export type ProgramVoucherReceivedEmailProps = {
-  attendeeName: string;
-  sessionTitle: string;
-  sessionTypeLabel: string;
+export type VoucherReceivedSession = {
+  title: string;
+  typeLabel: string;
   /** Preformatted — the template does no date maths. */
   scheduleLabel: string;
+  priceLabel: string;
+};
+
+export type ProgramVoucherReceivedEmailProps = {
+  attendeeName: string;
+  /** Every session in the purchase, in line order. Never empty. */
+  sessions: VoucherReceivedSession[];
   totalLabel: string;
   /** Absent when the sender has no way to build one for this buyer. */
   secureLinkUrl?: string | null;
@@ -30,16 +36,19 @@ export type ProgramVoucherReceivedEmailProps = {
 /**
  * Acknowledges a payment proof and sets the expectation that a human reviews
  * it. No QR here — the ticket does not exist until an admin approves.
+ *
+ * Lists every session in the purchase. One voucher covers the whole cart, so
+ * naming a single session would leave the buyer unable to tell what they
+ * actually paid for.
  */
 export default function ProgramVoucherReceivedEmailTemplate({
   attendeeName,
-  sessionTitle,
-  sessionTypeLabel,
-  scheduleLabel,
+  sessions,
   totalLabel,
   secureLinkUrl,
   isReplacement,
 }: ProgramVoucherReceivedEmailProps) {
+  const isCart = sessions.length > 1;
   return (
     <Html>
       <Head />
@@ -55,20 +64,46 @@ export default function ProgramVoucherReceivedEmailTemplate({
             <Text style={styles.text}>
               {attendeeName}, recibimos{" "}
               {isReplacement ? "tu nuevo comprobante" : "tu comprobante"} de
-              pago para <strong>{sessionTitle}</strong>.
+              pago para{" "}
+              {isCart ? (
+                <strong>{sessions.length} sesiones</strong>
+              ) : (
+                <strong>{sessions[0]?.title}</strong>
+              )}
+              .
             </Text>
 
             <Section style={detailBox}>
-              <Text style={detailLine}>
-                <strong>{sessionTypeLabel}</strong>
+              {sessions.map((session, index) => (
+                <Section
+                  key={`${session.title}-${session.scheduleLabel}`}
+                  style={index === 0 ? undefined : sessionDivider}
+                >
+                  {isCart ? (
+                    <Text style={{ ...detailLine, fontWeight: 700 }}>
+                      {session.title}
+                    </Text>
+                  ) : null}
+                  <Text style={detailLine}>
+                    <strong>{session.typeLabel}</strong>
+                  </Text>
+                  <Text style={detailLine}>{session.scheduleLabel}</Text>
+                  {isCart ? (
+                    <Text style={detailLine}>{session.priceLabel}</Text>
+                  ) : null}
+                </Section>
+              ))}
+              <Text style={{ ...detailLine, ...totalRow }}>
+                Total: {totalLabel}
               </Text>
-              <Text style={detailLine}>{scheduleLabel}</Text>
-              <Text style={detailLine}>Total: {totalLabel}</Text>
             </Section>
 
             <Text style={styles.text}>
-              Tu cupo queda reservado mientras revisamos el pago. Te escribimos
-              en cuanto lo confirmemos — ahí recibirás el QR de tu entrada.
+              {isCart
+                ? "Tus cupos quedan reservados"
+                : "Tu cupo queda reservado"}{" "}
+              mientras revisamos el pago. Te escribimos en cuanto lo confirmemos
+              — ahí recibirás el QR de tu entrada.
             </Text>
 
             {secureLinkUrl ? (
@@ -123,4 +158,17 @@ const detailBox = {
 const detailLine = {
   ...styles.text,
   margin: "4px 0",
+};
+
+const sessionDivider = {
+  borderTop: "1px solid #ededed",
+  marginTop: "12px",
+  paddingTop: "12px",
+};
+
+const totalRow = {
+  borderTop: "1px solid #dedede",
+  marginTop: "12px",
+  paddingTop: "12px",
+  fontWeight: 700,
 };

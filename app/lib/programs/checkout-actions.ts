@@ -1,13 +1,14 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
+import { lockOrder } from "@/app/lib/programs/inventory";
 import { getBuyerEligibility } from "@/app/lib/programs/eligibility-queries";
 import {
-  fetchOccurrenceAvailability,
+  fetchAvailabilityForOccurrences,
   hasValidTicketFor,
   lockOccurrences,
 } from "@/app/lib/programs/inventory-queries";
@@ -15,6 +16,7 @@ import {
   globalDiscountFrom,
   programDiscountFrom,
   resolvePrice,
+  roundMoney,
 } from "@/app/lib/programs/pricing";
 import {
   REGISTRATION_BLOCKER_LABELS,
@@ -39,22 +41,45 @@ import {
   sessionPurchases,
 } from "@/db/schema";
 
-const checkoutSchema = z.object({
-  occurrenceId: z.number().int().positive(),
-  /** Required for guests, forbidden for signed-in buyers (server decides). */
-  guestName: z.string().trim().min(1).max(200).optional(),
-  guestEmail: z.string().trim().email().max(200).optional(),
-  guestPhone: z.string().trim().min(1).max(40).optional(),
-  /** Collected only from buyers with no account, as in free registration. */
-  guestGender: z
-    .enum(["male", "female", "non_binary", "other", "undisclosed"])
-    .optional(),
-  guestBirthdate: z.coerce.date().optional(),
-  /** PRD §12.1: the no-refund policy needs an explicit acknowledgement. */
-  acceptsNoRefundPolicy: z.literal(true),
-  /** Supplied by the client so a double submit cannot take two seats. */
-  idempotencyKey: z.string().trim().min(8).max(120).optional(),
-});
+/** A cart is capped so one submit cannot lock an unbounded row set. */
+const MAX_CART_LINES = 10;
+
+const checkoutSchema = z
+  .object({
+    /** Preferred. `occurrenceId` remains for single-session callers. */
+    occurrenceIds: z.array(z.number().int().positive()).optional(),
+    occurrenceId: z.number().int().positive().optional(),
+    /** Required for guests, forbidden for signed-in buyers (server decides). */
+    guestName: z.string().trim().min(1).max(200).optional(),
+    guestEmail: z.string().trim().email().max(200).optional(),
+    guestPhone: z.string().trim().min(1).max(40).optional(),
+    /** Collected only from buyers with no account, as in free registration. */
+    guestGender: z
+      .enum(["male", "female", "non_binary", "other", "undisclosed"])
+      .optional(),
+    guestBirthdate: z.coerce.date().optional(),
+    /** PRD §12.1: the no-refund policy needs an explicit acknowledgement. */
+    acceptsNoRefundPolicy: z.literal(true),
+    /** Supplied by the client so a double submit cannot take two seats. */
+    idempotencyKey: z.string().trim().min(8).max(120).optional(),
+  })
+  .transform((value) => ({
+    ...value,
+    // Deduped and ordered here so the lock order, the line order, and the
+    // replay lookup all see the same set regardless of how it was submitted.
+    occurrenceIds: lockOrder([
+      ...(value.occurrenceIds ?? []),
+      ...(value.occurrenceId === undefined ? [] : [value.occurrenceId]),
+    ]),
+  }))
+  .refine((value) => value.occurrenceIds.length > 0, {
+    path: ["occurrenceIds"],
+    message: "Elige al menos un horario",
+  })
+  .refine((value) => value.occurrenceIds.length <= MAX_CART_LINES, {
+    path: ["occurrenceIds"],
+    message: `Puedes llevar hasta ${MAX_CART_LINES} sesiones por compra`,
+  });
 
 export type PaidCheckoutInput = z.input<typeof checkoutSchema>;
 
@@ -162,7 +187,7 @@ export async function startPaidCheckout(
        * as a generic failure instead of a clean `replayed`. Taking the lock
        * first makes the second attempt wait, then read committed state.
        */
-      await lockOccurrences(tx, [data.occurrenceId]);
+      await lockOccurrences(tx, data.occurrenceIds);
 
       const buyerPredicate = profile
         ? eq(sessionPurchases.userId, profile.id)
@@ -171,18 +196,16 @@ export async function startPaidCheckout(
           // buyer here but a duplicate there.
           sql`lower(${sessionPurchases.guestEmail}) = lower(${buyer.email})`;
 
+      // Keyed on the idempotency key alone (plus the buyer, as defence in
+      // depth): the key identifies the whole cart, so joining to a single line
+      // would miss a replay whose first line differs.
       const existing = await tx
         .select({ id: sessionPurchases.id })
         .from(sessionPurchases)
-        .innerJoin(
-          sessionPurchaseLines,
-          eq(sessionPurchaseLines.purchaseId, sessionPurchases.id),
-        )
         .where(
           and(
             eq(sessionPurchases.idempotencyKey, idempotencyKey),
             buyerPredicate,
-            eq(sessionPurchaseLines.occurrenceId, data.occurrenceId),
           ),
         )
         .limit(1);
@@ -194,7 +217,7 @@ export async function startPaidCheckout(
         return { kind: "replayed" as const };
       }
 
-      const [context] = await tx
+      const contexts = await tx
         .select({
           occurrence: sessionOccurrences,
           session: programSessions,
@@ -206,12 +229,26 @@ export async function startPaidCheckout(
           eq(programSessions.id, sessionOccurrences.sessionId),
         )
         .innerJoin(programs, eq(programs.id, programSessions.programId))
-        .where(eq(sessionOccurrences.id, data.occurrenceId))
-        .limit(1);
+        .where(inArray(sessionOccurrences.id, data.occurrenceIds));
 
-      if (!context) {
+      if (contexts.length !== data.occurrenceIds.length) {
         return { kind: "error" as const, message: "Horario no encontrado" };
       }
+
+      /**
+       * A purchase carries a single `programId`, so a cart cannot span
+       * programs. Rejecting here keeps that column honest rather than silently
+       * attributing the whole purchase to whichever program came back first.
+       */
+      const programId = contexts[0].program.id;
+      if (contexts.some((entry) => entry.program.id !== programId)) {
+        return {
+          kind: "error" as const,
+          message: "Solo puedes comprar sesiones de un mismo programa a la vez",
+        };
+      }
+
+      const context = contexts[0];
 
       const [settings] = await tx
         .select()
@@ -226,50 +263,94 @@ export async function startPaidCheckout(
         };
       }
 
-      const occurrenceState = resolveOccurrenceState(
-        {
-          programStatus: context.program.status,
-          sessionStatus: context.session.status,
-          lifecycleStatus: context.occurrence.lifecycleStatus,
-          salesStartAt: context.occurrence.salesStartAt,
-          salesEndAt: context.occurrence.salesEndAt,
-          salesClosedAt: context.occurrence.salesClosedAt,
-          rescheduledAt: context.occurrence.rescheduledAt,
-        },
-        now,
+      const availabilityByOccurrence = await fetchAvailabilityForOccurrences(
+        tx,
+        data.occurrenceIds,
+        { now },
       );
 
-      const price = resolvePrice(
-        {
-          publicPrice: context.session.publicPrice,
-          participantPrice: context.session.participantPrice,
-          programDiscount: programDiscountFrom(context.program),
-          globalDiscount: globalDiscountFrom(settings),
-        },
-        eligibility,
-      );
+      /**
+       * Every line is validated before anything is written. One unavailable
+       * session fails the whole purchase — "if one line lacks capacity, no line
+       * is held" (roadmap Phase 4), which the single transaction guarantees.
+       */
+      const priced: {
+        occurrenceId: number;
+        sessionId: number;
+        title: string;
+        startsAt: Date;
+        amount: number;
+        basis: (typeof sessionPurchaseLines.$inferInsert)["priceBasis"];
+        snapshot: unknown;
+      }[] = [];
 
-      const [availability, hasExistingTicket] = await Promise.all([
-        fetchOccurrenceAvailability(tx, data.occurrenceId, { now }),
-        hasValidTicketFor(tx, data.occurrenceId, buyer),
-      ]);
+      for (const entry of contexts) {
+        const occurrenceState = resolveOccurrenceState(
+          {
+            programStatus: entry.program.status,
+            sessionStatus: entry.session.status,
+            lifecycleStatus: entry.occurrence.lifecycleStatus,
+            salesStartAt: entry.occurrence.salesStartAt,
+            salesEndAt: entry.occurrence.salesEndAt,
+            salesClosedAt: entry.occurrence.salesClosedAt,
+            rescheduledAt: entry.occurrence.rescheduledAt,
+          },
+          now,
+        );
 
-      const check = resolveRegistrationCheck({
-        occurrenceState,
-        audience: context.session.audience,
-        eligibility,
-        price: price.amount,
-        availability,
-        hasExistingTicket,
-        mode: "paid",
-      });
+        const price = resolvePrice(
+          {
+            publicPrice: entry.session.publicPrice,
+            participantPrice: entry.session.participantPrice,
+            programDiscount: programDiscountFrom(entry.program),
+            globalDiscount: globalDiscountFrom(settings),
+          },
+          eligibility,
+        );
 
-      if (!check.allowed) {
-        return {
-          kind: "error" as const,
-          message: REGISTRATION_BLOCKER_LABELS[check.blocker],
-        };
+        const availability = availabilityByOccurrence.get(entry.occurrence.id);
+        if (!availability) {
+          return { kind: "error" as const, message: "Horario no encontrado" };
+        }
+
+        const hasExistingTicket = await hasValidTicketFor(
+          tx,
+          entry.occurrence.id,
+          buyer,
+        );
+
+        const check = resolveRegistrationCheck({
+          occurrenceState,
+          audience: entry.session.audience,
+          eligibility,
+          price: price.amount,
+          availability,
+          hasExistingTicket,
+          mode: "paid",
+        });
+
+        if (!check.allowed) {
+          // Named, because a cart failure the buyer cannot locate is unfixable.
+          return {
+            kind: "error" as const,
+            message: `${entry.session.title}: ${REGISTRATION_BLOCKER_LABELS[check.blocker]}`,
+          };
+        }
+
+        priced.push({
+          occurrenceId: entry.occurrence.id,
+          sessionId: entry.session.id,
+          title: entry.session.title,
+          startsAt: entry.occurrence.startsAt,
+          amount: price.amount,
+          basis: price.basis,
+          snapshot: price.snapshot,
+        });
       }
+
+      const subtotal = roundMoney(
+        priced.reduce((sum, line) => sum + line.amount, 0),
+      );
 
       // Program override first, global default second — the same resolution
       // order the architecture defines for every program-scoped setting.
@@ -280,7 +361,7 @@ export async function startPaidCheckout(
       const [purchase] = await tx
         .insert(sessionPurchases)
         .values({
-          programId: context.program.id,
+          programId,
           userId: profile?.id ?? null,
           guestName: profile ? null : (data.guestName ?? null),
           guestEmail: profile ? null : (data.guestEmail ?? null),
@@ -296,8 +377,8 @@ export async function startPaidCheckout(
           buyerEligibility: eligibility,
           eligibilityEvaluatedAt: now,
           eligibilitySnapshot: snapshot,
-          subtotalAmount: price.amount,
-          totalAmount: price.amount,
+          subtotalAmount: subtotal,
+          totalAmount: subtotal,
           holdExpiresAt,
           noRefundPolicyVersion: settings.noRefundPolicyVersion,
           noRefundPolicyAcceptedAt: now,
@@ -305,17 +386,19 @@ export async function startPaidCheckout(
         })
         .returning();
 
-      await tx.insert(sessionPurchaseLines).values({
-        purchaseId: purchase.id,
-        occurrenceId: context.occurrence.id,
-        sessionId: context.session.id,
-        source: "individual_session",
-        unitPrice: price.amount,
-        priceBasis: price.basis,
-        pricingSnapshot: price.snapshot,
-        sessionTitleSnapshot: context.session.title,
-        occurrenceStartsAtSnapshot: context.occurrence.startsAt,
-      });
+      await tx.insert(sessionPurchaseLines).values(
+        priced.map((line) => ({
+          purchaseId: purchase.id,
+          occurrenceId: line.occurrenceId,
+          sessionId: line.sessionId,
+          source: "individual_session" as const,
+          unitPrice: line.amount,
+          priceBasis: line.basis,
+          pricingSnapshot: line.snapshot,
+          sessionTitleSnapshot: line.title,
+          occurrenceStartsAtSnapshot: line.startsAt,
+        })),
+      );
 
       await tx.insert(sessionPurchaseEvents).values({
         purchaseId: purchase.id,
@@ -323,14 +406,18 @@ export async function startPaidCheckout(
         actorUserId: profile?.id ?? null,
         eventType: "created",
         toStatus: "pending_upload",
-        changes: { holdExpiresAt: holdExpiresAt.toISOString(), holdMinutes },
+        changes: {
+          holdExpiresAt: holdExpiresAt.toISOString(),
+          holdMinutes,
+          lineCount: priced.length,
+        },
       });
 
       return {
         kind: "created" as const,
         purchaseId: purchase.id,
         holdExpiresAt,
-        totalAmount: price.amount,
+        totalAmount: subtotal,
       };
     });
 
