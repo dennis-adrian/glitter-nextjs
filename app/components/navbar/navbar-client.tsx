@@ -8,14 +8,19 @@ import MobileSidebar from "@/app/components/organisms/mobile-sidebar";
 import { MenuIcon } from "lucide-react";
 import Link from "next/link";
 
-export default function NavbarClient() {
+type Props = {
+  /** Null when the entry is switched off, gated, or nothing is published. */
+  programsHref: string | null;
+};
+
+export default function NavbarClient({ programsHref }: Props) {
   const { profile } = useNavbarProfile();
 
   return (
     <ul className="grid w-full grid-cols-2 items-center md:grid-cols-3">
       <li className="flex items-center gap-2">
         <div className="md:hidden">
-          <MobileSidebar profile={profile}>
+          <MobileSidebar profile={profile} programsHref={programsHref}>
             <MenuIcon className="h-5 w-5" />
           </MobileSidebar>
         </div>
@@ -35,7 +40,7 @@ export default function NavbarClient() {
         </Link>
       </li>
       <li className="hidden justify-self-center md:block">
-        <NavbarNavigationMenu profile={profile} />
+        <NavbarNavigationMenu profile={profile} programsHref={programsHref} />
       </li>
       <li className="flex justify-self-end">
         <SessionButtons profile={profile} />

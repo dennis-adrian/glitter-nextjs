@@ -27,6 +27,12 @@ export const FEATURE_FLAGS = {
       "Catálogo público de programas (Glitter Week): charlas, talleres, compra de entradas, Week Pass y check-in.",
     defaultVisibility: "hidden",
   },
+  programs_nav_entry: {
+    label: "Semana Glitter en el menú",
+    description:
+      "Muestra el acceso a Semana Glitter en el menú principal. Independiente de `paid_programs`, para poder abrir las inscripciones por enlace directo antes de anunciarlas en el sitio. El acceso solo aparece si ambas están visibles.",
+    defaultVisibility: "hidden",
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

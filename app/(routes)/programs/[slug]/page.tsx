@@ -172,11 +172,8 @@ export default async function ProgramPage({ params }: Props) {
             fill
             priority
             sizes="(min-width: 1024px) 55vw, 100vw"
-            className="object-cover object-center"
+            className="object-cover object-top-right"
           />
-          <span className="absolute bottom-5 right-5 max-w-[16rem] rotate-[-2deg] rounded-[1.5rem_1.5rem_0.4rem_1.5rem] bg-[#fffaf3] px-4 py-3 text-xs font-black uppercase leading-snug tracking-[0.11em] text-[#4b255f] sm:bottom-8 sm:right-8">
-            Preguntar · probar · volver a dibujar
-          </span>
         </div>
       </section>
 

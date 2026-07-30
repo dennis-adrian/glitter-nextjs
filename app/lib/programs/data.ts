@@ -200,3 +200,27 @@ export const fetchPublishedSession = cache(
     });
   },
 );
+
+/**
+ * Where the "Semana Glitter" menu entry should point.
+ *
+ * One published program is the launch case, and sending someone to a catalogue
+ * listing a single item is a wasted click — so it links straight to that
+ * program. With several, the catalogue is the useful landing page. With none
+ * there is nothing to link to and the caller hides the entry.
+ */
+export const fetchProgramsNavTarget = cache(
+  async (): Promise<string | null> => {
+    const published = await db
+      .select({ slug: programs.slug })
+      .from(programs)
+      .where(eq(programs.status, "published"))
+      .orderBy(asc(programs.startDate), asc(programs.id))
+      .limit(2);
+
+    if (published.length === 0) return null;
+    if (published.length === 1) return `/programs/${published[0].slug}`;
+
+    return "/programs";
+  },
+);
