@@ -1,6 +1,6 @@
 import "server-only";
 
-import { desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { cache } from "react";
 
 import { db } from "@/db";
@@ -44,6 +44,30 @@ export const fetchPurchaseForAccess = cache(async (purchaseId: number) => {
 export type PurchaseForAccess = NonNullable<
   Awaited<ReturnType<typeof fetchPurchaseForAccess>>
 >;
+
+/**
+ * The admin review queue: paid purchases with a proof waiting on a decision.
+ *
+ * Ordered oldest first — a buyer who has been waiting longest is reviewed
+ * first, and the seat they hold is the one blocking someone else.
+ */
+export const fetchPurchasesAwaitingReview = cache(async () => {
+  return db.query.sessionPurchases.findMany({
+    where: and(
+      eq(sessionPurchases.paymentMode, "bank_qr"),
+      inArray(sessionPurchases.status, [
+        "under_verification",
+        "changes_requested",
+      ]),
+    ),
+    with: { ...purchaseWith, buyer: true },
+    orderBy: [asc(sessionPurchases.voucherSubmittedAt)],
+  });
+});
+
+export type PurchaseAwaitingReview = Awaited<
+  ReturnType<typeof fetchPurchasesAwaitingReview>
+>[number];
 
 /** Bank QR and policy settings the payment step needs. */
 export const fetchProgramSettings = cache(async () => {

@@ -216,6 +216,12 @@ const NavbarNavigationMenu = ({
                   Charlas y talleres, con sus horarios y expositores
                 </NavigationMenuListItem>
                 <NavigationMenuListItem
+                  title="Pagos por revisar"
+                  href="/dashboard/programs/purchases"
+                >
+                  Comprobantes de inscripciones esperando aprobación
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
                   title="Subcategorías"
                   href="/dashboard/subcategories"
                 >
