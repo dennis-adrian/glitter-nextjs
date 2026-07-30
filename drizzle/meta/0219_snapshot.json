@@ -8646,7 +8646,7 @@
         },
         "guest_birthdate": {
           "name": "guest_birthdate",
-          "type": "timestamp",
+          "type": "date",
           "primaryKey": false,
           "notNull": false
         },

@@ -280,7 +280,10 @@ export async function registerForFreeSession(
           guestEmail: profile ? null : (data.guestEmail ?? null),
           guestPhone: profile ? null : (data.guestPhone ?? null),
           guestGender: profile ? null : (data.guestGender ?? null),
-          guestBirthdate: profile ? null : (data.guestBirthdate ?? null),
+          guestBirthdate:
+            profile || !data.guestBirthdate
+              ? null
+              : data.guestBirthdate.toISOString().slice(0, 10),
           accessTokenHash: hashAccessToken(accessToken),
           // Free registration skips the voucher entirely and is approved on
           // the spot, which is what lets the QR be issued immediately.

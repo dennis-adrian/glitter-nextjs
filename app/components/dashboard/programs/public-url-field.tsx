@@ -2,10 +2,13 @@
 
 import { CheckIcon, CopyIcon, ExternalLinkIcon } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/app/components/ui/button";
+
+const PUBLIC_BASE_URL =
+  process.env.NEXT_PUBLIC_BASE_URL?.trim().replace(/\/+$/, "") || "";
 
 type Props = {
   /** Absolute path, e.g. `/programs/glitter-week`. */
@@ -24,10 +27,18 @@ type Props = {
  */
 export default function PublicUrlField({ path, isDraft }: Props) {
   const [copied, setCopied] = useState(false);
+  const [origin, setOrigin] = useState(PUBLIC_BASE_URL);
 
-  const origin =
-    process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "") ??
-    (typeof window !== "undefined" ? window.location.origin : "");
+  useEffect(() => {
+    if (PUBLIC_BASE_URL) return;
+
+    const timeoutId = window.setTimeout(
+      () => setOrigin(window.location.origin),
+      0,
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
   const fullUrl = `${origin}${path}`;
 
   async function copy() {

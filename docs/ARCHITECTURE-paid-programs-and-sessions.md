@@ -4,11 +4,32 @@
 
 **Date:** 2026-07-25
 
-**Status:** Phase 0 deliverable — contracts and architecture, ready for review
+**Status:** Phase 0 deliverable — contracts and architecture. Phases 0–2 built.
 
 **Reference PRD:** [PRD-paid-programs-and-sessions.md](./PRD-paid-programs-and-sessions.md)
 
 **Reference roadmap:** [ROADMAP-paid-programs-and-sessions.md](./ROADMAP-paid-programs-and-sessions.md)
+
+---
+
+## 0. Scope change — Week Pass deferred (2026-07-29)
+
+The Week Pass is **cut from the MVP** ([PRD §0](./PRD-paid-programs-and-sessions.md)). Everything in this document that exists to serve the pass is marked **[Deferred — post-MVP]** and left in place, because the design work is done and re-deriving it later would be waste.
+
+Deferred here: §6.8 `program_passes`, §6.9 `program_pass_benefits`, the `program_pass_sessions` join, the `passId` / `passCode` / `upgradeOfPurchaseId` columns on §6.10 `session_purchases`, the pass-code branch of §7.3 check-in resolution, and §7.5 upgrade-to-a-pass.
+
+**As-built note.** None of the pass tables or columns were ever created — the deferral costs no migration. Three pieces of forward-compatible residue do exist in `db/schema.ts` and are deliberately kept:
+
+- `purchase_line_source` still carries the `pass_session` value alongside `individual_session`.
+- `session_purchase_lines` still enforces `source <> 'pass_session' OR unitPrice = 0`.
+- `session_purchase_event_type` still carries `upgrade_initiated` and `upgrade_completed`.
+
+All are unreachable while no pass exists. Removing an enum value would need a Postgres enum rewrite for no benefit, and keeping them means the pass can land later as pure addition.
+
+**Load-bearing beyond the pass.** Two mechanisms were justified partly by the pass but are required regardless, and must not be simplified on the strength of this deferral:
+
+- Deterministic `FOR UPDATE` lock ordering (§9). It prevents deadlock between any two multi-line purchases, not only between a pass and an individual sale.
+- One `session_purchase_lines` row per occurrence (§6.11). The cart depends on this shape as much as the pass did.
 
 ---
 
@@ -30,30 +51,30 @@ phase, because the roadmap requires it to be _queryable_, not merely described:
 
 The PRD §17 and roadmap §5 list decisions that must not be deferred. Each is resolved here.
 
-| #   | Open note                                                            | Decision                                                                                                                                                                                                                                                                                                         |
-| --- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Canonical source for "active participant"                            | `users.status === "verified"` and no ban sanction in effect. Pure predicate + query sibling; snapshotted with its evidence on every purchase. §8                                                                                                                                                                 |
-| 2   | Final entity and state names without festival/store semantics        | Names in §6. No new entity references `festivalType`, sectors, booths, reservations, festival activities, or store products.                                                                                                                                                                                     |
-| 3   | Transactional seat locking preventing overselling and double release | Inventory is **derived**, never a counter. Occurrence rows are locked `FOR UPDATE` in deterministic id order; availability is recomputed inside the transaction. §9                                                                                                                                              |
-| 4   | How rescheduling is represented                                      | The occurrence keeps its identity and primary key; its schedule columns are updated, `rescheduledAt` is stamped, and an immutable `session_occurrence_schedule_changes` row records from/to. Tickets point at the occurrence, so validity survives with no ticket mutation. §7.1                                 |
-| 5   | Configurable waitlist invitation duration                            | `programs.waitlistInvitationWindowMinutes` (nullable → falls back to `program_settings`, default 1440). Follows the existing `festivalActivities.waitlistWindowMinutes` precedent. §7.4                                                                                                                          |
-| 6   | Partial cancellation for multi-session purchases and Week Pass       | Cancellation is modeled at the **ticket** level. A purchase's `cancelled` state is derived from all its tickets being cancelled; a partially cancelled purchase stays `approved`. No refund path is reachable from attendee-initiated cancellation. §7.2, §7.3. Remaining work is UX copy only, owed in Phase 5. |
-| 7   | Festival Fast Pass as an extensible benefit                          | `program_pass_benefits` rows typed by `pass_benefit_type`; MVP stores `festival_fast_pass` and performs no fulfillment. §6.9                                                                                                                                                                                     |
-| 8   | Do not use store products as the representation of tickets           | `session_tickets` is a first-class table. `products`, `orders`, `orderItems`, and `carts` are untouched. §5                                                                                                                                                                                                      |
+| #   | Open note                                                            | Decision                                                                                                                                                                                                                                                                                                                                                                                       |
+| --- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Canonical source for "active participant"                            | `users.status === "verified"` and no ban sanction in effect. Pure predicate + query sibling; snapshotted with its evidence on every purchase. §8                                                                                                                                                                                                                                               |
+| 2   | Final entity and state names without festival/store semantics        | Names in §6. No new entity references `festivalType`, sectors, booths, reservations, festival activities, or store products.                                                                                                                                                                                                                                                                   |
+| 3   | Transactional seat locking preventing overselling and double release | Inventory is **derived**, never a counter. Occurrence rows are locked `FOR UPDATE` in deterministic id order; availability is recomputed inside the transaction. §9                                                                                                                                                                                                                            |
+| 4   | How rescheduling is represented                                      | The occurrence keeps its identity and primary key; its schedule columns are updated, `rescheduledAt` is stamped, and an immutable `session_occurrence_schedule_changes` row records from/to. Tickets point at the occurrence, so validity survives with no ticket mutation. §7.1                                                                                                               |
+| 5   | Configurable waitlist invitation duration                            | `programs.waitlistInvitationWindowMinutes` (nullable → falls back to `program_settings`, default 1440). Follows the existing `festivalActivities.waitlistWindowMinutes` precedent. §7.4                                                                                                                                                                                                        |
+| 6   | Partial cancellation for multi-session purchases                     | Cancellation is modeled at the **ticket** level. A purchase's `cancelled` state is derived from all its tickets being cancelled; a partially cancelled purchase stays `approved`. No refund path is reachable from attendee-initiated cancellation. §7.2, §7.3. Remaining work is UX copy only, owed in Phase 5. The ticket-level model already answers the pass case whenever the pass ships. |
+| 7   | Festival Fast Pass as an extensible benefit                          | **[Deferred — post-MVP with the pass, §0.]** `program_pass_benefits` rows typed by `pass_benefit_type`; would store `festival_fast_pass` and perform no fulfillment. §6.9                                                                                                                                                                                                                      |
+| 8   | Do not use store products as the representation of tickets           | `session_tickets` is a first-class table. `products`, `orders`, `orderItems`, and `carts` are untouched. §5                                                                                                                                                                                                                                                                                    |
 
 ## 3. Glossary
 
 | Term                    | Meaning in this domain                                                                                                                                                                                     |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Program**             | An editorial grouping of sessions with a date range, a default venue, an optional festival link, and an optional pass. Glitter Week is one program.                                                        |
+| **Program**             | An editorial grouping of sessions with a date range, a default venue, and an optional festival link (plus an optional pass once that ships). Glitter Week is one program.                                  |
 | **Session**             | The purchasable _content_: title, type, description, speakers, audience, price. Carries no schedule and no inventory.                                                                                      |
 | **Occurrence**          | One scheduled instance of a session: start/end time, venue override, capacity, sales window, inventory, tickets, waitlist, check-in. A repeat group is a second occurrence and shares nothing but content. |
 | **Speaker**             | An admin-maintained public profile (talk speaker or workshop facilitator). Requires no Glitter account. Many-to-many with sessions.                                                                        |
 | **Venue**               | A reusable named place. Resolution is occurrence → session → program.                                                                                                                                      |
 | **Audience**            | Which eligibility classes may buy a session: everyone, active participants only, or general public only.                                                                                                   |
 | **Eligibility**         | The buyer's class at the moment of evaluation: `active_participant` or `public`.                                                                                                                           |
-| **Pass**                | A bundle sold as one line that reserves one seat in every included session. The Week Pass is the launch instance.                                                                                          |
-| **Benefit**             | Extra entitlement attached to a pass, e.g. Festival Fast Pass. Represented but not fulfilled in the MVP.                                                                                                   |
+| **Pass**                | **[Deferred — post-MVP, §0.]** A bundle sold as one line that reserves one seat in every included session. The Week Pass would be the first instance.                                                      |
+| **Benefit**             | **[Deferred — post-MVP, §0.]** Extra entitlement attached to a pass, e.g. Festival Fast Pass.                                                                                                              |
 | **Seat hold**           | Not a table. A purchase line is _holding_ a seat while its purchase is in a holding state (§9.1).                                                                                                          |
 | **Purchase**            | One checkout by one buyer: one total, one voucher stream, one secure link, one or more lines.                                                                                                              |
 | **Purchase line**       | One seat in one occurrence, with the price and price basis applied to it.                                                                                                                                  |
@@ -65,6 +86,8 @@ The PRD §17 and roadmap §5 list decisions that must not be deferred. Each is r
 
 ## 4. Conceptual model
 
+Entities marked `%% deferred` below belong to the Week Pass and are not built (§0).
+
 ```mermaid
 erDiagram
     festivals ||..o{ programs : "optional link"
@@ -73,6 +96,8 @@ erDiagram
     venues ||..o{ session_occurrences : "occurrence override"
 
     programs ||--o{ program_sessions : contains
+
+    %% deferred — Week Pass (§0)
     programs ||--o| program_passes : "optional pass"
     program_passes ||--o{ program_pass_benefits : grants
     program_passes ||--o{ program_pass_sessions : "explicit includes"
@@ -87,12 +112,14 @@ erDiagram
     session_occurrences ||--o{ session_waitlist_entries : waitlisted_for
 
     users ||..o{ session_purchases : "buyer (null for guests)"
-    program_passes ||..o{ session_purchases : "pass purchase"
     session_purchases ||--o{ session_purchase_lines : has
     session_purchases ||--o{ session_purchase_vouchers : "immutable versions"
     session_purchases ||--o{ session_purchase_events : audited_by
-    session_purchases ||..o| session_purchases : "upgrade of"
     session_purchases ||--o{ session_refund_requests : may_request
+
+    %% deferred — Week Pass (§0)
+    program_passes ||..o{ session_purchases : "pass purchase"
+    session_purchases ||..o| session_purchases : "upgrade of"
 
     session_purchase_lines ||--o| session_tickets : issues
     session_tickets ||--o| session_attendances : checked_in_by
@@ -260,7 +287,9 @@ Immutable reschedule history. Insert-only; never updated or deleted.
 | `actorUserId`                                          | integer → `users.id`, `ON DELETE SET NULL`, nullable              |
 | `createdAt`                                            | timestamp, not null                                               |
 
-### 6.8 `program_passes`
+### 6.8 `program_passes` — **[Deferred — post-MVP]**
+
+Not created (§0). Specification retained for the future delivery.
 
 | Column             | Type                                                            | Notes                                |
 | ------------------ | --------------------------------------------------------------- | ------------------------------------ |
@@ -291,10 +320,12 @@ purchase are the same shape downstream. The ordering rule is deterministic and t
 lets two concurrent pass checkouts resolve to identical occurrence ids and serialize on the same row
 locks. Resolution happens once, at checkout: publishing a session or adding an occurrence afterwards
 never widens an existing purchase, and a buyer's entitlement is readable from the snapshotted lines
-without replaying today's catalogue. Phase 1 implements this rule as written — it is a contract, not
-a default.
+without replaying today's catalogue. Whichever phase implements the pass implements this rule as
+written — it is a contract, not a default.
 
-### 6.9 `program_pass_benefits`
+### 6.9 `program_pass_benefits` — **[Deferred — post-MVP]**
+
+Not created (§0). Specification retained for the future delivery.
 
 | Column          | Type                                                         | Notes                                                              |
 | --------------- | ------------------------------------------------------------ | ------------------------------------------------------------------ |
@@ -307,66 +338,68 @@ a default.
 
 ### 6.10 `session_purchases`
 
-| Column                                                 | Type                                                                        | Notes                                     |
-| ------------------------------------------------------ | --------------------------------------------------------------------------- | ----------------------------------------- |
-| `programId`                                            | integer → `programs.id`, `ON DELETE RESTRICT`, not null                     | Scopes settings resolution                |
-| `userId`                                               | integer → `users.id`, `ON DELETE SET NULL`, nullable                        | Null for guests                           |
-| `guestName`, `guestEmail`, `guestPhone`                | text, nullable                                                              | Required together when `userId` is null   |
-| `accessToken`                                          | text, not null, unique                                                      | Opaque; issued for **all** buyers (§11)   |
-| `accessTokenRevokedAt`                                 | timestamp, nullable                                                         |                                           |
-| `passId`                                               | integer → `program_passes.id`, `ON DELETE RESTRICT`, nullable               | Set for pass purchases                    |
-| `passCode`                                             | text, unique, nullable                                                      | The single pass QR payload (§7.3)         |
-| `upgradeOfPurchaseId`                                  | integer → self, `ON DELETE SET NULL`, nullable                              | Set for pass upgrades                     |
-| `status`                                               | `session_purchase_status`, not null, default `pending_upload`               | §7.2                                      |
-| `paymentMode`                                          | `session_purchase_payment_mode`, not null                                   | `bank_qr` \| `free`                       |
-| `buyerEligibility`                                     | `participant_eligibility`, not null                                         | Snapshot, §8.4                            |
-| `eligibilityEvaluatedAt`                               | timestamp, not null                                                         |                                           |
-| `eligibilitySnapshot`                                  | jsonb, not null                                                             | Evidence, §8.4                            |
-| `subtotalAmount`                                       | numeric(10,2), not null                                                     | Sum of line prices                        |
-| `creditedAmount`                                       | numeric(10,2), not null, default 0                                          | Upgrade credit, §7.5                      |
-| `totalAmount`                                          | numeric(10,2), not null                                                     | `subtotalAmount - creditedAmount`         |
-| `holdExpiresAt`                                        | timestamp, nullable                                                         | Null for free purchases                   |
-| `voucherSubmittedAt`                                   | timestamp, nullable                                                         | Set on first voucher version              |
-| `approvedAt`, `rejectedAt`, `expiredAt`, `cancelledAt` | timestamp, nullable                                                         |                                           |
-| `noRefundPolicyVersion`                                | text, not null                                                              | §7.2                                      |
-| `noRefundPolicyAcceptedAt`                             | timestamp, not null                                                         |                                           |
-| `idempotencyKey`                                       | text, not null, unique                                                      | Client-supplied, prevents double checkout |
-| `waitlistInvitationId`                                 | integer → `session_waitlist_invitations.id`, `ON DELETE SET NULL`, nullable | Provenance                                |
+| Column                                                 | Type                                                                        | Notes                                        |
+| ------------------------------------------------------ | --------------------------------------------------------------------------- | -------------------------------------------- |
+| `programId`                                            | integer → `programs.id`, `ON DELETE RESTRICT`, not null                     | Scopes settings resolution                   |
+| `userId`                                               | integer → `users.id`, `ON DELETE SET NULL`, nullable                        | Null for guests                              |
+| `guestName`, `guestEmail`, `guestPhone`                | text, nullable                                                              | Required together when `userId` is null      |
+| `accessToken`                                          | text, not null, unique                                                      | Opaque; issued for **all** buyers (§11)      |
+| `accessTokenRevokedAt`                                 | timestamp, nullable                                                         |                                              |
+| `passId`                                               | integer → `program_passes.id`, `ON DELETE RESTRICT`, nullable               | **[Deferred]** Set for pass purchases        |
+| `passCode`                                             | text, unique, nullable                                                      | **[Deferred]** Single pass QR payload (§7.3) |
+| `upgradeOfPurchaseId`                                  | integer → self, `ON DELETE SET NULL`, nullable                              | **[Deferred]** Set for pass upgrades         |
+| `status`                                               | `session_purchase_status`, not null, default `pending_upload`               | §7.2                                         |
+| `paymentMode`                                          | `session_purchase_payment_mode`, not null                                   | `bank_qr` \| `free`                          |
+| `buyerEligibility`                                     | `participant_eligibility`, not null                                         | Snapshot, §8.4                               |
+| `eligibilityEvaluatedAt`                               | timestamp, not null                                                         |                                              |
+| `eligibilitySnapshot`                                  | jsonb, not null                                                             | Evidence, §8.4                               |
+| `subtotalAmount`                                       | numeric(10,2), not null                                                     | Sum of line prices                           |
+| `creditedAmount`                                       | numeric(10,2), not null, default 0                                          | **[Deferred]** Upgrade credit, §7.5          |
+| `totalAmount`                                          | numeric(10,2), not null                                                     | As built: `<= subtotalAmount`                |
+| `holdExpiresAt`                                        | timestamp, nullable                                                         | Null for free purchases                      |
+| `voucherSubmittedAt`                                   | timestamp, nullable                                                         | Set on first voucher version                 |
+| `approvedAt`, `rejectedAt`, `expiredAt`, `cancelledAt` | timestamp, nullable                                                         |                                              |
+| `noRefundPolicyVersion`                                | text, not null                                                              | §7.2                                         |
+| `noRefundPolicyAcceptedAt`                             | timestamp, not null                                                         |                                              |
+| `idempotencyKey`                                       | text, not null, unique                                                      | Client-supplied, prevents double checkout    |
+| `waitlistInvitationId`                                 | integer → `session_waitlist_invitations.id`, `ON DELETE SET NULL`, nullable | Provenance                                   |
 
 Checks:
 
 - Identity, mirroring `orders_identity_check`: either `userId` is set and all guest columns are
   null, or `userId` is null and all three guest columns are non-empty.
-- `subtotalAmount >= 0`, `creditedAmount >= 0`, `totalAmount >= 0`,
-  `totalAmount = subtotalAmount - creditedAmount`.
+- `subtotalAmount >= 0`, `totalAmount >= 0`, `totalAmount <= subtotalAmount`. Without
+  `creditedAmount` there is nothing to make the stricter equality check verifiable, so the built
+  constraint is the inequality; the equality returns with the upgrade flow.
 - `paymentMode = 'free'` implies `totalAmount = 0 AND holdExpiresAt IS NULL`.
 - `paymentMode = 'bank_qr'` implies `holdExpiresAt IS NOT NULL`.
 - `status <> 'approved' OR approvedAt IS NOT NULL` (and the analogous rule for
   `rejected`/`expired`/`cancelled`).
-- `passCode IS NULL OR passId IS NOT NULL` — only a pass purchase carries a pass code, and only
-  once approved (§7.3).
-- `creditedAmount = 0 OR upgradeOfPurchaseId IS NOT NULL`.
+- **[Deferred]** `passCode IS NULL OR passId IS NOT NULL` — only a pass purchase carries a pass
+  code, and only once approved (§7.3).
+- **[Deferred]** `creditedAmount = 0 OR upgradeOfPurchaseId IS NOT NULL`.
 
 Indexes: `(status, holdExpiresAt)` for the sweep; `(userId, createdAt desc)`; `(programId, status)`.
 
 ### 6.11 `session_purchase_lines`
 
-| Column                       | Type                                                               | Notes                                       |
-| ---------------------------- | ------------------------------------------------------------------ | ------------------------------------------- |
-| `purchaseId`                 | integer → `session_purchases.id`, `ON DELETE CASCADE`, not null    |                                             |
-| `occurrenceId`               | integer → `session_occurrences.id`, `ON DELETE RESTRICT`, not null |                                             |
-| `sessionId`                  | integer → `program_sessions.id`, `ON DELETE RESTRICT`, not null    | Denormalized for reporting                  |
-| `source`                     | `purchase_line_source`, not null                                   | `individual_session` \| `pass_session`      |
-| `unitPrice`                  | numeric(10,2), not null                                            | Snapshot; `0` for every `pass_session` line |
-| `priceBasis`                 | `participant_eligibility`, not null                                | Which price applied                         |
-| `pricingSnapshot`            | jsonb, not null                                                    | Which rule produced the price, §8.3         |
-| `sessionTitleSnapshot`       | text, not null                                                     | Survives later content edits                |
-| `occurrenceStartsAtSnapshot` | timestamp, not null                                                | Survives reschedules for audit              |
+| Column                       | Type                                                               | Notes                                                |
+| ---------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------- |
+| `purchaseId`                 | integer → `session_purchases.id`, `ON DELETE CASCADE`, not null    |                                                      |
+| `occurrenceId`               | integer → `session_occurrences.id`, `ON DELETE RESTRICT`, not null |                                                      |
+| `sessionId`                  | integer → `program_sessions.id`, `ON DELETE RESTRICT`, not null    | Denormalized for reporting                           |
+| `source`                     | `purchase_line_source`, not null, default `individual_session`     | `pass_session` unreachable until the pass ships (§0) |
+| `unitPrice`                  | numeric(10,2), not null                                            | Snapshot; `0` for every `pass_session` line          |
+| `priceBasis`                 | `participant_eligibility`, not null                                | Which price applied                                  |
+| `pricingSnapshot`            | jsonb, not null                                                    | Which rule produced the price, §8.3                  |
+| `sessionTitleSnapshot`       | text, not null                                                     | Survives later content edits                         |
+| `occurrenceStartsAtSnapshot` | timestamp, not null                                                | Survives reschedules for audit                       |
 
 `unique(purchaseId, occurrenceId)` — one seat per occurrence per purchase (PRD §7.1).
 
 Checks: `unitPrice >= 0`; `source <> 'pass_session' OR unitPrice = 0` (the pass price lives on the
-purchase total, not on its lines).
+purchase total, not on its lines). The second check is built and kept, though vacuously true while
+no pass exists — see §0 on why the residue stays.
 
 Indexes: `(occurrenceId)`; `(purchaseId)`.
 
@@ -413,7 +446,8 @@ Index: `(purchaseId, createdAt)`.
 `session_purchase_event_type` values: `created`, `voucher_uploaded`, `voucher_replaced`,
 `changes_requested`, `approved`, `rejected`, `cancelled_by_buyer`, `cancelled_by_admin`, `expired`,
 `ticket_issued`, `ticket_cancelled`, `adjusted`, `link_resent`, `emails_resent`,
-`refund_requested`, `refund_resolved`, `upgrade_initiated`, `upgrade_completed`.
+`refund_requested`, `refund_resolved`, `upgrade_initiated`, `upgrade_completed`. The last two are
+built but unreachable until the pass upgrade ships (§0).
 
 ### 6.14 `session_tickets`
 
@@ -590,7 +624,7 @@ Rules:
   availability predicate. There is no counter to decrement, so double release is not representable.
 - Free purchases are created directly in `approved` with `paymentMode = 'free'` and no voucher.
 - **Partial cancellation** (PRD §12.1, open note §17.6): cancelling one session out of a
-  multi-session purchase or a pass cancels that _ticket_. The purchase advances to `cancelled` only
+  multi-session purchase cancels that _ticket_. The purchase advances to `cancelled` only
   when no `valid` ticket remains. A partially cancelled purchase stays `approved`; the dashboard
   shows it as partially cancelled, derived from its ticket statuses. No attendee-initiated path
   produces a refund request.
@@ -607,33 +641,35 @@ Rules:
   cancellation. Cancellation is terminal; re-purchase creates a new ticket.
 - Check-in inserts into `session_attendances`. The unique constraint on `ticketId` means the second
   scan fails the insert and the UI reports "already used" without creating a record.
+
+Check-in always happens from a specific occurrence's page, so the scanner matches a scanned
+`session_tickets.code` and requires the ticket to belong to that occurrence; otherwise the UI
+reports that the ticket is for another session. Every buyer — including a multi-session cart buyer —
+carries one QR per ticket.
+
+**[Deferred — post-MVP] One QR for a pass.** With the pass cut (§0) there is a single credential
+namespace and the resolution below is not built. Retained because the reasoning is the expensive
+part:
+
+A pass holder would carry a single `passCode` rather than five ticket codes: at a busy door,
+finding the right QR in an email is the slowest step, and presenting the wrong session's code is the
+most common failure. The credential is decoupled from the tickets, which stay one-per-occurrence.
+
+That refines — it does not contradict — the PRD's "one distinct QR per person and session"
+(PRD §7.1, §11.2). _Issuance_ is unchanged: one ticket per person and occurrence, each with its own
+code, each scanned at its own door. Only what a **pass** buyer is _delivered_ changes.
+
 - A pass yields one ticket per included occurrence; each is scanned in its own session, and one
-  check-in grants nothing elsewhere (roadmap Phase 5 criterion).
-
-**One QR for a pass, one per individual ticket.** A pass holder carries a single `passCode` rather
-than five ticket codes: at a busy door, finding the right QR in an email is the slowest step, and
-presenting the wrong session's code is the most common failure. The credential is decoupled from
-the tickets, which stay one-per-occurrence.
-
-This refines — it does not contradict — the PRD's "one distinct QR per person and session"
-(PRD §7.1, §11.2) and roadmap Phase 4's "one QR per session". _Issuance_ is unchanged and still
-satisfies those criteria: one ticket per person and occurrence, each with its own code, each scanned
-at its own door. What changes is only what a **pass** buyer is _delivered_: one pass QR instead of
-one per session. An individual purchase — including a multi-session cart — still delivers one QR per
-ticket, because those buyers have no pass code. Roadmap and PRD wording is updated to match.
-
+  check-in grants nothing elsewhere.
 - `passCode` is generated in the same transaction that issues the pass's tickets, guarded by
   `WHERE passCode IS NULL` so re-approval cannot rotate it.
-- Check-in always happens from a specific occurrence's page, so the scanner resolves a scanned
-  code against that occurrence:
-  1. Match a `session_tickets.code`. The ticket must belong to this occurrence, otherwise the UI
-     reports that the ticket is for another session.
-  2. Otherwise match a `session_purchases.passCode`, then select that purchase's ticket for this
-     occurrence. Absent means the pass does not include this session.
+- Scanner resolution gains a second step: if no `session_tickets.code` matches, match a
+  `session_purchases.passCode`, then select that purchase's ticket for this occurrence. Absent means
+  the pass does not include this session.
 - Pass-code resolution follows the `upgradeOfPurchaseId` chain, so a buyer who upgraded from an
   individual ticket still carries exactly one QR: the pass code also resolves the ticket that came
   from the purchase it upgraded.
-- Attendance is still keyed on `ticketId`, so duplicate-scan protection and per-session check-in
+- Attendance stays keyed on `ticketId`, so duplicate-scan protection and per-session check-in
   are unchanged by which credential was presented.
 
 ### 7.4 Waitlist and invitation
@@ -650,7 +686,9 @@ ticket, because those buyers have no pass code. Roadmap and PRD wording is updat
 - Expiry is lazy (`expiresAt > now()` in the predicate) plus a sweep that flips `sent → expired`
   and notifies the team. There is no automatic promotion, ever.
 
-### 7.5 Upgrade to a pass
+### 7.5 Upgrade to a pass — **[Deferred — post-MVP]**
+
+Not built (§0); ships with the pass. Design retained.
 
 1. Validate the source purchase is `approved`, holds a `valid` ticket, and its program has a
    published pass.
@@ -739,7 +777,7 @@ Enforced on the server twice: when checkout starts and again inside the confirmi
 
 ### 8.3 Price resolution
 
-For a session (identically for a pass), given the buyer's eligibility:
+For a session, given the buyer's eligibility (a pass would resolve identically):
 
 1. `public` → `publicPrice`.
 2. `active_participant` and `participantPrice IS NOT NULL` → `participantPrice`
@@ -807,7 +845,7 @@ Consequences that satisfy the PRD's capacity invariants directly:
 
 ```sql
 BEGIN
-  -- deterministic order prevents deadlock between a Week Pass and an individual sale
+  -- deterministic order prevents deadlock between any two overlapping multi-line purchases
   SELECT id, capacity FROM session_occurrences
    WHERE id = ANY($occurrenceIds) ORDER BY id FOR UPDATE
 
@@ -825,8 +863,10 @@ COMMIT
 ```
 
 Locking every occurrence in ascending id order, before any insert, is the invariant that makes
-multi-line purchases, pass purchases, and upgrades atomic with respect to each other. All-or-none
-follows from the single transaction: one failed line aborts the whole purchase.
+multi-line purchases atomic with respect to each other — and would extend unchanged to pass
+purchases and upgrades. Deferring the pass does **not** make the ordering optional: two carts
+overlapping on two occurrences deadlock without it. All-or-none follows from the single
+transaction: one failed line aborts the whole purchase.
 
 Two concurrent requests for a last seat serialize on the occurrence row lock; the loser sees
 `remaining = 0` and is offered the waitlist.
@@ -876,17 +916,16 @@ duplicate tickets (roadmap Phase 6 gate).
 Same generator and revocation semantics, scoped to one occurrence and one entry, with a hard
 `expiresAt`.
 
-### 11.3 Ticket and pass codes
+### 11.3 Ticket codes
 
-- 16 random bytes, base64url-encoded, unique, in `session_tickets.code` and in
-  `session_purchases.passCode`. Both are drawn from the same generator and namespace, so the
-  scanner can try one then the other without ambiguity.
-- An individual purchase's QR carries the ticket code; a pass purchase's QR carries the pass code
-  (§7.3).
+- 16 random bytes, base64url-encoded, unique, in `session_tickets.code`. Every purchase's QR
+  carries a ticket code.
 - The QR encodes the code only. Scanning is an admin-authenticated action, so the code is not a
-  bearer credential for anything except identifying a ticket at the door. A pass code covers more
-  sessions than a ticket code, but grants nothing beyond being recognized at a door the admin has
-  already opened.
+  bearer credential for anything except identifying a ticket at the door.
+- **[Deferred — post-MVP]** `session_purchases.passCode` would draw from the same generator and
+  namespace, so the scanner could try one then the other without ambiguity (§7.3). A pass code
+  covers more sessions than a ticket code, but grants nothing beyond being recognized at a door the
+  admin has already opened.
 - QR images are rendered with the existing `qrcode` helper. Emails must keep the documented
   Android dark-mode defenses: a quiet-zone margin, an explicit white wrapper behind the image, and
   the colour-scheme meta tags already used by `app/emails/ticket.tsx`.
@@ -978,7 +1017,7 @@ resolved through the existing `requireAdminOrFestivalAdmin()` helper
 
 | Capability                                                             | admin / festival_admin      | Buyer (owner or valid token) | Anyone else           |
 | ---------------------------------------------------------------------- | --------------------------- | ---------------------------- | --------------------- |
-| Create/edit program, session, occurrence, speaker, venue, pass         | ✅                          | ❌                           | ❌                    |
+| Create/edit program, session, occurrence, speaker, venue               | ✅                          | ❌                           | ❌                    |
 | Publish, close sales, cancel, reschedule, complete                     | ✅                          | ❌                           | ❌                    |
 | View draft content                                                     | ✅                          | ❌                           | ❌                    |
 | View published content                                                 | ✅                          | ✅                           | ✅                    |
@@ -1008,11 +1047,11 @@ authentication.
 | `session_skill_level`           | `beginner`, `intermediate`, `advanced`                                                                      |
 | `occurrence_lifecycle_status`   | `scheduled`, `completed`, `cancelled`                                                                       |
 | `participant_eligibility`       | `active_participant`, `public`                                                                              |
-| `pass_inclusion_mode`           | `all_program_sessions`, `explicit`                                                                          |
-| `pass_benefit_type`             | `festival_fast_pass`                                                                                        |
+| `pass_inclusion_mode`           | **[Deferred]** `all_program_sessions`, `explicit`                                                           |
+| `pass_benefit_type`             | **[Deferred]** `festival_fast_pass`                                                                         |
 | `session_purchase_status`       | `pending_upload`, `under_verification`, `changes_requested`, `approved`, `rejected`, `expired`, `cancelled` |
 | `session_purchase_payment_mode` | `bank_qr`, `free`                                                                                           |
-| `purchase_line_source`          | `individual_session`, `pass_session`                                                                        |
+| `purchase_line_source`          | `individual_session`, `pass_session` — the second value is built but unreachable (§0)                       |
 | `purchase_actor_type`           | `buyer`, `admin`, `system`                                                                                  |
 | `session_purchase_event_type`   | see §6.13                                                                                                   |
 | `session_ticket_status`         | `valid`, `cancelled`                                                                                        |

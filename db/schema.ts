@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  date,
   foreignKey,
   index,
   integer,
@@ -3646,7 +3647,7 @@ export const sessionPurchases = pgTable(
      * guests is enforced in the registration action.
      */
     guestGender: genderEnum("guest_gender"),
-    guestBirthdate: timestamp("guest_birthdate"),
+    guestBirthdate: date("guest_birthdate"),
     /**
      * SHA-256 of the access token, never the token itself. The raw value is
      * returned once, to the buyer, in their link and email; a database dump or

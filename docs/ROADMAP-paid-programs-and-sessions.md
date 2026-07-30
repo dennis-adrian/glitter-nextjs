@@ -6,7 +6,21 @@
 
 **Reference PRD:** [PRD-paid-programs-and-sessions.md](./PRD-paid-programs-and-sessions.md)
 
-**Status:** Proposed for planning
+**Status:** In progress — Phases 0–2 delivered
+
+---
+
+## 0. Scope change — Week Pass deferred (2026-07-29)
+
+The Week Pass, its benefits, its single QR, the cart recommendation, and the upgrade flow are **cut from the MVP** to protect the launch date. See [PRD §0](./PRD-paid-programs-and-sessions.md) for the full rationale.
+
+Effect on this roadmap:
+
+- **Phase 4 is now "Multi-session cart" only.** The cart is independent of the pass and stays in the MVP.
+- Pass, benefit, and upgrade deliverables move to §4 Post-MVP.
+- Two Phase 6 concurrency cases (pass vs. individual sale) and one Phase 5 check-in case (pass scanned per session) fall away with them.
+
+Deferred items are marked **[Deferred — post-MVP]** in place rather than deleted.
 
 ---
 
@@ -18,16 +32,16 @@ Sequencing principles:
 
 - Establish the neutral domain and content administration first.
 - Validate identity, audience, pricing, capacity, and tickets through free sessions before introducing money.
-- Implement and harden single-session paid purchases before adding a multi-session cart and Week Pass.
+- Implement and harden single-session paid purchases before adding a multi-session cart.
 - Add operations, cancellations, and check-in before the public pilot.
 - Keep new models separate from festivals, booths, festival activities, and store products.
 
 ```text
-Phase 0: contracts and architecture
-  → Phase 1: catalog and publication
-    → Phase 2: end-to-end free admission
+Phase 0: contracts and architecture          ✅ delivered
+  → Phase 1: catalog and publication         ✅ delivered
+    → Phase 2: end-to-end free admission     ✅ delivered
       → Phase 3: single-session payment
-        → Phase 4: cart, Week Pass, and upgrades
+        → Phase 4: multi-session cart
           → Phase 5: event operations
             → Phase 6: hardening, pilot, and launch
 ```
@@ -43,7 +57,7 @@ Phase 0: contracts and architecture
 - Glossary and conceptual model for:
   - Program, session, occurrence, speaker, venue, and optional festival link.
   - Audience, public price, active-participant price, and default rules.
-  - Pass, benefit, seat hold, purchase, purchase line, and ticket.
+  - Seat hold, purchase, purchase line, and ticket. Pass and benefit are modeled but not built (§0).
   - Voucher versions, check-in, waitlist, and audit history.
 - Relationship diagram and boundaries with current domains.
 - State and transition contracts for publication, sales, purchases, vouchers, tickets, and attendance.
@@ -160,7 +174,7 @@ Phase 0: contracts and architecture
 - An active participant can do so from their profile.
 - Every admin action records actor, date, and reason.
 
-### Phase 4 — Multi-session cart, Week Pass, and upgrades
+### Phase 4 — Multi-session cart
 
 **Objective:** add commercial composition only after single-session capacity and payment are stable.
 
@@ -169,30 +183,26 @@ Phase 0: contracts and architecture
 - Cart containing multiple sessions with a combined total.
 - One purchase and one voucher for all lines.
 - Atomic hold of every seat or none.
-- Week Pass with:
-  - Every current session in the program.
-  - Public and active-participant prices.
-  - One reserved seat in every session.
-  - Festival Fast Pass represented as an optional benefit without operational fulfillment.
-- Week Pass recommendation when the cart contains every individual session, including displayed savings.
-- One ticket per person and session after approval, presented to the pass holder as a single pass QR
-  scanned at every included session.
-- Self-service upgrade from an individual ticket to Week Pass:
-  - Preserves the existing seat.
-  - Verifies capacity in every remaining session.
-  - Charges only the difference.
-  - Confirms new tickets after the difference is approved.
+- One ticket, with its own QR, per person and session after approval.
 
 **Acceptance criteria**
 
 - If one line lacks capacity, no line in the purchase is held.
 - When a purchase expires, all of its seats are released exactly once.
-- A Week Pass consumes one seat in every included occurrence.
-- Recommended price and savings reflect current eligibility.
-- The buyer must confirm replacing individual sessions with a Week Pass.
-- The upgrade fails without modifying the original ticket if any remaining session lacks capacity.
-- An initiated upgrade preserves the original seat and ticket until the difference payment is approved.
-- Approving a multi-session purchase or pass issues exactly one ticket per person and session.
+- Approving a multi-session purchase issues exactly one ticket per person and session.
+
+**[Deferred — post-MVP] Week Pass and upgrades**
+
+Cut from the MVP (§0); the requirements are retained here and in PRD §7.2–7.3 for the future delivery.
+
+- Week Pass with every current session in the program, public and active-participant prices, one
+  reserved seat in every session, and Festival Fast Pass as an optional benefit without fulfillment.
+- Pass recommendation when the cart contains every individual session, including displayed savings,
+  and buyer confirmation before replacing them.
+- A single pass QR presented to the holder, scanned at every included session.
+- Self-service upgrade from an individual ticket: preserves the existing seat, verifies capacity in
+  every remaining session, charges only the difference, and confirms new tickets after approval —
+  failing without modifying the original ticket when any remaining session lacks capacity.
 
 ### Phase 5 — Operations, waitlist, cancellation, and check-in
 
@@ -220,7 +230,6 @@ Phase 0: contracts and architecture
 
 **Acceptance criteria**
 
-- A Week Pass is scanned once in each session; one check-in does not grant access to the others.
 - A second scan shows “already used” and does not create another attendance record.
 - Cancellation within the window invalidates the ticket and releases the seat; outside it, the action is blocked.
 - Versioned no-refund acceptance can be reviewed before support is provided.
@@ -240,7 +249,6 @@ Phase 0: contracts and architecture
 - Concurrency tests for:
   - Final seat.
   - Multi-session purchase.
-  - Week Pass competing with an individual sale.
   - Simultaneous expiration and voucher upload.
   - Simultaneous cancellation and check-in or approval.
 - Reconciliation and alerts for expired holds, unissued tickets, failed emails, and inconsistent states.
@@ -274,8 +282,6 @@ Every applicable journey must be tested as a guest, an active participant, and a
 | Voucher arrives at the 20-minute limit  | One transition wins; no orphaned seats remain                     |
 | Voucher is replaced                     | The newest is reviewed and history is retained                    |
 | Approval is repeated                    | Tickets, emails, and logical charges are not duplicated           |
-| Week Pass competes with individual sale | Inventory remains correct for every session                       |
-| Upgrade lacks remaining capacity        | Original purchase and seat remain; no difference is charged       |
 | Attendee cancels                        | Two-day limit applies, no refund is due, and capacity is released |
 | Glitter cancels or reschedules          | The applicable refund policy is applied                           |
 | QR is scanned twice                     | Only one attendance record is created                             |
@@ -284,6 +290,17 @@ Every applicable journey must be tested as a guest, an active participant, and a
 ## 4. Post-MVP deliveries
 
 These enhancements require additional decisions or infrastructure and do not block Glitter Week:
+
+### Week Pass — deferred out of the MVP (§0)
+
+- The pass itself: every session in the program, public and active-participant prices, one seat held
+  in every included session.
+- Pass benefits, including the Festival Fast Pass representation.
+- The single pass QR delivered instead of one QR per ticket.
+- Cart recommendation and savings display when the cart holds every individual session.
+- Self-service upgrade from an individual ticket, charging only the difference.
+
+Full requirements are retained in Phase 4 above and PRD §7.2–7.3.
 
 ### Benefits and festival access
 
@@ -321,14 +338,14 @@ These enhancements require additional decisions or infrastructure and do not blo
 
 ## 5. Dependencies and risks that must not be deferred
 
-| Area          | Risk if deferred                          | Required mitigation                                                 |
-| ------------- | ----------------------------------------- | ------------------------------------------------------------------- |
-| Eligibility   | Incorrect charge or unauthorized access   | Canonical source, server validation, and snapshot                   |
-| Capacity      | Overselling or orphaned seats             | Transactional holds, idempotency, and reconciliation                |
-| Vouchers      | Wrong file reviewed or audit history lost | Immutable versions and explicit state                               |
-| Guest access  | Data or ticket exposure                   | Opaque, revocable, resource-authorized tokens                       |
-| Week Pass     | Inconsistent inventory between sessions   | Atomic reservation across all lines                                 |
-| QR issuance   | Duplicates or access before payment       | Idempotent issuance only after approval                             |
-| Cancellation  | Inconsistent policy application           | Versioned acceptance and centralized rules                          |
-| Email         | User cannot access status or ticket       | Link on confirmation, retries, and web recovery                     |
-| Audit history | Support actions without evidence          | Actor, reason, prior/new state, and timestamp for sensitive actions |
+| Area                | Risk if deferred                          | Required mitigation                                                 |
+| ------------------- | ----------------------------------------- | ------------------------------------------------------------------- |
+| Eligibility         | Incorrect charge or unauthorized access   | Canonical source, server validation, and snapshot                   |
+| Capacity            | Overselling or orphaned seats             | Transactional holds, idempotency, and reconciliation                |
+| Vouchers            | Wrong file reviewed or audit history lost | Immutable versions and explicit state                               |
+| Guest access        | Data or ticket exposure                   | Opaque, revocable, resource-authorized tokens                       |
+| Multi-item purchase | Inconsistent inventory between sessions   | Atomic reservation across all lines                                 |
+| QR issuance         | Duplicates or access before payment       | Idempotent issuance only after approval                             |
+| Cancellation        | Inconsistent policy application           | Versioned acceptance and centralized rules                          |
+| Email               | User cannot access status or ticket       | Link on confirmation, retries, and web recovery                     |
+| Audit history       | Support actions without evidence          | Actor, reason, prior/new state, and timestamp for sensitive actions |

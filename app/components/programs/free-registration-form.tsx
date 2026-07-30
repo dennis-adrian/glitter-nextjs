@@ -1,9 +1,8 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -77,8 +76,8 @@ export default function FreeRegistrationForm({
       name: "",
       email: "",
       phone: "",
-      gender: "undisclosed",
-      birthdate: DateTime.now().minus({ years: 18 }).toJSDate(),
+      gender: undefined,
+      birthdate: "",
     },
   });
 
@@ -137,7 +136,9 @@ export default function FreeRegistrationForm({
     }
   }
 
-  const onGuestSubmit = form.handleSubmit((values) => submit(values));
+  function onGuestSubmit(event: FormEvent<HTMLFormElement>) {
+    return form.handleSubmit((values) => submit(values))(event);
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -189,12 +190,16 @@ export default function FreeRegistrationForm({
                   formControl={form.control}
                   name="birthdate"
                   label="Fecha de nacimiento"
+                  placeholder="Selecciona tu fecha de nacimiento"
+                  required
                 />
                 <SelectInput
                   formControl={form.control}
                   label="Género"
                   name="gender"
                   options={genderOptions}
+                  placeholder="Selecciona una opción"
+                  required
                 />
               </div>
 
