@@ -143,7 +143,7 @@ export async function sendFreeRegistrationEmail(
   } catch (error) {
     console.error("Free registration email failed", {
       purchaseId: input.purchaseId,
-      error,
+      errorType: error instanceof Error ? error.name : typeof error,
     });
     return false;
   }

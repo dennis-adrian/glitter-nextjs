@@ -43,6 +43,15 @@ type Props = {
   occurrence: SessionOccurrence;
 };
 
+/** The reschedule form seeded from the occurrence as it stands right now. */
+function freshReschedule(occurrence: SessionOccurrence) {
+  return {
+    startsAt: toDateTimeLocal(occurrence.startsAt),
+    endsAt: toDateTimeLocal(occurrence.endsAt),
+    reason: "",
+  };
+}
+
 /**
  * Lifecycle actions for one occurrence. Cancelling and rescheduling both demand
  * a reason, because both are recorded and both are visible to ticket holders
@@ -54,11 +63,25 @@ export default function OccurrenceActionsMenu({ occurrence }: Props) {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
-  const [reschedule, setReschedule] = useState({
-    startsAt: toDateTimeLocal(occurrence.startsAt),
-    endsAt: toDateTimeLocal(occurrence.endsAt),
-    reason: "",
-  });
+  const [reschedule, setReschedule] = useState(() =>
+    freshReschedule(occurrence),
+  );
+
+  /**
+   * Both dialogs re-seed on open rather than trusting their initial state.
+   * `useState` runs once for the life of the component, so a discarded draft —
+   * or an occurrence whose schedule changed since mount — would otherwise
+   * reappear on the next open, and the admin would be editing stale values.
+   */
+  function openReschedule(open: boolean) {
+    if (open) setReschedule(freshReschedule(occurrence));
+    setRescheduleOpen(open);
+  }
+
+  function openCancel(open: boolean) {
+    if (open) setCancelReason("");
+    setCancelOpen(open);
+  }
 
   const isScheduled = occurrence.lifecycleStatus === "scheduled";
   const salesClosed = occurrence.salesClosedAt !== null;
@@ -101,7 +124,7 @@ export default function OccurrenceActionsMenu({ occurrence }: Props) {
         {salesClosed ? "Reabrir ventas" : "Cerrar ventas"}
       </Button>
 
-      <Dialog open={rescheduleOpen} onOpenChange={setRescheduleOpen}>
+      <Dialog open={rescheduleOpen} onOpenChange={openReschedule}>
         <DialogTrigger asChild>
           <Button variant="outline" size="sm" disabled={isPending}>
             Reprogramar
@@ -200,7 +223,7 @@ export default function OccurrenceActionsMenu({ occurrence }: Props) {
         Finalizar
       </Button>
 
-      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+      <Dialog open={cancelOpen} onOpenChange={openCancel}>
         <DialogTrigger asChild>
           <Button variant="destructive" size="sm" disabled={isPending}>
             Cancelar

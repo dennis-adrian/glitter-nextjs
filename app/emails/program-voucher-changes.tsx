@@ -60,7 +60,7 @@ export default function ProgramVoucherChangesEmailTemplate({
             {secureLinkUrl ? (
               <>
                 <Section style={{ textAlign: "center", margin: "16px 0" }}>
-                  <Button href={secureLinkUrl} style={primaryButton}>
+                  <Button href={secureLinkUrl} style={styles.primaryButton}>
                     Subir otro comprobante
                   </Button>
                 </Section>
@@ -87,18 +87,6 @@ export default function ProgramVoucherChangesEmailTemplate({
     </Html>
   );
 }
-
-/** Explicit colours: mail clients strip stylesheets. */
-const primaryButton = {
-  backgroundColor: "#7c3aed",
-  color: "#FFFFFF",
-  padding: "12px 24px",
-  borderRadius: "8px",
-  fontWeight: 600,
-  fontSize: "14px",
-  textDecoration: "none",
-  display: "inline-block",
-};
 
 const reasonBox = {
   border: "1px solid #dedede",

@@ -85,12 +85,14 @@ export default function ProgramRegistrationEmailTemplate({
               )}
             </Text>
 
-            <Section style={detailBox}>
-              <Text style={detailLine}>
+            <Section style={styles.detailBox}>
+              <Text style={styles.detailLine}>
                 <strong>{sessionTypeLabel}</strong> · {programName}
               </Text>
-              <Text style={detailLine}>{scheduleLabel}</Text>
-              {venueLabel ? <Text style={detailLine}>{venueLabel}</Text> : null}
+              <Text style={styles.detailLine}>{scheduleLabel}</Text>
+              {venueLabel ? (
+                <Text style={styles.detailLine}>{venueLabel}</Text>
+              ) : null}
             </Section>
 
             <Section style={{ marginTop: "16px", textAlign: "center" }}>
@@ -120,7 +122,7 @@ export default function ProgramRegistrationEmailTemplate({
             {secureLinkUrl ? (
               <>
                 <Section style={{ textAlign: "center", margin: "16px 0" }}>
-                  <Button href={secureLinkUrl} style={primaryButton}>
+                  <Button href={secureLinkUrl} style={styles.primaryButton}>
                     Ver mi entrada
                   </Button>
                 </Section>
@@ -162,34 +164,6 @@ export default function ProgramRegistrationEmailTemplate({
     </Html>
   );
 }
-
-/**
- * Explicit colours rather than theme tokens: mail clients strip stylesheets,
- * and the `only light` colour-scheme meta means this never needs a dark
- * variant.
- */
-const primaryButton = {
-  backgroundColor: "#7c3aed",
-  color: "#FFFFFF",
-  padding: "12px 24px",
-  borderRadius: "8px",
-  fontWeight: 600,
-  fontSize: "14px",
-  textDecoration: "none",
-  display: "inline-block",
-};
-
-const detailBox = {
-  border: "1px solid #dedede",
-  borderRadius: "8px",
-  padding: "12px 16px",
-  margin: "16px 0",
-};
-
-const detailLine = {
-  ...styles.text,
-  margin: "4px 0",
-};
 
 /** White backdrop so a dark-mode client cannot invert the code. */
 const qrWrapper = {

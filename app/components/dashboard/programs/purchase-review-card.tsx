@@ -17,6 +17,7 @@ import {
 import { Label } from "@/app/components/ui/label";
 import { Textarea } from "@/app/components/ui/textarea";
 import { formatDateWithTime } from "@/app/lib/formatters";
+import { formatMoney } from "@/app/lib/programs/pricing";
 import { reviewPurchase } from "@/app/lib/programs/review-actions";
 import {
   cancelPurchaseAsAdmin,
@@ -140,7 +141,7 @@ export default function PurchaseReviewCard({
             {status === "changes_requested" ? (
               <Badge variant="outline">Cambios solicitados</Badge>
             ) : null}
-            <Badge>Bs {totalAmount}</Badge>
+            <Badge>{formatMoney(totalAmount)}</Badge>
           </div>
         </div>
       </CardHeader>

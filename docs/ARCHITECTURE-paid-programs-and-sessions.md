@@ -836,10 +836,19 @@ occupied(occurrence) =
   + count(session_purchase_lines l join session_purchases p on l.purchaseId = p.id
           where l.occurrenceId = o
             and (   p.status in ('under_verification', 'changes_requested')
-                 or (p.status = 'pending_upload' and p.holdExpiresAt > now())))
+                 or (p.status = 'pending_upload' and p.holdExpiresAt > :now)))
 
 remaining(occurrence) = occurrence.capacity - occupied(occurrence)
 ```
+
+`:now` is **not** `now()`. The hold columns are `timestamp` without a zone and
+hold UTC wall-clock, while `now()` returns the session's zone — so comparing
+against it is correct only where the server happens to run at UTC. Raw SQL
+predicates bind the bound explicitly through `utcTimestamp(now)`
+([app/lib/sql-time.ts](../app/lib/sql-time.ts)), which emits
+`'…Z'::timestamp`. Use `CURRENT_TIMESTAMP AT TIME ZONE 'UTC'` where a literal
+is unavoidable. Drizzle's own column mapping already encodes a bare `Date`
+as UTC, so only hand-written SQL needs the wrapper.
 
 Consequences that satisfy the PRD's capacity invariants directly:
 
@@ -867,7 +876,7 @@ BEGIN
     assert remaining >= 1, or a live waitlist invitation covers this seat
     assert the buyer holds no valid ticket for this occurrence
 
-  INSERT session_purchases (…, idempotencyKey, holdExpiresAt = now() + holdMinutes)
+  INSERT session_purchases (…, idempotencyKey, holdExpiresAt = :now + holdMinutes)
   INSERT session_purchase_lines (one per occurrence)
   INSERT session_purchase_events (created)
 COMMIT
@@ -896,7 +905,7 @@ Two concurrent requests for a last seat serialize on the occurrence row lock; th
 | Checkout confirmation | `session_purchases.idempotencyKey` unique; a retried submit returns the existing purchase instead of holding a second set of seats                                                                                             |
 | Ticket issuance       | `session_tickets.purchaseLineId` unique + `ON CONFLICT DO NOTHING`                                                                                                                                                             |
 | Approval              | Guarded update `WHERE status IN ('under_verification','changes_requested')`; zero affected rows means the transition already happened, so no second email and no second issuance                                               |
-| Expiration            | Guarded update `WHERE status = 'pending_upload' AND holdExpiresAt <= now()`                                                                                                                                                    |
+| Expiration            | Guarded update `WHERE status = 'pending_upload' AND holdExpiresAt <= :now`                                                                                                                                                     |
 | Check-in              | `session_attendances.ticketId` unique                                                                                                                                                                                          |
 | Emails                | `sendEmail`'s existing `idempotencyKey` header, keyed `program-purchase-{purchaseId}-{template}-{discriminator}` where the discriminator is the voucher version for review mails and the approval timestamp for issuance mails |
 | Waitlist invitation   | Partial unique index on one `sent` invitation per entry                                                                                                                                                                        |

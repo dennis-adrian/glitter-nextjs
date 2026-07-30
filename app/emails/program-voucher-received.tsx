@@ -73,27 +73,27 @@ export default function ProgramVoucherReceivedEmailTemplate({
               .
             </Text>
 
-            <Section style={detailBox}>
+            <Section style={styles.detailBox}>
               {sessions.map((session, index) => (
                 <Section
                   key={`${session.title}-${session.scheduleLabel}`}
                   style={index === 0 ? undefined : sessionDivider}
                 >
                   {isCart ? (
-                    <Text style={{ ...detailLine, fontWeight: 700 }}>
+                    <Text style={{ ...styles.detailLine, fontWeight: 700 }}>
                       {session.title}
                     </Text>
                   ) : null}
-                  <Text style={detailLine}>
+                  <Text style={styles.detailLine}>
                     <strong>{session.typeLabel}</strong>
                   </Text>
-                  <Text style={detailLine}>{session.scheduleLabel}</Text>
+                  <Text style={styles.detailLine}>{session.scheduleLabel}</Text>
                   {isCart ? (
-                    <Text style={detailLine}>{session.priceLabel}</Text>
+                    <Text style={styles.detailLine}>{session.priceLabel}</Text>
                   ) : null}
                 </Section>
               ))}
-              <Text style={{ ...detailLine, ...totalRow }}>
+              <Text style={{ ...styles.detailLine, ...totalRow }}>
                 Total: {totalLabel}
               </Text>
             </Section>
@@ -109,7 +109,7 @@ export default function ProgramVoucherReceivedEmailTemplate({
             {secureLinkUrl ? (
               <>
                 <Section style={{ textAlign: "center", margin: "16px 0" }}>
-                  <Button href={secureLinkUrl} style={primaryButton}>
+                  <Button href={secureLinkUrl} style={styles.primaryButton}>
                     Ver el estado de mi inscripción
                   </Button>
                 </Section>
@@ -135,30 +135,6 @@ export default function ProgramVoucherReceivedEmailTemplate({
     </Html>
   );
 }
-
-/** Explicit colours: mail clients strip stylesheets. */
-const primaryButton = {
-  backgroundColor: "#7c3aed",
-  color: "#FFFFFF",
-  padding: "12px 24px",
-  borderRadius: "8px",
-  fontWeight: 600,
-  fontSize: "14px",
-  textDecoration: "none",
-  display: "inline-block",
-};
-
-const detailBox = {
-  border: "1px solid #dedede",
-  borderRadius: "8px",
-  padding: "12px 16px",
-  margin: "16px 0",
-};
-
-const detailLine = {
-  ...styles.text,
-  margin: "4px 0",
-};
 
 const sessionDivider = {
   borderTop: "1px solid #ededed",

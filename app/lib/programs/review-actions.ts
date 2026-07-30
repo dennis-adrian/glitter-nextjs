@@ -12,6 +12,10 @@ import {
   sendVoucherChangesEmail,
 } from "@/app/lib/programs/notifications";
 import {
+  isDuplicateAttendeeTicketError,
+  REGISTRATION_BLOCKER_LABELS,
+} from "@/app/lib/programs/registration";
+import {
   REVIEW_BLOCKER_LABELS,
   REVIEW_DECISION_STATUS,
   resolveReviewDecision,
@@ -313,6 +317,20 @@ export async function reviewPurchase(
       ticketsIssued: outcome.ticketsIssued,
     };
   } catch (error) {
+    /**
+     * Issuance can hit the partial unique index on
+     * `(occurrenceId, lower(attendeeEmail))` when the buyer already holds a
+     * valid ticket for the same occurrence through another purchase. That is a
+     * real, actionable state — not an outage — so it gets the same message the
+     * free path gives rather than "try again", which would never work.
+     */
+    if (isDuplicateAttendeeTicketError(error)) {
+      return {
+        success: false,
+        message: REGISTRATION_BLOCKER_LABELS.already_registered,
+      };
+    }
+
     console.error("Purchase review failed", {
       purchaseId: data.purchaseId,
       decision: data.decision,

@@ -71,7 +71,13 @@ export const fetchProgramSettings = cache(
  */
 const sessionWith = {
   venue: true as const,
-  occurrences: { orderBy: [asc(sessionOccurrences.startsAt)] },
+  occurrences: {
+    // Its own venue, not just the session's: an occurrence may be moved
+    // somewhere neither the session nor the program points at, and the page
+    // would otherwise show no location at all.
+    with: { venue: true as const },
+    orderBy: [asc(sessionOccurrences.startsAt)],
+  },
   sessionSpeakers: {
     with: { speaker: true as const },
     orderBy: [asc(sessionSpeakers.displayOrder)],

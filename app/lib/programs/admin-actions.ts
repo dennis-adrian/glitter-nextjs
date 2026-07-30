@@ -1,6 +1,6 @@
 "use server";
 
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -37,7 +37,14 @@ const programSchema = z.object({
     .refine(isAllowedProgramArtworkUrl)
     .nullish()
     .or(z.literal("")),
-  thumbnailUrl: z.string().trim().url().max(500).nullish().or(z.literal("")),
+  thumbnailUrl: z
+    .string()
+    .trim()
+    .url()
+    .max(500)
+    .refine(isAllowedProgramArtworkUrl)
+    .nullish()
+    .or(z.literal("")),
   startDate: z.coerce.date().nullish(),
   endDate: z.coerce.date().nullish(),
   festivalId: z.number().int().positive().nullish(),
@@ -57,7 +64,14 @@ const sessionSchema = z.object({
     .max(10)
     .optional(),
   skillLevel: z.enum(["beginner", "intermediate", "advanced"]).nullish(),
-  imageUrl: z.string().trim().url().max(500).nullish().or(z.literal("")),
+  imageUrl: z
+    .string()
+    .trim()
+    .url()
+    .max(500)
+    .refine(isAllowedProgramArtworkUrl)
+    .nullish()
+    .or(z.literal("")),
   audience: z.enum(["all", "participants_only", "public_only"]),
   publicPrice: z.number().min(0),
   participantPrice: z.number().min(0).nullish(),
@@ -517,19 +531,41 @@ export async function publishProgramWithSessions(programId: number) {
 
   const now = new Date();
 
-  await db.transaction(async (tx) => {
-    await tx
+  const published = await db.transaction(async (tx) => {
+    const [updated] = await tx
       .update(programs)
-      .set({ status: "published", publishedAt: now, updatedAt: now })
-      .where(eq(programs.id, programId));
+      .set({
+        status: "published",
+        // Only on first publication. Overwriting it on every republish would
+        // move the program's public URL, because `updateProgram` keeps the slug
+        // frozen precisely once `publishedAt` is set.
+        publishedAt: sql`coalesce(${programs.publishedAt}, ${now})`,
+        updatedAt: now,
+      })
+      .where(eq(programs.id, programId))
+      .returning({ id: programs.id });
+
+    // No row means no program. Reporting success with zero sessions would tell
+    // the admin the publish worked.
+    if (!updated) return false;
 
     for (const sessionId of publishable) {
       await tx
         .update(programSessions)
-        .set({ status: "published", publishedAt: now, updatedAt: now })
+        .set({
+          status: "published",
+          publishedAt: sql`coalesce(${programSessions.publishedAt}, ${now})`,
+          updatedAt: now,
+        })
         .where(eq(programSessions.id, sessionId));
     }
+
+    return true;
   });
+
+  if (!published) {
+    return { success: false, message: "Programa no encontrado" } as const;
+  }
 
   revalidatePrograms();
 

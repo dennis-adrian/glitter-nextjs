@@ -253,8 +253,8 @@ function PolicyCheckbox({
         className="mt-0.5"
       />
       <span className="text-sm font-normal">
-        Entiendo que puedo cancelar hasta dos días antes de la sesión y que, si
-        no podré asistir, debo liberar mi cupo.
+        Entiendo que puedo cancelar mi inscripción hasta dos días antes de la
+        sesión. Si no puedo asistir, debo liberar el cupo que reservé.
       </span>
     </Label>
   );

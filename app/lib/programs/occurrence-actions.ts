@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { fetchProgramSettings } from "@/app/lib/programs/data";
+import { fetchOccurrenceAvailability } from "@/app/lib/programs/inventory-queries";
 import { OCCURRENCE_REASON_MAX } from "@/app/lib/programs/definitions";
 import {
   canCancelOccurrence,
@@ -16,6 +17,7 @@ import { db } from "@/db";
 import {
   sessionOccurrenceScheduleChanges,
   sessionOccurrences,
+  sessionPurchaseLines,
 } from "@/db/schema";
 
 /** Cancellation takes its reason as a bare argument, so it validates it alone. */
@@ -128,9 +130,8 @@ export async function createOccurrence(input: OccurrenceInput) {
  * Full in-place edit of a scheduled occurrence, including its times. This is
  * for correcting data that nobody has acted on yet.
  *
- * Once purchases exist (Phase 3), changing `startsAt`/`endsAt` here must be
- * refused when the occurrence has sold seats and routed through
- * `rescheduleOccurrence` instead — that path demands a reason, writes an
+ * Changing `startsAt`/`endsAt` is refused once the occurrence has sold seats:
+ * that goes through `rescheduleOccurrence`, which demands a reason, writes an
  * immutable history row, and gives ticket holders the right to request a
  * refund. Everything else on this form stays editable either way.
  */
@@ -153,7 +154,12 @@ export async function updateOccurrence(
 
   const existing = await db.query.sessionOccurrences.findFirst({
     where: eq(sessionOccurrences.id, occurrenceId),
-    columns: { lifecycleStatus: true, sessionId: true },
+    columns: {
+      lifecycleStatus: true,
+      sessionId: true,
+      startsAt: true,
+      endsAt: true,
+    },
   });
 
   if (!existing) {
@@ -172,6 +178,29 @@ export async function updateOccurrence(
       success: false,
       message: "Un horario cancelado o finalizado no se puede editar",
     } as const;
+  }
+
+  /**
+   * Anyone holding or having bought a seat was told a time. Moving it silently
+   * from this form would leave them with a ticket for a session that no longer
+   * happens then, and no record of the change — `rescheduleOccurrence` exists
+   * to do it properly. Only a genuine time change is blocked; every other field
+   * stays editable.
+   */
+  const movesSchedule =
+    data.startsAt.getTime() !== existing.startsAt.getTime() ||
+    data.endsAt.getTime() !== existing.endsAt.getTime();
+
+  if (movesSchedule) {
+    const availability = await fetchOccurrenceAvailability(db, occurrenceId);
+
+    if (availability.occupied > 0) {
+      return {
+        success: false,
+        message:
+          "Este horario ya tiene inscripciones. Usa Reprogramar para cambiar la fecha.",
+      } as const;
+    }
   }
 
   await db
@@ -408,6 +437,26 @@ export async function deleteOccurrence(occurrenceId: number) {
     return {
       success: false,
       message: "Un horario cancelado o finalizado no se puede eliminar",
+    } as const;
+  }
+
+  /**
+   * The composite foreign key on `session_purchase_lines` is `ON DELETE
+   * RESTRICT`, so the database already refuses this — but as an opaque driver
+   * error. Checking here turns it into an instruction: a sold occurrence is
+   * cancelled, not deleted, so its history and its buyers survive.
+   */
+  const [sold] = await db
+    .select({ id: sessionPurchaseLines.id })
+    .from(sessionPurchaseLines)
+    .where(eq(sessionPurchaseLines.occurrenceId, occurrenceId))
+    .limit(1);
+
+  if (sold) {
+    return {
+      success: false,
+      message:
+        "Este horario ya tiene inscripciones. Usa Cancelar en lugar de eliminar.",
     } as const;
   }
 

@@ -36,7 +36,7 @@ On top of that, a flag can name **individual users** who see the feature regardl
 visibility — testers, a closed beta, one participant reporting a bug. Following ConfigCat's
 evaluation order, targeting is checked _before_ the visibility fallback:
 
-```
+```text
 isFeatureVisible(rule, viewer):
   1. viewer is in rule.targetedUserIds  → visible
   2. otherwise fall back to visibility  → hidden / admin_only / public
@@ -61,7 +61,7 @@ deliberately.
 
 ## 3. Files
 
-```
+```text
 app/lib/feature_flags/
   registry.ts               # the catalogue: label, description, defaultVisibility
   definitions.ts            # types and Spanish labels for the admin UI

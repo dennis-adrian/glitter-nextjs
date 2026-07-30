@@ -447,7 +447,7 @@ export async function startPaidCheckout(
     // Never log the raw error: it can carry driver details and the buyer's
     // own data. The message is generic for the same reason.
     console.error("Paid checkout failed", {
-      occurrenceId: data.occurrenceId,
+      occurrenceIds: data.occurrenceIds,
       errorType: error instanceof Error ? error.name : typeof error,
     });
     return {

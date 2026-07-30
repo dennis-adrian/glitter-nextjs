@@ -69,7 +69,7 @@ export default function OccurrenceScheduleList({
         const venueId = occurrence.venueId ?? fallbackVenueId;
         const venue = venueId === null ? null : venuesById.get(venueId);
         const availability = availabilityByOccurrence.get(occurrence.id);
-        const remaining = availability?.remaining ?? occurrence.capacity;
+        const remaining = availability?.remaining;
 
         const scheduleLabel = `${formatDate(occurrence.startsAt).toLocaleString(
           DateTime.DATETIME_MED,
@@ -79,6 +79,7 @@ export default function OccurrenceScheduleList({
 
         const canRegister =
           resolved.isPurchasable &&
+          remaining !== undefined &&
           remaining > 0 &&
           (freeRegistration !== null || paidRegistration !== null);
 
@@ -114,12 +115,14 @@ export default function OccurrenceScheduleList({
                   {occurrence.room ? ` · ${occurrence.room}` : ""}
                 </p>
               ) : null}
-              <p className="flex items-center gap-2 text-sm font-medium text-[#70566f]">
-                <UsersIcon className="size-4 shrink-0 text-[#9347f5]" />
-                {remaining > 0
-                  ? `${remaining} de ${occurrence.capacity} cupos disponibles`
-                  : "Sin cupos disponibles"}
-              </p>
+              {remaining !== undefined ? (
+                <p className="flex items-center gap-2 text-sm font-medium text-[#70566f]">
+                  <UsersIcon className="size-4 shrink-0 text-[#9347f5]" />
+                  {remaining > 0
+                    ? `${remaining} de ${occurrence.capacity} cupos disponibles`
+                    : "Sin cupos disponibles"}
+                </p>
+              ) : null}
             </div>
 
             <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">

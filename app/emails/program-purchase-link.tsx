@@ -46,7 +46,7 @@ export default function ProgramPurchaseLinkEmailTemplate({
             </Text>
 
             <Section style={{ textAlign: "center", margin: "16px 0" }}>
-              <Button href={secureLinkUrl} style={primaryButton}>
+              <Button href={secureLinkUrl} style={styles.primaryButton}>
                 Ver mi inscripción
               </Button>
             </Section>
@@ -76,15 +76,3 @@ export default function ProgramPurchaseLinkEmailTemplate({
     </Html>
   );
 }
-
-/** Explicit colours: mail clients strip stylesheets. */
-const primaryButton = {
-  backgroundColor: "#7c3aed",
-  color: "#FFFFFF",
-  padding: "12px 24px",
-  borderRadius: "8px",
-  fontWeight: 600,
-  fontSize: "14px",
-  textDecoration: "none",
-  display: "inline-block",
-};

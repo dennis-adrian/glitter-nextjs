@@ -5,6 +5,7 @@ import { UploadThingError } from "uploadthing/server";
 import { z } from "zod";
 
 import { fetchUserProfile } from "@/app/api/users/actions";
+import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { resolvePurchaseAccess } from "@/app/lib/programs/access";
 import { hashAccessToken } from "@/app/lib/programs/tokens";
 import {
@@ -140,10 +141,11 @@ export const ourFileRouter = {
   /**
    * A payment proof for a program session purchase.
    *
-   * Authorized exactly like the purchase page — owner *or* secure token, never
-   * "is signed in" — and refused outright if the purchase is not in a state
-   * that accepts a voucher, so an expired hold cannot even spend upload quota.
-   * `submitPurchaseVoucher` re-checks both before it writes anything.
+   * Gated on `paid_programs` first, then authorized exactly like the purchase
+   * page — owner *or* secure token, never "is signed in" — and refused outright
+   * if the purchase is not in a state that accepts a voucher, so a disabled
+   * feature or an expired hold cannot even spend upload quota.
+   * `submitPurchaseVoucher` re-checks all of it before it writes anything.
    */
   sessionPurchaseVoucher: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
     .input(
@@ -153,6 +155,12 @@ export const ourFileRouter = {
       }),
     )
     .middleware(async ({ input }) => {
+      // Before any lookup: a disabled feature should not accept bytes, and
+      // should not confirm whether a purchase id exists either.
+      if (!(await isFeatureEnabled("paid_programs"))) {
+        throw new UploadThingError("Compra no encontrada");
+      }
+
       const purchase = await db.query.sessionPurchases.findFirst({
         where: eq(sessionPurchases.id, input.purchaseId),
       });

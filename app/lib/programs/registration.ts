@@ -143,3 +143,29 @@ export function resolveAttendeeIdentity(
 
   return null;
 }
+
+/**
+ * Whether a database error is the partial unique index on
+ * `(occurrenceId, lower(attendeeEmail))` — "one person, one seat per
+ * occurrence" firing across purchases.
+ *
+ * Both the free-registration insert and the approval issuance can hit it, so
+ * the detector lives here rather than in either action. Walks the `cause`
+ * chain because drizzle wraps the driver error.
+ */
+export function isDuplicateAttendeeTicketError(error: unknown): boolean {
+  let current: unknown = error;
+  while (current && typeof current === "object") {
+    const code = Reflect.get(current, "code");
+    const constraint = Reflect.get(current, "constraint");
+    if (
+      code === "23505" &&
+      typeof constraint === "string" &&
+      constraint.includes("session_tickets_occurrence_attendee")
+    ) {
+      return true;
+    }
+    current = Reflect.get(current, "cause");
+  }
+  return false;
+}

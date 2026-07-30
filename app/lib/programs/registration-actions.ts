@@ -19,6 +19,7 @@ import {
   resolvePrice,
 } from "@/app/lib/programs/pricing";
 import {
+  isDuplicateAttendeeTicketError,
   REGISTRATION_BLOCKER_LABELS,
   resolveAttendeeIdentity,
   resolveRegistrationCheck,
@@ -73,23 +74,6 @@ export type FreeRegistrationResult =
       ticketCode: string;
     }
   | { success: false; message: string };
-
-function isDuplicateAttendeeTicketError(error: unknown): boolean {
-  let current: unknown = error;
-  while (current && typeof current === "object") {
-    const code = Reflect.get(current, "code");
-    const constraint = Reflect.get(current, "constraint");
-    if (
-      code === "23505" &&
-      typeof constraint === "string" &&
-      constraint.includes("session_tickets_occurrence_attendee")
-    ) {
-      return true;
-    }
-    current = Reflect.get(current, "cause");
-  }
-  return false;
-}
 
 /**
  * Registers one attendee for one free occurrence.

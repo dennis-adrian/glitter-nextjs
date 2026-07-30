@@ -91,8 +91,13 @@ export type SessionSpeakerWithSpeaker = SessionSpeaker & {
   speaker: Speaker;
 };
 
+/** An occurrence with its own venue loaded, which may differ from the session's. */
+export type SessionOccurrenceWithVenue = SessionOccurrence & {
+  venue: Venue | null;
+};
+
 export type SessionWithOccurrences = ProgramSession & {
-  occurrences: SessionOccurrence[];
+  occurrences: SessionOccurrenceWithVenue[];
   sessionSpeakers: SessionSpeakerWithSpeaker[];
   venue: Venue | null;
 };

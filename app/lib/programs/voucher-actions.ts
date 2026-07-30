@@ -51,21 +51,37 @@ export type SubmitVoucherResult =
   | { success: false; message: string };
 
 /**
- * A signed-in buyer's address lives on their profile — the identity CHECK
- * keeps the guest columns null for them.
+ * A signed-in buyer's name and address live on their profile — the identity
+ * CHECK keeps the guest columns null for them, so greeting them from
+ * `guestName` would fall through to their raw email address.
  */
-async function resolveBuyerEmail(purchase: {
+async function resolveBuyerContact(purchase: {
   userId: number | null;
-}): Promise<string | null> {
+}): Promise<{ name: string; email: string } | null> {
   if (purchase.userId === null) return null;
 
   const [buyer] = await db
-    .select({ email: users.email })
+    .select({
+      email: users.email,
+      displayName: users.displayName,
+      firstName: users.firstName,
+      lastName: users.lastName,
+    })
     .from(users)
     .where(eq(users.id, purchase.userId))
     .limit(1);
 
-  return buyer?.email ?? null;
+  if (!buyer) return null;
+
+  const fullName = [buyer.firstName, buyer.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return {
+    name: buyer.displayName?.trim() || fullName || buyer.email,
+    email: buyer.email,
+  };
 }
 
 /**
@@ -222,14 +238,15 @@ export async function submitPurchaseVoucher(
      * lookup, which queries the database.
      */
     try {
-      const buyerEmail =
-        outcome.purchase.guestEmail ??
-        (await resolveBuyerEmail(outcome.purchase));
+      const signedInBuyer = await resolveBuyerContact(outcome.purchase);
+      const buyerEmail = outcome.purchase.guestEmail ?? signedInBuyer?.email;
+      const buyerName =
+        outcome.purchase.guestName ?? signedInBuyer?.name ?? buyerEmail;
 
-      if (buyerEmail && outcome.lines.length > 0) {
+      if (buyerEmail && buyerName && outcome.lines.length > 0) {
         await sendVoucherReceivedEmail({
           purchaseId: outcome.purchase.id,
-          buyerName: outcome.purchase.guestName ?? buyerEmail,
+          buyerName,
           buyerEmail,
           lines: outcome.lines,
           totalAmount: outcome.purchase.totalAmount,
