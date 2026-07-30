@@ -54,12 +54,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   if (!session) return { title: "Sesión" };
 
+  // Every candidate is host-checked, including the banner: the schema validates
+  // new records, but rows predating it can still hold an arbitrary URL, and an
+  // OG image is emitted to third parties.
   const socialImage =
     session.sessionSpeakers.find((entry) =>
       isAllowedProgramArtworkUrl(entry.speaker.imageUrl),
     )?.speaker.imageUrl ??
-    session.program.bannerUrl ??
-    DEFAULT_PROGRAM_ARTWORK;
+    (isAllowedProgramArtworkUrl(session.program.bannerUrl)
+      ? session.program.bannerUrl
+      : DEFAULT_PROGRAM_ARTWORK);
 
   return {
     title: session.title,
