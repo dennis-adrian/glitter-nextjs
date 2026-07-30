@@ -25,7 +25,14 @@ export type ProgramRegistrationEmailProps = {
   scheduleLabel: string;
   venueLabel: string | null;
   ticketCode: string;
-  secureLinkUrl: string;
+  /**
+   * Absent when the sender has no raw token to build one with — an admin
+   * approving a payment only ever sees the stored hash. The QR is attached
+   * either way, so the email still stands on its own.
+   */
+  secureLinkUrl?: string | null;
+  /** Switches the opening line to "we approved your payment". */
+  paymentApproved?: boolean;
 };
 
 /**
@@ -47,6 +54,7 @@ export default function ProgramRegistrationEmailTemplate({
   venueLabel,
   ticketCode,
   secureLinkUrl,
+  paymentApproved = false,
 }: ProgramRegistrationEmailProps) {
   return (
     <Html>
@@ -55,15 +63,26 @@ export default function ProgramRegistrationEmailTemplate({
         <meta name="supported-color-schemes" content="only light" />
       </Head>
       <Preview>
-        Tu inscripción quedó confirmada. Muestra el QR al entrar.
+        {paymentApproved
+          ? "Aprobamos tu pago. Muestra el QR al entrar."
+          : "Tu inscripción quedó confirmada. Muestra el QR al entrar."}
       </Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
           <EmailHeader />
           <Section style={styles.sectionWithBanner}>
             <Text style={styles.text}>
-              {attendeeName}, tu inscripción a <strong>{sessionTitle}</strong>{" "}
-              quedó confirmada.
+              {paymentApproved ? (
+                <>
+                  {attendeeName}, aprobamos tu pago y tu lugar en{" "}
+                  <strong>{sessionTitle}</strong> quedó confirmado.
+                </>
+              ) : (
+                <>
+                  {attendeeName}, tu inscripción a{" "}
+                  <strong>{sessionTitle}</strong> quedó confirmada.
+                </>
+              )}
             </Text>
 
             <Section style={detailBox}>
@@ -92,35 +111,50 @@ export default function ProgramRegistrationEmailTemplate({
             </Section>
 
             <Text style={styles.text}>
-              Muestra este código al llegar. Si no puedes verlo desde el correo,
-              abre tu entrada aquí:
+              Muestra este código al llegar.
+              {secureLinkUrl
+                ? " Si no puedes verlo desde el correo, abre tu entrada aquí:"
+                : ""}
             </Text>
 
-            <Section style={{ textAlign: "center", margin: "16px 0" }}>
-              <Button href={secureLinkUrl} style={primaryButton}>
-                Ver mi entrada
-              </Button>
-            </Section>
+            {secureLinkUrl ? (
+              <>
+                <Section style={{ textAlign: "center", margin: "16px 0" }}>
+                  <Button href={secureLinkUrl} style={primaryButton}>
+                    Ver mi entrada
+                  </Button>
+                </Section>
 
-            <Text style={{ ...styles.text, fontSize: "12px" }}>
-              ¿No funciona el botón? Copia y pega este enlace:
-            </Text>
-            <Text
-              style={{
-                ...styles.text,
-                fontSize: "12px",
-                wordBreak: "break-all",
-              }}
-            >
-              <Link href={secureLinkUrl}>{secureLinkUrl}</Link>
-            </Text>
+                <Text style={{ ...styles.text, fontSize: "12px" }}>
+                  ¿No funciona el botón? Copia y pega este enlace:
+                </Text>
+                <Text
+                  style={{
+                    ...styles.text,
+                    fontSize: "12px",
+                    wordBreak: "break-all",
+                  }}
+                >
+                  <Link href={secureLinkUrl}>{secureLinkUrl}</Link>
+                </Text>
 
-            <Hr style={{ margin: "16px 0" }} />
-            <Text style={{ ...styles.text, fontSize: "12px" }}>
-              Guarda este enlace: es la única forma de recuperar tu entrada si
-              pierdes este correo. <strong>No lo compartas</strong> — cualquier
-              persona que lo tenga puede ver y usar tu entrada.
-            </Text>
+                <Hr style={{ margin: "16px 0" }} />
+                <Text style={{ ...styles.text, fontSize: "12px" }}>
+                  Guarda este enlace: es la única forma de recuperar tu entrada
+                  si pierdes este correo. <strong>No lo compartas</strong> —
+                  cualquier persona que lo tenga puede ver y usar tu entrada.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Hr style={{ margin: "16px 0" }} />
+                <Text style={{ ...styles.text, fontSize: "12px" }}>
+                  Guarda este correo: el QR de arriba es tu entrada. También
+                  puedes abrirla desde el enlace que te enviamos cuando
+                  reservaste tu cupo.
+                </Text>
+              </>
+            )}
           </Section>
           <EmailFooter />
         </Container>

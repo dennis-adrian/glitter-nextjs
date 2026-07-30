@@ -5,6 +5,12 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
+import type { SessionType } from "@/app/lib/programs/definitions";
+import {
+  buildBuyerLandingUrl,
+  sendPaymentApprovedEmail,
+  sendVoucherChangesEmail,
+} from "@/app/lib/programs/notifications";
 import {
   REVIEW_BLOCKER_LABELS,
   REVIEW_DECISION_STATUS,
@@ -15,12 +21,16 @@ import { generateTicketCode } from "@/app/lib/programs/tokens";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
+  programSessions,
+  programs,
+  sessionOccurrences,
   sessionPurchaseEvents,
   sessionPurchaseLines,
   sessionPurchaseVouchers,
   sessionPurchases,
   sessionTickets,
   users,
+  venues,
 } from "@/db/schema";
 
 const reviewSchema = z.object({
@@ -63,8 +73,8 @@ const DECISION_MESSAGE: Record<ReviewDecision, string> = {
  * approving twice — a double click, a retried request — cannot mint a second
  * ticket for the same seat.
  *
- * Emails are **not** sent here yet; that arrives with the notification work.
- * An approved purchase is already readable from the buyer's secure link.
+ * The buyer is notified after the commit, and a mail failure cannot undo the
+ * decision. Rejection deliberately sends nothing — see `notifyBuyer`.
  */
 export async function reviewPurchase(
   input: ReviewPurchaseInput,
@@ -232,7 +242,42 @@ export async function reviewPurchase(
         changes: { ticketsIssued },
       });
 
-      return { kind: "done" as const, ticketsIssued };
+      // Gathered inside the transaction so the notification describes exactly
+      // the state that was committed.
+      const notify = await tx
+        .select({
+          sessionTitle: sessionPurchaseLines.sessionTitleSnapshot,
+          startsAt: sessionPurchaseLines.occurrenceStartsAtSnapshot,
+          sessionType: programSessions.type,
+          endsAt: sessionOccurrences.endsAt,
+          room: sessionOccurrences.room,
+          venueName: venues.name,
+          programName: programs.name,
+          ticketCode: sessionTickets.code,
+        })
+        .from(sessionPurchaseLines)
+        .innerJoin(
+          programSessions,
+          eq(programSessions.id, sessionPurchaseLines.sessionId),
+        )
+        .innerJoin(
+          sessionOccurrences,
+          eq(sessionOccurrences.id, sessionPurchaseLines.occurrenceId),
+        )
+        .innerJoin(programs, eq(programs.id, purchase.programId))
+        .leftJoin(venues, eq(venues.id, sessionOccurrences.venueId))
+        .leftJoin(
+          sessionTickets,
+          eq(sessionTickets.purchaseLineId, sessionPurchaseLines.id),
+        )
+        .where(eq(sessionPurchaseLines.purchaseId, purchase.id));
+
+      return {
+        kind: "done" as const,
+        ticketsIssued,
+        purchase,
+        notify,
+      };
     });
 
     if (outcome.kind === "error") {
@@ -241,6 +286,26 @@ export async function reviewPurchase(
 
     revalidatePath("/dashboard/programs", "layout");
     revalidatePath(`/programs/purchases/${data.purchaseId}`);
+
+    /**
+     * Isolated from the outer catch on purpose. The transaction has already
+     * committed: the decision is recorded and any tickets are issued. If this
+     * threw into the handler below, the admin would be told their decision
+     * failed and would retry — and the retry would report the purchase as
+     * already resolved, leaving them unsure whether the buyer was served.
+     *
+     * The individual senders already swallow their own failures; this guards
+     * the buyer lookup, which queries the database and can fail on its own.
+     */
+    try {
+      await notifyBuyer(data.decision, data.reason, outcome);
+    } catch (error) {
+      console.error("Purchase review notification failed", {
+        purchaseId: data.purchaseId,
+        decision: data.decision,
+        errorType: error instanceof Error ? error.name : typeof error,
+      });
+    }
 
     return {
       success: true,
@@ -258,4 +323,120 @@ export async function reviewPurchase(
       message: "No pudimos registrar tu decisión. Intenta de nuevo.",
     };
   }
+}
+
+type NotifyRow = {
+  sessionTitle: string;
+  startsAt: Date;
+  sessionType: SessionType;
+  endsAt: Date;
+  room: string | null;
+  venueName: string | null;
+  programName: string;
+  ticketCode: string | null;
+};
+
+/**
+ * Tells the buyer what was decided.
+ *
+ * Rejection sends nothing: the copy for "we did not accept your payment" needs
+ * a refund and support story that Phase 5 owns, and a bare rejection email
+ * would raise more questions than it answers. The admin sees the seat released
+ * either way.
+ *
+ * No link can carry a token here — an admin only ever sees the stored digest —
+ * so `buildBuyerLandingUrl` degrades to the profile area for a signed-in buyer
+ * and to nothing for a guest, whose email copy points them at their own
+ * reservation link instead.
+ */
+async function notifyBuyer(
+  decision: ReviewDecision,
+  reason: string,
+  outcome: {
+    purchase: {
+      id: number;
+      userId: number | null;
+      guestName: string | null;
+      guestEmail: string | null;
+    };
+    notify: NotifyRow[];
+  },
+): Promise<void> {
+  if (decision === "reject") return;
+
+  const [buyerName, buyerEmail] = await resolveBuyerContact(outcome.purchase);
+  if (!buyerEmail) return;
+
+  const landingUrl = buildBuyerLandingUrl({
+    purchaseId: outcome.purchase.id,
+    isSignedInBuyer: outcome.purchase.userId !== null,
+  });
+
+  if (decision === "request_changes") {
+    const first = outcome.notify[0];
+    if (!first) return;
+
+    await sendVoucherChangesEmail({
+      purchaseId: outcome.purchase.id,
+      buyerName,
+      buyerEmail,
+      sessionTitle: first.sessionTitle,
+      reason,
+      landingUrl,
+      requestedAt: new Date(),
+    });
+    return;
+  }
+
+  // One email per issued ticket, which is one today and stays correct when the
+  // multi-session cart lands in Phase 4.
+  for (const row of outcome.notify) {
+    if (!row.ticketCode) continue;
+
+    await sendPaymentApprovedEmail({
+      purchaseId: outcome.purchase.id,
+      attendeeName: buyerName,
+      attendeeEmail: buyerEmail,
+      programName: row.programName,
+      sessionTitle: row.sessionTitle,
+      sessionType: row.sessionType,
+      startsAt: row.startsAt,
+      endsAt: row.endsAt,
+      venueName: row.venueName,
+      room: row.room,
+      ticketCode: row.ticketCode,
+      landingUrl,
+    });
+  }
+}
+
+/** Guest details live on the purchase; a signed-in buyer's on their profile. */
+async function resolveBuyerContact(purchase: {
+  userId: number | null;
+  guestName: string | null;
+  guestEmail: string | null;
+}): Promise<[string, string | null]> {
+  if (purchase.userId === null) {
+    return [purchase.guestName ?? "", purchase.guestEmail];
+  }
+
+  const [buyer] = await db
+    .select({
+      email: users.email,
+      displayName: users.displayName,
+      firstName: users.firstName,
+      lastName: users.lastName,
+    })
+    .from(users)
+    .where(eq(users.id, purchase.userId))
+    .limit(1);
+
+  if (!buyer) return ["", null];
+
+  const fullName = [buyer.firstName, buyer.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return [buyer.displayName?.trim() || fullName || buyer.email, buyer.email];
 }

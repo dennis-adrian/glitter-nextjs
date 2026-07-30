@@ -174,4 +174,19 @@ describe("isAuthorizedVoucherUrl", () => {
       isAuthorizedVoucherUrl(`https://utfs.io/f/${KEY}/evil.png`, KEY),
     ).toBe(false);
   });
+
+  it("rejects a non-canonical route even when the key is last", () => {
+    // `/f/<key>` is the only shape UploadThing serves; anything else means an
+    // attacker chose the path.
+    expect(isAuthorizedVoucherUrl(`https://utfs.io/anything/${KEY}`, KEY)).toBe(
+      false,
+    );
+    expect(isAuthorizedVoucherUrl(`https://utfs.io/a/app123/${KEY}`, KEY)).toBe(
+      false,
+    );
+  });
+
+  it("rejects a bare key with no route segment", () => {
+    expect(isAuthorizedVoucherUrl(`https://utfs.io/${KEY}`, KEY)).toBe(false);
+  });
 });

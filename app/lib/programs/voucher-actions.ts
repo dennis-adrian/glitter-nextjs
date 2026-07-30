@@ -6,6 +6,10 @@ import { z } from "zod";
 
 import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
 import { resolvePurchaseAccess } from "@/app/lib/programs/access";
+import {
+  buildBuyerLandingUrl,
+  sendVoucherReceivedEmail,
+} from "@/app/lib/programs/notifications";
 import { hashAccessToken } from "@/app/lib/programs/tokens";
 import {
   isAuthorizedVoucherUrl,
@@ -15,9 +19,13 @@ import {
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
+  programSessions,
+  sessionOccurrences,
   sessionPurchaseEvents,
+  sessionPurchaseLines,
   sessionPurchaseVouchers,
   sessionPurchases,
+  users,
 } from "@/db/schema";
 
 const submitSchema = z
@@ -41,6 +49,24 @@ export type SubmitVoucherInput = z.input<typeof submitSchema>;
 export type SubmitVoucherResult =
   | { success: true; message: string; version: number }
   | { success: false; message: string };
+
+/**
+ * A signed-in buyer's address lives on their profile — the identity CHECK
+ * keeps the guest columns null for them.
+ */
+async function resolveBuyerEmail(purchase: {
+  userId: number | null;
+}): Promise<string | null> {
+  if (purchase.userId === null) return null;
+
+  const [buyer] = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(eq(users.id, purchase.userId))
+    .limit(1);
+
+  return buyer?.email ?? null;
+}
 
 /**
  * Records an uploaded payment proof and moves the purchase into review.
@@ -137,7 +163,28 @@ export async function submitPurchaseVoucher(
         changes: { version },
       });
 
-      return { kind: "recorded" as const, version };
+      // Title comes from the snapshot (it survives later edits); type and end
+      // time are only on the live rows, so they are joined.
+      const [line] = await tx
+        .select({
+          sessionTitle: sessionPurchaseLines.sessionTitleSnapshot,
+          startsAt: sessionPurchaseLines.occurrenceStartsAtSnapshot,
+          sessionType: programSessions.type,
+          endsAt: sessionOccurrences.endsAt,
+        })
+        .from(sessionPurchaseLines)
+        .innerJoin(
+          programSessions,
+          eq(programSessions.id, sessionPurchaseLines.sessionId),
+        )
+        .innerJoin(
+          sessionOccurrences,
+          eq(sessionOccurrences.id, sessionPurchaseLines.occurrenceId),
+        )
+        .where(eq(sessionPurchaseLines.purchaseId, purchase.id))
+        .limit(1);
+
+      return { kind: "recorded" as const, version, purchase, line };
     });
 
     if (outcome.kind === "denied") {
@@ -149,6 +196,36 @@ export async function submitPurchaseVoucher(
 
     revalidatePath(`/programs/purchases/${data.purchaseId}`);
     revalidatePath("/dashboard/programs", "layout");
+
+    /**
+     * After the commit, and unable to fail the request. The voucher is
+     * recorded and the seat held; a mail outage must not read as a rejected
+     * upload. The buyer also just watched the page confirm it.
+     */
+    const buyerEmail =
+      outcome.purchase.guestEmail ??
+      (await resolveBuyerEmail(outcome.purchase));
+
+    if (buyerEmail && outcome.line) {
+      await sendVoucherReceivedEmail({
+        purchaseId: outcome.purchase.id,
+        buyerName: outcome.purchase.guestName ?? buyerEmail,
+        buyerEmail,
+        sessionTitle: outcome.line.sessionTitle,
+        sessionType: outcome.line.sessionType,
+        startsAt: outcome.line.startsAt,
+        endsAt: outcome.line.endsAt,
+        totalAmount: outcome.purchase.totalAmount,
+        version: outcome.version,
+        landingUrl: buildBuyerLandingUrl({
+          purchaseId: outcome.purchase.id,
+          // The buyer just presented it, so unlike an admin action this one
+          // can offer the real secure link.
+          accessToken: data.token ?? null,
+          isSignedInBuyer: outcome.purchase.userId !== null,
+        }),
+      });
+    }
 
     return {
       success: true,

@@ -8,6 +8,7 @@ import {
   ensureUniqueProgramSlug,
   ensureUniqueSessionSlug,
 } from "@/app/lib/programs/slug";
+import { isAllowedProgramArtworkUrl } from "@/app/lib/programs/artwork";
 import {
   SESSION_PUBLISH_BLOCKER_LABELS,
   resolveSessionPublishability,
@@ -28,7 +29,14 @@ const programSchema = z.object({
   name: z.string().trim().min(1).max(TITLE_MAX),
   summary: z.string().trim().max(TEXT_MAX).nullish(),
   description: z.string().trim().max(TEXT_MAX).nullish(),
-  bannerUrl: z.string().trim().url().max(500).nullish().or(z.literal("")),
+  bannerUrl: z
+    .string()
+    .trim()
+    .url()
+    .max(500)
+    .refine(isAllowedProgramArtworkUrl)
+    .nullish()
+    .or(z.literal("")),
   thumbnailUrl: z.string().trim().url().max(500).nullish().or(z.literal("")),
   startDate: z.coerce.date().nullish(),
   endDate: z.coerce.date().nullish(),

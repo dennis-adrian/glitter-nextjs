@@ -228,16 +228,13 @@ export default function SessionForm({
           />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <TextInput label="Imagen (URL)" name="imageUrl" />
-          <TextInput
-            label="Orden"
-            name="displayOrder"
-            type="number"
-            min="0"
-            step="1"
-          />
-        </div>
+        <TextInput
+          label="Orden"
+          name="displayOrder"
+          type="number"
+          min="0"
+          step="1"
+        />
 
         <SubmitButton
           disabled={form.formState.isSubmitting}

@@ -1,5 +1,3 @@
-import { SparklesIcon } from "lucide-react";
-
 import { cn } from "@/app/lib/utils";
 import { citrusGothicInline, citrusGothicSolid } from "@/app/ui/fonts";
 
@@ -22,6 +20,7 @@ export default function GlitterWeekLockup({
 
   return (
     <span
+      role="img"
       aria-label="Glitter Week"
       className={cn(
         "relative inline-flex flex-col uppercase",
@@ -40,7 +39,7 @@ export default function GlitterWeekLockup({
       >
         Glitter
       </span>
-      <span className="relative inline-flex items-center">
+      <span className="inline-flex items-center">
         <span
           aria-hidden="true"
           className={cn(
@@ -52,15 +51,6 @@ export default function GlitterWeekLockup({
         >
           Week
         </span>
-        <SparklesIcon
-          aria-hidden="true"
-          className={cn(
-            "absolute -right-6 -top-2 rotate-12",
-            compact ? "size-4" : "size-7 sm:size-10",
-            isLight ? "text-[#ffbe57]" : "text-[#f7aee8]",
-          )}
-          strokeWidth={2.5}
-        />
       </span>
     </span>
   );

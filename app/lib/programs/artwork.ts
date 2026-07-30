@@ -1,20 +1,34 @@
-import type { SessionType } from "@/app/lib/programs/definitions";
-
 export const DEFAULT_PROGRAM_ARTWORK =
   "/img/programs/glitter-week-education-hero.webp";
 
-const DEFAULT_SESSION_ARTWORK: Record<SessionType, string> = {
-  talk: "/img/programs/glitter-week-education-talk.webp",
-  workshop: "/img/programs/glitter-week-education-workshop.webp",
-};
+const ALLOWED_REMOTE_ARTWORK_HOSTS = new Set([
+  "img.clerk.com",
+  "files.edgestore.dev",
+  "utfs.io",
+  "ufs.sh",
+]);
 
-/**
- * Published artwork always wins. The illustrated defaults keep an unfinished
- * catalog feeling intentional while the team commissions each session poster.
- */
-export function resolveSessionArtwork(input: {
-  imageUrl: string | null;
-  type: SessionType;
-}): string {
-  return input.imageUrl ?? DEFAULT_SESSION_ARTWORK[input.type];
+export function isAllowedProgramArtworkUrl(
+  input: string | null | undefined,
+): input is string {
+  if (!input) return false;
+
+  try {
+    const url = new URL(input);
+    const hostname = url.hostname.toLowerCase();
+
+    return (
+      url.protocol === "https:" &&
+      (ALLOWED_REMOTE_ARTWORK_HOSTS.has(hostname) ||
+        hostname.endsWith(".ufs.sh"))
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function resolveProgramArtwork(
+  input: string | null | undefined,
+): string {
+  return isAllowedProgramArtworkUrl(input) ? input : DEFAULT_PROGRAM_ARTWORK;
 }

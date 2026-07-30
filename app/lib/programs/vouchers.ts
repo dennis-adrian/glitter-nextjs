@@ -88,10 +88,17 @@ export function isAuthorizedVoucherUrl(
   if (parsed.protocol !== "https:") return false;
   if (!isUploadThingHost(parsed.hostname)) return false;
 
-  // The key is the final path segment; comparing the whole segment stops
-  // `…/other-key-suffixed-with-ourkey` from passing.
+  /**
+   * Only the canonical `/f/<key>` route, which is what every UploadThing URL
+   * in this database uses. Matching the last segment alone would also accept
+   * `/anything/<key>`, so pinning both the route and the segment count keeps
+   * an attacker from smuggling a path they control onto an allowed host.
+   * Whole-segment equality is what rejects a suffixed key.
+   */
   const segments = parsed.pathname.split("/").filter(Boolean);
-  return segments[segments.length - 1] === fileKey;
+  return (
+    segments.length === 2 && segments[0] === "f" && segments[1] === fileKey
+  );
 }
 
 /**

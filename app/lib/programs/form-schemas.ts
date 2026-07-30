@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { isAllowedProgramArtworkUrl } from "@/app/lib/programs/artwork";
+
 /**
  * Form schemas keep every field a string, the way the inputs produce them, and
  * the submit handlers convert to the action's typed input. The server action
@@ -8,12 +10,16 @@ import { z } from "zod";
  */
 
 const optionalText = z.string().trim().optional();
+const optionalProgramArtworkUrl = optionalText.refine(
+  (value) => !value || isAllowedProgramArtworkUrl(value),
+  "Usa una URL de imagen permitida",
+);
 
 export const programFormSchema = z.object({
   name: z.string().trim().min(1, "El nombre es obligatorio"),
   summary: optionalText,
   description: optionalText,
-  bannerUrl: optionalText,
+  bannerUrl: optionalProgramArtworkUrl,
   thumbnailUrl: optionalText,
   startDate: optionalText,
   endDate: optionalText,

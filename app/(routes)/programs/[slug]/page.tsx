@@ -1,12 +1,9 @@
 import {
   ArrowDownIcon,
   ArrowUpRightIcon,
-  BookOpenIcon,
   CalendarDaysIcon,
   Clock3Icon,
   MapPinIcon,
-  PencilLineIcon,
-  SparklesIcon,
 } from "lucide-react";
 import { DateTime } from "luxon";
 import type { Metadata } from "next";
@@ -16,10 +13,9 @@ import { notFound } from "next/navigation";
 
 import GlitterWeekLockup from "@/app/components/programs/glitter-week-lockup";
 import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
-import SessionSummaryCard from "@/app/components/programs/session-summary-card";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { formatDate } from "@/app/lib/formatters";
-import { DEFAULT_PROGRAM_ARTWORK } from "@/app/lib/programs/artwork";
+import { resolveProgramArtwork } from "@/app/lib/programs/artwork";
 import {
   fetchProgramSettings,
   fetchPublishedProgramBySlug,
@@ -97,7 +93,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: program.name,
       description: program.summary ?? undefined,
-      images: [program.bannerUrl ?? DEFAULT_PROGRAM_ARTWORK],
+      images: [resolveProgramArtwork(program.bannerUrl)],
     },
   };
 }
@@ -118,7 +114,7 @@ export default async function ProgramPage({ params }: Props) {
     .map((date) => formatDate(date).toLocaleString(DateTime.DATE_MED))
     .join(" — ");
   const agendaDays = buildAgendaDays(program.sessions);
-  const artwork = program.bannerUrl ?? DEFAULT_PROGRAM_ARTWORK;
+  const artwork = resolveProgramArtwork(program.bannerUrl);
   const programDiscount = programDiscountFrom(program);
   const globalDiscount = globalDiscountFrom(settings);
 
@@ -136,11 +132,6 @@ export default async function ProgramPage({ params }: Props) {
           />
 
           <div className="relative max-w-xl">
-            <p className="mb-7 inline-flex items-center gap-2 rounded-full bg-[#fffaf3] px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-[#4b255f]">
-              <BookOpenIcon className="size-4" aria-hidden="true" />
-              Aula abierta de ilustración
-            </p>
-
             <h1 className="sr-only">{program.name}</h1>
             <GlitterWeekLockup />
 
@@ -166,8 +157,9 @@ export default async function ProgramPage({ params }: Props) {
                 <ArrowDownIcon className="size-4" aria-hidden="true" />
               </Link>
               <span className="rounded-full border border-white/55 px-5 py-3 text-xs font-black uppercase tracking-[0.1em]">
-                {program.sessions.length} sesiones · {agendaDays.length}{" "}
-                {agendaDays.length === 1 ? "día" : "días"}
+                {program.sessions.length}{" "}
+                {program.sessions.length === 1 ? "sesión" : "sesiones"} ·{" "}
+                {agendaDays.length} {agendaDays.length === 1 ? "día" : "días"}
               </span>
             </div>
           </div>
@@ -185,118 +177,6 @@ export default async function ProgramPage({ params }: Props) {
           <span className="absolute bottom-5 right-5 max-w-[16rem] rotate-[-2deg] rounded-[1.5rem_1.5rem_0.4rem_1.5rem] bg-[#fffaf3] px-4 py-3 text-xs font-black uppercase leading-snug tracking-[0.11em] text-[#4b255f] sm:bottom-8 sm:right-8">
             Preguntar · probar · volver a dibujar
           </span>
-        </div>
-      </section>
-
-      <div
-        aria-hidden="true"
-        className="overflow-hidden bg-[#ffbe57] px-4 py-4 text-center text-xs font-black uppercase tracking-[0.18em] text-[#4b255f] sm:text-sm"
-      >
-        Mirar · imaginar · dibujar · conversar · experimentar · compartir
-      </div>
-
-      <section className="bg-[#fffaf3]">
-        <div className="container mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 md:py-24 lg:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)] lg:gap-20 lg:px-12">
-          <div>
-            <p className="mb-4 text-xs font-black uppercase tracking-[0.18em] text-[#9347f5]">
-              Aprender haciendo
-            </p>
-            <h2
-              className={`${citrusGothicSolid.className} max-w-[15ch] text-balance text-5xl uppercase leading-[0.92] text-[#4b255f] sm:text-7xl`}
-            >
-              Una semana para encontrar nuevas maneras de mirar.
-            </h2>
-
-            <div className="mt-10 grid grid-cols-3 gap-3">
-              {[
-                {
-                  label: "Mirar",
-                  color: "bg-[#72e5e7]",
-                  Icon: PencilLineIcon,
-                },
-                {
-                  label: "Hacer",
-                  color: "bg-[#ffbe57]",
-                  Icon: SparklesIcon,
-                },
-                {
-                  label: "Compartir",
-                  color: "bg-[#f7aee8]",
-                  Icon: BookOpenIcon,
-                },
-              ].map(({ label, color, Icon }) => (
-                <div
-                  key={label}
-                  className={`flex min-h-28 flex-col justify-between rounded-[1.6rem] p-4 ${color}`}
-                >
-                  <Icon className="size-5" aria-hidden="true" />
-                  <span className="text-sm font-black uppercase tracking-[0.08em]">
-                    {label as string}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-end">
-            <div className="rounded-[2.2rem_2.2rem_2.2rem_0.7rem] bg-[#f3e9ff] p-7 sm:p-9">
-              <p className="mb-4 text-xs font-black uppercase tracking-[0.16em] text-[#9347f5]">
-                Sobre el programa
-              </p>
-              <p className="whitespace-pre-line text-base font-medium leading-relaxed text-[#644868] sm:text-lg">
-                {program.description ??
-                  "Charlas y talleres que convierten procesos creativos en experiencias para observar, preguntar y practicar en comunidad."}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-[#dff8f4] py-16 sm:py-24">
-        <div className="container mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
-          <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-[#e639b5]">
-                Elige por dónde empezar
-              </p>
-              <h2
-                className={`${citrusGothicSolid.className} text-5xl uppercase leading-none text-[#4b255f] sm:text-7xl`}
-              >
-                Sesiones
-              </h2>
-            </div>
-            <p className="max-w-sm text-sm font-semibold leading-relaxed text-[#70566f]">
-              Cada sesión es una puerta distinta: escucha un proceso, prueba una
-              técnica o conoce otra forma de trabajar.
-            </p>
-          </div>
-
-          {program.sessions.length === 0 ? (
-            <div className="rounded-[2rem] bg-white p-10 text-center font-bold">
-              Todavía no hay sesiones publicadas.
-            </div>
-          ) : (
-            <div className="grid gap-7 md:grid-cols-12">
-              {program.sessions.map((session, index) => (
-                <SessionSummaryCard
-                  key={session.id}
-                  session={session}
-                  programSlug={program.slug}
-                  programStatus={program.status}
-                  programDiscount={programDiscount}
-                  globalDiscount={globalDiscount}
-                  featured={index === 0}
-                  className={
-                    index === 0
-                      ? "md:col-span-7"
-                      : index === 1
-                        ? "md:col-span-5"
-                        : "md:col-span-6 lg:col-span-4"
-                  }
-                />
-              ))}
-            </div>
-          )}
         </div>
       </section>
 

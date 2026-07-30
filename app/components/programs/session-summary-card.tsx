@@ -5,7 +5,6 @@ import Link from "next/link";
 import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
 import { formatDate } from "@/app/lib/formatters";
 import { cn } from "@/app/lib/utils";
-import { resolveSessionArtwork } from "@/app/lib/programs/artwork";
 import {
   SESSION_TYPE_LABELS,
   type SessionOccurrence,
@@ -94,7 +93,9 @@ export default function SessionSummaryCard({
   const speakerNames = session.sessionSpeakers
     .map((entry) => entry.speaker.publicName)
     .join(", ");
-  const artwork = resolveSessionArtwork(session);
+  const speakerPortrait = session.sessionSpeakers.find(
+    (entry) => entry.speaker.imageUrl,
+  );
   const sessionHref = `/programs/${programSlug}/${session.slug}`;
   const isTalk = session.type === "talk";
 
@@ -114,17 +115,32 @@ export default function SessionSummaryCard({
           featured ? "aspect-[5/4] lg:aspect-[16/9]" : "aspect-[4/3]",
         )}
       >
-        <Image
-          src={artwork}
-          alt=""
-          fill
-          sizes={
-            featured
-              ? "(min-width: 1024px) 58vw, 100vw"
-              : "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-          }
-          className="object-cover transition duration-500 ease-out group-hover:scale-[1.035]"
-        />
+        {speakerPortrait?.speaker.imageUrl ? (
+          <Image
+            src={speakerPortrait.speaker.imageUrl}
+            alt={speakerPortrait.speaker.publicName}
+            fill
+            sizes={
+              featured
+                ? "(min-width: 1024px) 58vw, 100vw"
+                : "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+            }
+            className="object-cover object-top transition duration-500 ease-out group-hover:scale-[1.035]"
+          />
+        ) : (
+          <span className="absolute inset-0 flex flex-col justify-end bg-[#dff8f4] p-6 text-[#4b255f]">
+            <span
+              className={`${citrusGothicSolid.className} text-5xl uppercase leading-none sm:text-6xl`}
+            >
+              {SESSION_TYPE_LABELS[session.type]}
+            </span>
+            {session.topic ? (
+              <span className="mt-3 text-xs font-black uppercase tracking-[0.14em]">
+                {session.topic}
+              </span>
+            ) : null}
+          </span>
+        )}
         <span className="absolute left-3 top-3 rounded-full bg-[#fffaf3] px-3 py-1.5 text-xs font-black uppercase tracking-[0.14em] text-[#4b255f]">
           {SESSION_TYPE_LABELS[session.type]}
         </span>

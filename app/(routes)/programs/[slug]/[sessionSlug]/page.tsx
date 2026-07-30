@@ -16,7 +16,7 @@ import GlitterWeekLockup from "@/app/components/programs/glitter-week-lockup";
 import OccurrenceScheduleList from "@/app/components/programs/occurrence-schedule-list";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { formatDate } from "@/app/lib/formatters";
-import { resolveSessionArtwork } from "@/app/lib/programs/artwork";
+import { DEFAULT_PROGRAM_ARTWORK } from "@/app/lib/programs/artwork";
 import {
   fetchProgramSettings,
   fetchPublishedSession,
@@ -37,6 +37,7 @@ import {
   resolvePrice,
 } from "@/app/lib/programs/pricing";
 import { getAvailabilityForOccurrences } from "@/app/lib/programs/registration-actions";
+import { cn } from "@/app/lib/utils";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { citrusGothicSolid } from "@/app/ui/fonts";
 
@@ -50,13 +51,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   if (!session) return { title: "Sesión" };
 
+  const socialImage =
+    session.sessionSpeakers.find((entry) => entry.speaker.imageUrl)?.speaker
+      .imageUrl ??
+    session.program.bannerUrl ??
+    DEFAULT_PROGRAM_ARTWORK;
+
   return {
     title: session.title,
     description: session.description ?? undefined,
     openGraph: {
       title: session.title,
       description: session.description ?? undefined,
-      images: [resolveSessionArtwork(session)],
+      images: [socialImage],
     },
   };
 }
@@ -103,7 +110,11 @@ export default async function SessionPage({ params }: Props) {
 
   const venuesById = new Map(venues.map((venue) => [venue.id, venue]));
   const outcomes = session.learningOutcomes ?? [];
-  const artwork = resolveSessionArtwork(session);
+  const speakerPortraits = session.sessionSpeakers.flatMap((entry) =>
+    entry.speaker.imageUrl
+      ? [{ ...entry, imageUrl: entry.speaker.imageUrl }]
+      : [],
+  );
   const nextOccurrence =
     session.occurrences.find(
       (occurrence) => occurrence.lifecycleStatus === "scheduled",
@@ -145,25 +156,14 @@ export default async function SessionPage({ params }: Props) {
           <GlitterWeekLockup compact />
         </div>
 
-        <div className="container relative mx-auto grid max-w-7xl gap-12 px-5 pb-16 pt-4 sm:px-8 lg:grid-cols-[minmax(340px,0.86fr)_minmax(0,1.14fr)] lg:items-center lg:gap-16 lg:px-12 lg:pb-24">
-          <div className="relative mx-auto w-full max-w-[580px] lg:max-w-none">
-            <div
-              aria-hidden="true"
-              className="absolute -left-5 -top-5 size-28 rounded-full bg-[#ffbe57]"
-            />
-            <div className="relative aspect-[4/5] overflow-hidden rounded-[3rem_3rem_3rem_1rem] bg-[#72e5e7]">
-              <Image
-                src={artwork}
-                alt={`Ilustración de ${session.title}`}
-                fill
-                priority
-                sizes="(min-width: 1024px) 42vw, 100vw"
-                className="object-cover"
-              />
-            </div>
-          </div>
-
-          <div>
+        <div
+          className={cn(
+            "container relative mx-auto grid max-w-7xl gap-12 px-5 pb-16 pt-4 sm:px-8 lg:items-center lg:gap-16 lg:px-12 lg:pb-24",
+            speakerPortraits.length > 0 &&
+              "lg:grid-cols-[minmax(0,1.12fr)_minmax(320px,0.88fr)]",
+          )}
+        >
+          <div className={cn(speakerPortraits.length === 0 && "max-w-6xl")}>
             <div className="mb-6 flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-[#ffbe57] px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-[#4b255f]">
                 {SESSION_TYPE_LABELS[session.type]}
@@ -197,7 +197,12 @@ export default async function SessionPage({ params }: Props) {
               </p>
             ) : null}
 
-            <dl className="mt-8 grid gap-3 sm:grid-cols-2">
+            <dl
+              className={cn(
+                "mt-8 grid gap-3 sm:grid-cols-2",
+                speakerPortraits.length === 0 && "lg:grid-cols-4",
+              )}
+            >
               <div className="rounded-[1.5rem] bg-white/12 p-4">
                 <dt className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#dff8f4]">
                   <Clock3Icon className="size-4" />
@@ -259,6 +264,53 @@ export default async function SessionPage({ params }: Props) {
               <ArrowDownIcon className="size-4" aria-hidden="true" />
             </Link>
           </div>
+
+          {speakerPortraits.length > 0 ? (
+            <div
+              aria-label="Retratos de quienes facilitan la sesión"
+              className={cn(
+                "grid gap-4",
+                speakerPortraits.length > 1 && "sm:grid-cols-2 lg:grid-cols-1",
+                speakerPortraits.length > 1 && "xl:grid-cols-2",
+              )}
+            >
+              {speakerPortraits.map((entry, index) => (
+                <figure
+                  key={entry.id}
+                  className={cn(
+                    "relative min-h-[360px] overflow-hidden bg-[#72e5e7]",
+                    index % 2 === 0
+                      ? "rounded-[3rem_3rem_1rem_3rem]"
+                      : "rounded-[3rem_1rem_3rem_3rem]",
+                    speakerPortraits.length === 1 && "lg:min-h-[620px]",
+                  )}
+                >
+                  <Image
+                    src={entry.imageUrl}
+                    alt={entry.speaker.publicName}
+                    fill
+                    priority={index === 0}
+                    sizes={
+                      speakerPortraits.length === 1
+                        ? "(min-width: 1024px) 38vw, 100vw"
+                        : "(min-width: 1280px) 19vw, (min-width: 1024px) 38vw, 50vw"
+                    }
+                    className="object-cover"
+                  />
+                  <figcaption className="absolute inset-x-4 bottom-4 rounded-[1.3rem] bg-[#fffaf3] px-4 py-3 text-[#4b255f]">
+                    <span className="block font-black">
+                      {entry.speaker.publicName}
+                    </span>
+                    {entry.role ? (
+                      <span className="mt-1 block text-xs font-bold uppercase tracking-[0.12em] text-[#9347f5]">
+                        {entry.role}
+                      </span>
+                    ) : null}
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          ) : null}
         </div>
       </section>
 
