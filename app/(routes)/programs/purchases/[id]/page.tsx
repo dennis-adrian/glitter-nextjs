@@ -3,11 +3,15 @@ import { notFound } from "next/navigation";
 
 import PurchaseTicketCard from "@/app/components/programs/purchase-ticket-card";
 import SecureLinkNotice from "@/app/components/programs/secure-link-notice";
+import VoucherUploadCard from "@/app/components/programs/voucher-upload-card";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { resolvePurchaseAccess } from "@/app/lib/programs/access";
 import { SESSION_PURCHASE_STATUS_LABELS } from "@/app/lib/programs/definitions";
 import { buildSecureLinkUrl } from "@/app/lib/programs/notifications";
-import { fetchPurchaseForAccess } from "@/app/lib/programs/purchase-queries";
+import {
+  fetchProgramSettings,
+  fetchPurchaseForAccess,
+} from "@/app/lib/programs/purchase-queries";
 import { hashAccessToken } from "@/app/lib/programs/tokens";
 import { generateQrDataUrl } from "@/app/lib/utils";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
@@ -67,6 +71,20 @@ export default async function PurchaseAccessPage({
     })),
   );
 
+  /**
+   * The payment step is shown while money is still outstanding — including a
+   * `pending_upload` whose hold already lapsed, because "your reservation
+   * expired" is exactly what that buyer needs to be told. Terminal states get
+   * no card; the status line above already says what happened.
+   */
+  const showPaymentStep =
+    purchase.paymentMode === "bank_qr" &&
+    (purchase.status === "pending_upload" ||
+      purchase.status === "under_verification" ||
+      purchase.status === "changes_requested");
+
+  const settings = showPaymentStep ? await fetchProgramSettings() : null;
+
   return (
     <div className="container mx-auto max-w-2xl space-y-6 px-4 py-8">
       <header className="space-y-2">
@@ -76,6 +94,22 @@ export default async function PurchaseAccessPage({
           {SESSION_PURCHASE_STATUS_LABELS[purchase.status]}
         </p>
       </header>
+
+      {showPaymentStep ? (
+        <VoucherUploadCard
+          purchaseId={purchase.id}
+          token={access.via === "token" && token ? token : undefined}
+          totalAmount={purchase.totalAmount}
+          bankQrImageUrl={settings?.bankQrImageUrl ?? null}
+          // Only meaningful before a voucher exists: once under review the seat
+          // is held by the review, not the clock.
+          holdExpiresAt={
+            purchase.status === "pending_upload" ? purchase.holdExpiresAt : null
+          }
+          vouchers={purchase.vouchers}
+          changesRequested={purchase.status === "changes_requested"}
+        />
+      ) : null}
 
       <div className="space-y-4">
         {tickets.map(({ line, qrDataUrl }) =>

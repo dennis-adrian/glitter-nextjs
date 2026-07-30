@@ -5,8 +5,14 @@ import { UploadThingError } from "uploadthing/server";
 import { z } from "zod";
 
 import { fetchUserProfile } from "@/app/api/users/actions";
+import { resolvePurchaseAccess } from "@/app/lib/programs/access";
+import { hashAccessToken } from "@/app/lib/programs/tokens";
+import {
+  resolveVoucherSubmission,
+  VOUCHER_BLOCKER_LABELS,
+} from "@/app/lib/programs/vouchers";
 import { db } from "@/db";
-import { orders, productImages } from "@/db/schema";
+import { orders, productImages, sessionPurchases } from "@/db/schema";
 
 const f = createUploadthing();
 
@@ -131,6 +137,47 @@ export const ourFileRouter = {
         },
       };
     }),
+  /**
+   * A payment proof for a program session purchase.
+   *
+   * Authorized exactly like the purchase page — owner *or* secure token, never
+   * "is signed in" — and refused outright if the purchase is not in a state
+   * that accepts a voucher, so an expired hold cannot even spend upload quota.
+   * `submitPurchaseVoucher` re-checks both before it writes anything.
+   */
+  sessionPurchaseVoucher: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
+    .input(
+      z.object({
+        purchaseId: z.number().int().positive(),
+        token: z.string().trim().min(1).optional(),
+      }),
+    )
+    .middleware(async ({ input }) => {
+      const purchase = await db.query.sessionPurchases.findFirst({
+        where: eq(sessionPurchases.id, input.purchaseId),
+      });
+      if (!purchase) throw new UploadThingError("Compra no encontrada");
+
+      const user = await currentUser();
+      const profile = user ? await fetchUserProfile(user.id) : null;
+
+      const access = resolvePurchaseAccess({
+        purchase,
+        viewerUserId: profile?.id ?? null,
+        presentedTokenHash: input.token ? hashAccessToken(input.token) : null,
+      });
+      if (!access.granted) throw new UploadThingError("Compra no encontrada");
+
+      const check = resolveVoucherSubmission(purchase);
+      if (!check.allowed) {
+        throw new UploadThingError(VOUCHER_BLOCKER_LABELS[check.blocker]);
+      }
+
+      return { purchaseId: purchase.id };
+    })
+    .onUploadComplete(({ file }) => ({
+      results: { imageUrl: (file as { url: string }).url },
+    })),
   guestOrderPayment: f({ image: { maxFileSize: "4MB" } })
     .input(
       z.object({

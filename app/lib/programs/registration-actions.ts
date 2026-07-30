@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -166,9 +166,21 @@ export async function registerForFreeSession(
 
   try {
     const outcome = await db.transaction(async (tx) => {
+      /**
+       * Locked before the replay lookup, not after. Two retries carrying the
+       * same key would otherwise both read an empty result, both proceed, and
+       * the loser would die on the `idempotencyKey` unique index — surfacing
+       * as a generic failure instead of a clean `replayed`. Taking the lock
+       * first makes the second attempt wait, then read committed state.
+       */
+      await lockOccurrences(tx, [data.occurrenceId]);
+
       const buyerPredicate = profile
         ? eq(sessionPurchases.userId, profile.id)
-        : eq(sessionPurchases.guestEmail, attendee.email);
+        : // Case-insensitive, matching `hasValidTicketFor`. Without it the same
+          // guest retrying with a differently-cased address reads as a new
+          // attendee here but a duplicate there.
+          sql`lower(${sessionPurchases.guestEmail}) = lower(${attendee.email})`;
 
       const existing = await tx
         .select({ id: sessionPurchases.id })
@@ -192,8 +204,6 @@ export async function registerForFreeSession(
       if (existing.length > 0) {
         return { kind: "replayed" as const };
       }
-
-      await lockOccurrences(tx, [data.occurrenceId]);
 
       const [context] = await tx
         .select({

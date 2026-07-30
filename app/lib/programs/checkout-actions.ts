@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -139,7 +139,6 @@ export async function startPaidCheckout(
   }
 
   const now = new Date();
-  const { eligibility, snapshot } = await getBuyerEligibility(profile, { now });
   const idempotencyKey = data.idempotencyKey ?? generateIdempotencyKey();
 
   // Generated outside the transaction so a retry never reuses a token that a
@@ -147,10 +146,30 @@ export async function startPaidCheckout(
   const accessToken = generateAccessToken();
 
   try {
+    // Inside the try: this reads the database for a signed-in buyer (ban
+    // sanctions in effect), so a failure here has to surface as the same
+    // generic message and structured log as any other, rather than escaping
+    // as an unhandled rejection carrying driver detail.
+    const { eligibility, snapshot } = await getBuyerEligibility(profile, {
+      now,
+    });
+
     const outcome = await db.transaction(async (tx) => {
+      /**
+       * Locked before the replay lookup, not after. Two retries carrying the
+       * same key would otherwise both read an empty result, both proceed, and
+       * the loser would die on the `idempotencyKey` unique index — surfacing
+       * as a generic failure instead of a clean `replayed`. Taking the lock
+       * first makes the second attempt wait, then read committed state.
+       */
+      await lockOccurrences(tx, [data.occurrenceId]);
+
       const buyerPredicate = profile
         ? eq(sessionPurchases.userId, profile.id)
-        : eq(sessionPurchases.guestEmail, buyer.email);
+        : // Case-insensitive, matching `hasValidTicketFor`. Without it the same
+          // guest retrying with a differently-cased address reads as a new
+          // buyer here but a duplicate there.
+          sql`lower(${sessionPurchases.guestEmail}) = lower(${buyer.email})`;
 
       const existing = await tx
         .select({ id: sessionPurchases.id })
@@ -174,8 +193,6 @@ export async function startPaidCheckout(
       if (existing.length > 0) {
         return { kind: "replayed" as const };
       }
-
-      await lockOccurrences(tx, [data.occurrenceId]);
 
       const [context] = await tx
         .select({

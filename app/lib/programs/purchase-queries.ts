@@ -4,7 +4,11 @@ import { desc, eq } from "drizzle-orm";
 import { cache } from "react";
 
 import { db } from "@/db";
-import { sessionPurchases } from "@/db/schema";
+import {
+  programSettings,
+  sessionPurchaseVouchers,
+  sessionPurchases,
+} from "@/db/schema";
 
 /** Everything the secure access page and the profile area need to render. */
 const purchaseWith = {
@@ -15,6 +19,11 @@ const purchaseWith = {
       occurrence: { with: { venue: true as const } },
       ticket: true as const,
     },
+  },
+  // Newest first: the page only ever shows the current version, and the
+  // ordering is what makes `vouchers[0]` mean that.
+  vouchers: {
+    orderBy: [desc(sessionPurchaseVouchers.version)],
   },
 };
 
@@ -35,6 +44,13 @@ export const fetchPurchaseForAccess = cache(async (purchaseId: number) => {
 export type PurchaseForAccess = NonNullable<
   Awaited<ReturnType<typeof fetchPurchaseForAccess>>
 >;
+
+/** Bank QR and policy settings the payment step needs. */
+export const fetchProgramSettings = cache(async () => {
+  return db.query.programSettings.findFirst({
+    where: eq(programSettings.key, "global"),
+  });
+});
 
 /** A signed-in buyer's own purchases, for their profile area. */
 export const fetchPurchasesForUser = cache(async (userId: number) => {
