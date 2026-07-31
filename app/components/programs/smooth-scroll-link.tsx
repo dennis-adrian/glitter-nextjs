@@ -18,13 +18,16 @@ export default function SmoothScrollLink({
   function scrollToTarget(event: ReactMouseEvent<HTMLAnchorElement>) {
     onClick?.(event);
 
+    const link = event.currentTarget;
     if (
       event.defaultPrevented ||
       event.button !== 0 ||
       event.metaKey ||
       event.ctrlKey ||
       event.shiftKey ||
-      event.altKey
+      event.altKey ||
+      (link.target && link.target !== "_self") ||
+      link.hasAttribute("download")
     ) {
       return;
     }

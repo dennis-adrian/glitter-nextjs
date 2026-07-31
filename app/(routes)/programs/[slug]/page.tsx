@@ -274,27 +274,30 @@ export default async function ProgramPage({ params }: Props) {
                         return (
                           <li
                             key={occurrence.id}
-                            className="group grid gap-5 border-b border-[#4b255f]/15 py-7 last:border-b-0 sm:grid-cols-[100px_minmax(0,1fr)_auto] sm:items-start"
+                            className="group grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-5 border-b border-[#4b255f]/15 py-7 last:border-b-0 sm:grid-cols-[100px_minmax(0,1fr)_auto] sm:items-start sm:gap-5"
                           >
-                            <div>
+                            <div className="col-start-1 row-start-1 flex items-center gap-3 sm:block">
                               <p className="flex items-center gap-2 text-lg font-black text-[#9347f5]">
                                 <Clock3Icon className="size-4" />
                                 {formatDate(occurrence.startsAt).toLocaleString(
                                   DateTime.TIME_SIMPLE,
                                 )}
                               </p>
-                              <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-[#8a6d89]">
+                              <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#8a6d89] sm:mt-1">
                                 {SESSION_TYPE_LABELS[session.type]}
                               </p>
                             </div>
 
-                            <div className="min-w-0">
+                            <div className="col-span-2 row-start-2 min-w-0 sm:col-span-1 sm:col-start-2 sm:row-start-1">
                               <Link
                                 href={`/programs/${program.slug}/${session.slug}`}
-                                className="inline-flex items-start gap-2 text-balance text-xl font-black leading-tight decoration-[#9347f5] decoration-2 underline-offset-4 hover:underline sm:text-2xl"
+                                className="inline-flex items-start gap-2 text-balance text-xl font-black leading-tight underline decoration-[#9347f5] decoration-2 underline-offset-4 [@media(hover:hover)]:no-underline [@media(hover:hover)]:hover:underline sm:text-2xl"
                               >
                                 {session.title}
-                                <ArrowUpRightIcon className="mt-1 size-4 shrink-0 transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
+                                <ArrowUpRightIcon
+                                  className="mt-1 size-4 shrink-0 transition-transform group-hover:translate-x-1 group-hover:-translate-y-1"
+                                  aria-hidden="true"
+                                />
                               </Link>
                               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[#70566f]">
                                 {session.sessionSpeakers.length > 0 ? (
@@ -344,7 +347,7 @@ export default async function ProgramPage({ params }: Props) {
                               ) : null}
                             </div>
 
-                            <div className="text-right">
+                            <div className="col-start-2 row-start-1 self-center text-right sm:col-start-3 sm:self-start">
                               <span className="font-black">
                                 {formatMoney(price)}
                               </span>
