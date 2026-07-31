@@ -16,6 +16,7 @@ import GlitterWeekLockup from "@/app/components/programs/glitter-week-lockup";
 import OccurrenceScheduleList from "@/app/components/programs/occurrence-schedule-list";
 import ParticipantDiscountHint from "@/app/components/programs/participant-discount-hint";
 import SmoothScrollLink from "@/app/components/programs/smooth-scroll-link";
+import ViewerSessionPrice from "@/app/components/programs/viewer-session-price";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { formatDate } from "@/app/lib/formatters";
 import {
@@ -30,7 +31,6 @@ import {
 } from "@/app/lib/programs/data";
 import { SESSION_SKILL_LEVEL_LABELS } from "@/app/lib/programs/definitions";
 import {
-  formatMoney,
   globalDiscountFrom,
   programDiscountFrom,
   resolvePrice,
@@ -235,7 +235,10 @@ export default async function SessionPage({ params }: Props) {
                   Inversión
                 </dt>
                 <dd className="font-black">
-                  {formatMoney(publicPrice)}
+                  <ViewerSessionPrice
+                    publicPrice={publicPrice}
+                    participantPrice={participantPrice}
+                  />
                   {durationMinutes ? (
                     <span className="ml-2 text-sm font-semibold text-[#e5d5ff]">
                       · {durationMinutes} min

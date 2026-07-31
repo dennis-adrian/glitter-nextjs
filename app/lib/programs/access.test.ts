@@ -129,6 +129,20 @@ describe("resolvePurchaseAccess", () => {
 });
 
 describe("resolvePurchaseAccessWithLazyViewer", () => {
+  it.each([0, ""])("resolves a falsey viewer value (%j)", async (viewer) => {
+    const result = await resolvePurchaseAccessWithLazyViewer({
+      purchase: purchase({ userId: 42 }),
+      presentedTokenHash: null,
+      loadViewer: async () => viewer,
+      getViewerUserId: () => 42,
+    });
+
+    expect(result).toEqual({
+      access: { granted: true, via: "owner" },
+      viewer,
+    });
+  });
+
   it("does not load the viewer when a valid token grants access", async () => {
     let viewerLoads = 0;
 

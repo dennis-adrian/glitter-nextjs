@@ -120,7 +120,7 @@ export async function resolvePurchaseAccessWithLazyViewer<TViewer>(
   return {
     access: resolvePurchaseAccess({
       purchase: input.purchase,
-      viewerUserId: viewer ? input.getViewerUserId(viewer) : null,
+      viewerUserId: viewer !== null ? input.getViewerUserId(viewer) : null,
       presentedTokenHash: input.presentedTokenHash,
     }),
     viewer,
