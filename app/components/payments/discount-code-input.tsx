@@ -1,6 +1,6 @@
 "use client";
 
-import posthog from "posthog-js";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
@@ -35,7 +35,7 @@ export default function DiscountCodeInput({
       });
 
       if (result.success) {
-        posthog.capture(POSTHOG_EVENTS.DISCOUNT_CODE_APPLIED, {
+        captureClientEvent(POSTHOG_EVENTS.DISCOUNT_CODE_APPLIED, {
           invoice_id: invoiceId,
           festival_id: festivalId,
           code: code.trim().toUpperCase(),

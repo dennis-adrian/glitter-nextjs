@@ -10,7 +10,7 @@ import {
   PlusIcon,
   Trash2Icon,
 } from "lucide-react";
-import posthog from "posthog-js";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { toast } from "sonner";
 
 import Heading from "@/app/components/atoms/heading";
@@ -70,7 +70,7 @@ export default function LiveActForm() {
       });
 
       if (result.success) {
-        posthog.capture(POSTHOG_EVENTS.LIVE_ACT_SUBMITTED, {
+        captureClientEvent(POSTHOG_EVENTS.LIVE_ACT_SUBMITTED, {
           category: values.category,
         });
         setSubmitted(true);
@@ -86,7 +86,7 @@ export default function LiveActForm() {
   }
 
   function handleSelectCategory(cat: Category) {
-    posthog.capture(POSTHOG_EVENTS.LIVE_ACT_CATEGORY_SELECTED, {
+    captureClientEvent(POSTHOG_EVENTS.LIVE_ACT_CATEGORY_SELECTED, {
       category: cat,
     });
     form.setValue("category", cat, { shouldValidate: false });

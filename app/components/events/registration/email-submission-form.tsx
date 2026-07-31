@@ -1,6 +1,6 @@
 "use client";
 
-import posthog from "posthog-js";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { useForm } from "react-hook-form";
 
@@ -44,7 +44,7 @@ export default function EmailSubmissionForm() {
 
   const action: () => void = form.handleSubmit(async (data) => {
     const visitor = await fetchVisitorByEmail(data.email);
-    posthog.capture(POSTHOG_EVENTS.VISITOR_EMAIL_SUBMITTED, {
+    captureClientEvent(POSTHOG_EVENTS.VISITOR_EMAIL_SUBMITTED, {
       is_returning_visitor: !!visitor,
     });
     if (visitor) {

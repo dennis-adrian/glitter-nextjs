@@ -13,7 +13,7 @@ import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import confetti from "canvas-confetti";
 import { ArrowRight, TimerIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import posthog from "posthog-js";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { toast } from "sonner";
 
 import { UserCategory } from "@/app/api/users/definitions";
@@ -341,7 +341,7 @@ export default function HoldConfirmationClient({
             spread: 70,
             origin: { y: 0.6 },
           });
-          posthog.capture(POSTHOG_EVENTS.RESERVATION_CONFIRMED, {
+          captureClientEvent(POSTHOG_EVENTS.RESERVATION_CONFIRMED, {
             festival_id: festival.id,
             festival_name: festival.name,
             stand_id: stand.id,
@@ -371,7 +371,7 @@ export default function HoldConfirmationClient({
       try {
         const res = await cancelStandHold(hold.id, profile.id);
         if (res.success) {
-          posthog.capture(POSTHOG_EVENTS.RESERVATION_CANCELLED, {
+          captureClientEvent(POSTHOG_EVENTS.RESERVATION_CANCELLED, {
             festival_id: festival.id,
             festival_name: festival.name,
             stand_id: stand.id,

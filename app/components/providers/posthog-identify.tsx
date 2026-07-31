@@ -1,8 +1,12 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import posthog from "posthog-js";
 import { useEffect } from "react";
+
+import {
+  identifyClientUser,
+  resetClientIdentity,
+} from "@/app/lib/posthog-capture";
 
 export default function PostHogAuthIdentify() {
   const { user, isLoaded } = useUser();
@@ -10,11 +14,11 @@ export default function PostHogAuthIdentify() {
   useEffect(() => {
     if (!isLoaded) return;
     if (user) {
-      posthog.identify(user.id, {
+      identifyClientUser(user.id, {
         email: user.primaryEmailAddress?.emailAddress,
       });
     } else {
-      posthog.reset();
+      resetClientIdentity();
     }
   }, [user, isLoaded]);
 

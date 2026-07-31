@@ -12,9 +12,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import GlitterWeekLockup from "@/app/components/programs/glitter-week-lockup";
+import ProgramViewTracker from "@/app/components/programs/program-view-tracker";
 import SmoothScrollLink from "@/app/components/programs/smooth-scroll-link";
 import ViewerSessionPrice from "@/app/components/programs/viewer-session-price";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { formatDate } from "@/app/lib/formatters";
 import {
   isAllowedProgramArtworkUrl,
@@ -142,6 +144,16 @@ export default async function ProgramPage({ params }: Props) {
 
   return (
     <div className="overflow-hidden bg-[#fffaf3] text-[#4b255f]">
+      <ProgramViewTracker
+        event={POSTHOG_EVENTS.PROGRAM_VIEWED}
+        properties={{
+          program_slug: program.slug,
+          program_name: program.name,
+          program_status: program.status,
+          session_count: program.sessions.length,
+          day_count: agendaDays.length,
+        }}
+      />
       <section className="grid border-b border-[#4b255f]/10 lg:min-h-180 lg:grid-cols-[0.92fr_1.08fr]">
         <div className="relative z-10 flex flex-col justify-center overflow-hidden bg-[#9347f5] px-5 py-14 text-[#fffaf3] sm:px-10 sm:py-20 lg:px-[max(4rem,8vw)]">
           <div

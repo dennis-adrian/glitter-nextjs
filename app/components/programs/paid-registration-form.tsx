@@ -28,16 +28,22 @@ import {
 } from "@/app/components/ui/dialog";
 import { Form } from "@/app/components/ui/form";
 import { Label } from "@/app/components/ui/label";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { startPaidCheckout } from "@/app/lib/programs/checkout-actions";
 import { formatMoney } from "@/app/lib/programs/pricing";
 import { genderOptions } from "@/app/lib/utils";
 
 type Props = {
   occurrenceId: number;
+  programSlug: string;
+  sessionSlug: string;
   sessionTitle: string;
   scheduleLabel: string;
   isSignedIn: boolean;
   price: number;
+  /** Null when availability could not be resolved for this occurrence. */
+  seatsRemaining: number | null;
 };
 
 const guestSchema = z.object({
@@ -58,16 +64,54 @@ type GuestValues = z.output<typeof guestSchema>;
  */
 export default function PaidRegistrationForm({
   occurrenceId,
+  programSlug,
+  sessionSlug,
   sessionTitle,
   scheduleLabel,
   isSignedIn,
   price,
+  seatsRemaining,
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [acceptsPolicy, setAcceptsPolicy] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const idempotencyKeyRef = useRef<string | null>(null);
+
+  /** Same event names and shape as the free form, separated by `is_free`. */
+  const funnelProperties = {
+    occurrence_id: occurrenceId,
+    program_slug: programSlug,
+    session_slug: sessionSlug,
+    session_title: sessionTitle,
+    is_free: false,
+    is_signed_in: isSignedIn,
+    price,
+    seats_remaining: seatsRemaining,
+  };
+
+  /** See the free form: separates "never tried" from "tried and failed". */
+  const submittedRef = useRef(false);
+
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+
+    if (nextOpen) {
+      submittedRef.current = false;
+      captureClientEvent(
+        POSTHOG_EVENTS.PROGRAM_REGISTRATION_STARTED,
+        funnelProperties,
+      );
+      return;
+    }
+
+    if (!submittedRef.current) {
+      captureClientEvent(POSTHOG_EVENTS.PROGRAM_REGISTRATION_ABANDONED, {
+        ...funnelProperties,
+        accepted_policy: acceptsPolicy,
+      });
+    }
+  }
   const form = useForm<GuestInput, unknown, GuestValues>({
     resolver: zodResolver(guestSchema),
     defaultValues: {
@@ -97,6 +141,12 @@ export default function PaidRegistrationForm({
       return;
     }
 
+    submittedRef.current = true;
+    captureClientEvent(POSTHOG_EVENTS.PROGRAM_REGISTRATION_SUBMITTED, {
+      ...funnelProperties,
+      is_guest: guest !== null,
+    });
+
     setIsSubmitting(true);
     try {
       const result = await startPaidCheckout({
@@ -115,16 +165,37 @@ export default function PaidRegistrationForm({
       });
 
       if (!result.success) {
+        // The server's own copy, which is a fixed set of strings — safe to use
+        // as a breakdown without exploding cardinality.
+        captureClientEvent(POSTHOG_EVENTS.PROGRAM_REGISTRATION_FAILED, {
+          ...funnelProperties,
+          is_guest: guest !== null,
+          failure: "rejected",
+          reason: result.message,
+        });
         toast.error(result.message);
         return;
       }
 
+      captureClientEvent(POSTHOG_EVENTS.PROGRAM_REGISTRATION_COMPLETED, {
+        ...funnelProperties,
+        is_guest: guest !== null,
+        purchase_id: result.purchaseId,
+        total_amount: result.totalAmount,
+      });
       toast.success(result.message);
       setOpen(false);
       router.push(
         `/programs/purchases/${result.purchaseId}?token=${result.accessToken}`,
       );
     } catch {
+      // No `reason`: see the voucher card — an arbitrary throw message is
+      // unbounded cardinality, and `capture_exceptions` already has the stack.
+      captureClientEvent(POSTHOG_EVENTS.PROGRAM_REGISTRATION_FAILED, {
+        ...funnelProperties,
+        is_guest: guest !== null,
+        failure: "exception",
+      });
       toast.error("No pudimos reservar tu cupo. Intenta de nuevo.");
     } finally {
       setIsSubmitting(false);
@@ -136,7 +207,7 @@ export default function PaidRegistrationForm({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button
           size="sm"
@@ -252,7 +323,8 @@ function PolicyCheckbox({
         className="mt-0.5"
       />
       <span className="text-sm font-normal">
-        Entiendo que el pago no es reembolsable y que la reserva de mi cupo depende de que el pago sea confirmado.
+        Entiendo que el pago no es reembolsable y que la reserva de mi cupo
+        depende de que el pago sea confirmado.
       </span>
     </Label>
   );
