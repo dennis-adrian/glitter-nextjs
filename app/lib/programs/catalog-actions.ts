@@ -13,11 +13,35 @@ const NAME_MAX = 200;
 const OCCUPATION_MAX = 200;
 const BIO_MAX = 2000;
 
+/**
+ * Both of these end up as `href` on a public page, and `z.string().url()`
+ * accepts any scheme `new URL()` parses — `javascript:`, `data:`, `vbscript:`
+ * included. Restricting to http/https keeps a stored link from becoming a
+ * script that runs for every visitor. Matches the scheme check
+ * `isAllowedProgramArtworkUrl` already applies to image URLs.
+ */
+function isWebUrl(value: string): boolean {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+const webUrl = (max: number) =>
+  z
+    .string()
+    .trim()
+    .url()
+    .max(max)
+    .refine(isWebUrl, { message: "El enlace debe empezar con http o https" });
+
 const venueSchema = z.object({
   name: z.string().trim().min(1).max(NAME_MAX),
   address: z.string().trim().max(NAME_MAX).nullish(),
   locationLabel: z.string().trim().max(NAME_MAX).nullish(),
-  locationUrl: z.string().trim().url().max(500).nullish().or(z.literal("")),
+  locationUrl: webUrl(500).nullish().or(z.literal("")),
   isActive: z.boolean().optional(),
 });
 
@@ -37,7 +61,7 @@ const speakerSchema = z.object({
     .array(
       z.object({
         label: z.string().trim().min(1).max(60),
-        url: z.string().trim().url().max(500),
+        url: webUrl(500),
       }),
     )
     .max(6)

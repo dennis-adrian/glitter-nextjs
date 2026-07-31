@@ -90,11 +90,18 @@ export default function PaidRegistrationForm({
   }
 
   async function submit(guest: GuestValues | null) {
+    // The consent actually given. See the free form for why the guard is here
+    // rather than relying on the disabled button alone.
+    if (!acceptsPolicy) {
+      toast.error("Confirma que entiendes la política para continuar");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const result = await startPaidCheckout({
         occurrenceId,
-        acceptsNoRefundPolicy: true,
+        acceptsNoRefundPolicy: acceptsPolicy,
         idempotencyKey: ensureIdempotencyKey(),
         ...(guest
           ? {

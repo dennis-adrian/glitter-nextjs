@@ -114,7 +114,16 @@ export default function FeatureFlagTargets({ flagKey, targets }: Props) {
         </p>
       )}
 
-      <div className="space-y-2">
+      {/* A real form, so Enter in either field submits. The button keeps its own
+          disabled conditions, which is also what stops implicit submission from
+          firing with an empty email or while a request is in flight. */}
+      <form
+        className="space-y-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          handleAdd();
+        }}
+      >
         <Label htmlFor={`${flagKey}-target-email`}>Correo del perfil</Label>
         <Input
           id={`${flagKey}-target-email`}
@@ -133,13 +142,13 @@ export default function FeatureFlagTargets({ flagKey, targets }: Props) {
           disabled={isPending}
         />
         <Button
+          type="submit"
           variant="secondary"
-          onClick={handleAdd}
           disabled={isPending || !email.trim()}
         >
           Agregar persona
         </Button>
-      </div>
+      </form>
     </div>
   );
 }

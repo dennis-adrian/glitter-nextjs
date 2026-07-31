@@ -70,8 +70,15 @@ export default function CreatableComboboxInput<T extends FieldValues>({
   const canCreate = trimmedQuery.length > 0 && !alreadyExists;
 
   function commit(value: string) {
+    // Validated and touched on commit, not just dirtied: without it a
+    // FormMessage raised by an earlier submit stays on screen after the user
+    // has already picked a valid value.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    form.setValue(name, (value || null) as any, { shouldDirty: true });
+    form.setValue(name, (value || null) as any, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
     setQuery("");
     setOpen(false);
   }

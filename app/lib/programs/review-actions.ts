@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -270,9 +270,16 @@ export async function reviewPurchase(
         )
         .innerJoin(programs, eq(programs.id, purchase.programId))
         .leftJoin(venues, eq(venues.id, sessionOccurrences.venueId))
+        // Only a live ticket may supply a code: `notifyBuyer` mails a QR for
+        // whatever it finds here, and a cancelled ticket's code would send the
+        // buyer a QR that check-in refuses. `resendPurchaseEmails` applies the
+        // same rule to its own copy of this query, in code.
         .leftJoin(
           sessionTickets,
-          eq(sessionTickets.purchaseLineId, sessionPurchaseLines.id),
+          and(
+            eq(sessionTickets.purchaseLineId, sessionPurchaseLines.id),
+            eq(sessionTickets.status, "valid"),
+          ),
         )
         .where(eq(sessionPurchaseLines.purchaseId, purchase.id));
 

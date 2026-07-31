@@ -19,6 +19,7 @@ import { resolveProgramArtwork } from "@/app/lib/programs/artwork";
 import {
   fetchProgramSettings,
   fetchPublishedProgramBySlug,
+  fetchVenues,
 } from "@/app/lib/programs/data";
 import {
   SESSION_TYPE_LABELS,
@@ -102,12 +103,18 @@ export default async function ProgramPage({ params }: Props) {
   await requireFeatureEnabled("paid_programs");
 
   const { slug } = await params;
-  const [program, settings] = await Promise.all([
+  const [program, settings, venues] = await Promise.all([
     fetchPublishedProgramBySlug(slug),
     fetchProgramSettings(),
+    fetchVenues(),
   ]);
 
   if (!program) notFound();
+
+  // Resolved by id rather than by comparing against the session and program
+  // venues: an occurrence may point at a third venue that is neither, and
+  // matching pairwise showed no location at all for exactly that case.
+  const venuesById = new Map(venues.map((venue) => [venue.id, venue]));
 
   const dateRange = [program.startDate, program.endDate]
     .filter((date): date is Date => date !== null)
@@ -239,14 +246,15 @@ export default async function ProgramPage({ params }: Props) {
 
                     <ol className="px-6 sm:px-8">
                       {day.entries.map(({ session, occurrence }) => {
+                        const venueId =
+                          occurrence.venueId ??
+                          session.venueId ??
+                          program.defaultVenueId ??
+                          null;
                         const venue =
-                          occurrence.venueId === null
-                            ? (session.venue ?? program.defaultVenue)
-                            : occurrence.venueId === session.venueId
-                              ? session.venue
-                              : occurrence.venueId === program.defaultVenueId
-                                ? program.defaultVenue
-                                : null;
+                          venueId === null
+                            ? null
+                            : (venuesById.get(venueId) ?? null);
                         const price = resolvePrice(
                           {
                             publicPrice: session.publicPrice,

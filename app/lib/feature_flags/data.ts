@@ -63,6 +63,17 @@ async function fetchOrCreateFlagRow(key: FeatureFlagKey) {
     .where(eq(featureFlags.key, key))
     .limit(1);
 
+  /**
+   * The insert conflicted, so a row existed a moment ago — finding none means
+   * it was deleted in between. Without this the caller receives `undefined`
+   * through a type that claims otherwise, and the failure surfaces one frame
+   * later as a property access on undefined, naming neither the flag nor the
+   * cause.
+   */
+  if (!row) {
+    throw new Error(`Feature flag row for "${key}" vanished after insert`);
+  }
+
   return row;
 }
 

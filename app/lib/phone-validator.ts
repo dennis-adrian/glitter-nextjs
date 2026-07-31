@@ -19,8 +19,26 @@ const phoneUtil = PhoneNumberUtil.getInstance();
  */
 const BOLIVIA_UNRECOGNISED_MOBILE = /^\+5915\d{7}$/;
 
+/**
+ * Separators people actually paste: whitespace (which covers the
+ * non-breaking space), brackets, dots, the ASCII hyphen, and the Unicode
+ * dash block U+2010-U+2015 that contact apps and copied web pages produce.
+ *
+ * Only separators are stripped. Anything else - a letter, a stray symbol -
+ * survives into the anchored test below and fails it, so normalising can
+ * never turn junk into a valid number.
+ */
+const SEPARATORS = /[\s().\-\u2010-\u2015]/g;
+
 function isUnrecognisedBolivianMobile(phone: string): boolean {
-  return BOLIVIA_UNRECOGNISED_MOBILE.test(phone.replace(/[\s()\-.]/g, ""));
+  const stripped = phone.replace(SEPARATORS, "");
+  // `00` is the international prefix dialled from Bolivia; the rest of the
+  // pipeline speaks `+`.
+  const normalised = stripped.startsWith("00")
+    ? `+${stripped.slice(2)}`
+    : stripped;
+
+  return BOLIVIA_UNRECOGNISED_MOBILE.test(normalised);
 }
 
 export const isPhoneValid = (phone: string) => {

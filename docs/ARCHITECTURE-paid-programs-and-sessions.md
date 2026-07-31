@@ -125,7 +125,9 @@ erDiagram
     session_purchases ||--o{ session_purchase_lines : has
     session_purchases ||--o{ session_purchase_vouchers : "immutable versions"
     session_purchases ||--o{ session_purchase_events : audited_by
-    session_purchases ||--o{ session_refund_requests : may_request
+
+    %% deferred — refund workflow (Phase 5)
+    session_purchases ||..o{ session_refund_requests : may_request
 
     %% deferred — Week Pass (§0b)
     program_passes ||..o{ session_purchases : "pass purchase"
@@ -188,39 +190,42 @@ schema, and interpreted as UTC; presentation uses Luxon, as in existing code.
 
 Singleton configuration, following the `storeSettings` precedent (one row, unique key column).
 
-| Column                                   | Type                              | Notes                                  |
-| ---------------------------------------- | --------------------------------- | -------------------------------------- |
-| `key`                                    | text, not null, unique            | Always `"global"` in the MVP           |
-| `defaultParticipantDiscountPercent`      | numeric(5,2), not null, default 0 | Global default participant rule (§8.3) |
-| `defaultHoldMinutes`                     | integer, not null, default 20     | PRD §9.1                               |
-| `defaultOccurrenceCapacity`              | integer, not null, default 20     | PRD §4.2                               |
-| `defaultWaitlistInvitationWindowMinutes` | integer, not null, default 1440   | §7.4                                   |
-| `attendeeCancellationCutoffHours`        | integer, not null, default 48     | "Two days before", PRD §12.1           |
-| `bankQrImageUrl`                         | text                              | Payment QR shown on the secure page    |
-| `noRefundPolicyVersion`                  | text, not null                    | Current policy version id (§7.2)       |
+| Column                                   | Type                                                     | Notes                                             |
+| ---------------------------------------- | -------------------------------------------------------- | ------------------------------------------------- |
+| `key`                                    | text, not null, unique                                   | Always `"global"` in the MVP                      |
+| `defaultParticipantDiscountType`         | `participant_discount_type`, not null, default `percent` | `percent` \| `fixed` (§8.3)                       |
+| `defaultParticipantDiscountValue`        | numeric(10,2), not null, default 0                       | Percentage points when `percent`, Bs when `fixed` |
+| `defaultHoldMinutes`                     | integer, not null, default 20                            | PRD §9.1                                          |
+| `defaultOccurrenceCapacity`              | integer, not null, default 20                            | PRD §4.2                                          |
+| `defaultWaitlistInvitationWindowMinutes` | integer, not null, default 1440                          | §7.4                                              |
+| `attendeeCancellationCutoffHours`        | integer, not null, default 48                            | "Two days before", PRD §12.1                      |
+| `bankQrImageUrl`                         | text                                                     | Payment QR shown on the secure page               |
+| `noRefundPolicyVersion`                  | text, not null                                           | Current policy version id (§7.2)                  |
 
 Checks: every `*Minutes`, `*Hours`, and `defaultOccurrenceCapacity` value `> 0`;
-`defaultParticipantDiscountPercent` between 0 and 100.
+`defaultParticipantDiscountValue >= 0`, and `<= 100` when the type is `percent`.
 
 ### 6.3 `programs`
 
-| Column                            | Type                                                     | Notes                        |
-| --------------------------------- | -------------------------------------------------------- | ---------------------------- |
-| `name`                            | text, not null                                           |                              |
-| `slug`                            | text, not null, unique                                   | Public URL segment           |
-| `summary`                         | text                                                     |                              |
-| `description`                     | text                                                     |                              |
-| `bannerUrl`, `thumbnailUrl`       | text                                                     |                              |
-| `startDate`, `endDate`            | timestamp                                                | Overall range                |
-| `status`                          | `program_status`, not null, default `draft`              | §7.1                         |
-| `festivalId`                      | integer → `festivals.id`, `ON DELETE SET NULL`, nullable | Optional link                |
-| `defaultVenueId`                  | integer → `venues.id`, `ON DELETE RESTRICT`, nullable    |                              |
-| `participantDiscountPercent`      | numeric(5,2), nullable                                   | Overrides `program_settings` |
-| `waitlistInvitationWindowMinutes` | integer, nullable                                        | Overrides `program_settings` |
-| `holdMinutes`                     | integer, nullable                                        | Overrides `program_settings` |
+| Column                            | Type                                                     | Notes                                                          |
+| --------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------- |
+| `name`                            | text, not null                                           |                                                                |
+| `slug`                            | text, not null, unique                                   | Public URL segment                                             |
+| `summary`                         | text                                                     |                                                                |
+| `description`                     | text                                                     |                                                                |
+| `bannerUrl`, `thumbnailUrl`       | text                                                     |                                                                |
+| `startDate`, `endDate`            | timestamp                                                | Overall range                                                  |
+| `status`                          | `program_status`, not null, default `draft`              | §7.1                                                           |
+| `festivalId`                      | integer → `festivals.id`, `ON DELETE SET NULL`, nullable | Optional link                                                  |
+| `defaultVenueId`                  | integer → `venues.id`, `ON DELETE RESTRICT`, nullable    |                                                                |
+| `participantDiscountType`         | `participant_discount_type`, nullable                    | Overrides `program_settings`; set with the value or not at all |
+| `participantDiscountValue`        | numeric(10,2), nullable                                  | Percentage points when `percent`, Bs when `fixed`              |
+| `waitlistInvitationWindowMinutes` | integer, nullable                                        | Overrides `program_settings`                                   |
+| `holdMinutes`                     | integer, nullable                                        | Overrides `program_settings`                                   |
 
-Checks: `endDate IS NULL OR startDate IS NULL OR endDate >= startDate`; discount between 0 and 100;
-nullable minute overrides `> 0` when present.
+Checks: `endDate IS NULL OR startDate IS NULL OR endDate >= startDate`; the discount override is a
+complete pair (`programs_discount_pair_complete` — both columns set or both null); the value is
+`>= 0`, and `<= 100` when the type is `percent`; nullable minute overrides `> 0` when present.
 
 ### 6.4 `program_sessions`
 
@@ -264,13 +269,17 @@ Schedule and inventory.
 | `lifecycleStatus`            | `occurrence_lifecycle_status`, not null, default `scheduled`   | `scheduled` \| `completed` \| `cancelled`                                |
 | `cancelledAt`, `completedAt` | timestamp, nullable                                            |                                                                          |
 | `rescheduledAt`              | timestamp, nullable                                            | Last reschedule; drives the "rescheduled" badge and refund-request right |
-| `repeatOfOccurrenceId`       | integer → self, `ON DELETE SET NULL`, nullable                 | Provenance of a demand-driven repeat group; carries no inventory meaning |
 
 Checks: `endsAt > startsAt`; `capacity > 0`; `salesEndAt IS NULL OR salesStartAt IS NULL OR
 salesEndAt >= salesStartAt`; `lifecycleStatus <> 'cancelled' OR cancelledAt IS NOT NULL`;
 `lifecycleStatus <> 'completed' OR completedAt IS NOT NULL`.
 
 Indexes: `(sessionId, startsAt)`; `(lifecycleStatus, startsAt)`.
+
+**Not built:** an earlier draft carried `repeatOfOccurrenceId`, a self-reference recording that an
+occurrence was added as a demand-driven repeat of another. It was dropped before implementation
+because it carried no inventory meaning — a repeat group is simply another occurrence with its own
+capacity and tickets (PRD §4.2) — and nothing reads provenance. Add it only when something does.
 
 ### 6.6 `speakers` and `session_speakers`
 
@@ -348,30 +357,32 @@ Not created (§0b). Specification retained for the future delivery.
 
 ### 6.10 `session_purchases`
 
-| Column                                                 | Type                                                          | Notes                                        |
-| ------------------------------------------------------ | ------------------------------------------------------------- | -------------------------------------------- |
-| `programId`                                            | integer → `programs.id`, `ON DELETE RESTRICT`, not null       | Scopes settings resolution                   |
-| `userId`                                               | integer → `users.id`, `ON DELETE SET NULL`, nullable          | Null for guests                              |
-| `guestName`, `guestEmail`, `guestPhone`                | text, nullable                                                | Required together when `userId` is null      |
-| `accessToken`                                          | text, not null, unique                                        | Opaque; issued for **all** buyers (§11)      |
-| `accessTokenRevokedAt`                                 | timestamp, nullable                                           |                                              |
-| `passId`                                               | integer → `program_passes.id`, `ON DELETE RESTRICT`, nullable | **[Deferred]** Set for pass purchases        |
-| `passCode`                                             | text, unique, nullable                                        | **[Deferred]** Single pass QR payload (§7.3) |
-| `upgradeOfPurchaseId`                                  | integer → self, `ON DELETE SET NULL`, nullable                | **[Deferred]** Set for pass upgrades         |
-| `status`                                               | `session_purchase_status`, not null, default `pending_upload` | §7.2                                         |
-| `paymentMode`                                          | `session_purchase_payment_mode`, not null                     | `bank_qr` \| `free`                          |
-| `buyerEligibility`                                     | `participant_eligibility`, not null                           | Snapshot, §8.4                               |
-| `eligibilityEvaluatedAt`                               | timestamp, not null                                           |                                              |
-| `eligibilitySnapshot`                                  | jsonb, not null                                               | Evidence, §8.4                               |
-| `subtotalAmount`                                       | numeric(10,2), not null                                       | Sum of line prices                           |
-| `creditedAmount`                                       | numeric(10,2), not null, default 0                            | **[Deferred]** Upgrade credit, §7.5          |
-| `totalAmount`                                          | numeric(10,2), not null                                       | As built: `<= subtotalAmount`                |
-| `holdExpiresAt`                                        | timestamp, nullable                                           | Null for free purchases                      |
-| `voucherSubmittedAt`                                   | timestamp, nullable                                           | Set on first voucher version                 |
-| `approvedAt`, `rejectedAt`, `expiredAt`, `cancelledAt` | timestamp, nullable                                           |                                              |
-| `noRefundPolicyVersion`                                | text, not null                                                | §7.2                                         |
-| `noRefundPolicyAcceptedAt`                             | timestamp, not null                                           |                                              |
-| `idempotencyKey`                                       | text, not null, unique                                        | Client-supplied, prevents double checkout    |
+| Column                                                 | Type                                                          | Notes                                                                         |
+| ------------------------------------------------------ | ------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `programId`                                            | integer → `programs.id`, `ON DELETE RESTRICT`, not null       | Scopes settings resolution                                                    |
+| `userId`                                               | integer → `users.id`, `ON DELETE SET NULL`, nullable          | Null for guests                                                               |
+| `guestName`, `guestEmail`, `guestPhone`                | text, nullable                                                | Required together when `userId` is null                                       |
+| `guestGender`                                          | `gender`, nullable                                            | Collected from guests only; a signed-in buyer has it on their profile         |
+| `guestBirthdate`                                       | date, nullable                                                | As above. `date`, not `timestamp` — a birthday has no time                    |
+| `accessTokenHash`                                      | text, not null, unique                                        | SHA-256 of the token; the raw value is returned once and never stored (§11.1) |
+| `accessTokenRevokedAt`                                 | timestamp, nullable                                           |                                                                               |
+| `passId`                                               | integer → `program_passes.id`, `ON DELETE RESTRICT`, nullable | **[Deferred]** Set for pass purchases                                         |
+| `passCode`                                             | text, unique, nullable                                        | **[Deferred]** Single pass QR payload (§7.3)                                  |
+| `upgradeOfPurchaseId`                                  | integer → self, `ON DELETE SET NULL`, nullable                | **[Deferred]** Set for pass upgrades                                          |
+| `status`                                               | `session_purchase_status`, not null, default `pending_upload` | §7.2                                                                          |
+| `paymentMode`                                          | `session_purchase_payment_mode`, not null                     | `bank_qr` \| `free`                                                           |
+| `buyerEligibility`                                     | `participant_eligibility`, not null                           | Snapshot, §8.4                                                                |
+| `eligibilityEvaluatedAt`                               | timestamp, not null                                           |                                                                               |
+| `eligibilitySnapshot`                                  | jsonb, not null                                               | Evidence, §8.4                                                                |
+| `subtotalAmount`                                       | numeric(10,2), not null                                       | Sum of line prices                                                            |
+| `creditedAmount`                                       | numeric(10,2), not null, default 0                            | **[Deferred]** Upgrade credit, §7.5                                           |
+| `totalAmount`                                          | numeric(10,2), not null                                       | As built: `<= subtotalAmount`                                                 |
+| `holdExpiresAt`                                        | timestamp, nullable                                           | Null for free purchases                                                       |
+| `voucherSubmittedAt`                                   | timestamp, nullable                                           | Set on first voucher version                                                  |
+| `approvedAt`, `rejectedAt`, `expiredAt`, `cancelledAt` | timestamp, nullable                                           |                                                                               |
+| `noRefundPolicyVersion`                                | text, not null                                                | §7.2                                                                          |
+| `noRefundPolicyAcceptedAt`                             | timestamp, not null                                           |                                                                               |
+| `idempotencyKey`                                       | text, not null, unique                                        | Client-supplied, prevents double checkout                                     |
 
 Checks:
 
@@ -540,7 +551,10 @@ Partial unique index on `(waitlistEntryId) WHERE status = 'sent'` — one live i
 The token follows the same rule as purchase access (§11.1): the raw value is emailed once and only
 its digest is stored, so a database dump yields nothing usable.
 
-### 6.18 `session_refund_requests`
+### 6.18 `session_refund_requests` — **[Deferred]**
+
+Not built. Glitter-initiated cancellation and the refund workflow belong to Phase 5, which has not
+been delivered; the table exists in this design only. Everything below is the intended shape.
 
 Glitter-initiated cancellation and post-reschedule requests only. Attendee-initiated cancellation
 never creates a row here.
@@ -809,9 +823,16 @@ For a session, given the buyer's eligibility (a pass would resolve identically):
 1. `public` → `publicPrice`.
 2. `active_participant` and `participantPrice IS NOT NULL` → `participantPrice`
    (`rule: "explicit_override"`).
-3. Otherwise apply the effective discount percent — `programs.participantDiscountPercent` ??
-   `program_settings.defaultParticipantDiscountPercent` — to `publicPrice`
-   (`rule: "program_discount"` or `"global_discount"`).
+3. Otherwise apply the effective discount to `publicPrice` (`rule: "program_discount"` or
+   `"global_discount"`). The discount is a **typed pair**, resolved as a unit: the program's
+   `participantDiscountType`/`participantDiscountValue` when both are set, otherwise
+   `program_settings.defaultParticipantDiscountType`/`defaultParticipantDiscountValue`.
+   - `percent` → `publicPrice × (1 − value/100)`.
+   - `fixed` → `publicPrice − value`, clamped at zero. A fixed discount larger than the price
+     yields a free session, which then flows through the free-registration path.
+
+   Type and value never resolve from different sources: a program overriding the discount supplies
+   both columns or neither, which `programs_discount_pair_complete` enforces.
 
 Rounding is half-up to two decimals, computed once on the server. The resolved amount, the rule
 that produced it, the inputs, and the eligibility are written to
@@ -1019,6 +1040,15 @@ request path:
 
 Rollback is: set the flag back to `hidden`, revert sessions to `draft`, or set `salesClosedAt`. All
 three take effect on the next request, and none destroys purchases, tickets, or audit history.
+
+**The authoring dashboard is deliberately exempt.** `/dashboard/programs` and every program
+mutation check the admin role, not `paid_programs`. That is the point of layer 1: the flag gates
+what the _public_ can reach, and the team has to be able to build the catalogue while it is still
+`hidden` — which is precisely the Phase 1 workflow, and how the flag reaches launch day already
+pointing at reviewed content. Gating the dashboard on the flag would make the flag ungatable: no
+one could author the programme that the flag is meant to reveal. Buyer-facing server actions
+(`startPaidCheckout`, `registerForFreeSession`, `joinWaitlist`, voucher submission) do call
+`featureFlagGuard`, so flipping to `hidden` still stops every sale immediately.
 
 **Why a database-backed flag rather than a Vercel environment variable.** Env vars on Vercel are
 applied at deploy time; changing one requires a redeploy before it takes effect, so it is not the

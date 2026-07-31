@@ -130,3 +130,30 @@ export function resolveInvitationWindowMinutes(
     settings.defaultWaitlistInvitationWindowMinutes
   );
 }
+
+/**
+ * Whether an error is the unique-index violation for "already on this list".
+ *
+ * `joinWaitlist` locks the occurrence before it checks, so two concurrent joins
+ * by the same person serialize and the second one sees the first's row. This is
+ * the layer underneath that: the partial unique indexes on
+ * `session_waitlist_entries` are what actually guarantee it, and a violation
+ * means the state the buyer should be told about — not the outage that the
+ * generic message implies. Mirrors `isDuplicateAttendeeTicketError`.
+ */
+export function isDuplicateWaitlistEntryError(error: unknown): boolean {
+  let current: unknown = error;
+  while (current && typeof current === "object") {
+    const code = Reflect.get(current, "code");
+    const constraint = Reflect.get(current, "constraint");
+    if (
+      code === "23505" &&
+      typeof constraint === "string" &&
+      constraint.includes("session_waitlist_entries_occurrence")
+    ) {
+      return true;
+    }
+    current = Reflect.get(current, "cause");
+  }
+  return false;
+}

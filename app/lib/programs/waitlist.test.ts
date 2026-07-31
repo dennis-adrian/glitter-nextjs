@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { resolveAvailability } from "@/app/lib/programs/inventory";
 import {
+  isDuplicateWaitlistEntryError,
   resolveInvitationUse,
   resolveInvitationWindowMinutes,
   resolveWaitlistJoin,
@@ -167,5 +168,49 @@ describe("resolveInvitationWindowMinutes", () => {
         { defaultWaitlistInvitationWindowMinutes: 1440 },
       ),
     ).toBe(1440);
+  });
+});
+
+describe("isDuplicateWaitlistEntryError", () => {
+  // Both partial unique indexes share this prefix; the driver reports the
+  // index name in `constraint`.
+  const pgError = (constraint: string) => ({ code: "23505", constraint });
+
+  it("recognises both identity branches", () => {
+    expect(
+      isDuplicateWaitlistEntryError(
+        pgError("session_waitlist_entries_occurrence_user_idx"),
+      ),
+    ).toBe(true);
+    expect(
+      isDuplicateWaitlistEntryError(
+        pgError("session_waitlist_entries_occurrence_email_idx"),
+      ),
+    ).toBe(true);
+  });
+
+  it("unwraps a cause chain, the way drizzle rethrows", () => {
+    const wrapped = new Error("insert failed", {
+      cause: pgError("session_waitlist_entries_occurrence_user_idx"),
+    });
+    expect(isDuplicateWaitlistEntryError(wrapped)).toBe(true);
+  });
+
+  it("does not claim unrelated violations", () => {
+    // A different table's 23505 must fall through to the generic message,
+    // otherwise a real fault is reported to the buyer as "already waiting".
+    expect(
+      isDuplicateWaitlistEntryError(
+        pgError("session_tickets_occurrence_attendee_email_idx"),
+      ),
+    ).toBe(false);
+    expect(
+      isDuplicateWaitlistEntryError(
+        pgError("session_waitlist_invitations_live_idx"),
+      ),
+    ).toBe(false);
+    expect(isDuplicateWaitlistEntryError({ code: "23503" })).toBe(false);
+    expect(isDuplicateWaitlistEntryError(new Error("boom"))).toBe(false);
+    expect(isDuplicateWaitlistEntryError(null)).toBe(false);
   });
 });

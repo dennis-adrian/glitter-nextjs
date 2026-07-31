@@ -15,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
+import { formatMoney } from "@/app/lib/programs/pricing";
 import { submitPurchaseVoucher } from "@/app/lib/programs/voucher-actions";
 import { formatFullDate } from "@/app/lib/formatters";
 import { useUploadThing } from "@/app/vendors/uploadthing";
@@ -61,24 +62,24 @@ export default function VoucherUploadCard({
   const { startUpload } = useUploadThing("sessionPurchaseVoucher");
 
   /**
-   * Ticks only while a deadline is actually running. `null` means the purchase
-   * is already under review, where the seat is held by the review itself.
+   * The interval only forces a re-render; the remaining time is derived below.
+   *
+   * Held in state, the countdown survived one render past the deadline going
+   * away — submitting a voucher nulls `holdExpiresAt` and refreshes, and the
+   * old number was still on screen until the effect cleared it, briefly showing
+   * a running deadline for a purchase already under review.
    */
-  const [msLeft, setMsLeft] = useState<number | null>(() =>
-    holdExpiresAt ? holdExpiresAt.getTime() - Date.now() : null,
-  );
+  const [, setTick] = useState(0);
 
   useEffect(() => {
-    if (!holdExpiresAt) {
-      setMsLeft(null);
-      return;
-    }
+    if (!holdExpiresAt) return;
 
-    const tick = () => setMsLeft(holdExpiresAt.getTime() - Date.now());
-    tick();
-    const interval = setInterval(tick, 1000);
+    const interval = setInterval(() => setTick((count) => count + 1), 1000);
     return () => clearInterval(interval);
   }, [holdExpiresAt]);
+
+  /** `null` means the purchase is under review, where the review holds the seat. */
+  const msLeft = holdExpiresAt ? holdExpiresAt.getTime() - Date.now() : null;
 
   useEffect(() => {
     return () => {
@@ -154,14 +155,16 @@ export default function VoucherUploadCard({
             ? "Revisamos tu comprobante y necesitamos una imagen distinta."
             : latest
               ? "Estamos revisando tu pago. Te avisaremos por correo."
-              : `Transfiere Bs ${totalAmount} y sube la captura para confirmar tu cupo.`}
+              : `Transfiere ${formatMoney(totalAmount)} y sube la captura para confirmar tu cupo.`}
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-4">
         <div className="flex items-baseline justify-between rounded-lg border p-3">
           <span className="text-sm text-muted-foreground">Total a pagar</span>
-          <span className="text-lg font-semibold">Bs {totalAmount}</span>
+          <span className="text-lg font-semibold">
+            {formatMoney(totalAmount)}
+          </span>
         </div>
 
         {msLeft !== null ? (
@@ -203,7 +206,7 @@ export default function VoucherUploadCard({
               ) : (
                 <>
                   Escanea el QR desde tu app bancaria y escribe el monto:{" "}
-                  <strong>Bs {totalAmount}</strong>.
+                  <strong>{formatMoney(totalAmount)}</strong>.
                 </>
               )}
             </p>

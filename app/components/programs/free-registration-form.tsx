@@ -101,11 +101,22 @@ export default function FreeRegistrationForm({
   }
 
   async function submit(guest: GuestValues | null) {
+    /**
+     * The consent the buyer actually gave, not a hardcoded `true`. The disabled
+     * button already blocks both submit paths, so this guard is what keeps the
+     * value honest if that ever changes — and narrows `boolean` to the `true`
+     * the server action's schema demands.
+     */
+    if (!acceptsPolicy) {
+      toast.error("Confirma que entiendes la política para continuar");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const result = await registerForFreeSession({
         occurrenceId,
-        acceptsNoRefundPolicy: true,
+        acceptsNoRefundPolicy: acceptsPolicy,
         idempotencyKey: ensureIdempotencyKey(),
         ...(guest
           ? {

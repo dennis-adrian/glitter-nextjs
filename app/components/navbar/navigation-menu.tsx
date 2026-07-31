@@ -295,6 +295,12 @@ const NavbarNavigationMenu = ({
                 >
                   Banners de la página de inicio y del portal
                 </NavigationMenuListItem>
+                <NavigationMenuListItem
+                  title="Funcionalidades"
+                  href="/dashboard/feature_flags"
+                >
+                  Activa o esconde funcionalidades y da acceso anticipado
+                </NavigationMenuListItem>
               </ul>
             </NavigationMenuContent>
           </NavigationMenuItem>

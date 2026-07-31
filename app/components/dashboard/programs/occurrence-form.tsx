@@ -68,7 +68,7 @@ export default function OccurrenceForm({
     }
 
     if (capacity === null || !Number.isInteger(capacity) || capacity < 1) {
-      toast.error("Los cupos son obligatorios");
+      toast.error("Los cupos deben ser un número entero mayor a cero");
       return;
     }
 

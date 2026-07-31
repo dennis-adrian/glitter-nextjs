@@ -6,7 +6,7 @@
 
 **Reference PRD:** [PRD-paid-programs-and-sessions.md](./PRD-paid-programs-and-sessions.md)
 
-**Status:** In progress — Phases 0–2 delivered
+**Status:** In progress — Phases 0–3 delivered; Phase 4 deferred (§0a); Phase 5 in progress
 
 ---
 
@@ -40,7 +40,10 @@ Deferred items are marked **[Deferred — post-MVP]** in place rather than delet
 
 ## 1. Approach
 
-This roadmap divides implementation into **dependency and risk phases**, not calendar estimates. Phases 0 through 6 make up the complete MVP. A phase may be delivered through several internal increments, but public sales must not be enabled until Phase 6 is complete.
+This roadmap divides implementation into **dependency and risk phases**, not calendar estimates.
+Phases 0, 1, 2, 3, 5, and 6 make up the complete MVP; Phase 4 is deferred in full (§0a) and the
+sequence runs Phase 3 → Phase 5. A phase may be delivered through several internal increments, but
+public sales must not be enabled until Phase 6 is complete.
 
 Sequencing principles:
 
@@ -293,7 +296,6 @@ Every applicable journey must be tested as a guest, an active participant, and a
 | Critical scenario                       | Expected result                                                   |
 | --------------------------------------- | ----------------------------------------------------------------- |
 | Two people request the final seat       | Only one receives a hold or confirmation                          |
-| Cart contains one sold-out session      | No sessions are held                                              |
 | Hold expires without a voucher          | All seats are released and no tickets exist                       |
 | Voucher arrives at the 20-minute limit  | One transition wins; no orphaned seats remain                     |
 | Voucher is replaced                     | The newest is reviewed and history is retained                    |
@@ -302,6 +304,11 @@ Every applicable journey must be tested as a guest, an active participant, and a
 | Glitter cancels or reschedules          | The applicable refund policy is applied                           |
 | QR is scanned twice                     | Only one attendance record is created                             |
 | Buyer opens another buyer's secure link | Access is denied                                                  |
+
+**[Deferred — post-MVP, §0a]** "A cart contains one sold-out session → no sessions are held"
+validates the multi-line atomic hold. It moves to post-MVP validation with the cart itself. The
+server-side capability exists and is covered by tests (§0a as-built note); what is deferred is the
+buyer-facing flow and the requirement to validate it before launch.
 
 ## 4. Post-MVP deliveries
 
@@ -354,14 +361,14 @@ Full requirements are retained in Phase 4 above and PRD §7.2–7.3.
 
 ## 5. Dependencies and risks that must not be deferred
 
-| Area                | Risk if deferred                          | Required mitigation                                                 |
-| ------------------- | ----------------------------------------- | ------------------------------------------------------------------- |
-| Eligibility         | Incorrect charge or unauthorized access   | Canonical source, server validation, and snapshot                   |
-| Capacity            | Overselling or orphaned seats             | Transactional holds, idempotency, and reconciliation                |
-| Vouchers            | Wrong file reviewed or audit history lost | Immutable versions and explicit state                               |
-| Guest access        | Data or ticket exposure                   | Opaque, revocable, resource-authorized tokens                       |
-| Multi-item purchase | Inconsistent inventory between sessions   | Atomic reservation across all lines                                 |
-| QR issuance         | Duplicates or access before payment       | Idempotent issuance only after approval                             |
-| Cancellation        | Inconsistent policy application           | Versioned acceptance and centralized rules                          |
-| Email               | User cannot access status or ticket       | Link on confirmation, retries, and web recovery                     |
-| Audit history       | Support actions without evidence          | Actor, reason, prior/new state, and timestamp for sensitive actions |
+| Area                | Risk if deferred                                                                                                                                       | Required mitigation                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| Eligibility         | Incorrect charge or unauthorized access                                                                                                                | Canonical source, server validation, and snapshot                   |
+| Capacity            | Overselling or orphaned seats                                                                                                                          | Transactional holds, idempotency, and reconciliation                |
+| Vouchers            | Wrong file reviewed or audit history lost                                                                                                              | Immutable versions and explicit state                               |
+| Guest access        | Data or ticket exposure                                                                                                                                | Opaque, revocable, resource-authorized tokens                       |
+| Multi-item purchase | **[Deferred — post-MVP, §0a]** Not in the MVP; a purchase covers one occurrence. Atomic reservation across all lines is required before the cart ships | Atomic reservation across all lines                                 |
+| QR issuance         | Duplicates or access before payment                                                                                                                    | Idempotent issuance only after approval                             |
+| Cancellation        | Inconsistent policy application                                                                                                                        | Versioned acceptance and centralized rules                          |
+| Email               | User cannot access status or ticket                                                                                                                    | Link on confirmation, retries, and web recovery                     |
+| Audit history       | Support actions without evidence                                                                                                                       | Actor, reason, prior/new state, and timestamp for sensitive actions |

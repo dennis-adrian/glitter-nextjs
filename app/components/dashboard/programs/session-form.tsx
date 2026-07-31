@@ -174,6 +174,7 @@ export default function SessionForm({
         <TextareaInput
           formControl={form.control}
           label="Qué te llevas"
+          maxLength={2000}
           name="learningOutcomes"
           placeholder="Una línea por punto"
         />

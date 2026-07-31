@@ -24,6 +24,7 @@ import {
 
 const TITLE_MAX = 200;
 const TEXT_MAX = 5000;
+const LEARNING_OUTCOMES_MAX = 2000;
 
 const programSchema = z.object({
   name: z.string().trim().min(1).max(TITLE_MAX),
@@ -60,8 +61,12 @@ const sessionSchema = z.object({
   topic: z.string().trim().max(TITLE_MAX).nullish(),
   description: z.string().trim().max(TEXT_MAX).nullish(),
   learningOutcomes: z
-    .array(z.string().trim().min(1).max(300))
+    .array(z.string().trim().min(1).max(LEARNING_OUTCOMES_MAX))
     .max(10)
+    .refine(
+      (outcomes) => outcomes.join("\n").length <= LEARNING_OUTCOMES_MAX,
+      `Los aprendizajes no pueden superar ${LEARNING_OUTCOMES_MAX} caracteres`,
+    )
     .optional(),
   skillLevel: z.enum(["beginner", "intermediate", "advanced"]).nullish(),
   imageUrl: z
@@ -209,18 +214,22 @@ export async function updateProgram(programId: number, input: ProgramInput) {
   const discountError = validateDiscount(data);
   if (discountError) return discountError;
 
-  await db.transaction(async (tx) => {
+  const updated = await db.transaction(async (tx) => {
     const [existing] = await tx
       .select({ slug: programs.slug, publishedAt: programs.publishedAt })
       .from(programs)
       .where(eq(programs.id, programId))
       .limit(1);
 
+    // No row means no program. Reporting "actualizado" would tell the admin
+    // their edit landed when nothing was written.
+    if (!existing) return false;
+
     // Renaming a published program must not move its public URL — links already
     // shared would break. Only a program that was never published follows its
     // name.
     const slug =
-      existing?.publishedAt && existing.slug
+      existing.publishedAt && existing.slug
         ? existing.slug
         : await ensureUniqueProgramSlug(tx, data.name, programId);
 
@@ -241,7 +250,13 @@ export async function updateProgram(programId: number, input: ProgramInput) {
         updatedAt: new Date(),
       })
       .where(eq(programs.id, programId));
+
+    return true;
   });
+
+  if (!updated) {
+    return { success: false, message: "Programa no encontrado" } as const;
+  }
 
   revalidatePrograms();
 
@@ -284,10 +299,15 @@ export async function unpublishProgram(programId: number) {
   const profile = await requireAdminOrFestivalAdmin();
   if (!profile) return { success: false, message: "No autorizado" } as const;
 
-  await db
+  const [updated] = await db
     .update(programs)
     .set({ status: "draft", updatedAt: new Date() })
-    .where(eq(programs.id, programId));
+    .where(eq(programs.id, programId))
+    .returning({ id: programs.id });
+
+  if (!updated) {
+    return { success: false, message: "Programa no encontrado" } as const;
+  }
 
   revalidatePrograms();
 
@@ -357,7 +377,7 @@ export async function updateSession(sessionId: number, input: SessionInput) {
   const priceError = validatePrices(data.publicPrice, data.participantPrice);
   if (priceError) return priceError;
 
-  await db.transaction(async (tx) => {
+  const updated = await db.transaction(async (tx) => {
     const [existing] = await tx
       .select({
         slug: programSessions.slug,
@@ -367,10 +387,12 @@ export async function updateSession(sessionId: number, input: SessionInput) {
       .where(eq(programSessions.id, sessionId))
       .limit(1);
 
+    if (!existing) return false;
+
     // Same rule as programs: a published session keeps the URL it was published
     // under, however its title changes afterwards.
     const slug =
-      existing?.publishedAt && existing.slug
+      existing.publishedAt && existing.slug
         ? existing.slug
         : await ensureUniqueSessionSlug(
             tx,
@@ -400,7 +422,13 @@ export async function updateSession(sessionId: number, input: SessionInput) {
         updatedAt: new Date(),
       })
       .where(eq(programSessions.id, sessionId));
+
+    return true;
   });
+
+  if (!updated) {
+    return { success: false, message: "Sesión no encontrada" } as const;
+  }
 
   revalidatePrograms();
 
@@ -474,7 +502,7 @@ export async function publishSession(sessionId: number) {
 
   const now = new Date();
 
-  await db
+  const [published] = await db
     .update(programSessions)
     .set({
       status: "published",
@@ -483,7 +511,12 @@ export async function publishSession(sessionId: number) {
       publishedAt: sql`coalesce(${programSessions.publishedAt}, ${now})`,
       updatedAt: now,
     })
-    .where(eq(programSessions.id, sessionId));
+    .where(eq(programSessions.id, sessionId))
+    .returning({ id: programSessions.id });
+
+  if (!published) {
+    return { success: false, message: "Sesión no encontrada" } as const;
+  }
 
   revalidatePrograms();
 
@@ -494,10 +527,15 @@ export async function unpublishSession(sessionId: number) {
   const profile = await requireAdminOrFestivalAdmin();
   if (!profile) return { success: false, message: "No autorizado" } as const;
 
-  await db
+  const [updated] = await db
     .update(programSessions)
     .set({ status: "draft", updatedAt: new Date() })
-    .where(eq(programSessions.id, sessionId));
+    .where(eq(programSessions.id, sessionId))
+    .returning({ id: programSessions.id });
+
+  if (!updated) {
+    return { success: false, message: "Sesión no encontrada" } as const;
+  }
 
   revalidatePrograms();
 

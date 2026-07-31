@@ -49,6 +49,9 @@ export default function SpeakersManager({ speakers }: Props) {
 
   function startEditing(speaker: Speaker) {
     setEditing(speaker);
+    // Cleared on the way in as well as out: an upload left in flight when the
+    // admin switches records would otherwise keep the submit button disabled.
+    setIsUploadingImage(false);
     form.reset({
       publicName: speaker.publicName,
       occupation: speaker.occupation ?? "",

@@ -30,11 +30,30 @@ export type FreeRegistrationEmailInput = {
   accessToken: string;
 };
 
+/**
+ * The origin every outbound link is built on.
+ *
+ * An unset *or empty* `NEXT_PUBLIC_BASE_URL` both count as missing: `??` only
+ * catches `undefined`, so an empty value used to survive and produce relative
+ * links that are dead in an email client. `VERCEL_URL` is set on every
+ * deployment, which is what keeps the localhost fallback — useful in local
+ * development, useless in an inbox — out of anything deployed.
+ *
+ * Deliberately does not throw: `buildSecureLinkUrl` is also called while
+ * rendering the buyer's own purchase page, and a misconfigured environment
+ * should degrade to a wrong link there, not a 500.
+ */
 function baseUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "") ??
-    "http://localhost:3000"
+  const configured = process.env.NEXT_PUBLIC_BASE_URL?.trim().replace(
+    /\/+$/,
+    "",
   );
+  if (configured) return configured;
+
+  const vercel = process.env.VERCEL_URL?.trim().replace(/\/+$/, "");
+  if (vercel) return `https://${vercel}`;
+
+  return "http://localhost:3000";
 }
 
 /** `/programs/purchases/12?token=…` — the buyer's recovery link. */

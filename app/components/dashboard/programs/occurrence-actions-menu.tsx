@@ -62,6 +62,7 @@ export default function OccurrenceActionsMenu({ occurrence }: Props) {
   const [cancelReason, setCancelReason] = useState("");
   const [cancelOpen, setCancelOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [completeOpen, setCompleteOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [reschedule, setReschedule] = useState(() =>
     freshReschedule(occurrence),
@@ -96,6 +97,7 @@ export default function OccurrenceActionsMenu({ occurrence }: Props) {
           toast.success(result.message);
           setCancelOpen(false);
           setDeleteOpen(false);
+          setCompleteOpen(false);
           setRescheduleOpen(false);
         } else {
           toast.error(result.message);
@@ -214,14 +216,33 @@ export default function OccurrenceActionsMenu({ occurrence }: Props) {
         </DialogContent>
       </Dialog>
 
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={isPending}
-        onClick={() => run(completeOccurrence(occurrence.id))}
-      >
-        Finalizar
-      </Button>
+      {/* Confirmed like cancel and delete: completing is one-way — a completed
+          occurrence can no longer be edited, rescheduled, or cancelled. */}
+      <AlertDialog open={completeOpen} onOpenChange={setCompleteOpen}>
+        <AlertDialogTrigger asChild>
+          <Button variant="outline" size="sm" disabled={isPending}>
+            Finalizar
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Finalizar este horario?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Queda registrado como realizado. Después no se puede editar,
+              reprogramar ni cancelar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isPending}
+              onClick={() => run(completeOccurrence(occurrence.id))}
+            >
+              Finalizar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={cancelOpen} onOpenChange={openCancel}>
         <DialogTrigger asChild>

@@ -231,7 +231,7 @@ A free session:
 - Does not create a payment step or require a voucher.
 - Follows the same audience, cancellation, waitlist, and check-in rules.
 
-## 7. Cart and, later, the Week Pass
+## 7. Purchasing sessions — and, later, the cart and the Week Pass
 
 ### 7.1 Purchasing individual sessions
 
@@ -278,7 +278,9 @@ Ships with the pass, not before. The holder of an individual ticket would initia
 
 - Initial default capacity: 20 per occurrence.
 - Each ticket belongs to one person.
-- A multi-item purchase may proceed only if all lines have availability.
+- A purchase covers one occurrence, and proceeds only if that occurrence has availability.
+- **[Deferred — post-MVP, §0a]** A multi-item purchase may proceed only if all lines have
+  availability.
 - **[Deferred — post-MVP]** A Week Pass consumes one seat in every included session.
 - Validation and reservation must prevent overselling under concurrency.
 - Tickets cannot be transferred in the MVP.
@@ -303,7 +305,8 @@ Rules:
 
 When checkout is confirmed:
 
-- Every seat in the cart is held for **20 minutes**.
+- The selected seat is held for **20 minutes**. **[Deferred — post-MVP, §0a]** With a cart, every
+  seat in it is held together.
 - The page displays the deadline and total due.
 - If no voucher is uploaded, the hold expires and all seats are released.
 - If a voucher is uploaded within the deadline, the seats remain reserved during verification with no subsequent automatic expiration.
@@ -449,7 +452,8 @@ It must also support:
 
 - Every sensitive mutation is validated on the server.
 - Eligibility, audience, price, and capacity are recalculated when checkout is confirmed.
-- Holds are atomic with respect to inventory. Multi-item purchases, passes, and upgrades must be too, once they ship.
+- Holds are atomic with respect to inventory. Multi-item purchases, passes, and upgrades must be
+  too, once they ship — none of the three is in the MVP (§0a, §0b).
 - Every voucher version is immutable and traceable.
 - Every sensitive admin action requires a reason.
 - No-refund policy acceptance is preserved with version and date.

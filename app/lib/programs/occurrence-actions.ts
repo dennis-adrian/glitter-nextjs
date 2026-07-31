@@ -191,14 +191,27 @@ export async function updateOccurrence(
     data.startsAt.getTime() !== existing.startsAt.getTime() ||
     data.endsAt.getTime() !== existing.endsAt.getTime();
 
-  if (movesSchedule) {
+  if (movesSchedule || data.capacity !== undefined) {
     const availability = await fetchOccurrenceAvailability(db, occurrenceId);
 
-    if (availability.occupied > 0) {
+    if (movesSchedule && availability.occupied > 0) {
       return {
         success: false,
         message:
           "Este horario ya tiene inscripciones. Usa Reprogramar para cambiar la fecha.",
+      } as const;
+    }
+
+    /**
+     * Capacity is editable while the schedule stands, but not below what is
+     * already taken — that would oversell the occurrence against seats real
+     * people are holding, and every availability read afterwards would report
+     * a negative remainder.
+     */
+    if (data.capacity !== undefined && data.capacity < availability.occupied) {
+      return {
+        success: false,
+        message: `Ya hay ${availability.occupied} cupo(s) ocupado(s); no puedes bajar el total por debajo de eso.`,
       } as const;
     }
   }

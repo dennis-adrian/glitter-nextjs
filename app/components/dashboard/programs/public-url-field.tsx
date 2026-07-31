@@ -61,7 +61,9 @@ export default function PublicUrlField({ path, isDraft }: Props) {
         <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 text-xs">
           {fullUrl}
         </code>
-        <Button variant="outline" size="sm" onClick={copy}>
+        {/* Explicit type: the primitive renders a bare <button>, which defaults
+            to submit and would post any surrounding form on copy. */}
+        <Button type="button" variant="outline" size="sm" onClick={copy}>
           {copied ? (
             <CheckIcon className="mr-1 h-4 w-4" />
           ) : (

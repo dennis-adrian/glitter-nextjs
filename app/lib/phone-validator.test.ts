@@ -22,6 +22,27 @@ describe("isPhoneValid", () => {
     expect(isPhoneValid("+591 (5) 1123456")).toBe(true);
   });
 
+  it("accepts Unicode dashes as separators", () => {
+    // Pasted from a contact app or a web page, these are not ASCII hyphens.
+    expect(isPhoneValid("+591 5112\u20103456")).toBe(true); // hyphen
+    expect(isPhoneValid("+591 5112\u20133456")).toBe(true); // en dash
+    expect(isPhoneValid("+591 5112\u20143456")).toBe(true); // em dash
+    expect(isPhoneValid("+591\u00a05112\u20153456")).toBe(true); // nbsp + horizontal bar
+  });
+
+  it("accepts the 00 international prefix", () => {
+    expect(isPhoneValid("0059151123456")).toBe(true);
+    expect(isPhoneValid("00591 5112-3456")).toBe(true);
+  });
+
+  it("rejects letters rather than stripping them", () => {
+    // Normalisation removes separators only, so nothing here can be massaged
+    // into the overridden range.
+    expect(isPhoneValid("+591 5112 3456 ext")).toBe(false);
+    expect(isPhoneValid("+591a51123456")).toBe(false);
+    expect(isPhoneValid("00591abc51123456")).toBe(false);
+  });
+
   it("accepts Bolivian landlines", () => {
     expect(isPhoneValid("+59122441234")).toBe(true);
   });

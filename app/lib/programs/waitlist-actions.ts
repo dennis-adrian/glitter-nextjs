@@ -13,6 +13,7 @@ import {
 import { resolveAttendeeIdentity } from "@/app/lib/programs/registration";
 import { resolveOccurrenceState } from "@/app/lib/programs/state";
 import {
+  isDuplicateWaitlistEntryError,
   resolveWaitlistJoin,
   WAITLIST_JOIN_BLOCKER_LABELS,
 } from "@/app/lib/programs/waitlist";
@@ -188,6 +189,16 @@ export async function joinWaitlist(
         "Te anotamos en la lista. Si se libera un cupo, te escribimos — no es por orden de llegada.",
     };
   } catch (error) {
+    // The partial unique indexes are the last line of defence if two requests
+    // ever race past the in-transaction check. Already being on the list is a
+    // real state to report, not a failure to retry.
+    if (isDuplicateWaitlistEntryError(error)) {
+      return {
+        success: false,
+        message: WAITLIST_JOIN_BLOCKER_LABELS.already_waiting,
+      };
+    }
+
     console.error("Waitlist join failed", {
       occurrenceId: data.occurrenceId,
       errorType: error instanceof Error ? error.name : typeof error,

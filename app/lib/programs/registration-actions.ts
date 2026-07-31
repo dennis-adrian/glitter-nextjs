@@ -140,7 +140,6 @@ export async function registerForFreeSession(
   }
 
   const now = new Date();
-  const { eligibility, snapshot } = await getBuyerEligibility(profile, { now });
   const idempotencyKey = data.idempotencyKey ?? generateIdempotencyKey();
 
   // Generated outside the transaction so a retry never reuses a token that a
@@ -149,6 +148,13 @@ export async function registerForFreeSession(
   const ticketCode = generateTicketCode();
 
   try {
+    // Inside the try, as in `startPaidCheckout`: this reads the database for a
+    // signed-in attendee, so a failure has to surface as the same generic
+    // message rather than escaping as an unhandled rejection.
+    const { eligibility, snapshot } = await getBuyerEligibility(profile, {
+      now,
+    });
+
     const outcome = await db.transaction(async (tx) => {
       /**
        * Locked before the replay lookup, not after. Two retries carrying the
@@ -452,7 +458,27 @@ export async function getOccurrenceAvailability(occurrenceId: number) {
   return fetchOccurrenceAvailability(db, occurrenceId);
 }
 
-/** Availability for every occurrence on a session page, in one round trip. */
+/**
+ * The largest occurrence set this endpoint will look at in one call. Sized well
+ * above any real session's schedule — it exists to bound an anonymous caller's
+ * query, not to limit the page, which passes exactly the occurrences it renders.
+ */
+const MAX_AVAILABILITY_IDS = 100;
+
+const availabilityIdsSchema = z
+  .array(z.number().int().positive())
+  .max(MAX_AVAILABILITY_IDS);
+
+/**
+ * Availability for every occurrence on a session page, in one round trip.
+ *
+ * Every export in a `use server` module is a public endpoint, so the ids are
+ * validated rather than trusted: a non-integer reaches the driver as a broken
+ * query, and an unbounded array lets one request scan arbitrarily much.
+ * Invalid input returns the same empty shape an empty list already produces.
+ */
 export async function getAvailabilityForOccurrences(occurrenceIds: number[]) {
-  return fetchAvailabilityForOccurrences(db, occurrenceIds);
+  const parsed = availabilityIdsSchema.safeParse(occurrenceIds);
+
+  return fetchAvailabilityForOccurrences(db, parsed.success ? parsed.data : []);
 }
