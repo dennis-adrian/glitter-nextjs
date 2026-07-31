@@ -11,6 +11,7 @@ import {
 } from "@/app/lib/programs/access";
 import {
   buildBuyerLandingUrl,
+  sendAdminNewSignupEmail,
   sendVoucherReceivedEmail,
 } from "@/app/lib/programs/notifications";
 import { hashAccessToken } from "@/app/lib/programs/tokens";
@@ -248,45 +249,66 @@ export async function submitPurchaseVoucher(
     revalidatePath(`/programs/purchases/${data.purchaseId}`);
     revalidatePath("/dashboard/programs", "layout");
 
-    /**
-     * Isolated from the outer catch. The transaction has committed: the
-     * voucher exists and the seat is held. Letting a failure here reach the
-     * handler below would tell the buyer their upload failed, and their retry
-     * would file a redundant replacement version.
-     *
-     * The send itself already swallows its errors; this guards the buyer
-     * lookup, which queries the database.
-     */
+    let buyerEmail = outcome.purchase.guestEmail;
+    let buyerName = outcome.purchase.guestName ?? "Cliente";
+
     try {
       const signedInBuyer = await resolveBuyerContact(outcome.purchase);
-      const buyerEmail = outcome.purchase.guestEmail ?? signedInBuyer?.email;
-      const buyerName =
-        outcome.purchase.guestName ?? signedInBuyer?.name ?? buyerEmail;
-
-      if (buyerEmail && buyerName && outcome.lines.length > 0) {
-        await sendVoucherReceivedEmail({
-          purchaseId: outcome.purchase.id,
-          buyerName,
-          buyerEmail,
-          lines: outcome.lines,
-          totalAmount: outcome.purchase.totalAmount,
-          version: outcome.version,
-          landingUrl: buildBuyerLandingUrl({
-            purchaseId: outcome.purchase.id,
-            // Only when the token is what granted access. An owner reaching
-            // this from their profile gets the profile link instead, so no
-            // bearer credential is mailed to someone who does not need one.
-            accessToken:
-              outcome.accessVia === "token" ? (data.token ?? null) : null,
-            isSignedInBuyer: outcome.purchase.userId !== null,
-          }),
-        });
-      }
+      buyerEmail ??= signedInBuyer?.email ?? null;
+      buyerName =
+        outcome.purchase.guestName ??
+        signedInBuyer?.name ??
+        buyerEmail ??
+        "Cliente";
     } catch (error) {
-      console.error("Voucher acknowledgement failed", {
+      console.error("Voucher buyer lookup failed", {
         purchaseId: data.purchaseId,
         errorType: error instanceof Error ? error.name : typeof error,
       });
+    }
+
+    if (buyerEmail && outcome.lines.length > 0) {
+      await sendVoucherReceivedEmail({
+        purchaseId: outcome.purchase.id,
+        buyerName,
+        buyerEmail,
+        lines: outcome.lines,
+        totalAmount: outcome.purchase.totalAmount,
+        version: outcome.version,
+        landingUrl: buildBuyerLandingUrl({
+          purchaseId: outcome.purchase.id,
+          // Only when the token is what granted access. An owner reaching
+          // this from their profile gets the profile link instead, so no
+          // bearer credential is mailed to someone who does not need one.
+          accessToken:
+            outcome.accessVia === "token" ? (data.token ?? null) : null,
+          isSignedInBuyer: outcome.purchase.userId !== null,
+        }),
+      });
+    }
+
+    // A replacement voucher is still the same signup, so notify admins only
+    // for the first proof submitted.
+    if (outcome.version === 1 && outcome.lines.length > 0) {
+      try {
+        const admins = await db
+          .select({ email: users.email })
+          .from(users)
+          .where(eq(users.role, "admin"));
+
+        await sendAdminNewSignupEmail({
+          purchaseId: outcome.purchase.id,
+          attendeeName: buyerName,
+          adminEmails: admins.map((admin) => admin.email),
+          lines: outcome.lines,
+          totalAmount: outcome.purchase.totalAmount,
+        });
+      } catch (error) {
+        console.error("Admin new signup notification failed", {
+          purchaseId: data.purchaseId,
+          errorType: error instanceof Error ? error.name : typeof error,
+        });
+      }
     }
 
     return {
