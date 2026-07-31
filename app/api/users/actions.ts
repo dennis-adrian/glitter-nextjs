@@ -27,6 +27,7 @@ import {
 } from "@/app/lib/festivals/utils";
 import ProfileRejectionEmailTemplate from "@/app/emails/profile-rejection";
 import { scrubDisciplinaryNotificationJobsForUser } from "@/app/lib/infractions/notifications";
+import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
 import { deleteClerkUser } from "@/app/lib/users/actions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import {
@@ -520,6 +521,11 @@ export async function deleteProfile(profileId: number, prevState: FormState) {
 
         // Scrub outbox PII before the user row is removed; FK only nulls user_id.
         await scrubDisciplinaryNotificationJobsForUser(tx, profileId, now);
+
+        // Program purchases are kept but anonymized, so attendance history and
+        // seat counts survive. Required before the delete: their FK is
+        // RESTRICT, so skipping this would abort the transaction.
+        await anonymizeProgramPurchasesForUser(tx, profileId, now);
 
         await tx.delete(users).where(eq(users.id, profileId));
         await tx

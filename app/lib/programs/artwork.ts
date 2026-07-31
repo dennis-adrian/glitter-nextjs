@@ -1,0 +1,34 @@
+export const DEFAULT_PROGRAM_ARTWORK =
+  "/img/programs/glitter-week-education-hero.webp";
+
+const ALLOWED_REMOTE_ARTWORK_HOSTS = new Set([
+  "img.clerk.com",
+  "files.edgestore.dev",
+  "utfs.io",
+  "ufs.sh",
+]);
+
+export function isAllowedProgramArtworkUrl(
+  input: string | null | undefined,
+): input is string {
+  if (!input) return false;
+
+  try {
+    const url = new URL(input);
+    const hostname = url.hostname.toLowerCase();
+
+    return (
+      url.protocol === "https:" &&
+      (ALLOWED_REMOTE_ARTWORK_HOSTS.has(hostname) ||
+        hostname.endsWith(".ufs.sh"))
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function resolveProgramArtwork(
+  input: string | null | undefined,
+): string {
+  return isAllowedProgramArtworkUrl(input) ? input : DEFAULT_PROGRAM_ARTWORK;
+}

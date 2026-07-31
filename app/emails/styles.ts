@@ -75,6 +75,30 @@ export const buttonWithBanner = {
   marginTop: "6px",
 };
 
+/** Explicit colours: mail clients strip stylesheets. */
+export const primaryButton = {
+  backgroundColor: "#7c3aed",
+  color: "#FFFFFF",
+  padding: "12px 24px",
+  borderRadius: "8px",
+  fontWeight: 600,
+  fontSize: "14px",
+  textDecoration: "none",
+  display: "inline-block",
+};
+
+export const detailBox = {
+  border: "1px solid #dedede",
+  borderRadius: "8px",
+  padding: "12px 16px",
+  margin: "16px 0",
+};
+
+export const detailLine = {
+  ...text,
+  margin: "4px 0",
+};
+
 export const footerText = {
   margin: "0",
   textAlign: "center" as const,
