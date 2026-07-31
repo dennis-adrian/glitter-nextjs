@@ -43,6 +43,7 @@ export default function SmoothScrollLink({
       behavior: prefersReducedMotion ? "auto" : "smooth",
       block: "start",
     });
+    target.focus({ preventScroll: true });
 
     window.history.replaceState(
       window.history.state,

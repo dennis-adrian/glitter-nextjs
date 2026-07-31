@@ -119,7 +119,7 @@ export default function ProgramVoucherReceivedEmailTemplate({
                     wordBreak: "break-all",
                   }}
                 >
-                  O también podé hacer clic en este enlace <Link href={secureLinkUrl}>{secureLinkUrl}</Link>
+                  O también podés hacer clic en este enlace <Link href={secureLinkUrl}>{secureLinkUrl}</Link>
                 </Text>
                 <Text style={{ ...styles.text, fontSize: "12px" }}>
                   <strong>No compartas este enlace</strong> — cualquier persona

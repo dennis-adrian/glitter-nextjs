@@ -304,10 +304,7 @@ export const ourFileRouter = {
       if (!user) throw new UploadThingError("Debes iniciar sesión");
 
       const profile = await fetchUserProfile(user.id);
-      if (
-        !profile ||
-        (profile.role !== "admin" && profile.role !== "festival_admin")
-      ) {
+      if (!profile || profile.role !== "admin") {
         throw new UploadThingError(
           "No tienes permisos para subir imágenes de programas",
         );

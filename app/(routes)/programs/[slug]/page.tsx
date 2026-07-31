@@ -198,6 +198,7 @@ export default async function ProgramPage({ params }: Props) {
 
       <section
         id="programa"
+        tabIndex={-1}
         className="scroll-mt-20 bg-[#ffc1fd] py-16 text-[#4b255f] sm:py-24"
       >
         <div className="container mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
@@ -235,6 +236,7 @@ export default async function ProgramPage({ params }: Props) {
                   <section
                     key={day.key}
                     id={`dia-${day.key}`}
+                    tabIndex={-1}
                     className="scroll-mt-36 overflow-hidden rounded-[2.4rem] bg-[#fffaf3]"
                   >
                     <div className="flex items-center gap-5 bg-[#9347f5] px-6 py-6 text-white sm:px-8">

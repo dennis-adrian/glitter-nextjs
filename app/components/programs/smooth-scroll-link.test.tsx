@@ -14,6 +14,7 @@ describe("SmoothScrollLink", () => {
     window.history.replaceState({}, "", "/programs/example#programa");
     const target = document.createElement("section");
     target.id = "programa";
+    target.tabIndex = -1;
     target.scrollIntoView = vi.fn();
     document.body.appendChild(target);
 
@@ -32,6 +33,7 @@ describe("SmoothScrollLink", () => {
       behavior: "smooth",
       block: "start",
     });
+    expect(document.activeElement).toBe(target);
     expect(window.location.pathname).toBe("/programs/example");
     expect(window.location.hash).toBe("");
 

@@ -363,7 +363,7 @@ export default async function SessionPage({ params }: Props) {
             ) : null}
           </div>
 
-          <section id="horarios" className="scroll-mt-28">
+          <section id="horarios" tabIndex={-1} className="scroll-mt-28">
             <div className="rounded-[2.5rem] bg-[#ffbe57] p-5 sm:p-7 lg:sticky lg:top-28">
               <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-[#7b3b76]">
                 Reserva tu lugar
