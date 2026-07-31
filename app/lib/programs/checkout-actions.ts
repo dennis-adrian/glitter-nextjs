@@ -24,6 +24,7 @@ import {
   resolveRegistrationCheck,
 } from "@/app/lib/programs/registration";
 import { resolveOccurrenceState } from "@/app/lib/programs/state";
+import { resolveInvitationUse } from "@/app/lib/programs/waitlist";
 import {
   generateAccessToken,
   generateIdempotencyKey,
@@ -39,6 +40,8 @@ import {
   sessionPurchaseEvents,
   sessionPurchaseLines,
   sessionPurchases,
+  sessionWaitlistEntries,
+  sessionWaitlistInvitations,
 } from "@/db/schema";
 
 /** A cart is capped so one submit cannot lock an unbounded row set. */
@@ -62,6 +65,11 @@ const checkoutSchema = z
     acceptsNoRefundPolicy: z.literal(true),
     /** Supplied by the client so a double submit cannot take two seats. */
     idempotencyKey: z.string().trim().min(8).max(120).optional(),
+    /**
+     * A waitlist invitation token. Grants capacity for exactly one seat in the
+     * occurrence it was issued for, and nothing else.
+     */
+    invitationToken: z.string().trim().min(1).max(200).optional(),
   })
   .transform((value) => ({
     ...value,
@@ -270,6 +278,53 @@ export async function startPaidCheckout(
       );
 
       /**
+       * A live invitation covers exactly one seat, in exactly the occurrence it
+       * was issued for. Resolved once here so the per-line loop below can ask a
+       * boolean, and scoped by occurrence so a token for one session cannot let
+       * someone past a different sold-out one.
+       */
+      let invitedOccurrenceId: number | null = null;
+      let invitationId: number | null = null;
+      let invitedEntryId: number | null = null;
+
+      if (data.invitationToken) {
+        const [invitation] = await tx
+          .select({
+            id: sessionWaitlistInvitations.id,
+            status: sessionWaitlistInvitations.status,
+            expiresAt: sessionWaitlistInvitations.expiresAt,
+            entryStatus: sessionWaitlistEntries.status,
+            occurrenceId: sessionWaitlistEntries.occurrenceId,
+            entryId: sessionWaitlistEntries.id,
+          })
+          .from(sessionWaitlistInvitations)
+          .innerJoin(
+            sessionWaitlistEntries,
+            eq(
+              sessionWaitlistEntries.id,
+              sessionWaitlistInvitations.waitlistEntryId,
+            ),
+          )
+          .where(
+            eq(
+              sessionWaitlistInvitations.tokenHash,
+              hashAccessToken(data.invitationToken),
+            ),
+          )
+          .for("update")
+          .limit(1);
+
+        if (invitation) {
+          const usable = resolveInvitationUse(invitation, now);
+          if (usable.allowed) {
+            invitedOccurrenceId = invitation.occurrenceId;
+            invitationId = invitation.id;
+            invitedEntryId = invitation.entryId;
+          }
+        }
+      }
+
+      /**
        * Every line is validated before anything is written. One unavailable
        * session fails the whole purchase — "if one line lacks capacity, no line
        * is held" (roadmap Phase 4), which the single transaction guarantees.
@@ -327,6 +382,8 @@ export async function startPaidCheckout(
           availability,
           hasExistingTicket,
           mode: "paid",
+          waitlistInvitationCoversSeat:
+            invitedOccurrenceId === entry.occurrence.id,
         });
 
         if (!check.allowed) {
@@ -399,6 +456,38 @@ export async function startPaidCheckout(
           occurrenceStartsAtSnapshot: line.startsAt,
         })),
       );
+
+      /**
+       * Only when the invited occurrence is actually in this purchase. A buyer
+       * holding an invitation for session A who checks out session B would
+       * otherwise burn it without ever taking the seat it was issued for — the
+       * token is scoped to one occurrence, so spending it elsewhere is wrong.
+       */
+      const delivered =
+        invitationId !== null &&
+        invitedEntryId !== null &&
+        priced.some((line) => line.occurrenceId === invitedOccurrenceId)
+          ? { invitationId, entryId: invitedEntryId }
+          : null;
+
+      if (delivered) {
+        await tx
+          .update(sessionWaitlistInvitations)
+          .set({
+            status: "converted",
+            convertedAt: now,
+            purchaseId: purchase.id,
+            updatedAt: now,
+          })
+          .where(eq(sessionWaitlistInvitations.id, delivered.invitationId));
+
+        // The invited entry only. Scoping by occurrence would mark everyone
+        // still waiting for this session as converted.
+        await tx
+          .update(sessionWaitlistEntries)
+          .set({ status: "converted", updatedAt: now })
+          .where(eq(sessionWaitlistEntries.id, delivered.entryId));
+      }
 
       await tx.insert(sessionPurchaseEvents).values({
         purchaseId: purchase.id,

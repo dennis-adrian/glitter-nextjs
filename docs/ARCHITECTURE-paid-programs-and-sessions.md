@@ -348,31 +348,30 @@ Not created (§0b). Specification retained for the future delivery.
 
 ### 6.10 `session_purchases`
 
-| Column                                                 | Type                                                                        | Notes                                        |
-| ------------------------------------------------------ | --------------------------------------------------------------------------- | -------------------------------------------- |
-| `programId`                                            | integer → `programs.id`, `ON DELETE RESTRICT`, not null                     | Scopes settings resolution                   |
-| `userId`                                               | integer → `users.id`, `ON DELETE SET NULL`, nullable                        | Null for guests                              |
-| `guestName`, `guestEmail`, `guestPhone`                | text, nullable                                                              | Required together when `userId` is null      |
-| `accessToken`                                          | text, not null, unique                                                      | Opaque; issued for **all** buyers (§11)      |
-| `accessTokenRevokedAt`                                 | timestamp, nullable                                                         |                                              |
-| `passId`                                               | integer → `program_passes.id`, `ON DELETE RESTRICT`, nullable               | **[Deferred]** Set for pass purchases        |
-| `passCode`                                             | text, unique, nullable                                                      | **[Deferred]** Single pass QR payload (§7.3) |
-| `upgradeOfPurchaseId`                                  | integer → self, `ON DELETE SET NULL`, nullable                              | **[Deferred]** Set for pass upgrades         |
-| `status`                                               | `session_purchase_status`, not null, default `pending_upload`               | §7.2                                         |
-| `paymentMode`                                          | `session_purchase_payment_mode`, not null                                   | `bank_qr` \| `free`                          |
-| `buyerEligibility`                                     | `participant_eligibility`, not null                                         | Snapshot, §8.4                               |
-| `eligibilityEvaluatedAt`                               | timestamp, not null                                                         |                                              |
-| `eligibilitySnapshot`                                  | jsonb, not null                                                             | Evidence, §8.4                               |
-| `subtotalAmount`                                       | numeric(10,2), not null                                                     | Sum of line prices                           |
-| `creditedAmount`                                       | numeric(10,2), not null, default 0                                          | **[Deferred]** Upgrade credit, §7.5          |
-| `totalAmount`                                          | numeric(10,2), not null                                                     | As built: `<= subtotalAmount`                |
-| `holdExpiresAt`                                        | timestamp, nullable                                                         | Null for free purchases                      |
-| `voucherSubmittedAt`                                   | timestamp, nullable                                                         | Set on first voucher version                 |
-| `approvedAt`, `rejectedAt`, `expiredAt`, `cancelledAt` | timestamp, nullable                                                         |                                              |
-| `noRefundPolicyVersion`                                | text, not null                                                              | §7.2                                         |
-| `noRefundPolicyAcceptedAt`                             | timestamp, not null                                                         |                                              |
-| `idempotencyKey`                                       | text, not null, unique                                                      | Client-supplied, prevents double checkout    |
-| `waitlistInvitationId`                                 | integer → `session_waitlist_invitations.id`, `ON DELETE SET NULL`, nullable | Provenance                                   |
+| Column                                                 | Type                                                          | Notes                                        |
+| ------------------------------------------------------ | ------------------------------------------------------------- | -------------------------------------------- |
+| `programId`                                            | integer → `programs.id`, `ON DELETE RESTRICT`, not null       | Scopes settings resolution                   |
+| `userId`                                               | integer → `users.id`, `ON DELETE SET NULL`, nullable          | Null for guests                              |
+| `guestName`, `guestEmail`, `guestPhone`                | text, nullable                                                | Required together when `userId` is null      |
+| `accessToken`                                          | text, not null, unique                                        | Opaque; issued for **all** buyers (§11)      |
+| `accessTokenRevokedAt`                                 | timestamp, nullable                                           |                                              |
+| `passId`                                               | integer → `program_passes.id`, `ON DELETE RESTRICT`, nullable | **[Deferred]** Set for pass purchases        |
+| `passCode`                                             | text, unique, nullable                                        | **[Deferred]** Single pass QR payload (§7.3) |
+| `upgradeOfPurchaseId`                                  | integer → self, `ON DELETE SET NULL`, nullable                | **[Deferred]** Set for pass upgrades         |
+| `status`                                               | `session_purchase_status`, not null, default `pending_upload` | §7.2                                         |
+| `paymentMode`                                          | `session_purchase_payment_mode`, not null                     | `bank_qr` \| `free`                          |
+| `buyerEligibility`                                     | `participant_eligibility`, not null                           | Snapshot, §8.4                               |
+| `eligibilityEvaluatedAt`                               | timestamp, not null                                           |                                              |
+| `eligibilitySnapshot`                                  | jsonb, not null                                               | Evidence, §8.4                               |
+| `subtotalAmount`                                       | numeric(10,2), not null                                       | Sum of line prices                           |
+| `creditedAmount`                                       | numeric(10,2), not null, default 0                            | **[Deferred]** Upgrade credit, §7.5          |
+| `totalAmount`                                          | numeric(10,2), not null                                       | As built: `<= subtotalAmount`                |
+| `holdExpiresAt`                                        | timestamp, nullable                                           | Null for free purchases                      |
+| `voucherSubmittedAt`                                   | timestamp, nullable                                           | Set on first voucher version                 |
+| `approvedAt`, `rejectedAt`, `expiredAt`, `cancelledAt` | timestamp, nullable                                           |                                              |
+| `noRefundPolicyVersion`                                | text, not null                                                | §7.2                                         |
+| `noRefundPolicyAcceptedAt`                             | timestamp, not null                                           |                                              |
+| `idempotencyKey`                                       | text, not null, unique                                        | Client-supplied, prevents double checkout    |
 
 Checks:
 
@@ -390,6 +389,20 @@ Checks:
 - **[Deferred]** `creditedAmount = 0 OR upgradeOfPurchaseId IS NOT NULL`.
 
 Indexes: `(status, holdExpiresAt)` for the sweep; `(userId, createdAt desc)`; `(programId, status)`.
+
+**No `waitlistInvitationId` column.** An earlier draft carried one alongside
+`session_waitlist_invitations.purchaseId`, pointing the same relationship both
+ways. Two columns that can disagree is state to keep in sync rather than an
+invariant, so provenance is a lookup on
+`session_waitlist_invitations.purchaseId` instead.
+
+That column is nullable, and a `converted` invitation may legitimately have no
+purchase: it is `ON DELETE SET NULL`, so deleting the purchase nulls it. The
+`terminal_timestamps` check therefore requires `convertedAt` but deliberately
+_not_ `purchaseId` — requiring both would make the purchase undeletable, since
+the cascading `SET NULL` fires an update the check would then reject.
+`convertedAt` is the durable record that the invitation was used; the purchase
+link is a convenience that can go missing.
 
 ### 6.11 `session_purchase_lines`
 
@@ -511,18 +524,21 @@ forbids any arrival-order guarantee, so ordering is a presentation concern over 
 
 ### 6.17 `session_waitlist_invitations`
 
-| Column                     | Type                                                                   | Notes                                              |
-| -------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------- |
-| `waitlistEntryId`          | integer → `session_waitlist_entries.id`, `ON DELETE CASCADE`, not null |                                                    |
-| `token`                    | text, not null, unique                                                 | Opaque invitation link                             |
-| `expiresAt`                | timestamp, not null                                                    | Window from §7.4                                   |
-| `status`                   | `waitlist_invitation_status`, not null, default `sent`                 | `sent` \| `converted` \| `expired` \| `revoked`    |
-| `invitedByUserId`          | integer → `users.id`, `ON DELETE SET NULL`, nullable                   |                                                    |
-| `reason`                   | text, not null                                                         | Why this person was chosen — the audit requirement |
-| `purchaseId`               | integer → `session_purchases.id`, `ON DELETE SET NULL`, nullable       | Set on conversion                                  |
-| `convertedAt`, `revokedAt` | timestamp, nullable                                                    |                                                    |
+| Column                     | Type                                                                   | Notes                                                |
+| -------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------- |
+| `waitlistEntryId`          | integer → `session_waitlist_entries.id`, `ON DELETE CASCADE`, not null |                                                      |
+| `tokenHash`                | text, not null, unique                                                 | SHA-256 of the invitation token, never the raw value |
+| `expiresAt`                | timestamp, not null                                                    | Window from §7.4                                     |
+| `status`                   | `waitlist_invitation_status`, not null, default `sent`                 | `sent` \| `converted` \| `expired` \| `revoked`      |
+| `invitedByUserId`          | integer → `users.id`, `ON DELETE SET NULL`, nullable                   |                                                      |
+| `reason`                   | text, not null                                                         | Why this person was chosen — the audit requirement   |
+| `purchaseId`               | integer → `session_purchases.id`, `ON DELETE SET NULL`, nullable       | Set on conversion                                    |
+| `convertedAt`, `revokedAt` | timestamp, nullable                                                    |                                                      |
 
 Partial unique index on `(waitlistEntryId) WHERE status = 'sent'` — one live invitation per entry.
+
+The token follows the same rule as purchase access (§11.1): the raw value is emailed once and only
+its digest is stored, so a database dump yields nothing usable.
 
 ### 6.18 `session_refund_requests`
 

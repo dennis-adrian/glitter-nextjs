@@ -161,7 +161,7 @@ export default async function SessionPage({ params }: Props) {
             <ArrowLeftIcon className="size-4" aria-hidden="true" />
             Volver al programa
           </Link>
-          <GlitterWeekLockup compact />
+          <GlitterWeekLockup compact title={session.program.name} />
         </div>
 
         <div
@@ -309,6 +309,11 @@ export default async function SessionPage({ params }: Props) {
                     <span className="block font-black">
                       {entry.speaker.publicName}
                     </span>
+                    {entry.speaker.occupation ? (
+                      <span className="mt-1 block text-sm font-semibold text-[#70566f]">
+                        {entry.speaker.occupation}
+                      </span>
+                    ) : null}
                     {entry.role ? (
                       <span className="mt-1 block text-xs font-bold uppercase tracking-[0.12em] text-[#9347f5]">
                         {entry.role}
@@ -458,6 +463,11 @@ export default async function SessionPage({ params }: Props) {
                       <h3 className="text-2xl font-black">
                         {entry.speaker.publicName}
                       </h3>
+                      {entry.speaker.occupation ? (
+                        <p className="mt-1 text-sm font-bold text-[#70566f]">
+                          {entry.speaker.occupation}
+                        </p>
+                      ) : null}
                       {entry.role ? (
                         <p className="mt-1 text-xs font-black uppercase tracking-[0.13em] text-[#9347f5]">
                           {entry.role}

@@ -71,6 +71,12 @@ export const venueFormSchema = z.object({
 
 export const speakerFormSchema = z.object({
   publicName: z.string().trim().min(1, "El nombre es obligatorio"),
+  occupation: optionalText.pipe(
+    z
+      .string()
+      .max(200, "La ocupación no puede superar 200 caracteres")
+      .optional(),
+  ),
   imageUrl: optionalAllowedImageUrl,
   bio: optionalText,
 });

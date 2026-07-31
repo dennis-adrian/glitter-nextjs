@@ -1,6 +1,9 @@
 import { timingSafeEqual } from "crypto";
 
-import { expireAbandonedHolds } from "@/app/lib/programs/scheduled-actions";
+import {
+  expireAbandonedHolds,
+  expireWaitlistInvitations,
+} from "@/app/lib/programs/scheduled-actions";
 
 function isAuthorizedCronRequest(request: Request): boolean {
   const cronSecret = process.env.CRON_SECRET;
@@ -35,9 +38,22 @@ export async function GET(request: Request) {
     // Only the count is returned. The ids identify real purchases and the
     // response reaches whoever holds the secret, so there is no reason to
     // hand them out — they are already in the audit trail.
-    const { expired } = await expireAbandonedHolds();
+    // Both lapse on their own clocks and neither depends on the other, so one
+    // run covers the two rather than paying for a second scheduled request.
+    const [holds, invitations] = await Promise.all([
+      expireAbandonedHolds(),
+      expireWaitlistInvitations(),
+    ]);
 
-    return new Response(JSON.stringify({ data: { expired } }), { status: 200 });
+    return new Response(
+      JSON.stringify({
+        data: {
+          expired: holds.expired,
+          expiredInvitations: invitations.expired,
+        },
+      }),
+      { status: 200 },
+    );
   } catch (error) {
     console.error("Error expiring abandoned program holds", error);
     return new Response(

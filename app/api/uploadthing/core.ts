@@ -273,6 +273,28 @@ export const ourFileRouter = {
     .onUploadComplete(({ file }) => ({
       imageUrl: (file as { url: string }).url,
     })),
+  speakerImage: f({
+    image: { maxFileSize: "4MB", maxFileCount: 1 },
+  })
+    .middleware(async () => {
+      const user = await currentUser();
+      if (!user) throw new UploadThingError("Debes iniciar sesión");
+
+      const profile = await fetchUserProfile(user.id);
+      if (
+        !profile ||
+        (profile.role !== "admin" && profile.role !== "festival_admin")
+      ) {
+        throw new UploadThingError(
+          "No tienes permisos para subir imágenes de expositores",
+        );
+      }
+
+      return { userId: user.id };
+    })
+    .onUploadComplete(({ file }) => ({
+      imageUrl: (file as { url: string }).url,
+    })),
   productImage: f({ image: { maxFileSize: "4MB", maxFileCount: 10 } })
     .middleware(async ({ req }) => {
       const user = await currentUser();

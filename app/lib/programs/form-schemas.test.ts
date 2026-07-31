@@ -42,6 +42,26 @@ describe("speakerFormSchema image URLs", () => {
   });
 });
 
+describe("speakerFormSchema occupation", () => {
+  it("accepts an optional occupation", () => {
+    expect(
+      speakerFormSchema.safeParse({
+        ...speaker,
+        occupation: "Ilustradora y directora de arte",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects occupations over 200 characters", () => {
+    expect(
+      speakerFormSchema.safeParse({
+        ...speaker,
+        occupation: "a".repeat(201),
+      }).success,
+    ).toBe(false);
+  });
+});
+
 describe("programFormSchema bannerUrl", () => {
   it.each(ALLOWED_HOSTS)("accepts configured image host %s", (bannerUrl) => {
     expect(programFormSchema.safeParse({ ...program, bannerUrl }).success).toBe(

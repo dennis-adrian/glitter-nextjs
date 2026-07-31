@@ -7,6 +7,7 @@ import ProgramPurchaseLinkEmailTemplate from "@/app/emails/program-purchase-link
 import ProgramRegistrationEmailTemplate from "@/app/emails/program-registration";
 import ProgramVoucherChangesEmailTemplate from "@/app/emails/program-voucher-changes";
 import ProgramVoucherReceivedEmailTemplate from "@/app/emails/program-voucher-received";
+import ProgramWaitlistInvitationEmailTemplate from "@/app/emails/program-waitlist-invitation";
 import { formatDate } from "@/app/lib/formatters";
 import { SESSION_TYPE_LABELS } from "@/app/lib/programs/definitions";
 import type { SessionType } from "@/app/lib/programs/definitions";
@@ -372,6 +373,67 @@ export async function sendPurchaseLinkEmail(
   } catch (error) {
     console.error("Purchase link email failed", {
       purchaseId: input.purchaseId,
+      errorType: error instanceof Error ? error.name : typeof error,
+    });
+    return false;
+  }
+}
+
+/** `/programs/waitlist/12?token=…` — where an invited person claims the seat. */
+export function buildWaitlistInvitationUrl(
+  occurrenceId: number,
+  token: string,
+): string {
+  return `${baseUrl()}/programs/waitlist/${occurrenceId}?token=${token}`;
+}
+
+export type WaitlistInvitationEmailInput = {
+  entryId: number;
+  occurrenceId: number;
+  buyerName: string;
+  buyerEmail: string;
+  sessionTitle: string;
+  startsAt: Date;
+  endsAt: Date;
+  expiresAt: Date;
+  /** Raw token — sent once, stored only as a digest. */
+  token: string;
+};
+
+/** Offers a released seat. Never throws. */
+export async function sendWaitlistInvitationEmail(
+  input: WaitlistInvitationEmailInput,
+): Promise<boolean> {
+  try {
+    await sendEmail(
+      {
+        from: "Equipo Glitter <entradas@productoraglitter.com>",
+        to: [input.buyerEmail],
+        subject: `Se liberó un cupo en ${input.sessionTitle}`,
+        react: ProgramWaitlistInvitationEmailTemplate({
+          buyerName: input.buyerName,
+          sessionTitle: input.sessionTitle,
+          scheduleLabel: buildScheduleLabel(input.startsAt, input.endsAt),
+          deadlineLabel: formatDate(input.expiresAt).toLocaleString(
+            DateTime.DATETIME_MED,
+          ),
+          invitationUrl: buildWaitlistInvitationUrl(
+            input.occurrenceId,
+            input.token,
+          ),
+        }) as React.ReactElement,
+      },
+      {
+        // Keyed on the deadline: re-inviting the same person mints a new token
+        // with a new window, and that is a genuinely different message.
+        idempotencyKey: `program-waitlist-invite-${input.entryId}-${input.expiresAt.getTime()}`,
+      },
+    );
+
+    return true;
+  } catch (error) {
+    console.error("Waitlist invitation email failed", {
+      entryId: input.entryId,
       errorType: error instanceof Error ? error.name : typeof error,
     });
     return false;

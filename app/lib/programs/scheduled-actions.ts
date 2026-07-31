@@ -1,10 +1,15 @@
 import "server-only";
 
-import { and, eq, isNotNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
 
 import { utcTimestamp } from "@/app/lib/sql-time";
 import { db } from "@/db";
-import { sessionPurchaseEvents, sessionPurchases } from "@/db/schema";
+import {
+  sessionPurchaseEvents,
+  sessionPurchases,
+  sessionWaitlistEntries,
+  sessionWaitlistInvitations,
+} from "@/db/schema";
 
 export type ExpiredHoldSweepResult = {
   expired: number;
@@ -69,4 +74,61 @@ export async function expireAbandonedHolds(
   });
 
   return { expired: purchaseIds.length, purchaseIds };
+}
+
+export type ExpiredInvitationSweepResult = {
+  expired: number;
+  invitationIds: number[];
+};
+
+/**
+ * Flips lapsed waitlist invitations to `expired`.
+ *
+ * Like the hold sweep, this changes nothing about who may buy:
+ * `resolveInvitationUse` already refuses an invitation past its deadline
+ * whatever the row says. What the sweep adds is a truthful status, so the
+ * partial unique index frees up and an admin can invite the same person again
+ * without the row still claiming to be live.
+ *
+ * The entry goes back to `waiting` rather than staying `invited`: they never
+ * took the seat, and leaving them `invited` would misreport the list.
+ * `converted` and `removed` entries are left alone — both are terminal.
+ */
+export async function expireWaitlistInvitations(
+  now = new Date(),
+): Promise<ExpiredInvitationSweepResult> {
+  const invitationIds = await db.transaction(async (tx) => {
+    const claimed = await tx
+      .update(sessionWaitlistInvitations)
+      .set({ status: "expired", updatedAt: now })
+      .where(
+        and(
+          eq(sessionWaitlistInvitations.status, "sent"),
+          lte(sessionWaitlistInvitations.expiresAt, utcTimestamp(now)),
+        ),
+      )
+      .returning({
+        id: sessionWaitlistInvitations.id,
+        entryId: sessionWaitlistInvitations.waitlistEntryId,
+      });
+
+    if (claimed.length === 0) return [];
+
+    await tx
+      .update(sessionWaitlistEntries)
+      .set({ status: "waiting", updatedAt: now })
+      .where(
+        and(
+          inArray(
+            sessionWaitlistEntries.id,
+            claimed.map((row) => row.entryId),
+          ),
+          eq(sessionWaitlistEntries.status, "invited"),
+        ),
+      );
+
+    return claimed.map((row) => row.id);
+  });
+
+  return { expired: invitationIds.length, invitationIds };
 }

@@ -3,12 +3,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
 import TextInput from "@/app/components/form/fields/text";
 import TextareaInput from "@/app/components/form/fields/textarea";
 import SubmitButton from "@/app/components/simple-submit-button";
+import SpeakerImageUpload from "@/app/components/dashboard/programs/speaker-image-upload";
 import { Button } from "@/app/components/ui/button";
 import {
   Card,
@@ -32,21 +33,25 @@ type Props = {
   speakers: Speaker[];
 };
 
-const EMPTY = { publicName: "", imageUrl: "", bio: "" };
+const EMPTY = { publicName: "", occupation: "", imageUrl: "", bio: "" };
 
 export default function SpeakersManager({ speakers }: Props) {
   const router = useRouter();
   const [editing, setEditing] = useState<Speaker | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const form = useForm<SpeakerFormValues>({
     resolver: zodResolver(speakerFormSchema),
     defaultValues: EMPTY,
   });
+  const imageUrl = useWatch({ control: form.control, name: "imageUrl" });
+  const publicName = useWatch({ control: form.control, name: "publicName" });
 
   function startEditing(speaker: Speaker) {
     setEditing(speaker);
     form.reset({
       publicName: speaker.publicName,
+      occupation: speaker.occupation ?? "",
       imageUrl: speaker.imageUrl ?? "",
       bio: speaker.bio ?? "",
     });
@@ -54,12 +59,14 @@ export default function SpeakersManager({ speakers }: Props) {
 
   function stopEditing() {
     setEditing(null);
+    setIsUploadingImage(false);
     form.reset(EMPTY);
   }
 
   const action = form.handleSubmit(async (values) => {
     const payload = {
       publicName: values.publicName,
+      occupation: textOrNull(values.occupation),
       imageUrl: textOrNull(values.imageUrl),
       bio: textOrNull(values.bio),
     };
@@ -96,9 +103,25 @@ export default function SpeakersManager({ speakers }: Props) {
             <form className="grid gap-4" onSubmit={action}>
               <TextInput label="Nombre público" name="publicName" required />
               <TextInput
-                label="Foto (URL)"
+                label="Ocupación"
+                name="occupation"
+                placeholder="Ej. Ilustradora y directora de arte"
+              />
+              <SpeakerImageUpload
+                imageUrl={imageUrl}
+                speakerName={publicName}
+                onChange={(imageUrl) =>
+                  form.setValue("imageUrl", imageUrl, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
+                onUploading={setIsUploadingImage}
+              />
+              <TextInput
+                label="Foto (URL opcional)"
                 name="imageUrl"
-                description="Usa una imagen alojada en Clerk, Edge Store o UploadThing."
+                description="También puedes pegar una URL permitida."
               />
               <TextareaInput
                 formControl={form.control}
@@ -108,7 +131,7 @@ export default function SpeakersManager({ speakers }: Props) {
               />
               <div className="flex gap-2">
                 <SubmitButton
-                  disabled={form.formState.isSubmitting}
+                  disabled={form.formState.isSubmitting || isUploadingImage}
                   label={editing ? "Guardar" : "Crear expositor"}
                 />
                 {editing ? (
@@ -138,9 +161,16 @@ export default function SpeakersManager({ speakers }: Props) {
                   key={speaker.id}
                   className="flex items-center justify-between gap-3 rounded-md bg-muted/50 px-3 py-2"
                 >
-                  <p className="truncate text-sm font-medium">
-                    {speaker.publicName}
-                  </p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
+                      {speaker.publicName}
+                    </p>
+                    {speaker.occupation ? (
+                      <p className="truncate text-xs text-muted-foreground">
+                        {speaker.occupation}
+                      </p>
+                    ) : null}
+                  </div>
                   <Button
                     variant="ghost"
                     size="sm"

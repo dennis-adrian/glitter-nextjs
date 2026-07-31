@@ -10,6 +10,7 @@ import { db } from "@/db";
 import { speakers, venues } from "@/db/schema";
 
 const NAME_MAX = 200;
+const OCCUPATION_MAX = 200;
 const BIO_MAX = 2000;
 
 const venueSchema = z.object({
@@ -22,6 +23,7 @@ const venueSchema = z.object({
 
 const speakerSchema = z.object({
   publicName: z.string().trim().min(1).max(NAME_MAX),
+  occupation: z.string().trim().max(OCCUPATION_MAX).nullish(),
   imageUrl: z
     .string()
     .trim()
@@ -126,6 +128,7 @@ export async function createSpeaker(input: SpeakerInput) {
     .insert(speakers)
     .values({
       publicName: parsed.data.publicName,
+      occupation: blankToNull(parsed.data.occupation),
       imageUrl: blankToNull(parsed.data.imageUrl),
       bio: blankToNull(parsed.data.bio),
       links: parsed.data.links ?? [],
@@ -155,6 +158,7 @@ export async function updateSpeaker(speakerId: number, input: SpeakerInput) {
     .update(speakers)
     .set({
       publicName: parsed.data.publicName,
+      occupation: blankToNull(parsed.data.occupation),
       imageUrl: blankToNull(parsed.data.imageUrl),
       bio: blankToNull(parsed.data.bio),
       ...(parsed.data.links === undefined ? {} : { links: parsed.data.links }),

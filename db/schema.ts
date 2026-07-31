@@ -3444,6 +3444,7 @@ export const sessionOccurrencesRelations = relations(
 export const speakers = pgTable("speakers", {
   id: serial("id").primaryKey(),
   publicName: text("public_name").notNull(),
+  occupation: text("occupation"),
   imageUrl: text("image_url"),
   bio: text("bio"),
   /** Array of `{ label, url }`. */
@@ -3611,6 +3612,18 @@ export const attendanceMethodEnum = pgEnum("attendance_method", [
   "manual_code",
 ]);
 
+export const waitlistEntryStatusEnum = pgEnum("waitlist_entry_status", [
+  "waiting",
+  "invited",
+  "converted",
+  "removed",
+]);
+
+export const waitlistInvitationStatusEnum = pgEnum(
+  "waitlist_invitation_status",
+  ["sent", "converted", "expired", "revoked"],
+);
+
 /**
  * One checkout by one buyer: one total, one secure link, one or more lines.
  *
@@ -3685,6 +3698,7 @@ export const sessionPurchases = pgTable(
     ).notNull(),
     /** Client-supplied; a retried submit returns the existing purchase. */
     idempotencyKey: text("idempotency_key").notNull().unique(),
+
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -4060,6 +4074,154 @@ export const sessionAttendancesRelations = relations(
     occurrence: one(sessionOccurrences, {
       fields: [sessionAttendances.occurrenceId],
       references: [sessionOccurrences.id],
+    }),
+  }),
+);
+
+/**
+ * Interest in a sold-out occurrence.
+ *
+ * Deliberately has no `position` column. The PRD forbids promising an
+ * arrival-order queue, so ordering is a presentation choice over `createdAt`
+ * and an admin may invite anyone on the list. Storing a position would turn a
+ * courtesy list into a promise the team cannot keep.
+ */
+export const sessionWaitlistEntries = pgTable(
+  "session_waitlist_entries",
+  {
+    id: serial("id").primaryKey(),
+    occurrenceId: integer("occurrence_id")
+      .notNull()
+      .references(() => sessionOccurrences.id, { onDelete: "cascade" }),
+    userId: integer("user_id").references(() => users.id, {
+      onDelete: "cascade",
+    }),
+    guestName: text("guest_name"),
+    guestEmail: text("guest_email"),
+    guestPhone: text("guest_phone"),
+    status: waitlistEntryStatusEnum("status").default("waiting").notNull(),
+    /** Admin context — why this person is here, or what was agreed. */
+    notes: text("notes"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    /**
+     * Same two-valued shape as `session_purchases_identity_check`: written with
+     * bare `length(trim(col)) > 0` an identity-less row evaluates to `unknown`,
+     * and a CHECK accepts `unknown`.
+     */
+    check(
+      "session_waitlist_entries_identity_check",
+      sql`(
+        (${t.userId} IS NOT NULL AND ${t.guestName} IS NULL AND ${t.guestEmail} IS NULL AND ${t.guestPhone} IS NULL)
+        OR
+        (${t.userId} IS NULL
+         AND ${t.guestName} IS NOT NULL AND length(trim(${t.guestName})) > 0
+         AND ${t.guestEmail} IS NOT NULL AND length(trim(${t.guestEmail})) > 0
+         AND ${t.guestPhone} IS NOT NULL AND length(trim(${t.guestPhone})) > 0)
+      )`,
+    ),
+    // Partial so a removed entry frees the slot for a re-join.
+    uniqueIndex("session_waitlist_entries_occurrence_user_idx")
+      .on(t.occurrenceId, t.userId)
+      .where(sql`${t.status} <> 'removed' AND ${t.userId} IS NOT NULL`),
+    uniqueIndex("session_waitlist_entries_occurrence_email_idx")
+      .on(t.occurrenceId, sql`lower(${t.guestEmail})`)
+      .where(sql`${t.status} <> 'removed' AND ${t.guestEmail} IS NOT NULL`),
+    index("session_waitlist_entries_occurrence_status_idx").on(
+      t.occurrenceId,
+      t.status,
+    ),
+  ],
+);
+
+export const sessionWaitlistEntriesRelations = relations(
+  sessionWaitlistEntries,
+  ({ one, many }) => ({
+    occurrence: one(sessionOccurrences, {
+      fields: [sessionWaitlistEntries.occurrenceId],
+      references: [sessionOccurrences.id],
+    }),
+    user: one(users, {
+      fields: [sessionWaitlistEntries.userId],
+      references: [users.id],
+    }),
+    invitations: many(sessionWaitlistInvitations),
+  }),
+);
+
+/**
+ * A time-boxed, audited invitation to buy a seat that was released.
+ *
+ * Never issued automatically: PRD §8.2 and roadmap Phase 5 both require an
+ * admin to choose the person, which is why `reason` is `NOT NULL`. The
+ * partial unique index below is what makes "one live invitation per entry" an
+ * invariant rather than a convention.
+ */
+export const sessionWaitlistInvitations = pgTable(
+  "session_waitlist_invitations",
+  {
+    id: serial("id").primaryKey(),
+    waitlistEntryId: integer("waitlist_entry_id")
+      .notNull()
+      .references(() => sessionWaitlistEntries.id, { onDelete: "cascade" }),
+    /** SHA-256 digest, never the raw token — same rule as purchase access. */
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at").notNull(),
+    status: waitlistInvitationStatusEnum("status").default("sent").notNull(),
+    invitedByUserId: integer("invited_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    reason: text("reason").notNull(),
+    purchaseId: integer("purchase_id").references(() => sessionPurchases.id, {
+      onDelete: "set null",
+    }),
+    convertedAt: timestamp("converted_at"),
+    revokedAt: timestamp("revoked_at"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    // One live invitation per entry; expired and revoked ones accumulate as
+    // history without blocking a fresh invite.
+    uniqueIndex("session_waitlist_invitations_live_idx")
+      .on(t.waitlistEntryId)
+      .where(sql`${t.status} = 'sent'`),
+    index("session_waitlist_invitations_status_expires_idx").on(
+      t.status,
+      t.expiresAt,
+    ),
+    check(
+      "session_waitlist_invitations_reason_present",
+      sql`length(trim(${t.reason})) > 0`,
+    ),
+    /**
+     * Timestamps only. An earlier version also required `purchaseId` on a
+     * converted row, which is unsatisfiable alongside the `ON DELETE SET NULL`
+     * on that column: deleting the purchase fires an UPDATE the CHECK then
+     * rejects, making the purchase undeletable. `convertedAt` is the durable
+     * record that the invitation was used; the purchase link is a convenience
+     * that may legitimately go null once the purchase is gone.
+     */
+    check(
+      "session_waitlist_invitations_terminal_timestamps",
+      sql`(${t.status} <> 'converted' OR ${t.convertedAt} IS NOT NULL)
+        AND (${t.status} <> 'revoked' OR ${t.revokedAt} IS NOT NULL)`,
+    ),
+  ],
+);
+
+export const sessionWaitlistInvitationsRelations = relations(
+  sessionWaitlistInvitations,
+  ({ one }) => ({
+    entry: one(sessionWaitlistEntries, {
+      fields: [sessionWaitlistInvitations.waitlistEntryId],
+      references: [sessionWaitlistEntries.id],
+    }),
+    purchase: one(sessionPurchases, {
+      fields: [sessionWaitlistInvitations.purchaseId],
+      references: [sessionPurchases.id],
     }),
   }),
 );

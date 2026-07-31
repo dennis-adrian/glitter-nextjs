@@ -133,7 +133,7 @@ export default async function ProgramPage({ params }: Props) {
 
           <div className="relative max-w-xl">
             <h1 className="sr-only">{program.name}</h1>
-            <GlitterWeekLockup />
+            <GlitterWeekLockup title={program.name} />
 
             <div className="mt-8 max-w-lg">
               {dateRange ? (
