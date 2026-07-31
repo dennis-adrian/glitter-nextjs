@@ -190,9 +190,6 @@ export default async function ProgramPage({ params }: Props) {
       >
         <div className="container mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
           <div className="mb-8 max-w-3xl text-[#4b255f]">
-            <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-[#9347f5]">
-              Día por día
-            </p>
             <h2
               className={`${citrusGothicSolid.className} text-balance text-5xl uppercase leading-[0.9] sm:text-7xl`}
             >
@@ -277,7 +274,7 @@ export default async function ProgramPage({ params }: Props) {
                         return (
                           <li
                             key={occurrence.id}
-                            className="group grid gap-4 border-b border-[#4b255f]/15 py-6 last:border-b-0 sm:grid-cols-[100px_1fr_auto] sm:items-center"
+                            className="group grid gap-5 border-b border-[#4b255f]/15 py-7 last:border-b-0 sm:grid-cols-[100px_minmax(0,1fr)_auto] sm:items-start"
                           >
                             <div>
                               <p className="flex items-center gap-2 text-lg font-black text-[#9347f5]">
@@ -291,7 +288,7 @@ export default async function ProgramPage({ params }: Props) {
                               </p>
                             </div>
 
-                            <div>
+                            <div className="min-w-0">
                               <Link
                                 href={`/programs/${program.slug}/${session.slug}`}
                                 className="inline-flex items-start gap-2 text-balance text-xl font-black leading-tight decoration-[#9347f5] decoration-2 underline-offset-4 hover:underline sm:text-2xl"
@@ -314,6 +311,37 @@ export default async function ProgramPage({ params }: Props) {
                                   </span>
                                 ) : null}
                               </div>
+
+                              {session.description ? (
+                                <p className="mt-4 max-w-3xl whitespace-pre-line text-sm font-medium leading-relaxed text-[#5f455f] sm:text-base">
+                                  {session.description}
+                                </p>
+                              ) : null}
+
+                              {session.learningOutcomes &&
+                              session.learningOutcomes.length > 0 ? (
+                                <div className="mt-5 rounded-2xl bg-[#ffc1fd]/35 px-4 py-4">
+                                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#9347f5]">
+                                    Lo que aprenderás
+                                  </p>
+                                  <ul className="mt-3 grid gap-2.5 lg:grid-cols-2">
+                                    {session.learningOutcomes.map(
+                                      (outcome, index) => (
+                                        <li
+                                          key={`${session.id}-outcome-${index}`}
+                                          className="flex items-start gap-2 text-sm font-semibold leading-snug text-[#4b255f]"
+                                        >
+                                          <span
+                                            aria-hidden="true"
+                                            className="mt-1.5 size-2 shrink-0 rotate-45 rounded-[2px] bg-[#ffbe57]"
+                                          />
+                                          <span>{outcome}</span>
+                                        </li>
+                                      ),
+                                    )}
+                                  </ul>
+                                </div>
+                              ) : null}
                             </div>
 
                             <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">

@@ -20,7 +20,7 @@ export const programFormSchema = z.object({
   summary: optionalText,
   description: optionalText,
   bannerUrl: optionalAllowedImageUrl,
-  thumbnailUrl: optionalText,
+  thumbnailUrl: optionalAllowedImageUrl,
   startDate: optionalText,
   endDate: optionalText,
   festivalId: optionalText,

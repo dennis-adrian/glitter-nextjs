@@ -65,7 +65,7 @@ export default async function SessionDetailPage({ params }: Props) {
   const blocker = publishability.publishable ? null : publishability.blocker;
 
   return (
-    <div className="container mx-auto space-y-8 py-6">
+    <div className="container p-3 md:p-6 flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
           <Link

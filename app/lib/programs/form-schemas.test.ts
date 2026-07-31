@@ -86,3 +86,20 @@ describe("programFormSchema bannerUrl", () => {
     expect(programFormSchema.safeParse(program).success).toBe(true);
   });
 });
+
+describe("programFormSchema thumbnailUrl", () => {
+  it.each(ALLOWED_HOSTS)("accepts configured image host %s", (thumbnailUrl) => {
+    expect(
+      programFormSchema.safeParse({ ...program, thumbnailUrl }).success,
+    ).toBe(true);
+  });
+
+  it.each(REJECTED_URLS)(
+    "rejects unapproved thumbnail URL %s",
+    (thumbnailUrl) => {
+      expect(
+        programFormSchema.safeParse({ ...program, thumbnailUrl }).success,
+      ).toBe(false);
+    },
+  );
+});
