@@ -21,7 +21,7 @@ export default async function ProgramsDashboardPage() {
   const programs = await fetchProgramsForAdmin();
 
   return (
-    <div className="container mx-auto space-y-6 py-6">
+    <div className="container p-3 md:p-6 flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold">Programas</h1>

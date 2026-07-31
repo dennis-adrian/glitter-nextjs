@@ -9,6 +9,7 @@ import {
   ensureUniqueSessionSlug,
 } from "@/app/lib/programs/slug";
 import { isAllowedProgramArtworkUrl } from "@/app/lib/programs/artwork";
+import { PROGRAM_TEXT_MAX } from "@/app/lib/programs/form-schemas";
 import {
   SESSION_PUBLISH_BLOCKER_LABELS,
   resolveSessionPublishability,
@@ -28,8 +29,8 @@ const LEARNING_OUTCOMES_MAX = 2000;
 
 const programSchema = z.object({
   name: z.string().trim().min(1).max(TITLE_MAX),
-  summary: z.string().trim().max(TEXT_MAX).nullish(),
-  description: z.string().trim().max(TEXT_MAX).nullish(),
+  summary: z.string().trim().max(PROGRAM_TEXT_MAX).nullish(),
+  description: z.string().trim().max(PROGRAM_TEXT_MAX).nullish(),
   bannerUrl: z
     .string()
     .trim()

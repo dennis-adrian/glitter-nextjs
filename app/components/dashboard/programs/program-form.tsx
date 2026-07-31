@@ -19,6 +19,7 @@ import {
   dateOrNull,
   idOrNull,
   numberOrNull,
+  PROGRAM_TEXT_MAX,
   programFormSchema,
   textOrNull,
   toDateTimeLocal,
@@ -144,12 +145,14 @@ export default function ProgramForm({ program, venues, festivals }: Props) {
         <TextareaInput
           formControl={form.control}
           label="Resumen"
+          maxLength={PROGRAM_TEXT_MAX}
           name="summary"
           placeholder="Una o dos líneas para la tarjeta y el compartido"
         />
         <TextareaInput
           formControl={form.control}
           label="Descripción"
+          maxLength={PROGRAM_TEXT_MAX}
           name="description"
           placeholder="De qué trata el programa"
         />

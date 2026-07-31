@@ -130,6 +130,7 @@ export default function VoucherUploadCard({
 
       toast.success(result.message);
       setSelectedFile(null);
+      setIsReplacing(false);
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreviewUrl(null);
       router.refresh();

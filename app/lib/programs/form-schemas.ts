@@ -10,6 +10,7 @@ import { isAllowedProgramArtworkUrl } from "@/app/lib/programs/artwork";
  */
 
 const optionalText = z.string().trim().optional();
+export const PROGRAM_TEXT_MAX = 1000;
 const optionalAllowedImageUrl = optionalText.refine(
   (value) => !value || isAllowedProgramArtworkUrl(value),
   "Usa una URL de imagen permitida",
@@ -17,8 +18,16 @@ const optionalAllowedImageUrl = optionalText.refine(
 
 export const programFormSchema = z.object({
   name: z.string().trim().min(1, "El nombre es obligatorio"),
-  summary: optionalText,
-  description: optionalText,
+  summary: z
+    .string()
+    .trim()
+    .max(PROGRAM_TEXT_MAX, "El resumen no puede superar 1000 caracteres")
+    .optional(),
+  description: z
+    .string()
+    .trim()
+    .max(PROGRAM_TEXT_MAX, "La descripción no puede superar 1000 caracteres")
+    .optional(),
   bannerUrl: optionalAllowedImageUrl,
   thumbnailUrl: optionalAllowedImageUrl,
   startDate: optionalText,
