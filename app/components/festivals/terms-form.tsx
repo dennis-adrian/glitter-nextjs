@@ -1,5 +1,8 @@
 "use client";
-import { captureClientEvent, identifyClientUser } from "@/app/lib/posthog-capture";
+import {
+  captureClientEvent,
+  identifyClientUser,
+} from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";

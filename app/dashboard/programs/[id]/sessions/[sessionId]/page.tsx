@@ -29,6 +29,7 @@ import {
   SESSION_PUBLISH_BLOCKER_LABELS,
   resolveSessionPublishability,
 } from "@/app/lib/programs/state";
+import { fetchOccurrenceSummaries } from "@/app/lib/programs/occurrence-queries";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
 
 type Props = {
@@ -53,6 +54,9 @@ export default async function SessionDetailPage({ params }: Props) {
   ]);
 
   if (!session || session.programId !== programId) notFound();
+
+  // After the session is known, so an unknown id costs no roster query.
+  const summaries = await fetchOccurrenceSummaries(session.occurrences);
 
   const publishability = resolveSessionPublishability({
     status: session.status,
@@ -130,6 +134,7 @@ export default async function SessionDetailPage({ params }: Props) {
                     defaultCapacity={settings.defaultOccurrenceCapacity}
                     programStatus={session.program.status}
                     sessionStatus={session.status}
+                    summary={summaries.get(occurrence.id)}
                   />
                 ))}
               </ul>
