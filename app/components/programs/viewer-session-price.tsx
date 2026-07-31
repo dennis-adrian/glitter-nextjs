@@ -12,6 +12,24 @@ type Props = {
   participantPrice: number;
 };
 
+let eligibilityRequest:
+  | {
+      userId: string;
+      promise: Promise<ParticipantEligibility>;
+    }
+  | undefined;
+
+function loadViewerEligibility(userId: string) {
+  if (eligibilityRequest?.userId === userId) {
+    return eligibilityRequest.promise;
+  }
+
+  const promise = getCurrentViewerProgramEligibility();
+  eligibilityRequest = { userId, promise };
+
+  return promise;
+}
+
 export default function ViewerSessionPrice({
   publicPrice,
   participantPrice,
@@ -31,7 +49,7 @@ export default function ViewerSessionPrice({
       };
     }
 
-    void getCurrentViewerProgramEligibility().then(
+    void loadViewerEligibility(userId).then(
       (nextEligibility) => {
         if (active) setResult({ userId, eligibility: nextEligibility });
       },
@@ -66,5 +84,5 @@ export default function ViewerSessionPrice({
   const viewerPrice =
     viewerEligibility === "active_participant" ? participantPrice : publicPrice;
 
-  return <span aria-live="polite">{formatMoney(viewerPrice)}</span>;
+  return <span>{formatMoney(viewerPrice)}</span>;
 }

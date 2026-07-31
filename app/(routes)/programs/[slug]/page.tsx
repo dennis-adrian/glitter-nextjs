@@ -13,6 +13,7 @@ import { notFound } from "next/navigation";
 
 import GlitterWeekLockup from "@/app/components/programs/glitter-week-lockup";
 import SmoothScrollLink from "@/app/components/programs/smooth-scroll-link";
+import ViewerSessionPrice from "@/app/components/programs/viewer-session-price";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { formatDate } from "@/app/lib/formatters";
 import {
@@ -31,7 +32,6 @@ import {
   type SessionWithOccurrences,
 } from "@/app/lib/programs/definitions";
 import {
-  formatMoney,
   globalDiscountFrom,
   programDiscountFrom,
   resolvePrice,
@@ -274,14 +274,19 @@ export default async function ProgramPage({ params }: Props) {
                           venueId === null
                             ? null
                             : (venuesById.get(venueId) ?? null);
-                        const price = resolvePrice(
-                          {
-                            publicPrice: session.publicPrice,
-                            participantPrice: session.participantPrice,
-                            programDiscount,
-                            globalDiscount,
-                          },
+                        const priceInput = {
+                          publicPrice: session.publicPrice,
+                          participantPrice: session.participantPrice,
+                          programDiscount,
+                          globalDiscount,
+                        };
+                        const publicPrice = resolvePrice(
+                          priceInput,
                           "public",
+                        ).amount;
+                        const participantPrice = resolvePrice(
+                          priceInput,
+                          "active_participant",
                         ).amount;
                         const speakerPortrait = session.sessionSpeakers.find(
                           (entry) =>
@@ -397,7 +402,10 @@ export default async function ProgramPage({ params }: Props) {
                               ) : null}
 
                               <span className="col-start-2 row-start-3 self-end text-right font-black sm:mt-6">
-                                {formatMoney(price)}
+                                <ViewerSessionPrice
+                                  publicPrice={publicPrice}
+                                  participantPrice={participantPrice}
+                                />
                               </span>
                             </div>
                           </li>
