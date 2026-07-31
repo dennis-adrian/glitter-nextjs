@@ -62,7 +62,6 @@ export default function OccurrenceScheduleList({
     let active = true;
 
     if (!isLoaded || !isSignedIn) {
-      setEligibility("public");
       return () => {
         active = false;
       };
