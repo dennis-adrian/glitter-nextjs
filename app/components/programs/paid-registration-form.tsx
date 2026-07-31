@@ -149,7 +149,7 @@ export default function PaidRegistrationForm({
         <DialogHeader>
           <DialogTitle>{sessionTitle}</DialogTitle>
           <DialogDescription>
-            {scheduleLabel} · {formatMoney(price)}
+            {scheduleLabel} - {formatMoney(price)}
           </DialogDescription>
         </DialogHeader>
 
@@ -252,8 +252,7 @@ function PolicyCheckbox({
         className="mt-0.5"
       />
       <span className="text-sm font-normal">
-        Entiendo que puedo cancelar hasta dos días antes, que la cancelación no
-        genera reembolso y que mi cupo se confirma al validar el comprobante.
+        Entiendo que el pago no es reembolsable y que la reserva de mi cupo depende de que el pago sea confirmado.
       </span>
     </Label>
   );
