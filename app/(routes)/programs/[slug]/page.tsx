@@ -12,7 +12,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import GlitterWeekLockup from "@/app/components/programs/glitter-week-lockup";
-import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
+import SmoothScrollLink from "@/app/components/programs/smooth-scroll-link";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { formatDate } from "@/app/lib/formatters";
 import { resolveProgramArtwork } from "@/app/lib/programs/artwork";
@@ -32,7 +32,6 @@ import {
   programDiscountFrom,
   resolvePrice,
 } from "@/app/lib/programs/pricing";
-import { resolveOccurrenceState } from "@/app/lib/programs/state";
 import { citrusGothicSolid } from "@/app/ui/fonts";
 
 type Props = {
@@ -82,6 +81,11 @@ function buildAgendaDays(sessions: SessionWithOccurrences[]): AgendaDay[] {
   return [...days.values()];
 }
 
+function formatAgendaWeekday(date: Date): string {
+  const weekday = formatDate(date).toFormat("cccc");
+  return weekday.charAt(0).toLocaleUpperCase("es-BO") + weekday.slice(1);
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const program = await fetchPublishedProgramBySlug(slug);
@@ -119,7 +123,7 @@ export default async function ProgramPage({ params }: Props) {
   const dateRange = [program.startDate, program.endDate]
     .filter((date): date is Date => date !== null)
     .map((date) => formatDate(date).toLocaleString(DateTime.DATE_MED))
-    .join(" — ");
+    .join(" al ");
   const agendaDays = buildAgendaDays(program.sessions);
   const artwork = resolveProgramArtwork(program.bannerUrl);
   const programDiscount = programDiscountFrom(program);
@@ -127,7 +131,7 @@ export default async function ProgramPage({ params }: Props) {
 
   return (
     <div className="overflow-hidden bg-[#fffaf3] text-[#4b255f]">
-      <section className="grid border-b border-[#4b255f]/10 lg:min-h-[720px] lg:grid-cols-[0.92fr_1.08fr]">
+      <section className="grid border-b border-[#4b255f]/10 lg:min-h-180 lg:grid-cols-[0.92fr_1.08fr]">
         <div className="relative z-10 flex flex-col justify-center overflow-hidden bg-[#9347f5] px-5 py-14 text-[#fffaf3] sm:px-10 sm:py-20 lg:px-[max(4rem,8vw)]">
           <div
             aria-hidden="true"
@@ -135,7 +139,7 @@ export default async function ProgramPage({ params }: Props) {
           />
           <div
             aria-hidden="true"
-            className="absolute -bottom-24 right-[-4rem] size-72 rounded-full bg-[#6fe7e9]/25"
+            className="absolute -bottom-24 -right-16 size-72 rounded-full bg-[#6fe7e9]/25"
           />
 
           <div className="relative max-w-xl">
@@ -156,14 +160,14 @@ export default async function ProgramPage({ params }: Props) {
             </div>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link
-                href="#programa"
+              <SmoothScrollLink
+                targetId="programa"
                 className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[#ffbe57] px-6 text-sm font-black uppercase tracking-[0.08em] text-[#4b255f] transition hover:-translate-y-0.5 hover:bg-[#ffd477] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/70"
               >
                 Explorar el programa
                 <ArrowDownIcon className="size-4" aria-hidden="true" />
-              </Link>
-              <span className="rounded-full border border-white/55 px-5 py-3 text-xs font-black uppercase tracking-[0.1em]">
+              </SmoothScrollLink>
+              <span className="rounded-full border border-white/55 px-5 py-3 text-xs font-black uppercase tracking-widest">
                 {program.sessions.length}{" "}
                 {program.sessions.length === 1 ? "sesión" : "sesiones"} ·{" "}
                 {agendaDays.length} {agendaDays.length === 1 ? "día" : "días"}
@@ -172,7 +176,7 @@ export default async function ProgramPage({ params }: Props) {
           </div>
         </div>
 
-        <div className="relative min-h-[440px] overflow-hidden bg-[#72e5e7] sm:min-h-[560px] lg:min-h-full">
+        <div className="relative min-h-110 overflow-hidden bg-[#72e5e7] sm:min-h-140 lg:min-h-full">
           <Image
             src={artwork}
             alt=""
@@ -198,7 +202,7 @@ export default async function ProgramPage({ params }: Props) {
           </div>
 
           {agendaDays.length === 0 ? (
-            <p className="rounded-[2rem] bg-[#fffaf3] p-7 font-semibold">
+            <p className="rounded-4xl bg-[#fffaf3] p-7 font-semibold">
               Los horarios aparecerán aquí muy pronto.
             </p>
           ) : (
@@ -208,13 +212,13 @@ export default async function ProgramPage({ params }: Props) {
                 className="no-scrollbar sticky top-16 z-20 -mx-5 mb-8 flex gap-2 overflow-x-auto bg-[#ffc1fd]/95 px-5 py-3 backdrop-blur md:top-20 sm:mx-0 sm:px-0"
               >
                 {agendaDays.map((day, index) => (
-                  <Link
+                  <SmoothScrollLink
                     key={day.key}
-                    href={`#dia-${day.key}`}
+                    targetId={`dia-${day.key}`}
                     className="shrink-0 rounded-full bg-[#fffaf3] px-5 py-2.5 text-xs font-black uppercase tracking-[0.12em] transition hover:bg-[#ffbe57]"
                   >
                     Día {index + 1} · {formatDate(day.date).toFormat("ccc dd")}
-                  </Link>
+                  </SmoothScrollLink>
                 ))}
               </nav>
 
@@ -226,17 +230,22 @@ export default async function ProgramPage({ params }: Props) {
                     className="scroll-mt-36 overflow-hidden rounded-[2.4rem] bg-[#fffaf3]"
                   >
                     <div className="flex items-center gap-5 bg-[#9347f5] px-6 py-6 text-white sm:px-8">
-                      <span
-                        className={`${citrusGothicSolid.className} text-6xl leading-none text-[#ffbe57] sm:text-7xl`}
-                      >
-                        {formatDate(day.date).toFormat("dd")}
-                      </span>
+                      <div className="grid shrink-0 justify-items-center">
+                        <span
+                          className={`${citrusGothicSolid.className} text-6xl leading-none text-[#ffbe57] sm:text-7xl`}
+                        >
+                          {formatDate(day.date).toFormat("dd")}
+                        </span>
+                        <span className="mt-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#e5d5ff]">
+                          {formatDate(day.date).toFormat("LLLL")}
+                        </span>
+                      </div>
                       <div>
                         <p className="text-xs font-black uppercase tracking-[0.15em] text-[#e5d5ff]">
                           Día {dayIndex + 1}
                         </p>
-                        <h3 className="text-xl font-black capitalize sm:text-2xl">
-                          {formatDate(day.date).toFormat("cccc, LLLL")}
+                        <h3 className="text-xl font-black sm:text-2xl">
+                          {formatAgendaWeekday(day.date)}
                         </h3>
                       </div>
                     </div>
@@ -261,15 +270,6 @@ export default async function ProgramPage({ params }: Props) {
                           },
                           "public",
                         ).amount;
-                        const resolved = resolveOccurrenceState({
-                          programStatus: program.status,
-                          sessionStatus: session.status,
-                          lifecycleStatus: occurrence.lifecycleStatus,
-                          salesStartAt: occurrence.salesStartAt,
-                          salesEndAt: occurrence.salesEndAt,
-                          salesClosedAt: occurrence.salesClosedAt,
-                          rescheduledAt: occurrence.rescheduledAt,
-                        });
 
                         return (
                           <li
@@ -344,14 +344,10 @@ export default async function ProgramPage({ params }: Props) {
                               ) : null}
                             </div>
 
-                            <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
+                            <div className="text-right">
                               <span className="font-black">
                                 {formatMoney(price)}
                               </span>
-                              <ProgramStatusBadge
-                                state={resolved.state}
-                                wasRescheduled={resolved.wasRescheduled}
-                              />
                             </div>
                           </li>
                         );
