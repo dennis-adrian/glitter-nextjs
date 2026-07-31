@@ -2,9 +2,9 @@ import {
   ArrowDownIcon,
   ArrowLeftIcon,
   Clock3Icon,
+  GaugeIcon,
   MapPinIcon,
   SparklesIcon,
-  UsersIcon,
 } from "lucide-react";
 import { DateTime } from "luxon";
 import type { Metadata } from "next";
@@ -14,6 +14,8 @@ import { notFound } from "next/navigation";
 
 import GlitterWeekLockup from "@/app/components/programs/glitter-week-lockup";
 import OccurrenceScheduleList from "@/app/components/programs/occurrence-schedule-list";
+import ParticipantDiscountHint from "@/app/components/programs/participant-discount-hint";
+import SmoothScrollLink from "@/app/components/programs/smooth-scroll-link";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { formatDate } from "@/app/lib/formatters";
 import {
@@ -23,30 +25,30 @@ import {
 import {
   fetchProgramSettings,
   fetchPublishedSession,
+  fetchPublishedSessionRouteParams,
   fetchVenues,
 } from "@/app/lib/programs/data";
-import {
-  SESSION_AUDIENCE_LABELS,
-  SESSION_SKILL_LEVEL_LABELS,
-  SESSION_TYPE_LABELS,
-} from "@/app/lib/programs/definitions";
-import { canPurchaseAudience } from "@/app/lib/programs/eligibility";
-import { getBuyerEligibility } from "@/app/lib/programs/eligibility-queries";
+import { SESSION_SKILL_LEVEL_LABELS } from "@/app/lib/programs/definitions";
 import {
   formatMoney,
   globalDiscountFrom,
-  isFreePrice,
   programDiscountFrom,
   resolvePrice,
 } from "@/app/lib/programs/pricing";
 import { getAvailabilityForOccurrences } from "@/app/lib/programs/registration-actions";
 import { cn } from "@/app/lib/utils";
-import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { citrusGothicSolid } from "@/app/ui/fonts";
 
 type Props = {
   params: Promise<{ slug: string; sessionSlug: string }>;
 };
+
+export const dynamic = "force-static";
+export const revalidate = 60;
+
+export async function generateStaticParams() {
+  return fetchPublishedSessionRouteParams();
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug, sessionSlug } = await params;
@@ -77,14 +79,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function SessionPage({ params }: Props) {
-  await requireFeatureEnabled("paid_programs");
+  await requireFeatureEnabled("paid_programs", null);
 
   const { slug, sessionSlug } = await params;
-  const [session, settings, venues, profile] = await Promise.all([
+  const [session, settings, venues] = await Promise.all([
     fetchPublishedSession(slug, sessionSlug),
     fetchProgramSettings(),
     fetchVenues(),
-    getCurrentUserProfile(),
   ]);
 
   if (!session) notFound();
@@ -100,17 +101,6 @@ export default async function SessionPage({ params }: Props) {
     priceInput,
     "active_participant",
   ).amount;
-
-  // The action derives this again after the click; here it only controls which
-  // registration entry point the current viewer is offered.
-  const { eligibility } = await getBuyerEligibility(profile);
-  const viewerPrice = resolvePrice(priceInput, eligibility).amount;
-  const canRegisterFree =
-    isFreePrice(viewerPrice) &&
-    canPurchaseAudience(session.audience, eligibility);
-  const canRegisterPaid =
-    !isFreePrice(viewerPrice) &&
-    canPurchaseAudience(session.audience, eligibility);
 
   const availabilityByOccurrence = await getAvailabilityForOccurrences(
     session.occurrences.map((occurrence) => occurrence.id),
@@ -171,23 +161,12 @@ export default async function SessionPage({ params }: Props) {
               "lg:grid-cols-[minmax(0,1.12fr)_minmax(320px,0.88fr)]",
           )}
         >
-          <div className={cn(speakerPortraits.length === 0 && "max-w-6xl")}>
-            <div className="mb-6 flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-[#ffbe57] px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-[#4b255f]">
-                {SESSION_TYPE_LABELS[session.type]}
-              </span>
-              {session.topic ? (
-                <span className="rounded-full bg-[#fffaf3] px-4 py-2 text-xs font-black uppercase tracking-[0.11em] text-[#4b255f]">
-                  {session.topic}
-                </span>
-              ) : null}
-              {session.skillLevel ? (
-                <span className="rounded-full bg-[#ffbe57] px-4 py-2 text-xs font-black uppercase tracking-[0.11em] text-[#4b255f]">
-                  {SESSION_SKILL_LEVEL_LABELS[session.skillLevel]}
-                </span>
-              ) : null}
-            </div>
-
+          <div
+            className={cn(
+              "flex flex-col",
+              speakerPortraits.length === 0 && "max-w-6xl",
+            )}
+          >
             <h1
               className={`${citrusGothicSolid.className} max-w-[13ch] text-balance text-[clamp(3.5rem,12vw,6rem)] uppercase leading-[0.87] tracking-[0.01em] lg:text-[clamp(4.5rem,6.5vw,7rem)]`}
             >
@@ -196,7 +175,13 @@ export default async function SessionPage({ params }: Props) {
 
             {session.sessionSpeakers.length > 0 ? (
               <p className="mt-6 max-w-xl text-lg font-black sm:text-xl">
-                {session.type === "workshop" ? "Facilitan" : "Exponen"}{" "}
+                {session.type === "workshop"
+                  ? session.sessionSpeakers.length === 1
+                    ? "Facilita"
+                    : "Facilitan"
+                  : session.sessionSpeakers.length === 1
+                    ? "Expone"
+                    : "Exponen"}{" "}
                 <span className="text-[#c9f4ef]">
                   {session.sessionSpeakers
                     .map((entry) => entry.speaker.publicName)
@@ -207,14 +192,14 @@ export default async function SessionPage({ params }: Props) {
 
             <dl
               className={cn(
-                "mt-8 grid gap-3 sm:grid-cols-2",
+                "order-2 mt-8 grid gap-3 sm:order-1 sm:grid-cols-2",
                 speakerPortraits.length === 0 && "lg:grid-cols-4",
               )}
             >
               <div className="rounded-[1.5rem] bg-white/12 p-4">
                 <dt className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#dff8f4]">
                   <Clock3Icon className="size-4" />
-                  Primera fecha
+                  {session.occurrences.length === 1 ? "Fecha" : "Primera fecha"}
                 </dt>
                 <dd className="font-black">
                   {nextOccurrence
@@ -235,11 +220,13 @@ export default async function SessionPage({ params }: Props) {
               </div>
               <div className="rounded-[1.5rem] bg-white/12 p-4">
                 <dt className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#dff8f4]">
-                  <UsersIcon className="size-4" />
-                  Para quién
+                  <GaugeIcon className="size-4" />
+                  Nivel
                 </dt>
                 <dd className="font-black">
-                  {SESSION_AUDIENCE_LABELS[session.audience]}
+                  {session.skillLevel
+                    ? SESSION_SKILL_LEVEL_LABELS[session.skillLevel]
+                    : "Por anunciar"}
                 </dd>
               </div>
               <div className="rounded-[1.5rem] bg-white/12 p-4">
@@ -259,18 +246,18 @@ export default async function SessionPage({ params }: Props) {
             </dl>
 
             {participantPrice !== publicPrice ? (
-              <p className="mt-3 text-sm font-bold text-[#dff8f4]">
-                {formatMoney(participantPrice)} para participantes activos
-              </p>
+              <div className="order-3 sm:order-2">
+                <ParticipantDiscountHint />
+              </div>
             ) : null}
 
-            <Link
-              href="#horarios"
-              className="mt-7 inline-flex min-h-12 items-center gap-2 rounded-full bg-[#ffbe57] px-6 text-sm font-black uppercase tracking-[0.08em] text-[#4b255f] transition hover:-translate-y-0.5 hover:bg-[#ffd477] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/70"
+            <SmoothScrollLink
+              targetId="horarios"
+              className="order-1 mt-7 inline-flex min-h-12 items-center gap-2 self-start rounded-full bg-[#ffbe57] px-6 text-sm font-black uppercase tracking-[0.08em] text-[#4b255f] transition hover:-translate-y-0.5 hover:bg-[#ffd477] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/70 sm:order-3"
             >
               Elegir horario
               <ArrowDownIcon className="size-4" aria-hidden="true" />
-            </Link>
+            </SmoothScrollLink>
           </div>
 
           {speakerPortraits.length > 0 ? (
@@ -348,13 +335,10 @@ export default async function SessionPage({ params }: Props) {
 
             {outcomes.length > 0 ? (
               <section className="mt-14">
-                <p className="mb-4 text-xs font-black uppercase tracking-[0.18em] text-[#9347f5]">
-                  Al terminar
-                </p>
                 <h2
                   className={`${citrusGothicSolid.className} mb-7 text-5xl uppercase leading-[0.92] sm:text-6xl`}
                 >
-                  Te llevas
+                  Lo que aprenderás
                 </h2>
                 <ol className="grid gap-4 sm:grid-cols-2">
                   {outcomes.map((outcome, index) => (
@@ -399,19 +383,10 @@ export default async function SessionPage({ params }: Props) {
                 }
                 sessionTitle={session.title}
                 availabilityByOccurrence={availabilityByOccurrence}
-                freeRegistration={
-                  canRegisterFree ? { isSignedIn: profile !== null } : null
-                }
-                paidRegistration={
-                  canRegisterPaid
-                    ? { isSignedIn: profile !== null, price: viewerPrice }
-                    : null
-                }
+                audience={session.audience}
+                publicPrice={publicPrice}
+                participantPrice={participantPrice}
               />
-              <p className="mt-5 px-2 text-xs font-semibold leading-relaxed text-[#6d4b62]">
-                Los cupos se gestionan por horario. Si la sesión es pagada, tu
-                lugar se confirma después de validar el comprobante.
-              </p>
             </div>
           </section>
         </div>
@@ -420,9 +395,6 @@ export default async function SessionPage({ params }: Props) {
       {session.sessionSpeakers.length > 0 ? (
         <section className="bg-[#72e5e7] py-16 sm:py-24">
           <div className="container mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
-            <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-[#7b3b76]">
-              Quienes comparten
-            </p>
             <h2
               className={`${citrusGothicSolid.className} mb-10 text-5xl uppercase leading-none sm:text-7xl`}
             >

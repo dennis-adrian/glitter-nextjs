@@ -19,6 +19,7 @@ import { resolveProgramArtwork } from "@/app/lib/programs/artwork";
 import {
   fetchProgramSettings,
   fetchPublishedProgramBySlug,
+  fetchPublishedProgramRouteParams,
   fetchVenues,
 } from "@/app/lib/programs/data";
 import {
@@ -38,6 +39,9 @@ type Props = {
   params: Promise<{ slug: string }>;
 };
 
+export const dynamic = "force-static";
+export const revalidate = 60;
+
 type AgendaEntry = {
   session: SessionWithOccurrences;
   occurrence: SessionOccurrence;
@@ -48,6 +52,10 @@ type AgendaDay = {
   date: Date;
   entries: AgendaEntry[];
 };
+
+export async function generateStaticParams() {
+  return fetchPublishedProgramRouteParams();
+}
 
 function buildAgendaDays(sessions: SessionWithOccurrences[]): AgendaDay[] {
   const entries = sessions
@@ -104,7 +112,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ProgramPage({ params }: Props) {
-  await requireFeatureEnabled("paid_programs");
+  await requireFeatureEnabled("paid_programs", null);
 
   const { slug } = await params;
   const [program, settings, venues] = await Promise.all([
