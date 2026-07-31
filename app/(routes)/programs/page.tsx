@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import ProgramViewTracker from "@/app/components/programs/program-view-tracker";
 import { Button } from "@/app/components/ui/button";
 import {
   Card,
@@ -9,6 +10,7 @@ import {
   CardTitle,
 } from "@/app/components/ui/card";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { formatDate } from "@/app/lib/formatters";
 import { fetchPublishedPrograms } from "@/app/lib/programs/data";
 import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
@@ -29,6 +31,13 @@ export default async function ProgramsIndexPage() {
 
   return (
     <div className="container mx-auto max-w-5xl space-y-6 px-4 py-8">
+      <ProgramViewTracker
+        event={POSTHOG_EVENTS.PROGRAM_INDEX_VIEWED}
+        properties={{
+          program_count: programs.length,
+          is_signed_in: profile !== null,
+        }}
+      />
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold">Programas</h1>

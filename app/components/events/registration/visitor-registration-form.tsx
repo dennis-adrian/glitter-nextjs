@@ -1,6 +1,6 @@
 "use client";
 
-import posthog from "posthog-js";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import DateInput from "@/app/components/form/fields/date";
 import PhoneInput from "@/app/components/form/fields/phone";
@@ -73,7 +73,7 @@ export default function VisitorRegistrationForm({
     });
 
     if (res.success) {
-      posthog.capture(POSTHOG_EVENTS.VISITOR_REGISTRATION_COMPLETED, {
+      captureClientEvent(POSTHOG_EVENTS.VISITOR_REGISTRATION_COMPLETED, {
         gender: data.gender,
       });
       router.push(`?${new URLSearchParams({ email: data.email, step: "3" })}`);

@@ -31,6 +31,9 @@ type Props = {
   /** Already resolved per occurrence: occurrence → session → program. */
   venuesById: Map<number, Venue>;
   fallbackVenueId: number | null;
+  /** Analytics dimensions: the funnel is read per session, not per URL. */
+  programSlug: string;
+  sessionSlug: string;
   sessionTitle: string;
   availabilityByOccurrence: Map<number, OccurrenceAvailability>;
   audience: SessionAudience;
@@ -48,6 +51,8 @@ export default function OccurrenceScheduleList({
   sessionStatus,
   venuesById,
   fallbackVenueId,
+  programSlug,
+  sessionSlug,
   sessionTitle,
   availabilityByOccurrence,
   audience,
@@ -186,18 +191,24 @@ export default function OccurrenceScheduleList({
               {canRegister && freeRegistration ? (
                 <FreeRegistrationForm
                   occurrenceId={occurrence.id}
+                  programSlug={programSlug}
+                  sessionSlug={sessionSlug}
                   sessionTitle={sessionTitle}
                   scheduleLabel={scheduleLabel}
                   isSignedIn={freeRegistration.isSignedIn}
+                  seatsRemaining={remaining ?? null}
                 />
               ) : null}
               {canRegister && paidRegistration ? (
                 <PaidRegistrationForm
                   occurrenceId={occurrence.id}
+                  programSlug={programSlug}
+                  sessionSlug={sessionSlug}
                   sessionTitle={sessionTitle}
                   scheduleLabel={scheduleLabel}
                   isSignedIn={paidRegistration.isSignedIn}
                   price={paidRegistration.price}
+                  seatsRemaining={remaining ?? null}
                 />
               ) : null}
             </div>

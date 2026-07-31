@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import ProgramViewTracker from "@/app/components/programs/program-view-tracker";
 import PurchaseTicketCard from "@/app/components/programs/purchase-ticket-card";
 import SecureLinkNotice from "@/app/components/programs/secure-link-notice";
 import VoucherUploadCard from "@/app/components/programs/voucher-upload-card";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { resolvePurchaseAccessWithLazyViewer } from "@/app/lib/programs/access";
 import { SESSION_PURCHASE_STATUS_LABELS } from "@/app/lib/programs/definitions";
 import { buildSecureLinkUrl } from "@/app/lib/programs/notifications";
@@ -82,6 +84,20 @@ export default async function PurchaseAccessPage({
 
   return (
     <div className="container mx-auto max-w-2xl space-y-6 px-4 py-8">
+      {/* No token in the properties: the URL carries a credential and PostHog
+          would store it. Only how the viewer got here. */}
+      <ProgramViewTracker
+        event={POSTHOG_EVENTS.PROGRAM_PURCHASE_VIEWED}
+        properties={{
+          purchase_id: purchase.id,
+          program_slug: purchase.program.slug,
+          purchase_status: purchase.status,
+          payment_mode: purchase.paymentMode,
+          total_amount: purchase.totalAmount,
+          access_via: access.via,
+          awaiting_voucher: showPaymentStep,
+        }}
+      />
       <header className="space-y-2">
         <h1 className="text-2xl font-bold">Tu inscripción</h1>
         <p className="text-sm text-muted-foreground">

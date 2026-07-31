@@ -57,18 +57,29 @@ export async function POST(req: Request) {
     return new Response(JSON.stringify(result), { status: 400 });
   }
 
-  const posthog = getPostHogClient();
-  posthog.capture({
-    distinctId: clerkId ?? `reservation_${data.reservationId}`,
-    event: POSTHOG_EVENTS.PAYMENT_UPLOADED,
-    properties: {
-      reservation_id: data.reservationId,
-      stand_id: data.standId,
-      invoice_id: data.invoiceId,
-      amount: data.amount,
-    },
-  });
-  await posthog.shutdown();
+  // Past the success check, so the payment is already recorded. An unreachable
+  // PostHog must not turn that into a 500 the caller reads as a failed upload —
+  // same guard the other server-side captures already use.
+  try {
+    const posthog = getPostHogClient();
+    posthog.capture({
+      distinctId: clerkId ?? `reservation_${data.reservationId}`,
+      event: POSTHOG_EVENTS.PAYMENT_UPLOADED,
+      properties: {
+        reservation_id: data.reservationId,
+        stand_id: data.standId,
+        invoice_id: data.invoiceId,
+        amount: data.amount,
+      },
+    });
+    // Bounded at 5s. `shutdown()` defaults to 30 seconds, and it is awaited
+    // before the response goes out — so an unreachable PostHog would stall the
+    // caller for half a minute and then, past `maxDuration`, hand them exactly
+    // the failed-upload error this block exists to prevent.
+    await posthog.shutdown(5000);
+  } catch (telemetryError) {
+    console.error("PostHog telemetry failed (payments)", telemetryError);
+  }
 
   return new Response(JSON.stringify(result), { status: 200 });
 }

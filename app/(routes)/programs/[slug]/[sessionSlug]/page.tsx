@@ -15,9 +15,11 @@ import { notFound } from "next/navigation";
 import GlitterWeekLockup from "@/app/components/programs/glitter-week-lockup";
 import OccurrenceScheduleList from "@/app/components/programs/occurrence-schedule-list";
 import ParticipantDiscountHint from "@/app/components/programs/participant-discount-hint";
+import ProgramViewTracker from "@/app/components/programs/program-view-tracker";
 import SmoothScrollLink from "@/app/components/programs/smooth-scroll-link";
 import ViewerSessionPrice from "@/app/components/programs/viewer-session-price";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { formatDate } from "@/app/lib/formatters";
 import {
   DEFAULT_PROGRAM_ARTWORK,
@@ -130,9 +132,31 @@ export default async function SessionPage({ params }: Props) {
           60_000,
       )
     : null;
+  // Across every occurrence: the honest answer to "was anything still bookable
+  // when they looked at this page", which drop-off numbers are unreadable
+  // without.
+  const seatsRemaining = [...availabilityByOccurrence.values()].reduce(
+    (total, availability) => total + availability.remaining,
+    0,
+  );
 
   return (
     <div className="overflow-hidden bg-[#fffaf3] text-[#4b255f]">
+      <ProgramViewTracker
+        event={POSTHOG_EVENTS.PROGRAM_SESSION_VIEWED}
+        properties={{
+          program_slug: session.program.slug,
+          session_slug: session.slug,
+          session_title: session.title,
+          session_type: session.type,
+          skill_level: session.skillLevel,
+          audience: session.audience,
+          public_price: publicPrice,
+          participant_price: participantPrice,
+          occurrence_count: session.occurrences.length,
+          seats_remaining: seatsRemaining,
+        }}
+      />
       <section className="relative overflow-hidden bg-[#9347f5] text-[#fffaf3]">
         <div
           aria-hidden="true"
@@ -384,6 +408,8 @@ export default async function SessionPage({ params }: Props) {
                 fallbackVenueId={
                   session.venueId ?? session.program.defaultVenueId ?? null
                 }
+                programSlug={session.program.slug}
+                sessionSlug={session.slug}
                 sessionTitle={session.title}
                 availabilityByOccurrence={availabilityByOccurrence}
                 audience={session.audience}
