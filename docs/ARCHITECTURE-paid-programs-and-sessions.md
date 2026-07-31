@@ -1032,14 +1032,16 @@ request path:
 1. **Module exposure** — the `paid_programs` feature flag, from the general flag system documented
    in [ARCHITECTURE-feature-flags.md](./ARCHITECTURE-feature-flags.md). `hidden` for most of Phase
    1, `admin_only` while the team builds and rehearses the catalogue in production, `public` at
-   launch. Gates the public routes and the dashboard navigation entry.
+   launch. Gates public routes and buyer-facing actions; admin dashboard navigation, authoring,
+   and mutations remain visible independently of the flag.
 2. **Content visibility** — `programs.status` / `program_sessions.status`. Draft content is
    invisible regardless of layer 1.
 3. **Sales gate** — per-occurrence sales windows. Publishing content without opening sales is a
    first-class state (`sales_not_started`), which is exactly the Phase 1 → Phase 6 gap.
 
-Rollback is: set the flag back to `hidden`, revert sessions to `draft`, or set `salesClosedAt`. All
-three take effect on the next request, and none destroys purchases, tickets, or audit history.
+Public/buyer-facing rollback is: set the flag back to `hidden`, revert sessions to `draft`, or set
+`salesClosedAt`. All three take effect on the next request, none destroys purchases, tickets, or
+audit history, and none hides or disables the authoring dashboard.
 
 **The authoring dashboard is deliberately exempt.** `/dashboard/programs` and every program
 mutation check the admin role, not `paid_programs`. That is the point of layer 1: the flag gates

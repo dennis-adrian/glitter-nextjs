@@ -61,25 +61,18 @@ export default function VoucherUploadCard({
 
   const { startUpload } = useUploadThing("sessionPurchaseVoucher");
 
-  /**
-   * The interval only forces a re-render; the remaining time is derived below.
-   *
-   * Held in state, the countdown survived one render past the deadline going
-   * away — submitting a voucher nulls `holdExpiresAt` and refreshes, and the
-   * old number was still on screen until the effect cleared it, briefly showing
-   * a running deadline for a purchase already under review.
-   */
-  const [, setTick] = useState(0);
+  const [clock, setClock] = useState(() => Date.now());
 
   useEffect(() => {
     if (!holdExpiresAt) return;
 
-    const interval = setInterval(() => setTick((count) => count + 1), 1000);
+    setClock(Date.now());
+    const interval = setInterval(() => setClock(Date.now()), 1000);
     return () => clearInterval(interval);
   }, [holdExpiresAt]);
 
   /** `null` means the purchase is under review, where the review holds the seat. */
-  const msLeft = holdExpiresAt ? holdExpiresAt.getTime() - Date.now() : null;
+  const msLeft = holdExpiresAt ? holdExpiresAt.getTime() - clock : null;
 
   useEffect(() => {
     return () => {

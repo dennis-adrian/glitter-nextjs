@@ -340,6 +340,7 @@ Full requirements are retained in Phase 4 above and PRD §7.2–7.3.
 
 ### Tickets and commerce
 
+- Multi-session cart. Before it ships, reservation across every line must be atomic.
 - Controlled ticket transfer or resale.
 - Online payment provider.
 - Automated bank refunds.
@@ -361,14 +362,13 @@ Full requirements are retained in Phase 4 above and PRD §7.2–7.3.
 
 ## 5. Dependencies and risks that must not be deferred
 
-| Area                | Risk if deferred                                                                                                                                       | Required mitigation                                                 |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
-| Eligibility         | Incorrect charge or unauthorized access                                                                                                                | Canonical source, server validation, and snapshot                   |
-| Capacity            | Overselling or orphaned seats                                                                                                                          | Transactional holds, idempotency, and reconciliation                |
-| Vouchers            | Wrong file reviewed or audit history lost                                                                                                              | Immutable versions and explicit state                               |
-| Guest access        | Data or ticket exposure                                                                                                                                | Opaque, revocable, resource-authorized tokens                       |
-| Multi-item purchase | **[Deferred — post-MVP, §0a]** Not in the MVP; a purchase covers one occurrence. Atomic reservation across all lines is required before the cart ships | Atomic reservation across all lines                                 |
-| QR issuance         | Duplicates or access before payment                                                                                                                    | Idempotent issuance only after approval                             |
-| Cancellation        | Inconsistent policy application                                                                                                                        | Versioned acceptance and centralized rules                          |
-| Email               | User cannot access status or ticket                                                                                                                    | Link on confirmation, retries, and web recovery                     |
-| Audit history       | Support actions without evidence                                                                                                                       | Actor, reason, prior/new state, and timestamp for sensitive actions |
+| Area          | Risk if deferred                          | Required mitigation                                                 |
+| ------------- | ----------------------------------------- | ------------------------------------------------------------------- |
+| Eligibility   | Incorrect charge or unauthorized access   | Canonical source, server validation, and snapshot                   |
+| Capacity      | Overselling or orphaned seats             | Transactional holds, idempotency, and reconciliation                |
+| Vouchers      | Wrong file reviewed or audit history lost | Immutable versions and explicit state                               |
+| Guest access  | Data or ticket exposure                   | Opaque, revocable, resource-authorized tokens                       |
+| QR issuance   | Duplicates or access before payment       | Idempotent issuance only after approval                             |
+| Cancellation  | Inconsistent policy application           | Versioned acceptance and centralized rules                          |
+| Email         | User cannot access status or ticket       | Link on confirmation, retries, and web recovery                     |
+| Audit history | Support actions without evidence          | Actor, reason, prior/new state, and timestamp for sensitive actions |

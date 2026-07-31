@@ -5,7 +5,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { fetchProgramSettings } from "@/app/lib/programs/data";
-import { fetchOccurrenceAvailability } from "@/app/lib/programs/inventory-queries";
+import {
+  fetchOccurrenceAvailability,
+  lockOccurrences,
+} from "@/app/lib/programs/inventory-queries";
 import { OCCURRENCE_REASON_MAX } from "@/app/lib/programs/definitions";
 import {
   canCancelOccurrence,
@@ -152,87 +155,102 @@ export async function updateOccurrence(
 
   const data = parsed.data;
 
-  const existing = await db.query.sessionOccurrences.findFirst({
-    where: eq(sessionOccurrences.id, occurrenceId),
-    columns: {
-      lifecycleStatus: true,
-      sessionId: true,
-      startsAt: true,
-      endsAt: true,
-    },
-  });
+  const outcome = await db.transaction(async (tx) => {
+    // Registration writes use this same row lock before counting seats. Holding
+    // it through validation and update prevents capacity from changing between
+    // the availability read and persistence.
+    await lockOccurrences(tx, [occurrenceId]);
 
-  if (!existing) {
-    return { success: false, message: "Horario no encontrado" } as const;
-  }
+    const [existing] = await tx
+      .select({
+        lifecycleStatus: sessionOccurrences.lifecycleStatus,
+        sessionId: sessionOccurrences.sessionId,
+        startsAt: sessionOccurrences.startsAt,
+        endsAt: sessionOccurrences.endsAt,
+      })
+      .from(sessionOccurrences)
+      .where(eq(sessionOccurrences.id, occurrenceId))
+      .limit(1);
 
-  // An occurrence belongs to the session it was created under. The input still
-  // carries `sessionId` because it is the same payload `createOccurrence` takes,
-  // so a mismatch is a caller bug, not a request to move the occurrence.
-  if (existing.sessionId !== data.sessionId) {
-    return { success: false, message: "Datos inválidos" } as const;
-  }
+    if (!existing) {
+      return { success: false, message: "Horario no encontrado" } as const;
+    }
 
-  if (existing.lifecycleStatus !== "scheduled") {
-    return {
-      success: false,
-      message: "Un horario cancelado o finalizado no se puede editar",
-    } as const;
-  }
+    // An occurrence belongs to the session it was created under. The input still
+    // carries `sessionId` because it is the same payload `createOccurrence` takes,
+    // so a mismatch is a caller bug, not a request to move the occurrence.
+    if (existing.sessionId !== data.sessionId) {
+      return { success: false, message: "Datos inválidos" } as const;
+    }
 
-  /**
-   * Anyone holding or having bought a seat was told a time. Moving it silently
-   * from this form would leave them with a ticket for a session that no longer
-   * happens then, and no record of the change — `rescheduleOccurrence` exists
-   * to do it properly. Only a genuine time change is blocked; every other field
-   * stays editable.
-   */
-  const movesSchedule =
-    data.startsAt.getTime() !== existing.startsAt.getTime() ||
-    data.endsAt.getTime() !== existing.endsAt.getTime();
-
-  if (movesSchedule || data.capacity !== undefined) {
-    const availability = await fetchOccurrenceAvailability(db, occurrenceId);
-
-    if (movesSchedule && availability.occupied > 0) {
+    if (existing.lifecycleStatus !== "scheduled") {
       return {
         success: false,
-        message:
-          "Este horario ya tiene inscripciones. Usa Reprogramar para cambiar la fecha.",
+        message: "Un horario cancelado o finalizado no se puede editar",
       } as const;
     }
 
     /**
-     * Capacity is editable while the schedule stands, but not below what is
-     * already taken — that would oversell the occurrence against seats real
-     * people are holding, and every availability read afterwards would report
-     * a negative remainder.
+     * Anyone holding or having bought a seat was told a time. Moving it silently
+     * from this form would leave them with a ticket for a session that no longer
+     * happens then, and no record of the change — `rescheduleOccurrence` exists
+     * to do it properly. Only a genuine time change is blocked; every other field
+     * stays editable.
      */
-    if (data.capacity !== undefined && data.capacity < availability.occupied) {
-      return {
-        success: false,
-        message: `Ya hay ${availability.occupied} cupo(s) ocupado(s); no puedes bajar el total por debajo de eso.`,
-      } as const;
-    }
-  }
+    const movesSchedule =
+      data.startsAt.getTime() !== existing.startsAt.getTime() ||
+      data.endsAt.getTime() !== existing.endsAt.getTime();
 
-  await db
-    .update(sessionOccurrences)
-    .set({
-      startsAt: data.startsAt,
-      endsAt: data.endsAt,
-      venueId: data.venueId ?? null,
-      room: blankToNull(data.room),
-      ...(data.capacity === undefined ? {} : { capacity: data.capacity }),
-      salesStartAt: data.salesStartAt ?? null,
-      salesEndAt: data.salesEndAt ?? null,
-      updatedAt: new Date(),
-    })
-    .where(eq(sessionOccurrences.id, occurrenceId));
+    if (movesSchedule || data.capacity !== undefined) {
+      const availability = await fetchOccurrenceAvailability(tx, occurrenceId);
+
+      if (movesSchedule && availability.occupied > 0) {
+        return {
+          success: false,
+          message:
+            "Este horario ya tiene inscripciones. Usa Reprogramar para cambiar la fecha.",
+        } as const;
+      }
+
+      /**
+       * Capacity is editable while the schedule stands, but not below what is
+       * already taken — that would oversell the occurrence against seats real
+       * people are holding, and every availability read afterwards would report
+       * a negative remainder.
+       */
+      if (
+        data.capacity !== undefined &&
+        data.capacity < availability.occupied
+      ) {
+        return {
+          success: false,
+          message: `Ya hay ${availability.occupied} cupo(s) ocupado(s); no puedes bajar el total por debajo de eso.`,
+        } as const;
+      }
+    }
+
+    await tx
+      .update(sessionOccurrences)
+      .set({
+        startsAt: data.startsAt,
+        endsAt: data.endsAt,
+        venueId: data.venueId ?? null,
+        room: blankToNull(data.room),
+        ...(data.capacity === undefined ? {} : { capacity: data.capacity }),
+        salesStartAt: data.salesStartAt ?? null,
+        salesEndAt: data.salesEndAt ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(sessionOccurrences.id, occurrenceId));
+
+    return { success: true, message: "Horario actualizado" } as const;
+  });
+
+  if (!outcome.success) return outcome;
 
   revalidatePrograms();
 
-  return { success: true, message: "Horario actualizado" } as const;
+  return outcome;
 }
 
 /**
