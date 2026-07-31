@@ -12,13 +12,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import GlitterWeekLockup from "@/app/components/programs/glitter-week-lockup";
-import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
+import SmoothScrollLink from "@/app/components/programs/smooth-scroll-link";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { formatDate } from "@/app/lib/formatters";
 import { resolveProgramArtwork } from "@/app/lib/programs/artwork";
 import {
   fetchProgramSettings,
   fetchPublishedProgramBySlug,
+  fetchPublishedProgramRouteParams,
   fetchVenues,
 } from "@/app/lib/programs/data";
 import {
@@ -32,12 +33,14 @@ import {
   programDiscountFrom,
   resolvePrice,
 } from "@/app/lib/programs/pricing";
-import { resolveOccurrenceState } from "@/app/lib/programs/state";
 import { citrusGothicSolid } from "@/app/ui/fonts";
 
 type Props = {
   params: Promise<{ slug: string }>;
 };
+
+export const dynamic = "force-static";
+export const revalidate = 60;
 
 type AgendaEntry = {
   session: SessionWithOccurrences;
@@ -49,6 +52,10 @@ type AgendaDay = {
   date: Date;
   entries: AgendaEntry[];
 };
+
+export async function generateStaticParams() {
+  return fetchPublishedProgramRouteParams();
+}
 
 function buildAgendaDays(sessions: SessionWithOccurrences[]): AgendaDay[] {
   const entries = sessions
@@ -82,6 +89,11 @@ function buildAgendaDays(sessions: SessionWithOccurrences[]): AgendaDay[] {
   return [...days.values()];
 }
 
+function formatAgendaWeekday(date: Date): string {
+  const weekday = formatDate(date).toFormat("cccc");
+  return weekday.charAt(0).toLocaleUpperCase("es-BO") + weekday.slice(1);
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const program = await fetchPublishedProgramBySlug(slug);
@@ -100,7 +112,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ProgramPage({ params }: Props) {
-  await requireFeatureEnabled("paid_programs");
+  await requireFeatureEnabled("paid_programs", null);
 
   const { slug } = await params;
   const [program, settings, venues] = await Promise.all([
@@ -119,7 +131,7 @@ export default async function ProgramPage({ params }: Props) {
   const dateRange = [program.startDate, program.endDate]
     .filter((date): date is Date => date !== null)
     .map((date) => formatDate(date).toLocaleString(DateTime.DATE_MED))
-    .join(" — ");
+    .join(" al ");
   const agendaDays = buildAgendaDays(program.sessions);
   const artwork = resolveProgramArtwork(program.bannerUrl);
   const programDiscount = programDiscountFrom(program);
@@ -127,7 +139,7 @@ export default async function ProgramPage({ params }: Props) {
 
   return (
     <div className="overflow-hidden bg-[#fffaf3] text-[#4b255f]">
-      <section className="grid border-b border-[#4b255f]/10 lg:min-h-[720px] lg:grid-cols-[0.92fr_1.08fr]">
+      <section className="grid border-b border-[#4b255f]/10 lg:min-h-180 lg:grid-cols-[0.92fr_1.08fr]">
         <div className="relative z-10 flex flex-col justify-center overflow-hidden bg-[#9347f5] px-5 py-14 text-[#fffaf3] sm:px-10 sm:py-20 lg:px-[max(4rem,8vw)]">
           <div
             aria-hidden="true"
@@ -135,7 +147,7 @@ export default async function ProgramPage({ params }: Props) {
           />
           <div
             aria-hidden="true"
-            className="absolute -bottom-24 right-[-4rem] size-72 rounded-full bg-[#6fe7e9]/25"
+            className="absolute -bottom-24 -right-16 size-72 rounded-full bg-[#6fe7e9]/25"
           />
 
           <div className="relative max-w-xl">
@@ -156,14 +168,14 @@ export default async function ProgramPage({ params }: Props) {
             </div>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link
-                href="#programa"
+              <SmoothScrollLink
+                targetId="programa"
                 className="inline-flex min-h-12 items-center gap-2 rounded-full bg-[#ffbe57] px-6 text-sm font-black uppercase tracking-[0.08em] text-[#4b255f] transition hover:-translate-y-0.5 hover:bg-[#ffd477] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/70"
               >
                 Explorar el programa
                 <ArrowDownIcon className="size-4" aria-hidden="true" />
-              </Link>
-              <span className="rounded-full border border-white/55 px-5 py-3 text-xs font-black uppercase tracking-[0.1em]">
+              </SmoothScrollLink>
+              <span className="rounded-full border border-white/55 px-5 py-3 text-xs font-black uppercase tracking-widest">
                 {program.sessions.length}{" "}
                 {program.sessions.length === 1 ? "sesión" : "sesiones"} ·{" "}
                 {agendaDays.length} {agendaDays.length === 1 ? "día" : "días"}
@@ -172,7 +184,7 @@ export default async function ProgramPage({ params }: Props) {
           </div>
         </div>
 
-        <div className="relative min-h-[440px] overflow-hidden bg-[#72e5e7] sm:min-h-[560px] lg:min-h-full">
+        <div className="relative min-h-110 overflow-hidden bg-[#72e5e7] sm:min-h-140 lg:min-h-full">
           <Image
             src={artwork}
             alt=""
@@ -186,13 +198,11 @@ export default async function ProgramPage({ params }: Props) {
 
       <section
         id="programa"
+        tabIndex={-1}
         className="scroll-mt-20 bg-[#ffc1fd] py-16 text-[#4b255f] sm:py-24"
       >
         <div className="container mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
           <div className="mb-8 max-w-3xl text-[#4b255f]">
-            <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-[#9347f5]">
-              Día por día
-            </p>
             <h2
               className={`${citrusGothicSolid.className} text-balance text-5xl uppercase leading-[0.9] sm:text-7xl`}
             >
@@ -201,7 +211,7 @@ export default async function ProgramPage({ params }: Props) {
           </div>
 
           {agendaDays.length === 0 ? (
-            <p className="rounded-[2rem] bg-[#fffaf3] p-7 font-semibold">
+            <p className="rounded-4xl bg-[#fffaf3] p-7 font-semibold">
               Los horarios aparecerán aquí muy pronto.
             </p>
           ) : (
@@ -211,13 +221,13 @@ export default async function ProgramPage({ params }: Props) {
                 className="no-scrollbar sticky top-16 z-20 -mx-5 mb-8 flex gap-2 overflow-x-auto bg-[#ffc1fd]/95 px-5 py-3 backdrop-blur md:top-20 sm:mx-0 sm:px-0"
               >
                 {agendaDays.map((day, index) => (
-                  <Link
+                  <SmoothScrollLink
                     key={day.key}
-                    href={`#dia-${day.key}`}
+                    targetId={`dia-${day.key}`}
                     className="shrink-0 rounded-full bg-[#fffaf3] px-5 py-2.5 text-xs font-black uppercase tracking-[0.12em] transition hover:bg-[#ffbe57]"
                   >
                     Día {index + 1} · {formatDate(day.date).toFormat("ccc dd")}
-                  </Link>
+                  </SmoothScrollLink>
                 ))}
               </nav>
 
@@ -226,20 +236,26 @@ export default async function ProgramPage({ params }: Props) {
                   <section
                     key={day.key}
                     id={`dia-${day.key}`}
+                    tabIndex={-1}
                     className="scroll-mt-36 overflow-hidden rounded-[2.4rem] bg-[#fffaf3]"
                   >
                     <div className="flex items-center gap-5 bg-[#9347f5] px-6 py-6 text-white sm:px-8">
-                      <span
-                        className={`${citrusGothicSolid.className} text-6xl leading-none text-[#ffbe57] sm:text-7xl`}
-                      >
-                        {formatDate(day.date).toFormat("dd")}
-                      </span>
+                      <div className="grid shrink-0 justify-items-center">
+                        <span
+                          className={`${citrusGothicSolid.className} text-6xl leading-none text-[#ffbe57] sm:text-7xl`}
+                        >
+                          {formatDate(day.date).toFormat("dd")}
+                        </span>
+                        <span className="mt-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#e5d5ff]">
+                          {formatDate(day.date).toFormat("LLLL")}
+                        </span>
+                      </div>
                       <div>
                         <p className="text-xs font-black uppercase tracking-[0.15em] text-[#e5d5ff]">
                           Día {dayIndex + 1}
                         </p>
-                        <h3 className="text-xl font-black capitalize sm:text-2xl">
-                          {formatDate(day.date).toFormat("cccc, LLLL")}
+                        <h3 className="text-xl font-black sm:text-2xl">
+                          {formatAgendaWeekday(day.date)}
                         </h3>
                       </div>
                     </div>
@@ -264,40 +280,34 @@ export default async function ProgramPage({ params }: Props) {
                           },
                           "public",
                         ).amount;
-                        const resolved = resolveOccurrenceState({
-                          programStatus: program.status,
-                          sessionStatus: session.status,
-                          lifecycleStatus: occurrence.lifecycleStatus,
-                          salesStartAt: occurrence.salesStartAt,
-                          salesEndAt: occurrence.salesEndAt,
-                          salesClosedAt: occurrence.salesClosedAt,
-                          rescheduledAt: occurrence.rescheduledAt,
-                        });
 
                         return (
                           <li
                             key={occurrence.id}
-                            className="group grid gap-4 border-b border-[#4b255f]/15 py-6 last:border-b-0 sm:grid-cols-[100px_1fr_auto] sm:items-center"
+                            className="group grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-5 border-b border-[#4b255f]/15 py-7 last:border-b-0 sm:grid-cols-[100px_minmax(0,1fr)_auto] sm:items-start sm:gap-5"
                           >
-                            <div>
+                            <div className="col-start-1 row-start-1 flex items-center gap-3 sm:block">
                               <p className="flex items-center gap-2 text-lg font-black text-[#9347f5]">
                                 <Clock3Icon className="size-4" />
                                 {formatDate(occurrence.startsAt).toLocaleString(
                                   DateTime.TIME_SIMPLE,
                                 )}
                               </p>
-                              <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em] text-[#8a6d89]">
+                              <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#8a6d89] sm:mt-1">
                                 {SESSION_TYPE_LABELS[session.type]}
                               </p>
                             </div>
 
-                            <div>
+                            <div className="col-span-2 row-start-2 min-w-0 sm:col-span-1 sm:col-start-2 sm:row-start-1">
                               <Link
                                 href={`/programs/${program.slug}/${session.slug}`}
-                                className="inline-flex items-start gap-2 text-balance text-xl font-black leading-tight decoration-[#9347f5] decoration-2 underline-offset-4 hover:underline sm:text-2xl"
+                                className="inline-flex items-start gap-2 text-balance text-xl font-black leading-tight underline decoration-[#9347f5] decoration-2 underline-offset-4 [@media(hover:hover)]:no-underline [@media(hover:hover)]:hover:underline sm:text-2xl"
                               >
                                 {session.title}
-                                <ArrowUpRightIcon className="mt-1 size-4 shrink-0 transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
+                                <ArrowUpRightIcon
+                                  className="mt-1 size-4 shrink-0 transition-transform group-hover:translate-x-1 group-hover:-translate-y-1"
+                                  aria-hidden="true"
+                                />
                               </Link>
                               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[#70566f]">
                                 {session.sessionSpeakers.length > 0 ? (
@@ -314,16 +324,43 @@ export default async function ProgramPage({ params }: Props) {
                                   </span>
                                 ) : null}
                               </div>
+
+                              {session.description ? (
+                                <p className="mt-4 max-w-3xl whitespace-pre-line text-sm font-medium leading-relaxed text-[#5f455f] sm:text-base">
+                                  {session.description}
+                                </p>
+                              ) : null}
+
+                              {session.learningOutcomes &&
+                              session.learningOutcomes.length > 0 ? (
+                                <div className="mt-5 rounded-2xl bg-[#ffc1fd]/35 px-4 py-4">
+                                  <p className="text-xs font-black uppercase tracking-[0.12em] text-[#9347f5]">
+                                    Lo que aprenderás
+                                  </p>
+                                  <ul className="mt-3 grid gap-2.5 lg:grid-cols-2">
+                                    {session.learningOutcomes.map(
+                                      (outcome, index) => (
+                                        <li
+                                          key={`${session.id}-outcome-${index}`}
+                                          className="flex items-start gap-2 text-sm font-semibold leading-snug text-[#4b255f]"
+                                        >
+                                          <span
+                                            aria-hidden="true"
+                                            className="mt-1.5 size-2 shrink-0 rotate-45 rounded-[2px] bg-[#ffbe57]"
+                                          />
+                                          <span>{outcome}</span>
+                                        </li>
+                                      ),
+                                    )}
+                                  </ul>
+                                </div>
+                              ) : null}
                             </div>
 
-                            <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
+                            <div className="col-start-2 row-start-1 self-center text-right sm:col-start-3 sm:self-start">
                               <span className="font-black">
                                 {formatMoney(price)}
                               </span>
-                              <ProgramStatusBadge
-                                state={resolved.state}
-                                wasRescheduled={resolved.wasRescheduled}
-                              />
                             </div>
                           </li>
                         );

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
+import type { ParticipantEligibility } from "@/app/lib/programs/eligibility";
 import { getBuyerEligibility } from "@/app/lib/programs/eligibility-queries";
 import { sendFreeRegistrationEmail } from "@/app/lib/programs/notifications";
 import {
@@ -456,6 +457,17 @@ export async function registerForFreeSession(
 /** Availability for the public page, outside any transaction. */
 export async function getOccurrenceAvailability(occurrenceId: number) {
   return fetchOccurrenceAvailability(db, occurrenceId);
+}
+
+/**
+ * Hydrates the viewer-only part of a prerendered session page. Registration
+ * actions still resolve this again inside their transaction.
+ */
+export async function getCurrentViewerProgramEligibility(): Promise<ParticipantEligibility> {
+  const profile = await getCurrentUserProfile();
+  const { eligibility } = await getBuyerEligibility(profile);
+
+  return eligibility;
 }
 
 /**

@@ -5,7 +5,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
-import { resolvePurchaseAccess } from "@/app/lib/programs/access";
+import {
+  resolvePurchaseAccess,
+  resolvePurchaseAccessWithLazyViewer,
+} from "@/app/lib/programs/access";
 import {
   buildBuyerLandingUrl,
   sendVoucherReceivedEmail,
@@ -107,7 +110,24 @@ export async function submitPurchaseVoucher(
   }
 
   const data = parsed.data;
-  const profile = await getCurrentUserProfile();
+  /**
+   * Probe access before opening the transaction so a valid secure link never
+   * touches Clerk. Authorization is still repeated against the locked row
+   * below; this lookup only decides whether the owner fallback is necessary.
+   */
+  const purchaseForAccess = await db.query.sessionPurchases.findFirst({
+    where: eq(sessionPurchases.id, data.purchaseId),
+  });
+  if (!purchaseForAccess) {
+    return { success: false, message: "No pudimos registrar el comprobante" };
+  }
+
+  const { viewer: profile } = await resolvePurchaseAccessWithLazyViewer({
+    purchase: purchaseForAccess,
+    presentedTokenHash: data.token ? hashAccessToken(data.token) : null,
+    loadViewer: getCurrentUserProfile,
+    getViewerUserId: (viewer) => viewer.id,
+  });
   const now = new Date();
 
   try {

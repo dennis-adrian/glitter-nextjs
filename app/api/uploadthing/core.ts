@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { fetchUserProfile } from "@/app/api/users/actions";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
-import { resolvePurchaseAccess } from "@/app/lib/programs/access";
+import { resolvePurchaseAccessWithLazyViewer } from "@/app/lib/programs/access";
 import { hashAccessToken } from "@/app/lib/programs/tokens";
 import {
   resolveVoucherSubmission,
@@ -166,13 +166,14 @@ export const ourFileRouter = {
       });
       if (!purchase) throw new UploadThingError("Compra no encontrada");
 
-      const user = await currentUser();
-      const profile = user ? await fetchUserProfile(user.id) : null;
-
-      const access = resolvePurchaseAccess({
+      const { access } = await resolvePurchaseAccessWithLazyViewer({
         purchase,
-        viewerUserId: profile?.id ?? null,
         presentedTokenHash: input.token ? hashAccessToken(input.token) : null,
+        loadViewer: async () => {
+          const user = await currentUser();
+          return user ? ((await fetchUserProfile(user.id)) ?? null) : null;
+        },
+        getViewerUserId: (profile) => profile.id,
       });
       if (!access.granted) throw new UploadThingError("Compra no encontrada");
 
@@ -287,6 +288,25 @@ export const ourFileRouter = {
       ) {
         throw new UploadThingError(
           "No tienes permisos para subir imágenes de expositores",
+        );
+      }
+
+      return { userId: user.id };
+    })
+    .onUploadComplete(({ file }) => ({
+      imageUrl: (file as { url: string }).url,
+    })),
+  programArtwork: f({
+    image: { maxFileSize: "4MB", maxFileCount: 1 },
+  })
+    .middleware(async () => {
+      const user = await currentUser();
+      if (!user) throw new UploadThingError("Debes iniciar sesión");
+
+      const profile = await fetchUserProfile(user.id);
+      if (!profile || profile.role !== "admin") {
+        throw new UploadThingError(
+          "No tienes permisos para subir imágenes de programas",
         );
       }
 

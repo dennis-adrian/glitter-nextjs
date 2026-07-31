@@ -5,7 +5,7 @@ import PurchaseTicketCard from "@/app/components/programs/purchase-ticket-card";
 import SecureLinkNotice from "@/app/components/programs/secure-link-notice";
 import VoucherUploadCard from "@/app/components/programs/voucher-upload-card";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
-import { resolvePurchaseAccess } from "@/app/lib/programs/access";
+import { resolvePurchaseAccessWithLazyViewer } from "@/app/lib/programs/access";
 import { SESSION_PURCHASE_STATUS_LABELS } from "@/app/lib/programs/definitions";
 import { buildSecureLinkUrl } from "@/app/lib/programs/notifications";
 import { fetchPurchaseForAccess } from "@/app/lib/programs/purchase-queries";
@@ -43,17 +43,14 @@ export default async function PurchaseAccessPage({
   const purchaseId = Number(id);
   if (!Number.isInteger(purchaseId) || purchaseId <= 0) notFound();
 
-  const [purchase, profile] = await Promise.all([
-    fetchPurchaseForAccess(purchaseId),
-    getCurrentUserProfile(),
-  ]);
-
+  const purchase = await fetchPurchaseForAccess(purchaseId);
   if (!purchase) notFound();
 
-  const access = resolvePurchaseAccess({
+  const { access } = await resolvePurchaseAccessWithLazyViewer({
     purchase,
-    viewerUserId: profile?.id ?? null,
     presentedTokenHash: token ? hashAccessToken(token) : null,
+    loadViewer: getCurrentUserProfile,
+    getViewerUserId: (profile) => profile.id,
   });
 
   // A refusal renders the same 404 as a missing purchase, so probing for real

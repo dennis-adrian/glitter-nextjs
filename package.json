@@ -1,9 +1,9 @@
 {
   "name": "glitter-nextjs",
-  "version": "2.44.0",
+  "version": "2.45.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "npm run generate && next build",
     "start": "next start",
     "lint": "next lint",
