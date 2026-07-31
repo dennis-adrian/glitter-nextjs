@@ -158,6 +158,35 @@ export const fetchPublishedPrograms = cache(async (): Promise<Program[]> => {
 });
 
 /**
+ * Every public route generated at build time. This intentionally returns only
+ * route params so prerendering does not load the full catalogue graph twice.
+ */
+export const fetchPublishedProgramRouteParams = cache(async () => {
+  return db
+    .select({ slug: programs.slug })
+    .from(programs)
+    .where(eq(programs.status, "published"))
+    .orderBy(asc(programs.id));
+});
+
+export const fetchPublishedSessionRouteParams = cache(async () => {
+  return db
+    .select({
+      slug: programs.slug,
+      sessionSlug: programSessions.slug,
+    })
+    .from(programSessions)
+    .innerJoin(programs, eq(programSessions.programId, programs.id))
+    .where(
+      and(
+        eq(programs.status, "published"),
+        eq(programSessions.status, "published"),
+      ),
+    )
+    .orderBy(asc(programs.id), asc(programSessions.id));
+});
+
+/**
  * A published program carrying only its published sessions. A draft session
  * inside a published program stays invisible, which is what makes per-session
  * publication safe to use while the rest of the program is still being written.

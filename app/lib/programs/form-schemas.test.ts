@@ -86,3 +86,46 @@ describe("programFormSchema bannerUrl", () => {
     expect(programFormSchema.safeParse(program).success).toBe(true);
   });
 });
+
+describe("programFormSchema thumbnailUrl", () => {
+  it.each(ALLOWED_HOSTS)("accepts configured image host %s", (thumbnailUrl) => {
+    expect(
+      programFormSchema.safeParse({ ...program, thumbnailUrl }).success,
+    ).toBe(true);
+  });
+
+  it.each(REJECTED_URLS)(
+    "rejects unapproved thumbnail URL %s",
+    (thumbnailUrl) => {
+      expect(
+        programFormSchema.safeParse({ ...program, thumbnailUrl }).success,
+      ).toBe(false);
+    },
+  );
+});
+
+describe("programFormSchema text limits", () => {
+  it.each(["summary", "description"] as const)(
+    "accepts 1000 characters in %s",
+    (field) => {
+      expect(
+        programFormSchema.safeParse({
+          ...program,
+          [field]: "a".repeat(1000),
+        }).success,
+      ).toBe(true);
+    },
+  );
+
+  it.each(["summary", "description"] as const)(
+    "rejects more than 1000 characters in %s",
+    (field) => {
+      expect(
+        programFormSchema.safeParse({
+          ...program,
+          [field]: "a".repeat(1001),
+        }).success,
+      ).toBe(false);
+    },
+  );
+});

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
+import ProgramImageUpload from "@/app/components/dashboard/programs/program-image-upload";
 import VenueQuickCreateDialog from "@/app/components/dashboard/programs/venue-quick-create-dialog";
 import SelectInput from "@/app/components/form/fields/select";
 import TextInput from "@/app/components/form/fields/text";
@@ -18,6 +19,7 @@ import {
   dateOrNull,
   idOrNull,
   numberOrNull,
+  PROGRAM_TEXT_MAX,
   programFormSchema,
   textOrNull,
   toDateTimeLocal,
@@ -42,6 +44,12 @@ export default function ProgramForm({ program, venues, festivals }: Props) {
   // Local so a venue created from the dialog is selectable immediately, without
   // a round trip that would discard everything else typed into the form.
   const [venueOptions, setVenueOptions] = useState<VenueOption[]>(venues);
+  const [uploadingArtwork, setUploadingArtwork] = useState<
+    Record<"bannerUrl" | "thumbnailUrl", boolean>
+  >({
+    bannerUrl: false,
+    thumbnailUrl: false,
+  });
 
   const form = useForm<ProgramFormValues>({
     resolver: zodResolver(programFormSchema),
@@ -70,6 +78,17 @@ export default function ProgramForm({ program, venues, festivals }: Props) {
     name: "participantDiscountType",
   });
   const usesDiscountOverride = discountType !== NONE && Boolean(discountType);
+  const isUploadingArtwork = Object.values(uploadingArtwork).some(Boolean);
+
+  function setArtworkUploading(
+    field: "bannerUrl" | "thumbnailUrl",
+    isUploading: boolean,
+  ) {
+    setUploadingArtwork((current) => ({
+      ...current,
+      [field]: isUploading,
+    }));
+  }
 
   const action = form.handleSubmit(async (values) => {
     const overridesDiscount =
@@ -126,12 +145,14 @@ export default function ProgramForm({ program, venues, festivals }: Props) {
         <TextareaInput
           formControl={form.control}
           label="Resumen"
+          maxLength={PROGRAM_TEXT_MAX}
           name="summary"
           placeholder="Una o dos líneas para la tarjeta y el compartido"
         />
         <TextareaInput
           formControl={form.control}
           label="Descripción"
+          maxLength={PROGRAM_TEXT_MAX}
           name="description"
           placeholder="De qué trata el programa"
         />
@@ -217,11 +238,42 @@ export default function ProgramForm({ program, venues, festivals }: Props) {
           ) : null}
         </div>
 
-        <TextInput label="Imagen de portada (URL)" name="bannerUrl" />
-        <TextInput label="Miniatura (URL)" name="thumbnailUrl" />
+        <section className="grid gap-3">
+          <div>
+            <h2 className="text-sm font-semibold">Imágenes del programa</h2>
+            <p className="text-xs text-muted-foreground">
+              Selecciona los archivos que verán las personas en la portada y los
+              listados.
+            </p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <ProgramImageUpload
+              control={form.control}
+              name="bannerUrl"
+              label="Imagen de portada"
+              description="Recomendado: 1600 × 1200 px (4:3)."
+              previewClassName="aspect-4/3"
+              previewSizes="(min-width: 768px) 40vw, 90vw"
+              onUploading={(isUploading) =>
+                setArtworkUploading("bannerUrl", isUploading)
+              }
+            />
+            <ProgramImageUpload
+              control={form.control}
+              name="thumbnailUrl"
+              label="Miniatura"
+              description="Recomendado: 1200 × 1200 px (1:1)."
+              previewClassName="aspect-square"
+              previewSizes="(min-width: 768px) 40vw, 90vw"
+              onUploading={(isUploading) =>
+                setArtworkUploading("thumbnailUrl", isUploading)
+              }
+            />
+          </div>
+        </section>
 
         <SubmitButton
-          disabled={form.formState.isSubmitting}
+          disabled={form.formState.isSubmitting || isUploadingArtwork}
           label={isEditing ? "Guardar cambios" : "Crear programa"}
         />
       </form>

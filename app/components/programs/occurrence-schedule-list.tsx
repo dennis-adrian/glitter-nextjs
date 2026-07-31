@@ -1,5 +1,9 @@
+"use client";
+
+import { useAuth } from "@clerk/nextjs";
 import { DateTime } from "luxon";
 import { Clock3Icon, MapPinIcon, UsersIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import FreeRegistrationForm from "@/app/components/programs/free-registration-form";
 import PaidRegistrationForm from "@/app/components/programs/paid-registration-form";
@@ -10,7 +14,14 @@ import type {
   SessionOccurrence,
   Venue,
 } from "@/app/lib/programs/definitions";
+import {
+  canPurchaseAudience,
+  type ParticipantEligibility,
+  type SessionAudience,
+} from "@/app/lib/programs/eligibility";
 import type { OccurrenceAvailability } from "@/app/lib/programs/inventory";
+import { isFreePrice } from "@/app/lib/programs/pricing";
+import { getCurrentViewerProgramEligibility } from "@/app/lib/programs/registration-actions";
 import { resolveOccurrenceState } from "@/app/lib/programs/state";
 
 type Props = {
@@ -22,12 +33,9 @@ type Props = {
   fallbackVenueId: number | null;
   sessionTitle: string;
   availabilityByOccurrence: Map<number, OccurrenceAvailability>;
-  /**
-   * Exactly one registration mode is present for an eligible viewer; the
-   * server action still re-checks price and audience after the click.
-   */
-  freeRegistration: { isSignedIn: boolean } | null;
-  paidRegistration: { isSignedIn: boolean; price: number } | null;
+  audience: SessionAudience;
+  publicPrice: number;
+  participantPrice: number;
 };
 
 /**
@@ -42,9 +50,37 @@ export default function OccurrenceScheduleList({
   fallbackVenueId,
   sessionTitle,
   availabilityByOccurrence,
-  freeRegistration,
-  paidRegistration,
+  audience,
+  publicPrice,
+  participantPrice,
 }: Props) {
+  const { isLoaded, isSignedIn } = useAuth();
+  const [eligibility, setEligibility] =
+    useState<ParticipantEligibility>("public");
+
+  useEffect(() => {
+    let active = true;
+
+    if (!isLoaded || !isSignedIn) {
+      return () => {
+        active = false;
+      };
+    }
+
+    void getCurrentViewerProgramEligibility().then(
+      (nextEligibility) => {
+        if (active) setEligibility(nextEligibility);
+      },
+      () => {
+        if (active) setEligibility("public");
+      },
+    );
+
+    return () => {
+      active = false;
+    };
+  }, [isLoaded, isSignedIn]);
+
   if (occurrences.length === 0) {
     return (
       <p className="text-muted-foreground">
@@ -53,8 +89,24 @@ export default function OccurrenceScheduleList({
     );
   }
 
+  const viewerEligibility = isLoaded && isSignedIn ? eligibility : "public";
+  const viewerPrice =
+    viewerEligibility === "active_participant" ? participantPrice : publicPrice;
+  const canRegisterForAudience = canPurchaseAudience(
+    audience,
+    viewerEligibility,
+  );
+  const freeRegistration =
+    canRegisterForAudience && isFreePrice(viewerPrice)
+      ? { isSignedIn: isSignedIn === true }
+      : null;
+  const paidRegistration =
+    canRegisterForAudience && !isFreePrice(viewerPrice)
+      ? { isSignedIn: isSignedIn === true, price: viewerPrice }
+      : null;
+
   return (
-    <ul className="overflow-hidden rounded-[2rem] bg-[#fffaf3] text-[#4b255f]">
+    <ul className="overflow-hidden rounded-4xl bg-[#fffaf3] text-[#4b255f]">
       {occurrences.map((occurrence) => {
         const resolved = resolveOccurrenceState({
           programStatus,
@@ -88,7 +140,7 @@ export default function OccurrenceScheduleList({
             key={occurrence.id}
             className="grid gap-5 border-b border-[#4b255f]/15 p-5 last:border-b-0 sm:grid-cols-[78px_1fr_auto] sm:items-center md:p-6"
           >
-            <div className="flex items-baseline gap-2 sm:grid sm:size-[68px] sm:place-content-center sm:rounded-full sm:bg-[#dff7f3] sm:text-center">
+            <div className="flex items-baseline gap-2 sm:grid sm:size-17 sm:place-content-center sm:rounded-full sm:bg-[#dff7f3] sm:text-center">
               <span className="text-4xl font-black leading-none text-[#4b255f]">
                 {formatDate(occurrence.startsAt).toFormat("dd")}
               </span>
@@ -103,7 +155,7 @@ export default function OccurrenceScheduleList({
                 {formatDate(occurrence.startsAt).toLocaleString(
                   DateTime.TIME_SIMPLE,
                 )}{" "}
-                —{" "}
+                a{" "}
                 {formatDate(occurrence.endsAt).toLocaleString(
                   DateTime.TIME_SIMPLE,
                 )}
@@ -112,7 +164,7 @@ export default function OccurrenceScheduleList({
                 <p className="flex items-center gap-2 text-sm font-medium text-[#70566f]">
                   <MapPinIcon className="size-4 shrink-0 text-[#9347f5]" />
                   {venue.name}
-                  {occurrence.room ? ` · ${occurrence.room}` : ""}
+                  {occurrence.room ? ` - ${occurrence.room}` : ""}
                 </p>
               ) : null}
               {remaining !== undefined ? (
@@ -125,10 +177,11 @@ export default function OccurrenceScheduleList({
               ) : null}
             </div>
 
-            <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
+            <div className="flex items-center justify-end gap-3 sm:flex-col sm:items-end">
               <ProgramStatusBadge
                 state={resolved.state}
                 wasRescheduled={resolved.wasRescheduled}
+                hideOnSale
               />
               {canRegister && freeRegistration ? (
                 <FreeRegistrationForm

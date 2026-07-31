@@ -29,7 +29,7 @@ export default async function NewSessionPage({ params }: Props) {
   if (!program) notFound();
 
   return (
-    <div className="container mx-auto max-w-2xl space-y-6 py-6">
+    <div className="container max-w-2xl p-3 md:p-6 flex flex-col gap-6">
       <div className="space-y-1">
         <h1 className="text-2xl font-bold">Nueva sesión</h1>
         <p className="text-sm text-muted-foreground">{program.name}</p>

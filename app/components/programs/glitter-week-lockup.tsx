@@ -39,7 +39,7 @@ export default function GlitterWeekLockup({
       aria-label={title}
       className={cn(
         "relative inline-flex flex-col uppercase",
-        compact ? "gap-0" : "gap-1",
+        compact ? "gap-0" : "gap-2",
         className,
       )}
     >
@@ -47,8 +47,9 @@ export default function GlitterWeekLockup({
         aria-hidden="true"
         className={cn(
           citrusGothicSolid.className,
-          "max-w-[12ch] text-balance leading-[0.82] tracking-[0.01em]",
+          "max-w-[12ch] text-balance tracking-[0.01em]",
           sizeClass,
+          "leading-[0.82]",
           isLight ? "text-[#fffaf3]" : "text-[#4b255f]",
         )}
       >
@@ -59,8 +60,9 @@ export default function GlitterWeekLockup({
           aria-hidden="true"
           className={cn(
             citrusGothicInline.className,
-            "max-w-[12ch] text-balance leading-[0.82] tracking-[0.015em]",
+            "max-w-[12ch] text-balance tracking-[0.015em]",
             sizeClass,
+            "leading-[0.82]",
             isLight ? "text-[#ffbe57]" : "text-[#9347f5]",
           )}
         >

@@ -142,7 +142,7 @@ export default function PaidRegistrationForm({
           size="sm"
           className="rounded-full bg-[#9347f5] px-5 font-black text-white hover:bg-[#7f36dc]"
         >
-          Reservar · {formatMoney(price)}
+          Reservar - {formatMoney(price)}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">

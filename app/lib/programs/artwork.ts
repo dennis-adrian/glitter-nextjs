@@ -1,5 +1,5 @@
 export const DEFAULT_PROGRAM_ARTWORK =
-  "/img/programs/glitter-week-education-hero.webp";
+  "/img/programs/program-banner-placeholder.svg";
 
 const ALLOWED_REMOTE_ARTWORK_HOSTS = new Set([
   "img.clerk.com",

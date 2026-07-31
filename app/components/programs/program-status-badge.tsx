@@ -7,6 +7,7 @@ import {
 type Props = {
   state: OccurrenceEffectiveState;
   wasRescheduled?: boolean;
+  hideOnSale?: boolean;
 };
 
 const VARIANT_BY_STATE: Record<
@@ -22,12 +23,22 @@ const VARIANT_BY_STATE: Record<
 };
 
 /** The effective state of one occurrence, resolved by `resolveOccurrenceState`. */
-export default function ProgramStatusBadge({ state, wasRescheduled }: Props) {
+export default function ProgramStatusBadge({
+  state,
+  wasRescheduled,
+  hideOnSale,
+}: Props) {
+  const showState = !hideOnSale || state !== "on_sale";
+
+  if (!showState && !wasRescheduled) return null;
+
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
-      <Badge variant={VARIANT_BY_STATE[state]}>
-        {OCCURRENCE_STATE_LABELS[state]}
-      </Badge>
+      {showState ? (
+        <Badge variant={VARIANT_BY_STATE[state]}>
+          {OCCURRENCE_STATE_LABELS[state]}
+        </Badge>
+      ) : null}
       {wasRescheduled ? <Badge variant="amber">Reprogramada</Badge> : null}
     </span>
   );
