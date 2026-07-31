@@ -51,7 +51,10 @@ import {
 } from "@/app/lib/rentals/validation";
 import type { ProductTransactionType } from "@/app/lib/rentals/types";
 import type { RentalOrderFilter } from "@/app/lib/rentals/order-filters";
-import { getPostHogClient } from "@/app/lib/posthog-server";
+import {
+  getPostHogClient,
+  POSTHOG_SHUTDOWN_TIMEOUT_MS,
+} from "@/app/lib/posthog-server";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import {
   getOrderItemDisplayName,
@@ -1240,7 +1243,7 @@ export async function submitOrderPaymentVoucher(
         event: POSTHOG_EVENTS.ORDER_PAYMENT_VOUCHER_UPLOADED,
         properties: { order_id: orderId },
       });
-      await posthog.shutdown();
+      await posthog.shutdown(POSTHOG_SHUTDOWN_TIMEOUT_MS);
     } catch (posthogError) {
       console.error("[submitOrderPaymentVoucher] PostHog capture failed", {
         orderId,
@@ -1320,7 +1323,7 @@ export async function submitGuestOrderPaymentVoucher(
         event: POSTHOG_EVENTS.ORDER_PAYMENT_VOUCHER_UPLOADED,
         properties: { order_id: orderId, is_guest: true },
       });
-      await posthog.shutdown();
+      await posthog.shutdown(POSTHOG_SHUTDOWN_TIMEOUT_MS);
     } catch (posthogError) {
       console.error("[submitGuestOrderPaymentVoucher] PostHog capture failed", {
         orderId,
