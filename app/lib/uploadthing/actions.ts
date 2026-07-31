@@ -4,6 +4,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 import { utapi } from "@/app/server/uploadthing";
+import { utcTimestamp } from "@/app/lib/sql-time";
 import { db } from "@/db";
 import { storageCleanupJobs } from "@/db/schema";
 
@@ -125,10 +126,10 @@ async function claimStorageCleanupJobById(jobId: number, owner: string) {
           OR (
             ${storageCleanupJobs.status} = 'processing'
             AND ${storageCleanupJobs.leaseExpiresAt} IS NOT NULL
-            AND ${storageCleanupJobs.leaseExpiresAt} < ${now}
+            AND ${storageCleanupJobs.leaseExpiresAt} < ${utcTimestamp(now)}
           )
         )`,
-        sql`${storageCleanupJobs.nextAttemptAt} <= ${now}`,
+        sql`${storageCleanupJobs.nextAttemptAt} <= ${utcTimestamp(now)}`,
       ),
     )
     .returning();
@@ -147,10 +148,10 @@ async function selectDueStorageCleanupJobIds(limit: number) {
         OR (
           status = 'processing'
           AND lease_expires_at IS NOT NULL
-          AND lease_expires_at < ${now}
+          AND lease_expires_at < ${utcTimestamp(now)}
         )
       )
-      AND next_attempt_at <= ${now}
+      AND next_attempt_at <= ${utcTimestamp(now)}
     ORDER BY created_at ASC
     LIMIT ${limit}
   `);

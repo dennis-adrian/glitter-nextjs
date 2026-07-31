@@ -1,5 +1,7 @@
 import { and, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
+import { utcTimestamp } from "@/app/lib/sql-time";
+
 import {
   resolveReservationEligibility,
   type ReservationEligibility,
@@ -62,7 +64,14 @@ export async function getReservationEligibility(
         inArray(sanctions.status, ["active", "scheduled"]),
         inArray(sanctions.type, ["ban", "reservation_delay"]),
         lte(sanctions.startsAt, now),
-        or(isNull(sanctions.endsAt), sql`${sanctions.endsAt} > ${now}`),
+        // `utcTimestamp` because this bound is a raw template: interpolating a
+        // `Date` directly sends it in the process's local zone, which Postgres
+        // then truncates against a UTC wall-clock column. The `lte` above goes
+        // through drizzle's column mapper and is already correct.
+        or(
+          isNull(sanctions.endsAt),
+          sql`${sanctions.endsAt} > ${utcTimestamp(now)}`,
+        ),
       ),
     );
 

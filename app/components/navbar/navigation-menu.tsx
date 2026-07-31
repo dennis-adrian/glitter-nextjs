@@ -13,23 +13,29 @@ import {
   navigationMenuTriggerStyle,
 } from "@/app/components/ui/navigation-menu";
 import {
-  BookImageIcon,
-  BoxesIcon,
+  // BookImageIcon, // used by the commented-out festival items
+  // BoxesIcon, // used by the commented-out festival items
   CalendarCheck2Icon,
+  CalendarIcon,
   CircleAlertIcon,
   HomeIcon,
   ImagesIcon,
+  SparklesIcon,
   LayoutDashboardIcon,
   StoreIcon,
 } from "lucide-react";
 import { NavbarProfile } from "../../api/users/definitions";
 import { usePathname } from "next/navigation";
+import { cn } from "@/app/lib/utils";
 import { isNoNavigationPage } from "@/app/lib/utils";
 
 const NavbarNavigationMenu = ({
   profile,
+  programsHref,
 }: {
   profile?: NavbarProfile | null;
+  /** Null when the entry is switched off, gated, or nothing is published. */
+  programsHref?: string | null;
 }) => {
   const pathname = usePathname();
   const canViewSupplies = profile?.status === "verified";
@@ -95,7 +101,9 @@ const NavbarNavigationMenu = ({
             </NavigationMenuLink>
           </NavigationMenuItem>
         )}
-        <NavigationMenuItem>
+        {/* Semana Glitter takes this slot for the launch. Restore these two
+            when the festival content is the priority again. */}
+        {/* <NavigationMenuItem>
           <NavigationMenuTrigger>
             <div className="flex items-center">
               <BookImageIcon className="w-4 h-4 mr-1" />
@@ -122,7 +130,32 @@ const NavbarNavigationMenu = ({
               </div>
             </Link>
           </NavigationMenuLink>
-        </NavigationMenuItem>
+        </NavigationMenuItem> */}
+
+        {programsHref ? (
+          <NavigationMenuItem>
+            <NavigationMenuLink
+              asChild
+              className={cn(navigationMenuTriggerStyle(), "relative")}
+            >
+              <Link href={programsHref}>
+                <div className="flex items-center">
+                  <SparklesIcon className="w-4 h-4 mr-1" />
+                  Semana Glitter
+                </div>
+                {/* Absolutely positioned against the trigger itself, so it sits
+                    in the item's own top-right corner and contributes no width.
+                    Nothing above clips it — the only `overflow-hidden` in this
+                    primitive is on the dropdown viewport. */}
+                <span
+                  aria-hidden="true"
+                  className="absolute right-1.5 top-1.5 size-2 rounded-full bg-primary"
+                />
+                <span className="sr-only">(nuevo)</span>
+              </Link>
+            </NavigationMenuLink>
+          </NavigationMenuItem>
+        ) : null}
         {profile && profile.role === "festival_admin" && (
           <>
             <NavigationMenuItem>
@@ -147,6 +180,21 @@ const NavbarNavigationMenu = ({
                   <div className="flex items-center">
                     <ImagesIcon className="w-4 h-4 mr-1" />
                     Carrusel inicio
+                  </div>
+                </Link>
+              </NavigationMenuLink>
+            </NavigationMenuItem>
+            {/* Programs are managed by both admin tiers, matching
+                `requireAdminOrFestivalAdmin` on every program action. */}
+            <NavigationMenuItem>
+              <NavigationMenuLink
+                asChild
+                className={navigationMenuTriggerStyle()}
+              >
+                <Link href="/dashboard/programs">
+                  <div className="flex items-center">
+                    <CalendarIcon className="w-4 h-4 mr-1" />
+                    Programas
                   </div>
                 </Link>
               </NavigationMenuLink>
@@ -194,6 +242,18 @@ const NavbarNavigationMenu = ({
                   Gestiona pagos, pedidos y productos de la tienda
                 </NavigationMenuListItem>
                 <NavigationMenuListItem
+                  title="Programas"
+                  href="/dashboard/programs"
+                >
+                  Charlas y talleres, con sus horarios y expositores
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
+                  title="Pagos por revisar"
+                  href="/dashboard/programs/purchases"
+                >
+                  Comprobantes de inscripciones esperando aprobación
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
                   title="Subcategorías"
                   href="/dashboard/subcategories"
                 >
@@ -234,6 +294,12 @@ const NavbarNavigationMenu = ({
                   href="/dashboard/banners"
                 >
                   Banners de la página de inicio y del portal
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
+                  title="Funcionalidades"
+                  href="/dashboard/feature_flags"
+                >
+                  Activa o esconde funcionalidades y da acceso anticipado
                 </NavigationMenuListItem>
               </ul>
             </NavigationMenuContent>

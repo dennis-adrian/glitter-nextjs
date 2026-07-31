@@ -5,14 +5,17 @@ import { CardContent } from "@/app/components/ui/card";
 
 import { Card } from "@/app/components/ui/card";
 import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
-import { getQRCode } from "@/app/lib/qr_codes/actions";
+import { getQrCodeForAmount } from "@/app/lib/qr_codes/actions";
 
 type QRCodeDetailsProps = {
   invoice: InvoiceWithPaymentsAndStand;
 };
 
 export default async function QRCodeDetails({ invoice }: QRCodeDetailsProps) {
-  const qrCode = await getQRCode(invoice.amount);
+  // Exact amount when one exists, otherwise the zero-amount code the payer
+  // fills in. Matching alone left this showing "no QR found" for any amount
+  // nobody had pre-generated.
+  const qrCode = await getQrCodeForAmount(invoice.amount);
 
   return (
     <div>
@@ -24,7 +27,11 @@ export default async function QRCodeDetails({ invoice }: QRCodeDetailsProps) {
               Usa tu app de banco o app de pago para escanear este código
             </p>
 
-            <PaymentQRCode invoice={invoice} qrCodeUrl={qrCode?.qrCodeUrl} />
+            <PaymentQRCode
+              invoice={invoice}
+              qrCodeUrl={qrCode?.qrCodeUrl}
+              qrCoversAmount={qrCode ? qrCode.amount === invoice.amount : false}
+            />
           </div>
         </CardContent>
       </Card>

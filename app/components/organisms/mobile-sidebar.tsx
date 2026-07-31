@@ -16,7 +16,7 @@ import {
 } from "@/app/components/ui/sheet";
 import { Button } from "@/app/components/ui/button";
 import {
-  BookImageIcon,
+  // BookImageIcon, // used by the commented-out festival items
   BoxesIcon,
   Building2Icon,
   CalendarCheck2Icon,
@@ -30,11 +30,13 @@ import {
   QrCodeIcon,
   ReceiptTextIcon,
   ShirtIcon,
-  StickerIcon,
+  // StickerIcon, // used by the commented-out festival items
   StoreIcon,
   TagsIcon,
   TicketIcon,
+  ToggleLeftIcon,
   UsersIcon,
+  SparklesIcon,
 } from "lucide-react";
 import { NavbarProfile } from "@/app/api/users/definitions";
 import GlitterLogo from "@/app/components/landing/glitter-logo";
@@ -59,10 +61,16 @@ const MobileSidebarItem = ({ href, children }: MobileSidebarItemProps) => {
 
 type MobileSidebarProps = {
   profile?: NavbarProfile | null;
+  /** Null when the entry is switched off, gated, or nothing is published. */
+  programsHref?: string | null;
   children: React.ReactNode;
 };
 
-const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
+const MobileSidebar = ({
+  children,
+  profile,
+  programsHref,
+}: MobileSidebarProps) => {
   const { signOut } = useClerk();
   const { isSignedIn } = useUser();
   const router = useRouter();
@@ -125,7 +133,9 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
               Tiendita
             </MobileSidebarItem>
           )}
-          <MobileSidebarItem href="/festivals">
+          {/* Semana Glitter takes this slot for the launch. Restore these
+              when the festival content is the priority again. */}
+          {/* <MobileSidebarItem href="/festivals">
             <BookImageIcon className="mr-2 h-6 w-6" />
             Festivales
           </MobileSidebarItem>
@@ -138,7 +148,22 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
           <MobileSidebarItem href="/festivals/categories">
             <BoxesIcon className="w-6 h-6 mr-2" />
             Categorías Glitter
-          </MobileSidebarItem>
+          </MobileSidebarItem> */}
+
+          {programsHref ? (
+            <MobileSidebarItem href={programsHref}>
+              <SparklesIcon className="mr-2 h-6 w-6" />
+              Semana Glitter
+              {/* Sits beside the label rather than at the row's far edge: these
+                  rows are full-width, so a corner dot would float alone in
+                  empty space and read as unrelated to the item. */}
+              <span
+                aria-hidden="true"
+                className="ml-2 mt-1 size-2 shrink-0 self-start rounded-full bg-primary"
+              />
+              <span className="sr-only">(nuevo)</span>
+            </MobileSidebarItem>
+          ) : null}
           {profile && profile.role === "festival_admin" && (
             <>
               <MobileSidebarItem href="/dashboard/infractions?limit=25&offset=0">
@@ -148,6 +173,10 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
               <MobileSidebarItem href="/dashboard/banners">
                 <ImagesIcon className="mr-2 h-6 w-6" />
                 Carrusel inicio
+              </MobileSidebarItem>
+              <MobileSidebarItem href="/dashboard/programs">
+                <CalendarIcon className="mr-2 h-6 w-6" />
+                Programas
               </MobileSidebarItem>
             </>
           )}
@@ -220,6 +249,14 @@ const MobileSidebar = ({ children, profile }: MobileSidebarProps) => {
                 <MobileSidebarItem href="/dashboard/banners">
                   <ImagesIcon className="mr-2 h-6 w-6" />
                   Carrusel inicio
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/programs">
+                  <CalendarIcon className="mr-2 h-6 w-6" />
+                  Programas
+                </MobileSidebarItem>
+                <MobileSidebarItem href="/dashboard/feature_flags">
+                  <ToggleLeftIcon className="mr-2 h-6 w-6" />
+                  Funcionalidades
                 </MobileSidebarItem>
               </div>
             </>

@@ -8,6 +8,8 @@ import { InvoiceWithPaymentsAndStand } from "@/app/data/invoices/definitions";
 type PaymentQRCodeProps = {
   invoice: InvoiceWithPaymentsAndStand;
   qrCodeUrl?: string;
+  /** False for the shared zero-amount code, which the payer fills in. */
+  qrCoversAmount?: boolean;
 };
 export function PaymentQRCode(props: PaymentQRCodeProps) {
   const [isLoading, setIsLoading] = useState(true);
@@ -33,6 +35,12 @@ export function PaymentQRCode(props: PaymentQRCodeProps) {
             Bs{props.invoice.amount}
           </div>
           <QrCodeDownload qrCodeUrl={props.qrCodeUrl} />
+          {props.qrCodeUrl && !props.qrCoversAmount ? (
+            <p className="px-2 text-center text-xs text-muted-foreground">
+              Este QR no lleva el monto. Escribe{" "}
+              <strong>Bs {props.invoice.amount}</strong> al pagar.
+            </p>
+          ) : null}
         </>
       )}
     </div>
