@@ -1,5 +1,5 @@
 "use client";
-import posthog from "posthog-js";
+import { captureClientEvent, identifyClientUser } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -62,10 +62,10 @@ export default function TermsForm({
       });
 
       if (res.success) {
-        posthog.identify(profile.clerkId, {
+        identifyClientUser(profile.clerkId, {
           category: profile.category,
         });
-        posthog.capture(POSTHOG_EVENTS.FESTIVAL_TERMS_ACCEPTED, {
+        captureClientEvent(POSTHOG_EVENTS.FESTIVAL_TERMS_ACCEPTED, {
           festival_id: festival.id,
           festival_name: festival.name,
           profile_id: profile.id,

@@ -2,7 +2,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import posthog from "posthog-js";
 import { type FormEvent, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -29,6 +28,7 @@ import {
 } from "@/app/components/ui/dialog";
 import { Form } from "@/app/components/ui/form";
 import { Label } from "@/app/components/ui/label";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { startPaidCheckout } from "@/app/lib/programs/checkout-actions";
 import { formatMoney } from "@/app/lib/programs/pricing";
@@ -98,7 +98,7 @@ export default function PaidRegistrationForm({
 
     if (nextOpen) {
       submittedRef.current = false;
-      posthog.capture(
+      captureClientEvent(
         POSTHOG_EVENTS.PROGRAM_REGISTRATION_STARTED,
         funnelProperties,
       );
@@ -106,7 +106,7 @@ export default function PaidRegistrationForm({
     }
 
     if (!submittedRef.current) {
-      posthog.capture(POSTHOG_EVENTS.PROGRAM_REGISTRATION_ABANDONED, {
+      captureClientEvent(POSTHOG_EVENTS.PROGRAM_REGISTRATION_ABANDONED, {
         ...funnelProperties,
         accepted_policy: acceptsPolicy,
       });
@@ -142,7 +142,7 @@ export default function PaidRegistrationForm({
     }
 
     submittedRef.current = true;
-    posthog.capture(POSTHOG_EVENTS.PROGRAM_REGISTRATION_SUBMITTED, {
+    captureClientEvent(POSTHOG_EVENTS.PROGRAM_REGISTRATION_SUBMITTED, {
       ...funnelProperties,
       is_guest: guest !== null,
     });
@@ -167,7 +167,7 @@ export default function PaidRegistrationForm({
       if (!result.success) {
         // The server's own copy, which is a fixed set of strings — safe to use
         // as a breakdown without exploding cardinality.
-        posthog.capture(POSTHOG_EVENTS.PROGRAM_REGISTRATION_FAILED, {
+        captureClientEvent(POSTHOG_EVENTS.PROGRAM_REGISTRATION_FAILED, {
           ...funnelProperties,
           is_guest: guest !== null,
           failure: "rejected",
@@ -177,7 +177,7 @@ export default function PaidRegistrationForm({
         return;
       }
 
-      posthog.capture(POSTHOG_EVENTS.PROGRAM_REGISTRATION_COMPLETED, {
+      captureClientEvent(POSTHOG_EVENTS.PROGRAM_REGISTRATION_COMPLETED, {
         ...funnelProperties,
         is_guest: guest !== null,
         purchase_id: result.purchaseId,
@@ -188,12 +188,13 @@ export default function PaidRegistrationForm({
       router.push(
         `/programs/purchases/${result.purchaseId}?token=${result.accessToken}`,
       );
-    } catch (error) {
-      posthog.capture(POSTHOG_EVENTS.PROGRAM_REGISTRATION_FAILED, {
+    } catch {
+      // No `reason`: see the voucher card — an arbitrary throw message is
+      // unbounded cardinality, and `capture_exceptions` already has the stack.
+      captureClientEvent(POSTHOG_EVENTS.PROGRAM_REGISTRATION_FAILED, {
         ...funnelProperties,
         is_guest: guest !== null,
         failure: "exception",
-        reason: error instanceof Error ? error.message : "unknown",
       });
       toast.error("No pudimos reservar tu cupo. Intenta de nuevo.");
     } finally {

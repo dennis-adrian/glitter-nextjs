@@ -12,7 +12,14 @@ if (getClientEnv().NEXT_PUBLIC_VERCEL_ENV === "production") {
     // would otherwise land in `$current_url` on every autocaptured event.
     before_send: (event) => {
       if (!event?.properties) return event;
-      return { ...event, properties: redactEventProperties(event.properties) };
+      try {
+        return { ...event, properties: redactEventProperties(event.properties) };
+      } catch (error) {
+        // Dropped rather than sent through: if redaction failed we cannot say
+        // the URL is clean, and losing one event beats shipping a credential.
+        console.error("[posthog] redaction failed, event dropped", error);
+        return null;
+      }
     },
   });
 }

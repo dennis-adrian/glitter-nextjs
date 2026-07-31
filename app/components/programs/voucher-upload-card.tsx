@@ -3,7 +3,6 @@
 import { DateTime } from "luxon";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import posthog from "posthog-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CheckIcon,
@@ -24,6 +23,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { formatMoney } from "@/app/lib/programs/pricing";
 import { submitPurchaseVoucher } from "@/app/lib/programs/voucher-actions";
@@ -98,7 +98,7 @@ export default function VoucherUploadCard({
       setPreviewUrl(URL.createObjectURL(file));
       // Splits "never picked an image" from "picked one and the upload broke".
       // No filename: it is the payer's own file and adds nothing to the funnel.
-      posthog.capture(POSTHOG_EVENTS.PROGRAM_VOUCHER_FILE_SELECTED, {
+      captureClientEvent(POSTHOG_EVENTS.PROGRAM_VOUCHER_FILE_SELECTED, {
         purchase_id: purchaseId,
         total_amount: totalAmount,
         file_size_bytes: file.size,
@@ -111,16 +111,20 @@ export default function VoucherUploadCard({
   const expired = msLeft !== null && msLeft <= 0;
 
   /**
-   * The single loudest drop-off signal in this flow: the hold ran out while the
-   * payer was on the page. Fired once, on the tick that crosses the deadline —
-   * the countdown re-renders every second and must not re-report it.
+   * The loudest drop-off signal in this flow: the payer is looking at a hold
+   * that has run out. Covers both arriving after the deadline and watching the
+   * countdown cross it — `had_voucher` separates the two cases well enough.
+   *
+   * Fired at most once per mount: the countdown re-renders every second and
+   * must not re-report. A fresh attempt is always a new purchase id, hence a
+   * new route and a new mount, so a per-instance latch is enough.
    */
   const reportedExpiryRef = useRef(false);
 
   useEffect(() => {
     if (!expired || reportedExpiryRef.current) return;
     reportedExpiryRef.current = true;
-    posthog.capture(POSTHOG_EVENTS.PROGRAM_HOLD_EXPIRED, {
+    captureClientEvent(POSTHOG_EVENTS.PROGRAM_HOLD_EXPIRED, {
       purchase_id: purchaseId,
       total_amount: totalAmount,
       had_voucher: vouchers.length > 0,
@@ -151,7 +155,7 @@ export default function VoucherUploadCard({
       if (!results?.imageUrl || !results?.fileKey) {
         // Distinct from a rejected voucher: the image never reached storage, so
         // the fix is upload infrastructure, not the payer's photo.
-        posthog.capture(POSTHOG_EVENTS.PROGRAM_VOUCHER_FAILED, {
+        captureClientEvent(POSTHOG_EVENTS.PROGRAM_VOUCHER_FAILED, {
           ...attemptProperties,
           failure: "upload",
         });
@@ -167,7 +171,7 @@ export default function VoucherUploadCard({
       });
 
       if (!result.success) {
-        posthog.capture(POSTHOG_EVENTS.PROGRAM_VOUCHER_FAILED, {
+        captureClientEvent(POSTHOG_EVENTS.PROGRAM_VOUCHER_FAILED, {
           ...attemptProperties,
           failure: "rejected",
           reason: result.message,
@@ -176,7 +180,7 @@ export default function VoucherUploadCard({
         return;
       }
 
-      posthog.capture(
+      captureClientEvent(
         POSTHOG_EVENTS.PROGRAM_VOUCHER_SUBMITTED,
         attemptProperties,
       );
@@ -186,11 +190,14 @@ export default function VoucherUploadCard({
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreviewUrl(null);
       router.refresh();
-    } catch (error) {
-      posthog.capture(POSTHOG_EVENTS.PROGRAM_VOUCHER_FAILED, {
+    } catch {
+      // No `reason`: an arbitrary throw carries an unbounded message (network
+      // text, vendor internals) that would blow up the breakdown and can leak
+      // internals. `capture_exceptions` already ships the real stack to error
+      // tracking; here the `failure` discriminator is the whole signal.
+      captureClientEvent(POSTHOG_EVENTS.PROGRAM_VOUCHER_FAILED, {
         ...attemptProperties,
         failure: "exception",
-        reason: error instanceof Error ? error.message : "unknown",
       });
       toast.error("No pudimos registrar el comprobante. Intenta de nuevo.");
     } finally {

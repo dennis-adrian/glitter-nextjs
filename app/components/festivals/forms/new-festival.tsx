@@ -1,5 +1,5 @@
 "use client";
-import posthog from "posthog-js";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -235,7 +235,7 @@ export default function NewFestivalForm() {
     });
 
     if (result.success) {
-      posthog.capture(POSTHOG_EVENTS.FESTIVAL_CREATED, {
+      captureClientEvent(POSTHOG_EVENTS.FESTIVAL_CREATED, {
         festival_type: data.festivalType,
         festival_status: data.status,
         sector_count: data.festivalSectors.length,

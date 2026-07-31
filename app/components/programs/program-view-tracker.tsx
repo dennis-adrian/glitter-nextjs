@@ -1,8 +1,8 @@
 "use client";
 
-import posthog from "posthog-js";
 import { useEffect, useRef } from "react";
 
+import { captureClientEvent } from "@/app/lib/posthog-capture";
 import type { PostHogEvent } from "@/app/lib/posthog-events";
 
 type Props = {
@@ -31,7 +31,7 @@ export default function ProgramViewTracker({ event, properties }: Props) {
   useEffect(() => {
     if (captured.current) return;
     captured.current = true;
-    posthog.capture(event, properties);
+    captureClientEvent(event, properties);
     // Properties are derived from the page's own data and never change without
     // a navigation, which remounts this component anyway.
     // eslint-disable-next-line react-hooks/exhaustive-deps

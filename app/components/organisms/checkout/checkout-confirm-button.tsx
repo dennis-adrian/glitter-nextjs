@@ -1,6 +1,6 @@
 "use client";
 
-import posthog from "posthog-js";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -42,7 +42,7 @@ export default function CheckoutConfirmButton({
         hasRentalItems ? { rentalFestivalId, rentalReservationId } : undefined,
       );
       if (result.success && result.orderId && result.profileId) {
-        posthog.capture(POSTHOG_EVENTS.ORDER_PLACED, {
+        captureClientEvent(POSTHOG_EVENTS.ORDER_PLACED, {
           order_id: result.orderId,
         });
         setItemCount(0);

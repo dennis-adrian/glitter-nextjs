@@ -1,6 +1,6 @@
 "use client";
 
-import posthog from "posthog-js";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import SubmitButton from "@/app/components/simple-submit-button";
 import { Form } from "@/app/components/ui/form";
@@ -47,7 +47,7 @@ export default function ConfirmFreeReservationButton({
       try {
         if (res.success === true) {
           form.reset();
-          posthog.capture(POSTHOG_EVENTS.FREE_RESERVATION_CONFIRMED, {
+          captureClientEvent(POSTHOG_EVENTS.FREE_RESERVATION_CONFIRMED, {
             invoice_id: invoice.id,
             reservation_id: invoice.reservationId,
             stand_id: invoice.reservation.standId,
