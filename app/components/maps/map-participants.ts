@@ -42,6 +42,16 @@ export function hasExternalParticipants(
   );
 }
 
+/** Whether any user participating in the stand belongs to the given set */
+export function hasActivityParticipant(
+  stand: StandWithReservationsWithParticipants,
+  userIdSet: Set<number>,
+): boolean {
+  return getActiveStandReservations(stand)
+    .flatMap((reservation) => reservation.participants)
+    .some((participant) => userIdSet.has(participant.user.id));
+}
+
 export function getStandMapParticipants(
   stand: StandWithReservationsWithParticipants,
 ): MapParticipant[] {

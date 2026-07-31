@@ -2,21 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DateTime } from "luxon";
-import { TransformComponent } from "react-zoom-pan-pinch";
-import { MapPin } from "lucide-react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { InvoiceWithParticipants } from "@/app/data/invoices/definitions";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
-import {
-  computeCanvasBounds,
-  getAdminOverviewColors,
-} from "@/app/components/maps/map-utils";
-import MapCanvas from "@/app/components/maps/map-canvas";
-import MapStand from "@/app/components/maps/map-stand";
-import MapElement from "@/app/components/maps/map-element";
+import { getAdminOverviewColors } from "@/app/components/maps/map-utils";
+import MapSurface from "@/app/components/maps/map-surface";
 import MapToolbar from "@/app/components/maps/map-toolbar";
-import MapTransformWrapper from "@/app/components/maps/map-transform-wrapper";
+import ZoomableMapFrame from "@/app/components/maps/zoomable-map-frame";
 import AdminOverviewStandDrawer from "@/app/components/maps/admin/admin-overview-stand-drawer";
 import AdminOverviewMapTooltip from "@/app/components/maps/admin/admin-overview-map-tooltip";
 import {
@@ -115,11 +108,6 @@ export default function AdminOverviewMap({
   }, []);
 
   const visibleStands = activeSector?.stands ?? [];
-
-  const canvasBounds = computeCanvasBounds(
-    activeSector?.stands ?? [],
-    activeSector?.mapElements ?? [],
-  );
 
   const reservationSummaries = useMemo(() => {
     const summaries = new Map<number, StandReservationSummary>();
@@ -366,64 +354,32 @@ export default function AdminOverviewMap({
       </div>
 
       {/* Map */}
-      <div className="flex flex-col items-center w-full">
-        <MapTransformWrapper
-          initialScale={1}
-          minScale={1}
-          maxScale={4}
-          centerOnInit
-        >
-          <div className="flex w-full max-w-125 items-center justify-between pb-2">
+      <ZoomableMapFrame
+        header={
+          <>
             <p className="text-sm text-muted-foreground font-medium">
               {activeSector?.name}
             </p>
             <MapToolbar />
-          </div>
-          <div className="relative w-full max-w-125 rounded-lg border bg-background shadow-sm overflow-hidden pb-8 md:pb-0">
-            <TransformComponent
-              wrapperStyle={{ width: "100%" }}
-              contentStyle={{ width: "100%" }}
-            >
-              <MapCanvas
-                config={{
-                  minX: canvasBounds.minX,
-                  minY: canvasBounds.minY,
-                  width: canvasBounds.width,
-                  height: canvasBounds.height,
-                }}
-              >
-                {activeSector?.mapElements.map((element) => (
-                  <MapElement key={`el-${element.id}`} element={element} />
-                ))}
-                {visibleStands.map((stand) => (
-                  <MapStand
-                    key={stand.id}
-                    stand={stand}
-                    canBeReserved={false}
-                    colors={getAdminOverviewColors(
-                      stand.status,
-                      getReservationStatus(stand.id),
-                      getIsOverdue(stand.id),
-                      hasExternalParticipants(stand),
-                    )}
-                    onClick={handleStandClick}
-                    onTouchTap={handleTouchTap}
-                    onHoverChange={handleHoverChange}
-                  />
-                ))}
-              </MapCanvas>
-            </TransformComponent>
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 md:hidden">
-              <div className="flex items-center gap-1.5 rounded-full bg-gray-900/80 px-3 py-1.5 text-white backdrop-blur-sm">
-                <MapPin className="h-3 w-3" />
-                <span className="text-xs font-medium">
-                  Pellizca para ampliar
-                </span>
-              </div>
-            </div>
-          </div>
-        </MapTransformWrapper>
-      </div>
+          </>
+        }
+      >
+        <MapSurface
+          stands={visibleStands}
+          mapElements={activeSector?.mapElements ?? []}
+          getColors={(stand) =>
+            getAdminOverviewColors(
+              stand.status,
+              getReservationStatus(stand.id),
+              getIsOverdue(stand.id),
+              hasExternalParticipants(stand),
+            )
+          }
+          onStandClick={handleStandClick}
+          onStandTouchTap={handleTouchTap}
+          onStandHoverChange={handleHoverChange}
+        />
+      </ZoomableMapFrame>
 
       {/* Tooltip (hover for mouse, tap for simplified touch mode) */}
       {tooltipStand &&

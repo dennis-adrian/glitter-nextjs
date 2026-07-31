@@ -159,8 +159,23 @@ describe("OccurrenceSeatSummary", () => {
   it("leads with what is left, not with the configured capacity", () => {
     render(<OccurrenceSeatSummary summary={summary()} />);
     expect(screen.getByText("18 de 20 disponibles")).toBeTruthy();
-    expect(screen.getByText("1 confirmados")).toBeTruthy();
+    expect(screen.getByText("1 confirmado")).toBeTruthy();
     expect(screen.getByText("1 por revisar")).toBeTruthy();
+  });
+
+  it("inflects the confirmed count", () => {
+    const { rerender } = render(<OccurrenceSeatSummary summary={summary()} />);
+    expect(screen.getByText("1 confirmado")).toBeTruthy();
+
+    rerender(
+      <OccurrenceSeatSummary
+        summary={summary({
+          totals: summarizeRoster(["confirmed", "confirmed"]),
+          remaining: 18,
+        })}
+      />,
+    );
+    expect(screen.getByText("2 confirmados")).toBeTruthy();
   });
 
   it("hides counts that are zero so the row stays readable", () => {
@@ -171,7 +186,7 @@ describe("OccurrenceSeatSummary", () => {
     );
 
     expect(screen.getByText("20 de 20 disponibles")).toBeTruthy();
-    expect(screen.queryByText(/confirmados/)).toBeNull();
+    expect(screen.queryByText(/confirmado/)).toBeNull();
     expect(screen.queryByText(/por revisar/)).toBeNull();
     expect(screen.queryByText(/en espera/)).toBeNull();
   });

@@ -28,8 +28,13 @@ export default function OccurrenceSeatSummary({ summary, href }: Props) {
         {remaining} de {capacity} disponibles
       </Badge>
 
+      {/* The only count here whose noun inflects — "reservando", "por revisar"
+          and "en espera" read the same at any number. */}
       {totals.confirmed > 0 ? (
-        <Badge variant="outline">{totals.confirmed} confirmados</Badge>
+        <Badge variant="outline">
+          {totals.confirmed}{" "}
+          {totals.confirmed === 1 ? "confirmado" : "confirmados"}
+        </Badge>
       ) : null}
 
       {/* The only count that is a to-do list, so it is the only one that

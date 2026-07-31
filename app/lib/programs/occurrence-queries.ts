@@ -168,12 +168,37 @@ async function fetchWaitlistCounts(
 }
 
 /**
- * Seat counts for every occurrence in a list, for the admin session page.
+ * Turns one occurrence's roster into its seat counts.
  *
  * `remaining` comes from `resolveAvailability` — the same function the public
  * pages and checkout use — fed from the roster totals, so the number an admin
  * reads is the number a buyer is allowed to take.
  */
+function buildSummary(
+  occurrence: { id: number; capacity: number },
+  entries: RosterEntry[],
+  waitlistActive: number,
+): OccurrenceRosterSummary {
+  const totals = summarizeRoster(entries.map((entry) => entry.state));
+
+  const availability = resolveAvailability({
+    capacity: occurrence.capacity,
+    validTickets: totals.confirmed,
+    activeHolds:
+      totals.awaitingReview + totals.changesRequested + totals.holding,
+  });
+
+  return {
+    occurrenceId: occurrence.id,
+    capacity: occurrence.capacity,
+    totals,
+    remaining: availability.remaining,
+    isSoldOut: availability.isSoldOut,
+    waitlistActive,
+  };
+}
+
+/** Seat counts for every occurrence in a list, for the admin session page. */
 export async function fetchOccurrenceSummaries(
   occurrences: { id: number; capacity: number }[],
   options: { now?: Date } = {},
@@ -181,34 +206,60 @@ export async function fetchOccurrenceSummaries(
   const summaries = new Map<number, OccurrenceRosterSummary>();
   if (occurrences.length === 0) return summaries;
 
+  // Pinned once. Left to default, every occurrence in the list would be judged
+  // against a slightly different instant.
+  const now = options.now ?? new Date();
   const ids = occurrences.map((occurrence) => occurrence.id);
+
   const [rosters, waitlist] = await Promise.all([
-    fetchOccurrenceRosters(ids, options),
+    fetchOccurrenceRosters(ids, { now }),
     fetchWaitlistCounts(ids),
   ]);
 
   for (const occurrence of occurrences) {
-    const entries = rosters.get(occurrence.id) ?? [];
-    const totals = summarizeRoster(entries.map((entry) => entry.state));
-
-    const availability = resolveAvailability({
-      capacity: occurrence.capacity,
-      validTickets: totals.confirmed,
-      activeHolds:
-        totals.awaitingReview + totals.changesRequested + totals.holding,
-    });
-
-    summaries.set(occurrence.id, {
-      occurrenceId: occurrence.id,
-      capacity: occurrence.capacity,
-      totals,
-      remaining: availability.remaining,
-      isSoldOut: availability.isSoldOut,
-      waitlistActive: waitlist.get(occurrence.id) ?? 0,
-    });
+    summaries.set(
+      occurrence.id,
+      buildSummary(
+        occurrence,
+        rosters.get(occurrence.id) ?? [],
+        waitlist.get(occurrence.id) ?? 0,
+      ),
+    );
   }
 
   return summaries;
+}
+
+/**
+ * Both halves of one occurrence's dashboard from a single roster load.
+ *
+ * The detail page renders the counts and the list of people side by side, and
+ * they have to be the same read. Calling `fetchOccurrenceSummaries` and
+ * `fetchOccurrenceRosters` separately ran the query twice against two
+ * independently defaulted `now` values — a hold expiring in the gap would be
+ * `holding` in the badge and `released` in the table, on the same screen.
+ */
+export async function fetchOccurrenceDashboard(
+  occurrence: { id: number; capacity: number },
+  options: { now?: Date } = {},
+): Promise<{ summary: OccurrenceRosterSummary; entries: RosterEntry[] }> {
+  const now = options.now ?? new Date();
+
+  const [rosters, waitlist] = await Promise.all([
+    fetchOccurrenceRosters([occurrence.id], { now }),
+    fetchWaitlistCounts([occurrence.id]),
+  ]);
+
+  const entries = rosters.get(occurrence.id) ?? [];
+
+  return {
+    summary: buildSummary(
+      occurrence,
+      entries,
+      waitlist.get(occurrence.id) ?? 0,
+    ),
+    entries,
+  };
 }
 
 /** The occurrence plus the context the detail page's heading needs. */

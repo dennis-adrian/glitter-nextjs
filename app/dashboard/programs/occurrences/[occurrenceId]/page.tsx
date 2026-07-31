@@ -14,9 +14,8 @@ import {
 import { formatDate } from "@/app/lib/formatters";
 import { SESSION_TYPE_LABELS } from "@/app/lib/programs/definitions";
 import {
+  fetchOccurrenceDashboard,
   fetchOccurrenceForAdmin,
-  fetchOccurrenceRosters,
-  fetchOccurrenceSummaries,
 } from "@/app/lib/programs/occurrence-queries";
 import { resolveOccurrenceState } from "@/app/lib/programs/state";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
@@ -39,15 +38,11 @@ export default async function OccurrenceDashboardPage({ params }: Props) {
   const { session } = occurrence;
   const { program } = session;
 
-  const [summaries, rosters] = await Promise.all([
-    fetchOccurrenceSummaries([
-      { id: occurrence.id, capacity: occurrence.capacity },
-    ]),
-    fetchOccurrenceRosters([occurrence.id]),
-  ]);
-
-  const summary = summaries.get(occurrence.id);
-  const entries = rosters.get(occurrence.id) ?? [];
+  // One load, one `now`: the badge above and the table below are the same read.
+  const { summary, entries } = await fetchOccurrenceDashboard({
+    id: occurrence.id,
+    capacity: occurrence.capacity,
+  });
 
   const resolved = resolveOccurrenceState({
     programStatus: program.status,
@@ -86,7 +81,7 @@ export default async function OccurrenceDashboardPage({ params }: Props) {
           {occurrence.venue ? ` · ${occurrence.venue.name}` : ""}
           {occurrence.room ? ` · ${occurrence.room}` : ""}
         </p>
-        {summary ? <OccurrenceSeatSummary summary={summary} /> : null}
+        <OccurrenceSeatSummary summary={summary} />
       </div>
 
       <Card>
