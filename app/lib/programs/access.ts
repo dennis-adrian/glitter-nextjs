@@ -30,6 +30,23 @@ export type PurchaseAccess =
   | { granted: true; via: "owner" | "token" }
   | { granted: false; reason: PurchaseAccessDenial };
 
+export type LazyPurchaseAccessInput<TViewer> = {
+  purchase: PurchaseAccessSubject;
+  /** Already hashed by the caller — this module stays free of server-only code. */
+  presentedTokenHash: string | null;
+  loadViewer: () => Promise<TViewer | null>;
+  getViewerUserId: (viewer: TViewer) => number;
+};
+
+export type LazyPurchaseAccess<TViewer> = {
+  access: PurchaseAccess;
+  /**
+   * Null when token access settled the request. Callers must not attribute a
+   * token bearer to an ambient Clerk session they did not need to authorize.
+   */
+  viewer: TViewer | null;
+};
+
 /**
  * Length-independent equality, so comparing a presented digest cannot become a
  * timing oracle. Both inputs are hex digests of the same length in practice;
@@ -76,4 +93,36 @@ export function resolvePurchaseAccess(
   }
 
   return { granted: false, reason: "token_mismatch" };
+}
+
+/**
+ * Resolves bearer-token access before consulting the ambient Clerk session.
+ *
+ * Secure purchase links intentionally work for signed-out buyers. Avoiding the
+ * viewer lookup for a valid token also keeps those requests independent of
+ * Clerk middleware state. A missing or invalid token still falls back to the
+ * signed-in owner check.
+ */
+export async function resolvePurchaseAccessWithLazyViewer<TViewer>(
+  input: LazyPurchaseAccessInput<TViewer>,
+): Promise<LazyPurchaseAccess<TViewer>> {
+  const tokenAccess = resolvePurchaseAccess({
+    purchase: input.purchase,
+    viewerUserId: null,
+    presentedTokenHash: input.presentedTokenHash,
+  });
+
+  if (tokenAccess.granted || input.purchase.userId === null) {
+    return { access: tokenAccess, viewer: null };
+  }
+
+  const viewer = await input.loadViewer();
+  return {
+    access: resolvePurchaseAccess({
+      purchase: input.purchase,
+      viewerUserId: viewer ? input.getViewerUserId(viewer) : null,
+      presentedTokenHash: input.presentedTokenHash,
+    }),
+    viewer,
+  };
 }

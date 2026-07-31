@@ -12,19 +12,19 @@ export async function sendEmail(
   payload: CreateEmailOptions,
   options?: SendEmailOptions,
 ) {
-  if (serverEnv.VERCEL_ENV === "development") {
-    console.log("Sending email to", payload.to);
-    console.log("Subject:", payload.subject);
-    console.log("From:", payload.from);
-    console.log("To:", payload.to);
-    console.log("--------------------------------");
-    console.log("--------------------------------");
+  // if (serverEnv.VERCEL_ENV === "development") {
+  //   console.log("Sending email to", payload.to);
+  //   console.log("Subject:", payload.subject);
+  //   console.log("From:", payload.from);
+  //   console.log("To:", payload.to);
+  //   console.log("--------------------------------");
+  //   console.log("--------------------------------");
 
-    return {
-      data: null,
-      error: null,
-    };
-  }
+  //   return {
+  //     data: null,
+  //     error: null,
+  //   };
+  // }
 
   const { idempotencyKey, ...rest } = options ?? {};
   if (!idempotencyKey) {

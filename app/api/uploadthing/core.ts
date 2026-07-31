@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { fetchUserProfile } from "@/app/api/users/actions";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
-import { resolvePurchaseAccess } from "@/app/lib/programs/access";
+import { resolvePurchaseAccessWithLazyViewer } from "@/app/lib/programs/access";
 import { hashAccessToken } from "@/app/lib/programs/tokens";
 import {
   resolveVoucherSubmission,
@@ -166,13 +166,14 @@ export const ourFileRouter = {
       });
       if (!purchase) throw new UploadThingError("Compra no encontrada");
 
-      const user = await currentUser();
-      const profile = user ? await fetchUserProfile(user.id) : null;
-
-      const access = resolvePurchaseAccess({
+      const { access } = await resolvePurchaseAccessWithLazyViewer({
         purchase,
-        viewerUserId: profile?.id ?? null,
         presentedTokenHash: input.token ? hashAccessToken(input.token) : null,
+        loadViewer: async () => {
+          const user = await currentUser();
+          return user ? ((await fetchUserProfile(user.id)) ?? null) : null;
+        },
+        getViewerUserId: (profile) => profile.id,
       });
       if (!access.granted) throw new UploadThingError("Compra no encontrada");
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   digestsMatch,
   resolvePurchaseAccess,
+  resolvePurchaseAccessWithLazyViewer,
   type PurchaseAccessSubject,
 } from "@/app/lib/programs/access";
 
@@ -124,5 +125,67 @@ describe("resolvePurchaseAccess", () => {
         presentedTokenHash: OTHER_HASH,
       }),
     ).toEqual({ granted: false, reason: "token_mismatch" });
+  });
+});
+
+describe("resolvePurchaseAccessWithLazyViewer", () => {
+  it("does not load the viewer when a valid token grants access", async () => {
+    let viewerLoads = 0;
+
+    const result = await resolvePurchaseAccessWithLazyViewer({
+      purchase: purchase(),
+      presentedTokenHash: HASH,
+      loadViewer: async () => {
+        viewerLoads += 1;
+        return { id: 42 };
+      },
+      getViewerUserId: (viewer) => viewer.id,
+    });
+
+    expect(result).toEqual({
+      access: { granted: true, via: "token" },
+      viewer: null,
+    });
+    expect(viewerLoads).toBe(0);
+  });
+
+  it("loads the viewer when an invalid token may belong to the owner", async () => {
+    let viewerLoads = 0;
+
+    const result = await resolvePurchaseAccessWithLazyViewer({
+      purchase: purchase({ userId: 42 }),
+      presentedTokenHash: OTHER_HASH,
+      loadViewer: async () => {
+        viewerLoads += 1;
+        return { id: 42 };
+      },
+      getViewerUserId: (viewer) => viewer.id,
+    });
+
+    expect(result).toEqual({
+      access: { granted: true, via: "owner" },
+      viewer: { id: 42 },
+    });
+    expect(viewerLoads).toBe(1);
+  });
+
+  it("does not load a viewer for a guest purchase with no valid token", async () => {
+    let viewerLoads = 0;
+
+    const result = await resolvePurchaseAccessWithLazyViewer({
+      purchase: purchase({ userId: null }),
+      presentedTokenHash: null,
+      loadViewer: async () => {
+        viewerLoads += 1;
+        return { id: 42 };
+      },
+      getViewerUserId: (viewer) => viewer.id,
+    });
+
+    expect(result).toEqual({
+      access: { granted: false, reason: "no_credentials" },
+      viewer: null,
+    });
+    expect(viewerLoads).toBe(0);
   });
 });
