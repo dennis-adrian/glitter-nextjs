@@ -72,7 +72,11 @@ export async function POST(req: Request) {
         amount: data.amount,
       },
     });
-    await posthog.shutdown();
+    // Bounded at 5s. `shutdown()` defaults to 30 seconds, and it is awaited
+    // before the response goes out — so an unreachable PostHog would stall the
+    // caller for half a minute and then, past `maxDuration`, hand them exactly
+    // the failed-upload error this block exists to prevent.
+    await posthog.shutdown(5000);
   } catch (telemetryError) {
     console.error("PostHog telemetry failed (payments)", telemetryError);
   }
