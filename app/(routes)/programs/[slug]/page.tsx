@@ -13,9 +13,13 @@ import { notFound } from "next/navigation";
 
 import GlitterWeekLockup from "@/app/components/programs/glitter-week-lockup";
 import SmoothScrollLink from "@/app/components/programs/smooth-scroll-link";
+import ViewerSessionPrice from "@/app/components/programs/viewer-session-price";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { formatDate } from "@/app/lib/formatters";
-import { resolveProgramArtwork } from "@/app/lib/programs/artwork";
+import {
+  isAllowedProgramArtworkUrl,
+  resolveProgramArtwork,
+} from "@/app/lib/programs/artwork";
 import {
   fetchProgramSettings,
   fetchPublishedProgramBySlug,
@@ -28,7 +32,6 @@ import {
   type SessionWithOccurrences,
 } from "@/app/lib/programs/definitions";
 import {
-  formatMoney,
   globalDiscountFrom,
   programDiscountFrom,
   resolvePrice,
@@ -271,20 +274,32 @@ export default async function ProgramPage({ params }: Props) {
                           venueId === null
                             ? null
                             : (venuesById.get(venueId) ?? null);
-                        const price = resolvePrice(
-                          {
-                            publicPrice: session.publicPrice,
-                            participantPrice: session.participantPrice,
-                            programDiscount,
-                            globalDiscount,
-                          },
+                        const priceInput = {
+                          publicPrice: session.publicPrice,
+                          participantPrice: session.participantPrice,
+                          programDiscount,
+                          globalDiscount,
+                        };
+                        const publicPrice = resolvePrice(
+                          priceInput,
                           "public",
                         ).amount;
+                        const participantPrice = resolvePrice(
+                          priceInput,
+                          "active_participant",
+                        ).amount;
+                        const speakerPortrait = session.sessionSpeakers.find(
+                          (entry) =>
+                            isAllowedProgramArtworkUrl(entry.speaker.imageUrl),
+                        );
+                        const speaker =
+                          speakerPortrait?.speaker ??
+                          session.sessionSpeakers[0]?.speaker;
 
                         return (
                           <li
                             key={occurrence.id}
-                            className="group grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-5 border-b border-[#4b255f]/15 py-7 last:border-b-0 sm:grid-cols-[100px_minmax(0,1fr)_auto] sm:items-start sm:gap-5"
+                            className="group grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-5 border-b border-[#4b255f]/15 py-7 last:border-b-0 sm:grid-cols-[100px_minmax(0,1fr)_auto] sm:items-stretch sm:gap-5"
                           >
                             <div className="col-start-1 row-start-1 flex items-center gap-3 sm:block">
                               <p className="flex items-center gap-2 text-lg font-black text-[#9347f5]">
@@ -357,9 +372,40 @@ export default async function ProgramPage({ params }: Props) {
                               ) : null}
                             </div>
 
-                            <div className="col-start-2 row-start-1 self-center text-right sm:col-start-3 sm:self-start">
-                              <span className="font-black">
-                                {formatMoney(price)}
+                            <div className="contents sm:col-start-3 sm:row-start-1 sm:flex sm:h-full sm:flex-col sm:items-end sm:justify-between">
+                              {speaker ? (
+                                <div
+                                  className="col-start-2 row-start-1 size-14 self-start overflow-hidden rounded-full border-[3px] border-[#ffbe57] bg-[#9347f5] sm:size-16"
+                                  title={speaker.publicName}
+                                >
+                                  {speakerPortrait?.speaker.imageUrl ? (
+                                    <Image
+                                      src={speakerPortrait.speaker.imageUrl}
+                                      alt={speakerPortrait.speaker.publicName}
+                                      width={64}
+                                      height={64}
+                                      sizes="64px"
+                                      className="size-full object-cover object-top"
+                                    />
+                                  ) : (
+                                    <span
+                                      aria-label={speaker.publicName}
+                                      className="grid size-full place-items-center text-xl font-black text-[#ffbe57]"
+                                    >
+                                      {speaker.publicName
+                                        .trim()
+                                        .slice(0, 1)
+                                        .toLocaleUpperCase("es-BO")}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : null}
+
+                              <span className="col-start-2 row-start-3 self-end text-right font-black sm:mt-6">
+                                <ViewerSessionPrice
+                                  publicPrice={publicPrice}
+                                  participantPrice={participantPrice}
+                                />
                               </span>
                             </div>
                           </li>

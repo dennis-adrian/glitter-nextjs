@@ -253,7 +253,7 @@ export default function VoucherUploadCard({
             className={`rounded-lg border p-3 text-sm ${
               expired
                 ? "border-destructive/40 text-destructive"
-                : "border-amber-500/40 text-amber-700 dark:text-amber-400"
+                : "border-amber-200 text-amber-900 bg-amber-50"
             }`}
           >
             {expired ? (
@@ -363,6 +363,7 @@ export default function VoucherUploadCard({
                 </p>
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => {
                     setIsReplacing(false);
                     setSelectedFile(null);

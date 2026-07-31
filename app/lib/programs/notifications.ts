@@ -5,6 +5,7 @@ import type React from "react";
 
 import ProgramPurchaseLinkEmailTemplate from "@/app/emails/program-purchase-link";
 import ProgramRegistrationEmailTemplate from "@/app/emails/program-registration";
+import ProgramSignupForAdminsEmailTemplate from "@/app/emails/program-signup-for-admins";
 import ProgramVoucherChangesEmailTemplate from "@/app/emails/program-voucher-changes";
 import ProgramVoucherReceivedEmailTemplate from "@/app/emails/program-voucher-received";
 import ProgramWaitlistInvitationEmailTemplate from "@/app/emails/program-waitlist-invitation";
@@ -231,6 +232,55 @@ export async function sendVoucherReceivedEmail(
     return true;
   } catch (error) {
     console.error("Voucher received email failed", {
+      purchaseId: input.purchaseId,
+      errorType: error instanceof Error ? error.name : typeof error,
+    });
+    return false;
+  }
+}
+
+export type AdminNewSignupEmailInput = {
+  purchaseId: number;
+  attendeeName: string;
+  adminEmails: string[];
+  lines: VoucherReceivedLine[];
+  totalAmount: number;
+};
+
+/** Notifies admins that a new paid signup is ready for payment review. */
+export async function sendAdminNewSignupEmail(
+  input: AdminNewSignupEmailInput,
+): Promise<boolean> {
+  if (input.adminEmails.length === 0) return true;
+
+  try {
+    await sendEmail(
+      {
+        from: "Equipo Glitter <entradas@productoraglitter.com>",
+        to: input.adminEmails,
+        subject:
+          input.lines.length > 1
+            ? `Nueva inscripción a ${input.lines.length} sesiones`
+            : `Nueva inscripción a ${input.lines[0]?.sessionTitle}`,
+        react: ProgramSignupForAdminsEmailTemplate({
+          attendeeName: input.attendeeName,
+          sessions: input.lines.map((line) => ({
+            title: line.sessionTitle,
+            typeLabel: SESSION_TYPE_LABELS[line.sessionType],
+            scheduleLabel: buildScheduleLabel(line.startsAt, line.endsAt),
+          })),
+          totalLabel: formatMoney(input.totalAmount),
+          reviewUrl: `${baseUrl()}/dashboard/programs/purchases`,
+        }) as React.ReactElement,
+      },
+      {
+        idempotencyKey: `program-admin-new-signup-${input.purchaseId}`,
+      },
+    );
+
+    return true;
+  } catch (error) {
+    console.error("Admin new signup email failed", {
       purchaseId: input.purchaseId,
       errorType: error instanceof Error ? error.name : typeof error,
     });

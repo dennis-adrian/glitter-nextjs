@@ -125,7 +125,7 @@ export default function OccurrenceScheduleList({
 
         const scheduleLabel = `${formatDate(occurrence.startsAt).toLocaleString(
           DateTime.DATETIME_MED,
-        )} — ${formatDate(occurrence.endsAt).toLocaleString(
+        )} a ${formatDate(occurrence.endsAt).toLocaleString(
           DateTime.TIME_SIMPLE,
         )}`;
 
