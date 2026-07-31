@@ -102,7 +102,8 @@ export default function ProgramVoucherReceivedEmailTemplate({
               {isCart
                 ? "Tus cupos quedan reservados"
                 : "Tu cupo queda reservado"}{" "}
-              mientras revisamos el pago. Te enviaremos otro correo cuando el pago sea confirmado y ahí recibirás el QR de tu entrada.
+              mientras revisamos el pago. Te enviaremos otro correo cuando el
+              pago sea confirmado y ahí recibirás el QR de tu entrada.
             </Text>
 
             {secureLinkUrl ? (
@@ -119,7 +120,8 @@ export default function ProgramVoucherReceivedEmailTemplate({
                     wordBreak: "break-all",
                   }}
                 >
-                  O también podés hacer clic en este enlace <Link href={secureLinkUrl}>{secureLinkUrl}</Link>
+                  O también podés hacer clic en este enlace{" "}
+                  <Link href={secureLinkUrl}>{secureLinkUrl}</Link>
                 </Text>
                 <Text style={{ ...styles.text, fontSize: "12px" }}>
                   <strong>No compartas este enlace</strong> — cualquier persona

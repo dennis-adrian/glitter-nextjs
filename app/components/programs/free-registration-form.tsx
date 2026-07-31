@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { type FormEvent, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -28,14 +29,19 @@ import {
 } from "@/app/components/ui/dialog";
 import { Form } from "@/app/components/ui/form";
 import { Label } from "@/app/components/ui/label";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { registerForFreeSession } from "@/app/lib/programs/registration-actions";
 import { genderOptions } from "@/app/lib/utils";
 
 type Props = {
   occurrenceId: number;
+  programSlug: string;
+  sessionSlug: string;
   sessionTitle: string;
   scheduleLabel: string;
   isSignedIn: boolean;
+  /** Null when availability could not be resolved for this occurrence. */
+  seatsRemaining: number | null;
 };
 
 /**
@@ -61,14 +67,58 @@ type GuestValues = z.output<typeof guestSchema>;
 
 export default function FreeRegistrationForm({
   occurrenceId,
+  programSlug,
+  sessionSlug,
   sessionTitle,
   scheduleLabel,
   isSignedIn,
+  seatsRemaining,
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [acceptsPolicy, setAcceptsPolicy] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  /**
+   * Shared by every funnel step so PostHog can chain them without a join. Free
+   * and paid registrations emit the same event names, separated by `is_free`.
+   */
+  const funnelProperties = {
+    occurrence_id: occurrenceId,
+    program_slug: programSlug,
+    session_slug: sessionSlug,
+    session_title: sessionTitle,
+    is_free: true,
+    is_signed_in: isSignedIn,
+    seats_remaining: seatsRemaining,
+  };
+
+  /**
+   * Distinguishes "closed the dialog without trying" from "tried and failed",
+   * which are different problems: the first is copy or price, the second is the
+   * form itself. Set on submit, so a success path never reports as abandoned.
+   */
+  const submittedRef = useRef(false);
+
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+
+    if (nextOpen) {
+      submittedRef.current = false;
+      posthog.capture(
+        POSTHOG_EVENTS.PROGRAM_REGISTRATION_STARTED,
+        funnelProperties,
+      );
+      return;
+    }
+
+    if (!submittedRef.current) {
+      posthog.capture(POSTHOG_EVENTS.PROGRAM_REGISTRATION_ABANDONED, {
+        ...funnelProperties,
+        accepted_policy: acceptsPolicy,
+      });
+    }
+  }
 
   const form = useForm<GuestInput, unknown, GuestValues>({
     resolver: zodResolver(guestSchema),
@@ -112,6 +162,12 @@ export default function FreeRegistrationForm({
       return;
     }
 
+    submittedRef.current = true;
+    posthog.capture(POSTHOG_EVENTS.PROGRAM_REGISTRATION_SUBMITTED, {
+      ...funnelProperties,
+      is_guest: guest !== null,
+    });
+
     setIsSubmitting(true);
     try {
       const result = await registerForFreeSession({
@@ -130,10 +186,23 @@ export default function FreeRegistrationForm({
       });
 
       if (!result.success) {
+        // The server's own copy, which is a fixed set of strings — safe to use
+        // as a breakdown without exploding cardinality.
+        posthog.capture(POSTHOG_EVENTS.PROGRAM_REGISTRATION_FAILED, {
+          ...funnelProperties,
+          is_guest: guest !== null,
+          failure: "rejected",
+          reason: result.message,
+        });
         toast.error(result.message);
         return;
       }
 
+      posthog.capture(POSTHOG_EVENTS.PROGRAM_REGISTRATION_COMPLETED, {
+        ...funnelProperties,
+        is_guest: guest !== null,
+        purchase_id: result.purchaseId,
+      });
       toast.success(result.message);
       setOpen(false);
       router.push(
@@ -141,6 +210,12 @@ export default function FreeRegistrationForm({
       );
     } catch (error) {
       console.error(error);
+      posthog.capture(POSTHOG_EVENTS.PROGRAM_REGISTRATION_FAILED, {
+        ...funnelProperties,
+        is_guest: guest !== null,
+        failure: "exception",
+        reason: error instanceof Error ? error.message : "unknown",
+      });
       toast.error("No pudimos completar tu inscripción. Intenta de nuevo.");
     } finally {
       setIsSubmitting(false);
@@ -152,7 +227,7 @@ export default function FreeRegistrationForm({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button
           size="sm"

@@ -3,6 +3,7 @@
 import { DateTime } from "luxon";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CheckIcon,
@@ -23,6 +24,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { formatMoney } from "@/app/lib/programs/pricing";
 import { submitPurchaseVoucher } from "@/app/lib/programs/voucher-actions";
 import { formatDateWithTime, formatFullDate } from "@/app/lib/formatters";
@@ -94,14 +96,49 @@ export default function VoucherUploadCard({
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setSelectedFile(file);
       setPreviewUrl(URL.createObjectURL(file));
+      // Splits "never picked an image" from "picked one and the upload broke".
+      // No filename: it is the payer's own file and adds nothing to the funnel.
+      posthog.capture(POSTHOG_EVENTS.PROGRAM_VOUCHER_FILE_SELECTED, {
+        purchase_id: purchaseId,
+        total_amount: totalAmount,
+        file_size_bytes: file.size,
+        file_type: file.type,
+      });
     },
-    [previewUrl],
+    [previewUrl, purchaseId, totalAmount],
   );
 
   const expired = msLeft !== null && msLeft <= 0;
 
+  /**
+   * The single loudest drop-off signal in this flow: the hold ran out while the
+   * payer was on the page. Fired once, on the tick that crosses the deadline —
+   * the countdown re-renders every second and must not re-report it.
+   */
+  const reportedExpiryRef = useRef(false);
+
+  useEffect(() => {
+    if (!expired || reportedExpiryRef.current) return;
+    reportedExpiryRef.current = true;
+    posthog.capture(POSTHOG_EVENTS.PROGRAM_HOLD_EXPIRED, {
+      purchase_id: purchaseId,
+      total_amount: totalAmount,
+      had_voucher: vouchers.length > 0,
+    });
+  }, [expired, purchaseId, totalAmount, vouchers.length]);
+
   async function handleSubmit() {
     if (!selectedFile) return;
+
+    // `vouchers` still holds the pre-submit list here, so this reads "was there
+    // already one" rather than "is there one now".
+    const isReplacement = vouchers.length > 0;
+    const attemptProperties = {
+      purchase_id: purchaseId,
+      total_amount: totalAmount,
+      is_replacement: isReplacement,
+      access_via: token ? "token" : "account",
+    };
 
     setIsSubmitting(true);
     try {
@@ -112,6 +149,12 @@ export default function VoucherUploadCard({
 
       const results = uploaded?.[0]?.serverData?.results;
       if (!results?.imageUrl || !results?.fileKey) {
+        // Distinct from a rejected voucher: the image never reached storage, so
+        // the fix is upload infrastructure, not the payer's photo.
+        posthog.capture(POSTHOG_EVENTS.PROGRAM_VOUCHER_FAILED, {
+          ...attemptProperties,
+          failure: "upload",
+        });
         toast.error("No pudimos subir la imagen. Intenta de nuevo.");
         return;
       }
@@ -124,17 +167,31 @@ export default function VoucherUploadCard({
       });
 
       if (!result.success) {
+        posthog.capture(POSTHOG_EVENTS.PROGRAM_VOUCHER_FAILED, {
+          ...attemptProperties,
+          failure: "rejected",
+          reason: result.message,
+        });
         toast.error(result.message);
         return;
       }
 
+      posthog.capture(
+        POSTHOG_EVENTS.PROGRAM_VOUCHER_SUBMITTED,
+        attemptProperties,
+      );
       toast.success(result.message);
       setSelectedFile(null);
       setIsReplacing(false);
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreviewUrl(null);
       router.refresh();
-    } catch {
+    } catch (error) {
+      posthog.capture(POSTHOG_EVENTS.PROGRAM_VOUCHER_FAILED, {
+        ...attemptProperties,
+        failure: "exception",
+        reason: error instanceof Error ? error.message : "unknown",
+      });
       toast.error("No pudimos registrar el comprobante. Intenta de nuevo.");
     } finally {
       setIsSubmitting(false);
