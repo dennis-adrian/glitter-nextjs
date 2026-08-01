@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { MapElementBase } from "@/app/lib/map_elements/definitions";
 import { MapBounds } from "@/app/components/maps/map-types";
@@ -7,9 +9,14 @@ import {
   StandColors,
   computeCanvasBounds,
 } from "@/app/components/maps/map-utils";
+import {
+  indexJointGroupsByStandId,
+  resolveJointGroups,
+} from "@/app/lib/stands/groups";
 import MapCanvas from "@/app/components/maps/map-canvas";
 import MapElement from "@/app/components/maps/map-element";
 import MapStand from "@/app/components/maps/map-stand";
+import MapStandGroup from "@/app/components/maps/map-stand-group";
 
 type MapSurfaceProps = {
   stands: StandWithReservationsWithParticipants[];
@@ -55,19 +62,38 @@ export default function MapSurface({
   children,
 }: MapSurfaceProps) {
   const bounds = mapBounds ?? computeCanvasBounds(stands, mapElements);
+  const jointGroups = useMemo(() => resolveJointGroups(stands), [stands]);
+  const groupByStandId = useMemo(
+    () => indexJointGroupsByStandId(jointGroups),
+    [jointGroups],
+  );
 
   return (
     <MapCanvas config={bounds}>
       {mapElements?.map((element) => (
         <MapElement key={`el-${element.id}`} element={element} />
       ))}
-      {stands.map((stand) => (
-        <MapStand
-          key={stand.id}
-          stand={stand}
-          canBeReserved={canBeReserved(stand)}
-          selected={stand.id === selectedStandId}
-          colors={getColors(stand)}
+      {stands.map((stand) =>
+        // Members render once, as part of their group's joined outline
+        groupByStandId.has(stand.id) ? null : (
+          <MapStand
+            key={stand.id}
+            stand={stand}
+            canBeReserved={canBeReserved(stand)}
+            selected={stand.id === selectedStandId}
+            colors={getColors(stand)}
+            onClick={onStandClick}
+            onTouchTap={onStandTouchTap}
+            onHoverChange={onStandHoverChange}
+          />
+        ),
+      )}
+      {jointGroups.map((group) => (
+        <MapStandGroup
+          key={`group-${group.id}`}
+          group={group}
+          selected={group.stands.some((s) => s.id === selectedStandId)}
+          colors={getColors(group.stands[0])}
           onClick={onStandClick}
           onTouchTap={onStandTouchTap}
           onHoverChange={onStandHoverChange}

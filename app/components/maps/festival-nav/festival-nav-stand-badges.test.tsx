@@ -17,12 +17,16 @@ const THIRD_SLOT = 1.2;
 function stand(
   id: number,
   userIds: number[],
-  { rejected = false }: { rejected?: boolean } = {},
+  {
+    rejected = false,
+    positionLeft = 10,
+    positionTop = 20,
+  }: { rejected?: boolean; positionLeft?: number; positionTop?: number } = {},
 ): StandWithReservationsWithParticipants {
   return {
     id,
-    positionLeft: 10,
-    positionTop: 20,
+    positionLeft,
+    positionTop,
     reservations: [
       {
         status: rejected ? "rejected" : "accepted",

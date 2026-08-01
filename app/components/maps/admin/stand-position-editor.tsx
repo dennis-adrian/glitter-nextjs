@@ -16,6 +16,7 @@ import {
   AlignVerticalSpaceAround,
   Download,
   Grid3x3,
+  Link2,
   ListTree,
   Magnet,
   MapPin,
@@ -27,6 +28,7 @@ import {
   Save,
   Trash2,
   Undo2,
+  Unlink,
   Upload,
   ZoomIn,
   ZoomOut,
@@ -42,6 +44,7 @@ import {
   updateStandPositions,
 } from "@/app/api/stands/actions";
 import { updateSectorMapBounds } from "@/app/lib/festival_sectors/actions";
+import { groupStands, ungroupStands } from "@/app/lib/stands/group-actions";
 import {
   MapElementBase,
   MapElementLabelPosition,
@@ -270,6 +273,7 @@ export default function StandPositionEditor({
   >("disabled");
   const [isAdding, setIsAdding] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isGrouping, setIsGrouping] = useState(false);
 
   // Edit stand dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -576,6 +580,60 @@ export default function StandPositionEditor({
     setFocusedStandId(null);
     toast.success(result.message);
   }, [selectedStands, standsPerSector]);
+
+  /** Patches standGroupId locally so the editor reflects the change at once */
+  const applyGroupIdLocally = useCallback(
+    (ids: number[], standGroupId: number | null) => {
+      const affected = new Set(ids);
+      setStandsPerSector((prev) => {
+        const next = new Map(prev);
+        for (const [sectorId, sectorStands] of next) {
+          next.set(
+            sectorId,
+            sectorStands.map((stand) =>
+              affected.has(stand.id) ? { ...stand, standGroupId } : stand,
+            ),
+          );
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleGroupStands = useCallback(async () => {
+    if (selectedStands.size < 2) return;
+
+    const ids = Array.from(selectedStands);
+    setIsGrouping(true);
+    const result = await groupStands(ids);
+    setIsGrouping(false);
+
+    if (!result.success || result.groupId == null) {
+      toast.error(result.message);
+      return;
+    }
+
+    applyGroupIdLocally(ids, result.groupId);
+    toast.success(result.message);
+  }, [selectedStands, applyGroupIdLocally]);
+
+  const handleUngroupStands = useCallback(async () => {
+    if (selectedStands.size === 0) return;
+
+    const ids = Array.from(selectedStands);
+    setIsGrouping(true);
+    const result = await ungroupStands(ids);
+    setIsGrouping(false);
+
+    if (!result.success) {
+      toast.error(result.message);
+      return;
+    }
+
+    applyGroupIdLocally(ids, null);
+    toast.success(result.message);
+  }, [selectedStands, applyGroupIdLocally]);
 
   // --- Element add/delete/edit ---
   const handleAddElement = async (type: MapElementType) => {
@@ -1376,6 +1434,13 @@ export default function StandPositionEditor({
   const hasElementSelection = selectedElements.size >= 2;
   const hasAnyAlignmentSelection = hasSelection || hasElementSelection;
 
+  const selectedStandRecords = Array.from(standsPerSector.values())
+    .flat()
+    .filter((stand) => selectedStands.has(stand.id));
+  const hasGroupedSelection = selectedStandRecords.some(
+    (stand) => stand.standGroupId != null,
+  );
+
   return (
     <div className="space-y-4">
       {/* Main toolbar: Save / Undo / Reset */}
@@ -1601,6 +1666,30 @@ export default function StandPositionEditor({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        {selectedStands.size >= 2 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGroupStands}
+            disabled={isGrouping}
+            title="Tratar los espacios seleccionados como uno solo en el plano"
+          >
+            <Link2 className="h-4 w-4 mr-1" />
+            {isGrouping ? "Uniendo..." : `Unir (${selectedStands.size})`}
+          </Button>
+        )}
+        {hasGroupedSelection && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleUngroupStands}
+            disabled={isGrouping}
+            title="Dejar de tratar los espacios seleccionados como uno solo"
+          >
+            <Unlink className="h-4 w-4 mr-1" />
+            Separar
+          </Button>
+        )}
         {selectedStands.size === 1 && (
           <Button variant="outline" size="sm" onClick={openEditDialog}>
             <Pencil className="h-4 w-4 mr-1" />

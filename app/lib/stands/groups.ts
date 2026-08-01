@@ -1,0 +1,222 @@
+import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
+import { STAND_SIZE, getStandPosition } from "@/app/components/maps/map-utils";
+
+/**
+ * Stands are placed freehand on the map, so two stands belonging to the same
+ * participant sit no closer than two unrelated neighbours. Grouping is always
+ * an explicit admin decision (stands.standGroupId); geometry is only used to
+ * lay the joined shape out, never to decide that stands belong together.
+ */
+
+export type JointAxis = "row" | "column";
+
+export type JointGroup = {
+  id: number;
+  /** Ordered along the group's axis, left to right or top to bottom */
+  stands: StandWithReservationsWithParticipants[];
+  axis: JointAxis;
+};
+
+/** Positions come from freehand dragging, so exact equality is too strict */
+const ALIGNMENT_TOLERANCE = 0.5;
+
+/**
+ * Identifies who occupies a stand, counting both registered users and external
+ * participants. Returns null when nobody holds it.
+ */
+export function getStandOccupantKey(
+  stand: StandWithReservationsWithParticipants,
+): string | null {
+  const occupants = (stand.reservations ?? [])
+    .filter((reservation) => reservation.status !== "rejected")
+    .flatMap((reservation) => [
+      ...reservation.participants.map((p) => `user-${p.user.id}`),
+      ...(reservation.externalParticipants ?? []).map(
+        ({ externalParticipant }) => `external-${externalParticipant.id}`,
+      ),
+    ]);
+
+  if (occupants.length === 0) return null;
+  return Array.from(new Set(occupants)).sort().join("|");
+}
+
+/**
+ * The axis a set of stands lines up on, or null when they form neither a single
+ * row nor a single column. A group that lines up on neither can never be drawn
+ * as one clean outline, so admins are stopped from creating one.
+ */
+export function resolveJointAxis(
+  stands: { positionLeft: number | null; positionTop: number | null }[],
+): JointAxis | null {
+  const positions = stands.map(getStandPosition);
+  const sameTop = positions.every(
+    (p) => Math.abs(p.top - positions[0].top) <= ALIGNMENT_TOLERANCE,
+  );
+  if (sameTop) return "row";
+
+  const sameLeft = positions.every(
+    (p) => Math.abs(p.left - positions[0].left) <= ALIGNMENT_TOLERANCE,
+  );
+  if (sameLeft) return "column";
+
+  return null;
+}
+
+/**
+ * The declared groups that should currently render as one joined stand: every
+ * member is held by exactly the same participants, and the members line up in a
+ * single row or column so the joined outline is a clean rectangle.
+ */
+export function resolveJointGroups(
+  stands: StandWithReservationsWithParticipants[],
+): JointGroup[] {
+  const byGroupId = new Map<number, StandWithReservationsWithParticipants[]>();
+  for (const stand of stands) {
+    if (stand.standGroupId == null) continue;
+    const members = byGroupId.get(stand.standGroupId) ?? [];
+    members.push(stand);
+    byGroupId.set(stand.standGroupId, members);
+  }
+
+  const groups: JointGroup[] = [];
+  for (const [id, members] of byGroupId) {
+    if (members.length < 2) continue;
+
+    const occupantKey = getStandOccupantKey(members[0]);
+    if (occupantKey === null) continue;
+    const sharedOccupants = members.every(
+      (stand) => getStandOccupantKey(stand) === occupantKey,
+    );
+    if (!sharedOccupants) continue;
+
+    const axis = resolveJointAxis(members);
+    if (axis === null) continue;
+
+    const ordered = [...members].sort((a, b) =>
+      axis === "row"
+        ? getStandPosition(a).left - getStandPosition(b).left
+        : getStandPosition(a).top - getStandPosition(b).top,
+    );
+    groups.push({ id, stands: ordered, axis });
+  }
+
+  return groups;
+}
+
+/** Maps every grouped stand id to the joint group it renders as part of */
+export function indexJointGroupsByStandId(
+  groups: JointGroup[],
+): Map<number, JointGroup> {
+  const index = new Map<number, JointGroup>();
+  for (const group of groups) {
+    for (const stand of group.stands) index.set(stand.id, group);
+  }
+  return index;
+}
+
+export type JointGroupBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Positions along the group's axis where two members meet */
+  seams: number[];
+};
+
+export function getJointGroupBounds(group: JointGroup): JointGroupBounds {
+  const positions = group.stands.map(getStandPosition);
+  const first = positions[0];
+
+  const seams: number[] = [];
+  for (let i = 0; i < positions.length - 1; i++) {
+    const end =
+      (group.axis === "row" ? positions[i].left : positions[i].top) +
+      STAND_SIZE;
+    const nextStart =
+      group.axis === "row" ? positions[i + 1].left : positions[i + 1].top;
+    // Members do not touch, so the seam sits halfway across the gap
+    seams.push((end + nextStart) / 2);
+  }
+
+  const last = positions[positions.length - 1];
+  return group.axis === "row"
+    ? {
+        x: first.left,
+        y: first.top,
+        width: last.left + STAND_SIZE - first.left,
+        height: STAND_SIZE,
+        seams,
+      }
+    : {
+        x: first.left,
+        y: first.top,
+        width: STAND_SIZE,
+        height: last.top + STAND_SIZE - first.top,
+        seams,
+      };
+}
+
+function round(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
+
+/**
+ * Outline of a joined stand: a rounded rectangle over the whole group with a
+ * concave notch pinching both long edges wherever two members meet.
+ */
+export function buildJointGroupPath(
+  bounds: JointGroupBounds,
+  axis: JointAxis,
+  { cornerRadius = 0.8, notchRadius = 0.9 } = {},
+): string {
+  const { x, y, width, height, seams } = bounds;
+  const r = Math.min(cornerRadius, width / 2, height / 2);
+  const n = notchRadius;
+  const right = x + width;
+  const bottom = y + height;
+  const parts: string[] = [];
+  const ascending = [...seams].sort((a, b) => a - b);
+  const descending = [...ascending].reverse();
+
+  // Corners run clockwise (sweep 1); notches curve back into the shape (sweep 0)
+  if (axis === "column") {
+    parts.push(`M ${round(x + r)} ${round(y)}`);
+    parts.push(`L ${round(right - r)} ${round(y)}`);
+    parts.push(`A ${r} ${r} 0 0 1 ${round(right)} ${round(y + r)}`);
+    for (const seam of ascending) {
+      parts.push(`L ${round(right)} ${round(seam - n)}`);
+      parts.push(`A ${n} ${n} 0 0 0 ${round(right)} ${round(seam + n)}`);
+    }
+    parts.push(`L ${round(right)} ${round(bottom - r)}`);
+    parts.push(`A ${r} ${r} 0 0 1 ${round(right - r)} ${round(bottom)}`);
+    parts.push(`L ${round(x + r)} ${round(bottom)}`);
+    parts.push(`A ${r} ${r} 0 0 1 ${round(x)} ${round(bottom - r)}`);
+    for (const seam of descending) {
+      parts.push(`L ${round(x)} ${round(seam + n)}`);
+      parts.push(`A ${n} ${n} 0 0 0 ${round(x)} ${round(seam - n)}`);
+    }
+    parts.push(`L ${round(x)} ${round(y + r)}`);
+    parts.push(`A ${r} ${r} 0 0 1 ${round(x + r)} ${round(y)}`);
+  } else {
+    parts.push(`M ${round(x + r)} ${round(y)}`);
+    for (const seam of ascending) {
+      parts.push(`L ${round(seam - n)} ${round(y)}`);
+      parts.push(`A ${n} ${n} 0 0 0 ${round(seam + n)} ${round(y)}`);
+    }
+    parts.push(`L ${round(right - r)} ${round(y)}`);
+    parts.push(`A ${r} ${r} 0 0 1 ${round(right)} ${round(y + r)}`);
+    parts.push(`L ${round(right)} ${round(bottom - r)}`);
+    parts.push(`A ${r} ${r} 0 0 1 ${round(right - r)} ${round(bottom)}`);
+    for (const seam of descending) {
+      parts.push(`L ${round(seam + n)} ${round(bottom)}`);
+      parts.push(`A ${n} ${n} 0 0 0 ${round(seam - n)} ${round(bottom)}`);
+    }
+    parts.push(`L ${round(x + r)} ${round(bottom)}`);
+    parts.push(`A ${r} ${r} 0 0 1 ${round(x)} ${round(bottom - r)}`);
+    parts.push(`L ${round(x)} ${round(y + r)}`);
+    parts.push(`A ${r} ${r} 0 0 1 ${round(x + r)} ${round(y)}`);
+  }
+
+  parts.push("Z");
+  return parts.join(" ");
+}
