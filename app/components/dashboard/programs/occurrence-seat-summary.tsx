@@ -28,8 +28,8 @@ export default function OccurrenceSeatSummary({ summary, href }: Props) {
         {remaining} de {capacity} disponibles
       </Badge>
 
-      {/* The only count here whose noun inflects — "reservando", "pendientes
-          de revisión" and "en espera" read the same at any number. */}
+      {/* This count and "pendiente(s) de revisión" below inflect by number —
+          "reservando" and "en espera" read the same at any number. */}
       {totals.confirmed > 0 ? (
         <Badge variant="outline">
           {totals.confirmed}{" "}
@@ -40,7 +40,12 @@ export default function OccurrenceSeatSummary({ summary, href }: Props) {
       {/* The only count that is a to-do list, so it is the only one that
           shouts. Everything else is context. */}
       {totals.needsAction > 0 ? (
-        <Badge variant="amber">{totals.needsAction} pendientes de revisión</Badge>
+        <Badge variant="amber">
+          {totals.needsAction}{" "}
+          {totals.needsAction === 1
+            ? "pendiente de revisión"
+            : "pendientes de revisión"}
+        </Badge>
       ) : null}
 
       {totals.holding > 0 ? (
