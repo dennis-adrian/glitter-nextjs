@@ -13,6 +13,7 @@ import { MapElementBase } from "@/app/lib/map_elements/definitions";
 import MapCanvas from "@/app/components/maps/map-canvas";
 import DraggableMapStand from "./draggable-map-stand";
 import DraggableMapElement from "./draggable-map-element";
+import AdminMapStandGroups from "./admin-map-stand-groups";
 import { STAND_SIZE } from "../map-utils";
 
 export type GuideLine = {
@@ -644,6 +645,8 @@ const AdminMapCanvas = forwardRef<AdminMapCanvasHandle, AdminMapCanvasProps>(
             />
           );
         })}
+        {/* Group outlines sit behind the stands they enclose */}
+        <AdminMapStandGroups stands={stands} positions={positions} />
         {stands.map((stand) => {
           const pos = positions.get(stand.id);
           if (!pos) return null;

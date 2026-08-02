@@ -51,7 +51,7 @@ export default function InfoTabContent({
         {reservation && (
           <div>
             <h3 className="font-semibold">
-              Espacio #{reservation.stand.label}
+              Espacio {reservation.stand.label}
               {reservation.stand.standNumber}
             </h3>
             <div className="mt-2 flex flex-wrap items-center gap-2">

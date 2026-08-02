@@ -1,10 +1,13 @@
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 
-export type MapCanvasConfig = {
+export type MapBounds = {
   minX: number;
   minY: number;
   width: number;
   height: number;
+};
+
+export type MapCanvasConfig = MapBounds & {
   backgroundColor: string;
 };
 

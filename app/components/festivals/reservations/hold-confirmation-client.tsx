@@ -463,7 +463,7 @@ export default function HoldConfirmationClient({
                     Stand seleccionado
                   </p>
                   <p className="text-lg font-bold text-primary">
-                    Stand #{formatStandLabel(stand)}
+                    Stand {formatStandLabel(stand)}
                   </p>
                 </div>
                 <div>

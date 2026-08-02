@@ -1,6 +1,9 @@
 "use server";
 
-import { getPostHogClient } from "@/app/lib/posthog-server";
+import {
+  getPostHogClient,
+  POSTHOG_SHUTDOWN_TIMEOUT_MS,
+} from "@/app/lib/posthog-server";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { fetchAdminUsers, fetchUserProfileById } from "@/app/api/users/actions";
 import {
@@ -166,7 +169,7 @@ export async function createUserProfile(user: NewUser) {
             category: user.category,
           },
         });
-        await posthog.shutdown();
+        await posthog.shutdown(POSTHOG_SHUTDOWN_TIMEOUT_MS);
       } catch (telemetryError) {
         console.error(
           "PostHog telemetry failed (createUserProfile)",

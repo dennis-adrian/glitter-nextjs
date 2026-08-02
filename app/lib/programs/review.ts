@@ -12,6 +12,16 @@ import type { SessionPurchaseStatus } from "@/app/lib/programs/definitions";
 
 export type ReviewDecision = "approve" | "reject" | "request_changes";
 
+export const DEFAULT_APPROVAL_AUDIT_REASON =
+  "Pago verificado sin observaciones";
+
+/** Approval needs no explanation; adverse decisions need an audit message. */
+export function reviewDecisionRequiresReason(
+  decision: ReviewDecision,
+): boolean {
+  return decision !== "approve";
+}
+
 export type ReviewBlocker =
   | "not_payable"
   | "no_voucher"

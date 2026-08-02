@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import OccurrenceActionsMenu from "@/app/components/dashboard/programs/occurrence-actions-menu";
 import OccurrenceForm from "@/app/components/dashboard/programs/occurrence-form";
+import OccurrenceSeatSummary from "@/app/components/dashboard/programs/occurrence-seat-summary";
 import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
 import { Button } from "@/app/components/ui/button";
 import { formatDate } from "@/app/lib/formatters";
@@ -13,6 +14,7 @@ import type {
   SessionOccurrence,
   Venue,
 } from "@/app/lib/programs/definitions";
+import type { OccurrenceRosterSummary } from "@/app/lib/programs/occurrence-queries";
 import { resolveOccurrenceState } from "@/app/lib/programs/state";
 
 type Props = {
@@ -21,6 +23,8 @@ type Props = {
   defaultCapacity: number;
   programStatus: ProgramStatus;
   sessionStatus: ProgramStatus;
+  /** Absent only if the summary query missed this occurrence. */
+  summary?: OccurrenceRosterSummary;
 };
 
 /**
@@ -38,6 +42,7 @@ export default function OccurrenceRow({
   defaultCapacity,
   programStatus,
   sessionStatus,
+  summary,
 }: Props) {
   const [isEditing, setIsEditing] = useState(false);
 
@@ -68,8 +73,7 @@ export default function OccurrenceRow({
             {formatDate(occurrence.endsAt).toLocaleString(DateTime.TIME_SIMPLE)}
           </p>
           <p className="text-xs text-muted-foreground">
-            {occurrence.capacity} cupos
-            {venue ? ` · ${venue.name}` : ""}
+            {venue ? venue.name : "Sin lugar asignado"}
             {occurrence.room ? ` · ${occurrence.room}` : ""}
           </p>
           {occurrence.cancelledReason ? (
@@ -83,6 +87,13 @@ export default function OccurrenceRow({
           wasRescheduled={resolved.wasRescheduled}
         />
       </div>
+
+      {summary ? (
+        <OccurrenceSeatSummary
+          summary={summary}
+          href={`/dashboard/programs/occurrences/${occurrence.id}`}
+        />
+      ) : null}
 
       {isEditing ? (
         <div className="space-y-3 border-t border-border/70 pt-3">

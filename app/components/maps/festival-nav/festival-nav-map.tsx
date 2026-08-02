@@ -14,6 +14,10 @@ import FestivalNavStandDrawer, {
 } from "@/app/components/maps/festival-nav/festival-nav-stand-drawer";
 import FestivalNavMapLegend from "@/app/components/maps/festival-nav/festival-nav-map-legend";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
+import {
+  indexJointGroupsByStandId,
+  resolveJointGroups,
+} from "@/app/lib/stands/groups";
 
 type FestivalNavMapProps = {
   festivalName: string;
@@ -81,6 +85,21 @@ export default function FestivalNavMap({
     });
     return entries;
   }, [sectors]);
+
+  // Built from the same stands the canvases draw, so the drawer always
+  // describes the unit the visitor sees. Covers search hits too, which never
+  // pass through the map's own tap handler.
+  const jointGroupByStandId = useMemo(
+    () =>
+      indexJointGroupsByStandId(
+        resolveJointGroups(
+          sectors.flatMap((sector) =>
+            sector.stands.filter((stand) => stand.status !== "disabled"),
+          ),
+        ),
+      ),
+    [sectors],
+  );
 
   const handleStandSelect = useCallback(
     (stand: StandWithReservationsWithParticipants, sectorName: string) => {
@@ -219,6 +238,11 @@ export default function FestivalNavMap({
       <FestivalNavStandDrawer
         stand={selectedStand}
         sectorName={selectedSectorName}
+        groupStands={
+          selectedStand
+            ? jointGroupByStandId.get(selectedStand.id)?.stands
+            : undefined
+        }
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         couponBookProofs={couponBookProofs}
