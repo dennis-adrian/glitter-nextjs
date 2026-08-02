@@ -115,6 +115,84 @@ export function indexJointGroupsByStandId(
   return index;
 }
 
+/** Minimal stand shape needed to reason about group membership */
+type StandGroupMembership = {
+  id: number;
+  standGroupId: number | null;
+};
+
+/**
+ * Groups that fall below two members once the given stands move out of them,
+ * and so cease to exist.
+ *
+ * Mirrors the server's pruneEmptyGroups: it deletes such a group, and the
+ * ON DELETE SET NULL foreign key clears standGroupId on whichever member
+ * stayed behind. Callers holding stands in local state need the same answer to
+ * avoid leaving a stand pointing at a group that was just deleted.
+ */
+export function getPrunedGroupIds(
+  stands: StandGroupMembership[],
+  movedStandIds: Iterable<number>,
+): Set<number> {
+  const moved = new Set(movedStandIds);
+
+  const priorGroupIds = new Set<number>();
+  for (const stand of stands) {
+    if (moved.has(stand.id) && stand.standGroupId != null) {
+      priorGroupIds.add(stand.standGroupId);
+    }
+  }
+
+  const survivors = new Map<number, number>();
+  for (const stand of stands) {
+    if (moved.has(stand.id) || stand.standGroupId == null) continue;
+    if (!priorGroupIds.has(stand.standGroupId)) continue;
+    survivors.set(
+      stand.standGroupId,
+      (survivors.get(stand.standGroupId) ?? 0) + 1,
+    );
+  }
+
+  return new Set(
+    Array.from(priorGroupIds).filter(
+      (groupId) => (survivors.get(groupId) ?? 0) < 2,
+    ),
+  );
+}
+
+/**
+ * The member whose own top-right corner is also the joined shape's: the
+ * rightmost stand of a row, the topmost of a column. Members arrive ordered
+ * along the axis, so an overlay anchored to this stand lands on the corner of
+ * the whole unit rather than somewhere along its middle.
+ */
+function getJointGroupAnchor(
+  group: JointGroup,
+): StandWithReservationsWithParticipants {
+  return group.axis === "row"
+    ? group.stands[group.stands.length - 1]
+    : group.stands[0];
+}
+
+/**
+ * Keeps one representative stand per joint group and leaves ungrouped stands
+ * alone. Overlays that decorate individual stands need this: a joined group is
+ * drawn as a single shape, so one marker per member would render twice on it.
+ *
+ * `jointGroups` should come from the same list the map renders, so the overlay
+ * and the outlines can never disagree about what is joined.
+ */
+export function dedupeJointGroupMembers(
+  stands: StandWithReservationsWithParticipants[],
+  jointGroups: JointGroup[],
+): StandWithReservationsWithParticipants[] {
+  const index = indexJointGroupsByStandId(jointGroups);
+  return stands.filter((stand) => {
+    const group = index.get(stand.id);
+    return !group || getJointGroupAnchor(group).id === stand.id;
+  });
+}
+
 /**
  * The joint group a stand renders as part of, or null when it stands alone.
  * Cards use this to describe the whole unit the visitor actually tapped.

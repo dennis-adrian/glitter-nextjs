@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildJointGroupPath,
+  dedupeJointGroupMembers,
   findJointGroup,
   formatStandsLabel,
   getJointGroupBounds,
+  getPrunedGroupIds,
   getStandOccupantKey,
   getStandsProducts,
   indexJointGroupsByStandId,
@@ -167,6 +169,120 @@ describe("resolveJointGroups", () => {
     const index = indexJointGroupsByStandId(resolveJointGroups(pair()));
     expect(index.get(1)).toBe(index.get(2));
     expect(index.get(99)).toBeUndefined();
+  });
+});
+
+describe("getPrunedGroupIds", () => {
+  const member = (id: number, standGroupId: number | null) => ({
+    id,
+    standGroupId,
+  });
+
+  it("prunes a pair when one member leaves", () => {
+    // The one left behind is not in the moved set, but the server clears it
+    expect([...getPrunedGroupIds([member(7, 10), member(8, 10)], [7])]).toEqual(
+      [10],
+    );
+  });
+
+  it("keeps a group that still has two members", () => {
+    expect(
+      getPrunedGroupIds([member(7, 10), member(8, 10), member(9, 10)], [7]),
+    ).toEqual(new Set());
+  });
+
+  it("prunes when a three-member group loses two", () => {
+    expect([
+      ...getPrunedGroupIds(
+        [member(7, 10), member(8, 10), member(9, 10)],
+        [7, 8],
+      ),
+    ]).toEqual([10]);
+  });
+
+  it("prunes every group the moved stands came from", () => {
+    expect(
+      getPrunedGroupIds(
+        [member(7, 10), member(8, 10), member(9, 11), member(10, 11)],
+        [7, 9],
+      ),
+    ).toEqual(new Set([10, 11]));
+  });
+
+  it("ignores groups none of the moved stands belonged to", () => {
+    expect(
+      getPrunedGroupIds([member(7, 10), member(8, 11), member(9, 11)], [7]),
+    ).toEqual(new Set([10]));
+  });
+
+  it("prunes nothing when the moved stands were ungrouped", () => {
+    expect(
+      getPrunedGroupIds([member(7, null), member(8, 10), member(9, 10)], [7]),
+    ).toEqual(new Set());
+  });
+
+  it("prunes a group whose every member moved", () => {
+    expect([
+      ...getPrunedGroupIds([member(7, 10), member(8, 10)], [7, 8]),
+    ]).toEqual([10]);
+  });
+});
+
+describe("dedupeJointGroupMembers", () => {
+  const pair = () => [
+    stand(7, { groupId: 10, left: 69.8, top: 84.5, users: [7] }),
+    stand(8, { groupId: 10, left: 78.5, top: 84.5, users: [7] }),
+  ];
+
+  it("anchors a row to its rightmost member", () => {
+    const stands = pair();
+    const kept = dedupeJointGroupMembers(stands, resolveJointGroups(stands));
+    // 8 sits to the right of 7, so its top-right is the joined shape's corner
+    expect(kept.map((s) => s.id)).toEqual([8]);
+  });
+
+  it("anchors a column to its topmost member", () => {
+    const stands = [
+      stand(3, { groupId: 11, left: 86.35, top: 49.7, users: [7] }),
+      stand(4, { groupId: 11, left: 86.35, top: 60.2, users: [7] }),
+    ];
+    const kept = dedupeJointGroupMembers(stands, resolveJointGroups(stands));
+    expect(kept.map((s) => s.id)).toEqual([3]);
+  });
+
+  it("anchors regardless of the order members arrive in", () => {
+    const [a, b] = pair();
+    const stands = [b, a];
+    const kept = dedupeJointGroupMembers(stands, resolveJointGroups(stands));
+    expect(kept.map((s) => s.id)).toEqual([8]);
+  });
+
+  it("leaves standalone stands untouched", () => {
+    const stands = [...pair(), stand(9, { users: [8] })];
+    const kept = dedupeJointGroupMembers(stands, resolveJointGroups(stands));
+    expect(kept.map((s) => s.id)).toEqual([8, 9]);
+  });
+
+  it("keeps both members when the group does not render joined", () => {
+    // Misaligned, so MapSurface draws two separate stands
+    const stands = [
+      stand(7, { groupId: 10, left: 69.8, top: 84.5, users: [7] }),
+      stand(8, { groupId: 10, left: 78.5, top: 95, users: [7] }),
+    ];
+    const kept = dedupeJointGroupMembers(stands, resolveJointGroups(stands));
+    expect(kept.map((s) => s.id)).toEqual([7, 8]);
+  });
+
+  it("drops a non-anchor member handed over on its own", () => {
+    const stands = pair();
+    const groups = resolveJointGroups(stands);
+    // The badge overlay only passes occupied stands, never the whole map
+    expect(dedupeJointGroupMembers([stands[0]], groups)).toEqual([]);
+  });
+
+  it("returns everything when nothing is grouped", () => {
+    const stands = [stand(1, { users: [7] }), stand(2, { users: [8] })];
+    expect(dedupeJointGroupMembers(stands, [])).toEqual(stands);
   });
 });
 

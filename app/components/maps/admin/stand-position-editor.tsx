@@ -45,6 +45,7 @@ import {
 } from "@/app/api/stands/actions";
 import { updateSectorMapBounds } from "@/app/lib/festival_sectors/actions";
 import { groupStands, ungroupStands } from "@/app/lib/stands/group-actions";
+import { getPrunedGroupIds } from "@/app/lib/stands/groups";
 import {
   MapElementBase,
   MapElementLabelPosition,
@@ -95,6 +96,20 @@ type StandPositionEditorProps = {
   festivalId: number;
   sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
 };
+
+/** Coordinates are floats, so treat sub-epsilon differences as unmoved */
+const POSITION_EPSILON = 0.01;
+
+function hasStandMoved(
+  position: { left: number; top: number } | undefined,
+  original: { left: number; top: number } | undefined,
+): boolean {
+  if (!position || !original) return false;
+  return (
+    Math.abs(original.left - position.left) > POSITION_EPSILON ||
+    Math.abs(original.top - position.top) > POSITION_EPSILON
+  );
+}
 
 function buildPositionsMap(
   sectors: FestivalSectorWithStandsWithReservationsWithParticipants[],
@@ -581,18 +596,38 @@ export default function StandPositionEditor({
     toast.success(result.message);
   }, [selectedStands, standsPerSector]);
 
-  /** Patches standGroupId locally so the editor reflects the change at once */
+  /**
+   * Patches standGroupId locally so the editor reflects the change at once.
+   *
+   * Mirrors pruneEmptyGroups on the server: moving stands out of a group can
+   * leave it with fewer than two members, in which case the server deletes it
+   * and the ON DELETE SET NULL foreign key clears whoever stayed behind. Those
+   * stands are never in `ids`, so they need clearing here too — otherwise they
+   * keep a group id that no longer exists and still offer "Separar".
+   */
   const applyGroupIdLocally = useCallback(
     (ids: number[], standGroupId: number | null) => {
       const affected = new Set(ids);
       setStandsPerSector((prev) => {
+        const prunedGroupIds = getPrunedGroupIds(
+          Array.from(prev.values()).flat(),
+          affected,
+        );
+
         const next = new Map(prev);
         for (const [sectorId, sectorStands] of next) {
           next.set(
             sectorId,
-            sectorStands.map((stand) =>
-              affected.has(stand.id) ? { ...stand, standGroupId } : stand,
-            ),
+            sectorStands.map((stand) => {
+              if (affected.has(stand.id)) return { ...stand, standGroupId };
+              if (
+                stand.standGroupId != null &&
+                prunedGroupIds.has(stand.standGroupId)
+              ) {
+                return { ...stand, standGroupId: null };
+              }
+              return stand;
+            }),
           );
         }
         return next;
@@ -605,6 +640,19 @@ export default function StandPositionEditor({
     if (selectedStands.size < 2) return;
 
     const ids = Array.from(selectedStands);
+
+    // groupStands validates alignment against the saved coordinates, so
+    // grouping stands that were only dragged into line would be rejected as
+    // misaligned while looking perfectly aligned on screen.
+    if (
+      ids.some((id) =>
+        hasStandMoved(positions.get(id), originalPositions.get(id)),
+      )
+    ) {
+      toast.error("Guarda los cambios antes de unir espacios");
+      return;
+    }
+
     setIsGrouping(true);
     const result = await groupStands(ids);
     setIsGrouping(false);
@@ -616,8 +664,9 @@ export default function StandPositionEditor({
 
     applyGroupIdLocally(ids, result.groupId);
     toast.success(result.message);
-  }, [selectedStands, applyGroupIdLocally]);
+  }, [selectedStands, applyGroupIdLocally, positions, originalPositions]);
 
+  // Ungrouping only clears standGroupId, so unsaved positions cannot affect it
   const handleUngroupStands = useCallback(async () => {
     if (selectedStands.size === 0) return;
 
@@ -887,14 +936,7 @@ export default function StandPositionEditor({
   };
 
   const changedStandCount = Array.from(positions.entries()).filter(
-    ([id, pos]) => {
-      const orig = originalPositions.get(id);
-      if (!orig) return false;
-      return (
-        Math.abs(orig.left - pos.left) > 0.01 ||
-        Math.abs(orig.top - pos.top) > 0.01
-      );
-    },
+    ([id, pos]) => hasStandMoved(pos, originalPositions.get(id)),
   ).length;
 
   const changedElementCount =

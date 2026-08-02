@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { TransformComponent } from "react-zoom-pan-pinch";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
@@ -19,6 +19,10 @@ import {
   hasActivityParticipant,
   hasExternalParticipants,
 } from "@/app/components/maps/map-participants";
+import {
+  dedupeJointGroupMembers,
+  resolveJointGroups,
+} from "@/app/lib/stands/groups";
 
 type FestivalNavMapCanvasProps = {
   stands: StandWithReservationsWithParticipants[];
@@ -90,8 +94,20 @@ export default function FestivalNavMapCanvas({
   sectorName,
   onStandSelect,
 }: FestivalNavMapCanvasProps) {
-  const visibleStands = stands.filter((s) => s.status !== "disabled");
-  const occupiedStands = visibleStands.filter(isOccupied);
+  const visibleStands = useMemo(
+    () => stands.filter((s) => s.status !== "disabled"),
+    [stands],
+  );
+  // Resolved from the same list MapSurface draws, so a group that renders as
+  // one outline carries exactly one set of activity badges.
+  const occupiedStands = useMemo(
+    () =>
+      dedupeJointGroupMembers(
+        visibleStands.filter(isOccupied),
+        resolveJointGroups(visibleStands),
+      ),
+    [visibleStands],
+  );
 
   const handleStandSelect = useCallback(
     (stand: StandWithReservationsWithParticipants) => {
