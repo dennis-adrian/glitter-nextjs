@@ -77,9 +77,15 @@ export default function AdminMapStandGroups({
   if (outlines.length === 0) return null;
 
   return (
-    <g aria-hidden="true" style={{ pointerEvents: "none" }}>
+    <g style={{ pointerEvents: "none" }}>
       {outlines.map((outline) => (
-        <g key={`group-${outline.id}`}>
+        <g
+          key={`group-${outline.id}`}
+          role={outline.aligned ? undefined : "img"}
+          aria-label={
+            outline.aligned ? undefined : `Grupo ${outline.id} sin alinear`
+          }
+        >
           <rect
             x={outline.x}
             y={outline.y}
@@ -98,6 +104,7 @@ export default function AdminMapStandGroups({
               fontSize={1.6}
               fontWeight={700}
               fill={MISALIGNED_STROKE}
+              aria-hidden="true"
               style={{ userSelect: "none" }}
             >
               ⚠ sin alinear

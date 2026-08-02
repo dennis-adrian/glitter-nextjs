@@ -1,4 +1,4 @@
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import AdminMapStandGroups from "@/app/components/maps/admin/admin-map-stand-groups";
@@ -67,6 +67,21 @@ describe("AdminMapStandGroups", () => {
     );
 
     expect(container.textContent).toContain("sin alinear");
+    expect(
+      screen.getByRole("img", { name: "Grupo 10 sin alinear" }),
+    ).toBeTruthy();
+  });
+
+  it("leaves aligned groups unnamed for assistive tech", () => {
+    renderGroups(
+      [stand(1, 10), stand(2, 10)],
+      [
+        [1, { left: 69.8, top: 84.5 }],
+        [2, { left: 78.5, top: 84.5 }],
+      ],
+    );
+
+    expect(screen.queryByRole("img")).toBeNull();
   });
 
   it("follows the live drag position rather than the stored one", () => {

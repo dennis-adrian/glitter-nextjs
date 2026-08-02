@@ -5,7 +5,6 @@ import {
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { UserCategory, UserSocial } from "@/app/api/users/definitions";
 import { getExternalParticipantCategoryLabel } from "@/app/lib/external_participants/definitions";
-import { socialsUrls } from "@/app/lib/users/utils";
 
 type BaseMapParticipant = {
   id: string;
@@ -64,12 +63,11 @@ export function getStandMapParticipants(
       categoryLabel: participant.user.category,
       userId: participant.user.id,
       userSocials: participant.user.userSocials ?? [],
-      links: participant.user.userSocials
-        .filter((social) => !!social.username)
-        .map((social) => ({
-          label: `@${social.username}`,
-          href: `${socialsUrls[social.type]}${social.username}`,
-        })),
+      // Registered users carry their contact details in userSocials, which the
+      // cards render as icon rows. `links` is the external-participant path;
+      // deriving it from the socials here made every card list the same
+      // accounts twice, under two "Contacto" headings.
+      links: [],
     }));
 
     const externalParticipants =
