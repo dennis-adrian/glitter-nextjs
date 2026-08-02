@@ -654,16 +654,24 @@ export default function StandPositionEditor({
     }
 
     setIsGrouping(true);
-    const result = await groupStands(ids);
-    setIsGrouping(false);
+    try {
+      const result = await groupStands(ids);
 
-    if (!result.success || result.groupId == null) {
-      toast.error(result.message);
-      return;
+      if (!result.success || result.groupId == null) {
+        toast.error(result.message);
+        return;
+      }
+
+      applyGroupIdLocally(ids, result.groupId);
+      toast.success(result.message);
+    } catch (error) {
+      // The action reports its own failures, so reaching here means the call
+      // itself never completed
+      console.error("Error grouping stands", error);
+      toast.error("Error al unir los espacios");
+    } finally {
+      setIsGrouping(false);
     }
-
-    applyGroupIdLocally(ids, result.groupId);
-    toast.success(result.message);
   }, [selectedStands, applyGroupIdLocally, positions, originalPositions]);
 
   // Ungrouping only clears standGroupId, so unsaved positions cannot affect it
@@ -672,16 +680,24 @@ export default function StandPositionEditor({
 
     const ids = Array.from(selectedStands);
     setIsGrouping(true);
-    const result = await ungroupStands(ids);
-    setIsGrouping(false);
+    try {
+      const result = await ungroupStands(ids);
 
-    if (!result.success) {
-      toast.error(result.message);
-      return;
+      if (!result.success) {
+        toast.error(result.message);
+        return;
+      }
+
+      applyGroupIdLocally(ids, null);
+      toast.success(result.message);
+    } catch (error) {
+      // The action reports its own failures, so reaching here means the call
+      // itself never completed
+      console.error("Error ungrouping stands", error);
+      toast.error("Error al separar los espacios");
+    } finally {
+      setIsGrouping(false);
     }
-
-    applyGroupIdLocally(ids, null);
-    toast.success(result.message);
   }, [selectedStands, applyGroupIdLocally]);
 
   // --- Element add/delete/edit ---
