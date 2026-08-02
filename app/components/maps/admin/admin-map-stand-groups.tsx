@@ -100,7 +100,7 @@ export default function AdminMapStandGroups({
           {!outline.aligned && (
             <text
               x={outline.x + 0.4}
-              y={outline.y - 0.6}
+              y={outline.y + 1.6}
               fontSize={1.6}
               fontWeight={700}
               fill={MISALIGNED_STROKE}

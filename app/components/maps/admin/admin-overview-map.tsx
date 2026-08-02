@@ -371,6 +371,7 @@ export default function AdminOverviewMap({
           // members of a group can disagree on. Joining them would show only
           // the first member's status.
           joinGroups={false}
+          selectedStandId={drawerOpen ? (selectedStand?.id ?? null) : null}
           getColors={(stand) =>
             getAdminOverviewColors(
               stand.status,

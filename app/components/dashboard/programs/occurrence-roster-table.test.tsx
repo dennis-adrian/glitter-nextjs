@@ -160,7 +160,7 @@ describe("OccurrenceSeatSummary", () => {
     render(<OccurrenceSeatSummary summary={summary()} />);
     expect(screen.getByText("18 de 20 disponibles")).toBeTruthy();
     expect(screen.getByText("1 confirmado")).toBeTruthy();
-    expect(screen.getByText("1 por revisar")).toBeTruthy();
+    expect(screen.getByText("1 pendientes de revisión")).toBeTruthy();
   });
 
   it("inflects the confirmed count", () => {
@@ -187,7 +187,7 @@ describe("OccurrenceSeatSummary", () => {
 
     expect(screen.getByText("20 de 20 disponibles")).toBeTruthy();
     expect(screen.queryByText(/confirmado/)).toBeNull();
-    expect(screen.queryByText(/por revisar/)).toBeNull();
+    expect(screen.queryByText(/pendientes de revisión/)).toBeNull();
     expect(screen.queryByText(/en espera/)).toBeNull();
   });
 
