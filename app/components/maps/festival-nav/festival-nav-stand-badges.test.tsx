@@ -122,7 +122,10 @@ describe("FestivalNavStandBadges", () => {
     const { container } = render(
       <svg>
         <FestivalNavStandBadges
-          stands={[stand(1, [7]), stand(2, [8])]}
+          stands={[
+            stand(1, [7]),
+            stand(2, [8], { positionLeft: 30, positionTop: 40 }),
+          ]}
           couponBookUserIdSet={new Set([7, 8])}
           passportUserIdSet={new Set()}
           stickerHuntUserIdSet={new Set()}
@@ -133,7 +136,7 @@ describe("FestivalNavStandBadges", () => {
     const groups = Array.from(container.querySelectorAll("g[transform]")).map(
       (node) => node.getAttribute("transform"),
     );
-    expect(groups).toEqual(["translate(10, 20)", "translate(10, 20)"]);
+    expect(groups).toEqual(["translate(10, 20)", "translate(30, 40)"]);
     expect(container.querySelectorAll("circle")).toHaveLength(2);
   });
 });

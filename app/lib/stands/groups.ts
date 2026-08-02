@@ -1,5 +1,6 @@
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { STAND_SIZE, getStandPosition } from "@/app/components/maps/map-utils";
+import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 /**
  * Stands are placed freehand on the map, so two stands belonging to the same
@@ -112,6 +113,60 @@ export function indexJointGroupsByStandId(
     for (const stand of group.stands) index.set(stand.id, group);
   }
   return index;
+}
+
+/**
+ * The joint group a stand renders as part of, or null when it stands alone.
+ * Cards use this to describe the whole unit the visitor actually tapped.
+ */
+export function findJointGroup(
+  stands: StandWithReservationsWithParticipants[],
+  standId: number | null | undefined,
+): JointGroup | null {
+  if (standId == null) return null;
+  const groups = resolveJointGroups(stands);
+  return indexJointGroupsByStandId(groups).get(standId) ?? null;
+}
+
+/**
+ * How a stand or joint group is named to visitors: "A9" alone, "A9 - A10" when
+ * the stands were declared as one unit.
+ *
+ * Members arrive ordered by map position, which reads wrong in text once stand
+ * numbers reach double digits, so they are re-sorted by label then number.
+ * Sorting the formatted strings would not do: "A10" sorts before "A9".
+ */
+export function formatStandsLabel(
+  stands: StandWithReservationsWithParticipants[],
+): string {
+  return [...stands]
+    .sort((a, b) => {
+      const byLabel = (a.label ?? "").localeCompare(b.label ?? "");
+      if (byLabel !== 0) return byLabel;
+      return a.standNumber - b.standNumber;
+    })
+    .map(formatStandLabel)
+    .join(" - ");
+}
+
+/**
+ * Products across a stand or joint group. Members can carry different
+ * subcategories, so the labels are unioned and de-duplicated in map order.
+ */
+export function getStandsProducts(
+  stands: StandWithReservationsWithParticipants[],
+): string[] {
+  const seen = new Set<string>();
+  const labels: string[] = [];
+  for (const stand of stands) {
+    for (const standSubcategory of stand.standSubcategories ?? []) {
+      const label = standSubcategory.subcategory.label;
+      if (seen.has(label)) continue;
+      seen.add(label);
+      labels.push(label);
+    }
+  }
+  return labels;
 }
 
 export type JointGroupBounds = {

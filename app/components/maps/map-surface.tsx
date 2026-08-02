@@ -38,6 +38,12 @@ type MapSurfaceProps = {
     stand: StandWithReservationsWithParticipants | null,
     rect: DOMRect | null,
   ) => void;
+  /**
+   * Draw admin-declared groups as one joined stand. Views that encode per-stand
+   * state in a stand's color must opt out, since one outline can only carry one
+   * color and would hide the difference between members.
+   */
+  joinGroups?: boolean;
   /** Extra SVG content painted on top of the stands */
   children?: React.ReactNode;
 };
@@ -59,10 +65,14 @@ export default function MapSurface({
   onStandClick,
   onStandTouchTap,
   onStandHoverChange,
+  joinGroups = true,
   children,
 }: MapSurfaceProps) {
   const bounds = mapBounds ?? computeCanvasBounds(stands, mapElements);
-  const jointGroups = useMemo(() => resolveJointGroups(stands), [stands]);
+  const jointGroups = useMemo(
+    () => (joinGroups ? resolveJointGroups(stands) : []),
+    [stands, joinGroups],
+  );
   const groupByStandId = useMemo(
     () => indexJointGroupsByStandId(jointGroups),
     [jointGroups],

@@ -71,6 +71,15 @@ describe("MapSurface joint groups", () => {
     expect(container.textContent).toContain("A8");
   });
 
+  it("leaves members separate when the caller opts out of joining", () => {
+    const { container } = render(
+      <MapSurface stands={jointPair()} joinGroups={false} />,
+    );
+
+    expect(groupNodes(container)).toHaveLength(0);
+    expect(standNodes(container)).toHaveLength(2);
+  });
+
   it("keeps ungrouped stands rendering individually", () => {
     const { container } = render(
       <MapSurface

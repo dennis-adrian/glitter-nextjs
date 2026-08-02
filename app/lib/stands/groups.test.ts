@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildJointGroupPath,
+  findJointGroup,
+  formatStandsLabel,
   getJointGroupBounds,
   getStandOccupantKey,
+  getStandsProducts,
   indexJointGroupsByStandId,
   resolveJointGroups,
 } from "@/app/lib/stands/groups";
@@ -16,6 +19,9 @@ type StandOptions = {
   users?: number[];
   externals?: number[];
   rejectedUsers?: number[];
+  label?: string;
+  standNumber?: number;
+  products?: string[];
 };
 
 function stand(
@@ -27,6 +33,9 @@ function stand(
     users = [],
     externals = [],
     rejectedUsers = [],
+    label = "A",
+    standNumber = id,
+    products = [],
   }: StandOptions = {},
 ): StandWithReservationsWithParticipants {
   const reservations = [];
@@ -49,10 +58,16 @@ function stand(
 
   return {
     id,
+    label,
+    standNumber,
     standGroupId: groupId,
     positionLeft: left,
     positionTop: top,
     reservations,
+    standSubcategories: products.map((productLabel, index) => ({
+      subcategoryId: index,
+      subcategory: { label: productLabel },
+    })),
   } as unknown as StandWithReservationsWithParticipants;
 }
 
@@ -152,6 +167,79 @@ describe("resolveJointGroups", () => {
     const index = indexJointGroupsByStandId(resolveJointGroups(pair()));
     expect(index.get(1)).toBe(index.get(2));
     expect(index.get(99)).toBeUndefined();
+  });
+});
+
+describe("findJointGroup", () => {
+  const pair = () => [
+    stand(7, { groupId: 10, left: 69.8, top: 84.5, users: [7] }),
+    stand(8, { groupId: 10, left: 78.5, top: 84.5, users: [7] }),
+  ];
+
+  it("finds the group from either member", () => {
+    const stands = pair();
+    expect(findJointGroup(stands, 7)?.stands.map((s) => s.id)).toEqual([7, 8]);
+    expect(findJointGroup(stands, 8)?.stands.map((s) => s.id)).toEqual([7, 8]);
+  });
+
+  it("returns null for a stand that stands alone", () => {
+    expect(findJointGroup([...pair(), stand(9, { users: [8] })], 9)).toBeNull();
+  });
+
+  it("returns null without a selection", () => {
+    expect(findJointGroup(pair(), null)).toBeNull();
+    expect(findJointGroup(pair(), undefined)).toBeNull();
+  });
+});
+
+describe("formatStandsLabel", () => {
+  it("names a lone stand plainly", () => {
+    expect(formatStandsLabel([stand(7)])).toBe("A7");
+  });
+
+  it("joins every member of a group in order", () => {
+    expect(formatStandsLabel([stand(7), stand(8)])).toBe("A7 - A8");
+  });
+
+  it("orders numerically, not as text", () => {
+    // Members arrive in map order, which can put A10 to the left of A9
+    expect(formatStandsLabel([stand(10), stand(9)])).toBe("A9 - A10");
+  });
+
+  it("orders by label before number", () => {
+    expect(
+      formatStandsLabel([
+        stand(2, { label: "B", standNumber: 2 }),
+        stand(1, { label: "A", standNumber: 10 }),
+      ]),
+    ).toBe("A10 - B2");
+  });
+
+  it("leaves the caller's array untouched", () => {
+    const stands = [stand(10), stand(9)];
+    formatStandsLabel(stands);
+    expect(stands.map((s) => s.standNumber)).toEqual([10, 9]);
+  });
+});
+
+describe("getStandsProducts", () => {
+  it("lists a lone stand's products", () => {
+    expect(getStandsProducts([stand(7, { products: ["Stickers"] })])).toEqual([
+      "Stickers",
+    ]);
+  });
+
+  it("unions products across members without repeating", () => {
+    expect(
+      getStandsProducts([
+        stand(7, { products: ["Stickers", "Prints"] }),
+        stand(8, { products: ["Prints", "Pins"] }),
+      ]),
+    ).toEqual(["Stickers", "Prints", "Pins"]);
+  });
+
+  it("copes with a stand carrying no products", () => {
+    expect(getStandsProducts([stand(7), stand(8)])).toEqual([]);
   });
 });
 

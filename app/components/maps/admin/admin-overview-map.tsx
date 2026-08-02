@@ -367,6 +367,10 @@ export default function AdminOverviewMap({
         <MapSurface
           stands={visibleStands}
           mapElements={activeSector?.mapElements ?? []}
+          // Stand color here encodes each stand's own payment state, which two
+          // members of a group can disagree on. Joining them would show only
+          // the first member's status.
+          joinGroups={false}
           getColors={(stand) =>
             getAdminOverviewColors(
               stand.status,

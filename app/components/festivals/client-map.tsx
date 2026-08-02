@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { Loader2Icon } from "lucide-react";
 
 import { ProfileType } from "@/app/api/users/definitions";
@@ -11,6 +18,7 @@ import UserMap from "@/app/components/maps/user/user-map";
 import { StandInfoCard } from "@/app/components/festivals/reservations/stand-info-card";
 import { useStandPolling } from "@/app/hooks/use-stand-polling";
 import { getActiveHold } from "@/app/lib/stands/hold-actions";
+import { findJointGroup } from "@/app/lib/stands/groups";
 
 type ActiveHold = { id: number; standId: number } | null;
 
@@ -52,6 +60,10 @@ export default function ClientMap({
     selectedStandId != null
       ? (stands.find((s) => s.id === selectedStandId) ?? null)
       : null;
+  const selectedGroupStands = useMemo(
+    () => findJointGroup(stands, selectedStandId)?.stands,
+    [stands, selectedStandId],
+  );
   const [activeHold, setActiveHold] = useState<ActiveHold>(
     initialActiveHold ?? null,
   );
@@ -133,6 +145,7 @@ export default function ClientMap({
           key={selectedStand.id}
           stand={selectedStand}
           sectorName={sectorName}
+          groupStands={selectedGroupStands}
           profile={profile}
           festival={festival}
           activeHold={activeHold}

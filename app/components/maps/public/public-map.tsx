@@ -1,10 +1,14 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { MapElementBase } from "@/app/lib/map_elements/definitions";
 import { MapBounds } from "@/app/components/maps/map-types";
+import {
+	indexJointGroupsByStandId,
+	resolveJointGroups,
+} from "@/app/lib/stands/groups";
 import {
 	getExternalParticipantStandColors,
 	getPublicStandColors,
@@ -38,7 +42,10 @@ export default function PublicMap({
 		useState<StandWithReservationsWithParticipants | null>(null);
 	const [hoveredRect, setHoveredRect] = useState<DOMRect | null>(null);
 
-	const visibleStands = stands.filter((s) => s.status !== "disabled");
+	const visibleStands = useMemo(
+		() => stands.filter((s) => s.status !== "disabled"),
+		[stands],
+	);
 
 	const handleHoverChange = useCallback(
 		(
@@ -52,12 +59,17 @@ export default function PublicMap({
 		[],
 	);
 
+	const jointGroupByStandId = useMemo(
+		() => indexJointGroupsByStandId(resolveJointGroups(visibleStands)),
+		[visibleStands],
+	);
+
 	const handleStandSelect = useCallback(
 		(stand: StandWithReservationsWithParticipants) => {
 			if (!isOccupied(stand)) return;
-			openCard(stand, sectorName);
+			openCard(stand, sectorName, jointGroupByStandId.get(stand.id)?.stands);
 		},
-		[openCard, sectorName],
+		[openCard, sectorName, jointGroupByStandId],
 	);
 
 	return (

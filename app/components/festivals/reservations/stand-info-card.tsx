@@ -13,7 +13,8 @@ import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { profileHasReservation } from "@/app/helpers/next_event";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
-import { canStandBeReserved, formatStandLabel } from "@/app/lib/stands/helpers";
+import { canStandBeReserved } from "@/app/lib/stands/helpers";
+import { formatStandsLabel } from "@/app/lib/stands/groups";
 import { toast } from "sonner";
 
 type ActiveHold = { id: number; standId: number } | null;
@@ -21,6 +22,11 @@ type ActiveHold = { id: number; standId: number } | null;
 type StandInfoCardProps = {
   stand: StandWithReservationsWithParticipants;
   sectorName: string;
+  /**
+   * Every stand of the joint group that was tapped, when the stand belongs to
+   * one. Defaults to just the tapped stand.
+   */
+  groupStands?: StandWithReservationsWithParticipants[];
   profile: ProfileType;
   festival: FestivalBase;
   activeHold?: ActiveHold;
@@ -88,6 +94,7 @@ function getEligibilityMessage(
 export function StandInfoCard({
   stand,
   sectorName,
+  groupStands,
   profile,
   festival,
   activeHold,
@@ -135,6 +142,9 @@ export function StandInfoCard({
     }).format(price);
 
   const dimensions = getStandDimensions(stand.standCategory);
+  // Groups only form on stands somebody already holds, so this card never shows
+  // a joined unit as reservable — only its label widens to name both stands.
+  const cardStands = groupStands?.length ? groupStands : [stand];
 
   const handleSelectStand = () => {
     if (!canReserve || isPending) return;
@@ -203,7 +213,8 @@ export function StandInfoCard({
               </div>
               <div className="flex items-baseline gap-2">
                 <h4 className="text-xl font-bold">
-                  Stand #{formatStandLabel(stand)}
+                  {cardStands.length > 1 ? "Stands" : "Stand"}{" "}
+                  {formatStandsLabel(cardStands)}
                 </h4>
                 <span className="text-sm sm:text-base text-muted-foreground">
                   <span className="hidden sm:block">Sector</span> {sectorName}

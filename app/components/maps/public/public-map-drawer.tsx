@@ -8,12 +8,17 @@ import { getStandMapParticipants } from "@/app/components/maps/map-participants"
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
 import { socialsUrls, socialsIcons } from "@/app/lib/users/utils";
-import { formatStandLabel } from "@/app/lib/stands/helpers";
+import { formatStandsLabel, getStandsProducts } from "@/app/lib/stands/groups";
 
 type PublicMapStandCardProps = {
 	stand: StandWithReservationsWithParticipants | null;
 	open: boolean;
 	sectorName?: string;
+	/**
+	 * Every stand of the joint group that was tapped, when the stand belongs to
+	 * one. Defaults to just the tapped stand.
+	 */
+	groupStands?: StandWithReservationsWithParticipants[];
 	cardRef?: React.RefObject<HTMLDivElement | null>;
 };
 
@@ -35,6 +40,7 @@ export default function PublicMapStandCard({
 	stand,
 	open,
 	sectorName,
+	groupStands,
 	cardRef,
 }: PublicMapStandCardProps) {
 	const [activeTab, setActiveTab] = useState(0);
@@ -47,9 +53,12 @@ export default function PublicMapStandCard({
 	if (participants.length === 0) return null;
 
 	const currentParticipant = participants[clampedTab] ?? participants[0];
-	const standLabel = formatStandLabel(stand);
+	// Members of a joint group share their participants, so the tapped stand
+	// still speaks for the whole unit apart from the label and products.
+	const cardStands = groupStands?.length ? groupStands : [stand];
+	const standLabel = formatStandsLabel(cardStands);
 	const categoryLabel = getCategoryLabel(stand.standCategory);
-	const products = stand.standSubcategories.map((sc) => sc.subcategory.label);
+	const products = getStandsProducts(cardStands);
 
 	return (
 		<div
@@ -113,7 +122,7 @@ export default function PublicMapStandCard({
 								{currentParticipant.displayName}
 							</h3>
 							<p className="text-sm text-muted-foreground">
-								Stand #{standLabel}
+								{cardStands.length > 1 ? "Stands" : "Stand"} {standLabel}
 								{sectorName ? ` • ${sectorName}` : ""}
 							</p>
 							{currentParticipant.kind === "external" && (
