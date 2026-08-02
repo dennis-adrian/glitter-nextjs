@@ -16,8 +16,10 @@ import {
   REGISTRATION_BLOCKER_LABELS,
 } from "@/app/lib/programs/registration";
 import {
+  DEFAULT_APPROVAL_AUDIT_REASON,
   REVIEW_BLOCKER_LABELS,
   REVIEW_DECISION_STATUS,
+  reviewDecisionRequiresReason,
   resolveReviewDecision,
   type ReviewDecision,
 } from "@/app/lib/programs/review";
@@ -37,16 +39,25 @@ import {
   venues,
 } from "@/db/schema";
 
-const reviewSchema = z.object({
-  purchaseId: z.number().int().positive(),
-  decision: z.enum(["approve", "reject", "request_changes"]),
-  /**
-   * Required for every decision. PRD §14: "every sensitive admin action
-   * requires a reason" — and the buyer sees this text when changes are
-   * requested, so it is the message as much as the audit record.
-   */
-  reason: z.string().trim().min(3).max(500),
-});
+const reviewSchema = z
+  .object({
+    purchaseId: z.number().int().positive(),
+    decision: z.enum(["approve", "reject", "request_changes"]),
+    /**
+     * Approval may be self-explanatory. Adverse decisions require a reason, and
+     * the buyer sees it when changes are requested.
+     */
+    reason: z.string().trim().max(500).default(""),
+  })
+  .superRefine((data, context) => {
+    if (reviewDecisionRequiresReason(data.decision) && data.reason.length < 3) {
+      context.addIssue({
+        code: "custom",
+        path: ["reason"],
+        message: "Escribe el motivo de tu decisión",
+      });
+    }
+  });
 
 export type ReviewPurchaseInput = z.input<typeof reviewSchema>;
 
@@ -242,7 +253,10 @@ export async function reviewPurchase(
         eventType: DECISION_EVENT[data.decision],
         fromStatus: purchase.status,
         toStatus,
-        reason: data.reason,
+        // Admin events must always carry a reason at the database level. A
+        // correct payment needs no message from the reviewer, so record a
+        // neutral audit description when approval was submitted blank.
+        reason: data.reason || DEFAULT_APPROVAL_AUDIT_REASON,
         changes: { ticketsIssued },
       });
 

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_APPROVAL_AUDIT_REASON,
   REVIEW_DECISION_STATUS,
+  reviewDecisionRequiresReason,
   resolveReviewDecision,
   type ReviewSubject,
 } from "@/app/lib/programs/review";
@@ -79,4 +81,18 @@ describe("REVIEW_DECISION_STATUS", () => {
       request_changes: "changes_requested",
     });
   });
+});
+
+describe("reviewDecisionRequiresReason", () => {
+  it("allows approval without a reason", () => {
+    expect(reviewDecisionRequiresReason("approve")).toBe(false);
+    expect(DEFAULT_APPROVAL_AUDIT_REASON.trim().length).toBeGreaterThan(0);
+  });
+
+  it.each(["reject", "request_changes"] as const)(
+    "requires a reason to %s",
+    (decision) => {
+      expect(reviewDecisionRequiresReason(decision)).toBe(true);
+    },
+  );
 });
