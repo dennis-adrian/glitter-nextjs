@@ -568,6 +568,34 @@ export const standOrientationEnum = pgEnum("stand_orientation", [
   "landscape",
 ]);
 export const standZoneEnum = pgEnum("stand_zone", ["main", "secondary"]);
+// An admin-declared set of physically adjoining stands. Grouping is never
+// inferred from coordinates: map positions are placed freehand, so the gap
+// between a joined pair and two unrelated neighbours is indistinguishable.
+// Today a group only changes how the map draws and selects its members; the
+// stands stay independently reservable.
+export const standGroups = pgTable(
+  "stand_groups",
+  {
+    id: serial("id").primaryKey(),
+    festivalSectorId: integer("festival_sector_id")
+      .notNull()
+      .references(() => festivalSectors.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (standGroups) => [
+    index("stand_groups_festival_sector_id_idx").on(
+      standGroups.festivalSectorId,
+    ),
+  ],
+);
+export const standGroupsRelations = relations(standGroups, ({ many, one }) => ({
+  stands: many(stands),
+  festivalSector: one(festivalSectors, {
+    fields: [standGroups.festivalSectorId],
+    references: [festivalSectors.id],
+  }),
+}));
 export const stands = pgTable(
   "stands",
   {
@@ -596,12 +624,16 @@ export const stands = pgTable(
       { onDelete: "cascade" },
     ),
     qrCodeId: integer("qr_code_id").references(() => qrCodes.id),
+    standGroupId: integer("stand_group_id").references(() => standGroups.id, {
+      onDelete: "set null",
+    }),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (stands) => [
     index("stand_label_idx").on(stands.label),
     index("stands_festival_sector_id_idx").on(stands.festivalSectorId),
+    index("stands_stand_group_id_idx").on(stands.standGroupId),
   ],
 );
 export const standRelations = relations(stands, ({ many, one }) => ({
@@ -617,6 +649,10 @@ export const standRelations = relations(stands, ({ many, one }) => ({
   qrCode: one(qrCodes, {
     fields: [stands.qrCodeId],
     references: [qrCodes.id],
+  }),
+  standGroup: one(standGroups, {
+    fields: [stands.standGroupId],
+    references: [standGroups.id],
   }),
   festivalActivityVotes: many(festivalActivityVotes),
   holds: many(standHolds),

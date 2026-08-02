@@ -13,7 +13,10 @@ if (getClientEnv().NEXT_PUBLIC_VERCEL_ENV === "production") {
     before_send: (event) => {
       if (!event?.properties) return event;
       try {
-        return { ...event, properties: redactEventProperties(event.properties) };
+        return {
+          ...event,
+          properties: redactEventProperties(event.properties),
+        };
       } catch (error) {
         // Dropped rather than sent through: if redaction failed we cannot say
         // the URL is clean, and losing one event beats shipping a credential.

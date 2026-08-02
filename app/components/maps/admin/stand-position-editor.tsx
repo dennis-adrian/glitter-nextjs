@@ -16,6 +16,7 @@ import {
   AlignVerticalSpaceAround,
   Download,
   Grid3x3,
+  Link2,
   ListTree,
   Magnet,
   MapPin,
@@ -27,6 +28,7 @@ import {
   Save,
   Trash2,
   Undo2,
+  Unlink,
   Upload,
   ZoomIn,
   ZoomOut,
@@ -42,6 +44,8 @@ import {
   updateStandPositions,
 } from "@/app/api/stands/actions";
 import { updateSectorMapBounds } from "@/app/lib/festival_sectors/actions";
+import { groupStands, ungroupStands } from "@/app/lib/stands/group-actions";
+import { getPrunedGroupIds } from "@/app/lib/stands/groups";
 import {
   MapElementBase,
   MapElementLabelPosition,
@@ -92,6 +96,20 @@ type StandPositionEditorProps = {
   festivalId: number;
   sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
 };
+
+/** Coordinates are floats, so treat sub-epsilon differences as unmoved */
+const POSITION_EPSILON = 0.01;
+
+function hasStandMoved(
+  position: { left: number; top: number } | undefined,
+  original: { left: number; top: number } | undefined,
+): boolean {
+  if (!position || !original) return false;
+  return (
+    Math.abs(original.left - position.left) > POSITION_EPSILON ||
+    Math.abs(original.top - position.top) > POSITION_EPSILON
+  );
+}
 
 function buildPositionsMap(
   sectors: FestivalSectorWithStandsWithReservationsWithParticipants[],
@@ -270,6 +288,7 @@ export default function StandPositionEditor({
   >("disabled");
   const [isAdding, setIsAdding] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isGrouping, setIsGrouping] = useState(false);
 
   // Edit stand dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -577,6 +596,110 @@ export default function StandPositionEditor({
     toast.success(result.message);
   }, [selectedStands, standsPerSector]);
 
+  /**
+   * Patches standGroupId locally so the editor reflects the change at once.
+   *
+   * Mirrors pruneEmptyGroups on the server: moving stands out of a group can
+   * leave it with fewer than two members, in which case the server deletes it
+   * and the ON DELETE SET NULL foreign key clears whoever stayed behind. Those
+   * stands are never in `ids`, so they need clearing here too — otherwise they
+   * keep a group id that no longer exists and still offer "Separar".
+   */
+  const applyGroupIdLocally = useCallback(
+    (ids: number[], standGroupId: number | null) => {
+      const affected = new Set(ids);
+      setStandsPerSector((prev) => {
+        const prunedGroupIds = getPrunedGroupIds(
+          Array.from(prev.values()).flat(),
+          affected,
+        );
+
+        const next = new Map(prev);
+        for (const [sectorId, sectorStands] of next) {
+          next.set(
+            sectorId,
+            sectorStands.map((stand) => {
+              if (affected.has(stand.id)) return { ...stand, standGroupId };
+              if (
+                stand.standGroupId != null &&
+                prunedGroupIds.has(stand.standGroupId)
+              ) {
+                return { ...stand, standGroupId: null };
+              }
+              return stand;
+            }),
+          );
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleGroupStands = useCallback(async () => {
+    if (selectedStands.size < 2) return;
+
+    const ids = Array.from(selectedStands);
+
+    // groupStands validates alignment against the saved coordinates, so
+    // grouping stands that were only dragged into line would be rejected as
+    // misaligned while looking perfectly aligned on screen.
+    if (
+      ids.some((id) =>
+        hasStandMoved(positions.get(id), originalPositions.get(id)),
+      )
+    ) {
+      toast.error("Guarda los cambios antes de unir espacios");
+      return;
+    }
+
+    setIsGrouping(true);
+    try {
+      const result = await groupStands(ids);
+
+      if (!result.success || result.groupId == null) {
+        toast.error(result.message);
+        return;
+      }
+
+      applyGroupIdLocally(ids, result.groupId);
+      toast.success(result.message);
+    } catch (error) {
+      // The action reports its own failures, so reaching here means the call
+      // itself never completed
+      console.error("Error grouping stands", error);
+      toast.error("Error al unir los espacios");
+    } finally {
+      setIsGrouping(false);
+    }
+  }, [selectedStands, applyGroupIdLocally, positions, originalPositions]);
+
+  // Ungrouping only clears standGroupId, so unsaved positions cannot affect it
+  const handleUngroupStands = useCallback(async () => {
+    if (selectedStands.size === 0) return;
+
+    const ids = Array.from(selectedStands);
+    setIsGrouping(true);
+    try {
+      const result = await ungroupStands(ids);
+
+      if (!result.success) {
+        toast.error(result.message);
+        return;
+      }
+
+      applyGroupIdLocally(ids, null);
+      toast.success(result.message);
+    } catch (error) {
+      // The action reports its own failures, so reaching here means the call
+      // itself never completed
+      console.error("Error ungrouping stands", error);
+      toast.error("Error al separar los espacios");
+    } finally {
+      setIsGrouping(false);
+    }
+  }, [selectedStands, applyGroupIdLocally]);
+
   // --- Element add/delete/edit ---
   const handleAddElement = async (type: MapElementType) => {
     if (!activeSectorId) return;
@@ -829,14 +952,7 @@ export default function StandPositionEditor({
   };
 
   const changedStandCount = Array.from(positions.entries()).filter(
-    ([id, pos]) => {
-      const orig = originalPositions.get(id);
-      if (!orig) return false;
-      return (
-        Math.abs(orig.left - pos.left) > 0.01 ||
-        Math.abs(orig.top - pos.top) > 0.01
-      );
-    },
+    ([id, pos]) => hasStandMoved(pos, originalPositions.get(id)),
   ).length;
 
   const changedElementCount =
@@ -1376,6 +1492,13 @@ export default function StandPositionEditor({
   const hasElementSelection = selectedElements.size >= 2;
   const hasAnyAlignmentSelection = hasSelection || hasElementSelection;
 
+  const selectedStandRecords = Array.from(standsPerSector.values())
+    .flat()
+    .filter((stand) => selectedStands.has(stand.id));
+  const hasGroupedSelection = selectedStandRecords.some(
+    (stand) => stand.standGroupId != null,
+  );
+
   return (
     <div className="space-y-4">
       {/* Main toolbar: Save / Undo / Reset */}
@@ -1601,6 +1724,30 @@ export default function StandPositionEditor({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        {selectedStands.size >= 2 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGroupStands}
+            disabled={isGrouping}
+            title="Tratar los espacios seleccionados como uno solo en el plano"
+          >
+            <Link2 className="h-4 w-4 mr-1" />
+            {isGrouping ? "Uniendo..." : `Unir (${selectedStands.size})`}
+          </Button>
+        )}
+        {hasGroupedSelection && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleUngroupStands}
+            disabled={isGrouping}
+            title="Dejar de tratar los espacios seleccionados como uno solo"
+          >
+            <Unlink className="h-4 w-4 mr-1" />
+            Separar
+          </Button>
+        )}
         {selectedStands.size === 1 && (
           <Button variant="outline" size="sm" onClick={openEditDialog}>
             <Pencil className="h-4 w-4 mr-1" />

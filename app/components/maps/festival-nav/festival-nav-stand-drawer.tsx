@@ -14,7 +14,7 @@ import {
   DrawerHeader,
 } from "@/app/components/ui/drawer";
 import { socialsUrls, socialsIcons } from "@/app/lib/users/utils";
-import { formatStandLabel } from "@/app/lib/stands/helpers";
+import { formatStandsLabel, getStandsProducts } from "@/app/lib/stands/groups";
 
 export type CouponProof = {
   promoHighlight: string | null;
@@ -25,6 +25,11 @@ export type CouponProof = {
 type FestivalNavStandDrawerProps = {
   stand: StandWithReservationsWithParticipants | null;
   sectorName: string;
+  /**
+   * Every stand of the joint group that was tapped, when the stand belongs to
+   * one. Defaults to just the tapped stand.
+   */
+  groupStands?: StandWithReservationsWithParticipants[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   couponBookProofs: Record<number, CouponProof[]>;
@@ -49,6 +54,7 @@ function getCategoryLabel(category: string): string {
 export default function FestivalNavStandDrawer({
   stand,
   sectorName,
+  groupStands,
   open,
   onOpenChange,
   couponBookProofs,
@@ -68,9 +74,12 @@ export default function FestivalNavStandDrawer({
   if (!stand) return null;
 
   const currentParticipant = participants[clampedTab] ?? participants[0];
-  const standLabel = formatStandLabel(stand);
+  // Members of a joint group share their participants, so the tapped stand
+  // still speaks for the whole unit apart from the label and products.
+  const drawerStands = groupStands?.length ? groupStands : [stand];
+  const standLabel = formatStandsLabel(drawerStands);
   const categoryLabel = getCategoryLabel(stand.standCategory);
-  const products = stand.standSubcategories.map((sc) => sc.subcategory.label);
+  const products = getStandsProducts(drawerStands);
 
   const couponProof =
     currentParticipant?.kind === "user" && currentParticipant.userId != null
@@ -160,7 +169,8 @@ export default function FestivalNavStandDrawer({
                         {currentParticipant.displayName}
                       </h3>
                       <p className="text-sm text-muted-foreground">
-                        Stand #{standLabel} · {sectorName}
+                        {drawerStands.length > 1 ? "Stands" : "Stand"}{" "}
+                        {standLabel} · {sectorName}
                       </p>
                       {currentParticipant.kind === "external" && (
                         <Badge

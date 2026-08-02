@@ -1569,6 +1569,13 @@
       "when": 1785455294987,
       "tag": "0223_tired_katie_power",
       "breakpoints": true
+    },
+    {
+      "idx": 224,
+      "version": "7",
+      "when": 1785531704244,
+      "tag": "0224_careful_red_shift",
+      "breakpoints": true
     }
   ]
 }

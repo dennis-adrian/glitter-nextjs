@@ -23,7 +23,10 @@ import {
   cancelPurchaseAsAdmin,
   resendPurchaseLink,
 } from "@/app/lib/programs/support-actions";
-import type { ReviewDecision } from "@/app/lib/programs/review";
+import {
+  reviewDecisionRequiresReason,
+  type ReviewDecision,
+} from "@/app/lib/programs/review";
 
 type Props = {
   purchaseId: number;
@@ -66,7 +69,7 @@ export default function PurchaseReviewCard({
   const previous = vouchers.slice(1);
 
   async function decide(decision: ReviewDecision) {
-    if (reason.trim().length < 3) {
+    if (reviewDecisionRequiresReason(decision) && reason.trim().length < 3) {
       toast.error("Escribe el motivo de tu decisión");
       return;
     }
@@ -207,7 +210,9 @@ export default function PurchaseReviewCard({
         ) : null}
 
         <div className="space-y-1">
-          <Label htmlFor={`reason-${purchaseId}`}>Motivo</Label>
+          <Label htmlFor={`reason-${purchaseId}`}>
+            Motivo (opcional al aprobar)
+          </Label>
           <Textarea
             id={`reason-${purchaseId}`}
             value={reason}

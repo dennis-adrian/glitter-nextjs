@@ -5,6 +5,22 @@ const noop = new Proxy({} as PostHog, {
   get: () => async () => {},
 });
 
+/**
+ * How long `shutdown()` may block before the caller gives up on the flush.
+ *
+ * Every capture in this app is awaited inside a request or a server action,
+ * *after* the work it reports has already been committed. `shutdown()` defaults
+ * to 30 seconds, so an unreachable PostHog would hold the response open for
+ * half a minute and then, past `vercel.json`'s `maxDuration`, hand the user an
+ * error for an operation that in fact succeeded. Wrapping the capture in
+ * try/catch does not help: the failure mode is a hang, not a throw.
+ *
+ * Five seconds is far above a healthy flush — the client is configured
+ * `flushAt: 1, flushInterval: 0`, so the event is already in flight — and far
+ * below anything a person would wait through.
+ */
+export const POSTHOG_SHUTDOWN_TIMEOUT_MS = 5_000;
+
 export function getPostHogClient(): PostHog {
   if (serverEnv.VERCEL_ENV !== "production") return noop;
   return new PostHog(getClientEnv().NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN, {
