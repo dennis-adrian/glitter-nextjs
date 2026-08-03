@@ -1246,7 +1246,7 @@ export default function ProductForm({ product }: ProductFormProps) {
           name="storeCategory"
           options={[
             { value: "merch", label: "Merch" },
-            { value: "supplies", label: "Insumos" },
+            { value: "supplies", label: "Mercadito de Insumos" },
           ]}
         />
 

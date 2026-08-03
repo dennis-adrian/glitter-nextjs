@@ -1,4 +1,4 @@
-import { cachedFetchNavbarProfileByClerkId } from "@/app/lib/users/actions";
+import { cachedFetchNavbarProfileByClerkId } from "@/app/lib/users/navbar-profile";
 import { currentUser } from "@clerk/nextjs/server";
 
 export async function GET() {

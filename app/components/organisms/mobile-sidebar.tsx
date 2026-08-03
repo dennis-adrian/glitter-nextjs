@@ -123,7 +123,7 @@ const MobileSidebar = ({
                 </MobileSidebarItem>
                 <MobileSidebarItem href="/supplies">
                   <PackageIcon className="mr-2 h-6 w-6" />
-                  Insumos
+                  Mercadito de Insumos
                 </MobileSidebarItem>
               </ul>
             </li>

@@ -1,11 +1,9 @@
-"use server";
-
-import {
+import type {
   BaseProfile,
   ProfileWithParticipationsAndRequests,
 } from "@/app/api/users/definitions";
-import { TicketWithVisitor } from "@/app/data/tickets/actions";
-import { FestivalSectorWithStands } from "@/app/lib/festival_sectors/definitions";
+import type { TicketWithVisitor } from "@/app/data/tickets/actions";
+import type { FestivalSectorWithStands } from "@/app/lib/festival_sectors/definitions";
 import {
   festivalActivities,
   festivalActivityDetails,
