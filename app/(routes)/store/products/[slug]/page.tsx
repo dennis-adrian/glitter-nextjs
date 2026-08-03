@@ -11,6 +11,7 @@ import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { fetchProduct, fetchProductBySlug } from "@/app/lib/products/actions";
 import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
+import { getCurrentClerkUser } from "@/app/lib/users/actions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 const ParamsSchema = z.object({
@@ -111,9 +112,14 @@ export default async function ProductDetailPage(props: {
 
   const profile = await getCurrentUserProfile();
   if (product.storeCategory === "supplies" && profile?.status !== "verified") {
+    // getCurrentUserProfile() returns null both when signed out and when the
+    // profile lookup fails, so authentication state comes from Clerk directly.
+    // Both calls are request-cached, so this costs no extra round trip.
+    const clerkUser = await getCurrentClerkUser();
+
     return (
       <SuppliesAccessNotice
-        variant={profile ? "unverified" : "signed_out"}
+        variant={clerkUser ? "unverified" : "signed_out"}
         returnTo={`/store/products/${encodeURIComponent(product.slug)}`}
       />
     );
