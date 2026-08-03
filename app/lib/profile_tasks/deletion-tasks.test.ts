@@ -4,6 +4,7 @@ import type { ScheduledTaskWithProfile } from "@/app/lib/profile_tasks/definitio
 
 const transactionMock = vi.hoisted(() => vi.fn());
 const updateMock = vi.hoisted(() => vi.fn());
+const selectMock = vi.hoisted(() => vi.fn());
 const deleteClerkUserMock = vi.hoisted(() => vi.fn());
 const anonymizeMock = vi.hoisted(() => vi.fn());
 const sendEmailMock = vi.hoisted(() => vi.fn());
@@ -12,6 +13,7 @@ vi.mock("@/db", () => ({
   db: {
     transaction: transactionMock,
     update: updateMock,
+    select: selectMock,
   },
 }));
 
@@ -40,12 +42,20 @@ vi.mock("@/app/lib/emails/helpers", () => ({
 
 import { handleDeletionEmails } from "@/app/lib/profile_tasks/actions";
 
-type PendingRow = { id: number; clerkDeletedAt: Date | null };
+type PendingRow = {
+  id: number;
+  clerkDeletedAt: Date | null;
+  attempts: number;
+};
 
 let timeline: string[];
 /** Every `.set(...)` payload written, in or out of a transaction. */
 let writes: Record<string, unknown>[];
-let findManyArgs: Record<string, unknown> | undefined;
+/** Row cap passed to the eligible-task scan. */
+let claimLimit: number | undefined;
+/** Outbox rows the email drain should find. */
+let owedEmails: { pendingId: number; recipientEmail: string | null }[];
+let eligibleOrdered: boolean;
 
 function makeTask(overrides: {
   taskId: number;
@@ -86,12 +96,30 @@ function claimTx(
   const pendingInserts = [...insertIds];
 
   return {
+    // Eligibility scan: excludes backing-off / capped rows, oldest first.
+    selectDistinct: vi.fn(() => ({
+      from: vi.fn(() => ({
+        leftJoin: vi.fn(() => ({
+          where: vi.fn(() => ({
+            orderBy: vi.fn(() => {
+              eligibleOrdered = true;
+              return {
+                limit: vi.fn(async (rows: number) => {
+                  claimLimit = rows;
+                  return overdueTasks.map((task) => ({
+                    taskId: task.id,
+                    dueDate: new Date(0),
+                  }));
+                }),
+              };
+            }),
+          })),
+        })),
+      })),
+    })),
     query: {
       scheduledTasks: {
-        findMany: vi.fn(async (args: Record<string, unknown>) => {
-          findManyArgs = args;
-          return overdueTasks;
-        }),
+        findMany: vi.fn(async () => overdueTasks),
       },
     },
     select: vi.fn(() => ({
@@ -111,6 +139,16 @@ function claimTx(
         returning: vi.fn(async () => [{ id: pendingInserts.shift() ?? 0 }]),
       })),
     })),
+  };
+}
+
+/** Per-profile transaction whose delete blows up, to exercise the catch. */
+function failingDeleteTx(error: unknown) {
+  return {
+    delete: vi.fn(() => {
+      throw error;
+    }),
+    update: recordingUpdate(),
   };
 }
 
@@ -147,7 +185,9 @@ describe("handleDeletionEmails", () => {
   beforeEach(() => {
     timeline = [];
     writes = [];
-    findManyArgs = undefined;
+    claimLimit = undefined;
+    eligibleOrdered = false;
+    owedEmails = [];
     transactionMock.mockReset();
     updateMock.mockReset();
     deleteClerkUserMock.mockReset();
@@ -157,6 +197,16 @@ describe("handleDeletionEmails", () => {
     anonymizeMock.mockResolvedValue(undefined);
     sendEmailMock.mockResolvedValue({ data: { id: "email_1" }, error: null });
     updateMock.mockImplementation(recordingUpdate());
+    // db.select(...)...limit() drives the deletion-email drain.
+    selectMock.mockImplementation(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          orderBy: vi.fn(() => ({
+            limit: vi.fn(async () => owedEmails),
+          })),
+        })),
+      })),
+    }));
   });
 
   afterEach(() => {
@@ -167,6 +217,7 @@ describe("handleDeletionEmails", () => {
   it("deletes the profile and reports the task once Clerk confirms", async () => {
     const task = makeTask({ taskId: 7, profileId: 12, clerkId: "user_abc" });
     deleteClerkUserMock.mockResolvedValue(deletedOk);
+    owedEmails = [{ pendingId: 55, recipientEmail: "user12@example.com" }];
     runTransactions(claimTx([task], [undefined], [55]), deleteTx([{ id: 12 }]));
 
     const result = await handleDeletionEmails();
@@ -175,11 +226,80 @@ describe("handleDeletionEmails", () => {
     expect(anonymizeMock).toHaveBeenCalledTimes(1);
     expect(result).toEqual([task]);
     // The task row itself is removed by the ON DELETE CASCADE on profile_id;
-    // closing the outbox entry is what marks the work done.
+    // closing the outbox entry is what marks the work done. The address is
+    // carried over because the profile it came from is gone.
     expect(writes).toContainEqual(
-      expect.objectContaining({ localDeletedAt: expect.any(Date) }),
+      expect.objectContaining({
+        localDeletedAt: expect.any(Date),
+        recipientEmail: "user12@example.com",
+      }),
     );
     expect(sendEmailMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stamps emailSentAt and clears the address once the notice sends", async () => {
+    owedEmails = [{ pendingId: 55, recipientEmail: "gone@example.com" }];
+    runTransactions(claimTx([]));
+
+    await handleDeletionEmails();
+
+    expect(sendEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: ["gone@example.com"] }),
+    );
+    expect(writes).toContainEqual(
+      expect.objectContaining({
+        emailSentAt: expect.any(Date),
+        recipientEmail: null,
+      }),
+    );
+  });
+
+  it("leaves the marker unset when the send fails, so a later run retries", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    owedEmails = [{ pendingId: 56, recipientEmail: "retry@example.com" }];
+    sendEmailMock.mockResolvedValue({ data: null, error: { message: "550" } });
+    runTransactions(claimTx([]));
+
+    await handleDeletionEmails();
+
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    expect(writes.some((write) => "emailSentAt" in write)).toBe(false);
+    expect(consoleSpy).toHaveBeenCalled();
+  });
+
+  it("drains notices owed by earlier runs even with nothing new to delete", async () => {
+    owedEmails = [
+      { pendingId: 57, recipientEmail: "old1@example.com" },
+      { pendingId: 58, recipientEmail: "old2@example.com" },
+    ];
+    runTransactions(claimTx([]));
+
+    const result = await handleDeletionEmails();
+
+    // No task was claimed this run, but the backlog still goes out.
+    expect(result).toEqual([]);
+    expect(sendEmailMock).toHaveBeenCalledTimes(2);
+    expect(writes.filter((write) => "emailSentAt" in write)).toHaveLength(2);
+  });
+
+  it("skips the email drain once the run budget is spent", async () => {
+    owedEmails = [{ pendingId: 59, recipientEmail: "late@example.com" }];
+    runTransactions(claimTx([]));
+    let claimDone = false;
+    transactionMock.mockImplementation(
+      async (callback: (tx: unknown) => unknown) => {
+        const out = await callback(claimTx([]));
+        claimDone = true;
+        return out;
+      },
+    );
+    vi.spyOn(Date, "now").mockImplementation(() =>
+      claimDone ? 10_000_000 : 0,
+    );
+
+    await handleDeletionEmails();
+
+    expect(sendEmailMock).not.toHaveBeenCalled();
   });
 
   it("treats already_deleted as success and still removes the profile", async () => {
@@ -250,7 +370,10 @@ describe("handleDeletionEmails", () => {
       clerkId: "user_resume",
     });
     runTransactions(
-      claimTx([task], [{ id: 59, clerkDeletedAt: new Date("2026-08-01") }]),
+      claimTx(
+        [task],
+        [{ id: 59, clerkDeletedAt: new Date("2026-08-01"), attempts: 0 }],
+      ),
       deleteTx([{ id: 16 }]),
     );
 
@@ -270,12 +393,13 @@ describe("handleDeletionEmails", () => {
     expect(transactionMock).toHaveBeenCalledTimes(1);
   });
 
-  it("claims a bounded batch so one run cannot outgrow its budget", async () => {
+  it("claims a bounded batch, oldest first, so one run cannot outgrow its budget", async () => {
     runTransactions(claimTx([]));
 
     await handleDeletionEmails();
 
-    expect(findManyArgs).toMatchObject({ limit: 25 });
+    expect(claimLimit).toBe(25);
+    expect(eligibleOrdered).toBe(true);
   });
 
   it("stops at the time budget and leaves the rest queued for the next run", async () => {
@@ -311,6 +435,141 @@ describe("handleDeletionEmails", () => {
     expect(result).toEqual([first]);
     expect(deleteClerkUserMock).toHaveBeenCalledTimes(1);
     expect(deleteClerkUserMock).toHaveBeenCalledWith("user_first");
+  });
+
+  it("increments attempts and backs off when Clerk fails", async () => {
+    const task = makeTask({ taskId: 50, profileId: 60, clerkId: "user_retry" });
+    deleteClerkUserMock.mockResolvedValue({
+      success: false,
+      status: "request_failed",
+      message: "boom",
+    });
+    // Second attempt on a row that already failed once.
+    runTransactions(
+      claimTx([task], [{ id: 90, clerkDeletedAt: null, attempts: 1 }]),
+    );
+
+    const before = Date.now();
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => "attempts" in write);
+    expect(failure).toBeDefined();
+    expect(failure!.attempts).toBe(2);
+    expect(failure!.lastError).toBe("clerk_delete_failed: boom");
+    // 60s * 2^(2-1) = 120s of backoff before this row is eligible again.
+    expect((failure!.nextAttemptAt as Date).getTime()).toBeGreaterThanOrEqual(
+      before + 120_000,
+    );
+  });
+
+  it("keeps counting up to the cap so an unfixable profile stops being claimed", async () => {
+    const task = makeTask({ taskId: 51, profileId: 61, clerkId: "user_stuck" });
+    deleteClerkUserMock.mockResolvedValue({
+      success: false,
+      status: "request_failed",
+      message: "still broken",
+    });
+    // One short of MAX_DELETION_ATTEMPTS (5).
+    runTransactions(
+      claimTx([task], [{ id: 91, clerkDeletedAt: null, attempts: 4 }]),
+    );
+
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => "attempts" in write);
+    // At 5 the claim query stops selecting the row, and lastError survives for
+    // an operator to read.
+    expect(failure!.attempts).toBe(5);
+    expect(failure!.lastError).toBe("clerk_delete_failed: still broken");
+  });
+
+  it("resets the retry counter once Clerk confirms the deletion", async () => {
+    const task = makeTask({ taskId: 52, profileId: 62, clerkId: "user_ok" });
+    deleteClerkUserMock.mockResolvedValue(deletedOk);
+    runTransactions(
+      claimTx([task], [{ id: 92, clerkDeletedAt: null, attempts: 3 }]),
+      deleteTx([{ id: 62 }]),
+    );
+
+    await handleDeletionEmails();
+
+    expect(writes).toContainEqual(
+      expect.objectContaining({
+        attempts: 0,
+        clerkDeletedAt: expect.any(Date),
+      }),
+    );
+  });
+
+  it("persists only schema identifiers when a local delete fails", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const task = makeTask({ taskId: 70, profileId: 80, clerkId: "user_pg" });
+    // A driver error of the shape node-postgres actually throws: the message
+    // quotes the offending row.
+    const pgError = Object.assign(
+      new Error(
+        "update or delete violates foreign key constraint Key (email)=(leak@example.com) is still referenced",
+      ),
+      { code: "23503", constraint: "invoices_user_id_users_id_fk" },
+    );
+    deleteClerkUserMock.mockResolvedValue(deletedOk);
+    runTransactions(
+      claimTx([task], [undefined], [95]),
+      failingDeleteTx(pgError),
+    );
+
+    await handleDeletionEmails();
+
+    // The successful Clerk update also carries attempts, so match on the
+    // failure's non-null lastError.
+    const failure = writes.find((write) => typeof write.lastError === "string");
+    const persisted = failure!.lastError as string;
+    expect(persisted).toContain("local_delete_failed");
+    expect(persisted).toContain("sqlstate=23503");
+    expect(persisted).toContain("constraint=invoices_user_id_users_id_fk");
+    expect(persisted).not.toContain("leak@example.com");
+    expect(persisted.length).toBeLessThanOrEqual(120);
+    // The unredacted error still reaches the logs.
+    expect(consoleSpy).toHaveBeenCalledWith(
+      "Error deleting profile locally",
+      pgError,
+    );
+  });
+
+  it("truncates an oversized detail to the persisted bound", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const task = makeTask({ taskId: 72, profileId: 82, clerkId: "user_long" });
+    const pgError = Object.assign(new Error("boom"), {
+      code: "23503",
+      constraint: `c_${"x".repeat(300)}`,
+    });
+    deleteClerkUserMock.mockResolvedValue(deletedOk);
+    runTransactions(
+      claimTx([task], [undefined], [97]),
+      failingDeleteTx(pgError),
+    );
+
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => typeof write.lastError === "string");
+    expect((failure!.lastError as string).length).toBe(120);
+  });
+
+  it("falls back to the error type when there is no driver code", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const task = makeTask({ taskId: 71, profileId: 81, clerkId: "user_plain" });
+    deleteClerkUserMock.mockResolvedValue(deletedOk);
+    runTransactions(
+      claimTx([task], [undefined], [96]),
+      failingDeleteTx(
+        new TypeError("cannot read property of undefined at row 42"),
+      ),
+    );
+
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => typeof write.lastError === "string");
+    expect(failure!.lastError).toBe("local_delete_failed type=TypeError");
   });
 
   it("counts the claiming transaction against the run budget", async () => {

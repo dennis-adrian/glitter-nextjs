@@ -121,6 +121,12 @@ export const pendingUserDeletions = pgTable(
     clerkDeletedAt: timestamp("clerk_deleted_at"),
     localDeletedAt: timestamp("local_deleted_at"),
     lastError: text("last_error"),
+    attempts: integer("attempts").default(0).notNull(),
+    nextAttemptAt: timestamp("next_attempt_at").defaultNow().notNull(),
+    // Held only between the local delete and a confirmed send, then nulled;
+    // the profile row is gone by then, so there is nowhere else to read it.
+    recipientEmail: text("recipient_email"),
+    emailSentAt: timestamp("email_sent_at"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -129,6 +135,15 @@ export const pendingUserDeletions = pgTable(
     index("pending_user_deletions_reconcile_idx").on(
       t.clerkDeletedAt,
       t.localDeletedAt,
+    ),
+    index("pending_user_deletions_retry_idx").on(
+      t.localDeletedAt,
+      t.nextAttemptAt,
+      t.attempts,
+    ),
+    index("pending_user_deletions_email_outbox_idx").on(
+      t.localDeletedAt,
+      t.emailSentAt,
     ),
   ],
 );

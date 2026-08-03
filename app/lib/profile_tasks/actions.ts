@@ -8,20 +8,18 @@ import {
 } from "@/app/lib/profile_tasks/definitions";
 import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
 import { db } from "@/db";
-import {
-  pendingUserDeletions,
-  scheduledTasks,
-  standReservations,
-  users,
-} from "@/db/schema";
+import { pendingUserDeletions, scheduledTasks, users } from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
 import {
   and,
+  asc,
   desc,
   eq,
   gt,
+  inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
   or,
   sql,
@@ -45,6 +43,68 @@ const MAX_DELETIONS_PER_RUN = 25;
 // Clerk exposes no request timeout, so a hung call would otherwise sit past the
 // run deadline; the loop guard only runs between iterations.
 const CLERK_CALL_TIMEOUT_MS = 10_000;
+
+// Matches the disciplinary notification outbox: five tries, exponential backoff
+// capped at a day, then the row stops retrying and waits for an operator.
+const MAX_DELETION_ATTEMPTS = 5;
+const MAX_DELETION_BACKOFF_MS = 24 * 60 * 60 * 1000;
+
+const MAX_PERSISTED_ERROR_LENGTH = 120;
+
+/**
+ * Postgres driver messages quote the offending row ("Key (email)=(...)"), so
+ * only schema-level identifiers are persisted to lastError. The full error
+ * still reaches console.error for debugging.
+ */
+function toLocalDeleteError(error: unknown): string {
+  const parts = ["local_delete_failed"];
+
+  if (typeof error === "object" && error !== null) {
+    const { code, constraint } = error as {
+      code?: unknown;
+      constraint?: unknown;
+    };
+    if (typeof code === "string") parts.push(`sqlstate=${code}`);
+    if (typeof constraint === "string") parts.push(`constraint=${constraint}`);
+  }
+
+  if (parts.length === 1 && error instanceof Error) {
+    parts.push(`type=${error.name}`);
+  }
+
+  return parts.join(" ").slice(0, MAX_PERSISTED_ERROR_LENGTH);
+}
+
+function computeNextAttemptAt(attemptCount: number, now = new Date()) {
+  const delayMs = Math.min(
+    60_000 * 2 ** Math.max(attemptCount - 1, 0),
+    MAX_DELETION_BACKOFF_MS,
+  );
+  return new Date(now.getTime() + delayMs);
+}
+
+/**
+ * Records a failed deletion attempt on its outbox row. Once the attempt cap is
+ * reached the row keeps its lastError and stops being claimed, so a profile
+ * that can never be deleted does not consume a slot on every run.
+ */
+async function recordDeletionFailure(
+  pendingId: number,
+  attempts: number,
+  lastError: string,
+) {
+  const now = new Date();
+  const nextAttempt = attempts + 1;
+  await db
+    .update(pendingUserDeletions)
+    .set({
+      attempts: nextAttempt,
+      lastError,
+      nextAttemptAt: computeNextAttemptAt(nextAttempt, now),
+      updatedAt: now,
+    })
+    .where(eq(pendingUserDeletions.id, pendingId));
+}
 
 type ClerkDeletionOutcome = Awaited<ReturnType<typeof deleteClerkUser>>;
 
@@ -134,23 +194,58 @@ export async function handleDeletionEmails(): Promise<
     // Claim a bounded batch of overdue tasks and record one outbox row per
     // profile. No external calls run in here, so the transaction stays short.
     const claimed = await db.transaction(async (tx) => {
+      // Skip profiles whose outbox row is still backing off or past the attempt
+      // cap so they cannot occupy a slot in the bounded batch, then take the
+      // oldest first.
+      const eligible = await tx
+        .selectDistinct({
+          taskId: scheduledTasks.id,
+          dueDate: scheduledTasks.dueDate,
+        })
+        .from(scheduledTasks)
+        .leftJoin(
+          pendingUserDeletions,
+          and(
+            eq(pendingUserDeletions.userId, scheduledTasks.profileId),
+            isNull(pendingUserDeletions.localDeletedAt),
+          ),
+        )
+        .where(
+          and(
+            isNull(scheduledTasks.completedAt),
+            eq(scheduledTasks.ranAfterDueDate, false),
+            lte(scheduledTasks.dueDate, sql`now()`),
+            eq(scheduledTasks.taskType, "profile_creation"),
+            or(
+              isNull(pendingUserDeletions.id),
+              and(
+                lt(pendingUserDeletions.attempts, MAX_DELETION_ATTEMPTS),
+                lte(pendingUserDeletions.nextAttemptAt, sql`now()`),
+              ),
+            ),
+          ),
+        )
+        .orderBy(asc(scheduledTasks.dueDate))
+        .limit(MAX_DELETIONS_PER_RUN);
+
+      if (eligible.length === 0) return [];
+
       const overdueTasks = await tx.query.scheduledTasks.findMany({
-        where: and(
-          isNull(scheduledTasks.completedAt),
-          eq(scheduledTasks.ranAfterDueDate, false),
-          lte(scheduledTasks.dueDate, sql`now()`),
-          eq(scheduledTasks.taskType, "profile_creation"),
+        where: inArray(
+          scheduledTasks.id,
+          eligible.map((row) => row.taskId),
         ),
         with: {
           profile: true,
         },
-        limit: MAX_DELETIONS_PER_RUN,
+        orderBy: asc(scheduledTasks.dueDate),
       });
 
       const entries: {
         task: ScheduledTaskWithProfile;
         pendingId: number;
         clerkAlreadyDeleted: boolean;
+        attempts: number;
       }[] = [];
 
       for (const task of overdueTasks) {
@@ -160,6 +255,7 @@ export async function handleDeletionEmails(): Promise<
           .select({
             id: pendingUserDeletions.id,
             clerkDeletedAt: pendingUserDeletions.clerkDeletedAt,
+            attempts: pendingUserDeletions.attempts,
           })
           .from(pendingUserDeletions)
           .where(
@@ -176,6 +272,7 @@ export async function handleDeletionEmails(): Promise<
             task,
             pendingId: existing.id,
             clerkAlreadyDeleted: existing.clerkDeletedAt !== null,
+            attempts: existing.attempts,
           });
           continue;
         }
@@ -189,18 +286,18 @@ export async function handleDeletionEmails(): Promise<
           task,
           pendingId: pending.id,
           clerkAlreadyDeleted: false,
+          attempts: 0,
         });
       }
 
       return entries;
     });
 
-    if (claimed.length === 0) return [];
-
+    // No early return on an empty claim: notices owed by earlier runs still
+    // need draining even when there is nothing new to delete.
     const completedTasks: ScheduledTaskWithProfile[] = [];
-    const deletedProfiles: BaseProfile[] = [];
 
-    for (const { task, pendingId, clerkAlreadyDeleted } of claimed) {
+    for (const { task, pendingId, clerkAlreadyDeleted, attempts } of claimed) {
       // Whatever is left stays queued for the next run instead of overrunning
       // the cron's function timeout.
       if (Date.now() >= deadline) break;
@@ -213,65 +310,63 @@ export async function handleDeletionEmails(): Promise<
           deadline,
         );
         if (result.status === "request_failed") {
-          await db
-            .update(pendingUserDeletions)
-            .set({
-              lastError: `clerk_delete_failed: ${result.message}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(pendingUserDeletions.id, pendingId));
+          await recordDeletionFailure(
+            pendingId,
+            attempts,
+            `clerk_delete_failed: ${result.message}`,
+          );
           continue;
         }
 
         const clerkDeletedAt = new Date();
         await db
           .update(pendingUserDeletions)
-          .set({ clerkDeletedAt, lastError: null, updatedAt: clerkDeletedAt })
+          .set({
+            clerkDeletedAt,
+            lastError: null,
+            attempts: 0,
+            nextAttemptAt: clerkDeletedAt,
+            updatedAt: clerkDeletedAt,
+          })
           .where(eq(pendingUserDeletions.id, pendingId));
       }
 
       try {
         const now = new Date();
-        const [deletedUser] = await db.transaction(async (tx) => {
+        await db.transaction(async (tx) => {
           // Keep program purchases but strip their personal data. Their FK is
           // RESTRICT, so the delete below would abort without this.
           await anonymizeProgramPurchasesForUser(tx, task.profile.id);
 
-          const rows = await tx
-            .delete(users)
-            .where(eq(users.id, task.profile.id))
-            .returning();
+          await tx.delete(users).where(eq(users.id, task.profile.id));
 
           // scheduled_tasks.profile_id is ON DELETE CASCADE, so the delete
           // above already removed this task's row; no flag to set.
+          // The address is carried on the outbox row because the profile it
+          // came from no longer exists once this transaction commits.
           await tx
             .update(pendingUserDeletions)
-            .set({ localDeletedAt: now, lastError: null, updatedAt: now })
+            .set({
+              localDeletedAt: now,
+              lastError: null,
+              recipientEmail: task.profile.email,
+              updatedAt: now,
+            })
             .where(eq(pendingUserDeletions.id, pendingId));
-
-          return rows;
         });
 
-        if (deletedUser) deletedProfiles.push(deletedUser);
         completedTasks.push(task);
       } catch (error) {
         console.error("Error deleting profile locally", error);
-        await db
-          .update(pendingUserDeletions)
-          .set({
-            lastError: `local_delete_failed: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-            updatedAt: new Date(),
-          })
-          .where(eq(pendingUserDeletions.id, pendingId));
+        await recordDeletionFailure(
+          pendingId,
+          attempts,
+          toLocalDeleteError(error),
+        );
       }
     }
 
-    await queueEmails<BaseProfile, undefined>(
-      deletedProfiles,
-      sendDeletionEmails,
-    );
+    await drainDeletionEmails(deadline);
 
     return completedTasks;
   } catch (error) {
@@ -315,19 +410,80 @@ async function sendReminderEmails(
   }
 }
 
-async function sendDeletionEmails(profile: BaseProfile) {
-  const { error } = await sendEmail({
+type PendingDeletionEmail = {
+  pendingId: number;
+  recipientEmail: string;
+};
+
+/**
+ * Sends the notice for one already-deleted profile and only then stamps
+ * emailSentAt, so a failed or interrupted send is picked up by a later run.
+ * The address is cleared at the same time: it was retained solely to get this
+ * message out.
+ */
+async function sendDeletionEmails(
+  entry: PendingDeletionEmail,
+  options?: QueueEmailCallbackOptions<number>,
+) {
+  const deadline = options?.referenceEntity;
+  if (deadline !== undefined && Date.now() >= deadline) return;
+
+  const { data, error } = await sendEmail({
     from: "Equipo de Glitter <no-reply@productoraglitter.com>",
-    to: [profile.email],
+    to: [entry.recipientEmail],
     subject: "Tu cuenta ha sido eliminada",
     react: ProfileDeletionTemplate({
-      profile,
+      // The profile row is gone; only the address survived. The template falls
+      // back to a generic greeting when the name fields are absent.
+      profile: { email: entry.recipientEmail } as BaseProfile,
     }) as React.ReactElement,
   });
 
-  if (error) {
+  if (error || !data) {
     console.error("Error sending deletion emails", error);
+    return;
   }
+
+  const now = new Date();
+  await db
+    .update(pendingUserDeletions)
+    .set({ emailSentAt: now, recipientEmail: null, updatedAt: now })
+    .where(eq(pendingUserDeletions.id, entry.pendingId));
+}
+
+/**
+ * Drains deletion notices still owed, including any left behind by earlier
+ * runs. Driven off the outbox rather than this run's in-memory results.
+ */
+async function drainDeletionEmails(deadline: number) {
+  if (Date.now() >= deadline) return;
+
+  const owed = await db
+    .select({
+      pendingId: pendingUserDeletions.id,
+      recipientEmail: pendingUserDeletions.recipientEmail,
+    })
+    .from(pendingUserDeletions)
+    .where(
+      and(
+        isNotNull(pendingUserDeletions.localDeletedAt),
+        isNull(pendingUserDeletions.emailSentAt),
+        isNotNull(pendingUserDeletions.recipientEmail),
+      ),
+    )
+    .orderBy(asc(pendingUserDeletions.localDeletedAt))
+    .limit(MAX_DELETIONS_PER_RUN);
+
+  if (owed.length === 0) return;
+
+  await queueEmails<PendingDeletionEmail, number>(
+    owed.map((row) => ({
+      pendingId: row.pendingId,
+      recipientEmail: row.recipientEmail as string,
+    })),
+    sendDeletionEmails,
+    { referenceEntity: deadline },
+  );
 }
 
 export async function handleReservationReminderEmails(): Promise<
