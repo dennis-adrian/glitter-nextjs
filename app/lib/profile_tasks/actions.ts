@@ -8,13 +8,18 @@ import {
 } from "@/app/lib/profile_tasks/definitions";
 import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
 import { db } from "@/db";
-import { scheduledTasks, standReservations, users } from "@/db/schema";
+import {
+  pendingUserDeletions,
+  scheduledTasks,
+  standReservations,
+  users,
+} from "@/db/schema";
 import { sendEmail } from "@/app/vendors/resend";
 import {
   and,
+  desc,
   eq,
   gt,
-  inArray,
   isNotNull,
   isNull,
   lte,
@@ -28,6 +33,10 @@ import {
 import { BaseProfile } from "@/app/api/users/definitions";
 import ReservationReminderTemplate from "@/app/emails/reservation-reminder";
 import { deleteClerkUser } from "@/app/lib/users/clerk";
+
+// Leaves headroom under the 100s function limit set in vercel.json so a large
+// backlog is drained across runs instead of being killed mid-flight.
+const CLERK_DELETION_BUDGET_MS = 60_000;
 
 export async function handleReminderEmails(): Promise<
   ScheduledTaskWithProfile[]
@@ -68,7 +77,9 @@ export async function handleDeletionEmails(): Promise<
   ScheduledTaskWithProfile[]
 > {
   try {
-    return await db.transaction(async (tx) => {
+    // Claim the overdue tasks and record one outbox row per profile. No
+    // external calls run in here, so the transaction stays short.
+    const claimed = await db.transaction(async (tx) => {
       const overdueTasks = await tx.query.scheduledTasks.findMany({
         where: and(
           isNull(scheduledTasks.completedAt),
@@ -81,53 +92,134 @@ export async function handleDeletionEmails(): Promise<
         },
       });
 
-      if (overdueTasks.length === 0) return [];
+      const entries: {
+        task: ScheduledTaskWithProfile;
+        pendingId: number;
+        clerkAlreadyDeleted: boolean;
+      }[] = [];
 
-      const profileIds = overdueTasks.map((task) => task.profileId!);
+      for (const task of overdueTasks) {
+        // A row left over from an earlier run is resumed rather than
+        // duplicated; a null clerkDeletedAt just means "not confirmed yet".
+        const [existing] = await tx
+          .select({
+            id: pendingUserDeletions.id,
+            clerkDeletedAt: pendingUserDeletions.clerkDeletedAt,
+          })
+          .from(pendingUserDeletions)
+          .where(
+            and(
+              eq(pendingUserDeletions.userId, task.profile.id),
+              isNull(pendingUserDeletions.localDeletedAt),
+            ),
+          )
+          .orderBy(desc(pendingUserDeletions.updatedAt))
+          .limit(1);
 
-      // Keep program purchases but strip their personal data. Their FK is
-      // RESTRICT, so the delete below would abort without this.
-      for (const profileId of profileIds) {
-        await anonymizeProgramPurchasesForUser(tx, profileId);
-      }
-
-      const deletedUsers = await tx
-        .delete(users)
-        .where(inArray(users.id, profileIds))
-        .returning();
-
-      // Abort the whole task if Clerk rejects a deletion: rolling back leaves
-      // the profile in place so the next run retries it. Accounts already
-      // removed in Clerk come back as "already_deleted", so the retry is safe.
-      for (const user of deletedUsers) {
-        const result = await deleteClerkUser(user.clerkId);
-        if (
-          result.status !== "deleted" &&
-          result.status !== "already_deleted"
-        ) {
-          throw new Error(
-            `Could not delete Clerk user ${user.clerkId}: ${result.message}`,
-          );
+        if (existing) {
+          entries.push({
+            task,
+            pendingId: existing.id,
+            clerkAlreadyDeleted: existing.clerkDeletedAt !== null,
+          });
+          continue;
         }
+
+        const [pending] = await tx
+          .insert(pendingUserDeletions)
+          .values({ userId: task.profile.id, clerkId: task.profile.clerkId })
+          .returning({ id: pendingUserDeletions.id });
+
+        entries.push({
+          task,
+          pendingId: pending.id,
+          clerkAlreadyDeleted: false,
+        });
       }
 
-      await queueEmails<BaseProfile, undefined>(
-        deletedUsers,
-        sendDeletionEmails,
-      );
-
-      await tx
-        .update(scheduledTasks)
-        .set({ ranAfterDueDate: true })
-        .where(
-          inArray(
-            scheduledTasks.id,
-            deletedUsers.map((user) => user.id),
-          ),
-        );
-
-      return overdueTasks.filter((task) => deletedUsers.includes(task.profile));
+      return entries;
     });
+
+    if (claimed.length === 0) return [];
+
+    const deadline = Date.now() + CLERK_DELETION_BUDGET_MS;
+    const completedTasks: ScheduledTaskWithProfile[] = [];
+    const deletedProfiles: BaseProfile[] = [];
+
+    for (const { task, pendingId, clerkAlreadyDeleted } of claimed) {
+      // Whatever is left stays queued for the next run instead of overrunning
+      // the cron's function timeout.
+      if (Date.now() >= deadline) break;
+
+      // Clerk goes first: a live credential with no local profile would be
+      // recreated as a brand new profile on the next sign in.
+      if (!clerkAlreadyDeleted) {
+        const result = await deleteClerkUser(task.profile.clerkId);
+        if (result.status === "request_failed") {
+          await db
+            .update(pendingUserDeletions)
+            .set({
+              lastError: `clerk_delete_failed: ${result.message}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(pendingUserDeletions.id, pendingId));
+          continue;
+        }
+
+        const clerkDeletedAt = new Date();
+        await db
+          .update(pendingUserDeletions)
+          .set({ clerkDeletedAt, lastError: null, updatedAt: clerkDeletedAt })
+          .where(eq(pendingUserDeletions.id, pendingId));
+      }
+
+      try {
+        const now = new Date();
+        const [deletedUser] = await db.transaction(async (tx) => {
+          // Keep program purchases but strip their personal data. Their FK is
+          // RESTRICT, so the delete below would abort without this.
+          await anonymizeProgramPurchasesForUser(tx, task.profile.id);
+
+          const rows = await tx
+            .delete(users)
+            .where(eq(users.id, task.profile.id))
+            .returning();
+
+          await tx
+            .update(pendingUserDeletions)
+            .set({ localDeletedAt: now, lastError: null, updatedAt: now })
+            .where(eq(pendingUserDeletions.id, pendingId));
+
+          await tx
+            .update(scheduledTasks)
+            .set({ ranAfterDueDate: true })
+            .where(eq(scheduledTasks.id, task.id));
+
+          return rows;
+        });
+
+        if (deletedUser) deletedProfiles.push(deletedUser);
+        completedTasks.push(task);
+      } catch (error) {
+        console.error("Error deleting profile locally", error);
+        await db
+          .update(pendingUserDeletions)
+          .set({
+            lastError: `local_delete_failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+            updatedAt: new Date(),
+          })
+          .where(eq(pendingUserDeletions.id, pendingId));
+      }
+    }
+
+    await queueEmails<BaseProfile, undefined>(
+      deletedProfiles,
+      sendDeletionEmails,
+    );
+
+    return completedTasks;
   } catch (error) {
     console.error("Error handling deletion emails", error);
     return [] as ScheduledTaskWithProfile[];
@@ -180,7 +272,7 @@ async function sendDeletionEmails(profile: BaseProfile) {
   });
 
   if (error) {
-    console.error("Error sending reminder emails", error);
+    console.error("Error sending deletion emails", error);
   }
 }
 
