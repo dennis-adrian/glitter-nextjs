@@ -80,7 +80,10 @@ const NavbarNavigationMenu = ({
                 <NavigationMenuListItem title="Merch" href="/merch">
                   Mercha oficial de nuestros festivales
                 </NavigationMenuListItem>
-                <NavigationMenuListItem title="Insumos" href="/supplies">
+                <NavigationMenuListItem
+                  title="Mercadito de Insumos"
+                  href="/supplies"
+                >
                   Productos útiles para mejorar la presentación de tu stand
                 </NavigationMenuListItem>
               </ul>

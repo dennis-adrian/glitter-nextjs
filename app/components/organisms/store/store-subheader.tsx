@@ -21,7 +21,7 @@ export default function StoreSubheader() {
           {isListingPage && (
             <p className="text-xs text-muted-foreground hidden sm:block">
               {isSupplies
-                ? "Insumos para mejorar la presentación de tu stand"
+                ? "El Mercadito de Insumos: todo para mejorar la presentación de tu stand"
                 : "Conseguí mercha oficial de nuestros festivales"}
             </p>
           )}

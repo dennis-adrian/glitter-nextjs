@@ -1,15 +1,17 @@
 import { ArrowLeftIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, permanentRedirect, redirect } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { z } from "zod";
 
 import ProductDetailContent from "@/app/components/organisms/store/product-detail-content";
 import StoreSectionGate from "@/app/components/organisms/store/store-section-gate";
+import SuppliesAccessNotice from "@/app/components/organisms/store/supplies-access-notice";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { fetchProduct, fetchProductBySlug } from "@/app/lib/products/actions";
 import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
+import { getCurrentClerkUser } from "@/app/lib/users/actions";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 
 const ParamsSchema = z.object({
@@ -110,7 +112,17 @@ export default async function ProductDetailPage(props: {
 
   const profile = await getCurrentUserProfile();
   if (product.storeCategory === "supplies" && profile?.status !== "verified") {
-    return redirect("/merch");
+    // getCurrentUserProfile() returns null both when signed out and when the
+    // profile lookup fails, so authentication state comes from Clerk directly.
+    // Both calls are request-cached, so this costs no extra round trip.
+    const clerkUser = await getCurrentClerkUser();
+
+    return (
+      <SuppliesAccessNotice
+        variant={clerkUser ? "unverified" : "signed_out"}
+        returnTo={`/store/products/${encodeURIComponent(product.slug)}`}
+      />
+    );
   }
 
   const rentalEligibility = await getRentalEligibilityForCurrentUser();

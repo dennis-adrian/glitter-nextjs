@@ -8,7 +8,7 @@ export const STORE_SECTIONS: StoreSection[] = ["merch", "supplies"];
 
 export const STORE_SECTION_LABELS: Record<StoreSection, string> = {
   merch: "Mercha",
-  supplies: "Insumos",
+  supplies: "Mercadito de Insumos",
 };
 
 export type UpdateStoreSettingsInput = {
