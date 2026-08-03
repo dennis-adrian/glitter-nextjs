@@ -54,7 +54,11 @@ let writes: Record<string, unknown>[];
 /** Row cap passed to the eligible-task scan. */
 let claimLimit: number | undefined;
 /** Outbox rows the email drain should find. */
-let owedEmails: { pendingId: number; recipientEmail: string | null }[];
+let owedEmails: {
+  pendingId: number;
+  recipientEmail: string | null;
+  attempts?: number;
+}[];
 let eligibleOrdered: boolean;
 
 function makeTask(overrides: {
@@ -202,7 +206,9 @@ describe("handleDeletionEmails", () => {
       from: vi.fn(() => ({
         where: vi.fn(() => ({
           orderBy: vi.fn(() => ({
-            limit: vi.fn(async () => owedEmails),
+            limit: vi.fn(async () =>
+              owedEmails.map((row) => ({ attempts: 0, ...row })),
+            ),
           })),
         })),
       })),
@@ -570,6 +576,69 @@ describe("handleDeletionEmails", () => {
 
     const failure = writes.find((write) => typeof write.lastError === "string");
     expect(failure!.lastError).toBe("local_delete_failed type=TypeError");
+  });
+
+  it("restarts the retry count after Clerk succeeds and the local delete fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const task = makeTask({ taskId: 60, profileId: 70, clerkId: "user_reset" });
+    deleteClerkUserMock.mockResolvedValue(deletedOk);
+    runTransactions(
+      claimTx([task], [{ id: 99, clerkDeletedAt: null, attempts: 3 }]),
+      failingDeleteTx(new Error("nope")),
+    );
+
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => typeof write.lastError === "string");
+    // The Clerk step reset the row to 0, so this is the first failure since,
+    // not the fourth: using the claimed count would burn the budget early.
+    expect(failure!.attempts).toBe(1);
+  });
+
+  it("increments attempts and backs off when the notice fails to send", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    owedEmails = [
+      { pendingId: 60, recipientEmail: "bounce@example.com", attempts: 1 },
+    ];
+    sendEmailMock.mockResolvedValue({
+      data: null,
+      error: { name: "validation_error", statusCode: 422 },
+    });
+    runTransactions(claimTx([]));
+
+    const before = Date.now();
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => typeof write.lastError === "string");
+    expect(failure!.attempts).toBe(2);
+    expect(failure!.lastError).toBe(
+      "email_send_failed name=validation_error status=422",
+    );
+    // 60s * 2^(2-1) before this address is tried again.
+    expect((failure!.nextAttemptAt as Date).getTime()).toBeGreaterThanOrEqual(
+      before + 120_000,
+    );
+    // Not yet exhausted, so the address is still needed.
+    expect(failure).not.toHaveProperty("recipientEmail");
+  });
+
+  it("drops the retained address once the notice hits the attempt cap", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    owedEmails = [
+      { pendingId: 61, recipientEmail: "dead@example.com", attempts: 4 },
+    ];
+    sendEmailMock.mockResolvedValue({
+      data: null,
+      error: { name: "server_error", statusCode: 500 },
+    });
+    runTransactions(claimTx([]));
+
+    await handleDeletionEmails();
+
+    const failure = writes.find((write) => typeof write.lastError === "string");
+    expect(failure!.attempts).toBe(5);
+    // Stops the retries and releases the last held piece of the profile.
+    expect(failure!.recipientEmail).toBeNull();
   });
 
   it("counts the claiming transaction against the run budget", async () => {

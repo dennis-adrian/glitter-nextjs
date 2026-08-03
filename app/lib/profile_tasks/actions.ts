@@ -302,6 +302,9 @@ export async function handleDeletionEmails(): Promise<
       // the cron's function timeout.
       if (Date.now() >= deadline) break;
 
+      // Tracks what the row actually holds, which the Clerk step below resets.
+      let currentAttempts = attempts;
+
       // Clerk goes first: a live credential with no local profile would be
       // recreated as a brand new profile on the next sign in.
       if (!clerkAlreadyDeleted) {
@@ -312,7 +315,7 @@ export async function handleDeletionEmails(): Promise<
         if (result.status === "request_failed") {
           await recordDeletionFailure(
             pendingId,
-            attempts,
+            currentAttempts,
             `clerk_delete_failed: ${result.message}`,
           );
           continue;
@@ -329,6 +332,7 @@ export async function handleDeletionEmails(): Promise<
             updatedAt: clerkDeletedAt,
           })
           .where(eq(pendingUserDeletions.id, pendingId));
+        currentAttempts = 0;
       }
 
       try {
@@ -350,6 +354,11 @@ export async function handleDeletionEmails(): Promise<
               localDeletedAt: now,
               lastError: null,
               recipientEmail: task.profile.email,
+              // Hand the email phase a clean budget: a row resumed from an
+              // earlier failure would otherwise inherit a future nextAttemptAt
+              // and have its notice held back for no reason.
+              attempts: 0,
+              nextAttemptAt: now,
               updatedAt: now,
             })
             .where(eq(pendingUserDeletions.id, pendingId));
@@ -360,7 +369,7 @@ export async function handleDeletionEmails(): Promise<
         console.error("Error deleting profile locally", error);
         await recordDeletionFailure(
           pendingId,
-          attempts,
+          currentAttempts,
           toLocalDeleteError(error),
         );
       }
@@ -413,7 +422,53 @@ async function sendReminderEmails(
 type PendingDeletionEmail = {
   pendingId: number;
   recipientEmail: string;
+  attempts: number;
 };
+
+/**
+ * Resend errors can echo the address back in their message, so only the error
+ * class and status are persisted. Mirrors toLocalDeleteError.
+ */
+function toDeletionEmailError(error: unknown): string {
+  const parts = ["email_send_failed"];
+
+  if (typeof error === "object" && error !== null) {
+    const { name, statusCode } = error as {
+      name?: unknown;
+      statusCode?: unknown;
+    };
+    if (typeof name === "string") parts.push(`name=${name}`);
+    if (typeof statusCode === "number") parts.push(`status=${statusCode}`);
+  }
+
+  return parts.join(" ").slice(0, MAX_PERSISTED_ERROR_LENGTH);
+}
+
+/**
+ * Records a failed notice attempt on its outbox row. At the cap the address is
+ * dropped, which both stops the retries and releases the only piece of the
+ * deleted profile still being held.
+ */
+async function recordDeletionEmailFailure(
+  pendingId: number,
+  attempts: number,
+  error: unknown,
+) {
+  const now = new Date();
+  const nextAttempt = attempts + 1;
+  const exhausted = nextAttempt >= MAX_DELETION_ATTEMPTS;
+
+  await db
+    .update(pendingUserDeletions)
+    .set({
+      attempts: nextAttempt,
+      lastError: toDeletionEmailError(error),
+      nextAttemptAt: computeNextAttemptAt(nextAttempt, now),
+      ...(exhausted ? { recipientEmail: null } : {}),
+      updatedAt: now,
+    })
+    .where(eq(pendingUserDeletions.id, pendingId));
+}
 
 /**
  * Sends the notice for one already-deleted profile and only then stamps
@@ -441,6 +496,7 @@ async function sendDeletionEmails(
 
   if (error || !data) {
     console.error("Error sending deletion emails", error);
+    await recordDeletionEmailFailure(entry.pendingId, entry.attempts, error);
     return;
   }
 
@@ -462,6 +518,7 @@ async function drainDeletionEmails(deadline: number) {
     .select({
       pendingId: pendingUserDeletions.id,
       recipientEmail: pendingUserDeletions.recipientEmail,
+      attempts: pendingUserDeletions.attempts,
     })
     .from(pendingUserDeletions)
     .where(
@@ -469,6 +526,10 @@ async function drainDeletionEmails(deadline: number) {
         isNotNull(pendingUserDeletions.localDeletedAt),
         isNull(pendingUserDeletions.emailSentAt),
         isNotNull(pendingUserDeletions.recipientEmail),
+        // Exhausted and backing-off rows are skipped so a permanently failing
+        // address cannot hold a slot in every batch.
+        lt(pendingUserDeletions.attempts, MAX_DELETION_ATTEMPTS),
+        lte(pendingUserDeletions.nextAttemptAt, sql`now()`),
       ),
     )
     .orderBy(asc(pendingUserDeletions.localDeletedAt))
@@ -480,6 +541,7 @@ async function drainDeletionEmails(deadline: number) {
     owed.map((row) => ({
       pendingId: row.pendingId,
       recipientEmail: row.recipientEmail as string,
+      attempts: row.attempts,
     })),
     sendDeletionEmails,
     { referenceEntity: deadline },
