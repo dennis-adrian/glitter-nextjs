@@ -101,7 +101,10 @@ export async function handleDeletionEmails(): Promise<
       // removed in Clerk come back as "already_deleted", so the retry is safe.
       for (const user of deletedUsers) {
         const result = await deleteClerkUser(user.clerkId);
-        if (result.status !== "deleted" && result.status !== "already_deleted") {
+        if (
+          result.status !== "deleted" &&
+          result.status !== "already_deleted"
+        ) {
           throw new Error(
             `Could not delete Clerk user ${user.clerkId}: ${result.message}`,
           );
