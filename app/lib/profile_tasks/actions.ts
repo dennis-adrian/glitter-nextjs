@@ -96,9 +96,17 @@ export async function handleDeletionEmails(): Promise<
         .where(inArray(users.id, profileIds))
         .returning();
 
-      deletedUsers.forEach(async (user) => {
-        await deleteClerkUser(user.clerkId);
-      });
+      // Abort the whole task if Clerk rejects a deletion: rolling back leaves
+      // the profile in place so the next run retries it. Accounts already
+      // removed in Clerk come back as "already_deleted", so the retry is safe.
+      for (const user of deletedUsers) {
+        const result = await deleteClerkUser(user.clerkId);
+        if (result.status !== "deleted" && result.status !== "already_deleted") {
+          throw new Error(
+            `Could not delete Clerk user ${user.clerkId}: ${result.message}`,
+          );
+        }
+      }
 
       await queueEmails<BaseProfile, undefined>(
         deletedUsers,
@@ -118,7 +126,7 @@ export async function handleDeletionEmails(): Promise<
       return overdueTasks.filter((task) => deletedUsers.includes(task.profile));
     });
   } catch (error) {
-    console.error("Error sending reminder emails", error);
+    console.error("Error handling deletion emails", error);
     return [] as ScheduledTaskWithProfile[];
   }
 }
