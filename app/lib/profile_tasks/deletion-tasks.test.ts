@@ -60,6 +60,8 @@ let owedEmails: {
   attempts?: number;
 }[];
 let eligibleOrdered: boolean;
+/** Rows locked FOR UPDATE, in call order. */
+let lockedForUpdate: string[];
 
 function makeTask(overrides: {
   taskId: number;
@@ -95,9 +97,12 @@ function claimTx(
   overdueTasks: ScheduledTaskWithProfile[],
   lookups: (PendingRow | undefined)[] = [],
   insertIds: number[] = [],
+  /** Per task, whether the user row still exists when the lock is taken. */
+  userStillPresent: boolean[] = [],
 ) {
   const pendingLookups = [...lookups];
   const pendingInserts = [...insertIds];
+  const userLocks = [...userStillPresent];
 
   return {
     // Eligibility scan: excludes backing-off / capped rows, oldest first.
@@ -129,11 +134,22 @@ function claimTx(
     select: vi.fn(() => ({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
-          orderBy: vi.fn(() => ({
-            limit: vi.fn(async () => {
-              const row = pendingLookups.shift();
-              return row ? [row] : [];
+          // user row lock: .limit(1).for("update")
+          limit: vi.fn(() => ({
+            for: vi.fn(async (mode: string) => {
+              lockedForUpdate.push(`users:${mode}`);
+              return userLocks.shift() === false ? [] : [{ id: 1 }];
             }),
+          })),
+          // outbox lookup: .orderBy(...).limit(1).for("update")
+          orderBy: vi.fn(() => ({
+            limit: vi.fn(() => ({
+              for: vi.fn(async (mode: string) => {
+                lockedForUpdate.push(`pending:${mode}`);
+                const row = pendingLookups.shift();
+                return row ? [row] : [];
+              }),
+            })),
           })),
         })),
       })),
@@ -191,6 +207,7 @@ describe("handleDeletionEmails", () => {
     writes = [];
     claimLimit = undefined;
     eligibleOrdered = false;
+    lockedForUpdate = [];
     owedEmails = [];
     transactionMock.mockReset();
     updateMock.mockReset();
@@ -639,6 +656,33 @@ describe("handleDeletionEmails", () => {
     expect(failure!.attempts).toBe(5);
     // Stops the retries and releases the last held piece of the profile.
     expect(failure!.recipientEmail).toBeNull();
+  });
+
+  it("locks the profile row before reading or inserting its outbox entry", async () => {
+    const task = makeTask({ taskId: 80, profileId: 90, clerkId: "user_lock" });
+    deleteClerkUserMock.mockResolvedValue(deletedOk);
+    runTransactions(
+      claimTx([task], [undefined], [100]),
+      deleteTx([{ id: 90 }]),
+    );
+
+    await handleDeletionEmails();
+
+    // Both rows are locked, and the user row goes first: that is what stops a
+    // concurrent run from inserting a second active outbox entry.
+    expect(lockedForUpdate).toEqual(["users:update", "pending:update"]);
+  });
+
+  it("skips a profile whose row disappeared while waiting for the lock", async () => {
+    const task = makeTask({ taskId: 81, profileId: 91, clerkId: "user_raced" });
+    runTransactions(claimTx([task], [undefined], [101], [false]));
+
+    const result = await handleDeletionEmails();
+
+    // Never looked at the outbox, never inserted, never called Clerk.
+    expect(lockedForUpdate).toEqual(["users:update"]);
+    expect(deleteClerkUserMock).not.toHaveBeenCalled();
+    expect(result).toEqual([]);
   });
 
   it("counts the claiming transaction against the run budget", async () => {

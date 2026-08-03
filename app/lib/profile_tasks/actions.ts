@@ -249,6 +249,21 @@ export async function handleDeletionEmails(): Promise<
       }[] = [];
 
       for (const task of overdueTasks) {
+        // Serialize against an overlapping run or a self-service deleteProfile
+        // working the same profile. Without this both sides see no active row
+        // and insert one, and the duplicate later earns its own notice.
+        // Tasks are ordered by dueDate, so concurrent runs take these locks in
+        // the same order.
+        const [lockedUser] = await tx
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.id, task.profile.id))
+          .limit(1)
+          .for("update");
+
+        // The profile went away while we waited for the lock.
+        if (!lockedUser) continue;
+
         // A row left over from an earlier run is resumed rather than
         // duplicated; a null clerkDeletedAt just means "not confirmed yet".
         const [existing] = await tx
@@ -265,7 +280,8 @@ export async function handleDeletionEmails(): Promise<
             ),
           )
           .orderBy(desc(pendingUserDeletions.updatedAt))
-          .limit(1);
+          .limit(1)
+          .for("update");
 
         if (existing) {
           entries.push({
