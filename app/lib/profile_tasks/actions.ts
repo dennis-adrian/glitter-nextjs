@@ -38,6 +38,56 @@ import { deleteClerkUser } from "@/app/lib/users/clerk";
 // backlog is drained across runs instead of being killed mid-flight.
 const CLERK_DELETION_BUDGET_MS = 60_000;
 
+// Caps the claim itself, so a large backlog cannot produce more post-claim work
+// (Clerk calls, deletes, emails) than the budget above can absorb in one run.
+const MAX_DELETIONS_PER_RUN = 25;
+
+// Clerk exposes no request timeout, so a hung call would otherwise sit past the
+// run deadline; the loop guard only runs between iterations.
+const CLERK_CALL_TIMEOUT_MS = 10_000;
+
+type ClerkDeletionOutcome = Awaited<ReturnType<typeof deleteClerkUser>>;
+
+/**
+ * Bounds a Clerk deletion by both its own timeout and the run deadline. A
+ * timeout is reported as request_failed so the caller records it and retries on
+ * a later run; the abandoned request cannot reject, since deleteClerkUser
+ * resolves every path.
+ */
+async function deleteClerkUserWithinDeadline(
+  clerkId: string,
+  deadline: number,
+): Promise<ClerkDeletionOutcome> {
+  const budgetMs = Math.min(CLERK_CALL_TIMEOUT_MS, deadline - Date.now());
+  if (budgetMs <= 0) {
+    return {
+      success: false,
+      status: "request_failed",
+      message: "run deadline reached before the Clerk call started",
+    };
+  }
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      deleteClerkUser(clerkId),
+      new Promise<ClerkDeletionOutcome>((resolve) => {
+        timer = setTimeout(
+          () =>
+            resolve({
+              success: false,
+              status: "request_failed",
+              message: `Clerk call timed out after ${budgetMs}ms`,
+            }),
+          budgetMs,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export async function handleReminderEmails(): Promise<
   ScheduledTaskWithProfile[]
 > {
@@ -76,9 +126,13 @@ export async function handleReminderEmails(): Promise<
 export async function handleDeletionEmails(): Promise<
   ScheduledTaskWithProfile[]
 > {
+  // Started before the claim so the transaction's own cost counts against the
+  // run, not just the work that follows it.
+  const deadline = Date.now() + CLERK_DELETION_BUDGET_MS;
+
   try {
-    // Claim the overdue tasks and record one outbox row per profile. No
-    // external calls run in here, so the transaction stays short.
+    // Claim a bounded batch of overdue tasks and record one outbox row per
+    // profile. No external calls run in here, so the transaction stays short.
     const claimed = await db.transaction(async (tx) => {
       const overdueTasks = await tx.query.scheduledTasks.findMany({
         where: and(
@@ -90,6 +144,7 @@ export async function handleDeletionEmails(): Promise<
         with: {
           profile: true,
         },
+        limit: MAX_DELETIONS_PER_RUN,
       });
 
       const entries: {
@@ -142,7 +197,6 @@ export async function handleDeletionEmails(): Promise<
 
     if (claimed.length === 0) return [];
 
-    const deadline = Date.now() + CLERK_DELETION_BUDGET_MS;
     const completedTasks: ScheduledTaskWithProfile[] = [];
     const deletedProfiles: BaseProfile[] = [];
 
@@ -154,7 +208,10 @@ export async function handleDeletionEmails(): Promise<
       // Clerk goes first: a live credential with no local profile would be
       // recreated as a brand new profile on the next sign in.
       if (!clerkAlreadyDeleted) {
-        const result = await deleteClerkUser(task.profile.clerkId);
+        const result = await deleteClerkUserWithinDeadline(
+          task.profile.clerkId,
+          deadline,
+        );
         if (result.status === "request_failed") {
           await db
             .update(pendingUserDeletions)
@@ -185,15 +242,12 @@ export async function handleDeletionEmails(): Promise<
             .where(eq(users.id, task.profile.id))
             .returning();
 
+          // scheduled_tasks.profile_id is ON DELETE CASCADE, so the delete
+          // above already removed this task's row; no flag to set.
           await tx
             .update(pendingUserDeletions)
             .set({ localDeletedAt: now, lastError: null, updatedAt: now })
             .where(eq(pendingUserDeletions.id, pendingId));
-
-          await tx
-            .update(scheduledTasks)
-            .set({ ranAfterDueDate: true })
-            .where(eq(scheduledTasks.id, task.id));
 
           return rows;
         });
