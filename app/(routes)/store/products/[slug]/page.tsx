@@ -1,11 +1,12 @@
 import { ArrowLeftIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, permanentRedirect, redirect } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { z } from "zod";
 
 import ProductDetailContent from "@/app/components/organisms/store/product-detail-content";
 import StoreSectionGate from "@/app/components/organisms/store/store-section-gate";
+import SuppliesAccessNotice from "@/app/components/organisms/store/supplies-access-notice";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { fetchProduct, fetchProductBySlug } from "@/app/lib/products/actions";
 import { getRentalEligibilityForCurrentUser } from "@/app/lib/rentals/eligibility";
@@ -110,7 +111,12 @@ export default async function ProductDetailPage(props: {
 
   const profile = await getCurrentUserProfile();
   if (product.storeCategory === "supplies" && profile?.status !== "verified") {
-    return redirect("/merch");
+    return (
+      <SuppliesAccessNotice
+        variant={profile ? "unverified" : "signed_out"}
+        returnTo={`/store/products/${encodeURIComponent(product.slug)}`}
+      />
+    );
   }
 
   const rentalEligibility = await getRentalEligibilityForCurrentUser();
