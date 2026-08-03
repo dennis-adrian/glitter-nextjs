@@ -28,7 +28,7 @@ import {
 import ProfileRejectionEmailTemplate from "@/app/emails/profile-rejection";
 import { scrubDisciplinaryNotificationJobsForUser } from "@/app/lib/infractions/notifications";
 import { anonymizeProgramPurchasesForUser } from "@/app/lib/programs/anonymization";
-import { deleteClerkUser } from "@/app/lib/users/actions";
+import { deleteClerkUser } from "@/app/lib/users/clerk";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import {
   logUserStatusEvent,

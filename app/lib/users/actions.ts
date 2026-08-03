@@ -8,7 +8,6 @@ import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import { fetchAdminUsers, fetchUserProfileById } from "@/app/api/users/actions";
 import {
   BaseProfile,
-  NavbarProfile,
   NewUser,
   Participation,
   ProfileType,
@@ -33,8 +32,7 @@ import {
   users,
   userSocials,
 } from "@/db/schema";
-import { clerkClient, currentUser } from "@clerk/nextjs/server";
-import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
+import { currentUser } from "@clerk/nextjs/server";
 import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cache } from "react";
@@ -103,37 +101,6 @@ export const fetchBaseUserProfileByClerkId = async (
 
 export const cachedFetchBaseUserProfileByClerkId = cache(
   fetchBaseUserProfileByClerkId,
-);
-
-export const fetchNavbarProfileByClerkId = async (
-  clerkId: string,
-): Promise<NavbarProfile | null> => {
-  const profile = await db.query.users.findFirst({
-    with: {
-      participations: {
-        with: {
-          reservation: {
-            with: {
-              stand: true,
-              festival: true,
-            },
-          },
-        },
-      },
-      profileSubcategories: {
-        with: {
-          subcategory: true,
-        },
-      },
-    },
-    where: eq(users.clerkId, clerkId),
-  });
-
-  return profile || null;
-};
-
-export const cachedFetchNavbarProfileByClerkId = cache(
-  fetchNavbarProfileByClerkId,
 );
 
 export async function createUserProfile(user: NewUser) {
@@ -496,57 +463,6 @@ export async function fetchUserProfilesByEmails(emails: string[]) {
   return await db.query.users.findMany({
     where: inArray(users.email, emails),
   });
-}
-
-type DeleteClerkUserResult =
-  | {
-      success: true;
-      status: "deleted" | "already_deleted";
-      message: string;
-    }
-  | {
-      success: false;
-      status: "request_failed";
-      message: string;
-    };
-
-export async function deleteClerkUser(
-  clerkId: string,
-): Promise<DeleteClerkUserResult> {
-  try {
-    const clerk = await clerkClient();
-    const existingUser = await clerk.users.getUser(clerkId);
-    if (!existingUser) {
-      console.log("Clerk user not found");
-      return {
-        success: true,
-        status: "already_deleted" as const,
-        message: "Usuario no encontrado",
-      };
-    }
-
-    await clerk.users.deleteUser(clerkId);
-    return {
-      success: true,
-      status: "deleted" as const,
-      message: "Cuenta eliminada correctamente.",
-    };
-  } catch (error) {
-    if (isClerkAPIResponseError(error) && error.status === 404) {
-      return {
-        success: true,
-        status: "already_deleted" as const,
-        message: "Usuario no encontrado",
-      };
-    }
-
-    console.error("Error deleting clerk user", error);
-    return {
-      success: false,
-      status: "request_failed",
-      message: "Error al eliminar la cuenta.",
-    };
-  }
 }
 
 export async function deleteUserSocial(

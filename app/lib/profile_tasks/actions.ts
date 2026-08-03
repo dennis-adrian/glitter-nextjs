@@ -27,7 +27,7 @@ import {
 } from "@/app/lib/emails/helpers";
 import { BaseProfile } from "@/app/api/users/definitions";
 import ReservationReminderTemplate from "@/app/emails/reservation-reminder";
-import { deleteClerkUser } from "@/app/lib/users/actions";
+import { deleteClerkUser } from "@/app/lib/users/clerk";
 
 export async function handleReminderEmails(): Promise<
   ScheduledTaskWithProfile[]

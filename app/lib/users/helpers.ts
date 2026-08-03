@@ -1,10 +1,10 @@
 import { BaseProfile, UserCategory } from "@/app/api/users/definitions";
 import {
   cachedFetchBaseUserProfileByClerkId,
-  cachedFetchNavbarProfileByClerkId,
   cachedFetchUserProfileByClerkId,
   getCurrentClerkUser,
 } from "@/app/lib/users/actions";
+import { cachedFetchNavbarProfileByClerkId } from "@/app/lib/users/navbar-profile";
 import { users } from "@/db/schema";
 import { buildWhereClause } from "@/db/utils";
 import { eq, isNotNull, isNull, like, not, sql } from "drizzle-orm";
