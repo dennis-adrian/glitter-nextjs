@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import ProgramViewTracker from "@/app/components/programs/program-view-tracker";
 import PurchaseTicketCard from "@/app/components/programs/purchase-ticket-card";
+import PromoPriceBreakdown from "@/app/components/programs/promo-price-breakdown";
 import SecureLinkNotice from "@/app/components/programs/secure-link-notice";
 import VoucherUploadCard from "@/app/components/programs/voucher-upload-card";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
@@ -105,6 +106,20 @@ export default async function PurchaseAccessPage({
           {SESSION_PURCHASE_STATUS_LABELS[purchase.status]}
         </p>
       </header>
+
+      {purchase.promoRedemption && purchase.vouchers.length === 0 ? (
+        <PromoPriceBreakdown
+          code={purchase.promoRedemption.codeSnapshot}
+          partnerName={purchase.promoRedemption.partnerNameSnapshot}
+          discountPercent={purchase.promoRedemption.discountPercentSnapshot}
+          baseAmount={purchase.promoRedemption.baseAmountSnapshot}
+          discountAmount={purchase.promoRedemption.discountAmountSnapshot}
+          totalAmount={purchase.promoRedemption.totalAmountSnapshot}
+          higherPriceAccepted={
+            purchase.promoRedemption.higherPriceAcceptedAt !== null
+          }
+        />
+      ) : null}
 
       {showPaymentStep ? (
         <VoucherUploadCard

@@ -23,6 +23,7 @@ import {
   SparklesIcon,
   LayoutDashboardIcon,
   StoreIcon,
+  TicketIcon,
 } from "lucide-react";
 import { NavbarProfile } from "../../api/users/definitions";
 import { usePathname } from "next/navigation";
@@ -202,6 +203,19 @@ const NavbarNavigationMenu = ({
                 </Link>
               </NavigationMenuLink>
             </NavigationMenuItem>
+            <NavigationMenuItem>
+              <NavigationMenuLink
+                asChild
+                className={navigationMenuTriggerStyle()}
+              >
+                <Link href="/dashboard/programs/promo-codes">
+                  <div className="flex items-center">
+                    <TicketIcon className="w-4 h-4 mr-1" />
+                    Códigos de programas
+                  </div>
+                </Link>
+              </NavigationMenuLink>
+            </NavigationMenuItem>
           </>
         )}
         {profile && profile.role === "admin" && (
@@ -255,6 +269,12 @@ const NavbarNavigationMenu = ({
                   href="/dashboard/programs/purchases"
                 >
                   Comprobantes de inscripciones esperando aprobación
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
+                  title="Códigos de programas"
+                  href="/dashboard/programs/promo-codes"
+                >
+                  Promociones y atribución para artistas e influencers
                 </NavigationMenuListItem>
                 <NavigationMenuListItem
                   title="Subcategorías"

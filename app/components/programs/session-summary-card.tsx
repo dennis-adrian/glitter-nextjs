@@ -102,7 +102,7 @@ export default function SessionSummaryCard({
   return (
     <article
       className={cn(
-        "group relative isolate flex h-full flex-col overflow-hidden rounded-[2rem] transition-transform duration-300 hover:-translate-y-1",
+        "group relative isolate flex h-full flex-col overflow-hidden rounded-4xl transition-transform duration-300 hover:-translate-y-1",
         isTalk ? "bg-[#ffbe57] text-[#4b255f]" : "bg-[#9347f5] text-[#fffaf3]",
         className,
       )}
@@ -112,7 +112,7 @@ export default function SessionSummaryCard({
         aria-label={`Ver ${session.title}`}
         className={cn(
           "relative m-3 mb-0 block overflow-hidden rounded-[1.4rem] bg-[#d9f7f5]",
-          featured ? "aspect-[5/4] lg:aspect-[16/9]" : "aspect-[4/3]",
+          featured ? "aspect-5/4 lg:aspect-video" : "aspect-4/3",
         )}
       >
         {speakerPortrait?.speaker.imageUrl ? (
@@ -223,17 +223,20 @@ export default function SessionSummaryCard({
             </p>
           </div>
           <p className="text-right text-sm">
-            <span className="block font-black">{formatMoney(publicPrice)}</span>
             {participantPrice !== publicPrice ? (
-              <span
-                className={cn(
-                  "block text-xs font-semibold",
-                  isTalk ? "text-[#663c67]" : "text-[#ded1ff]",
-                )}
-              >
-                {formatMoney(participantPrice)} participantes
+              <>
+                <span className="block text-xs line-through opacity-65">
+                  {formatMoney(publicPrice)}
+                </span>
+                <span className="block font-black">
+                  {formatMoney(participantPrice)} participantes
+                </span>
+              </>
+            ) : (
+              <span className="block font-black">
+                {formatMoney(publicPrice)}
               </span>
-            ) : null}
+            )}
           </p>
         </div>
       </div>

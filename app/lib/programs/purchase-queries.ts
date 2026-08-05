@@ -13,6 +13,7 @@ import {
 /** Everything the secure access page and the profile area need to render. */
 const purchaseWith = {
   program: true as const,
+  promoRedemption: true as const,
   lines: {
     with: {
       session: true as const,

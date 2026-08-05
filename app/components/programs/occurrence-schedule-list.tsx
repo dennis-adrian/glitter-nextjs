@@ -97,6 +97,10 @@ export default function OccurrenceScheduleList({
   const viewerEligibility = isLoaded && isSignedIn ? eligibility : "public";
   const viewerPrice =
     viewerEligibility === "active_participant" ? participantPrice : publicPrice;
+  const previousPrice =
+    viewerEligibility === "active_participant" && participantPrice < publicPrice
+      ? publicPrice
+      : null;
   const canRegisterForAudience = canPurchaseAudience(
     audience,
     viewerEligibility,
@@ -111,7 +115,7 @@ export default function OccurrenceScheduleList({
       : null;
 
   return (
-    <ul className="overflow-hidden rounded-4xl bg-[#fffaf3] text-[#4b255f]">
+    <ul className="@container overflow-hidden rounded-4xl bg-[#fffaf3] text-[#4b255f]">
       {occurrences.map((occurrence) => {
         const resolved = resolveOccurrenceState({
           programStatus,
@@ -143,18 +147,18 @@ export default function OccurrenceScheduleList({
         return (
           <li
             key={occurrence.id}
-            className="grid gap-5 border-b border-[#4b255f]/15 p-5 last:border-b-0 sm:grid-cols-[78px_1fr_auto] sm:items-center md:p-6"
+            className="grid grid-cols-[68px_minmax(0,1fr)] items-center gap-5 border-b border-[#4b255f]/15 p-5 last:border-b-0 @[44rem]:grid-cols-[78px_minmax(0,1fr)_auto] @[44rem]:p-6"
           >
-            <div className="flex items-baseline gap-2 sm:grid sm:size-17 sm:place-content-center sm:rounded-full sm:bg-[#dff7f3] sm:text-center">
+            <div className="grid size-17 place-content-center rounded-full bg-[#dff7f3] text-center">
               <span className="text-4xl font-black leading-none text-[#4b255f]">
                 {formatDate(occurrence.startsAt).toFormat("dd")}
               </span>
-              <span className="text-xs font-black uppercase tracking-[0.16em] text-[#e639b5] sm:mt-0.5 sm:block">
+              <span className="mt-0.5 block text-xs font-black uppercase tracking-[0.16em] text-[#e639b5]">
                 {formatDate(occurrence.startsAt).toFormat("LLL")}
               </span>
             </div>
 
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <p className="flex items-center gap-2 font-black text-[#4b255f]">
                 <Clock3Icon className="size-4 text-[#9347f5]" />
                 {formatDate(occurrence.startsAt).toLocaleString(
@@ -182,7 +186,7 @@ export default function OccurrenceScheduleList({
               ) : null}
             </div>
 
-            <div className="flex items-center justify-end gap-3 sm:flex-col sm:items-end">
+            <div className="col-span-2 flex flex-col items-end gap-3 @[44rem]:col-span-1">
               <ProgramStatusBadge
                 state={resolved.state}
                 wasRescheduled={resolved.wasRescheduled}
@@ -208,6 +212,7 @@ export default function OccurrenceScheduleList({
                   scheduleLabel={scheduleLabel}
                   isSignedIn={paidRegistration.isSignedIn}
                   price={paidRegistration.price}
+                  previousPrice={previousPrice}
                   seatsRemaining={remaining ?? null}
                 />
               ) : null}

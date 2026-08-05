@@ -232,7 +232,7 @@ export default function FreeRegistrationForm({
       <DialogTrigger asChild>
         <Button
           size="sm"
-          className="rounded-full bg-[#9347f5] px-5 font-black text-white hover:bg-[#7f36dc]"
+          className="h-auto min-h-9 w-full whitespace-normal rounded-full bg-[#9347f5] px-5 py-2 text-center font-black text-white hover:bg-[#7f36dc] @[44rem]:w-auto"
         >
           Inscribirme
         </Button>

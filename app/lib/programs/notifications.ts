@@ -185,6 +185,12 @@ export type VoucherReceivedEmailInput = {
   /** Every line in the purchase, in line order. Never empty. */
   lines: VoucherReceivedLine[];
   totalAmount: number;
+  promo?: {
+    code: string;
+    partnerName: string;
+    discountPercent: number;
+    discountAmount: number;
+  } | null;
   /** Voucher version, so a replacement reads correctly and keys the send. */
   version: number;
   landingUrl: string | null;
@@ -218,6 +224,9 @@ export async function sendVoucherReceivedEmail(
             priceLabel: formatMoney(line.unitPrice),
           })),
           totalLabel: formatMoney(input.totalAmount),
+          promoLabel: input.promo
+            ? `Código ${input.promo.code} · ${input.promo.partnerName} · ${input.promo.discountPercent}% (ahorro ${formatMoney(input.promo.discountAmount)})`
+            : null,
           secureLinkUrl: input.landingUrl,
           isReplacement: input.version > 1,
         }) as React.ReactElement,
@@ -245,6 +254,7 @@ export type AdminNewSignupEmailInput = {
   adminEmails: string[];
   lines: VoucherReceivedLine[];
   totalAmount: number;
+  promo?: VoucherReceivedEmailInput["promo"];
 };
 
 /** Notifies admins that a new paid signup is ready for payment review. */
@@ -270,6 +280,9 @@ export async function sendAdminNewSignupEmail(
             scheduleLabel: buildScheduleLabel(line.startsAt, line.endsAt),
           })),
           totalLabel: formatMoney(input.totalAmount),
+          promoLabel: input.promo
+            ? `Código ${input.promo.code} · ${input.promo.partnerName} · ${input.promo.discountPercent}% (ahorro ${formatMoney(input.promo.discountAmount)})`
+            : null,
           reviewUrl: `${baseUrl()}/dashboard/programs/purchases`,
         }) as React.ReactElement,
       },

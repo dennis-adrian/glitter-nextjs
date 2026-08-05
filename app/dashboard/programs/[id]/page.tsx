@@ -61,6 +61,16 @@ export default async function ProgramDetailPage({ params }: Props) {
         />
       </div>
 
+      <div>
+        <Button asChild variant="outline" size="sm">
+          <Link
+            href={`/dashboard/programs/promo-codes/new?programId=${program.id}`}
+          >
+            Crear código promocional
+          </Link>
+        </Button>
+      </div>
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-3">
           <CardTitle>Sesiones</CardTitle>

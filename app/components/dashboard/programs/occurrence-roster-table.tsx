@@ -99,11 +99,20 @@ export default function OccurrenceRosterTable({ entries }: Props) {
                 )}
               </td>
               <td className="px-2 py-3 whitespace-nowrap">
-                {entry.isFree ? (
-                  <span className="text-xs text-muted-foreground">Gratis</span>
-                ) : (
-                  formatMoney(entry.unitPrice)
-                )}
+                <div>
+                  {entry.isFree ? (
+                    <span className="text-xs text-muted-foreground">
+                      Gratis
+                    </span>
+                  ) : (
+                    <p>{formatMoney(entry.unitPrice)}</p>
+                  )}
+                  {entry.promoCode ? (
+                    <p className="text-xs font-medium text-purple-700">
+                      {entry.promoCode} · {entry.promoPartnerName}
+                    </p>
+                  ) : null}
+                </div>
               </td>
               <td className="px-2 py-3 whitespace-nowrap text-xs text-muted-foreground">
                 {formatDate(entry.createdAt).toLocaleString(

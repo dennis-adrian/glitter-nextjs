@@ -371,10 +371,10 @@ Not created (§0b). Specification retained for the future delivery.
 | `upgradeOfPurchaseId`                                  | integer → self, `ON DELETE SET NULL`, nullable                | **[Deferred]** Set for pass upgrades                                          |
 | `status`                                               | `session_purchase_status`, not null, default `pending_upload` | §7.2                                                                          |
 | `paymentMode`                                          | `session_purchase_payment_mode`, not null                     | `bank_qr` \| `free`                                                           |
-| `buyerEligibility`                                     | `participant_eligibility`, not null                           | Snapshot, §8.4                                                                |
+| `buyerEligibility`                                     | `participant_eligibility`, not null                           | Snapshot, §8.5                                                                |
 | `eligibilityEvaluatedAt`                               | timestamp, not null                                           |                                                                               |
-| `eligibilitySnapshot`                                  | jsonb, not null                                               | Evidence, §8.4                                                                |
-| `subtotalAmount`                                       | numeric(10,2), not null                                       | Sum of line prices                                                            |
+| `eligibilitySnapshot`                                  | jsonb, not null                                               | Evidence, §8.5                                                                |
+| `subtotalAmount`                                       | numeric(10,2), not null                                       | Sum of line public `basePrice` values before discounts                        |
 | `creditedAmount`                                       | numeric(10,2), not null, default 0                            | **[Deferred]** Upgrade credit, §7.5                                           |
 | `totalAmount`                                          | numeric(10,2), not null                                       | As built: `<= subtotalAmount`                                                 |
 | `holdExpiresAt`                                        | timestamp, nullable                                           | Null for free purchases                                                       |
@@ -424,6 +424,9 @@ link is a convenience that can go missing.
 | `sessionId`                  | integer → `program_sessions.id`, `ON DELETE RESTRICT`, not null    | Denormalized for reporting                            |
 | `source`                     | `purchase_line_source`, not null, default `individual_session`     | `pass_session` unreachable until the pass ships (§0b) |
 | `unitPrice`                  | numeric(10,2), not null                                            | Snapshot; `0` for every `pass_session` line           |
+| `basePrice`                  | numeric(10,2), not null                                            | Public price before participant or promo discounts    |
+| `existingPrice`              | numeric(10,2), not null                                            | Eligibility price before an optional promo            |
+| `discountAmount`             | numeric(10,2), not null, no default                                | `basePrice - unitPrice`; migration backfills old rows |
 | `priceBasis`                 | `participant_eligibility`, not null                                | Which price applied                                   |
 | `pricingSnapshot`            | jsonb, not null                                                    | Which rule produced the price, §8.3                   |
 | `sessionTitleSnapshot`       | text, not null                                                     | Survives later content edits                          |
@@ -431,9 +434,10 @@ link is a convenience that can go missing.
 
 `unique(purchaseId, occurrenceId)` — one seat per occurrence per purchase (PRD §7.1).
 
-Checks: `unitPrice >= 0`; `source <> 'pass_session' OR unitPrice = 0` (the pass price lives on the
-purchase total, not on its lines). The second check is built and kept, though vacuously true while
-no pass exists — see §0b on why the residue stays.
+Checks: all price fields are nonnegative; `existingPrice <= basePrice`; `unitPrice <= basePrice`;
+`discountAmount = basePrice - unitPrice`; `source <> 'pass_session' OR unitPrice = 0` (the pass
+price lives on the purchase total, not on its lines). The last check is built and kept, though
+vacuously true while no pass exists — see §0b on why the residue stays.
 
 Indexes: `(occurrenceId)`; `(purchaseId)`.
 
@@ -551,7 +555,30 @@ Partial unique index on `(waitlistEntryId) WHERE status = 'sent'` — one live i
 The token follows the same rule as purchase access (§11.1): the raw value is emailed once and only
 its digest is stored, so a database dump yields nothing usable.
 
-### 6.18 `session_refund_requests` — **[Deferred]**
+### 6.18 `program_promo_codes`
+
+One program-scoped referral campaign: normalized case-insensitive code, required partner name,
+integer percentage `1..100`, optional start/end, optional positive maximum consuming uses, active state,
+internal notes, creator, and timestamps. Unique `(programId, lower(code))`. Program, code, partner,
+and percentage become immutable after the first redemption.
+
+### 6.19 `program_promo_code_redemptions`
+
+One immutable row per promo-bearing purchase. It references the code and uniquely references the
+purchase with `ON DELETE RESTRICT`. Amount snapshots are purchase aggregates across every
+`session_purchase_lines`: `baseAmountSnapshot = sum(basePrice)`,
+`existingPriceAmountSnapshot = sum(existingPrice)`,
+`discountAmountSnapshot = sum(basePrice - unitPrice)`, and
+`totalAmountSnapshot = sum(unitPrice)`. It also snapshots code, partner, percentage, and optional
+higher-price acceptance time. Current purchase state supplies usage classification without a
+mutable counter.
+
+### 6.20 `program_promo_code_events`
+
+Insert-only administration history with code, actor, event type (`created`, `updated`, `activated`,
+`deactivated`), changed values, optional reason, and timestamp.
+
+### 6.21 `session_refund_requests` — **[Deferred]**
 
 Not built. Glitter-initiated cancellation and the refund workflow belong to Phase 5, which has not
 been delivered; the table exists in this design only. Everything below is the intended shape.
@@ -839,7 +866,28 @@ that produced it, the inputs, and the eligibility are written to
 `session_purchase_lines.pricingSnapshot`, so any historical price is explainable without replaying
 today's configuration. A price of zero is legitimate and routes the purchase through the free flow.
 
-### 8.4 Eligibility snapshot
+### 8.4 Program promo pricing
+
+Program promo codes are a separate programs-domain capability, not the festival reservation
+`discount_codes` table. Each code belongs to one program and one referral partner.
+
+For each purchase line, checkout first resolves the existing eligibility price as in §8.3, then
+calculates the promo independently from the public base:
+
+```text
+promoPrice = floor(publicPrice × (100 - discountPercent) / 100)
+```
+
+The floor is to whole bolivianos and uses integer cents internally. The promo replaces the existing
+price; discounts never compound. A promo price above the existing price requires an explicit buyer
+acceptance flag, rechecked by the server. `session_purchase_lines` stores public base, existing
+price, final unit price, and total discount; a version 2 pricing snapshot stores the rule inputs.
+
+`program_promo_code_redemptions` is the immutable referral and amount snapshot for a purchase.
+Current purchase status determines confirmed, in-progress, or released usage. A code row is locked
+while its usage limit is checked. `program_promo_code_events` records administration history.
+
+### 8.5 Eligibility snapshot
 
 Written on every purchase: `buyerEligibility`, `eligibilityEvaluatedAt`, and an
 `eligibilitySnapshot` jsonb of the form
@@ -913,11 +961,33 @@ BEGIN
     assert remaining >= 1, or a live waitlist invitation covers this seat
     assert the buyer holds no valid ticket for this occurrence
 
-  INSERT session_purchases (…, idempotencyKey, holdExpiresAt = :now + holdMinutes)
+  when a promo code is supplied:
+    SELECT code FOR UPDATE
+    assert active, inside validity window, and below consuming-use limit
+    calculate each promo price from public base
+    assert explicit acceptance when any promo price is above its existing price
+
+  subtotalAmount = sum(pricedLines.basePrice)
+  finalTotal = sum(pricedLines.unitPrice)
+
+  if finalTotal = 0:
+    INSERT session_purchases (paymentMode = free, status = approved,
+      holdExpiresAt = NULL, approvedAt = :now)
+  else:
+    INSERT session_purchases (paymentMode = bank_qr, status = pending_upload,
+      holdExpiresAt = :now + holdMinutes)
+
   INSERT session_purchase_lines (one per occurrence)
+  INSERT program_promo_code_redemptions (one per purchase, when applied)
+  if finalTotal = 0:
+    INSERT session_tickets (exactly one per purchase line)
   INSERT session_purchase_events (created)
 COMMIT
 ```
+
+Only positive totals enter hold expiration, bank-QR payment, and voucher review. A zero-total
+purchase and its redemption remain in the same transaction, but the purchase is approved
+immediately and its one ticket per line is issued before commit.
 
 Locking every occurrence in ascending id order, before any insert, is the invariant that makes
 multi-line purchases atomic with respect to each other — and would extend unchanged to pass
@@ -1098,6 +1168,7 @@ resolved through the existing `requireAdminOrFestivalAdmin()` helper
 | Join waitlist                                                          | ✅                          | ✅                           | ❌                    |
 | Invite from waitlist                                                   | ✅                          | ❌                           | ❌                    |
 | Check in a ticket (scan or manual)                                     | ✅                          | ❌                           | ❌                    |
+| Manage promo codes and view referral usage                             | ✅                          | ❌                           | ❌                    |
 | View dashboard metrics, voucher history, action history, attendee list | ✅                          | ❌                           | ❌                    |
 | Resolve refund requests                                                | ✅                          | ❌                           | ❌                    |
 
@@ -1121,6 +1192,7 @@ authentication.
 | `session_purchase_payment_mode` | `bank_qr`, `free`                                                                                           |
 | `purchase_line_source`          | `individual_session`, `pass_session` — the second value is built but unreachable (§0b)                      |
 | `purchase_actor_type`           | `buyer`, `admin`, `system`                                                                                  |
+| `program_promo_code_event_type` | `created`, `updated`, `activated`, `deactivated`                                                            |
 | `session_purchase_event_type`   | see §6.13                                                                                                   |
 | `session_ticket_status`         | `valid`, `cancelled`                                                                                        |
 | `attendance_method`             | `qr_scan`, `manual_code`                                                                                    |
@@ -1168,7 +1240,7 @@ app/emails/program-*.tsx
 | Charla and Taller are not `festivalType` values                                       | §6.4 `session_type` enum; §5 boundary list    |
 | A program may exist with or without a festival                                        | §6.3 `festivalId` nullable                    |
 | No new entity requires a sector, booth, reservation, or festival activity             | §5                                            |
-| A single documented source for active-participant eligibility and pricing             | §8.1–§8.4 + `app/lib/programs/eligibility.ts` |
+| A single documented source for active-participant eligibility and pricing             | §8.1–§8.5 + `app/lib/programs/eligibility.ts` |
 | Capacity invariants approved: no overselling, no double release, atomic multi-session | §9.1–§9.2                                     |
 | States, invalid transitions, and authorized actors defined before mutations           | §7, §15                                       |
 | No migration or reinterpretation of festival tickets or booth invoices needed         | §5                                            |

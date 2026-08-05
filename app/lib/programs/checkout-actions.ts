@@ -7,11 +7,26 @@ import { z } from "zod";
 import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
 import { lockOrder } from "@/app/lib/programs/inventory";
 import { getBuyerEligibility } from "@/app/lib/programs/eligibility-queries";
+import { sendFreeRegistrationEmail } from "@/app/lib/programs/notifications";
 import {
   fetchAvailabilityForOccurrences,
   hasValidTicketFor,
   lockOccurrences,
 } from "@/app/lib/programs/inventory-queries";
+import { consumeProgramPromoPreviewRateLimit } from "@/app/lib/programs/promo-code-rate-limit";
+import {
+  fetchPromoConsumingUses,
+  lockProgramPromoCode,
+} from "@/app/lib/programs/promo-code-queries";
+import {
+  PROMO_CODE_ERROR_MESSAGES,
+  buildProgramPriceSnapshot,
+  isValidPromoCodeFormat,
+  normalizePromoCode,
+  promoCodeBlockerMessage,
+  resolvePromoCodeValidity,
+  resolvePromoPrice,
+} from "@/app/lib/programs/promo-codes";
 import {
   globalDiscountFrom,
   programDiscountFrom,
@@ -28,20 +43,24 @@ import { resolveInvitationUse } from "@/app/lib/programs/waitlist";
 import {
   generateAccessToken,
   generateIdempotencyKey,
+  generateTicketCode,
   hashAccessToken,
 } from "@/app/lib/programs/tokens";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
   programSettings,
+  programPromoCodeRedemptions,
   programSessions,
   programs,
   sessionOccurrences,
   sessionPurchaseEvents,
   sessionPurchaseLines,
   sessionPurchases,
+  sessionTickets,
   sessionWaitlistEntries,
   sessionWaitlistInvitations,
+  venues,
 } from "@/db/schema";
 
 /** A cart is capped so one submit cannot lock an unbounded row set. */
@@ -70,6 +89,9 @@ const checkoutSchema = z
      * occurrence it was issued for, and nothing else.
      */
     invitationToken: z.string().trim().min(1).max(200).optional(),
+    promoCode: z.string().trim().max(64).optional(),
+    /** Required when the promo price is higher than the existing price. */
+    acceptsHigherPromoPrice: z.boolean().optional(),
   })
   .transform((value) => ({
     ...value,
@@ -99,8 +121,9 @@ export type PaidCheckoutResult =
       /** Raw token — returned once, never stored. */
       accessToken: string;
       /** Deadline for uploading the voucher; the seat is released after it. */
-      holdExpiresAt: Date;
+      holdExpiresAt: Date | null;
       totalAmount: number;
+      paymentMode: "bank_qr" | "free";
     }
   | { success: false; message: string };
 
@@ -116,8 +139,9 @@ export type PaidCheckoutResult =
  * after the occurrence row is locked, so a page rendered ten minutes ago cannot
  * carry a stale price, audience, or seat count past these checks.
  *
- * Free sessions are refused: they have no hold and no voucher, and routing one
- * through here would create a purchase demanding payment of zero.
+ * Catalog-free sessions are refused and use the dedicated registration action.
+ * A paid session whose accepted promo floors to zero stays here: it creates an
+ * approved free-mode purchase and issues its ticket atomically.
  */
 export async function startPaidCheckout(
   input: PaidCheckoutInput,
@@ -135,7 +159,29 @@ export async function startPaidCheckout(
   }
 
   const data = parsed.data;
+  const requestedPromoCode = data.promoCode?.trim()
+    ? normalizePromoCode(data.promoCode)
+    : null;
   const profile = await getCurrentUserProfile();
+
+  // Same limiter as promo preview so checkout cannot bypass guessing limits.
+  if (requestedPromoCode) {
+    const allowed = await consumeProgramPromoPreviewRateLimit(
+      profile?.id ?? null,
+    );
+    if (!allowed) {
+      return {
+        success: false,
+        message: PROMO_CODE_ERROR_MESSAGES.unavailable,
+      };
+    }
+    if (!isValidPromoCodeFormat(requestedPromoCode)) {
+      return {
+        success: false,
+        message: PROMO_CODE_ERROR_MESSAGES.invalidFormat,
+      };
+    }
+  }
 
   const buyer = resolveAttendeeIdentity(
     profile,
@@ -178,11 +224,9 @@ export async function startPaidCheckout(
   // rolled-back attempt already handed to someone.
   const accessToken = generateAccessToken();
 
-  try {
-    // Inside the try: this reads the database for a signed-in buyer (ban
-    // sanctions in effect), so a failure here has to surface as the same
-    // generic message and structured log as any other, rather than escaping
-    // as an unhandled rejection carrying driver detail.
+  const runCheckoutTransaction = async () => {
+    // This reads the database for a signed-in buyer (ban sanctions in effect),
+    // so it stays inside the guarded transactional phase.
     const { eligibility, snapshot } = await getBuyerEligibility(profile, {
       now,
     });
@@ -271,6 +315,35 @@ export async function startPaidCheckout(
         };
       }
 
+      const promoCode = requestedPromoCode
+        ? await lockProgramPromoCode(tx, programId, requestedPromoCode)
+        : null;
+
+      if (requestedPromoCode && !promoCode) {
+        return {
+          kind: "error" as const,
+          message: promoCodeBlockerMessage("not_found"),
+        };
+      }
+
+      if (promoCode) {
+        const consumingUses = await fetchPromoConsumingUses(
+          tx,
+          promoCode.id,
+          now,
+        );
+        const validity = resolvePromoCodeValidity(
+          { ...promoCode, consumingUses },
+          now,
+        );
+        if (!validity.allowed) {
+          return {
+            kind: "error" as const,
+            message: promoCodeBlockerMessage(validity.blocker),
+          };
+        }
+      }
+
       const availabilityByOccurrence = await fetchAvailabilityForOccurrences(
         tx,
         data.occurrenceIds,
@@ -333,8 +406,16 @@ export async function startPaidCheckout(
         occurrenceId: number;
         sessionId: number;
         title: string;
+        sessionType: (typeof programSessions.$inferSelect)["type"];
         startsAt: Date;
-        amount: number;
+        endsAt: Date;
+        venueId: number | null;
+        room: string | null;
+        basePrice: number;
+        existingPrice: number;
+        finalPrice: number;
+        discountAmount: number;
+        promoWasHigher: boolean;
         basis: (typeof sessionPurchaseLines.$inferInsert)["priceBasis"];
         snapshot: unknown;
       }[] = [];
@@ -353,7 +434,7 @@ export async function startPaidCheckout(
           now,
         );
 
-        const price = resolvePrice(
+        const existingPrice = resolvePrice(
           {
             publicPrice: entry.session.publicPrice,
             participantPrice: entry.session.participantPrice,
@@ -362,6 +443,27 @@ export async function startPaidCheckout(
           },
           eligibility,
         );
+
+        const promoPrice = promoCode
+          ? resolvePromoPrice({
+              basePrice: entry.session.publicPrice,
+              existingPrice: existingPrice.amount,
+              discountPercent: promoCode.discountPercent,
+            })
+          : null;
+
+        if (
+          promoPrice?.isHigherThanExisting &&
+          data.acceptsHigherPromoPrice !== true
+        ) {
+          return {
+            kind: "error" as const,
+            message:
+              "Este código deja un precio mayor. Confirma cuál precio quieres usar.",
+          };
+        }
+
+        const finalPrice = promoPrice?.promoPrice ?? existingPrice.amount;
 
         const availability = availabilityByOccurrence.get(entry.occurrence.id);
         if (!availability) {
@@ -378,7 +480,9 @@ export async function startPaidCheckout(
           occurrenceState,
           audience: entry.session.audience,
           eligibility,
-          price: price.amount,
+          // This is a paid catalogue session even when its accepted promo
+          // floors the final amount to zero. Mode selection happens below.
+          price: existingPrice.amount,
           availability,
           hasExistingTicket,
           mode: "paid",
@@ -398,22 +502,58 @@ export async function startPaidCheckout(
           occurrenceId: entry.occurrence.id,
           sessionId: entry.session.id,
           title: entry.session.title,
+          sessionType: entry.session.type,
           startsAt: entry.occurrence.startsAt,
-          amount: price.amount,
-          basis: price.basis,
-          snapshot: price.snapshot,
+          endsAt: entry.occurrence.endsAt,
+          venueId:
+            entry.occurrence.venueId ??
+            entry.session.venueId ??
+            entry.program.defaultVenueId,
+          room: entry.occurrence.room,
+          basePrice: roundMoney(entry.session.publicPrice),
+          existingPrice: existingPrice.amount,
+          finalPrice,
+          discountAmount: roundMoney(entry.session.publicPrice - finalPrice),
+          promoWasHigher: promoPrice?.isHigherThanExisting ?? false,
+          basis: existingPrice.basis,
+          snapshot: buildProgramPriceSnapshot({
+            eligibilityPrice: existingPrice.snapshot,
+            basePrice: entry.session.publicPrice,
+            existingPrice: existingPrice.amount,
+            finalPrice,
+            promo: promoCode
+              ? {
+                  promoCodeId: promoCode.id,
+                  code: normalizePromoCode(promoCode.code),
+                  partnerName: promoCode.partnerName,
+                  discountPercent: promoCode.discountPercent,
+                  rounding: "floor_whole_bob",
+                  higherPriceAccepted:
+                    promoPrice?.isHigherThanExisting ?? false,
+                }
+              : null,
+          }),
         });
       }
 
       const subtotal = roundMoney(
-        priced.reduce((sum, line) => sum + line.amount, 0),
+        priced.reduce((sum, line) => sum + line.basePrice, 0),
       );
+      const existingTotal = roundMoney(
+        priced.reduce((sum, line) => sum + line.existingPrice, 0),
+      );
+      const total = roundMoney(
+        priced.reduce((sum, line) => sum + line.finalPrice, 0),
+      );
+      const isZeroTotal = total <= 0;
 
       // Program override first, global default second — the same resolution
       // order the architecture defines for every program-scoped setting.
       const holdMinutes =
         context.program.holdMinutes ?? settings.defaultHoldMinutes;
-      const holdExpiresAt = new Date(now.getTime() + holdMinutes * 60_000);
+      const holdExpiresAt = isZeroTotal
+        ? null
+        : new Date(now.getTime() + holdMinutes * 60_000);
 
       const [purchase] = await tx
         .insert(sessionPurchases)
@@ -429,33 +569,81 @@ export async function startPaidCheckout(
               ? null
               : data.guestBirthdate.toISOString().slice(0, 10),
           accessTokenHash: hashAccessToken(accessToken),
-          status: "pending_upload",
-          paymentMode: "bank_qr",
+          status: isZeroTotal ? "approved" : "pending_upload",
+          paymentMode: isZeroTotal ? "free" : "bank_qr",
           buyerEligibility: eligibility,
           eligibilityEvaluatedAt: now,
           eligibilitySnapshot: snapshot,
           subtotalAmount: subtotal,
-          totalAmount: subtotal,
+          totalAmount: total,
           holdExpiresAt,
+          approvedAt: isZeroTotal ? now : null,
           noRefundPolicyVersion: settings.noRefundPolicyVersion,
           noRefundPolicyAcceptedAt: now,
           idempotencyKey,
         })
         .returning();
 
-      await tx.insert(sessionPurchaseLines).values(
-        priced.map((line) => ({
+      const insertedLines = await tx
+        .insert(sessionPurchaseLines)
+        .values(
+          priced.map((line) => ({
+            purchaseId: purchase.id,
+            occurrenceId: line.occurrenceId,
+            sessionId: line.sessionId,
+            source: "individual_session" as const,
+            unitPrice: line.finalPrice,
+            basePrice: line.basePrice,
+            existingPrice: line.existingPrice,
+            discountAmount: line.discountAmount,
+            priceBasis: line.basis,
+            pricingSnapshot: line.snapshot,
+            sessionTitleSnapshot: line.title,
+            occurrenceStartsAtSnapshot: line.startsAt,
+          })),
+        )
+        .returning({
+          id: sessionPurchaseLines.id,
+          occurrenceId: sessionPurchaseLines.occurrenceId,
+        });
+
+      if (promoCode) {
+        await tx.insert(programPromoCodeRedemptions).values({
+          promoCodeId: promoCode.id,
           purchaseId: purchase.id,
-          occurrenceId: line.occurrenceId,
-          sessionId: line.sessionId,
-          source: "individual_session" as const,
-          unitPrice: line.amount,
-          priceBasis: line.basis,
-          pricingSnapshot: line.snapshot,
-          sessionTitleSnapshot: line.title,
-          occurrenceStartsAtSnapshot: line.startsAt,
-        })),
-      );
+          codeSnapshot: normalizePromoCode(promoCode.code),
+          partnerNameSnapshot: promoCode.partnerName,
+          discountPercentSnapshot: promoCode.discountPercent,
+          baseAmountSnapshot: subtotal,
+          existingPriceAmountSnapshot: existingTotal,
+          discountAmountSnapshot: roundMoney(subtotal - total),
+          totalAmountSnapshot: total,
+          higherPriceAcceptedAt: priced.some((line) => line.promoWasHigher)
+            ? now
+            : null,
+        });
+      }
+
+      const issuedTickets = isZeroTotal
+        ? await tx
+            .insert(sessionTickets)
+            .values(
+              insertedLines.map((line) => ({
+                purchaseLineId: line.id,
+                occurrenceId: line.occurrenceId,
+                code: generateTicketCode(),
+                attendeeUserId: buyer.userId,
+                attendeeName: buyer.name,
+                attendeeEmail: buyer.email,
+                issuedAt: now,
+              })),
+            )
+            .returning({
+              id: sessionTickets.id,
+              occurrenceId: sessionTickets.occurrenceId,
+              code: sessionTickets.code,
+            })
+        : [];
 
       /**
        * Only when the invited occurrence is actually in this purchase. A buyer
@@ -489,49 +677,67 @@ export async function startPaidCheckout(
           .where(eq(sessionWaitlistEntries.id, delivered.entryId));
       }
 
-      await tx.insert(sessionPurchaseEvents).values({
-        purchaseId: purchase.id,
-        actorType: "buyer",
-        actorUserId: profile?.id ?? null,
-        eventType: "created",
-        toStatus: "pending_upload",
-        changes: {
-          holdExpiresAt: holdExpiresAt.toISOString(),
-          holdMinutes,
-          lineCount: priced.length,
+      await tx.insert(sessionPurchaseEvents).values([
+        {
+          purchaseId: purchase.id,
+          actorType: "buyer" as const,
+          actorUserId: profile?.id ?? null,
+          eventType: "created" as const,
+          toStatus: isZeroTotal
+            ? ("approved" as const)
+            : ("pending_upload" as const),
+          changes: {
+            holdExpiresAt: holdExpiresAt?.toISOString() ?? null,
+            holdMinutes: isZeroTotal ? null : holdMinutes,
+            lineCount: priced.length,
+            subtotalAmount: subtotal,
+            existingPriceAmount: existingTotal,
+            totalAmount: total,
+            promoCodeId: promoCode?.id ?? null,
+            promoCode: promoCode ? normalizePromoCode(promoCode.code) : null,
+            higherPriceAccepted: priced.some((line) => line.promoWasHigher),
+          },
         },
-      });
+        ...issuedTickets.map((ticket) => ({
+          purchaseId: purchase.id,
+          actorType: "system" as const,
+          eventType: "ticket_issued" as const,
+          changes: {
+            ticketId: ticket.id,
+            occurrenceId: ticket.occurrenceId,
+          },
+        })),
+      ]);
 
       return {
         kind: "created" as const,
         purchaseId: purchase.id,
         holdExpiresAt,
-        totalAmount: subtotal,
+        totalAmount: total,
+        paymentMode: isZeroTotal ? ("free" as const) : ("bank_qr" as const),
+        emailLines: isZeroTotal
+          ? issuedTickets.map((ticket) => {
+              const line = priced.find(
+                (entry) => entry.occurrenceId === ticket.occurrenceId,
+              );
+              if (!line) throw new Error("Missing zero-total email line");
+
+              return {
+                ...line,
+                ticketCode: ticket.code,
+                programName: context.program.name,
+              };
+            })
+          : [],
       };
     });
 
-    if (outcome.kind === "error") {
-      return { success: false, message: outcome.message };
-    }
+    return outcome;
+  };
 
-    revalidatePath("/programs", "layout");
-    revalidatePath("/dashboard/programs", "layout");
-
-    if (outcome.kind === "replayed") {
-      return {
-        success: false,
-        message: "Esta compra ya se registró. Revisa tu correo.",
-      };
-    }
-
-    return {
-      success: true,
-      message: "Reservamos tu cupo. Sube tu comprobante para confirmarlo.",
-      purchaseId: outcome.purchaseId,
-      accessToken,
-      holdExpiresAt: outcome.holdExpiresAt,
-      totalAmount: outcome.totalAmount,
-    };
+  let outcome: Awaited<ReturnType<typeof runCheckoutTransaction>>;
+  try {
+    outcome = await runCheckoutTransaction();
   } catch (error) {
     // Never log the raw error: it can carry driver details and the buyer's
     // own data. The message is generic for the same reason.
@@ -544,4 +750,71 @@ export async function startPaidCheckout(
       message: "No pudimos iniciar tu compra. Intenta de nuevo.",
     };
   }
+
+  if (outcome.kind === "error") {
+    return { success: false, message: outcome.message };
+  }
+
+  revalidatePath("/programs", "layout");
+  revalidatePath("/dashboard/programs", "layout");
+
+  if (outcome.kind === "replayed") {
+    return {
+      success: false,
+      message: "Esta compra ya se registró. Revisa tu correo.",
+    };
+  }
+
+  let zeroTotalEmailsSent = true;
+  if (outcome.paymentMode === "free") {
+    for (const line of outcome.emailLines) {
+      let venueName: string | null = null;
+      if (line.venueId) {
+        try {
+          const venue = await db.query.venues.findFirst({
+            where: eq(venues.id, line.venueId),
+            columns: { name: true },
+          });
+          venueName = venue?.name ?? null;
+        } catch {
+          zeroTotalEmailsSent = false;
+        }
+      }
+
+      try {
+        const sent = await sendFreeRegistrationEmail({
+          purchaseId: outcome.purchaseId,
+          attendeeName: buyer.name,
+          attendeeEmail: buyer.email,
+          programName: line.programName,
+          sessionTitle: line.title,
+          sessionType: line.sessionType,
+          startsAt: line.startsAt,
+          endsAt: line.endsAt,
+          venueName,
+          room: line.room,
+          ticketCode: line.ticketCode,
+          accessToken,
+        });
+        zeroTotalEmailsSent = zeroTotalEmailsSent && sent;
+      } catch {
+        zeroTotalEmailsSent = false;
+      }
+    }
+  }
+
+  return {
+    success: true,
+    message:
+      outcome.paymentMode === "free"
+        ? zeroTotalEmailsSent
+          ? "¡Listo! Tu código dejó la inscripción en Bs 0 y tu entrada está confirmada."
+          : "¡Listo! Tu entrada está confirmada. Guarda el enlace de esta página."
+        : "Reservamos tu cupo. Sube tu comprobante para confirmarlo.",
+    purchaseId: outcome.purchaseId,
+    accessToken,
+    holdExpiresAt: outcome.holdExpiresAt,
+    totalAmount: outcome.totalAmount,
+    paymentMode: outcome.paymentMode,
+  };
 }
