@@ -31,6 +31,9 @@ export default async function ProgramsDashboardPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline">
+            <Link href="/dashboard/programs/promo-codes">Códigos promo</Link>
+          </Button>
+          <Button asChild variant="outline">
             <Link href="/dashboard/programs/venues">Lugares</Link>
           </Button>
           <Button asChild variant="outline">

@@ -51,6 +51,18 @@ export default async function PurchaseReviewQueuePage() {
               purchase.buyerEligibility === "active_participant"
             }
             totalAmount={purchase.totalAmount}
+            promo={
+              purchase.promoRedemption
+                ? {
+                    code: purchase.promoRedemption.codeSnapshot,
+                    partnerName: purchase.promoRedemption.partnerNameSnapshot,
+                    discountPercent:
+                      purchase.promoRedemption.discountPercentSnapshot,
+                    discountAmount:
+                      purchase.promoRedemption.discountAmountSnapshot,
+                  }
+                : null
+            }
             status={
               purchase.status as "under_verification" | "changes_requested"
             }

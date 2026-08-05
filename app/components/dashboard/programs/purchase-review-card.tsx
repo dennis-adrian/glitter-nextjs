@@ -35,6 +35,12 @@ type Props = {
   buyerPhone: string | null;
   isActiveParticipant: boolean;
   totalAmount: number;
+  promo: {
+    code: string;
+    partnerName: string;
+    discountPercent: number;
+    discountAmount: number;
+  } | null;
   status: "under_verification" | "changes_requested";
   submittedAt: Date | null;
   lines: {
@@ -53,6 +59,7 @@ export default function PurchaseReviewCard({
   buyerPhone,
   isActiveParticipant,
   totalAmount,
+  promo,
   status,
   submittedAt,
   lines,
@@ -150,6 +157,15 @@ export default function PurchaseReviewCard({
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {promo ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm text-purple-950">
+            <span>
+              <strong>{promo.code}</strong> · {promo.partnerName} ·{" "}
+              {promo.discountPercent}%
+            </span>
+            <span>−{formatMoney(promo.discountAmount)}</span>
+          </div>
+        ) : null}
         <div className="rounded-lg border p-3 text-sm">
           {lines.map((line) => (
             <div key={line.id} className="flex justify-between gap-3">

@@ -257,6 +257,12 @@ const NavbarNavigationMenu = ({
                   Comprobantes de inscripciones esperando aprobación
                 </NavigationMenuListItem>
                 <NavigationMenuListItem
+                  title="Códigos de programas"
+                  href="/dashboard/programs/promo-codes"
+                >
+                  Promociones y atribución para artistas e influencers
+                </NavigationMenuListItem>
+                <NavigationMenuListItem
                   title="Subcategorías"
                   href="/dashboard/subcategories"
                 >

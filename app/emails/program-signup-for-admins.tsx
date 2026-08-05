@@ -21,6 +21,7 @@ export type ProgramSignupForAdminsEmailProps = {
     scheduleLabel: string;
   }[];
   totalLabel: string;
+  promoLabel?: string | null;
   reviewUrl: string;
 };
 
@@ -28,6 +29,7 @@ export default function ProgramSignupForAdminsEmailTemplate({
   attendeeName,
   sessions,
   totalLabel,
+  promoLabel,
   reviewUrl,
 }: ProgramSignupForAdminsEmailProps) {
   const isCart = sessions.length > 1;
@@ -71,6 +73,9 @@ export default function ProgramSignupForAdminsEmailTemplate({
               <Text style={{ ...styles.detailLine, ...totalRow }}>
                 Total: {totalLabel}
               </Text>
+              {promoLabel ? (
+                <Text style={styles.detailLine}>{promoLabel}</Text>
+              ) : null}
             </Section>
 
             <Text style={styles.text}>El pago está pendiente de revisión.</Text>

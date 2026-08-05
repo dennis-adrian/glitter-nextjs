@@ -1,4 +1,7 @@
 import {
+  programPromoCodeEvents,
+  programPromoCodeRedemptions,
+  programPromoCodes,
   programSessions,
   programSettings,
   programs,
@@ -17,6 +20,10 @@ import {
 export type Venue = typeof venues.$inferSelect;
 export type ProgramSettings = typeof programSettings.$inferSelect;
 export type Program = typeof programs.$inferSelect;
+export type ProgramPromoCode = typeof programPromoCodes.$inferSelect;
+export type ProgramPromoCodeRedemption =
+  typeof programPromoCodeRedemptions.$inferSelect;
+export type ProgramPromoCodeEvent = typeof programPromoCodeEvents.$inferSelect;
 export type ProgramSession = typeof programSessions.$inferSelect;
 export type SessionOccurrence = typeof sessionOccurrences.$inferSelect;
 export type Speaker = typeof speakers.$inferSelect;

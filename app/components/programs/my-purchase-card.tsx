@@ -2,6 +2,7 @@ import { DateTime } from "luxon";
 import Link from "next/link";
 
 import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
+import PromoPriceBreakdown from "@/app/components/programs/promo-price-breakdown";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import {
@@ -68,6 +69,20 @@ export default function MyPurchaseCard({ purchase }: Props) {
         <p className="text-sm text-muted-foreground">{purchase.program.name}</p>
       </CardHeader>
       <CardContent className="space-y-3">
+        {purchase.promoRedemption && purchase.vouchers.length === 0 ? (
+          <PromoPriceBreakdown
+            compact
+            code={purchase.promoRedemption.codeSnapshot}
+            partnerName={purchase.promoRedemption.partnerNameSnapshot}
+            discountPercent={purchase.promoRedemption.discountPercentSnapshot}
+            baseAmount={purchase.promoRedemption.baseAmountSnapshot}
+            discountAmount={purchase.promoRedemption.discountAmountSnapshot}
+            totalAmount={purchase.promoRedemption.totalAmountSnapshot}
+            higherPriceAccepted={
+              purchase.promoRedemption.higherPriceAcceptedAt !== null
+            }
+          />
+        ) : null}
         <ul className="space-y-2 text-sm">
           {purchase.lines.map((line) => {
             const resolved = resolveOccurrenceState({

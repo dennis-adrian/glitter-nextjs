@@ -31,6 +31,8 @@ export type RosterEntry = {
   isGuest: boolean;
   ticketCode: string | null;
   unitPrice: number;
+  promoCode: string | null;
+  promoPartnerName: string | null;
   isFree: boolean;
   holdExpiresAt: Date | null;
   createdAt: Date;
@@ -69,7 +71,7 @@ export async function fetchOccurrenceRosters(
   const lines = await db.query.sessionPurchaseLines.findMany({
     where: inArray(sessionPurchaseLines.occurrenceId, occurrenceIds),
     with: {
-      purchase: { with: { buyer: true } },
+      purchase: { with: { buyer: true, promoRedemption: true } },
       ticket: true,
     },
     orderBy: [asc(sessionPurchaseLines.id)],
@@ -119,6 +121,8 @@ export async function fetchOccurrenceRosters(
       isGuest: purchase.userId === null,
       ticketCode: line.ticket?.code ?? null,
       unitPrice: line.unitPrice,
+      promoCode: purchase.promoRedemption?.codeSnapshot ?? null,
+      promoPartnerName: purchase.promoRedemption?.partnerNameSnapshot ?? null,
       isFree: purchase.paymentMode === "free",
       holdExpiresAt: purchase.holdExpiresAt,
       createdAt: purchase.createdAt,

@@ -35,6 +35,12 @@ describe("sendAdminNewSignupEmail", () => {
         },
       ],
       totalAmount: 120,
+      promo: {
+        code: "ARTISTA50",
+        partnerName: "Artista invitada",
+        discountPercent: 50,
+        discountAmount: 120,
+      },
     });
 
     expect(result).toBe(true);
@@ -55,6 +61,8 @@ describe("sendAdminNewSignupEmail", () => {
     const html = await render(payload.react);
     expect(html).toContain("María Pérez");
     expect(html).toContain("Taller de ilustración");
+    expect(html).toContain("ARTISTA50");
+    expect(html).toContain("Artista invitada");
     expect(html).toContain("/dashboard/programs/purchases");
   });
 

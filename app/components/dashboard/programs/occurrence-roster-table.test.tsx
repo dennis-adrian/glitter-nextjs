@@ -22,6 +22,8 @@ function entry(overrides: Partial<RosterEntry> = {}): RosterEntry {
     isGuest: false,
     ticketCode: "ABC123",
     unitPrice: 70,
+    promoCode: null,
+    promoPartnerName: null,
     isFree: false,
     holdExpiresAt: null,
     createdAt: new Date("2026-07-30T15:00:00.000Z"),
@@ -72,11 +74,36 @@ describe("OccurrenceRosterTable", () => {
   it("shows a free registration as free rather than Bs 0", () => {
     render(
       <OccurrenceRosterTable
-        entries={[entry({ isFree: true, unitPrice: 0 })]}
+        entries={[
+          entry({
+            isFree: true,
+            unitPrice: 0,
+            promoCode: "ARTISTA100",
+            promoPartnerName: "Artista",
+          }),
+        ]}
       />,
     );
     expect(screen.getByText("Gratis")).toBeTruthy();
+    expect(screen.getByText("ARTISTA100 · Artista")).toBeTruthy();
     expect(screen.queryByText(/Bs 0/)).toBeNull();
+  });
+
+  it("shows promo attribution beside the final price", () => {
+    render(
+      <OccurrenceRosterTable
+        entries={[
+          entry({
+            unitPrice: 35,
+            promoCode: "ARTISTA50",
+            promoPartnerName: "Artista",
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Bs 35,00")).toBeTruthy();
+    expect(screen.getByText("ARTISTA50 · Artista")).toBeTruthy();
   });
 
   it("shows the deadline only while a hold is running", () => {
@@ -160,7 +187,7 @@ describe("OccurrenceSeatSummary", () => {
     render(<OccurrenceSeatSummary summary={summary()} />);
     expect(screen.getByText("18 de 20 disponibles")).toBeTruthy();
     expect(screen.getByText("1 confirmado")).toBeTruthy();
-    expect(screen.getByText("1 pendientes de revisión")).toBeTruthy();
+    expect(screen.getByText("1 pendiente de revisión")).toBeTruthy();
   });
 
   it("inflects the confirmed count", () => {

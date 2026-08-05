@@ -231,6 +231,22 @@ A free session:
 - Does not create a payment step or require a voucher.
 - Follows the same audience, cancellation, waitlist, and check-in rules.
 
+### 6.4 Program referral promo codes
+
+- An admin may create an active, time-bounded, optionally usage-limited percentage code for one
+  program and identify its influencer, artist, or referral partner.
+- A buyer may apply one code during paid-session checkout.
+- The promo percentage is calculated from the session's public price. It replaces, and never
+  compounds with, an existing participant or program discount.
+- The promo result is rounded down to a whole boliviano per purchase line. Example: public Bs 70,
+  existing discounted price Bs 56, promo 50% → Bs 35, not Bs 28.
+- When the promo price is higher than the buyer's existing price, a responsive drawer shows both
+  prices. The code remains unapplied unless the buyer explicitly chooses the higher promo price.
+- A zero-total promo purchase skips the voucher flow, is approved immediately, and issues its
+  ticket.
+- The server revalidates the code, price, usage limit, and explicit higher-price acceptance inside
+  the checkout transaction.
+
 ## 7. Purchasing sessions — and, later, the cart and the Week Pass
 
 ### 7.1 Purchasing individual sessions
@@ -447,6 +463,8 @@ It must also support:
 - Scanning or manually entering a ticket code.
 - Publishing, closing sales, cancelling, rescheduling, and completing sessions.
 - Performing support and resend actions.
+- Managing program promo codes and viewing confirmed, in-progress, and released uses by referral
+  partner, with immutable base, discount, and final amount snapshots.
 
 ## 14. Audit requirements and critical rules
 

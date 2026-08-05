@@ -23,6 +23,7 @@ import {
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import {
+  programPromoCodeRedemptions,
   programSessions,
   sessionOccurrences,
   sessionPurchaseEvents,
@@ -230,11 +231,18 @@ export async function submitPurchaseVoucher(
         .where(eq(sessionPurchaseLines.purchaseId, purchase.id))
         .orderBy(asc(sessionPurchaseLines.id));
 
+      const [promo] = await tx
+        .select()
+        .from(programPromoCodeRedemptions)
+        .where(eq(programPromoCodeRedemptions.purchaseId, purchase.id))
+        .limit(1);
+
       return {
         kind: "recorded" as const,
         version,
         purchase,
         lines,
+        promo: promo ?? null,
         accessVia: access.via,
       };
     });
@@ -274,6 +282,14 @@ export async function submitPurchaseVoucher(
         buyerEmail,
         lines: outcome.lines,
         totalAmount: outcome.purchase.totalAmount,
+        promo: outcome.promo
+          ? {
+              code: outcome.promo.codeSnapshot,
+              partnerName: outcome.promo.partnerNameSnapshot,
+              discountPercent: outcome.promo.discountPercentSnapshot,
+              discountAmount: outcome.promo.discountAmountSnapshot,
+            }
+          : null,
         version: outcome.version,
         landingUrl: buildBuyerLandingUrl({
           purchaseId: outcome.purchase.id,
@@ -302,6 +318,14 @@ export async function submitPurchaseVoucher(
           adminEmails: admins.map((admin) => admin.email),
           lines: outcome.lines,
           totalAmount: outcome.purchase.totalAmount,
+          promo: outcome.promo
+            ? {
+                code: outcome.promo.codeSnapshot,
+                partnerName: outcome.promo.partnerNameSnapshot,
+                discountPercent: outcome.promo.discountPercentSnapshot,
+                discountAmount: outcome.promo.discountAmountSnapshot,
+              }
+            : null,
         });
       } catch (error) {
         console.error("Admin new signup notification failed", {

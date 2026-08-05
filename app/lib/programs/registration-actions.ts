@@ -8,6 +8,7 @@ import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
 import type { ParticipantEligibility } from "@/app/lib/programs/eligibility";
 import { getBuyerEligibility } from "@/app/lib/programs/eligibility-queries";
 import { sendFreeRegistrationEmail } from "@/app/lib/programs/notifications";
+import { buildProgramPriceSnapshot } from "@/app/lib/programs/promo-codes";
 import {
   fetchAvailabilityForOccurrences,
   fetchOccurrenceAvailability,
@@ -294,7 +295,7 @@ export async function registerForFreeSession(
           buyerEligibility: eligibility,
           eligibilityEvaluatedAt: now,
           eligibilitySnapshot: snapshot,
-          subtotalAmount: 0,
+          subtotalAmount: context.session.publicPrice,
           totalAmount: 0,
           noRefundPolicyVersion: settings.noRefundPolicyVersion,
           noRefundPolicyAcceptedAt: now,
@@ -310,8 +311,17 @@ export async function registerForFreeSession(
           sessionId: context.session.id,
           source: "individual_session",
           unitPrice: 0,
+          basePrice: context.session.publicPrice,
+          existingPrice: price.amount,
+          discountAmount: context.session.publicPrice,
           priceBasis: price.basis,
-          pricingSnapshot: price.snapshot,
+          pricingSnapshot: buildProgramPriceSnapshot({
+            eligibilityPrice: price.snapshot,
+            basePrice: context.session.publicPrice,
+            existingPrice: price.amount,
+            finalPrice: 0,
+            promo: null,
+          }),
           sessionTitleSnapshot: context.session.title,
           occurrenceStartsAtSnapshot: context.occurrence.startsAt,
         })

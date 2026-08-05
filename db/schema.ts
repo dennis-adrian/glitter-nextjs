@@ -3137,6 +3137,21 @@ export const featureFlagUserTargetsRelations = relations(
   }),
 );
 
+/** Fixed-window counters for server actions that need abuse protection. */
+export const actionRateLimits = pgTable(
+  "action_rate_limits",
+  {
+    key: text("key").primaryKey(),
+    windowStartedAt: timestamp("window_started_at").notNull(),
+    requestCount: integer("request_count").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("action_rate_limits_updated_idx").on(t.updatedAt),
+    check("action_rate_limits_count_positive", sql`${t.requestCount} > 0`),
+  ],
+);
+
 /* -------------------------------------------------------------------------- */
 /* Paid programs and sessions                                                  */
 /* See docs/ARCHITECTURE-paid-programs-and-sessions.md §6.                     */
@@ -3184,6 +3199,11 @@ export const participantDiscountTypeEnum = pgEnum("participant_discount_type", [
   "percent",
   "fixed",
 ]);
+
+export const programPromoCodeEventTypeEnum = pgEnum(
+  "program_promo_code_event_type",
+  ["created", "updated", "activated", "deactivated"],
+);
 
 /** A reusable place. Resolution is occurrence → session → program. */
 export const venues = pgTable("venues", {
@@ -3335,7 +3355,113 @@ export const programsRelations = relations(programs, ({ one, many }) => ({
     references: [venues.id],
   }),
   sessions: many(programSessions),
+  promoCodes: many(programPromoCodes),
 }));
+
+/**
+ * A referral campaign code for one program. The partner is deliberately free
+ * text: an influencer or artist does not need a Glitter account or speaker
+ * profile. Financial history lives in immutable redemption snapshots below.
+ */
+export const programPromoCodes = pgTable(
+  "program_promo_codes",
+  {
+    id: serial("id").primaryKey(),
+    programId: integer("program_id")
+      .notNull()
+      .references(() => programs.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    partnerName: text("partner_name").notNull(),
+    discountPercent: integer("discount_percent").notNull(),
+    startsAt: timestamp("starts_at"),
+    expiresAt: timestamp("expires_at"),
+    maxUses: integer("max_uses"),
+    isActive: boolean("is_active").default(false).notNull(),
+    internalNotes: text("internal_notes"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("program_promo_codes_program_code_unique").on(
+      t.programId,
+      sql`lower(${t.code})`,
+    ),
+    index("program_promo_codes_program_active_idx").on(t.programId, t.isActive),
+    check(
+      "program_promo_codes_nonblank",
+      sql`length(trim(${t.code})) > 0 AND length(trim(${t.partnerName})) > 0`,
+    ),
+    check(
+      "program_promo_codes_percent_range",
+      sql`${t.discountPercent} BETWEEN 1 AND 100`,
+    ),
+    check(
+      "program_promo_codes_date_range",
+      sql`${t.expiresAt} IS NULL OR ${t.startsAt} IS NULL OR ${t.expiresAt} >= ${t.startsAt}`,
+    ),
+    check(
+      "program_promo_codes_max_uses_positive",
+      sql`${t.maxUses} IS NULL OR ${t.maxUses} > 0`,
+    ),
+  ],
+);
+
+export const programPromoCodesRelations = relations(
+  programPromoCodes,
+  ({ one, many }) => ({
+    program: one(programs, {
+      fields: [programPromoCodes.programId],
+      references: [programs.id],
+    }),
+    createdBy: one(users, {
+      fields: [programPromoCodes.createdByUserId],
+      references: [users.id],
+    }),
+    redemptions: many(programPromoCodeRedemptions),
+    events: many(programPromoCodeEvents),
+  }),
+);
+
+/** Insert-only audit history for financial campaign administration. */
+export const programPromoCodeEvents = pgTable(
+  "program_promo_code_events",
+  {
+    id: serial("id").primaryKey(),
+    promoCodeId: integer("promo_code_id")
+      .notNull()
+      .references(() => programPromoCodes.id, { onDelete: "cascade" }),
+    actorUserId: integer("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    eventType: programPromoCodeEventTypeEnum("event_type").notNull(),
+    changes: jsonb("changes"),
+    reason: text("reason"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("program_promo_code_events_code_created_idx").on(
+      t.promoCodeId,
+      t.createdAt,
+    ),
+  ],
+);
+
+export const programPromoCodeEventsRelations = relations(
+  programPromoCodeEvents,
+  ({ one }) => ({
+    promoCode: one(programPromoCodes, {
+      fields: [programPromoCodeEvents.promoCodeId],
+      references: [programPromoCodes.id],
+    }),
+    actor: one(users, {
+      fields: [programPromoCodeEvents.actorUserId],
+      references: [users.id],
+    }),
+  }),
+);
 
 /**
  * Purchasable content: what the session is about, who gives it, what it costs.
@@ -3727,6 +3853,7 @@ export const sessionPurchases = pgTable(
     buyerEligibility: participantEligibilityEnum("buyer_eligibility").notNull(),
     eligibilityEvaluatedAt: timestamp("eligibility_evaluated_at").notNull(),
     eligibilitySnapshot: jsonb("eligibility_snapshot").notNull(),
+    /** Sum of purchase-line public base prices before any discount. */
     subtotalAmount: numeric("subtotal_amount", {
       precision: 10,
       scale: 2,
@@ -3812,6 +3939,7 @@ export const sessionPurchasesRelations = relations(
     lines: many(sessionPurchaseLines),
     events: many(sessionPurchaseEvents),
     vouchers: many(sessionPurchaseVouchers),
+    promoRedemption: one(programPromoCodeRedemptions),
   }),
 );
 
@@ -3831,6 +3959,24 @@ export const sessionPurchaseLines = pgTable(
       .default("individual_session")
       .notNull(),
     unitPrice: numeric("unit_price", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    /** Public price before participant or promo discounts. */
+    basePrice: numeric("base_price", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    /** Public/participant price shown before an optional promo code. */
+    existingPrice: numeric("existing_price", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    /** Total reduction from public base to the final unit price. */
+    discountAmount: numeric("discount_amount", {
       precision: 10,
       scale: 2,
       mode: "number",
@@ -3875,6 +4021,16 @@ export const sessionPurchaseLines = pgTable(
     index("session_purchase_lines_purchase_idx").on(t.purchaseId),
     check("session_purchase_lines_price_positive", sql`${t.unitPrice} >= 0`),
     check(
+      "session_purchase_lines_price_breakdown_valid",
+      sql`${t.basePrice} >= 0
+        AND ${t.existingPrice} >= 0
+        AND ${t.existingPrice} <= ${t.basePrice}
+        AND ${t.discountAmount} >= 0
+        AND ${t.discountAmount} <= ${t.basePrice}
+        AND ${t.unitPrice} <= ${t.basePrice}
+        AND ${t.unitPrice} = ${t.basePrice} - ${t.discountAmount}`,
+    ),
+    check(
       "session_purchase_lines_pass_line_free",
       sql`${t.source} <> 'pass_session' OR ${t.unitPrice} = 0`,
     ),
@@ -3896,6 +4052,82 @@ export const sessionPurchaseLinesRelations = relations(
       references: [programSessions.id],
     }),
     ticket: one(sessionTickets),
+  }),
+);
+
+/**
+ * Immutable attribution and price evidence for one promo-bearing purchase.
+ * Current workflow permits one code per purchase, enforced by purchaseId.
+ */
+export const programPromoCodeRedemptions = pgTable(
+  "program_promo_code_redemptions",
+  {
+    id: serial("id").primaryKey(),
+    promoCodeId: integer("promo_code_id")
+      .notNull()
+      .references(() => programPromoCodes.id, { onDelete: "restrict" }),
+    purchaseId: integer("purchase_id")
+      .notNull()
+      .unique()
+      .references(() => sessionPurchases.id, { onDelete: "restrict" }),
+    codeSnapshot: text("code_snapshot").notNull(),
+    partnerNameSnapshot: text("partner_name_snapshot").notNull(),
+    discountPercentSnapshot: integer("discount_percent_snapshot").notNull(),
+    baseAmountSnapshot: numeric("base_amount_snapshot", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    existingPriceAmountSnapshot: numeric("existing_price_amount_snapshot", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    discountAmountSnapshot: numeric("discount_amount_snapshot", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    totalAmountSnapshot: numeric("total_amount_snapshot", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    higherPriceAcceptedAt: timestamp("higher_price_accepted_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("program_promo_code_redemptions_code_created_idx").on(
+      t.promoCodeId,
+      t.createdAt,
+    ),
+    check(
+      "program_promo_code_redemptions_amounts_valid",
+      sql`${t.baseAmountSnapshot} >= 0
+        AND ${t.existingPriceAmountSnapshot} >= 0
+        AND ${t.totalAmountSnapshot} >= 0
+        AND ${t.discountAmountSnapshot} >= 0
+        AND ${t.totalAmountSnapshot} <= ${t.baseAmountSnapshot}
+        AND ${t.discountAmountSnapshot} = ${t.baseAmountSnapshot} - ${t.totalAmountSnapshot}`,
+    ),
+    check(
+      "program_promo_code_redemptions_percent_range",
+      sql`${t.discountPercentSnapshot} BETWEEN 1 AND 100`,
+    ),
+  ],
+);
+
+export const programPromoCodeRedemptionsRelations = relations(
+  programPromoCodeRedemptions,
+  ({ one }) => ({
+    promoCode: one(programPromoCodes, {
+      fields: [programPromoCodeRedemptions.promoCodeId],
+      references: [programPromoCodes.id],
+    }),
+    purchase: one(sessionPurchases, {
+      fields: [programPromoCodeRedemptions.purchaseId],
+      references: [sessionPurchases.id],
+    }),
   }),
 );
 

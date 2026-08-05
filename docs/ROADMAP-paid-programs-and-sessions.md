@@ -191,6 +191,31 @@ Phase 0: contracts and architecture          ✅ delivered
 - An active participant can do so from their profile.
 - Every admin action records actor, date, and reason.
 
+### Phase 3.1 — Program referral promo codes
+
+**Status:** implemented behind the existing `paid_programs` flag.
+
+**Delivered**
+
+- Program-scoped percentage codes with referral-partner attribution, validity windows, activation,
+  optional maximum uses, and admin audit history.
+- Promo pricing from public base, never stacked with participant/program discounts, floored to
+  whole bolivianos per line.
+- Buyer preview and responsive decision drawer when applying a promo would increase the existing
+  price.
+- Checkout-time code locking, usage-limit validation, explicit higher-price acceptance, immutable
+  redemption snapshots, and zero-total immediate ticket issuance.
+- Admin list/detail views with confirmed, in-progress, and released usage plus attributed amounts.
+- Promo attribution in buyer purchase summaries, admin review, and occurrence roster.
+
+**Validation**
+
+- Public Bs 70, existing Bs 56, promo 50% resolves to Bs 35.
+- A worse promo cannot be submitted without explicit acceptance.
+- Concurrent limited-code checkouts serialize on the code row.
+- Expired/rejected/pre-approval-cancelled attempts release their code slot; approved purchases keep
+  the confirmed attribution.
+
 ### Phase 4 — Multi-session cart — **[Deferred — post-MVP, §0a]**
 
 **Objective:** add commercial composition only after single-session capacity and payment are stable.

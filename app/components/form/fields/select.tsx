@@ -30,6 +30,7 @@ export default function SelectInput<
   variant,
   side,
   required,
+  disabled,
 }: {
   className?: string;
   formControl: Control<T, TContext, TTransformedValues>;
@@ -39,6 +40,7 @@ export default function SelectInput<
   placeholder?: string;
   side?: "top" | "bottom" | "left" | "right";
   required?: boolean;
+  disabled?: boolean;
 } & SelectVariants) {
   return (
     <FormField
@@ -54,7 +56,11 @@ export default function SelectInput<
           )}
           {variant === "quiet" && <FormMessage />}
           <FormControl>
-            <Select onValueChange={field.onChange} {...field}>
+            <Select
+              onValueChange={field.onChange}
+              {...field}
+              disabled={disabled}
+            >
               <FormControl>
                 <SelectTrigger variant={variant}>
                   <SelectValue placeholder={placeholder} />

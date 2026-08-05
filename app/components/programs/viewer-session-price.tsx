@@ -3,6 +3,7 @@
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 
+import SessionPriceTransition from "@/app/components/programs/session-price-transition";
 import type { ParticipantEligibility } from "@/app/lib/programs/eligibility";
 import { formatMoney } from "@/app/lib/programs/pricing";
 import { getCurrentViewerProgramEligibility } from "@/app/lib/programs/registration-actions";
@@ -81,8 +82,14 @@ export default function ViewerSessionPrice({
     return <span aria-label="No pudimos calcular tu precio">—</span>;
   }
 
-  const viewerPrice =
-    viewerEligibility === "active_participant" ? participantPrice : publicPrice;
+  if (viewerEligibility === "active_participant") {
+    return (
+      <SessionPriceTransition
+        price={participantPrice}
+        previousPrice={publicPrice}
+      />
+    );
+  }
 
-  return <span>{formatMoney(viewerPrice)}</span>;
+  return <span>{formatMoney(publicPrice)}</span>;
 }

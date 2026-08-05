@@ -1583,6 +1583,13 @@
       "when": 1785768755210,
       "tag": "0225_common_lyja",
       "breakpoints": true
+    },
+    {
+      "idx": 226,
+      "version": "7",
+      "when": 1785936668768,
+      "tag": "0226_gifted_blackheart",
+      "breakpoints": true
     }
   ]
 }

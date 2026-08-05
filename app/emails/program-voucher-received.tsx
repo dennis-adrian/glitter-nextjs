@@ -27,6 +27,7 @@ export type ProgramVoucherReceivedEmailProps = {
   /** Every session in the purchase, in line order. Never empty. */
   sessions: VoucherReceivedSession[];
   totalLabel: string;
+  promoLabel?: string | null;
   /** Absent when the sender has no way to build one for this buyer. */
   secureLinkUrl?: string | null;
   /** True for a replacement, so the copy does not read as a first receipt. */
@@ -45,6 +46,7 @@ export default function ProgramVoucherReceivedEmailTemplate({
   attendeeName,
   sessions,
   totalLabel,
+  promoLabel,
   secureLinkUrl,
   isReplacement,
 }: ProgramVoucherReceivedEmailProps) {
@@ -96,6 +98,9 @@ export default function ProgramVoucherReceivedEmailTemplate({
               <Text style={{ ...styles.detailLine, ...totalRow }}>
                 Total: {totalLabel}
               </Text>
+              {promoLabel ? (
+                <Text style={styles.detailLine}>{promoLabel}</Text>
+              ) : null}
             </Section>
 
             <Text style={styles.text}>
