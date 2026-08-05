@@ -13,6 +13,7 @@ import {
   hasValidTicketFor,
   lockOccurrences,
 } from "@/app/lib/programs/inventory-queries";
+import { consumeProgramPromoPreviewRateLimit } from "@/app/lib/programs/promo-code-rate-limit";
 import {
   fetchPromoConsumingUses,
   lockProgramPromoCode,
@@ -161,13 +162,26 @@ export async function startPaidCheckout(
   const requestedPromoCode = data.promoCode?.trim()
     ? normalizePromoCode(data.promoCode)
     : null;
-  if (requestedPromoCode && !isValidPromoCodeFormat(requestedPromoCode)) {
-    return {
-      success: false,
-      message: PROMO_CODE_ERROR_MESSAGES.invalidFormat,
-    };
-  }
   const profile = await getCurrentUserProfile();
+
+  // Same limiter as promo preview so checkout cannot bypass guessing limits.
+  if (requestedPromoCode) {
+    const allowed = await consumeProgramPromoPreviewRateLimit(
+      profile?.id ?? null,
+    );
+    if (!allowed) {
+      return {
+        success: false,
+        message: PROMO_CODE_ERROR_MESSAGES.unavailable,
+      };
+    }
+    if (!isValidPromoCodeFormat(requestedPromoCode)) {
+      return {
+        success: false,
+        message: PROMO_CODE_ERROR_MESSAGES.invalidFormat,
+      };
+    }
+  }
 
   const buyer = resolveAttendeeIdentity(
     profile,
@@ -308,7 +322,7 @@ export async function startPaidCheckout(
       if (requestedPromoCode && !promoCode) {
         return {
           kind: "error" as const,
-          message: PROMO_CODE_ERROR_MESSAGES.notFound,
+          message: promoCodeBlockerMessage("not_found"),
         };
       }
 

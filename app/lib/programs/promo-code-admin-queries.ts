@@ -1,13 +1,15 @@
 import "server-only";
 
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { cache } from "react";
 
+import { utcTimestamp } from "@/app/lib/sql-time";
 import { db } from "@/db";
 import {
   programPromoCodeEvents,
   programPromoCodeRedemptions,
   programPromoCodes,
+  sessionPurchases,
 } from "@/db/schema";
 
 export type PromoCodeDashboardRow = Awaited<
@@ -16,64 +18,75 @@ export type PromoCodeDashboardRow = Awaited<
 
 export const fetchProgramPromoCodeDashboard = cache(async () => {
   const now = new Date();
-  const [codes, redemptions] = await Promise.all([
+  const inProgressPurchase = sql`(
+    ${sessionPurchases.status} IN ('under_verification', 'changes_requested')
+    OR (
+      ${sessionPurchases.status} = 'pending_upload'
+      AND ${sessionPurchases.holdExpiresAt} IS NOT NULL
+      AND ${sessionPurchases.holdExpiresAt} > ${utcTimestamp(now)}
+    )
+  )`;
+
+  const [codes, groupedRedemptions] = await Promise.all([
     db.query.programPromoCodes.findMany({
       with: { program: true },
       orderBy: [desc(programPromoCodes.createdAt)],
     }),
-    db.query.programPromoCodeRedemptions.findMany({
-      with: { purchase: true },
-      orderBy: [desc(programPromoCodeRedemptions.createdAt)],
-    }),
+    db
+      .select({
+        promoCodeId: programPromoCodeRedemptions.promoCodeId,
+        confirmedUses:
+          sql<number>`count(*) FILTER (WHERE ${sessionPurchases.approvedAt} IS NOT NULL)`.mapWith(
+            Number,
+          ),
+        inProgressUses:
+          sql<number>`count(*) FILTER (WHERE ${sessionPurchases.approvedAt} IS NULL AND ${inProgressPurchase})`.mapWith(
+            Number,
+          ),
+        releasedAttempts:
+          sql<number>`count(*) FILTER (WHERE ${sessionPurchases.approvedAt} IS NULL AND NOT ${inProgressPurchase})`.mapWith(
+            Number,
+          ),
+        approvedBaseAmount:
+          sql<number>`coalesce(sum(${programPromoCodeRedemptions.baseAmountSnapshot}) FILTER (WHERE ${sessionPurchases.approvedAt} IS NOT NULL), 0)`.mapWith(
+            Number,
+          ),
+        approvedDiscountAmount:
+          sql<number>`coalesce(sum(${programPromoCodeRedemptions.discountAmountSnapshot}) FILTER (WHERE ${sessionPurchases.approvedAt} IS NOT NULL), 0)`.mapWith(
+            Number,
+          ),
+        approvedNetAmount:
+          sql<number>`coalesce(sum(${programPromoCodeRedemptions.totalAmountSnapshot}) FILTER (WHERE ${sessionPurchases.approvedAt} IS NOT NULL), 0)`.mapWith(
+            Number,
+          ),
+      })
+      .from(programPromoCodeRedemptions)
+      .innerJoin(
+        sessionPurchases,
+        eq(programPromoCodeRedemptions.purchaseId, sessionPurchases.id),
+      )
+      .groupBy(programPromoCodeRedemptions.promoCodeId),
   ]);
 
-  const redemptionsByPromoCode = new Map<
-    number,
-    (typeof redemptions)[number][]
-  >();
-  for (const redemption of redemptions) {
-    const uses = redemptionsByPromoCode.get(redemption.promoCodeId) ?? [];
-    uses.push(redemption);
-    redemptionsByPromoCode.set(redemption.promoCodeId, uses);
-  }
+  const totalsByPromoCode = new Map(
+    groupedRedemptions.map(
+      ({ promoCodeId, ...totals }) => [promoCodeId, totals] as const,
+    ),
+  );
 
   return codes.map((code) => {
-    const uses = redemptionsByPromoCode.get(code.id) ?? [];
-    let confirmedUses = 0;
-    let inProgressUses = 0;
-    let releasedAttempts = 0;
-    let approvedBaseAmount = 0;
-    let approvedDiscountAmount = 0;
-    let approvedNetAmount = 0;
-
-    for (const use of uses) {
-      const { purchase } = use;
-      if (purchase.approvedAt) {
-        confirmedUses += 1;
-        approvedBaseAmount += use.baseAmountSnapshot;
-        approvedDiscountAmount += use.discountAmountSnapshot;
-        approvedNetAmount += use.totalAmountSnapshot;
-      } else if (
-        purchase.status === "under_verification" ||
-        purchase.status === "changes_requested" ||
-        (purchase.status === "pending_upload" &&
-          purchase.holdExpiresAt !== null &&
-          purchase.holdExpiresAt > now)
-      ) {
-        inProgressUses += 1;
-      } else {
-        releasedAttempts += 1;
-      }
-    }
+    const totals = totalsByPromoCode.get(code.id) ?? {
+      confirmedUses: 0,
+      inProgressUses: 0,
+      releasedAttempts: 0,
+      approvedBaseAmount: 0,
+      approvedDiscountAmount: 0,
+      approvedNetAmount: 0,
+    };
 
     return {
       ...code,
-      confirmedUses,
-      inProgressUses,
-      releasedAttempts,
-      approvedBaseAmount,
-      approvedDiscountAmount,
-      approvedNetAmount,
+      ...totals,
     };
   });
 });

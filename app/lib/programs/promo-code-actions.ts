@@ -1,18 +1,15 @@
 "use server";
 
-import { createHash } from "node:crypto";
-
 import { eq } from "drizzle-orm";
-import { headers } from "next/headers";
 import { z } from "zod";
 
 import { featureFlagGuard } from "@/app/lib/feature_flags/helpers";
-import { consumeActionRateLimit } from "@/app/lib/rate-limit";
 import { getBuyerEligibility } from "@/app/lib/programs/eligibility-queries";
 import {
   fetchProgramPromoCode,
   fetchPromoConsumingUses,
 } from "@/app/lib/programs/promo-code-queries";
+import { consumeProgramPromoPreviewRateLimit } from "@/app/lib/programs/promo-code-rate-limit";
 import {
   PROMO_CODE_ERROR_MESSAGES,
   isValidPromoCodeFormat,
@@ -58,23 +55,6 @@ export type PromoCodePreviewResult =
     }
   | { success: false; message: string };
 
-const PROMO_PREVIEW_LIMIT = 15;
-const PROMO_PREVIEW_WINDOW_MS = 60_000;
-
-async function promoPreviewRateLimitKey(userId: number | null) {
-  if (userId !== null) return `program-promo-preview:user:${userId}`;
-
-  const requestHeaders = await headers();
-  const forwardedIp = requestHeaders.get("x-forwarded-for")?.split(",")[0];
-  const clientIdentifier =
-    requestHeaders.get("cf-connecting-ip")?.trim() ||
-    requestHeaders.get("x-real-ip")?.trim() ||
-    forwardedIp?.trim() ||
-    `unknown:${requestHeaders.get("user-agent") ?? "no-user-agent"}`;
-  const digest = createHash("sha256").update(clientIdentifier).digest("hex");
-  return `program-promo-preview:ip:${digest}`;
-}
-
 export async function previewProgramPromoCode(input: {
   occurrenceId: number;
   code: string;
@@ -83,19 +63,10 @@ export async function previewProgramPromoCode(input: {
   if (blocked) return blocked;
 
   const profile = await getCurrentUserProfile();
-  try {
-    const allowed = await consumeActionRateLimit({
-      key: await promoPreviewRateLimitKey(profile?.id ?? null),
-      limit: PROMO_PREVIEW_LIMIT,
-      windowMs: PROMO_PREVIEW_WINDOW_MS,
-    });
-    if (!allowed) {
-      return {
-        success: false,
-        message: PROMO_CODE_ERROR_MESSAGES.unavailable,
-      };
-    }
-  } catch {
+  const allowed = await consumeProgramPromoPreviewRateLimit(
+    profile?.id ?? null,
+  );
+  if (!allowed) {
     return {
       success: false,
       message: PROMO_CODE_ERROR_MESSAGES.unavailable,
@@ -185,7 +156,7 @@ export async function previewProgramPromoCode(input: {
   if (!promoCode) {
     return {
       success: false,
-      message: PROMO_CODE_ERROR_MESSAGES.notFound,
+      message: promoCodeBlockerMessage("not_found"),
     };
   }
 

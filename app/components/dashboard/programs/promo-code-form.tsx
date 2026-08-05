@@ -100,20 +100,29 @@ export default function PromoCodeForm({
       internalNotes: values.internalNotes?.trim() || null,
     };
 
-    const result = promoCode
-      ? await updateProgramPromoCode(promoCode.id, payload)
-      : await createProgramPromoCode(payload);
+    try {
+      const result = promoCode
+        ? await updateProgramPromoCode(promoCode.id, payload)
+        : await createProgramPromoCode(payload);
 
-    if (!result.success) {
-      toast.error(result.message);
-      return;
-    }
+      if (!result.success) {
+        toast.error(result.message);
+        return;
+      }
 
-    toast.success(result.message);
-    if ("promoCodeId" in result) {
-      router.push(`/dashboard/programs/promo-codes/${result.promoCodeId}`);
+      toast.success(result.message);
+      if ("promoCodeId" in result) {
+        router.push(`/dashboard/programs/promo-codes/${result.promoCodeId}`);
+      }
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo guardar el código promocional",
+      );
     }
-    router.refresh();
   });
 
   return (
@@ -219,7 +228,7 @@ export default function PromoCodeForm({
           )}
         />
 
-        <SubmitButton disabled={false}>
+        <SubmitButton disabled={form.formState.isSubmitting}>
           {promoCode ? "Guardar cambios" : "Crear código"}
         </SubmitButton>
       </form>
