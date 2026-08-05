@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  PROMO_CODE_ERROR_MESSAGES,
   buildProgramPriceSnapshot,
   isValidPromoCodeFormat,
   normalizePromoCode,
+  promoCodeBlockerMessage,
   resolvePromoCodeValidity,
   resolvePromoPrice,
 } from "@/app/lib/programs/promo-codes";
@@ -145,6 +147,30 @@ describe("resolvePromoCodeValidity", () => {
         now,
       ),
     ).toEqual({ allowed: false, blocker: "expired" });
+  });
+});
+
+describe("promo code error messages", () => {
+  it("provides specific messages for buyer-actionable failures", () => {
+    expect(PROMO_CODE_ERROR_MESSAGES.invalidFormat).toBe(
+      "El formato del código no es válido",
+    );
+    expect(PROMO_CODE_ERROR_MESSAGES.notFound).toBe(
+      "Este código no existe para este programa",
+    );
+    expect(promoCodeBlockerMessage("inactive")).toBe(
+      "Este código está inactivo",
+    );
+    expect(promoCodeBlockerMessage("expired")).toBe("Este código ya venció");
+    expect(promoCodeBlockerMessage("exhausted")).toBe(
+      "Este código alcanzó el límite de usos",
+    );
+  });
+
+  it("keeps scheduled codes generic", () => {
+    expect(promoCodeBlockerMessage("not_started")).toBe(
+      PROMO_CODE_ERROR_MESSAGES.unavailable,
+    );
   });
 });
 

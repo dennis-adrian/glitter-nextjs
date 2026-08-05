@@ -18,9 +18,11 @@ import {
   lockProgramPromoCode,
 } from "@/app/lib/programs/promo-code-queries";
 import {
+  PROMO_CODE_ERROR_MESSAGES,
   buildProgramPriceSnapshot,
   isValidPromoCodeFormat,
   normalizePromoCode,
+  promoCodeBlockerMessage,
   resolvePromoCodeValidity,
   resolvePromoPrice,
 } from "@/app/lib/programs/promo-codes";
@@ -162,7 +164,7 @@ export async function startPaidCheckout(
   if (requestedPromoCode && !isValidPromoCodeFormat(requestedPromoCode)) {
     return {
       success: false,
-      message: "Este código no está disponible para esta sesión",
+      message: PROMO_CODE_ERROR_MESSAGES.invalidFormat,
     };
   }
   const profile = await getCurrentUserProfile();
@@ -306,7 +308,7 @@ export async function startPaidCheckout(
       if (requestedPromoCode && !promoCode) {
         return {
           kind: "error" as const,
-          message: "Este código no está disponible para esta sesión",
+          message: PROMO_CODE_ERROR_MESSAGES.notFound,
         };
       }
 
@@ -323,7 +325,7 @@ export async function startPaidCheckout(
         if (!validity.allowed) {
           return {
             kind: "error" as const,
-            message: "Este código no está disponible para esta sesión",
+            message: promoCodeBlockerMessage(validity.blocker),
           };
         }
       }

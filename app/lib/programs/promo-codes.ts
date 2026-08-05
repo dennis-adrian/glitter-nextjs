@@ -34,6 +34,28 @@ export type PromoCodeBlocker =
   | "expired"
   | "exhausted";
 
+export const PROMO_CODE_ERROR_MESSAGES = {
+  unavailable: "Este código no está disponible para esta sesión",
+  invalidFormat: "El formato del código no es válido",
+  notFound: "Este código no existe para este programa",
+  inactive: "Este código está inactivo",
+  expired: "Este código ya venció",
+  exhausted: "Este código alcanzó el límite de usos",
+} as const;
+
+export function promoCodeBlockerMessage(blocker: PromoCodeBlocker): string {
+  switch (blocker) {
+    case "inactive":
+      return PROMO_CODE_ERROR_MESSAGES.inactive;
+    case "expired":
+      return PROMO_CODE_ERROR_MESSAGES.expired;
+    case "exhausted":
+      return PROMO_CODE_ERROR_MESSAGES.exhausted;
+    case "not_started":
+      return PROMO_CODE_ERROR_MESSAGES.unavailable;
+  }
+}
+
 export function resolvePromoCodeValidity(
   input: PromoCodeValidityInput,
   now: Date,

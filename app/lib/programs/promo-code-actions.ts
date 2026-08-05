@@ -14,8 +14,10 @@ import {
   fetchPromoConsumingUses,
 } from "@/app/lib/programs/promo-code-queries";
 import {
+  PROMO_CODE_ERROR_MESSAGES,
   isValidPromoCodeFormat,
   normalizePromoCode,
+  promoCodeBlockerMessage,
   resolvePromoCodeValidity,
   resolvePromoPrice,
 } from "@/app/lib/programs/promo-codes";
@@ -56,7 +58,6 @@ export type PromoCodePreviewResult =
     }
   | { success: false; message: string };
 
-const UNAVAILABLE_MESSAGE = "Este código no está disponible para esta sesión";
 const PROMO_PREVIEW_LIMIT = 15;
 const PROMO_PREVIEW_WINDOW_MS = 60_000;
 
@@ -88,14 +89,35 @@ export async function previewProgramPromoCode(input: {
       limit: PROMO_PREVIEW_LIMIT,
       windowMs: PROMO_PREVIEW_WINDOW_MS,
     });
-    if (!allowed) return { success: false, message: UNAVAILABLE_MESSAGE };
+    if (!allowed) {
+      return {
+        success: false,
+        message: PROMO_CODE_ERROR_MESSAGES.unavailable,
+      };
+    }
   } catch {
-    return { success: false, message: UNAVAILABLE_MESSAGE };
+    return {
+      success: false,
+      message: PROMO_CODE_ERROR_MESSAGES.unavailable,
+    };
   }
 
+  if (
+    !input ||
+    typeof input.code !== "string" ||
+    !isValidPromoCodeFormat(input.code)
+  ) {
+    return {
+      success: false,
+      message: PROMO_CODE_ERROR_MESSAGES.invalidFormat,
+    };
+  }
   const parsed = previewSchema.safeParse(input);
-  if (!parsed.success || !isValidPromoCodeFormat(parsed.data.code)) {
-    return { success: false, message: UNAVAILABLE_MESSAGE };
+  if (!parsed.success) {
+    return {
+      success: false,
+      message: PROMO_CODE_ERROR_MESSAGES.unavailable,
+    };
   }
 
   const now = new Date();
@@ -116,7 +138,12 @@ export async function previewProgramPromoCode(input: {
     .where(eq(sessionOccurrences.id, parsed.data.occurrenceId))
     .limit(1);
 
-  if (!context) return { success: false, message: UNAVAILABLE_MESSAGE };
+  if (!context) {
+    return {
+      success: false,
+      message: PROMO_CODE_ERROR_MESSAGES.unavailable,
+    };
+  }
 
   const occurrenceState = resolveOccurrenceState(
     {
@@ -136,7 +163,10 @@ export async function previewProgramPromoCode(input: {
     !canPurchaseAudience(context.session.audience, eligibility) ||
     context.session.publicPrice <= 0
   ) {
-    return { success: false, message: UNAVAILABLE_MESSAGE };
+    return {
+      success: false,
+      message: PROMO_CODE_ERROR_MESSAGES.unavailable,
+    };
   }
 
   const [settings, promoCode] = await Promise.all([
@@ -146,8 +176,17 @@ export async function previewProgramPromoCode(input: {
     fetchProgramPromoCode(db, context.program.id, parsed.data.code),
   ]);
 
-  if (!settings || !promoCode) {
-    return { success: false, message: UNAVAILABLE_MESSAGE };
+  if (!settings) {
+    return {
+      success: false,
+      message: PROMO_CODE_ERROR_MESSAGES.unavailable,
+    };
+  }
+  if (!promoCode) {
+    return {
+      success: false,
+      message: PROMO_CODE_ERROR_MESSAGES.notFound,
+    };
   }
 
   const consumingUses = await fetchPromoConsumingUses(db, promoCode.id, now);
@@ -156,7 +195,10 @@ export async function previewProgramPromoCode(input: {
     now,
   );
   if (!validity.allowed) {
-    return { success: false, message: UNAVAILABLE_MESSAGE };
+    return {
+      success: false,
+      message: promoCodeBlockerMessage(validity.blocker),
+    };
   }
 
   const existing = resolvePrice(
