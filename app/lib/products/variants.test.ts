@@ -55,7 +55,7 @@ describe("product variant helpers", () => {
           id: 2,
           isVisible: true,
           stock: undefined,
-        } as ProductVariantWithSelections,
+        } as unknown as ProductVariantWithSelections,
         { ...baseVariantFields, id: 3, stock: 7, isVisible: true },
       ],
     };
