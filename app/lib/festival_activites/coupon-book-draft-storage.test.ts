@@ -11,6 +11,7 @@ const sampleVariants = [
     detailId: 10,
     detailLabel: "Variante A",
     headerImageUrl: null,
+    participationLimit: null,
     entries: [
       {
         participationId: 1,

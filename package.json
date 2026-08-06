@@ -3,6 +3,9 @@
   "version": "2.50.0",
   "private": true,
   "packageManager": "pnpm@10.34.3",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "pnpm generate && next build",
@@ -53,6 +56,7 @@
     "@sparticuz/chromium": "^138.0.2",
     "@tanstack/react-table": "^8.15.3",
     "@uploadthing/react": "^7.1.5",
+    "@uploadthing/shared": "^7.1.10",
     "@vercel/analytics": "^1.2.2",
     "canvas-confetti": "^1.9.2",
     "class-variance-authority": "^0.7.0",
@@ -83,6 +87,7 @@
     "react-zoom-pan-pinch": "^3.7.0",
     "recharts": "^2.15.0",
     "resend": "^4.1.1",
+    "server-only": "^0.0.1",
     "sonner": "^1.7.2",
     "tailwind-merge": "^2.2.2",
     "uploadthing": "^7.7.4",
@@ -92,13 +97,14 @@
   },
   "devDependencies": {
     "@react-email/preview-server": "^5.2.8",
+    "@react-email/render": "^1.0.4",
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/canvas-confetti": "^1.6.4",
     "@types/google-libphonenumber": "^7.4.30",
     "@types/luxon": "^3.4.2",
-    "@types/node": "^20",
+    "@types/node": "^24",
     "@types/pg": "^8.11.0",
     "@types/qrcode": "^1.5.5",
     "@types/react": "19.2.14",
