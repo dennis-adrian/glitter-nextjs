@@ -1,4 +1,10 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import OccurrenceRosterTable from "@/app/components/dashboard/programs/occurrence-roster-table";
@@ -15,6 +21,7 @@ function entry(overrides: Partial<RosterEntry> = {}): RosterEntry {
   return {
     lineId: 1,
     purchaseId: 100,
+    occurrenceId: 71,
     state: "confirmed",
     attendeeName: "Ana Quiroga",
     attendeeEmail: "ana@example.com",
@@ -165,6 +172,63 @@ describe("OccurrenceRosterTable", () => {
     expect(
       container.querySelector('a[href*="/programs/purchases/"]'),
     ).toBeNull();
+  });
+
+  it("omits the Sesión and Horario columns when rows never span occurrences", () => {
+    render(<OccurrenceRosterTable entries={[entry()]} />);
+    expect(screen.queryByText("Sesión")).toBeNull();
+    expect(screen.queryByText("Horario")).toBeNull();
+  });
+
+  it("shows Sesión and Horario only when given occurrence context", () => {
+    const occurrenceContext = new Map([
+      [71, { sessionTitle: "Taller A", occurrenceLabel: "12 mar 2026, 18:00" }],
+    ]);
+
+    render(
+      <OccurrenceRosterTable
+        entries={[entry({ occurrenceId: 71 })]}
+        occurrenceContext={occurrenceContext}
+      />,
+    );
+
+    expect(screen.getByText("Sesión")).toBeTruthy();
+    expect(screen.getByText("Taller A")).toBeTruthy();
+    expect(screen.getByText("12 mar 2026, 18:00")).toBeTruthy();
+  });
+
+  it("falls back to a dash when a row's occurrence is missing from the context", () => {
+    render(
+      <OccurrenceRosterTable
+        entries={[entry({ occurrenceId: 999 })]}
+        occurrenceContext={new Map()}
+      />,
+    );
+
+    expect(screen.getAllByText("—")).toHaveLength(2);
+  });
+
+  it("hides pagination controls when everything fits on one page", () => {
+    render(<OccurrenceRosterTable entries={[entry()]} />);
+    expect(screen.queryByText("Anterior")).toBeNull();
+    expect(screen.queryByText("Siguiente")).toBeNull();
+  });
+
+  it("paginates once a roster exceeds one page", () => {
+    const entries = Array.from({ length: 51 }, (_, i) =>
+      entry({ lineId: i, attendeeName: `Persona ${i}` }),
+    );
+
+    render(<OccurrenceRosterTable entries={entries} />);
+
+    expect(screen.getByText("Persona 0")).toBeTruthy();
+    expect(screen.queryByText("Persona 50")).toBeNull();
+    expect(screen.getByText(/Página 1 de 2/)).toBeTruthy();
+
+    fireEvent.click(screen.getByText("Siguiente"));
+
+    expect(screen.getByText("Persona 50")).toBeTruthy();
+    expect(screen.queryByText("Persona 0")).toBeNull();
   });
 });
 

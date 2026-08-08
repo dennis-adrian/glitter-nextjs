@@ -61,7 +61,12 @@ export default async function ProgramDetailPage({ params }: Props) {
         />
       </div>
 
-      <div>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/dashboard/programs/${program.id}/enrollments`}>
+            Ver inscritos
+          </Link>
+        </Button>
         <Button asChild variant="outline" size="sm">
           <Link
             href={`/dashboard/programs/promo-codes/new?programId=${program.id}`}
