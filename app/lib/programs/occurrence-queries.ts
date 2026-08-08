@@ -3,6 +3,12 @@ import "server-only";
 import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
 import { cache } from "react";
 
+import type {
+  OccurrenceLifecycleStatus,
+  ProgramStatus,
+  SessionStatus,
+  SessionType,
+} from "@/app/lib/programs/definitions";
 import { resolveAvailability } from "@/app/lib/programs/inventory";
 import { resolveAttendeeIdentity } from "@/app/lib/programs/registration";
 import {
@@ -14,6 +20,8 @@ import {
 } from "@/app/lib/programs/roster";
 import { db } from "@/db";
 import {
+  programs,
+  programSessions,
   sessionOccurrences,
   sessionPurchaseLines,
   sessionWaitlistEntries,
@@ -23,6 +31,7 @@ import {
 export type RosterEntry = {
   lineId: number;
   purchaseId: number;
+  occurrenceId: number;
   state: RosterSeatState;
   attendeeName: string;
   attendeeEmail: string;
@@ -112,6 +121,7 @@ export async function fetchOccurrenceRosters(
     entries.push({
       lineId: line.id,
       purchaseId: purchase.id,
+      occurrenceId: line.occurrenceId,
       state,
       // An anonymized purchase (a deleted account) keeps its seat but loses its
       // person, so the roster says so rather than rendering an empty cell.
@@ -263,6 +273,129 @@ export async function fetchOccurrenceDashboard(
       waitlist.get(occurrence.id) ?? 0,
     ),
     entries,
+  };
+}
+
+/** One occurrence as the program-wide roster needs it: schedule and lifecycle, no counts. */
+export type ProgramRosterOccurrence = {
+  occurrenceId: number;
+  sessionId: number;
+  startsAt: Date;
+  endsAt: Date;
+  capacity: number;
+  venueName: string | null;
+  room: string | null;
+  lifecycleStatus: OccurrenceLifecycleStatus;
+  rescheduledAt: Date | null;
+  salesStartAt: Date | null;
+  salesEndAt: Date | null;
+  salesClosedAt: Date | null;
+};
+
+export type ProgramRosterSession = {
+  id: number;
+  title: string;
+  type: SessionType;
+  status: SessionStatus;
+};
+
+export type ProgramRoster = {
+  /** Pinned once. Every count on the screen is judged against this instant. */
+  now: Date;
+  programStatus: ProgramStatus;
+  sessions: ProgramRosterSession[];
+  occurrences: ProgramRosterOccurrence[];
+  entries: RosterEntry[];
+  waitlistByOccurrence: Record<number, number>;
+};
+
+/**
+ * Every enrollment in a program, across every session and occurrence, for the
+ * program-wide dashboard (docs/PRD-program-enrollments-dashboard.md).
+ *
+ * Reuses `fetchOccurrenceRosters` unchanged over every occurrence id in the
+ * program rather than a bespoke aggregate query, so this screen's numbers are
+ * structurally the same read as the occurrence page's — invariant 1.
+ *
+ * Display strings for sessions and occurrences are deliberately not joined
+ * onto entries here; the client joins by id (§7.2), so there is one source
+ * per fact instead of a snapshot that can drift from the live schedule.
+ */
+export async function fetchProgramRoster(
+  programId: number,
+  options: { now?: Date } = {},
+): Promise<ProgramRoster> {
+  const now = options.now ?? new Date();
+
+  const [program, sessions] = await Promise.all([
+    db.query.programs.findFirst({
+      where: eq(programs.id, programId),
+      columns: { status: true },
+    }),
+    db.query.programSessions.findMany({
+      where: eq(programSessions.programId, programId),
+      columns: { id: true, title: true, type: true, status: true },
+      orderBy: [asc(programSessions.id)],
+      with: {
+        occurrences: {
+          with: { venue: true },
+          orderBy: [asc(sessionOccurrences.startsAt)],
+        },
+      },
+    }),
+  ]);
+
+  // The route resolves `notFound()` before calling this; a program deleted in
+  // the gap between that check and this query has nothing left to roster.
+  if (!program) {
+    return {
+      now,
+      programStatus: "draft",
+      sessions: [],
+      occurrences: [],
+      entries: [],
+      waitlistByOccurrence: {},
+    };
+  }
+
+  const occurrences: ProgramRosterOccurrence[] = sessions.flatMap((session) =>
+    session.occurrences.map((occurrence) => ({
+      occurrenceId: occurrence.id,
+      sessionId: session.id,
+      startsAt: occurrence.startsAt,
+      endsAt: occurrence.endsAt,
+      capacity: occurrence.capacity,
+      venueName: occurrence.venue?.name ?? null,
+      room: occurrence.room,
+      lifecycleStatus: occurrence.lifecycleStatus,
+      rescheduledAt: occurrence.rescheduledAt,
+      salesStartAt: occurrence.salesStartAt,
+      salesEndAt: occurrence.salesEndAt,
+      salesClosedAt: occurrence.salesClosedAt,
+    })),
+  );
+
+  const occurrenceIds = occurrences.map((occurrence) => occurrence.occurrenceId);
+
+  const [rosters, waitlist] = await Promise.all([
+    fetchOccurrenceRosters(occurrenceIds, { now }),
+    fetchWaitlistCounts(occurrenceIds),
+  ]);
+
+  const entries = occurrenceIds.flatMap((id) => rosters.get(id) ?? []);
+
+  return {
+    now,
+    programStatus: program.status,
+    sessions: sessions.map((session) => ({
+      id: session.id,
+      title: session.title,
+      type: session.type,
+      status: session.status,
+    })),
+    occurrences,
+    entries,
+    waitlistByOccurrence: Object.fromEntries(waitlist),
   };
 }
 

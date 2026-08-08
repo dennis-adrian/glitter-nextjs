@@ -33,6 +33,7 @@ export type OccurrenceScheduleChange =
 
 export type ProgramStatus = Program["status"];
 export type SessionType = ProgramSession["type"];
+export type SessionStatus = ProgramSession["status"];
 export type SessionAudience = ProgramSession["audience"];
 export type SessionSkillLevel = NonNullable<ProgramSession["skillLevel"]>;
 export type OccurrenceLifecycleStatus = SessionOccurrence["lifecycleStatus"];
