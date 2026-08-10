@@ -57,7 +57,7 @@ export default function CheckInResultBanner({ result }: Props) {
       aria-live="polite"
       className={`rounded-lg border px-4 py-3 ${OUTCOME_STYLE[result.outcome]}`}
     >
-      <p className="text-lg font-semibold">
+      <p className="text-sm font-medium">
         {CHECK_IN_OUTCOME_LABELS[result.outcome]}
       </p>
       {line ? <p className="text-sm">{line}</p> : null}
