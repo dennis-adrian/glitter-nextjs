@@ -247,7 +247,7 @@ export async function sendSessionDayReminders(
         })),
         idempotencyKey: buildSessionDayReminderKey(
           today.dayKey,
-          reminder.tickets.map((ticket) => ticket.ticketId),
+          reminder.attendeeEmail,
         ),
       });
 

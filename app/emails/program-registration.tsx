@@ -177,3 +177,19 @@ const qrImage = {
   display: "block",
   backgroundColor: "#FFFFFF",
 };
+
+/**
+ * The QR renders broken in the preview server, and that is expected: `cid:`
+ * resolves against a message's own attachments, which only exist once the mail
+ * is actually sent. Check the QR in a delivered email, never here.
+ */
+ProgramRegistrationEmailTemplate.PreviewProps = {
+  attendeeName: "María Pérez",
+  programName: "Glitter Academy",
+  sessionTitle: "Cómo vivir del arte",
+  sessionTypeLabel: "Charla",
+  scheduleLabel: "10 ago 2026, 15:00 — 16:30",
+  venueLabel: "Casa Glitter · Sala 2",
+  ticketCode: "GLT-8F3K2A",
+  secureLinkUrl: "http://localhost:3000/programs/purchases/12?token=preview",
+} as ProgramRegistrationEmailProps;

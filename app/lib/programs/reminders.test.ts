@@ -157,19 +157,53 @@ describe("groupSessionDayReminders", () => {
 });
 
 describe("buildSessionDayReminderKey", () => {
-  it("does not depend on the order tickets came back in", () => {
-    expect(buildSessionDayReminderKey("2026-08-10", [2, 1])).toBe(
-      buildSessionDayReminderKey("2026-08-10", [1, 2]),
+  it("survives a ticket set that changed between two firings", () => {
+    // The race the key exists to close: the sweep re-queries tickets every run,
+    // so a seat cancelled — or bought — between a cron double-fire changes what
+    // the recipient holds. The key must not move with it, or the second firing
+    // mails them their second reminder of the morning.
+    const beforeCancellation = groupSessionDayReminders([
+      ticket({ ticketId: 1, ticketCode: "GLT-001" }),
+      ticket({ ticketId: 2, ticketCode: "GLT-002" }),
+    ]);
+    const afterCancellation = groupSessionDayReminders([
+      ticket({ ticketId: 1, ticketCode: "GLT-001" }),
+    ]);
+    const afterNewSeat = groupSessionDayReminders([
+      ticket({ ticketId: 1, ticketCode: "GLT-001" }),
+      ticket({ ticketId: 2, ticketCode: "GLT-002" }),
+      ticket({ ticketId: 3, ticketCode: "GLT-003" }),
+    ]);
+
+    const keyFor = (reminders: ReturnType<typeof groupSessionDayReminders>) =>
+      buildSessionDayReminderKey("2026-08-10", reminders[0].attendeeEmail);
+
+    expect(keyFor(afterCancellation)).toBe(keyFor(beforeCancellation));
+    expect(keyFor(afterNewSeat)).toBe(keyFor(beforeCancellation));
+  });
+
+  it("normalizes the address the same way the grouping does", () => {
+    expect(buildSessionDayReminderKey("2026-08-10", " Ana@Example.com ")).toBe(
+      buildSessionDayReminderKey("2026-08-10", "ana@example.com"),
     );
+  });
+
+  it("separates two people on the same day", () => {
+    expect(
+      buildSessionDayReminderKey("2026-08-10", "ana@example.com"),
+    ).not.toBe(buildSessionDayReminderKey("2026-08-10", "beto@example.com"));
   });
 
   it("changes with the day, so tomorrow's reminder is not suppressed", () => {
-    expect(buildSessionDayReminderKey("2026-08-10", [1])).not.toBe(
-      buildSessionDayReminderKey("2026-08-11", [1]),
-    );
+    expect(
+      buildSessionDayReminderKey("2026-08-10", "ana@example.com"),
+    ).not.toBe(buildSessionDayReminderKey("2026-08-11", "ana@example.com"));
   });
 
   it("carries no attendee address", () => {
-    expect(buildSessionDayReminderKey("2026-08-10", [1])).not.toContain("@");
+    const key = buildSessionDayReminderKey("2026-08-10", "ana@example.com");
+
+    expect(key).not.toContain("@");
+    expect(key).not.toContain("ana");
   });
 });

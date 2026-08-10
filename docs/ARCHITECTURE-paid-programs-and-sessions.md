@@ -1015,7 +1015,7 @@ Two concurrent requests for a last seat serialize on the occurrence row lock; th
 | Expiration            | Guarded update `WHERE status = 'pending_upload' AND holdExpiresAt <= :now`                                                                                                                                                     |
 | Check-in              | `session_attendances.ticketId` unique                                                                                                                                                                                          |
 | Emails                | `sendEmail`'s existing `idempotencyKey` header, keyed `program-purchase-{purchaseId}-{template}-{discriminator}` where the discriminator is the voucher version for review mails and the approval timestamp for issuance mails |
-| Session day reminder  | `program-session-day-reminder-{storeLocalDay}-{sortedTicketIds}`; one message per person per day, so a retried or double-fired cron sends nothing extra and no column is needed                                                |
+| Session day reminder  | `program-session-day-reminder-{storeLocalDay}-{sha256(attendeeEmail)}`; keyed on recipient and day, not on their tickets, so a seat cancelled or bought between two firings cannot mint a fresh key and mail them twice        |
 | Waitlist invitation   | Partial unique index on one `sent` invitation per entry                                                                                                                                                                        |
 
 An email failure never rolls back an approval: tickets are issued and committed first, then mail is

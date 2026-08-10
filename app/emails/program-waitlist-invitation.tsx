@@ -86,3 +86,11 @@ export default function ProgramWaitlistInvitationEmailTemplate({
     </Html>
   );
 }
+
+ProgramWaitlistInvitationEmailTemplate.PreviewProps = {
+  buyerName: "María Pérez",
+  sessionTitle: "Cómo vivir del arte",
+  scheduleLabel: "10 ago 2026, 15:00 — 16:30",
+  deadlineLabel: "9 ago 2026, 18:00",
+  invitationUrl: "http://localhost:3000/programs/waitlist/12?token=preview",
+} as ProgramWaitlistInvitationEmailProps;

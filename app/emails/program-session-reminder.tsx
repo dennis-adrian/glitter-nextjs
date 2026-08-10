@@ -53,13 +53,22 @@ export default function ProgramSessionReminderEmailTemplate({
   const isSingle = sessions.length === 1;
   const first = sessions[0];
 
+  /**
+   * One program is the normal case. Two only happens when someone holds seats
+   * across programs on the same day — and there naming just one of them would
+   * be wrong, so the clause is dropped rather than guessed.
+   */
+  const programNames = new Set(sessions.map((session) => session.programName));
+  const programSuffix =
+    programNames.size === 1 ? ` de ${first.programName}` : "";
+
   return (
     <Html>
       <Head />
       <Preview>
         {isSingle
-          ? `Hoy es tu ${first.typeLabel.toLowerCase()}: ${first.title}`
-          : `Hoy tienes ${sessions.length} sesiones. Aquí están tus horarios.`}
+          ? `Hoy te espera 1 sesión${programSuffix}`
+          : `Hoy te esperan ${sessions.length} sesiones${programSuffix}`}
       </Preview>
       <Body style={styles.main}>
         <Container style={styles.container}>
@@ -73,7 +82,7 @@ export default function ProgramSessionReminderEmailTemplate({
                 </>
               ) : (
                 <>
-                  {attendeeName}, hoy tienes{" "}
+                  {attendeeName}, hoy tenés{" "}
                   <strong>{sessions.length} sesiones</strong> con nosotros. Este
                   es tu plan del día:
                 </>
@@ -103,9 +112,9 @@ export default function ProgramSessionReminderEmailTemplate({
             </Text>
 
             <Text style={styles.text}>
-              Ah, y no te olvides de traer algo para tomar apuntes ✍️ —
-              cuaderno, libreta o esa app de notas que nunca abres. Siempre sale
-              una idea que vas a querer anotar.
+              Ah, y no te olvidés de traer algo para tomar apuntes - cuaderno,
+              libreta o tu app de notas favorita. Siempre sale una idea que vas
+              a querer anotar.
             </Text>
 
             {ticketsUrl ? (
@@ -129,3 +138,31 @@ export default function ProgramSessionReminderEmailTemplate({
     </Html>
   );
 }
+
+/**
+ * Two sessions, because the plural branch is the one worth eyeballing: the
+ * singular case is a subset of it, but the day-plan list, its repeated detail
+ * boxes, and the "N sesiones" wording only render here.
+ */
+ProgramSessionReminderEmailTemplate.PreviewProps = {
+  attendeeName: "María Pérez",
+  sessions: [
+    {
+      title: "Cómo vivir del arte",
+      typeLabel: "Charla",
+      programName: "Glitter Academy",
+      scheduleLabel: "10 ago 2026, 15:00 - 16:30",
+      venueLabel: "Casa Glitter · Sala 2",
+      ticketCode: "GLT-8F3K2A",
+    },
+    {
+      title: "Taller de ilustración",
+      typeLabel: "Taller",
+      programName: "Glitter Academy",
+      scheduleLabel: "10 ago 2026, 18:00 - 20:00",
+      venueLabel: "Casa Glitter",
+      ticketCode: "GLT-9D1P7Q",
+    },
+  ],
+  ticketsUrl: "http://localhost:3000/my_programs",
+} as ProgramSessionReminderEmailProps;

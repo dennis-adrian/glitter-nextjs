@@ -154,3 +154,30 @@ const totalRow = {
   paddingTop: "12px",
   fontWeight: 700,
 };
+
+/**
+ * Two sessions and a promo, because that exercises every conditional the
+ * template has — the `isCart` headline, the per-session titles and prices, the
+ * divider, and the promo line. The single-session view is a subset.
+ */
+ProgramVoucherReceivedEmailTemplate.PreviewProps = {
+  attendeeName: "María Pérez",
+  sessions: [
+    {
+      title: "Cómo vivir del arte",
+      typeLabel: "Charla",
+      scheduleLabel: "10 ago 2026, 15:00 — 16:30",
+      priceLabel: "Bs 50",
+    },
+    {
+      title: "Taller de ilustración",
+      typeLabel: "Taller",
+      scheduleLabel: "10 ago 2026, 18:00 — 20:00",
+      priceLabel: "Bs 70",
+    },
+  ],
+  totalLabel: "Bs 108",
+  promoLabel: "Código GLITTER10 · Librería Ateneo · 10% (ahorro Bs 12)",
+  secureLinkUrl: "http://localhost:3000/programs/purchases/12?token=preview",
+  isReplacement: false,
+} as ProgramVoucherReceivedEmailProps;

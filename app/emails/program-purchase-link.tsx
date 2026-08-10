@@ -76,3 +76,9 @@ export default function ProgramPurchaseLinkEmailTemplate({
     </Html>
   );
 }
+
+ProgramPurchaseLinkEmailTemplate.PreviewProps = {
+  buyerName: "María Pérez",
+  sessionTitle: "Cómo vivir del arte",
+  secureLinkUrl: "http://localhost:3000/programs/purchases/12?token=preview",
+} as ProgramPurchaseLinkEmailProps;

@@ -1,3 +1,5 @@
+import { createHash } from "crypto";
+
 import { DateTime } from "luxon";
 
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
@@ -137,17 +139,29 @@ export function groupSessionDayReminders(
 /**
  * The key that stops a second run from mailing the same person twice.
  *
- * Built from the day plus the ticket ids rather than the address: Resend
- * receives this as an HTTP header, and there is no reason to put an attendee's
- * email in one. Ticket ids are sorted so the key does not depend on row order,
- * and the day is included so tomorrow's reminder is a genuinely new message
- * rather than a suppressed duplicate.
+ * Keyed on *recipient and day*, never on the tickets themselves. The ticket set
+ * is rebuilt from a live query on every sweep, so keying on it would make the
+ * key mutable: a seat cancelled — or bought — between two firings changes the
+ * ids, mints a fresh key, and mails someone their second "you have something
+ * today" of the morning. Recipient plus day is the thing that is actually
+ * stable, and it is what the guarantee is stated in terms of.
+ *
+ * The address is digested rather than embedded because Resend receives this as
+ * an HTTP header, and an attendee's email has no business in one. The digest is
+ * over the same normalized form the grouping uses, so the two cannot disagree.
+ *
+ * Consequence, deliberate: a seat bought *after* the morning send earns no
+ * second reminder. Registration already emails its own confirmation with the
+ * schedule, and the daily nudge is once by design.
  */
 export function buildSessionDayReminderKey(
   dayKey: string,
-  ticketIds: number[],
+  attendeeEmail: string,
 ): string {
-  const ordered = [...ticketIds].sort((a, b) => a - b).join("_");
+  const digest = createHash("sha256")
+    .update(attendeeEmail.trim().toLowerCase())
+    .digest("hex")
+    .slice(0, 32);
 
-  return `program-session-day-reminder-${dayKey}-${ordered}`;
+  return `program-session-day-reminder-${dayKey}-${digest}`;
 }
