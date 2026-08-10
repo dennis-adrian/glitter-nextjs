@@ -142,8 +142,8 @@ export default function VerifyTicketForm({
                 />
               </div>
               <FormDescription>
-                Puedes ingresar el código manualmente. Los dígitos después del
-                guión (-) o barra (/)
+                Puedes ingresar el código completo o solo los dígitos que van
+                después del guión (-) o de la barra (/).
               </FormDescription>
               <FormMessage />
             </FormItem>
