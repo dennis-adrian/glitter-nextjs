@@ -1,10 +1,12 @@
 "use client";
 
+import type { Reader } from "@zxing/library";
 import { Loader2Icon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/app/components/ui/button";
 import { playScanBeep } from "@/app/lib/scanner/beep";
+import QuietMultiReader from "@/app/lib/scanner/quiet-multi-reader";
 import { cn } from "@/app/lib/utils";
 
 /**
@@ -20,6 +22,9 @@ export type ScanFormat = "qr_code" | "code_128" | "code_39" | "ean_13";
 
 /** Program tickets are QR; festival tickets are printed as CODE_128 as well. */
 const DEFAULT_FORMATS: ScanFormat[] = ["qr_code"];
+
+/** The symbologies ZXing reads through its combined one-dimensional reader. */
+const ONE_D_FORMATS: ScanFormat[] = ["code_128", "code_39", "ean_13"];
 
 /** How long the same payload is ignored after it decodes. */
 const DEFAULT_COOLDOWN_MS = 3000;
@@ -108,8 +113,14 @@ export default function CodeScanner({
     async function start() {
       try {
         const [
-          { BrowserMultiFormatReader },
-          { BarcodeFormat, DecodeHintType },
+          { BrowserCodeReader },
+          {
+            BarcodeFormat,
+            DecodeHintType,
+            MultiFormatOneDReader,
+            NotFoundException,
+            QRCodeReader,
+          },
         ] = await Promise.all([
           import("@zxing/browser"),
           import("@zxing/library"),
@@ -124,19 +135,36 @@ export default function CodeScanner({
           ean_13: BarcodeFormat.EAN_13,
         };
 
+        const formats = formatsRef.current;
+
         /**
-         * Without this hint the reader attempts every symbology it knows on
-         * every frame, which on a mid-range phone is the difference between a
-         * scan that lands immediately and one the operator has to hold still
-         * for.
+         * Readers still receive the hint: the one-dimensional reader picks its
+         * own symbologies from it, and both readers use it for the rest of
+         * ZXing's decode options.
          */
         const hints = new Map();
         hints.set(
           DecodeHintType.POSSIBLE_FORMATS,
-          formatsRef.current.map((format) => zxingFormats[format]),
+          formats.map((format) => zxingFormats[format]),
         );
 
-        const reader = new BrowserMultiFormatReader(hints);
+        /**
+         * Only the readers the caller asked for get built, so a QR-only screen
+         * never pays to look for barcodes. One-dimensional first, matching the
+         * order ZXing itself uses.
+         */
+        const readers: Reader[] = [];
+        if (formats.some((format) => ONE_D_FORMATS.includes(format))) {
+          readers.push(new MultiFormatOneDReader(hints));
+        }
+        if (formats.includes("qr_code")) {
+          readers.push(new QRCodeReader());
+        }
+
+        const reader = new BrowserCodeReader(
+          new QuietMultiReader(readers, () => new NotFoundException()),
+          hints,
+        );
         const scannerControls = await reader.decodeFromVideoDevice(
           // Undefined asks for `facingMode: environment` — the rear camera,
           // which is the one pointed at a phone screen being presented.
