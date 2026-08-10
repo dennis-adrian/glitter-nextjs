@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import CheckInManualForm from "@/app/components/dashboard/programs/checkin/checkin-manual-form";
@@ -15,11 +15,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
+import useRecentCheckIns from "@/app/hooks/use-recent-check-ins";
 import type { AttendanceMethod } from "@/app/lib/programs/definitions";
 import { checkInTicket } from "@/app/lib/programs/checkin-actions";
-
-/** Enough to answer "did the last few go through" without becoming a report. */
-const RECENT_LIMIT = 10;
 
 type Props = { occurrenceId: number };
 
@@ -31,13 +29,16 @@ type Props = { occurrenceId: number };
  */
 export default function CheckInPanel({ occurrenceId }: Props) {
   const [result, setResult] = useState<RecentCheckIn["result"] | null>(null);
-  const [recent, setRecent] = useState<RecentCheckIn[]>([]);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  // Scans can land inside the same millisecond; a counter keeps React keys
-  // unique where a timestamp would not.
-  const nextId = useRef(0);
+  // Survives a reload of the door screen; see the hook for why it is a store
+  // rather than state.
+  const {
+    items: recent,
+    add: addRecent,
+    clear: clearRecent,
+  } = useRecentCheckIns(occurrenceId);
 
   const submit = useCallback(
     (code: string, method: AttendanceMethod) => {
@@ -55,24 +56,27 @@ export default function CheckInPanel({ occurrenceId }: Props) {
           return;
         }
 
-        nextId.current += 1;
-        const entry: RecentCheckIn = {
-          id: nextId.current,
-          at: new Date(),
-          result: res.result,
-        };
-
         setResult(res.result);
-        setRecent((items) => [entry, ...items].slice(0, RECENT_LIMIT));
+        addRecent(res.result);
       });
     },
-    [occurrenceId],
+    [occurrenceId, addRecent],
   );
 
   const handleScan = useCallback(
     (code: string) => submit(code, "qr_scan"),
     [submit],
   );
+
+  /**
+   * Drops the on-screen history. Safe to offer without a confirmation because
+   * nothing is lost: every scan is already an attendance row, and the occurrence
+   * roster is the list that matters.
+   */
+  const handleClear = useCallback(() => {
+    setResult(null);
+    clearRecent();
+  }, [clearRecent]);
 
   return (
     <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
@@ -103,7 +107,7 @@ export default function CheckInPanel({ occurrenceId }: Props) {
           <CardTitle className="text-base">Últimos escaneos</CardTitle>
         </CardHeader>
         <CardContent>
-          <CheckInRecentList items={recent} />
+          <CheckInRecentList items={recent} onClear={handleClear} />
         </CardContent>
       </Card>
     </div>
