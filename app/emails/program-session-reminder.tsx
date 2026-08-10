@@ -109,13 +109,13 @@ export default function ProgramSessionReminderEmailTemplate({
             ))}
 
             <Text style={styles.text}>
-              Llega unos minutos antes y ten tu QR a mano para el ingreso.
+              Llegá unos minutos antes con tu QR a mano para el ingreso.
             </Text>
 
             <Text style={styles.text}>
-              Ah, y no te olvidés de traer algo para tomar apuntes - cuaderno,
-              libreta o tu app de notas favorita. Siempre sale una idea que vas
-              a querer anotar.
+              Ah, y no te olvidés de traer algo para tomar apuntes: cuaderno,
+              libreta o tu app de notas favorita. Siempre salen ideas que vas a
+              querer anotar.
             </Text>
 
             {ticketsUrl ? (
@@ -129,8 +129,8 @@ export default function ProgramSessionReminderEmailTemplate({
             <Hr style={{ margin: "16px 0" }} />
             <Text style={{ ...styles.text, fontSize: "12px" }}>
               {ticketsUrl
-                ? "¿Buscas el QR? Está en el correo de confirmación que te enviamos al inscribirte, y también en el botón de arriba."
-                : "¿Buscas el QR? Está en el correo de confirmación que te enviamos al inscribirte."}
+                ? "¿Buscás el QR? Está en el correo de confirmación que te enviamos al inscribirte, y también en el botón de arriba."
+                : "¿Buscás el QR? Está en el correo de confirmación que te enviamos al inscribirte."}
             </Text>
           </Section>
           <EmailFooter />

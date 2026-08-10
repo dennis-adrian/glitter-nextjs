@@ -19,7 +19,7 @@
     },
     {
       "path": "/api/cron/morning/programSessionReminders",
-      "schedule": "0 14 * * *"
+      "schedule": "0 15 * * *"
     }
   ]
 }
