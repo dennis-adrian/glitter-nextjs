@@ -29,6 +29,7 @@ import {
   PackageIcon,
   QrCodeIcon,
   ReceiptTextIcon,
+  ScanLineIcon,
   ShirtIcon,
   // StickerIcon, // used by the commented-out festival items
   StoreIcon,
@@ -174,14 +175,42 @@ const MobileSidebar = ({
                 <ImagesIcon className="mr-2 h-6 w-6" />
                 Carrusel inicio
               </MobileSidebarItem>
-              <MobileSidebarItem href="/dashboard/programs">
-                <CalendarIcon className="mr-2 h-6 w-6" />
-                Programas
-              </MobileSidebarItem>
-              <MobileSidebarItem href="/dashboard/programs/promo-codes">
-                <TicketIcon className="mr-2 h-6 w-6" />
-                Códigos de programas
-              </MobileSidebarItem>
+              <li>
+                <h4 className="flex items-center p-2 text-lg">
+                  <CalendarIcon className="mr-2 h-6 w-6" />
+                  Programas
+                </h4>
+                <ul className="ml-4">
+                  <MobileSidebarItem href="/dashboard/programs">
+                    <CalendarCheck2Icon className="mr-2 h-6 w-6" />
+                    Programas
+                  </MobileSidebarItem>
+                  <MobileSidebarItem href="/dashboard/programs/check-in">
+                    <ScanLineIcon className="mr-2 h-6 w-6" />
+                    Registrar ingresos
+                  </MobileSidebarItem>
+                  <MobileSidebarItem href="/dashboard/programs/enrollments">
+                    <UsersIcon className="mr-2 h-6 w-6" />
+                    Inscripciones
+                  </MobileSidebarItem>
+                  <MobileSidebarItem href="/dashboard/programs/purchases">
+                    <ReceiptTextIcon className="mr-2 h-6 w-6" />
+                    Pagos por revisar
+                  </MobileSidebarItem>
+                  <MobileSidebarItem href="/dashboard/programs/promo-codes">
+                    <TicketIcon className="mr-2 h-6 w-6" />
+                    Códigos de programas
+                  </MobileSidebarItem>
+                  <MobileSidebarItem href="/dashboard/programs/speakers">
+                    <MicIcon className="mr-2 h-6 w-6" />
+                    Expositores
+                  </MobileSidebarItem>
+                  <MobileSidebarItem href="/dashboard/programs/venues">
+                    <Building2Icon className="mr-2 h-6 w-6" />
+                    Lugares
+                  </MobileSidebarItem>
+                </ul>
+              </li>
             </>
           )}
           {profile && profile.role === "admin" && (
@@ -254,14 +283,42 @@ const MobileSidebar = ({
                   <ImagesIcon className="mr-2 h-6 w-6" />
                   Carrusel inicio
                 </MobileSidebarItem>
-                <MobileSidebarItem href="/dashboard/programs">
-                  <CalendarIcon className="mr-2 h-6 w-6" />
-                  Programas
-                </MobileSidebarItem>
-                <MobileSidebarItem href="/dashboard/programs/promo-codes">
-                  <TicketIcon className="mr-2 h-6 w-6" />
-                  Códigos de programas
-                </MobileSidebarItem>
+                <li>
+                  <h4 className="flex items-center p-2 text-lg">
+                    <CalendarIcon className="mr-2 h-6 w-6" />
+                    Programas
+                  </h4>
+                  <ul className="ml-4">
+                    <MobileSidebarItem href="/dashboard/programs">
+                      <CalendarCheck2Icon className="mr-2 h-6 w-6" />
+                      Programas
+                    </MobileSidebarItem>
+                    <MobileSidebarItem href="/dashboard/programs/check-in">
+                      <ScanLineIcon className="mr-2 h-6 w-6" />
+                      Registrar ingresos
+                    </MobileSidebarItem>
+                    <MobileSidebarItem href="/dashboard/programs/enrollments">
+                      <UsersIcon className="mr-2 h-6 w-6" />
+                      Inscripciones
+                    </MobileSidebarItem>
+                    <MobileSidebarItem href="/dashboard/programs/purchases">
+                      <ReceiptTextIcon className="mr-2 h-6 w-6" />
+                      Pagos por revisar
+                    </MobileSidebarItem>
+                    <MobileSidebarItem href="/dashboard/programs/promo-codes">
+                      <TicketIcon className="mr-2 h-6 w-6" />
+                      Códigos de programas
+                    </MobileSidebarItem>
+                    <MobileSidebarItem href="/dashboard/programs/speakers">
+                      <MicIcon className="mr-2 h-6 w-6" />
+                      Expositores
+                    </MobileSidebarItem>
+                    <MobileSidebarItem href="/dashboard/programs/venues">
+                      <Building2Icon className="mr-2 h-6 w-6" />
+                      Lugares
+                    </MobileSidebarItem>
+                  </ul>
+                </li>
                 <MobileSidebarItem href="/dashboard/feature_flags">
                   <ToggleLeftIcon className="mr-2 h-6 w-6" />
                   Funcionalidades
