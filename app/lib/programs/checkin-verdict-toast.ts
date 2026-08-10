@@ -26,7 +26,7 @@ const options = {
   id: VERDICT_TOAST_ID,
   duration: 10_000,
   closeButton: true,
-  position: "top-center",
+  position: "bottom-center",
 } as const;
 
 /** Detail line under the headline — who, or which session instead of this one. */
