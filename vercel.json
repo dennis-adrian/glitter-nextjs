@@ -16,6 +16,10 @@
     {
       "path": "/api/cron/morning/programHoldExpiration",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/morning/programSessionReminders",
+      "schedule": "0 14 * * *"
     }
   ]
 }

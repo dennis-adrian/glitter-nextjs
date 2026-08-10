@@ -1015,6 +1015,7 @@ Two concurrent requests for a last seat serialize on the occurrence row lock; th
 | Expiration            | Guarded update `WHERE status = 'pending_upload' AND holdExpiresAt <= :now`                                                                                                                                                     |
 | Check-in              | `session_attendances.ticketId` unique                                                                                                                                                                                          |
 | Emails                | `sendEmail`'s existing `idempotencyKey` header, keyed `program-purchase-{purchaseId}-{template}-{discriminator}` where the discriminator is the voucher version for review mails and the approval timestamp for issuance mails |
+| Session day reminder  | `program-session-day-reminder-{storeLocalDay}-{sortedTicketIds}`; one message per person per day, so a retried or double-fired cron sends nothing extra and no column is needed                                                |
 | Waitlist invitation   | Partial unique index on one `sent` invitation per entry                                                                                                                                                                        |
 
 An email failure never rolls back an approval: tickets are issued and committed first, then mail is
@@ -1223,12 +1224,14 @@ app/lib/programs/
   tickets.ts
   checkin.ts
   waitlist.ts
-  scheduled-actions.ts    # hold + invitation sweeps
+  reminders.ts            # store-local day window + per-person grouping
+  scheduled-actions.ts    # hold + invitation sweeps, day-of reminders
 app/components/programs/  # public pages
 app/components/dashboard/programs/
 app/(routes)/programs/…   # public routes
 app/dashboard/programs/…  # admin routes
 app/api/cron/morning/programHoldExpiration/route.ts
+app/api/cron/morning/programSessionReminders/route.ts
 app/api/cron/morning/programWaitlistInvitations/route.ts
 app/emails/program-*.tsx
 ```

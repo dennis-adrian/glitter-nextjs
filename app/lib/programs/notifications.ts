@@ -5,6 +5,7 @@ import type React from "react";
 
 import ProgramPurchaseLinkEmailTemplate from "@/app/emails/program-purchase-link";
 import ProgramRegistrationEmailTemplate from "@/app/emails/program-registration";
+import ProgramSessionReminderEmailTemplate from "@/app/emails/program-session-reminder";
 import ProgramSignupForAdminsEmailTemplate from "@/app/emails/program-signup-for-admins";
 import ProgramVoucherChangesEmailTemplate from "@/app/emails/program-voucher-changes";
 import ProgramVoucherReceivedEmailTemplate from "@/app/emails/program-voucher-received";
@@ -516,6 +517,82 @@ export async function sendWaitlistInvitationEmail(
   } catch (error) {
     console.error("Waitlist invitation email failed", {
       entryId: input.entryId,
+      errorType: error instanceof Error ? error.name : typeof error,
+    });
+    return false;
+  }
+}
+
+export type SessionDayReminderLine = {
+  sessionTitle: string;
+  sessionType: SessionType;
+  programName: string;
+  startsAt: Date;
+  endsAt: Date;
+  venueName: string | null;
+  room: string | null;
+  ticketCode: string;
+};
+
+export type SessionDayReminderEmailInput = {
+  attendeeName: string;
+  attendeeEmail: string;
+  /** Today's sessions for this person, chronological. Never empty. */
+  lines: SessionDayReminderLine[];
+  /** True when a ticket is tied to an account, so `/my_programs` will work. */
+  hasAccount: boolean;
+  /** Keys the send: one reminder per person per day, retries included. */
+  idempotencyKey: string;
+};
+
+/**
+ * Reminds someone, on the morning of, that they are expected today.
+ *
+ * Swallows failures like every other send in this module: a reminder is a
+ * courtesy on top of a ticket that already exists, and a mail outage must not
+ * turn a scheduled sweep into a 500 that hides the rest of the run.
+ *
+ * Returns whether it went out so the sweep can report a truthful count.
+ */
+export async function sendSessionDayReminderEmail(
+  input: SessionDayReminderEmailInput,
+): Promise<boolean> {
+  const first = input.lines[0];
+  if (!first) return false;
+
+  const isSingle = input.lines.length === 1;
+
+  try {
+    await sendEmail(
+      {
+        from: "Equipo Glitter <entradas@productoraglitter.com>",
+        to: [input.attendeeEmail],
+        subject: isSingle
+          ? `Hoy es tu ${SESSION_TYPE_LABELS[first.sessionType].toLowerCase()}: ${first.sessionTitle}`
+          : `Hoy tienes ${input.lines.length} sesiones con Glitter`,
+        react: ProgramSessionReminderEmailTemplate({
+          attendeeName: input.attendeeName,
+          sessions: input.lines.map((line) => ({
+            title: line.sessionTitle,
+            typeLabel: SESSION_TYPE_LABELS[line.sessionType],
+            programName: line.programName,
+            scheduleLabel: buildScheduleLabel(line.startsAt, line.endsAt),
+            venueLabel: buildVenueLabel(line.venueName, line.room),
+            ticketCode: line.ticketCode,
+          })),
+          // A guest has no account to sign into, and the reminder carries no
+          // token — only the buyer's original email does — so they get the
+          // pointer back to it instead of a dead button.
+          ticketsUrl: input.hasAccount ? `${baseUrl()}/my_programs` : null,
+        }) as React.ReactElement,
+      },
+      { idempotencyKey: input.idempotencyKey },
+    );
+
+    return true;
+  } catch (error) {
+    console.error("Session day reminder email failed", {
+      ticketCode: first.ticketCode,
       errorType: error instanceof Error ? error.name : typeof error,
     });
     return false;
