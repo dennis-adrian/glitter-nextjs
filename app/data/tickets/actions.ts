@@ -1,6 +1,6 @@
 "use server";
 
-import { and, count, desc, eq, max, sql } from "drizzle-orm";
+import { and, count, desc, eq, max, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { generateQrBuffer } from "@/app/lib/utils";
 import { db } from "@/db";
@@ -161,7 +161,9 @@ export async function verifyTicket(ticketNumber: number, festivalId: number) {
       throw new Error("Esta entrada ya ha sido verificada");
     }
 
-    await db
+    // Predicate on status closes the race where two concurrent verifies both
+    // pass the read above; a zero-row update means the other won.
+    const updated = await db
       .update(tickets)
       .set({
         status: "checked_in",
@@ -172,8 +174,14 @@ export async function verifyTicket(ticketNumber: number, festivalId: number) {
         and(
           eq(tickets.festivalId, festivalId),
           eq(tickets.ticketNumber, ticketNumber),
+          ne(tickets.status, "checked_in"),
         ),
-      );
+      )
+      .returning({ id: tickets.id });
+
+    if (updated.length === 0) {
+      throw new Error("Esta entrada ya ha sido verificada");
+    }
   } catch (error) {
     console.error(error);
     if (error instanceof Error) {

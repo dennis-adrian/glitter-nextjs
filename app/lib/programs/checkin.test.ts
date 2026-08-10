@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   isCheckInAccepted,
+  isOpenForCheckIn,
   normalizeTicketCode,
   resolveCheckIn,
   resolveCheckInAgendaWindow,
@@ -220,6 +221,32 @@ describe("resolveCheckInAgendaWindow", () => {
     const window = resolveCheckInAgendaWindow(new Date(), LA_PAZ);
     expect(window.from.getTime()).toBeLessThan(window.todayEnd.getTime());
     expect(window.todayEnd.getTime()).toBeLessThan(window.to.getTime());
+  });
+});
+
+describe("isOpenForCheckIn", () => {
+  const LA_PAZ = "America/La_Paz";
+  // 16:00 local on the 10th — afternoon, after a morning session would have
+  // finished but before an evening one starts.
+  const now = new Date("2026-08-10T20:00:00.000Z");
+  const window = resolveCheckInAgendaWindow(now, LA_PAZ);
+
+  it("excludes an occurrence that ended earlier on the current local day", () => {
+    // 09:00–11:00 local: same calendar day as `now`, already over. Comparing
+    // endsAt to window.from would have kept it; comparing to now must not.
+    const endsAt = new Date("2026-08-10T15:00:00.000Z");
+    expect(endsAt.getTime()).toBeGreaterThan(window.from.getTime());
+    expect(isOpenForCheckIn(endsAt, now)).toBe(false);
+    expect(startsToday(new Date("2026-08-10T13:00:00.000Z"), window)).toBe(
+      true,
+    );
+  });
+
+  it("keeps a session that began yesterday and is still running", () => {
+    // Started 22:00 local on the 9th, ends 18:00 local on the 10th.
+    expect(
+      isOpenForCheckIn(new Date("2026-08-10T22:00:00.000Z"), now),
+    ).toBe(true);
   });
 });
 

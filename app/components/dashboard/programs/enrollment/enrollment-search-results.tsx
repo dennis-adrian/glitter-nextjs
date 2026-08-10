@@ -24,8 +24,14 @@ const STATUS_VARIANT: Record<SessionPurchaseStatus, BadgeVariant> = {
 
 type Props = {
   results: EnrollmentSearchResult[];
-  /** Trimmed; shorter than the minimum means nothing was searched. */
+  /** Trimmed; shown in the empty-state copy when a search ran. */
   query: string;
+  /**
+   * True when the page actually ran a search. Short purchase ids (e.g. `7`)
+   * are valid lookups even below the text minimum, so length alone cannot
+   * decide between "type more" and "nothing found".
+   */
+  didSearch: boolean;
 };
 
 /**
@@ -34,13 +40,18 @@ type Props = {
  * Every row shows its status, because "I paid" and "we never received it" is
  * the most common thing this page is opened to settle.
  */
-export default function EnrollmentSearchResults({ results, query }: Props) {
+export default function EnrollmentSearchResults({
+  results,
+  query,
+  didSearch,
+}: Props) {
   /**
    * Covers both the untouched field and a query too short to run. The page
-   * never queries below this length, so reporting "no encontramos" for one
-   * character would be asserting an absence nobody looked for.
+   * never queries below this length (unless it is a purchase id), so reporting
+   * "no encontramos" for one character would be asserting an absence nobody
+   * looked for.
    */
-  if (query.length < ENROLLMENT_SEARCH_MIN_LENGTH) {
+  if (!didSearch) {
     return (
       <p className="text-sm text-muted-foreground">
         Busca por nombre, correo, código de entrada o número de inscripción.

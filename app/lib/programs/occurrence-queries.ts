@@ -454,9 +454,10 @@ export type CheckInAgendaEntry = {
 /**
  * Every occurrence a door might need today or in the coming days.
  *
- * Filtered on `endsAt >= from` rather than `startsAt >= from` so a session that
+ * Filtered on `endsAt >= now` rather than `startsAt >= from` so a session that
  * began before midnight and is still running stays on the list — the operator
- * scanning latecomers at 00:30 is exactly who this page is for.
+ * scanning latecomers at 00:30 is exactly who this page is for — while a
+ * session that ended earlier today is dropped. See `isOpenForCheckIn`.
  *
  * Cancelled occurrences are excluded outright: their scanner refuses every
  * code, so offering one would only route someone to a dead end.
@@ -469,7 +470,7 @@ export async function fetchCheckInAgenda(
 
   const occurrences = await db.query.sessionOccurrences.findMany({
     where: and(
-      gte(sessionOccurrences.endsAt, window.from),
+      gte(sessionOccurrences.endsAt, now),
       lte(sessionOccurrences.startsAt, window.to),
       ne(sessionOccurrences.lifecycleStatus, "cancelled"),
     ),

@@ -6,6 +6,7 @@ import Search from "@/app/components/ui/search";
 import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import {
   ENROLLMENT_SEARCH_MIN_LENGTH,
+  parseEnrollmentPurchaseId,
   searchEnrollments,
 } from "@/app/lib/programs/purchase-queries";
 import { requireAdminOrFestivalAdmin } from "@/app/lib/users/helpers";
@@ -34,10 +35,12 @@ export default async function EnrollmentSearchPage({ searchParams }: Props) {
 
   const { query: rawQuery } = await searchParams;
   const query = (rawQuery ?? "").trim();
-  const results =
-    query.length >= ENROLLMENT_SEARCH_MIN_LENGTH
-      ? await searchEnrollments(query)
-      : [];
+  // A full purchase id is a complete lookup even at one digit; text search
+  // still needs the minimum length so a single letter does not scan the table.
+  const didSearch =
+    parseEnrollmentPurchaseId(query) !== null ||
+    query.length >= ENROLLMENT_SEARCH_MIN_LENGTH;
+  const results = didSearch ? await searchEnrollments(query) : [];
 
   return (
     <div className="container mx-auto max-w-3xl space-y-6 p-3 md:p-6">
@@ -51,7 +54,11 @@ export default async function EnrollmentSearchPage({ searchParams }: Props) {
 
       <Search placeholder="Nombre, correo, código de entrada o #123" />
 
-      <EnrollmentSearchResults results={results} query={query} />
+      <EnrollmentSearchResults
+        results={results}
+        query={query}
+        didSearch={didSearch}
+      />
     </div>
   );
 }

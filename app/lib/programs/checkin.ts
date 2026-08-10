@@ -169,6 +169,18 @@ export function resolveCheckInAgendaWindow(
 }
 
 /**
+ * Whether an occurrence is still a door option at `now`.
+ *
+ * Mirrored by the `endsAt` predicate in `fetchCheckInAgenda`. Compared against
+ * the pinned instant rather than the start of the local day so a morning
+ * session that already finished does not sit among tonight's options, while a
+ * session that began yesterday and is still running stays visible.
+ */
+export function isOpenForCheckIn(endsAt: Date, now: Date): boolean {
+  return endsAt.getTime() >= now.getTime();
+}
+
+/**
  * Whether an occurrence belongs in the "Hoy" group.
  *
  * Keyed on when it *starts*, while the query keeps anything that has not yet

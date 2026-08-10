@@ -25,10 +25,14 @@ export function getTicketCode(festivalCode: string, ticketNumber: number) {
  */
 export function parseTicketNumber(ticketCode: string): number | null {
   const trimmed = ticketCode.trim();
-  const raw =
-    trimmed.includes("-") || trimmed.includes("/")
-      ? trimmed.split(/[-\/]/).at(-1)
-      : trimmed;
+  const separated = trimmed.includes("-") || trimmed.includes("/");
+
+  // A leading separator is an empty festival prefix ("-5", "/5"), not a code.
+  if (separated && (trimmed.startsWith("-") || trimmed.startsWith("/"))) {
+    return null;
+  }
+
+  const raw = separated ? trimmed.split(/[-\/]/).at(-1) : trimmed;
 
   const ticketNumber = Number(raw);
   if (!Number.isInteger(ticketNumber) || ticketNumber <= 0) return null;

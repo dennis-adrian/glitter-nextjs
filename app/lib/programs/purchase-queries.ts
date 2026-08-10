@@ -150,6 +150,19 @@ export type EnrollmentSearchResult = {
 };
 
 /**
+ * "#42" and "42" both mean purchase 42 to the person reading it out.
+ *
+ * The whole query (after an optional leading `#`) must be digits — a partial
+ * number mixed into a name is not an id lookup.
+ */
+export function parseEnrollmentPurchaseId(query: string): number | null {
+  const digits = query.trim().replace(/^#/, "");
+  if (!/^\d+$/.test(digits)) return null;
+  const id = Number(digits);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+/**
  * Finds an enrollment by whoever it belongs to, from anywhere in the dashboard.
  *
  * Support takes a call from someone who knows their own name and nothing about
@@ -166,60 +179,68 @@ export async function searchEnrollments(
   rawQuery: string,
 ): Promise<EnrollmentSearchResult[]> {
   const query = rawQuery.trim();
-  if (query.length < ENROLLMENT_SEARCH_MIN_LENGTH) return [];
+  // Parse before the min-length guard: a one-digit id like "7" is a complete
+  // lookup, not a short text search that would scan the table.
+  const purchaseId = parseEnrollmentPurchaseId(query);
 
-  // Escaped: an unescaped `_` or `%` typed by an admin silently widens the
-  // match instead of narrowing it (see `escapeLikePattern`).
-  const pattern = buildSearchPattern(query);
-  // "#42" and "42" both mean purchase 42 to the person reading it out.
-  const asId = Number(query.replace(/^#/, ""));
-  const idMatch =
-    Number.isInteger(asId) && asId > 0 ? eq(sessionPurchases.id, asId) : null;
+  if (purchaseId === null && query.length < ENROLLMENT_SEARCH_MIN_LENGTH) {
+    return [];
+  }
 
-  /**
-   * Ids first, then a second load. Matching across lines and tickets multiplies
-   * rows per purchase, and resolving that in SQL would either need a `GROUP BY`
-   * over every selected column or risk a `LIMIT` that silently drops results.
-   */
-  const matches = await db
-    .selectDistinct({
-      id: sessionPurchases.id,
-      createdAt: sessionPurchases.createdAt,
-    })
-    .from(sessionPurchases)
-    .leftJoin(users, eq(users.id, sessionPurchases.userId))
-    .leftJoin(
-      sessionPurchaseLines,
-      eq(sessionPurchaseLines.purchaseId, sessionPurchases.id),
-    )
-    .leftJoin(
-      sessionTickets,
-      eq(sessionTickets.purchaseLineId, sessionPurchaseLines.id),
-    )
-    .where(
-      or(
-        ilike(sessionPurchases.guestName, pattern),
-        ilike(sessionPurchases.guestEmail, pattern),
-        ilike(users.displayName, pattern),
-        ilike(users.firstName, pattern),
-        ilike(users.lastName, pattern),
-        ilike(users.email, pattern),
-        ilike(sessionTickets.attendeeName, pattern),
-        ilike(sessionTickets.attendeeEmail, pattern),
-        ilike(sessionTickets.code, pattern),
-        ...(idMatch ? [idMatch] : []),
-      ),
-    )
-    .orderBy(desc(sessionPurchases.createdAt))
-    .limit(ENROLLMENT_SEARCH_LIMIT);
+  let matchIds: number[];
 
-  if (matches.length === 0) return [];
+  if (purchaseId !== null) {
+    // Resolve alone: OR-ing into the limited text search can bury the exact
+    // hit behind newer name matches that fill the LIMIT.
+    matchIds = [purchaseId];
+  } else {
+    // Escaped: an unescaped `_` or `%` typed by an admin silently widens the
+    // match instead of narrowing it (see `escapeLikePattern`).
+    const pattern = buildSearchPattern(query);
+
+    /**
+     * Ids first, then a second load. Matching across lines and tickets multiplies
+     * rows per purchase, and resolving that in SQL would either need a `GROUP BY`
+     * over every selected column or risk a `LIMIT` that silently drops results.
+     */
+    const matches = await db
+      .selectDistinct({
+        id: sessionPurchases.id,
+        createdAt: sessionPurchases.createdAt,
+      })
+      .from(sessionPurchases)
+      .leftJoin(users, eq(users.id, sessionPurchases.userId))
+      .leftJoin(
+        sessionPurchaseLines,
+        eq(sessionPurchaseLines.purchaseId, sessionPurchases.id),
+      )
+      .leftJoin(
+        sessionTickets,
+        eq(sessionTickets.purchaseLineId, sessionPurchaseLines.id),
+      )
+      .where(
+        or(
+          ilike(sessionPurchases.guestName, pattern),
+          ilike(sessionPurchases.guestEmail, pattern),
+          ilike(users.displayName, pattern),
+          ilike(users.firstName, pattern),
+          ilike(users.lastName, pattern),
+          ilike(users.email, pattern),
+          ilike(sessionTickets.attendeeName, pattern),
+          ilike(sessionTickets.attendeeEmail, pattern),
+          ilike(sessionTickets.code, pattern),
+        ),
+      )
+      .orderBy(desc(sessionPurchases.createdAt))
+      .limit(ENROLLMENT_SEARCH_LIMIT);
+
+    matchIds = matches.map((match) => match.id);
+  }
+
+  if (matchIds.length === 0) return [];
 
   const purchases = await db.query.sessionPurchases.findMany({
-    where: inArray(
-      sessionPurchases.id,
-      matches.map((match) => match.id),
-    ),
+    where: inArray(sessionPurchases.id, matchIds),
     with: {
       buyer: true,
       lines: { with: { ticket: true } },

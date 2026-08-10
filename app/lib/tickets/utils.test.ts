@@ -56,12 +56,12 @@ describe("parseTicketNumber", () => {
   });
 
   /**
-   * Not a negative number: the leading dash is the separator, so this is a code
-   * with an empty festival prefix. Worth pinning down, because reading it the
-   * other way would argue for a guard that rejects legitimate codes.
+   * A leading separator is an empty festival prefix, not ticket 5. Without this
+   * guard, "-5" would split to "5" and look up a real seat.
    */
-  it("treats a leading dash as the separator", () => {
-    expect(parseTicketNumber("-5")).toBe(5);
+  it("rejects a leading separator", () => {
+    expect(parseTicketNumber("-5")).toBeNull();
+    expect(parseTicketNumber("/5")).toBeNull();
   });
 
   it("rejects a fractional number", () => {
