@@ -12,6 +12,7 @@ import type {
 import { resolveAvailability } from "@/app/lib/programs/inventory";
 import { resolveAttendeeIdentity } from "@/app/lib/programs/registration";
 import {
+  countCheckedIn,
   resolveRosterSeatState,
   rosterStateOrder,
   summarizeRoster,
@@ -39,6 +40,12 @@ export type RosterEntry = {
   attendeePhone: string | null;
   isGuest: boolean;
   ticketCode: string | null;
+  /**
+   * When this person came through the door, or null if they have not. Survives
+   * a later ticket cancellation, so a released row can still carry a time —
+   * that is the history, deliberately kept (§6.15).
+   */
+  checkedInAt: Date | null;
   unitPrice: number;
   promoCode: string | null;
   promoPartnerName: string | null;
@@ -54,6 +61,16 @@ export type OccurrenceRosterSummary = {
   remaining: number;
   isSoldOut: boolean;
   waitlistActive: number;
+  /**
+   * Arrivals among the seats that are still `confirmed`, so the badge reads as
+   * a subset of them rather than exceeding them. An attendance left behind by
+   * a ticket cancelled after it was scanned stays visible on its own row, but
+   * is not part of "who is in the room".
+   *
+   * Not folded into `RosterTotals`: check-in is orthogonal to seat occupancy,
+   * and adding it there would break the partition `roster.test.ts` pins.
+   */
+  checkedIn: number;
 };
 
 /**
@@ -81,7 +98,7 @@ export async function fetchOccurrenceRosters(
     where: inArray(sessionPurchaseLines.occurrenceId, occurrenceIds),
     with: {
       purchase: { with: { buyer: true, promoRedemption: true } },
-      ticket: true,
+      ticket: { with: { attendance: true } },
     },
     orderBy: [asc(sessionPurchaseLines.id)],
   });
@@ -130,6 +147,7 @@ export async function fetchOccurrenceRosters(
       attendeePhone: purchase.guestPhone,
       isGuest: purchase.userId === null,
       ticketCode: line.ticket?.code ?? null,
+      checkedInAt: line.ticket?.attendance?.checkedInAt ?? null,
       unitPrice: line.unitPrice,
       promoCode: purchase.promoRedemption?.codeSnapshot ?? null,
       promoPartnerName: purchase.promoRedemption?.partnerNameSnapshot ?? null,
@@ -209,6 +227,7 @@ function buildSummary(
     remaining: availability.remaining,
     isSoldOut: availability.isSoldOut,
     waitlistActive,
+    checkedIn: countCheckedIn(entries),
   };
 }
 
@@ -375,7 +394,9 @@ export async function fetchProgramRoster(
     })),
   );
 
-  const occurrenceIds = occurrences.map((occurrence) => occurrence.occurrenceId);
+  const occurrenceIds = occurrences.map(
+    (occurrence) => occurrence.occurrenceId,
+  );
 
   const [rosters, waitlist] = await Promise.all([
     fetchOccurrenceRosters(occurrenceIds, { now }),

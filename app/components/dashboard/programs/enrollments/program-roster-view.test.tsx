@@ -1,6 +1,12 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// Reached through the roster table's manual check-in button, which drags in
+// `db` and therefore `server-only`. This view never invokes it.
+vi.mock("@/app/lib/programs/checkin-actions", () => ({
+  checkInTicket: vi.fn(),
+}));
+
 import ProgramRosterView from "@/app/components/dashboard/programs/enrollments/program-roster-view";
 import type {
   ProgramRoster,
@@ -60,6 +66,7 @@ function entry(overrides: Partial<RosterEntry> = {}): RosterEntry {
     attendeePhone: null,
     isGuest: false,
     ticketCode: "ABC123",
+    checkedInAt: null,
     unitPrice: 70,
     promoCode: null,
     promoPartnerName: null,

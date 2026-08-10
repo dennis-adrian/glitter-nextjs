@@ -11,6 +11,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 
+import RosterCheckInButton from "@/app/components/dashboard/programs/checkin/roster-check-in-button";
 import { Badge, type BadgeVariant } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { formatDate } from "@/app/lib/formatters";
@@ -47,6 +48,12 @@ type Props = {
    * Horario columns render.
    */
   occurrenceContext?: RosterOccurrenceContext;
+  /**
+   * Offers the manual "marcar ingreso" fallback on confirmed rows. Off by
+   * default: check-in belongs to one occurrence's door (§7.3), so the
+   * program-wide roster shows arrival times without offering to create them.
+   */
+  allowCheckIn?: boolean;
 };
 
 /**
@@ -64,6 +71,7 @@ type Props = {
 export default function OccurrenceRosterTable({
   entries,
   occurrenceContext,
+  allowCheckIn = false,
 }: Props) {
   const columns = useMemo<ColumnDef<RosterEntry, unknown>[]>(
     () => [{ id: "row" }],
@@ -98,6 +106,7 @@ export default function OccurrenceRosterTable({
               <th className="px-2 py-2 font-medium">Persona</th>
               <th className="px-2 py-2 font-medium">Estado</th>
               <th className="px-2 py-2 font-medium">Entrada</th>
+              <th className="px-2 py-2 font-medium">Ingreso</th>
               <th className="px-2 py-2 font-medium">Monto</th>
               <th className="px-2 py-2 font-medium">Inscripción</th>
               <th className="px-2 py-2 font-medium">Compra</th>
@@ -157,6 +166,25 @@ export default function OccurrenceRosterTable({
                       <span className="text-xs text-muted-foreground">
                         Sin emitir
                       </span>
+                    )}
+                  </td>
+                  <td className="px-2 py-3 whitespace-nowrap">
+                    {entry.checkedInAt ? (
+                      <Badge variant="green">
+                        {formatDate(entry.checkedInAt).toLocaleString(
+                          DateTime.TIME_SIMPLE,
+                        )}
+                      </Badge>
+                    ) : allowCheckIn &&
+                      entry.state === "confirmed" &&
+                      entry.ticketCode ? (
+                      <RosterCheckInButton
+                        occurrenceId={entry.occurrenceId}
+                        ticketCode={entry.ticketCode}
+                        attendeeName={entry.attendeeName}
+                      />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </td>
                   <td className="px-2 py-3 whitespace-nowrap">

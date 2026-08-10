@@ -8,7 +8,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
   if (!festival) return notFound();
 
   return (
-    <div className="container">
+    <div className="container p-3 md:p-6">
       <h1 className="text-2xl font-bold md:text-3xl mb-2">Editar Festival</h1>
       <UpdateFestivalForm festival={festival} />
     </div>

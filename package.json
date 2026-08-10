@@ -58,6 +58,8 @@
     "@uploadthing/react": "^7.1.5",
     "@uploadthing/shared": "^7.1.10",
     "@vercel/analytics": "^1.2.2",
+    "@zxing/browser": "^0.2.1",
+    "@zxing/library": "^0.23.0",
     "canvas-confetti": "^1.9.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",

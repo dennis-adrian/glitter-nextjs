@@ -30,7 +30,7 @@ export default async function StandSubcategoriesPage({
   if (!festival) return notFound();
 
   return (
-    <div className="container py-6">
+    <div className="container p-3 md:p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold md:text-3xl">
           Subcategorías de stands — {festival.name}

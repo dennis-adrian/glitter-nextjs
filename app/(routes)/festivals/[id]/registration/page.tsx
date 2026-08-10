@@ -38,7 +38,7 @@ export default async function Page(props: {
 
   if (festival.status !== "active" || !festival.publicRegistration) {
     return (
-      <section className="container flex flex-col gap-4 md:gap-6 items-center justify-center min-h-[calc(100vh-64px-180px)] md:min-h-[calc(100vh-80px-140px)]">
+      <section className="container flex flex-col gap-4 md:gap-6 items-center justify-center px-3 md:px-6 min-h-[calc(100vh-64px-180px)] md:min-h-[calc(100vh-80px-140px)]">
         <h1 className="text-lg md:text-2xl text-muted-foreground text-center leading-5">
           El registro para este evento no se encuentra activo
         </h1>
