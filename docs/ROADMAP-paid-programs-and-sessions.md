@@ -283,6 +283,22 @@ Cut from the MVP (§0b); the requirements are retained here and in PRD §7.2–7
 - Rescheduling preserves ticket validity and allows a refund request to be recorded.
 - Dashboard metrics reconcile with holds, purchases, tickets, and check-ins.
 
+**Delivered so far — session check-in (2026-08-10)**
+
+- Per-occurrence door screen at `/dashboard/programs/occurrences/[occurrenceId]/check-in`: camera QR
+  scanning with a manual code fallback, both recorded through one action with the presented
+  `attendance_method`.
+- Six resolved outcomes — checked in, already used, wrong session, cancelled ticket, unknown code,
+  cancelled occurrence — each naming the person or the session it actually belongs to.
+- Duplicate prevention rests on the `session_attendances.ticketId` unique constraint, so two
+  operators scanning at once resolve without locking.
+- Manual "marcar ingreso" on confirmed roster rows for a dead phone or a lost email.
+- Arrival times on the occurrence roster and a `checkedIn` count on the seat summary, restricted to
+  confirmed seats so it never exceeds the confirmed total beside it.
+
+Still open in this phase: self-service cancellation, Glitter-initiated cancellation and refunds,
+rescheduling with a valid ticket, and attendee export.
+
 ### Phase 6 — Hardening, pilot, and launch
 
 **Objective:** test security, concurrency, and operations before selling Glitter Week to the public.

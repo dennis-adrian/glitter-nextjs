@@ -102,6 +102,26 @@ export type RosterTotals = {
   needsAction: number;
 };
 
+/**
+ * How many of the seats still held have actually walked in.
+ *
+ * Restricted to `confirmed` so the count can never exceed the confirmed total
+ * it is displayed against. An attendance belonging to a ticket cancelled after
+ * it was scanned is deliberately excluded here — the record stays on its own
+ * row as history (§6.15), but the person is not holding a seat any more, and a
+ * badge reading "4 de 3 ingresaron" would look like a bug.
+ *
+ * Kept out of `RosterTotals`: check-in is orthogonal to seat occupancy, and
+ * folding it in would break the partition the tests below pin.
+ */
+export function countCheckedIn(
+  entries: { state: RosterSeatState; checkedInAt: Date | null }[],
+): number {
+  return entries.filter(
+    (entry) => entry.state === "confirmed" && entry.checkedInAt !== null,
+  ).length;
+}
+
 export function summarizeRoster(states: RosterSeatState[]): RosterTotals {
   const totals: RosterTotals = {
     confirmed: 0,

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { resolveAvailability } from "@/app/lib/programs/inventory";
 import type { SessionPurchaseStatus } from "@/app/lib/programs/definitions";
 import {
+  countCheckedIn,
   occupiesSeat,
   resolveRosterSeatState,
   summarizeRoster,
@@ -134,6 +135,48 @@ describe("summarizeRoster", () => {
       occupied: 0,
       needsAction: 0,
     });
+  });
+});
+
+describe("countCheckedIn", () => {
+  const AT = new Date("2026-08-01T13:00:00.000Z");
+
+  it("counts arrivals on confirmed seats", () => {
+    expect(
+      countCheckedIn([
+        { state: "confirmed", checkedInAt: AT },
+        { state: "confirmed", checkedInAt: AT },
+        { state: "confirmed", checkedInAt: null },
+      ]),
+    ).toBe(2);
+  });
+
+  it("ignores an attendance left behind by a cancelled ticket", () => {
+    // The row keeps its time as history, but the seat was given back, so
+    // counting it would print "2 de 1 ingresaron" next to the confirmed total.
+    expect(
+      countCheckedIn([
+        { state: "confirmed", checkedInAt: AT },
+        { state: "released", checkedInAt: AT },
+      ]),
+    ).toBe(1);
+  });
+
+  it("never exceeds the confirmed count it is displayed against", () => {
+    const entries = [
+      { state: "confirmed" as const, checkedInAt: AT },
+      { state: "released" as const, checkedInAt: AT },
+      { state: "holding" as const, checkedInAt: null },
+      { state: "awaiting_review" as const, checkedInAt: AT },
+    ];
+    const totals = summarizeRoster(entries.map((entry) => entry.state));
+
+    expect(countCheckedIn(entries)).toBeLessThanOrEqual(totals.confirmed);
+  });
+
+  it("is zero for an occurrence nobody has arrived at", () => {
+    expect(countCheckedIn([])).toBe(0);
+    expect(countCheckedIn([{ state: "confirmed", checkedInAt: null }])).toBe(0);
   });
 });
 
