@@ -39,7 +39,9 @@ function getContext(): AudioContext | null {
  */
 export function primeScannerAudio(): void {
   try {
-    void getContext()?.resume();
+    // Swallow resume rejections: unsupported contexts / non-gesture resumes
+    // must not surface as unhandled promise rejections.
+    void getContext()?.resume()?.catch(() => {});
   } catch {
     // A device that will not give us audio still has to scan.
   }
@@ -52,8 +54,9 @@ export function playScanBeep(): void {
     if (!ctx) return;
 
     // Cheap insurance for a context suspended after priming — a backgrounded
-    // tab, or an autoplay policy we did not predict.
-    void ctx.resume();
+    // tab, or an autoplay policy we did not predict. Swallow rejections so
+    // autoplay/non-gesture failures stay silent instead of unhandled.
+    void ctx.resume().catch(() => {});
 
     const startedAt = ctx.currentTime;
     const oscillator = ctx.createOscillator();

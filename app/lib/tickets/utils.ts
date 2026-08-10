@@ -27,7 +27,7 @@ export function parseTicketNumber(ticketCode: string): number | null {
   const trimmed = ticketCode.trim();
   const raw =
     trimmed.includes("-") || trimmed.includes("/")
-      ? trimmed.split(/[-\/]/)[1] // Splits by either '-' or '/'
+      ? trimmed.split(/[-\/]/).at(-1)
       : trimmed;
 
   const ticketNumber = Number(raw);

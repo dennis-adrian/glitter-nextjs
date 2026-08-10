@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -42,6 +43,7 @@ export default function VerifyTicketForm({
 }: {
   festivalId: number;
 }) {
+  const router = useRouter();
   const [scannerOpen, setScannerOpen] = useState(false);
   /**
    * Tracked here rather than read off `formState.isSubmitting`, because a
@@ -82,6 +84,7 @@ export default function VerifyTicketForm({
           toast.success(res.message, {
             position: "top-right",
           });
+          router.refresh();
         } else {
           toast.error(res.message, {
             position: "top-right",
@@ -102,7 +105,7 @@ export default function VerifyTicketForm({
       // the person who was actually typing.
       if (source === "manual") form.setFocus("ticketCode");
     },
-    [festivalId, form],
+    [festivalId, form, router],
   );
 
   const action = form.handleSubmit(async (data) => {

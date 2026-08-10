@@ -7,6 +7,10 @@ describe("parseTicketNumber", () => {
     expect(parseTicketNumber("GLT-0012")).toBe(12);
   });
 
+  it("reads the number after the final separator in a hyphenated festival code", () => {
+    expect(parseTicketNumber("GLT-2026-0012")).toBe(12);
+  });
+
   it("accepts a bare number, which is what people read aloud", () => {
     expect(parseTicketNumber("12")).toBe(12);
   });
