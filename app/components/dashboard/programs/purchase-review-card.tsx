@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -137,12 +138,20 @@ export default function PurchaseReviewCard({
     <Card>
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <CardTitle className="text-base">{buyerName}</CardTitle>
-            <CardDescription>
+          <div className="min-w-0">
+            <CardTitle className="text-base break-words">{buyerName}</CardTitle>
+            <CardDescription className="break-all">
               {buyerEmail}
               {buyerPhone ? ` · ${buyerPhone}` : ""}
             </CardDescription>
+            {/* The queue drops a purchase the moment it is decided; this is the
+                way back to it, and to its history. */}
+            <Link
+              href={`/dashboard/programs/purchases/${purchaseId}`}
+              className="text-xs text-primary underline-offset-2 hover:underline"
+            >
+              Ver inscripción #{purchaseId}
+            </Link>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {isActiveParticipant ? (

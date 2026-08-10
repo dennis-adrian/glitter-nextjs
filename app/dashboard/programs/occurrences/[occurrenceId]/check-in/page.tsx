@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import CheckInPanel from "@/app/components/dashboard/programs/checkin/checkin-panel";
+import { requireFeatureEnabled } from "@/app/lib/feature_flags/helpers";
 import { formatDate } from "@/app/lib/formatters";
 import { SESSION_TYPE_LABELS } from "@/app/lib/programs/definitions";
 import { fetchOccurrenceForAdmin } from "@/app/lib/programs/occurrence-queries";
@@ -23,6 +24,8 @@ type Props = {
  * successful check-in from re-rendering the scanner the operator is using.
  */
 export default async function OccurrenceCheckInPage({ params }: Props) {
+  await requireFeatureEnabled("paid_programs");
+
   const profile = await requireAdminOrFestivalAdmin();
   if (!profile) redirect("/dashboard");
 

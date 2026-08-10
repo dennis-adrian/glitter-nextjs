@@ -6,6 +6,7 @@ import { cache } from "react";
 import { db } from "@/db";
 import {
   programSettings,
+  sessionPurchaseEvents,
   sessionPurchaseVouchers,
   sessionPurchases,
 } from "@/db/schema";
@@ -65,6 +66,44 @@ export const fetchPurchasesAwaitingReview = cache(async () => {
     orderBy: [asc(sessionPurchases.voucherSubmittedAt)],
   });
 });
+
+/**
+ * One enrollment for the admin detail page.
+ *
+ * Deliberately unfiltered by status and payment mode, unlike
+ * `fetchPurchasesAwaitingReview`. That queue answers "what needs a decision
+ * today"; this answers "show me this enrollment", which support needs for an
+ * approved seat, a free registration, or a purchase already closed — none of
+ * which the queue will ever list.
+ *
+ * Loads the event log and the attendance behind each ticket so the page can be
+ * the single place an admin reconciles what happened without a database query.
+ */
+export const fetchPurchaseForAdmin = cache(async (purchaseId: number) => {
+  return db.query.sessionPurchases.findFirst({
+    where: eq(sessionPurchases.id, purchaseId),
+    with: {
+      ...purchaseWith,
+      buyer: true,
+      lines: {
+        with: {
+          session: true as const,
+          occurrence: { with: { venue: true as const } },
+          ticket: { with: { attendance: true as const } },
+        },
+      },
+      // Newest first: an admin opening this page is asking what happened last.
+      events: {
+        orderBy: [desc(sessionPurchaseEvents.createdAt)],
+        with: { actor: true as const },
+      },
+    },
+  });
+});
+
+export type PurchaseForAdmin = NonNullable<
+  Awaited<ReturnType<typeof fetchPurchaseForAdmin>>
+>;
 
 export type PurchaseAwaitingReview = Awaited<
   ReturnType<typeof fetchPurchasesAwaitingReview>
