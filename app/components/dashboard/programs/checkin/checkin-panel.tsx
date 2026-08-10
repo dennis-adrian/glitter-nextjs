@@ -8,7 +8,7 @@ import CheckInRecentList, {
   type RecentCheckIn,
 } from "@/app/components/dashboard/programs/checkin/checkin-recent-list";
 import CheckInResultBanner from "@/app/components/dashboard/programs/checkin/checkin-result-banner";
-import CheckInScanner from "@/app/components/dashboard/programs/checkin/checkin-scanner";
+import CodeScanner from "@/app/components/molecules/code-scanner";
 import {
   Card,
   CardContent,
@@ -32,6 +32,7 @@ type Props = { occurrenceId: number };
 export default function CheckInPanel({ occurrenceId }: Props) {
   const [result, setResult] = useState<RecentCheckIn["result"] | null>(null);
   const [recent, setRecent] = useState<RecentCheckIn[]>([]);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   // Scans can land inside the same millisecond; a counter keeps React keys
@@ -68,7 +69,7 @@ export default function CheckInPanel({ occurrenceId }: Props) {
     [occurrenceId],
   );
 
-  const handleDecode = useCallback(
+  const handleScan = useCallback(
     (code: string) => submit(code, "qr_scan"),
     [submit],
   );
@@ -76,14 +77,25 @@ export default function CheckInPanel({ occurrenceId }: Props) {
   return (
     <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
       <div className="space-y-3">
-        <CheckInScanner onDecode={handleDecode} paused={pending} />
-
-        {result ? <CheckInResultBanner result={result} /> : null}
-
+        {/* Input first, camera below it: opening the camera then has nowhere to
+            push the control the operator just used, and the verdict stays in
+            the same place between a typed code and a scanned one. */}
         <CheckInManualForm
           onSubmit={(code) => submit(code, "manual_code")}
           disabled={pending}
+          scannerOpen={scannerOpen}
+          onToggleScanner={setScannerOpen}
         />
+
+        {result ? <CheckInResultBanner result={result} /> : null}
+
+        {scannerOpen ? (
+          <CodeScanner
+            onScan={handleScan}
+            busy={pending}
+            onClose={() => setScannerOpen(false)}
+          />
+        ) : null}
       </div>
 
       <Card>
