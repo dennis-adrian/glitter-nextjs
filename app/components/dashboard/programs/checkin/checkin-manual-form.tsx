@@ -2,22 +2,32 @@
 
 import { useState } from "react";
 
+import CodeScannerToggle from "@/app/components/molecules/code-scanner-toggle";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 
 type Props = {
   onSubmit: (code: string) => void;
   disabled: boolean;
+  scannerOpen: boolean;
+  onToggleScanner: (open: boolean) => void;
 };
 
 /**
- * The fallback when a QR will not read — a cracked screen, a printout, glare.
+ * The always-present way into a check-in, and the place the camera is opened
+ * from.
  *
- * Kept beside the camera rather than behind a toggle: an operator reaches for
- * it exactly when something has already gone wrong, which is the worst moment
- * to make them hunt for it.
+ * Typing a code is the path that works everywhere — a cracked screen, a
+ * printout, glare, a denied camera permission — so it is the one that is never
+ * hidden. The camera is the faster path but not the reliable one, so it sits
+ * behind the icon here and the operator decides when they want it.
  */
-export default function CheckInManualForm({ onSubmit, disabled }: Props) {
+export default function CheckInManualForm({
+  onSubmit,
+  disabled,
+  scannerOpen,
+  onToggleScanner,
+}: Props) {
   const [code, setCode] = useState("");
 
   return (
@@ -36,13 +46,13 @@ export default function CheckInManualForm({ onSubmit, disabled }: Props) {
           htmlFor="ticket-code"
           className="text-xs font-medium text-muted-foreground"
         >
-          ¿No escanea? Ingresa el código
+          Código de la entrada
         </label>
         <Input
           id="ticket-code"
           value={code}
           onChange={(event) => setCode(event.target.value)}
-          placeholder="Código de la entrada"
+          placeholder="Ingresa o escanea el código"
           autoComplete="off"
           autoCapitalize="none"
           autoCorrect="off"
@@ -50,6 +60,11 @@ export default function CheckInManualForm({ onSubmit, disabled }: Props) {
           disabled={disabled}
         />
       </div>
+      <CodeScannerToggle
+        open={scannerOpen}
+        onToggle={onToggleScanner}
+        disabled={disabled}
+      />
       <Button type="submit" disabled={disabled || !code.trim()}>
         Verificar
       </Button>
