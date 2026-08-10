@@ -71,6 +71,36 @@ export const SESSION_TICKET_STATUS_LABELS: Record<SessionTicketStatus, string> =
     cancelled: "Cancelada",
   };
 
+/**
+ * Spanish names for the audit log. Every value in `sessionPurchaseEventTypeEnum`
+ * is present, including the ones nothing writes yet (the refund pair, the
+ * upgrade pair) — the log renders whatever it finds, and a missing key would
+ * show an admin a blank row for the event they most need to read.
+ */
+export const SESSION_PURCHASE_EVENT_TYPE_LABELS: Record<
+  SessionPurchaseEventType,
+  string
+> = {
+  created: "Inscripción creada",
+  voucher_uploaded: "Comprobante subido",
+  voucher_replaced: "Comprobante reemplazado",
+  changes_requested: "Cambios solicitados",
+  approved: "Pago aprobado",
+  rejected: "Pago rechazado",
+  cancelled_by_buyer: "Cancelada por el comprador",
+  cancelled_by_admin: "Cancelada por el equipo",
+  expired: "Expirada",
+  ticket_issued: "Entrada emitida",
+  ticket_cancelled: "Entrada cancelada",
+  adjusted: "Compra ajustada",
+  link_resent: "Enlace reenviado",
+  emails_resent: "Correos reenviados",
+  refund_requested: "Reembolso solicitado",
+  refund_resolved: "Reembolso resuelto",
+  upgrade_initiated: "Mejora iniciada",
+  upgrade_completed: "Mejora completada",
+};
+
 export const SESSION_TYPE_LABELS: Record<SessionType, string> = {
   talk: "Charla",
   workshop: "Taller",

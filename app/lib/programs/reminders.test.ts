@@ -39,10 +39,9 @@ describe("resolveStoreDayWindow", () => {
     expect(today.dayKey).toBe("2026-08-10");
   });
 
-  it("still resolves to the local day just after local midnight", () => {
-    // 00:30 in La Paz is already 04:30 UTC on the same calendar date, but a
-    // run at 22:00 local sits on the *next* UTC date — the case a UTC-day
-    // window would get wrong.
+  it("still resolves to the local day for a late-evening run", () => {
+    // 22:00 in La Paz on 2026-08-10 is already 02:00 UTC on the *next*
+    // calendar date — the case a UTC-day window would get wrong.
     const lateEvening = resolveStoreDayWindow(
       new Date("2026-08-11T02:00:00.000Z"),
     );

@@ -169,15 +169,20 @@ describe("OccurrenceRosterTable", () => {
     expect(screen.getByText("Abandonó")).toBeTruthy();
   });
 
-  it("does not link the buyer's purchase page, which admins cannot open", () => {
-    // `resolvePurchaseAccess` grants only the owner or a valid token.
+  it("links the admin enrollment page, never the buyer's", () => {
     const { container } = render(
       <OccurrenceRosterTable entries={[entry({ purchaseId: 42 })]} />,
     );
 
-    expect(screen.getByText("#42")).toBeTruthy();
+    const link = screen.getByText("#42").closest("a");
+    expect(link?.getAttribute("href")).toBe("/dashboard/programs/purchases/42");
+
+    // `/programs/purchases/[id]` is the buyer's page and
+    // `resolvePurchaseAccess` grants only the owner or a valid token, so a
+    // link there would send the team to a denied page. Anchored with `^=`
+    // because the admin route ends in the same substring.
     expect(
-      container.querySelector('a[href*="/programs/purchases/"]'),
+      container.querySelector('a[href^="/programs/purchases/"]'),
     ).toBeNull();
   });
 

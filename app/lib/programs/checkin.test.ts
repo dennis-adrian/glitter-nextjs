@@ -4,6 +4,8 @@ import {
   isCheckInAccepted,
   normalizeTicketCode,
   resolveCheckIn,
+  resolveCheckInAgendaWindow,
+  startsToday,
   type CheckInResolutionInput,
   type CheckInTicket,
 } from "@/app/lib/programs/checkin";
@@ -184,5 +186,69 @@ describe("normalizeTicketCode", () => {
     expect(normalizeTicketCode("   ")).toBe("");
     expect(normalizeTicketCode("")).toBe("");
     expect(normalizeTicketCode("///")).toBe("");
+  });
+});
+
+describe("resolveCheckInAgendaWindow", () => {
+  const LA_PAZ = "America/La_Paz";
+
+  it("anchors the day to the venue timezone, not UTC", () => {
+    // 02:00 UTC on the 11th is still 22:00 on the 10th in La Paz (UTC-4), so
+    // an operator mid-shift must still be looking at the 10th.
+    const window = resolveCheckInAgendaWindow(
+      new Date("2026-08-11T02:00:00.000Z"),
+      LA_PAZ,
+    );
+
+    expect(window.from.toISOString()).toBe("2026-08-10T04:00:00.000Z");
+    expect(window.todayEnd.toISOString()).toBe("2026-08-11T03:59:59.999Z");
+  });
+
+  it("reaches the requested number of days past today", () => {
+    const window = resolveCheckInAgendaWindow(
+      new Date("2026-08-10T15:00:00.000Z"),
+      LA_PAZ,
+      2,
+    );
+
+    // Start of the 10th local, through the end of the 12th local.
+    expect(window.from.toISOString()).toBe("2026-08-10T04:00:00.000Z");
+    expect(window.to.toISOString()).toBe("2026-08-13T03:59:59.999Z");
+  });
+
+  it("keeps from < todayEnd < to", () => {
+    const window = resolveCheckInAgendaWindow(new Date(), LA_PAZ);
+    expect(window.from.getTime()).toBeLessThan(window.todayEnd.getTime());
+    expect(window.todayEnd.getTime()).toBeLessThan(window.to.getTime());
+  });
+});
+
+describe("startsToday", () => {
+  const LA_PAZ = "America/La_Paz";
+  const window = resolveCheckInAgendaWindow(
+    new Date("2026-08-10T15:00:00.000Z"),
+    LA_PAZ,
+  );
+
+  it("groups a session later tonight under today", () => {
+    // 23:00 local on the 10th.
+    expect(startsToday(new Date("2026-08-11T03:00:00.000Z"), window)).toBe(
+      true,
+    );
+  });
+
+  it("groups tomorrow morning as upcoming", () => {
+    // 08:00 local on the 11th.
+    expect(startsToday(new Date("2026-08-11T12:00:00.000Z"), window)).toBe(
+      false,
+    );
+  });
+
+  it("still counts a session that began before today as today", () => {
+    // Ran past midnight; the query keeps it because it has not ended, and it
+    // belongs with today rather than filed under upcoming.
+    expect(startsToday(new Date("2026-08-10T02:00:00.000Z"), window)).toBe(
+      true,
+    );
   });
 });

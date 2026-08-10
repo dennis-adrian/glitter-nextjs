@@ -1,3 +1,5 @@
+import { DateTime } from "luxon";
+
 import type {
   OccurrenceLifecycleStatus,
   SessionTicketStatus,
@@ -130,4 +132,52 @@ export function normalizeTicketCode(raw: string): string {
   const segments = withoutQuery.split("/").filter(Boolean);
 
   return segments.length > 0 ? segments[segments.length - 1] : "";
+}
+
+/** How far past today the door agenda looks ahead. */
+export const CHECK_IN_AGENDA_DAYS = 7;
+
+export type CheckInAgendaWindow = {
+  /** Start of today in the venue's timezone. */
+  from: Date;
+  /** End of today, which is what separates "Hoy" from "Próximas". */
+  todayEnd: Date;
+  to: Date;
+};
+
+/**
+ * The span of occurrences the door agenda offers.
+ *
+ * Anchored to the venue's local day, not UTC: an operator standing at a door in
+ * Bolivia at 21:00 means "today" in their own clock, and a UTC day boundary
+ * would have rolled over four hours earlier and emptied their list mid-shift.
+ */
+export function resolveCheckInAgendaWindow(
+  now: Date,
+  timeZone: string,
+  upcomingDays: number = CHECK_IN_AGENDA_DAYS,
+): CheckInAgendaWindow {
+  const startOfToday = DateTime.fromJSDate(now, { zone: timeZone }).startOf(
+    "day",
+  );
+
+  return {
+    from: startOfToday.toJSDate(),
+    todayEnd: startOfToday.endOf("day").toJSDate(),
+    to: startOfToday.plus({ days: upcomingDays }).endOf("day").toJSDate(),
+  };
+}
+
+/**
+ * Whether an occurrence belongs in the "Hoy" group.
+ *
+ * Keyed on when it *starts*, while the query keeps anything that has not yet
+ * *ended* — so a session that ran past midnight still appears, and appears
+ * under today rather than being filed as upcoming.
+ */
+export function startsToday(
+  startsAt: Date,
+  window: CheckInAgendaWindow,
+): boolean {
+  return startsAt.getTime() <= window.todayEnd.getTime();
 }
