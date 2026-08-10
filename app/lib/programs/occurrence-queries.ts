@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lte, ne, notInArray } from "drizzle-orm";
 import { cache } from "react";
 
 import type {
@@ -9,6 +9,7 @@ import type {
   SessionStatus,
   SessionType,
 } from "@/app/lib/programs/definitions";
+import type { CheckInAgendaWindow } from "@/app/lib/programs/checkin";
 import { resolveAvailability } from "@/app/lib/programs/inventory";
 import { resolveAttendeeIdentity } from "@/app/lib/programs/registration";
 import {
@@ -436,3 +437,78 @@ export type OccurrenceForAdmin = NonNullable<
 >;
 
 export type { RosterSeatState };
+
+/** One occurrence on the door agenda, with the counts an operator reads. */
+export type CheckInAgendaEntry = {
+  occurrenceId: number;
+  programName: string;
+  sessionTitle: string;
+  sessionType: SessionType;
+  startsAt: Date;
+  endsAt: Date;
+  venueName: string | null;
+  room: string | null;
+  summary: OccurrenceRosterSummary;
+};
+
+/**
+ * Every occurrence a door might need today or in the coming days.
+ *
+ * Filtered on `endsAt >= now` rather than `startsAt >= from` so a session that
+ * began before midnight and is still running stays on the list — the operator
+ * scanning latecomers at 00:30 is exactly who this page is for — while a
+ * session that ended earlier today is dropped. See `isOpenForCheckIn`.
+ *
+ * Cancelled occurrences are excluded outright: their scanner refuses every
+ * code, so offering one would only route someone to a dead end.
+ */
+export async function fetchCheckInAgenda(
+  window: CheckInAgendaWindow,
+  options: { now?: Date } = {},
+): Promise<CheckInAgendaEntry[]> {
+  const now = options.now ?? new Date();
+
+  const occurrences = await db.query.sessionOccurrences.findMany({
+    where: and(
+      gte(sessionOccurrences.endsAt, now),
+      lte(sessionOccurrences.startsAt, window.to),
+      ne(sessionOccurrences.lifecycleStatus, "cancelled"),
+    ),
+    with: {
+      venue: true,
+      session: { with: { program: true } },
+    },
+    orderBy: [asc(sessionOccurrences.startsAt)],
+  });
+
+  if (occurrences.length === 0) return [];
+
+  // One roster read for the whole agenda, the same shape the occurrence page
+  // uses, so a count here can never disagree with the count there.
+  const summaries = await fetchOccurrenceSummaries(
+    occurrences.map((occurrence) => ({
+      id: occurrence.id,
+      capacity: occurrence.capacity,
+    })),
+    { now },
+  );
+
+  return occurrences.flatMap((occurrence) => {
+    const summary = summaries.get(occurrence.id);
+    if (!summary) return [];
+
+    return [
+      {
+        occurrenceId: occurrence.id,
+        programName: occurrence.session.program.name,
+        sessionTitle: occurrence.session.title,
+        sessionType: occurrence.session.type,
+        startsAt: occurrence.startsAt,
+        endsAt: occurrence.endsAt,
+        venueName: occurrence.venue?.name ?? null,
+        room: occurrence.room,
+        summary,
+      },
+    ];
+  });
+}

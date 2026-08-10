@@ -2,6 +2,7 @@
 "use no memo";
 
 import { DateTime } from "luxon";
+import Link from "next/link";
 import { useMemo } from "react";
 
 import {
@@ -208,13 +209,19 @@ export default function OccurrenceRosterTable({
                       DateTime.DATETIME_MED,
                     )}
                   </td>
-                  {/* Not a link: `/programs/purchases/[id]` is the buyer's page and
+                  {/* Points at the admin detail page, never at
+                      `/programs/purchases/[id]` — that one is the buyer's, and
                       `resolvePurchaseAccess` grants only the owner or a valid
-                      token — there is no admin bypass, so linking there would send
-                      the team to a denied page. The id is here to correlate with
-                      the review queue and with support actions. */}
-                  <td className="px-2 py-3 text-xs text-muted-foreground">
-                    #{entry.purchaseId}
+                      token, so linking there would send the team to a denied
+                      page. This is how support reaches an approved or free
+                      enrollment, which the review queue never lists. */}
+                  <td className="px-2 py-3 text-xs">
+                    <Link
+                      href={`/dashboard/programs/purchases/${entry.purchaseId}`}
+                      className="text-primary underline-offset-2 hover:underline"
+                    >
+                      #{entry.purchaseId}
+                    </Link>
                   </td>
                   {occurrenceContext ? (
                     <>

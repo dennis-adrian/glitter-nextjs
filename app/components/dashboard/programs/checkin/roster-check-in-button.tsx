@@ -42,11 +42,17 @@ export default function RosterCheckInButton({
 
   function confirm() {
     startTransition(async () => {
-      const res = await checkInTicket({
-        occurrenceId,
-        code: ticketCode,
-        method: "manual_code",
-      });
+      let res;
+      try {
+        res = await checkInTicket({
+          occurrenceId,
+          code: ticketCode,
+          method: "manual_code",
+        });
+      } catch {
+        toast.error("No pudimos registrar el ingreso. Intenta de nuevo.");
+        return;
+      }
 
       if (!res.success) {
         toast.error(res.message);

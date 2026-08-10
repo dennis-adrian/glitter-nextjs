@@ -1,42 +1,47 @@
 "use client";
 
-import { useCallback, useRef, useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import CheckInManualForm from "@/app/components/dashboard/programs/checkin/checkin-manual-form";
-import CheckInRecentList, {
-  type RecentCheckIn,
-} from "@/app/components/dashboard/programs/checkin/checkin-recent-list";
-import CheckInResultBanner from "@/app/components/dashboard/programs/checkin/checkin-result-banner";
-import CheckInScanner from "@/app/components/dashboard/programs/checkin/checkin-scanner";
+import CheckInRecentList from "@/app/components/dashboard/programs/checkin/checkin-recent-list";
+import CodeScanner from "@/app/components/molecules/code-scanner";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/app/components/ui/card";
+import useRecentCheckIns from "@/app/hooks/use-recent-check-ins";
 import type { AttendanceMethod } from "@/app/lib/programs/definitions";
 import { checkInTicket } from "@/app/lib/programs/checkin-actions";
-
-/** Enough to answer "did the last few go through" without becoming a report. */
-const RECENT_LIMIT = 10;
+import {
+  dismissCheckInVerdict,
+  showCheckInVerdict,
+} from "@/app/lib/programs/checkin-verdict-toast";
 
 type Props = { occurrenceId: number };
 
 /**
- * Owns everything the door screen shares: the in-flight scan, the last verdict,
- * and the short history. The scanner and the manual input are two ways into the
- * same submit, so a code typed by hand goes through exactly the checks a
- * scanned one does — only `method` differs, and that is recorded.
+ * Owns everything the door screen shares: the in-flight scan and the short
+ * history. The scanner and the manual input are two ways into the same submit,
+ * so a code typed by hand goes through exactly the checks a scanned one does —
+ * only `method` differs, and that is recorded.
+ *
+ * The verdict itself is a toast rather than anything held here, so that an
+ * answer arriving between two scans cannot shift the camera being aimed.
  */
 export default function CheckInPanel({ occurrenceId }: Props) {
-  const [result, setResult] = useState<RecentCheckIn["result"] | null>(null);
-  const [recent, setRecent] = useState<RecentCheckIn[]>([]);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  // Scans can land inside the same millisecond; a counter keeps React keys
-  // unique where a timestamp would not.
-  const nextId = useRef(0);
+  // Survives a reload of the door screen; see the hook for why it is a store
+  // rather than state.
+  const {
+    items: recent,
+    add: addRecent,
+    clear: clearRecent,
+  } = useRecentCheckIns(occurrenceId);
 
   const submit = useCallback(
     (code: string, method: AttendanceMethod) => {
@@ -54,36 +59,47 @@ export default function CheckInPanel({ occurrenceId }: Props) {
           return;
         }
 
-        nextId.current += 1;
-        const entry: RecentCheckIn = {
-          id: nextId.current,
-          at: new Date(),
-          result: res.result,
-        };
-
-        setResult(res.result);
-        setRecent((items) => [entry, ...items].slice(0, RECENT_LIMIT));
+        showCheckInVerdict(res.result);
+        addRecent(res.result);
       });
     },
-    [occurrenceId],
+    [occurrenceId, addRecent],
   );
 
-  const handleDecode = useCallback(
+  const handleScan = useCallback(
     (code: string) => submit(code, "qr_scan"),
     [submit],
   );
 
+  /**
+   * Drops the on-screen history. Safe to offer without a confirmation because
+   * nothing is lost: every scan is already an attendance row, and the occurrence
+   * roster is the list that matters.
+   */
+  const handleClear = useCallback(() => {
+    dismissCheckInVerdict();
+    clearRecent();
+  }, [clearRecent]);
+
   return (
     <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
       <div className="space-y-3">
-        <CheckInScanner onDecode={handleDecode} paused={pending} />
-
-        {result ? <CheckInResultBanner result={result} /> : null}
-
+        {/* Input first, camera below it: opening the camera then has nowhere
+            to push the control the operator just used. */}
         <CheckInManualForm
           onSubmit={(code) => submit(code, "manual_code")}
           disabled={pending}
+          scannerOpen={scannerOpen}
+          onToggleScanner={setScannerOpen}
         />
+
+        {scannerOpen ? (
+          <CodeScanner
+            onScan={handleScan}
+            busy={pending}
+            onClose={() => setScannerOpen(false)}
+          />
+        ) : null}
       </div>
 
       <Card>
@@ -91,7 +107,7 @@ export default function CheckInPanel({ occurrenceId }: Props) {
           <CardTitle className="text-base">Últimos escaneos</CardTitle>
         </CardHeader>
         <CardContent>
-          <CheckInRecentList items={recent} />
+          <CheckInRecentList items={recent} onClear={handleClear} />
         </CardContent>
       </Card>
     </div>

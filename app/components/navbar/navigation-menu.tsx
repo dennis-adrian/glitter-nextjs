@@ -23,7 +23,6 @@ import {
   SparklesIcon,
   LayoutDashboardIcon,
   StoreIcon,
-  TicketIcon,
 } from "lucide-react";
 import { NavbarProfile } from "../../api/users/definitions";
 import { usePathname } from "next/navigation";
@@ -188,36 +187,71 @@ const NavbarNavigationMenu = ({
                 </Link>
               </NavigationMenuLink>
             </NavigationMenuItem>
-            {/* Programs are managed by both admin tiers, matching
-                `requireAdminOrFestivalAdmin` on every program action. */}
-            <NavigationMenuItem>
-              <NavigationMenuLink
-                asChild
-                className={navigationMenuTriggerStyle()}
-              >
-                <Link href="/dashboard/programs">
-                  <div className="flex items-center">
-                    <CalendarIcon className="w-4 h-4 mr-1" />
-                    Programas
-                  </div>
-                </Link>
-              </NavigationMenuLink>
-            </NavigationMenuItem>
-            <NavigationMenuItem>
-              <NavigationMenuLink
-                asChild
-                className={navigationMenuTriggerStyle()}
-              >
-                <Link href="/dashboard/programs/promo-codes">
-                  <div className="flex items-center">
-                    <TicketIcon className="w-4 h-4 mr-1" />
-                    Códigos de programas
-                  </div>
-                </Link>
-              </NavigationMenuLink>
-            </NavigationMenuItem>
           </>
         )}
+        {/* Every programs destination behind one trigger, for both admin
+            tiers — mirroring `requireAdminOrFestivalAdmin`, which is what
+            actually guards each of these pages. Previously these sat as loose
+            top-level items for festival admins and inside the Dashboard
+            dropdown for admins, so the same module appeared in two shapes
+            depending on who was looking. */}
+        {profile &&
+          (profile.role === "admin" || profile.role === "festival_admin") && (
+            <NavigationMenuItem>
+              <NavigationMenuTrigger>
+                <div className="flex items-center">
+                  <CalendarIcon className="w-4 h-4 mr-1" />
+                  Programas
+                </div>
+              </NavigationMenuTrigger>
+              <NavigationMenuContent>
+                <ul className="grid w-100 gap-3 p-4 md:w-125 md:grid-cols-2 lg:w-150">
+                  <NavigationMenuListItem
+                    title="Programas"
+                    href="/dashboard/programs"
+                  >
+                    Charlas y talleres, con sus horarios y expositores
+                  </NavigationMenuListItem>
+                  <NavigationMenuListItem
+                    title="Registrar ingresos"
+                    href="/dashboard/programs/check-in"
+                  >
+                    Escanea entradas en la puerta de cada sesión
+                  </NavigationMenuListItem>
+                  <NavigationMenuListItem
+                    title="Inscripciones"
+                    href="/dashboard/programs/enrollments"
+                  >
+                    Busca a una persona y abre su inscripción
+                  </NavigationMenuListItem>
+                  <NavigationMenuListItem
+                    title="Pagos por revisar"
+                    href="/dashboard/programs/purchases"
+                  >
+                    Comprobantes de inscripciones esperando aprobación
+                  </NavigationMenuListItem>
+                  <NavigationMenuListItem
+                    title="Códigos de programas"
+                    href="/dashboard/programs/promo-codes"
+                  >
+                    Promociones y atribución para artistas e influencers
+                  </NavigationMenuListItem>
+                  <NavigationMenuListItem
+                    title="Expositores"
+                    href="/dashboard/programs/speakers"
+                  >
+                    Quienes dictan las charlas y los talleres
+                  </NavigationMenuListItem>
+                  <NavigationMenuListItem
+                    title="Lugares"
+                    href="/dashboard/programs/venues"
+                  >
+                    Espacios y salas donde ocurren las sesiones
+                  </NavigationMenuListItem>
+                </ul>
+              </NavigationMenuContent>
+            </NavigationMenuItem>
+          )}
         {profile && profile.role === "admin" && (
           <NavigationMenuItem>
             <NavigationMenuTrigger>
@@ -257,24 +291,6 @@ const NavbarNavigationMenu = ({
                   href="/dashboard/store/analytics"
                 >
                   Gestiona pagos, pedidos y productos de la tienda
-                </NavigationMenuListItem>
-                <NavigationMenuListItem
-                  title="Programas"
-                  href="/dashboard/programs"
-                >
-                  Charlas y talleres, con sus horarios y expositores
-                </NavigationMenuListItem>
-                <NavigationMenuListItem
-                  title="Pagos por revisar"
-                  href="/dashboard/programs/purchases"
-                >
-                  Comprobantes de inscripciones esperando aprobación
-                </NavigationMenuListItem>
-                <NavigationMenuListItem
-                  title="Códigos de programas"
-                  href="/dashboard/programs/promo-codes"
-                >
-                  Promociones y atribución para artistas e influencers
                 </NavigationMenuListItem>
                 <NavigationMenuListItem
                   title="Subcategorías"
