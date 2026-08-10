@@ -149,17 +149,22 @@ export type EnrollmentSearchResult = {
   sessions: { title: string; startsAt: Date }[];
 };
 
+/** PostgreSQL `serial` / `integer` upper bound — ids above this cannot exist. */
+const PG_SERIAL_MAX = 2_147_483_647;
+
 /**
  * "#42" and "42" both mean purchase 42 to the person reading it out.
  *
  * The whole query (after an optional leading `#`) must be digits — a partial
- * number mixed into a name is not an id lookup.
+ * number mixed into a name is not an id lookup. Out-of-range values return
+ * null before any database lookup.
  */
 export function parseEnrollmentPurchaseId(query: string): number | null {
   const digits = query.trim().replace(/^#/, "");
   if (!/^\d+$/.test(digits)) return null;
   const id = Number(digits);
-  return Number.isInteger(id) && id > 0 ? id : null;
+  if (!Number.isSafeInteger(id) || id < 1 || id > PG_SERIAL_MAX) return null;
+  return id;
 }
 
 /**

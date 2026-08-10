@@ -13,6 +13,14 @@ import { FestivalBase } from "@/app/lib/festivals/definitions";
 
 export type TicketBase = typeof tickets.$inferSelect;
 export type TicketWithVisitor = TicketBase & { visitor: VisitorBase };
+
+/**
+ * First key of the advisory lock that serializes ticket numbering, so a
+ * festival id here cannot collide with the same number used as a lock key
+ * elsewhere. Arbitrary, and only has to stay stable.
+ */
+const TICKET_NUMBER_LOCK_NAMESPACE = 4711;
+
 export async function createTicket(data: {
   date: Date;
   visitor: VisitorBase;
@@ -24,6 +32,20 @@ export async function createTicket(data: {
   let createdTicket: TicketBase;
   try {
     const rows = await db.transaction(async (tx) => {
+      /**
+       * Serializes registration for this festival, and is taken before
+       * anything is read so that both reads below see every committed ticket.
+       *
+       * Row locks cannot do this job: `SELECT ... FOR UPDATE` only locks rows
+       * that already exist, so two registrations arriving together read the
+       * same highest number, and each inserts a row the other never saw —
+       * duplicate numbers, and a second ticket for a visitor who already had
+       * one. Nothing in the schema catches either afterwards.
+       */
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(${TICKET_NUMBER_LOCK_NAMESPACE}, ${festival.id})`,
+      );
+
       const existingTickets = await tx
         .select()
         .from(tickets)
@@ -41,17 +63,12 @@ export async function createTicket(data: {
         });
       }
 
-      const rowsToLock = await tx
-        .select()
+      const [{ highest }] = await tx
+        .select({ highest: max(tickets.ticketNumber) })
         .from(tickets)
-        .where(eq(tickets.festivalId, festival.id))
-        .for("update");
+        .where(eq(tickets.festivalId, festival.id));
 
-      const maxTicketNumber =
-        rowsToLock.length > 0
-          ? Math.max(...rowsToLock.map((row) => row.ticketNumber ?? 0))
-          : 0;
-      const ticketNumber = maxTicketNumber + 1;
+      const ticketNumber = (highest ?? 0) + 1;
 
       return await tx
         .insert(tickets)
@@ -163,6 +180,10 @@ export async function verifyTicket(ticketNumber: number, festivalId: number) {
 
     // Predicate on status closes the race where two concurrent verifies both
     // pass the read above; a zero-row update means the other won.
+    //
+    // The id pins the update to the row that was read. Nothing in the database
+    // stops two tickets from sharing a festival and number, and without the id
+    // one scan would check in every one of them at once.
     const updated = await db
       .update(tickets)
       .set({
@@ -172,6 +193,7 @@ export async function verifyTicket(ticketNumber: number, festivalId: number) {
       })
       .where(
         and(
+          eq(tickets.id, ticket.id),
           eq(tickets.festivalId, festivalId),
           eq(tickets.ticketNumber, ticketNumber),
           ne(tickets.status, "checked_in"),
@@ -179,7 +201,7 @@ export async function verifyTicket(ticketNumber: number, festivalId: number) {
       )
       .returning({ id: tickets.id });
 
-    if (updated.length === 0) {
+    if (updated.length !== 1) {
       throw new Error("Esta entrada ya ha sido verificada");
     }
   } catch (error) {
