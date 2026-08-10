@@ -12,6 +12,7 @@ import {
 
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
+import { previewDate, previewScheduleLabel } from "@/app/emails/preview-dates";
 import * as styles from "@/app/emails/styles";
 
 export type VoucherReceivedSession = {
@@ -166,13 +167,19 @@ ProgramVoucherReceivedEmailTemplate.PreviewProps = {
     {
       title: "Cómo vivir del arte",
       typeLabel: "Charla",
-      scheduleLabel: "10 ago 2026, 15:00 — 16:30",
+      scheduleLabel: previewScheduleLabel(
+        previewDate(5, 15),
+        previewDate(5, 16, 30),
+      ),
       priceLabel: "Bs 50",
     },
     {
       title: "Taller de ilustración",
       typeLabel: "Taller",
-      scheduleLabel: "10 ago 2026, 18:00 — 20:00",
+      scheduleLabel: previewScheduleLabel(
+        previewDate(6, 18),
+        previewDate(6, 20),
+      ),
       priceLabel: "Bs 70",
     },
   ],

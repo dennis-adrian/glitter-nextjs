@@ -12,6 +12,11 @@ import {
 
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
+import {
+  previewDate,
+  previewDateTimeLabel,
+  previewScheduleLabel,
+} from "@/app/emails/preview-dates";
 import * as styles from "@/app/emails/styles";
 
 export type ProgramWaitlistInvitationEmailProps = {
@@ -90,7 +95,12 @@ export default function ProgramWaitlistInvitationEmailTemplate({
 ProgramWaitlistInvitationEmailTemplate.PreviewProps = {
   buyerName: "María Pérez",
   sessionTitle: "Cómo vivir del arte",
-  scheduleLabel: "10 ago 2026, 15:00 — 16:30",
-  deadlineLabel: "9 ago 2026, 18:00",
+  scheduleLabel: previewScheduleLabel(
+    previewDate(5, 15),
+    previewDate(5, 16, 30),
+  ),
+  // Ahead of now, and still before the session — claiming a seat afterwards
+  // is not a thing the invitation can offer.
+  deadlineLabel: previewDateTimeLabel(previewDate(1, 18)),
   invitationUrl: "http://localhost:3000/programs/waitlist/12?token=preview",
 } as ProgramWaitlistInvitationEmailProps;

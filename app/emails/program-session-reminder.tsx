@@ -12,6 +12,7 @@ import {
 
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
+import { previewDate, previewScheduleLabel } from "@/app/emails/preview-dates";
 import * as styles from "@/app/emails/styles";
 
 export type ProgramSessionReminderSession = {
@@ -151,7 +152,10 @@ ProgramSessionReminderEmailTemplate.PreviewProps = {
       title: "Cómo vivir del arte",
       typeLabel: "Charla",
       programName: "Glitter Academy",
-      scheduleLabel: "10 ago 2026, 15:00 - 16:30",
+      scheduleLabel: previewScheduleLabel(
+        previewDate(0, 15),
+        previewDate(0, 16, 30),
+      ),
       venueLabel: "Casa Glitter · Sala 2",
       ticketCode: "GLT-8F3K2A",
     },
@@ -159,7 +163,10 @@ ProgramSessionReminderEmailTemplate.PreviewProps = {
       title: "Taller de ilustración",
       typeLabel: "Taller",
       programName: "Glitter Academy",
-      scheduleLabel: "10 ago 2026, 18:00 - 20:00",
+      scheduleLabel: previewScheduleLabel(
+        previewDate(0, 18),
+        previewDate(0, 20),
+      ),
       venueLabel: "Casa Glitter",
       ticketCode: "GLT-9D1P7Q",
     },

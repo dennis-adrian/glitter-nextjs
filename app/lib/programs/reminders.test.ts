@@ -200,6 +200,18 @@ describe("buildSessionDayReminderKey", () => {
     ).not.toBe(buildSessionDayReminderKey("2026-08-11", "ana@example.com"));
   });
 
+  it("does not reuse one address's digest across days", () => {
+    // The prefix alone changing is not enough: a constant digest would link the
+    // same person's keys day to day and match a plain sha256(email) table.
+    const digest = (key: string) => key.slice(key.lastIndexOf("-") + 1);
+
+    expect(
+      digest(buildSessionDayReminderKey("2026-08-10", "ana@example.com")),
+    ).not.toBe(
+      digest(buildSessionDayReminderKey("2026-08-11", "ana@example.com")),
+    );
+  });
+
   it("carries no attendee address", () => {
     const key = buildSessionDayReminderKey("2026-08-10", "ana@example.com");
 

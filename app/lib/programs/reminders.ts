@@ -150,6 +150,12 @@ export function groupSessionDayReminders(
  * an HTTP header, and an attendee's email has no business in one. The digest is
  * over the same normalized form the grouping uses, so the two cannot disagree.
  *
+ * The day and a purpose string go *inside* the digest, not just in front of it.
+ * A bare `sha256(email)` is the same string forever, which both links one
+ * person's keys day to day and matches straight against a generic email-hash
+ * table. Folding them in makes the digest per-day and per-purpose while staying
+ * constant across a single day, which is all the idempotency needs.
+ *
  * Consequence, deliberate: a seat bought *after* the morning send earns no
  * second reminder. Registration already emails its own confirmation with the
  * schedule, and the daily nudge is once by design.
@@ -159,7 +165,9 @@ export function buildSessionDayReminderKey(
   attendeeEmail: string,
 ): string {
   const digest = createHash("sha256")
-    .update(attendeeEmail.trim().toLowerCase())
+    .update(
+      `program-session-day-reminder:${dayKey}:${attendeeEmail.trim().toLowerCase()}`,
+    )
     .digest("hex")
     .slice(0, 32);
 

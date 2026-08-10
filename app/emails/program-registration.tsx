@@ -14,6 +14,7 @@ import {
 
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
+import { previewDate, previewScheduleLabel } from "@/app/emails/preview-dates";
 import * as styles from "@/app/emails/styles";
 
 export type ProgramRegistrationEmailProps = {
@@ -188,7 +189,10 @@ ProgramRegistrationEmailTemplate.PreviewProps = {
   programName: "Glitter Academy",
   sessionTitle: "Cómo vivir del arte",
   sessionTypeLabel: "Charla",
-  scheduleLabel: "10 ago 2026, 15:00 — 16:30",
+  scheduleLabel: previewScheduleLabel(
+    previewDate(5, 15),
+    previewDate(5, 16, 30),
+  ),
   venueLabel: "Casa Glitter · Sala 2",
   ticketCode: "GLT-8F3K2A",
   secureLinkUrl: "http://localhost:3000/programs/purchases/12?token=preview",
