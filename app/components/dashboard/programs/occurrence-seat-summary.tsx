@@ -20,7 +20,8 @@ type Props = {
  * is what a buyer is allowed to take.
  */
 export default function OccurrenceSeatSummary({ summary, href }: Props) {
-  const { totals, capacity, remaining, waitlistActive, isSoldOut } = summary;
+  const { totals, capacity, remaining, waitlistActive, isSoldOut, checkedIn } =
+    summary;
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -34,6 +35,15 @@ export default function OccurrenceSeatSummary({ summary, href }: Props) {
         <Badge variant="outline">
           {totals.confirmed}{" "}
           {totals.confirmed === 1 ? "confirmado" : "confirmados"}
+        </Badge>
+      ) : null}
+
+      {/* Only once someone has arrived: before the doors open this is a zero
+          that means nothing, and on the day it is the number everyone reads.
+          Shown as a ratio because "cuántos faltan" is the actual question. */}
+      {checkedIn > 0 ? (
+        <Badge variant="green">
+          {checkedIn} de {totals.confirmed} ingresaron
         </Badge>
       ) : null}
 

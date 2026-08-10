@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import OccurrenceRosterTable from "@/app/components/dashboard/programs/occurrence-roster-table";
 import OccurrenceSeatSummary from "@/app/components/dashboard/programs/occurrence-seat-summary";
 import ProgramStatusBadge from "@/app/components/programs/program-status-badge";
+import { Button } from "@/app/components/ui/button";
 import {
   Card,
   CardContent,
@@ -55,7 +56,7 @@ export default async function OccurrenceDashboardPage({ params }: Props) {
   });
 
   return (
-    <div className="container mx-auto space-y-6 py-6">
+    <div className="container mx-auto space-y-6 p-3 md:p-6">
       <div className="space-y-2">
         <Link
           href={`/dashboard/programs/${program.id}/sessions/${session.id}`}
@@ -85,11 +86,22 @@ export default async function OccurrenceDashboardPage({ params }: Props) {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
           <CardTitle>Inscritos</CardTitle>
+          {/* Hidden for a cancelled horario: the door is shut, and the
+              check-in page would only render the same refusal. */}
+          {occurrence.lifecycleStatus === "cancelled" ? null : (
+            <Button asChild size="sm">
+              <Link
+                href={`/dashboard/programs/occurrences/${occurrence.id}/check-in`}
+              >
+                Registrar ingresos
+              </Link>
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
-          <OccurrenceRosterTable entries={entries} />
+          <OccurrenceRosterTable entries={entries} allowCheckIn />
         </CardContent>
       </Card>
     </div>

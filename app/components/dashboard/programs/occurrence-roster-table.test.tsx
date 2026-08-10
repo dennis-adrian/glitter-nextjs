@@ -5,7 +5,13 @@ import {
   screen,
   within,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+// The manual check-in button reaches the server action, which pulls in `db`
+// and therefore `server-only`. The table renders the button; it never calls it.
+vi.mock("@/app/lib/programs/checkin-actions", () => ({
+  checkInTicket: vi.fn(),
+}));
 
 import OccurrenceRosterTable from "@/app/components/dashboard/programs/occurrence-roster-table";
 import OccurrenceSeatSummary from "@/app/components/dashboard/programs/occurrence-seat-summary";
@@ -28,6 +34,7 @@ function entry(overrides: Partial<RosterEntry> = {}): RosterEntry {
     attendeePhone: null,
     isGuest: false,
     ticketCode: "ABC123",
+    checkedInAt: null,
     unitPrice: 70,
     promoCode: null,
     promoPartnerName: null,
@@ -200,7 +207,14 @@ describe("OccurrenceRosterTable", () => {
   it("falls back to a dash when a row's occurrence is missing from the context", () => {
     render(
       <OccurrenceRosterTable
-        entries={[entry({ occurrenceId: 999 })]}
+        // Checked in so the Ingreso column renders a time: the only dashes
+        // left are then the two the missing context is responsible for.
+        entries={[
+          entry({
+            occurrenceId: 999,
+            checkedInAt: new Date("2026-03-12T18:05:00.000Z"),
+          }),
+        ]}
         occurrenceContext={new Map()}
       />,
     );
@@ -230,6 +244,41 @@ describe("OccurrenceRosterTable", () => {
     expect(screen.getByText("Persona 50")).toBeTruthy();
     expect(screen.queryByText("Persona 0")).toBeNull();
   });
+
+  it("shows the arrival time once someone has been checked in", () => {
+    render(
+      <OccurrenceRosterTable
+        entries={[entry({ checkedInAt: new Date("2026-03-12T18:05:00.000Z") })]}
+        allowCheckIn
+      />,
+    );
+
+    expect(screen.getByText("14:05")).toBeTruthy();
+    // The time replaces the offer to create one — there is no un-check-in.
+    expect(screen.queryByText("Marcar ingreso")).toBeNull();
+  });
+
+  it("offers the manual fallback only on confirmed rows that can be checked in", () => {
+    render(
+      <OccurrenceRosterTable
+        entries={[
+          entry({ lineId: 1, state: "confirmed" }),
+          entry({ lineId: 2, state: "holding", ticketCode: null }),
+          entry({ lineId: 3, state: "released", ticketCode: null }),
+        ]}
+        allowCheckIn
+      />,
+    );
+
+    expect(screen.getAllByText("Marcar ingreso")).toHaveLength(1);
+  });
+
+  it("never offers manual check-in when the caller did not allow it", () => {
+    // The program-wide roster spans occurrences; check-in belongs to one door.
+    render(<OccurrenceRosterTable entries={[entry({ state: "confirmed" })]} />);
+
+    expect(screen.queryByText("Marcar ingreso")).toBeNull();
+  });
 });
 
 function summary(
@@ -242,6 +291,7 @@ function summary(
     remaining: 18,
     isSoldOut: false,
     waitlistActive: 0,
+    checkedIn: 0,
     ...overrides,
   };
 }
@@ -296,6 +346,25 @@ describe("OccurrenceSeatSummary", () => {
 
     expect(screen.getByText("0 de 20 disponibles")).toBeTruthy();
     expect(screen.getByText("3 en espera")).toBeTruthy();
+  });
+
+  it("shows arrivals as a ratio of the confirmed seats", () => {
+    render(
+      <OccurrenceSeatSummary
+        summary={summary({
+          totals: summarizeRoster(["confirmed", "confirmed", "confirmed"]),
+          checkedIn: 2,
+        })}
+      />,
+    );
+
+    expect(screen.getByText("2 de 3 ingresaron")).toBeTruthy();
+  });
+
+  it("stays quiet before anyone has arrived", () => {
+    // A zero here is noise on every screen except the one day it matters.
+    render(<OccurrenceSeatSummary summary={summary({ checkedIn: 0 })} />);
+    expect(screen.queryByText(/ingresaron/)).toBeNull();
   });
 
   it("links to the roster only when given a destination", () => {

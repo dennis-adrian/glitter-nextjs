@@ -13,7 +13,7 @@ export default async function FeatureFlagsPage() {
   const flags = await fetchAllFeatureFlags();
 
   return (
-    <div className="container mx-auto space-y-6 py-6">
+    <div className="container mx-auto space-y-6 p-3 md:p-6">
       <div className="space-y-1">
         <h1 className="text-2xl font-bold">Funcionalidades</h1>
         <p className="text-sm text-muted-foreground">

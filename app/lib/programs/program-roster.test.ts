@@ -56,6 +56,7 @@ function entry(overrides: Partial<RosterEntry> = {}): RosterEntry {
     attendeePhone: null,
     isGuest: false,
     ticketCode: "ABC123",
+    checkedInAt: null,
     unitPrice: 70,
     promoCode: null,
     promoPartnerName: null,

@@ -11,6 +11,7 @@ import {
 
 import EmailFooter from "@/app/emails/email-footer";
 import EmailHeader from "@/app/emails/email-header";
+import { previewDate, previewScheduleLabel } from "@/app/emails/preview-dates";
 import * as styles from "@/app/emails/styles";
 
 export type ProgramSignupForAdminsEmailProps = {
@@ -109,7 +110,10 @@ ProgramSignupForAdminsEmailTemplate.PreviewProps = {
     {
       title: "Taller de ilustración",
       typeLabel: "Taller",
-      scheduleLabel: "10 ago 2026, 15:00 — 17:00",
+      scheduleLabel: previewScheduleLabel(
+        previewDate(5, 15),
+        previewDate(5, 17),
+      ),
     },
   ],
   totalLabel: "Bs 120",
