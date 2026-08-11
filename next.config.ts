@@ -21,7 +21,9 @@ const nextConfig: NextConfig = {
   skipTrailingSlashRedirect: true,
   reactCompiler: true,
   outputFileTracingIncludes: {
-    "/app/api/festival_activities/*/couponbook/export": [
+    // Turbopack matches this key with "contains" semantics against the raw
+    // entry name (`app/api/.../route`), so it must not start with a slash.
+    "api/festival_activities/*/couponbook/export": [
       "./node_modules/@sparticuz/chromium/bin/**/*",
     ],
   },
