@@ -1,7 +1,10 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
-import { TransformComponent } from "react-zoom-pan-pinch";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  TransformComponent,
+  type ReactZoomPanPinchRef,
+} from "react-zoom-pan-pinch";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { MapElementBase } from "@/app/lib/map_elements/definitions";
@@ -29,6 +32,7 @@ type FestivalNavMapCanvasProps = {
   mapElements: MapElementBase[];
   mapBounds?: MapBounds;
   selectedStandId: number | null;
+  locateRequest?: { standId: number; requestId: number } | null;
   couponBookUserIdSet: Set<number>;
   passportUserIdSet: Set<number>;
   stickerHuntUserIdSet: Set<number>;
@@ -88,12 +92,15 @@ export default function FestivalNavMapCanvas({
   mapElements,
   mapBounds,
   selectedStandId,
+  locateRequest,
   couponBookUserIdSet,
   passportUserIdSet,
   stickerHuntUserIdSet,
   sectorName,
   onStandSelect,
 }: FestivalNavMapCanvasProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const transformRef = useRef<ReactZoomPanPinchRef>(null);
   const visibleStands = useMemo(
     () => stands.filter((s) => s.status !== "disabled"),
     [stands],
@@ -117,9 +124,33 @@ export default function FestivalNavMapCanvas({
     [onStandSelect, sectorName],
   );
 
+  useEffect(() => {
+    if (!locateRequest) return;
+    if (!visibleStands.some((stand) => stand.id === locateRequest.standId)) {
+      return;
+    }
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const timer = window.setTimeout(() => {
+      containerRef.current?.scrollIntoView({
+        behavior: reduceMotion ? "auto" : "smooth",
+        block: "center",
+      });
+      transformRef.current?.resetTransform(reduceMotion ? 0 : 300, "easeOut");
+    }, 50);
+
+    return () => window.clearTimeout(timer);
+  }, [locateRequest, visibleStands]);
+
   return (
-    <div className="relative w-full border rounded-lg overflow-hidden">
+    <div
+      ref={containerRef}
+      className="relative w-full overflow-hidden rounded-lg border"
+    >
       <MapTransformWrapper
+        ref={transformRef}
         initialScale={1}
         minScale={1}
         maxScale={4}
@@ -134,6 +165,8 @@ export default function FestivalNavMapCanvas({
             mapElements={mapElements}
             mapBounds={mapBounds}
             selectedStandId={selectedStandId}
+            highlightedStandId={locateRequest?.standId}
+            highlightRequestId={locateRequest?.requestId}
             getColors={(stand) =>
               getNavStandColors(
                 stand,

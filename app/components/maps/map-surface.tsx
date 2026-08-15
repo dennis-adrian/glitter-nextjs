@@ -24,6 +24,8 @@ type MapSurfaceProps = {
   /** Explicit viewBox. Falls back to bounds computed from stands and elements */
   mapBounds?: MapBounds;
   selectedStandId?: number | null;
+  highlightedStandId?: number | null;
+  highlightRequestId?: number;
   /** Returning undefined leaves MapStand on its status-based default palette */
   getColors?: (
     stand: StandWithReservationsWithParticipants,
@@ -60,6 +62,8 @@ export default function MapSurface({
   mapElements,
   mapBounds,
   selectedStandId,
+  highlightedStandId,
+  highlightRequestId,
   getColors = noColors,
   canBeReserved = notReservable,
   onStandClick,
@@ -91,6 +95,8 @@ export default function MapSurface({
             stand={stand}
             canBeReserved={canBeReserved(stand)}
             selected={stand.id === selectedStandId}
+            highlighted={stand.id === highlightedStandId}
+            highlightRequestId={highlightRequestId}
             colors={getColors(stand)}
             onClick={onStandClick}
             onTouchTap={onStandTouchTap}
@@ -98,17 +104,27 @@ export default function MapSurface({
           />
         ),
       )}
-      {jointGroups.map((group) => (
-        <MapStandGroup
-          key={`group-${group.id}`}
-          group={group}
-          selected={group.stands.some((s) => s.id === selectedStandId)}
-          colors={getColors(group.stands[0])}
-          onClick={onStandClick}
-          onTouchTap={onStandTouchTap}
-          onHoverChange={onStandHoverChange}
-        />
-      ))}
+      {jointGroups.map((group) => {
+        const selectedGroupStand = group.stands.find(
+          (stand) =>
+            stand.id === highlightedStandId || stand.id === selectedStandId,
+        );
+
+        return (
+          <MapStandGroup
+            key={`group-${group.id}`}
+            group={group}
+            selected={group.stands.some((s) => s.id === selectedStandId)}
+            highlighted={group.stands.some((s) => s.id === highlightedStandId)}
+            highlightRequestId={highlightRequestId}
+            mapStandId={selectedGroupStand?.id}
+            colors={getColors(group.stands[0])}
+            onClick={onStandClick}
+            onTouchTap={onStandTouchTap}
+            onHoverChange={onStandHoverChange}
+          />
+        );
+      })}
       {children}
     </MapCanvas>
   );

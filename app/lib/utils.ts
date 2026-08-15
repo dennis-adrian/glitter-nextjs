@@ -1,11 +1,7 @@
 import QRCode from "qrcode";
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import {
-  BaseProfile,
-  Participation,
-  ProfileType,
-} from "@/api/users/definitions";
+import { ProfileType } from "@/api/users/definitions";
 import {
   eventDiscoveryEnum,
   genderEnum,
@@ -289,9 +285,9 @@ export function getFestivalLogo(festivalType: FestivalBase["festivalType"]) {
   return GLITTER_EMAIL_LOGO_URL;
 }
 
-export function isNewProfile(
-  profile: BaseProfile & { participations: Participation[] },
-) {
+export function isNewProfile(profile: {
+  participations: { reservation: { status: string } }[];
+}) {
   const confirmedParticipations = profile.participations.filter(
     (participation) => participation.reservation.status === "accepted",
   );

@@ -26,6 +26,9 @@ import type { StandColors } from "./map-utils";
 type MapStandGroupProps = {
   group: JointGroup;
   selected?: boolean;
+  highlighted?: boolean;
+  highlightRequestId?: number;
+  mapStandId?: number;
   colors?: StandColors;
   onClick?: (stand: StandWithReservationsWithParticipants) => void;
   onTouchTap?: (
@@ -48,6 +51,9 @@ const RING_PADDING = 0.8;
 const MapStandGroup = ({
   group,
   selected,
+  highlighted,
+  highlightRequestId,
+  mapStandId,
   colors,
   onClick,
   onTouchTap,
@@ -125,6 +131,8 @@ const MapStandGroup = ({
         outline: "none",
       }}
       role={onClick ? "button" : undefined}
+      id={`festival-map-stand-${mapStandId ?? primaryStand.id}`}
+      data-map-stand-id={mapStandId ?? primaryStand.id}
       aria-label={`Espacios unidos ${label} - ${status}`}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={(e) => {
@@ -137,7 +145,9 @@ const MapStandGroup = ({
       {/* Outer ring when selected, traced along the joined outline */}
       {selected && (
         <path
+          key={highlightRequestId}
           d={path}
+          className={highlighted ? "festival-map-locate-ring" : undefined}
           fill={SELECTED_RING}
           stroke={SELECTED_RING}
           strokeWidth={RING_PADDING * 2}

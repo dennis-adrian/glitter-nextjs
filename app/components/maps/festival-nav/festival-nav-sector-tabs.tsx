@@ -1,18 +1,26 @@
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
+import { cn } from "@/app/lib/utils";
 
 type FestivalNavSectorTabsProps = {
   sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
   activeIndex: number; // -1 = all sectors
   onChange: (index: number) => void;
+  flush?: boolean;
 };
 
 export default function FestivalNavSectorTabs({
   sectors,
   activeIndex,
   onChange,
+  flush = false,
 }: FestivalNavSectorTabsProps) {
   return (
-    <div className="flex gap-2 overflow-x-auto px-4 py-2 shrink-0 no-scrollbar">
+    <div
+      className={cn(
+        "no-scrollbar flex shrink-0 gap-2 overflow-x-auto py-2",
+        !flush && "px-4",
+      )}
+    >
       <button
         className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium border transition-colors ${
           activeIndex === -1

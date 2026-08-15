@@ -1,4 +1,4 @@
-import { BaseProfile, Participation } from "@/app/api/users/definitions";
+import { Participation } from "@/app/api/users/definitions";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
 import { getUserName } from "@/app/lib/users/utils";
@@ -7,13 +7,23 @@ import Image from "next/image";
 
 type ProfileAvatarProps = {
   className?: string;
-  profile: BaseProfile & { participations: Participation[] };
+  profile: {
+    displayName?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    imageUrl: string | null;
+    participations?: Participation[];
+  };
   showGlitterStamp?: boolean;
   showBadge?: boolean;
 };
 export default function ProfileAvatar(props: ProfileAvatarProps) {
   const { profile, showBadge = true } = props;
   const userName = getUserName(profile);
+  const showNewBadge =
+    showBadge &&
+    profile.participations != null &&
+    isNewProfile({ participations: profile.participations });
 
   return (
     <div className="relative flex justify-center">
@@ -35,7 +45,7 @@ export default function ProfileAvatar(props: ProfileAvatarProps) {
           />
         </div>
       )}
-      {showBadge && isNewProfile(profile) && (
+      {showNewBadge && (
         <div className="absolute -bottom-2 z-10">
           <Badge className="bg-white text-foreground" variant="outline">
             Nuevo

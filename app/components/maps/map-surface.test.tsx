@@ -112,6 +112,34 @@ describe("MapSurface joint groups", () => {
     expect(groupNodes(container)[0].querySelectorAll("path")).toHaveLength(2);
   });
 
+  it("marks the searched group member as the locate target", () => {
+    const { container } = render(
+      <MapSurface
+        stands={jointPair()}
+        selectedStandId={8}
+        highlightedStandId={8}
+      />,
+    );
+
+    const group = groupNodes(container)[0];
+    expect(group.getAttribute("data-map-stand-id")).toBe("8");
+    expect(group.querySelector(".festival-map-locate-ring")).not.toBeNull();
+  });
+
+  it("marks an individual searched stand as the locate target", () => {
+    const { container } = render(
+      <MapSurface
+        stands={[stand(9, "A", { users: [8] })]}
+        selectedStandId={9}
+        highlightedStandId={9}
+      />,
+    );
+
+    const node = standNodes(container)[0];
+    expect(node.getAttribute("data-map-stand-id")).toBe("9");
+    expect(node.querySelector(".festival-map-locate-ring")).not.toBeNull();
+  });
+
   it("draws no selection ring when the selected stand is elsewhere", () => {
     const { container } = render(
       <MapSurface stands={jointPair()} selectedStandId={99} />,

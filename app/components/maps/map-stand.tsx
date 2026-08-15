@@ -21,6 +21,8 @@ type MapStandProps = {
   stand: StandWithReservationsWithParticipants;
   canBeReserved: boolean;
   selected?: boolean;
+  highlighted?: boolean;
+  highlightRequestId?: number;
   colors?: StandColors;
   onClick?: (stand: StandWithReservationsWithParticipants) => void;
   onTouchTap?: (
@@ -42,6 +44,8 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
       stand,
       canBeReserved,
       selected,
+      highlighted,
+      highlightRequestId,
       colors,
       onClick,
       onTouchTap,
@@ -122,6 +126,8 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
           outline: "none",
         }}
         role={onClick ? "button" : undefined}
+        id={`festival-map-stand-${stand.id}`}
+        data-map-stand-id={stand.id}
         aria-label={`Espacio ${formatStandLabel(stand)} - ${status}`}
         tabIndex={onClick ? 0 : undefined}
         onKeyDown={(e) => {
@@ -134,6 +140,8 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
         {/* Outer ring when selected */}
         {selected && (
           <rect
+            key={highlightRequestId}
+            className={highlighted ? "festival-map-locate-ring" : undefined}
             x={-RING_PADDING}
             y={-RING_PADDING}
             width={STAND_SIZE + RING_PADDING * 2}

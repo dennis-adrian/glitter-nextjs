@@ -40,6 +40,7 @@ import { revalidatePath } from "next/cache";
 import {
   FestivalActivityWithDetailsAndParticipants,
   FestivalBase,
+  PublicFestivalPage,
   FestivalWithDates,
   FestivalWithDatesAndSectors,
   FestivalWithTicketsAndDates,
@@ -693,6 +694,21 @@ export async function fetchFestivalWithDates(
     console.error("Error fetching active festival", error);
     return null;
   }
+}
+
+/** Public festival page data only; excludes participant/admin relation trees. */
+export async function fetchPublicFestivalPage(
+  id: number,
+): Promise<PublicFestivalPage | undefined> {
+  return await db.query.festivals.findFirst({
+    where: eq(festivals.id, id),
+    with: {
+      festivalDates: true,
+      festivalActivities: {
+        where: eq(festivalActivities.accessLevel, "public"),
+      },
+    },
+  });
 }
 
 export async function fetchFestivals(): Promise<FestivalWithDates[]> {

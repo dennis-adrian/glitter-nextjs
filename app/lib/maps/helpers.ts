@@ -22,6 +22,14 @@ export function getCategoryLabel(
   return "Sin nombre";
 }
 
+export function getPublicCategoryLabel(
+  category?: UserCategory | null,
+): string | null {
+  if (category == null || category === "none") return null;
+  if (category === "new_artist") return "Nuevos artistas";
+  return getCategoryLabel(category);
+}
+
 export function getMapPageTitle(category: Exclude<UserCategory, "none">) {
   if (category === "illustration") return "Zona de Ilustradores";
   if (category === "gastronomy") return "Patio de Comidas";

@@ -5,6 +5,7 @@ import { Search } from "lucide-react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import { cn } from "@/app/lib/utils";
 
 export type ParticipantSearchEntry = {
   displayName: string;
@@ -18,11 +19,13 @@ export type ParticipantSearchEntry = {
 type FestivalNavSearchProps = {
   entries: ParticipantSearchEntry[];
   onSelect: (entry: ParticipantSearchEntry) => void;
+  flush?: boolean;
 };
 
 export default function FestivalNavSearch({
   entries,
   onSelect,
+  flush = false,
 }: FestivalNavSearchProps) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -56,7 +59,7 @@ export default function FestivalNavSearch({
     <div
       ref={wrapperRef}
       onBlur={handleWrapperBlur}
-      className="relative shrink-0 px-4 py-2"
+      className={cn("relative shrink-0 py-2", !flush && "px-4")}
     >
       <div className="relative flex items-center">
         <Search className="absolute left-3 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -75,7 +78,12 @@ export default function FestivalNavSearch({
       </div>
 
       {open && results.length > 0 && (
-        <ul className="absolute left-4 right-4 top-full mt-1 z-50 rounded-lg border border-border bg-background shadow-lg overflow-hidden max-h-60 overflow-y-auto">
+        <ul
+          className={cn(
+            "absolute top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border border-border bg-background shadow-lg",
+            flush ? "left-0 right-0" : "left-4 right-4",
+          )}
+        >
           {results.map((entry, i) => (
             <li key={`${entry.stand.id}-${i}`}>
               <button

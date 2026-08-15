@@ -13,11 +13,13 @@ import FestivalNavStandDrawer, {
   CouponProof,
 } from "@/app/components/maps/festival-nav/festival-nav-stand-drawer";
 import FestivalNavMapLegend from "@/app/components/maps/festival-nav/festival-nav-map-legend";
+import type { FestivalActivity } from "@/app/lib/festivals/definitions";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import {
   indexJointGroupsByStandId,
   resolveJointGroups,
 } from "@/app/lib/stands/groups";
+import { cn } from "@/app/lib/utils";
 
 type FestivalNavMapProps = {
   festivalName: string;
@@ -26,6 +28,8 @@ type FestivalNavMapProps = {
   couponBookProofs: Record<number, CouponProof[]>;
   passportUserIds: number[];
   stickerHuntUserIds: number[];
+  activityTypes: FestivalActivity["type"][];
+  embedded?: boolean;
 };
 
 export default function FestivalNavMap({
@@ -35,15 +39,22 @@ export default function FestivalNavMap({
   couponBookProofs,
   passportUserIds,
   stickerHuntUserIds,
+  activityTypes,
+  embedded = false,
 }: FestivalNavMapProps) {
-  // -1 = "all sectors" view
-  const [activeSectorIndex, setActiveSectorIndex] = useState(-1);
+  // The embedded page starts compact; the dedicated map keeps its all-sector
+  // overview.
+  const [activeSectorIndex, setActiveSectorIndex] = useState(embedded ? 0 : -1);
   const [selectedStand, setSelectedStand] =
     useState<StandWithReservationsWithParticipants | null>(null);
   const [selectedSectorName, setSelectedSectorName] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [locateRequest, setLocateRequest] = useState<{
+    standId: number;
+    requestId: number;
+  } | null>(null);
 
-  const sectorDivRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const locateRequestId = useRef(0);
 
   const couponBookUserIdSet = useMemo(
     () => new Set(couponBookUserIds),
@@ -105,34 +116,30 @@ export default function FestivalNavMap({
     (stand: StandWithReservationsWithParticipants, sectorName: string) => {
       setSelectedStand(stand);
       setSelectedSectorName(sectorName);
+      setLocateRequest(null);
       setDrawerOpen(true);
     },
     [],
   );
 
-  const handleSearchSelect = useCallback(
-    (entry: ParticipantSearchEntry) => {
-      setSelectedStand(entry.stand);
-      setSelectedSectorName(entry.sectorName);
-      setDrawerOpen(true);
+  const handleSearchSelect = useCallback((entry: ParticipantSearchEntry) => {
+    locateRequestId.current += 1;
+    setSelectedStand(entry.stand);
+    setSelectedSectorName(entry.sectorName);
+    setLocateRequest({
+      standId: entry.stand.id,
+      requestId: locateRequestId.current,
+    });
+    setDrawerOpen(false);
+    setActiveSectorIndex(entry.sectorIndex);
+  }, []);
 
-      if (activeSectorIndex === -1) {
-        // All-view: scroll the page to the sector div
-        const sectorDiv = sectorDivRefs.current.get(
-          sectors[entry.sectorIndex]?.id,
-        );
-        if (sectorDiv) {
-          setTimeout(() => {
-            sectorDiv.scrollIntoView({ behavior: "smooth", block: "start" });
-          }, 50);
-        }
-      } else {
-        // Single-sector view: switch to the correct sector
-        setActiveSectorIndex(entry.sectorIndex);
-      }
-    },
-    [activeSectorIndex, sectors],
-  );
+  const handleSectorChange = useCallback((sectorIndex: number) => {
+    setActiveSectorIndex(sectorIndex);
+    setSelectedStand(null);
+    setLocateRequest(null);
+    setDrawerOpen(false);
+  }, []);
 
   const showAll = activeSectorIndex === -1;
   const activeSector = showAll ? null : (sectors[activeSectorIndex] ?? null);
@@ -153,47 +160,64 @@ export default function FestivalNavMap({
       : undefined;
 
   return (
-    <div className="container flex flex-col gap-4 py-4">
+    <div
+      className={cn(
+        "flex flex-col",
+        embedded ? "w-full gap-3" : "container gap-4 py-4",
+      )}
+    >
       {/* Compact header */}
-      <div className="px-4">
-        <h1 className="text-base font-semibold truncate">{festivalName}</h1>
-        <p className="text-xs text-muted-foreground">Mapa del festival</p>
-      </div>
+      {!embedded ? (
+        <div className="px-4">
+          <h1 className="truncate text-base font-semibold">{festivalName}</h1>
+          <p className="text-xs text-muted-foreground">Mapa del festival</p>
+        </div>
+      ) : null}
 
       {/* Search + tabs — sticky below navbar */}
-      <div className="sticky top-16 md:top-20 z-20 bg-background border-b">
+      <div
+        className={cn(
+          "z-20 border-b bg-background",
+          embedded ? "relative" : "sticky top-16 md:top-20",
+        )}
+      >
         <FestivalNavSearch
           entries={searchEntries}
           onSelect={handleSearchSelect}
+          flush={embedded}
         />
         <FestivalNavSectorTabs
           sectors={sectors}
           activeIndex={activeSectorIndex}
-          onChange={setActiveSectorIndex}
+          onChange={handleSectorChange}
+          flush={embedded}
         />
       </div>
 
       {/* Legend */}
-      <div className="flex justify-center px-4 md:px-0">
-        <div className="w-full md:max-w-3xl">
-          <FestivalNavMapLegend />
+      <div
+        className={cn(
+          "flex justify-center",
+          embedded ? "px-0" : "px-4 md:px-0",
+        )}
+      >
+        <div className={cn("w-full", !embedded && "md:max-w-3xl")}>
+          <FestivalNavMapLegend activityTypes={activityTypes} />
         </div>
       </div>
 
       {/* Map area */}
-      <div className="flex justify-center px-4 md:px-0">
-        <div className="w-full md:max-w-3xl">
+      <div
+        className={cn(
+          "flex justify-center",
+          embedded ? "px-0" : "px-4 md:px-0",
+        )}
+      >
+        <div className={cn("w-full", !embedded && "md:max-w-3xl")}>
           {showAll ? (
             <div className="flex flex-col gap-4">
               {sectors.map((sector) => (
-                <div
-                  key={sector.id}
-                  className="scroll-mt-36 md:scroll-mt-40"
-                  ref={(el) => {
-                    if (el) sectorDivRefs.current.set(sector.id, el);
-                    else sectorDivRefs.current.delete(sector.id);
-                  }}
-                >
+                <div key={sector.id} className="scroll-mt-36 md:scroll-mt-40">
                   {sectors.length > 1 && (
                     <p className="px-4 py-2 text-sm font-semibold text-muted-foreground border-b">
                       {sector.name}
@@ -204,6 +228,7 @@ export default function FestivalNavMap({
                     mapElements={sector.mapElements ?? []}
                     mapBounds={getSectorMapBounds(sector)}
                     selectedStandId={selectedStand?.id ?? null}
+                    locateRequest={locateRequest}
                     couponBookUserIdSet={couponBookUserIdSet}
                     passportUserIdSet={passportUserIdSet}
                     stickerHuntUserIdSet={stickerHuntUserIdSet}
@@ -220,6 +245,7 @@ export default function FestivalNavMap({
               mapElements={activeSector.mapElements ?? []}
               mapBounds={getSectorMapBounds(activeSector)}
               selectedStandId={selectedStand?.id ?? null}
+              locateRequest={locateRequest}
               couponBookUserIdSet={couponBookUserIdSet}
               passportUserIdSet={passportUserIdSet}
               stickerHuntUserIdSet={stickerHuntUserIdSet}

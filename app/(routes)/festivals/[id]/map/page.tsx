@@ -100,6 +100,7 @@ export default async function FestivalMapPage(props: {
       couponBookProofs={couponBookProofs}
       passportUserIds={passportUserIds}
       stickerHuntUserIds={stickerHuntUserIds}
+      activityTypes={activities.map((activity) => activity.type)}
     />
   );
 }

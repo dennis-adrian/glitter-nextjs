@@ -53,7 +53,7 @@ export function ReservedStandCard({
             className="text-amber-900 underline"
             variant="link"
             size="sm"
-            href={`/festivals/${stand.festivalId}?tab=sectors`}
+            href={`/festivals/${stand.festivalId}#mapa`}
           >
             Ir al mapa
             <MapIcon className="ml-2 w-4 h-4" />
