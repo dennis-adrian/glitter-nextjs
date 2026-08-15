@@ -59,6 +59,44 @@ describe("festival visitor filters", () => {
     ).toEqual([1]);
   });
 
+  it("keeps query and category filters without scoping empty stands", () => {
+    const unassigned: PublicFestivalParticipant = {
+      id: 4,
+      displayName: "Sin stand",
+      imageUrl: null,
+      category: "illustration",
+      stands: [],
+      hasStamp: false,
+      isNew: false,
+    };
+    const withUnassigned = [...participants, unassigned];
+
+    expect(
+      filterFestivalParticipants({
+        participants: withUnassigned,
+        query: "",
+        category: "all",
+      }).map((participant) => participant.id),
+    ).toEqual([2, 3, 1, 4]);
+
+    expect(
+      filterFestivalParticipants({
+        participants: withUnassigned,
+        query: "sin stand",
+        category: "illustration",
+      }).map((participant) => participant.id),
+    ).toEqual([4]);
+
+    expect(
+      filterFestivalParticipants({
+        participants: withUnassigned,
+        query: "",
+        category: "all",
+        sectorStandIds: new Set([12]),
+      }).map((participant) => participant.id),
+    ).toEqual([1]);
+  });
+
   it("composes category and sector filters", () => {
     expect(
       filterFestivalParticipants({

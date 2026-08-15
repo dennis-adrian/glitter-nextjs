@@ -69,6 +69,8 @@ export default function FestivalNavMap({
     standId: number;
     requestId: number;
   } | null>(null);
+  const [suppressedExternalRequestId, setSuppressedExternalRequestId] =
+    useState<number | null>(null);
 
   const locateRequestId = useRef(0);
 
@@ -78,6 +80,9 @@ export default function FestivalNavMap({
   );
   const externallyLocatedEntry = useMemo(() => {
     if (!participantLocateRequest) return null;
+    if (participantLocateRequest.requestId === suppressedExternalRequestId) {
+      return null;
+    }
 
     return (
       searchEntries.find(
@@ -86,7 +91,11 @@ export default function FestivalNavMap({
           candidate.stand.id === participantLocateRequest.standId,
       ) ?? null
     );
-  }, [participantLocateRequest, searchEntries]);
+  }, [
+    participantLocateRequest,
+    searchEntries,
+    suppressedExternalRequestId,
+  ]);
   const mapSelectedStand =
     !drawerOpen && externallyLocatedEntry
       ? externallyLocatedEntry.stand
@@ -129,8 +138,11 @@ export default function FestivalNavMap({
       setSelectedSectorName(sectorName);
       setLocateRequest(null);
       setDrawerOpen(true);
+      if (participantLocateRequest) {
+        setSuppressedExternalRequestId(participantLocateRequest.requestId);
+      }
     },
-    [],
+    [participantLocateRequest],
   );
 
   const handleSearchSelect = useCallback(

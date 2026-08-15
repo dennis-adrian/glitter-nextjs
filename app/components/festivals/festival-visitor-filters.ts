@@ -60,11 +60,12 @@ export function filterFestivalParticipants({
       if (category !== "all" && participant.category !== category) {
         return false;
       }
-      if (
-        sectorStandIds &&
-        !participant.stands.some((stand) => sectorStandIds.has(stand.id))
-      ) {
-        return false;
+      // No sector scope (all-sectors / -1) keeps participants with empty stands.
+      if (sectorStandIds) {
+        const hasStandInSector = participant.stands.some((stand) =>
+          sectorStandIds.has(stand.id),
+        );
+        if (!hasStandInSector) return false;
       }
       if (
         activityUserIds &&

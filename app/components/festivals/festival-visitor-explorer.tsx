@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ParticipantCategoryFilter } from "@/app/components/festivals/festival-participant-category-filters";
 import FestivalVisitorFilterSummary from "@/app/components/festivals/festival-visitor-filter-summary";
@@ -66,12 +66,44 @@ export default function FestivalVisitorExplorer({
   const [category] = useState<ParticipantCategoryFilter>("all");
   const [standFilters, setStandFilters] =
     useState<StandFilters>(EMPTY_STAND_FILTERS);
-  const [activeSectorIndex, setActiveSectorIndex] = useState(
-    sectors.length > 0 ? 0 : -1,
-  );
+  const [activeSectorIndex, setActiveSectorIndex] = useState(-1);
   const [participantLocateRequest, setParticipantLocateRequest] =
     useState<ParticipantLocateRequest | null>(null);
   const locateRequestId = useRef(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const stickyControlsRef = useRef<HTMLDivElement>(null);
+
+  // The controls sit above the map and stay there while it scrolls, so
+  // anything scrolling a stand into view has to clear them. Measured rather
+  // than hardcoded: the bar grows and shrinks with the sector tabs, the legend
+  // and the filter summary.
+  useEffect(() => {
+    const controls = stickyControlsRef.current;
+    const root = rootRef.current;
+    if (!controls || !root) return;
+
+    const updateScrollOffset = () => {
+      const stickyTop = Number.parseFloat(
+        window.getComputedStyle(controls).top,
+      );
+
+      root.style.setProperty(
+        "--festival-map-scroll-offset",
+        `${(Number.isNaN(stickyTop) ? 0 : stickyTop) + controls.offsetHeight + 12}px`,
+      );
+    };
+
+    updateScrollOffset();
+
+    const observer = new ResizeObserver(updateScrollOffset);
+    observer.observe(controls);
+    window.addEventListener("resize", updateScrollOffset);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateScrollOffset);
+    };
+  }, []);
 
   const searchEntries = useMemo(
     () => buildParticipantSearchEntries(sectors),
@@ -110,6 +142,8 @@ export default function FestivalVisitorExplorer({
 
     return statuses;
   }, [sectors]);
+  // -1 is "all sectors": leave the list unscoped so query/category still
+  // apply and confirmed participants without a stand stay visible.
   const activeSectorStandIds = useMemo(() => {
     if (activeSectorIndex === -1) return undefined;
     const activeSector = sectors[activeSectorIndex];
@@ -220,7 +254,7 @@ export default function FestivalVisitorExplorer({
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={rootRef}>
       <div className="max-w-2xl">
         <h2 className="font-space-grotesk text-3xl font-bold tracking-tight sm:text-4xl">
           Mapa y participantes
@@ -231,7 +265,10 @@ export default function FestivalVisitorExplorer({
         </p>
       </div>
 
-      <div className="sticky top-16 z-30 -mx-4 mt-6 space-y-1 border-y bg-background/95 px-4 py-2 shadow-sm backdrop-blur-md sm:mx-0 sm:rounded-xl sm:border md:top-20">
+      <div
+        ref={stickyControlsRef}
+        className="sticky top-16 z-30 -mx-4 mt-6 space-y-1 border-y bg-background/95 px-4 py-2 shadow-sm backdrop-blur-md sm:mx-0 sm:rounded-xl sm:border md:top-20"
+      >
         <FestivalNavSearch
           entries={visibleSearchEntries}
           value={query}

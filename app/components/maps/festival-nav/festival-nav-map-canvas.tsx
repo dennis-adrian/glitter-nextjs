@@ -28,6 +28,9 @@ import {
   resolveJointGroups,
 } from "@/app/lib/stands/groups";
 
+/** Close enough to read the stand label without losing its neighbours. */
+const LOCATE_SCALE = 2;
+
 type FestivalNavMapCanvasProps = {
   stands: StandWithReservationsWithParticipants[];
   mapElements: MapElementBase[];
@@ -117,12 +120,33 @@ export default function FestivalNavMapCanvas({
     const reduceMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
+    const duration = reduceMotion ? 0 : 300;
     const timer = window.setTimeout(() => {
+      // Aligned to the top rather than centred: the controls above the map are
+      // sticky, and centring the container slides its upper rows underneath
+      // them. scroll-margin-top carries the height they occupy.
       containerRef.current?.scrollIntoView({
         behavior: reduceMotion ? "auto" : "smooth",
-        block: "center",
+        block: "start",
       });
-      transformRef.current?.resetTransform(reduceMotion ? 0 : 300, "easeOut");
+
+      // Bring the stand to the middle of the canvas too. Resetting the
+      // transform only restored the default view, which on a large sector
+      // leaves the located stand wherever it happened to fall.
+      const standNode = document.getElementById(
+        `festival-map-stand-${locateRequest.standId}`,
+      );
+
+      if (standNode) {
+        transformRef.current?.zoomToElement(
+          standNode as unknown as HTMLElement,
+          LOCATE_SCALE,
+          duration,
+          "easeOut",
+        );
+      } else {
+        transformRef.current?.resetTransform(duration, "easeOut");
+      }
     }, 50);
 
     return () => window.clearTimeout(timer);
@@ -132,6 +156,11 @@ export default function FestivalNavMapCanvas({
     <div
       ref={containerRef}
       className="relative w-full overflow-hidden rounded-lg border"
+      style={{
+        // Set by the explorer from the real height of its sticky controls; the
+        // fallback covers the standalone map page, which has none.
+        scrollMarginTop: "var(--festival-map-scroll-offset, 6rem)",
+      }}
     >
       <MapTransformWrapper
         ref={transformRef}
