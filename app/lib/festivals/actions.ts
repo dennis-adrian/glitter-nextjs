@@ -21,6 +21,7 @@ import {
   reservationParticipants,
   stands,
   standReservations,
+  tickets,
   userRequests,
   users,
 } from "@/db/schema";
@@ -32,6 +33,7 @@ import {
   ilike,
   inArray,
   isNotNull,
+  isNull,
   not,
   or,
   sql,
@@ -654,6 +656,7 @@ export async function fetchFestivalWithTicketsAndDates(
       with: {
         festivalDates: true,
         tickets: {
+          where: isNull(tickets.retiredAt),
           with: {
             visitor: true,
           },

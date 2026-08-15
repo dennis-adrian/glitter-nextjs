@@ -8,6 +8,10 @@
  * See docs/ARCHITECTURE-paid-programs-and-sessions.md §11.1.
  */
 
+import { digestsMatch } from "@/app/lib/security/digests";
+
+export { digestsMatch } from "@/app/lib/security/digests";
+
 export type PurchaseAccessSubject = {
   userId: number | null;
   accessTokenHash: string;
@@ -46,22 +50,6 @@ export type LazyPurchaseAccess<TViewer> = {
    */
   viewer: TViewer | null;
 };
-
-/**
- * Length-independent equality, so comparing a presented digest cannot become a
- * timing oracle. Both inputs are hex digests of the same length in practice;
- * the length check short-circuits only obviously wrong input.
- */
-export function digestsMatch(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-
-  let difference = 0;
-  for (let index = 0; index < a.length; index++) {
-    difference |= a.charCodeAt(index) ^ b.charCodeAt(index);
-  }
-
-  return difference === 0;
-}
 
 export function resolvePurchaseAccess(
   input: PurchaseAccessInput,

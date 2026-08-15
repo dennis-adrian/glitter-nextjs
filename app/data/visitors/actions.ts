@@ -1,6 +1,6 @@
 "use server";
 
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, isNull } from "drizzle-orm";
 
 import { TicketBase } from "@/app/data/tickets/actions";
 import { db } from "@/db";
@@ -21,6 +21,7 @@ export async function fetchVisitorByEmail(
       where: eq(visitors.email, email),
       with: {
         tickets: {
+          where: isNull(tickets.retiredAt),
           orderBy: tickets.date,
         },
       },
@@ -39,6 +40,7 @@ export async function fetchVisitor(
       where: eq(visitors.id, visitorId),
       with: {
         tickets: {
+          where: isNull(tickets.retiredAt),
           orderBy: tickets.date,
         },
       },

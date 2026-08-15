@@ -13,33 +13,42 @@ const columnTitles = {
   actions: "",
 };
 
-export const columns: ColumnDef<FestivalWithDates>[] = [
-  {
-    header: columnTitles.name,
-    accessorKey: "name",
-    cell: ({ row }) => (
-      <Link
-        href={`/dashboard/festivals/${row.original.id}`}
-        className="underline"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        {row.original.name}
-      </Link>
-    ),
-  },
-  {
-    header: columnTitles.status,
-    accessorKey: "status",
-    cell: ({ row }) => <FestivalStatusBadge status={row.original.status} />,
-  },
-  {
-    header: columnTitles.location,
-    accessorKey: "locationLabel",
-  },
-  {
-    header: columnTitles.actions,
-    accessorKey: "actions",
-    cell: ({ row }) => <TableActions festival={row.original} />,
-  },
-];
+export function buildColumns(
+  fastPassEnabled: boolean,
+): ColumnDef<FestivalWithDates>[] {
+  return [
+    {
+      header: columnTitles.name,
+      accessorKey: "name",
+      cell: ({ row }) => (
+        <Link
+          href={`/dashboard/festivals/${row.original.id}`}
+          className="underline"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {row.original.name}
+        </Link>
+      ),
+    },
+    {
+      header: columnTitles.status,
+      accessorKey: "status",
+      cell: ({ row }) => <FestivalStatusBadge status={row.original.status} />,
+    },
+    {
+      header: columnTitles.location,
+      accessorKey: "locationLabel",
+    },
+    {
+      header: columnTitles.actions,
+      accessorKey: "actions",
+      cell: ({ row }) => (
+        <TableActions
+          festival={row.original}
+          fastPassEnabled={fastPassEnabled}
+        />
+      ),
+    },
+  ];
+}

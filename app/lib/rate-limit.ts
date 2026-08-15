@@ -64,3 +64,33 @@ export async function consumeActionRateLimit(input: {
 
   return (bucket?.requestCount ?? input.limit + 1) <= input.limit;
 }
+
+/** Atomically claims a shared key until its TTL expires. */
+export async function claimRateLimit(
+  key: string,
+  ttlMs: number,
+): Promise<boolean> {
+  if (
+    !Number.isFinite(ttlMs) ||
+    ttlMs <= 0 ||
+    ttlMs > RATE_LIMIT_RETENTION_MS
+  ) {
+    throw new RangeError("ttlMs must be between 1ms and the retention window");
+  }
+
+  const result = await db.execute(sql`
+    INSERT INTO action_rate_limits (key, window_started_at, request_count, updated_at)
+    VALUES (${key}, now(), 1, now())
+    ON CONFLICT (key) DO UPDATE
+      SET window_started_at = excluded.window_started_at,
+          request_count = 1,
+          updated_at = excluded.updated_at
+      WHERE action_rate_limits.updated_at <=
+        now() - (${ttlMs}::double precision * interval '1 millisecond')
+    RETURNING key
+  `);
+
+  await cleanupStaleRateLimits(new Date());
+
+  return result.rowCount === 1;
+}

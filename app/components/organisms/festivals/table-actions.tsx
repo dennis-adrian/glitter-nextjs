@@ -23,6 +23,7 @@ import {
   StickerIcon,
   UserCheckIcon,
   UsersIcon,
+  ZapIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -31,9 +32,13 @@ import DeleteFestival from "../../festivals/delete-festival";
 
 type TableActionsProps = {
   festival: FestivalWithDates;
+  fastPassEnabled: boolean;
 };
 
-export default function TableActions({ festival }: TableActionsProps) {
+export default function TableActions({
+  festival,
+  fastPassEnabled,
+}: TableActionsProps) {
   const [openArchiveModal, setOpenArchiveModal] = useState(false);
 
   return (
@@ -78,6 +83,14 @@ export default function TableActions({ festival }: TableActionsProps) {
               Pagos
             </Link>
           </DropdownMenuItem>
+          {fastPassEnabled ? (
+            <DropdownMenuItem asChild>
+              <Link href={`/dashboard/festivals/${festival.id}/fast-pass`}>
+                <ZapIcon className="h-4 w-4 mr-2" />
+                Pase Rápido
+              </Link>
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem asChild>
             <Link href={`/dashboard/festivals/${festival.id}/map`}>
               <MapIcon className="h-4 w-4 mr-2" />
