@@ -701,7 +701,10 @@ export async function fetchPublicFestivalPage(
   id: number,
 ): Promise<PublicFestivalPage | undefined> {
   return await db.query.festivals.findFirst({
-    where: eq(festivals.id, id),
+    where: and(
+      eq(festivals.id, id),
+      or(eq(festivals.status, "published"), eq(festivals.status, "active")),
+    ),
     with: {
       festivalDates: true,
       festivalActivities: {

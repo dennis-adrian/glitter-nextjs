@@ -53,7 +53,13 @@ export default function PublicFestivalParticipants({
           .map((stand) => `${stand.label ?? ""}${stand.standNumber}`)
           .join(" ");
         const searchable = normalize(
-          [participant.displayName, standLabels].filter(Boolean).join(" "),
+          [
+            participant.displayName,
+            standLabels,
+            getPublicCategoryLabel(participant.category),
+          ]
+            .filter(Boolean)
+            .join(" "),
         );
 
         return searchable.includes(normalizedQuery);

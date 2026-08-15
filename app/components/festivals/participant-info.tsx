@@ -5,6 +5,7 @@ import { Badge, type BadgeVariant } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
 import { getPublicCategoryLabel } from "@/app/lib/maps/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
+import { isNewProfile } from "@/app/lib/utils";
 import Link from "next/link";
 
 export type PublicFestivalParticipant = {
@@ -14,6 +15,7 @@ export type PublicFestivalParticipant = {
   category: UserCategory;
   stands: Pick<StandBase, "id" | "label" | "standNumber">[];
   hasStamp: boolean;
+  isNew: boolean;
 };
 
 export function toPublicFestivalParticipant(
@@ -25,7 +27,7 @@ export function toPublicFestivalParticipant(
     stands: Pick<StandBase, "id" | "label" | "standNumber">[];
     participations: {
       hasStamp: boolean;
-      reservation: { festivalId: number };
+      reservation: { festivalId: number; status: string };
     }[];
   },
   festivalId: number,
@@ -45,6 +47,7 @@ export function toPublicFestivalParticipant(
         participation.reservation.festivalId === festivalId &&
         participation.hasStamp,
     ),
+    isNew: isNewProfile({ participations: participant.participations }),
   };
 }
 
@@ -71,6 +74,7 @@ export default function ParticipantInfo(props: ParticipantInfoProps) {
     <article className="flex min-h-64 flex-col items-center rounded-2xl border border-primary-100 bg-card p-4 text-center transition hover:border-primary-300 hover:shadow-md">
       <ProfileAvatar
         showGlitterStamp={props.profile.hasStamp}
+        isNew={props.profile.isNew}
         profile={props.profile}
         className="size-18"
       />

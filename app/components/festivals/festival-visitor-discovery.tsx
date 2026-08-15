@@ -107,7 +107,7 @@ function toPublicMapSectors(
             userSocials: [],
           },
         })),
-        externalParticipants: [],
+        externalParticipants: reservation.externalParticipants,
       })),
     })),
   })) as unknown as FestivalSectorWithStandsWithReservationsWithParticipants[];
@@ -178,6 +178,12 @@ export default async function FestivalVisitorDiscovery({
             ...participantLocationByUserId.get(participant.userId),
           }))
           .sort((a, b) => {
+            const aHasStand = Boolean(a.standLabel);
+            const bHasStand = Boolean(b.standLabel);
+            if (aHasStand !== bHasStand) {
+              return aHasStand ? -1 : 1;
+            }
+
             const standComparison = (a.standLabel ?? "").localeCompare(
               b.standLabel ?? "",
               "es",

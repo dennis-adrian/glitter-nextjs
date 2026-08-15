@@ -16,5 +16,13 @@ describe("FestivalNavMapLegend", () => {
     expect(container.textContent).toContain("Disponible");
     expect(container.textContent).not.toContain("En cuponera");
     expect(container.textContent).not.toContain("Cacería de stickers");
+    expect(container.textContent).not.toContain("Color del stand");
+    expect(container.textContent).not.toContain("Insignias sobre el stand");
+    expect(
+      container.querySelector('[aria-label="Color del stand"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[aria-label="Insignias sobre el stand"]'),
+    ).not.toBeNull();
   });
 });

@@ -18,10 +18,7 @@ import MapPinchHint from "@/app/components/maps/map-pinch-hint";
 import MapSurface from "@/app/components/maps/map-surface";
 import MapTransformWrapper from "@/app/components/maps/map-transform-wrapper";
 import FestivalNavStandBadges from "@/app/components/maps/festival-nav/festival-nav-stand-badges";
-import {
-  hasActivityParticipant,
-  hasExternalParticipants,
-} from "@/app/components/maps/map-participants";
+import { hasExternalParticipants } from "@/app/components/maps/map-participants";
 import {
   dedupeJointGroupMembers,
   resolveJointGroups,
@@ -47,43 +44,12 @@ function isOccupied(stand: StandWithReservationsWithParticipants): boolean {
   return stand.status === "reserved" || stand.status === "confirmed";
 }
 
-function getNavStandColors(
+export function getNavStandColors(
   stand: StandWithReservationsWithParticipants,
-  couponBookUserIdSet: Set<number>,
-  passportUserIdSet: Set<number>,
-  stickerHuntUserIdSet: Set<number>,
 ): StandColors {
   if (!isOccupied(stand)) return getPublicStandColors(stand.status);
   if (hasExternalParticipants(stand))
     return getExternalParticipantStandColors();
-
-  if (hasActivityParticipant(stand, couponBookUserIdSet)) {
-    return {
-      fill: "rgba(217, 119, 6, 0.85)",
-      hoverFill: "rgba(180, 83, 9, 0.95)",
-      stroke: "rgba(146, 64, 14, 0.9)",
-      text: "#ffffff",
-    };
-  }
-
-  if (hasActivityParticipant(stand, passportUserIdSet)) {
-    return {
-      fill: "rgba(5, 150, 105, 0.85)",
-      hoverFill: "rgba(4, 120, 87, 0.95)",
-      stroke: "rgba(6, 95, 70, 0.9)",
-      text: "#ffffff",
-    };
-  }
-
-  if (hasActivityParticipant(stand, stickerHuntUserIdSet)) {
-    return {
-      fill: "rgba(219, 39, 119, 0.85)",
-      hoverFill: "rgba(190, 24, 93, 0.95)",
-      stroke: "rgba(157, 23, 77, 0.9)",
-      text: "#ffffff",
-    };
-  }
-
   return getPublicStandColors(stand.status);
 }
 
@@ -167,14 +133,7 @@ export default function FestivalNavMapCanvas({
             selectedStandId={selectedStandId}
             highlightedStandId={locateRequest?.standId}
             highlightRequestId={locateRequest?.requestId}
-            getColors={(stand) =>
-              getNavStandColors(
-                stand,
-                couponBookUserIdSet,
-                passportUserIdSet,
-                stickerHuntUserIdSet,
-              )
-            }
+            getColors={getNavStandColors}
             onStandClick={handleStandSelect}
             onStandTouchTap={handleStandSelect}
           >

@@ -35,7 +35,7 @@ export async function generateMetadata({
   return {
     title: festival.name,
     description:
-      festival.description ??
+      festival.description ||
       `Entrada, mapa, participantes y actividades de ${festival.name}.`,
     openGraph: image ? { images: [image] } : undefined,
   };

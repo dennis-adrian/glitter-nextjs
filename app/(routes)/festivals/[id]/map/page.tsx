@@ -36,7 +36,13 @@ export default async function FestivalMapPage(props: {
 
   if (!festival) notFound();
 
-  const couponBookActivity = activities.find((a) => a.type === "coupon_book");
+  const publicActivities = activities.filter(
+    (activity) => activity.accessLevel === "public",
+  );
+
+  const couponBookActivity = publicActivities.find(
+    (a) => a.type === "coupon_book",
+  );
   const couponBookUserIds: number[] = [];
   const couponBookProofs: Record<number, CouponProof[]> = {};
 
@@ -62,7 +68,9 @@ export default async function FestivalMapPage(props: {
     }
   }
 
-  const passportActivity = activities.find((a) => a.type === "stamp_passport");
+  const passportActivity = publicActivities.find(
+    (a) => a.type === "stamp_passport",
+  );
   const passportUserIdSet = new Set<number>();
 
   for (const detail of passportActivity?.details ?? []) {
@@ -77,7 +85,9 @@ export default async function FestivalMapPage(props: {
   }
   const passportUserIds = Array.from(passportUserIdSet);
 
-  const stickerHuntActivity = activities.find((a) => a.type === "sticker_hunt");
+  const stickerHuntActivity = publicActivities.find(
+    (a) => a.type === "sticker_hunt",
+  );
   const stickerHuntUserIdSet = new Set<number>();
 
   for (const detail of stickerHuntActivity?.details ?? []) {
@@ -100,7 +110,7 @@ export default async function FestivalMapPage(props: {
       couponBookProofs={couponBookProofs}
       passportUserIds={passportUserIds}
       stickerHuntUserIds={stickerHuntUserIds}
-      activityTypes={activities.map((activity) => activity.type)}
+      activityTypes={publicActivities.map((activity) => activity.type)}
     />
   );
 }

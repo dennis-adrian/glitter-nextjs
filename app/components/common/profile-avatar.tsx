@@ -16,14 +16,16 @@ type ProfileAvatarProps = {
   };
   showGlitterStamp?: boolean;
   showBadge?: boolean;
+  isNew?: boolean;
 };
 export default function ProfileAvatar(props: ProfileAvatarProps) {
   const { profile, showBadge = true } = props;
   const userName = getUserName(profile);
   const showNewBadge =
     showBadge &&
-    profile.participations != null &&
-    isNewProfile({ participations: profile.participations });
+    (props.isNew ??
+      (profile.participations != null &&
+        isNewProfile({ participations: profile.participations })));
 
   return (
     <div className="relative flex justify-center">
