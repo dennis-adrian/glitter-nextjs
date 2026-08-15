@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import {
@@ -52,6 +52,12 @@ export default function FestivalNavSearch({
     onSelect(entry);
   }
 
+  function handleClear() {
+    setQuery("");
+    setOpen(false);
+    inputRef.current?.focus();
+  }
+
   function handleWrapperBlur(event: React.FocusEvent<HTMLDivElement>) {
     const nextTarget = event.relatedTarget as Node | null;
     if (!nextTarget || !wrapperRef.current?.contains(nextTarget)) {
@@ -78,8 +84,20 @@ export default function FestivalNavSearch({
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          className="w-full rounded-lg border border-border bg-background pl-9 pr-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-10 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
         />
+        {query.length > 0 ? (
+          <button
+            type="button"
+            aria-label="Limpiar búsqueda"
+            title="Limpiar búsqueda"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={handleClear}
+            className="absolute right-2 flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <X className="size-4" aria-hidden="true" />
+          </button>
+        ) : null}
       </div>
 
       {open && results.length > 0 && (
