@@ -6,6 +6,12 @@ import { z } from "zod";
 
 import { fetchUserProfile } from "@/app/api/users/actions";
 import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import {
+  resolveVoucherSubmission as resolveFastPassVoucherSubmission,
+  VOUCHER_BLOCKER_LABELS as FAST_PASS_VOUCHER_BLOCKER_LABELS,
+} from "@/app/lib/fast-pass/state";
+import { hashAccessToken as hashFastPassAccessToken } from "@/app/lib/fast-pass/tokens";
+import { resolvePosOperatorForSettings } from "@/app/lib/fast-pass/pos-access";
 import { resolvePurchaseAccessWithLazyViewer } from "@/app/lib/programs/access";
 import { hashAccessToken } from "@/app/lib/programs/tokens";
 import {
@@ -13,7 +19,12 @@ import {
   VOUCHER_BLOCKER_LABELS,
 } from "@/app/lib/programs/vouchers";
 import { db } from "@/db";
-import { orders, productImages, sessionPurchases } from "@/db/schema";
+import {
+  fastPassPurchases,
+  orders,
+  productImages,
+  sessionPurchases,
+} from "@/db/schema";
 
 const f = createUploadthing();
 
@@ -186,6 +197,85 @@ export const ourFileRouter = {
     })
     // The key travels with the URL so `submitPurchaseVoucher` can verify the
     // address it is handed is this upload and not an arbitrary one.
+    .onUploadComplete(({ file }) => ({
+      results: {
+        imageUrl: (file as { url: string }).url,
+        fileKey: (file as { key: string }).key,
+      },
+    })),
+  /**
+   * Payment proof for a FastPass (Pase Rápido) online purchase.
+   *
+   * Gated on `fast_pass`, then authorized by secure token exactly like program
+   * purchases. Refuses upload when the purchase is not in a voucher-accepting
+   * state.
+   */
+  fastPassVoucher: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
+    .input(
+      z.object({
+        purchaseId: z.number().int().positive(),
+        token: z.string().trim().min(1),
+      }),
+    )
+    .middleware(async ({ input }) => {
+      if (!(await isFeatureEnabled("fast_pass"))) {
+        throw new UploadThingError("Compra no encontrada");
+      }
+
+      const purchase = await db.query.fastPassPurchases.findFirst({
+        where: eq(fastPassPurchases.id, input.purchaseId),
+      });
+      if (!purchase) throw new UploadThingError("Compra no encontrada");
+
+      if (
+        !purchase.accessTokenHash ||
+        purchase.accessTokenHash !== hashFastPassAccessToken(input.token) ||
+        purchase.accessTokenRevokedAt !== null
+      ) {
+        throw new UploadThingError("Compra no encontrada");
+      }
+
+      const check = resolveFastPassVoucherSubmission(purchase);
+      if (!check.allowed) {
+        throw new UploadThingError(
+          FAST_PASS_VOUCHER_BLOCKER_LABELS[check.blocker],
+        );
+      }
+
+      return { purchaseId: purchase.id };
+    })
+    .onUploadComplete(({ file }) => ({
+      results: {
+        imageUrl: (file as { url: string }).url,
+        fileKey: (file as { key: string }).key,
+      },
+    })),
+  /** Payment proof captured by a restricted FastPass POS operator. */
+  fastPassPosVoucher: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
+    .input(
+      z.object({
+        settingsId: z.number().int().positive(),
+        credential: z.string().trim().min(1).max(200),
+      }),
+    )
+    .middleware(async ({ input }) => {
+      if (!(await isFeatureEnabled("fast_pass"))) {
+        throw new UploadThingError("Acceso POS inválido");
+      }
+
+      const access = await resolvePosOperatorForSettings(
+        input.credential,
+        input.settingsId,
+      );
+      if (!access.granted) {
+        throw new UploadThingError("Acceso POS inválido");
+      }
+
+      return {
+        settingsId: input.settingsId,
+        posOperatorId: access.operator.id,
+      };
+    })
     .onUploadComplete(({ file }) => ({
       results: {
         imageUrl: (file as { url: string }).url,

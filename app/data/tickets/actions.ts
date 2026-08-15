@@ -1,6 +1,6 @@
 "use server";
 
-import { and, count, desc, eq, max, ne, sql } from "drizzle-orm";
+import { and, count, desc, eq, ne, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { generateQrBuffer } from "@/app/lib/utils";
 import { db } from "@/db";
@@ -10,16 +10,13 @@ import { sendEmail } from "@/app/vendors/resend";
 import TicketEmailTemplate from "@/app/emails/ticket";
 import { getTicketCode } from "@/app/lib/tickets/utils";
 import { FestivalBase } from "@/app/lib/festivals/definitions";
+import {
+  allocateFestivalTicketNumber,
+  lockFestivalTicketAllocation,
+} from "@/app/lib/tickets/number-allocation";
 
 export type TicketBase = typeof tickets.$inferSelect;
 export type TicketWithVisitor = TicketBase & { visitor: VisitorBase };
-
-/**
- * First key of the advisory lock that serializes ticket numbering, so a
- * festival id here cannot collide with the same number used as a lock key
- * elsewhere. Arbitrary, and only has to stay stable.
- */
-const TICKET_NUMBER_LOCK_NAMESPACE = 4711;
 
 export async function createTicket(data: {
   date: Date;
@@ -42,9 +39,7 @@ export async function createTicket(data: {
        * duplicate numbers, and a second ticket for a visitor who already had
        * one. Nothing in the schema catches either afterwards.
        */
-      await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(${TICKET_NUMBER_LOCK_NAMESPACE}, ${festival.id})`,
-      );
+      await lockFestivalTicketAllocation(tx, festival.id);
 
       const existingTickets = await tx
         .select()
@@ -54,6 +49,7 @@ export async function createTicket(data: {
             eq(tickets.visitorId, visitor.id),
             eq(tickets.festivalId, festival.id),
             eq(tickets.date, date),
+            isNull(tickets.retiredAt),
           ),
         );
 
@@ -63,12 +59,7 @@ export async function createTicket(data: {
         });
       }
 
-      const [{ highest }] = await tx
-        .select({ highest: max(tickets.ticketNumber) })
-        .from(tickets)
-        .where(eq(tickets.festivalId, festival.id));
-
-      const ticketNumber = (highest ?? 0) + 1;
+      const ticketNumber = await allocateFestivalTicketNumber(tx, festival.id);
 
       return await tx
         .insert(tickets)
@@ -170,6 +161,7 @@ export async function verifyTicket(ticketNumber: number, festivalId: number) {
         and(
           eq(tickets.festivalId, festivalId),
           eq(tickets.ticketNumber, ticketNumber),
+          isNull(tickets.retiredAt),
         ),
       );
 
@@ -197,6 +189,7 @@ export async function verifyTicket(ticketNumber: number, festivalId: number) {
           eq(tickets.festivalId, festivalId),
           eq(tickets.ticketNumber, ticketNumber),
           ne(tickets.status, "checked_in"),
+          isNull(tickets.retiredAt),
         ),
       )
       .returning({ id: tickets.id });
@@ -266,6 +259,7 @@ export async function fetchTicketsByFestival(festivalId: number) {
       where: and(
         eq(tickets.festivalId, festivalId),
         eq(tickets.status, "checked_in"),
+        isNull(tickets.retiredAt),
       ),
       orderBy: desc(tickets.updatedAt),
       limit: 50,
@@ -287,6 +281,7 @@ export async function fetchVerifiedTicketsByFestivalTotal(festivalId: number) {
         and(
           eq(tickets.festivalId, festivalId),
           eq(tickets.status, "checked_in"),
+          isNull(tickets.retiredAt),
         ),
       );
     return result[0].total;

@@ -201,6 +201,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   participantProducts: many(participantProducts),
   festivalActivityVotes: many(festivalActivityVotes),
   standHolds: many(standHolds),
+  festivalAdminAssignments: many(festivalAdminAssignments),
   statusEvents: many(userStatusEvents, {
     relationName: "targetUserStatusEvents",
   }),
@@ -340,6 +341,43 @@ export const festivals = pgTable(
   },
   (festivals) => [index("name_idx").on(festivals.name)],
 );
+
+/** Festivals a `festival_admin` may administer. Global admins bypass this. */
+export const festivalAdminAssignments = pgTable(
+  "festival_admin_assignments",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    festivalId: integer("festival_id")
+      .notNull()
+      .references(() => festivals.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique("festival_admin_assignments_user_festival_unique").on(
+      t.userId,
+      t.festivalId,
+    ),
+    index("festival_admin_assignments_festival_id_idx").on(t.festivalId),
+  ],
+);
+
+export const festivalAdminAssignmentsRelations = relations(
+  festivalAdminAssignments,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [festivalAdminAssignments.userId],
+      references: [users.id],
+    }),
+    festival: one(festivals, {
+      fields: [festivalAdminAssignments.festivalId],
+      references: [festivals.id],
+    }),
+  }),
+);
+
 export const festivalsRelations = relations(festivals, ({ many, one }) => ({
   userRequests: many(userRequests),
   standReservations: many(standReservations),
@@ -352,6 +390,7 @@ export const festivalsRelations = relations(festivals, ({ many, one }) => ({
   infractions: many(infractions),
   statusEvents: many(festivalStatusEvents),
   sanctionFestivals: many(sanctionFestivals),
+  adminAssignments: many(festivalAdminAssignments),
 }));
 
 export const festivalStatusEvents = pgTable(
@@ -493,6 +532,7 @@ export const festivalDatesRelations = relations(
       references: [festivals.id],
     }),
     collaboratorsAttendanceLogs: many(collaboratorsAttendanceLogs),
+    fastPassDaySettings: one(fastPassDaySettings),
   }),
 );
 
@@ -903,20 +943,24 @@ export const eventDiscoveryEnum = pgEnum("event_discovery", [
   "la_rota",
   "other",
 ]);
-export const visitors = pgTable("visitors", {
-  id: serial("id").primaryKey(),
-  firstName: text("first_name"),
-  lastName: text("last_name"),
-  email: text("email").unique().notNull(),
-  phoneNumber: text("phone_number").notNull(),
-  eventDiscovery: eventDiscoveryEnum("event_discovery")
-    .notNull()
-    .default("other"),
-  gender: genderEnum("gender").notNull().default("undisclosed"),
-  birthdate: timestamp("birthdate").notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const visitors = pgTable(
+  "visitors",
+  {
+    id: serial("id").primaryKey(),
+    firstName: text("first_name"),
+    lastName: text("last_name"),
+    email: text("email").unique().notNull(),
+    phoneNumber: text("phone_number").notNull(),
+    eventDiscovery: eventDiscoveryEnum("event_discovery")
+      .notNull()
+      .default("other"),
+    gender: genderEnum("gender").notNull().default("undisclosed"),
+    birthdate: timestamp("birthdate").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("visitors_email_lower_idx").on(sql`lower(${t.email})`)],
+);
 export const visitorsRelations = relations(visitors, ({ many }) => ({
   tickets: many(tickets),
 }));
@@ -925,19 +969,32 @@ export const ticketStatusEnum = pgEnum("ticket_status", [
   "pending",
   "checked_in",
 ]);
-export const tickets = pgTable("tickets", {
-  id: serial("id").primaryKey(),
-  date: timestamp("date").notNull(),
-  status: ticketStatusEnum("status").default("pending").notNull(),
-  visitorId: integer("visitor_id").notNull(),
-  isEventDayCreation: boolean("is_event_day_creation").default(false).notNull(),
-  festivalId: integer("festival_id").notNull(),
-  numberOfVisitors: integer("number_of_visitors").default(1).notNull(),
-  ticketNumber: integer("ticket_number"),
-  checkedInAt: timestamp("checked_in_at"),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const tickets = pgTable(
+  "tickets",
+  {
+    id: serial("id").primaryKey(),
+    date: timestamp("date").notNull(),
+    status: ticketStatusEnum("status").default("pending").notNull(),
+    visitorId: integer("visitor_id").notNull(),
+    isEventDayCreation: boolean("is_event_day_creation")
+      .default(false)
+      .notNull(),
+    festivalId: integer("festival_id").notNull(),
+    numberOfVisitors: integer("number_of_visitors").default(1).notNull(),
+    ticketNumber: integer("ticket_number"),
+    createdByFastPass: boolean("created_by_fast_pass").default(false).notNull(),
+    retiredAt: timestamp("retired_at"),
+    checkedInAt: timestamp("checked_in_at"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique("tickets_festival_id_ticket_number_unique").on(
+      t.festivalId,
+      t.ticketNumber,
+    ),
+  ],
+);
 export const ticketRelations = relations(tickets, ({ one }) => ({
   visitor: one(visitors, {
     fields: [tickets.visitorId],
@@ -3078,6 +3135,7 @@ export const featureFlags = pgTable("feature_flags", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
 export const featureFlagsRelations = relations(
   featureFlags,
   ({ one, many }) => ({
@@ -4505,6 +4563,911 @@ export const sessionWaitlistInvitationsRelations = relations(
     purchase: one(sessionPurchases, {
       fields: [sessionWaitlistInvitations.purchaseId],
       references: [sessionPurchases.id],
+    }),
+  }),
+);
+
+/* --- FastPass / Pase Rápido ----------------------------------------------- */
+
+export const fastPassChannelEnum = pgEnum("fast_pass_channel", [
+  "online",
+  "on_site",
+]);
+
+export const fastPassPurchaseStatusEnum = pgEnum("fast_pass_purchase_status", [
+  "pending_upload",
+  "under_verification",
+  "changes_requested",
+  "approved",
+  "rejected",
+  "expired",
+  "cancelled",
+]);
+
+export const fastPassPaymentMethodEnum = pgEnum("fast_pass_payment_method", [
+  "bank_qr",
+  "cash",
+]);
+
+export const fastPassVoucherUploaderEnum = pgEnum(
+  "fast_pass_voucher_uploader",
+  ["buyer", "admin", "pos_operator"],
+);
+
+export const fastPassTicketStatusEnum = pgEnum("fast_pass_ticket_status", [
+  "valid",
+  "activated",
+  "cancelled",
+]);
+
+export const fastPassActivationMethodEnum = pgEnum(
+  "fast_pass_activation_method",
+  ["qr_scan", "on_site_sale", "manual"],
+);
+
+export const fastPassTransactionTypeEnum = pgEnum(
+  "fast_pass_transaction_type",
+  ["sale", "cancellation", "refund"],
+);
+
+export const fastPassActorTypeEnum = pgEnum("fast_pass_actor_type", [
+  "buyer",
+  "admin",
+  "pos_operator",
+  "system",
+]);
+
+export const fastPassEventTypeEnum = pgEnum("fast_pass_event_type", [
+  "settings_updated",
+  "purchase_created",
+  "voucher_uploaded",
+  "voucher_replaced",
+  "changes_requested",
+  "approved",
+  "rejected",
+  "cancelled_by_buyer",
+  "cancelled_by_admin",
+  "expired",
+  "ticket_issued",
+  "holder_updated",
+  "ticket_activated",
+  "ticket_cancelled",
+  "pos_operator_created",
+  "pos_operator_revoked",
+  "on_site_sale",
+  "sale_transaction",
+  "cancellation_transaction",
+  "festival_cancelled",
+  "refund_created",
+  "refund_resolved",
+  "link_resent",
+  "link_revoked",
+  "notification_failed",
+]);
+
+export const fastPassRefundStatusEnum = pgEnum("fast_pass_refund_status", [
+  "pending",
+  "paid",
+]);
+
+export const fastPassRefundTriggerEnum = pgEnum("fast_pass_refund_trigger", [
+  "festival_cancellation",
+]);
+
+/**
+ * Per-festival-day configuration for Pase Rápido. One row per
+ * `festival_dates.id`. Inventory and capacity are derived from purchases;
+ * these columns are the configured ceilings.
+ */
+export const fastPassDaySettings = pgTable(
+  "fast_pass_day_settings",
+  {
+    id: serial("id").primaryKey(),
+    festivalDateId: integer("festival_date_id")
+      .notNull()
+      .unique()
+      .references(() => festivalDates.id, { onDelete: "restrict" }),
+    offeringEnabled: boolean("offering_enabled").default(false).notNull(),
+    onlineSalesEnabled: boolean("online_sales_enabled")
+      .default(false)
+      .notNull(),
+    onSiteSalesEnabled: boolean("on_site_sales_enabled")
+      .default(false)
+      .notNull(),
+    onlineSalesPausedAt: timestamp("online_sales_paused_at"),
+    onSiteSalesPausedAt: timestamp("on_site_sales_paused_at"),
+    price: numeric("price", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    salesStartAt: timestamp("sales_start_at"),
+    salesEndAt: timestamp("sales_end_at"),
+    paidInventoryLimit: integer("paid_inventory_limit").notNull(),
+    priorityCapacityLimit: integer("priority_capacity_limit").notNull(),
+    onlinePaidAllocation: integer("online_paid_allocation").notNull(),
+    onSitePaidAllocation: integer("on_site_paid_allocation").notNull(),
+    onlinePriorityAllocation: integer("online_priority_allocation").notNull(),
+    onSitePriorityAllocation: integer("on_site_priority_allocation").notNull(),
+    maxPaidPassesPerPurchase: integer("max_paid_passes_per_purchase")
+      .default(10)
+      .notNull(),
+    bankQrImageUrl: text("bank_qr_image_url"),
+    onSiteBankQrEnabled: boolean("on_site_bank_qr_enabled")
+      .default(true)
+      .notNull(),
+    onSiteCashEnabled: boolean("on_site_cash_enabled").default(false).notNull(),
+    onSiteProofRequired: boolean("on_site_proof_required")
+      .default(true)
+      .notNull(),
+    onSiteVisitorDetailsRequired: boolean("on_site_visitor_details_required")
+      .default(false)
+      .notNull(),
+    notifyOnSale: boolean("notify_on_sale").default(false).notNull(),
+    notifyOnCancellation: boolean("notify_on_cancellation")
+      .default(false)
+      .notNull(),
+    cancelledAt: timestamp("cancelled_at"),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check("fast_pass_day_settings_price_positive", sql`${t.price} > 0`),
+    check(
+      "fast_pass_day_settings_limits_positive",
+      sql`${t.paidInventoryLimit} > 0
+        AND ${t.priorityCapacityLimit} > 0
+        AND ${t.onlinePaidAllocation} >= 0
+        AND ${t.onSitePaidAllocation} >= 0
+        AND ${t.onlinePriorityAllocation} >= 0
+        AND ${t.onSitePriorityAllocation} >= 0
+        AND ${t.maxPaidPassesPerPurchase} > 0`,
+    ),
+    check(
+      "fast_pass_day_settings_allocations_within_totals",
+      sql`${t.onlinePaidAllocation} + ${t.onSitePaidAllocation} <= ${t.paidInventoryLimit}
+        AND ${t.onlinePriorityAllocation} + ${t.onSitePriorityAllocation} <= ${t.priorityCapacityLimit}`,
+    ),
+    check(
+      "fast_pass_day_settings_sales_window",
+      sql`${t.salesStartAt} IS NULL OR ${t.salesEndAt} IS NULL OR ${t.salesEndAt} >= ${t.salesStartAt}`,
+    ),
+    check(
+      "fast_pass_day_settings_onsite_payment_method",
+      sql`NOT ${t.onSiteSalesEnabled}
+        OR ${t.onSiteBankQrEnabled}
+        OR ${t.onSiteCashEnabled}`,
+    ),
+  ],
+);
+
+export const fastPassDaySettingsRelations = relations(
+  fastPassDaySettings,
+  ({ one, many }) => ({
+    festivalDate: one(festivalDates, {
+      fields: [fastPassDaySettings.festivalDateId],
+      references: [festivalDates.id],
+    }),
+    updatedBy: one(users, {
+      fields: [fastPassDaySettings.updatedByUserId],
+      references: [users.id],
+    }),
+    notificationRecipients: many(fastPassNotificationRecipients),
+    posOperators: many(fastPassPosOperators),
+    purchases: many(fastPassPurchases),
+  }),
+);
+
+export const fastPassNotificationRecipients = pgTable(
+  "fast_pass_notification_recipients",
+  {
+    id: serial("id").primaryKey(),
+    settingsId: integer("settings_id")
+      .notNull()
+      .references(() => fastPassDaySettings.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("fast_pass_notification_recipients_settings_email_uidx").on(
+      t.settingsId,
+      sql`lower(${t.email})`,
+    ),
+    check(
+      "fast_pass_notification_recipients_email_present",
+      sql`length(trim(${t.email})) > 0`,
+    ),
+  ],
+);
+
+export const fastPassNotificationRecipientsRelations = relations(
+  fastPassNotificationRecipients,
+  ({ one }) => ({
+    settings: one(fastPassDaySettings, {
+      fields: [fastPassNotificationRecipients.settingsId],
+      references: [fastPassDaySettings.id],
+    }),
+  }),
+);
+
+export const fastPassPosOperators = pgTable(
+  "fast_pass_pos_operators",
+  {
+    id: serial("id").primaryKey(),
+    settingsId: integer("settings_id")
+      .notNull()
+      .references(() => fastPassDaySettings.id, { onDelete: "cascade" }),
+    displayName: text("display_name").notNull(),
+    accessTokenHash: text("access_token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at").notNull(),
+    revokedAt: timestamp("revoked_at"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    lastUsedAt: timestamp("last_used_at"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("fast_pass_pos_operators_settings_idx").on(t.settingsId),
+    check(
+      "fast_pass_pos_operators_display_name_present",
+      sql`length(trim(${t.displayName})) > 0`,
+    ),
+  ],
+);
+
+export const fastPassPosOperatorsRelations = relations(
+  fastPassPosOperators,
+  ({ one, many }) => ({
+    settings: one(fastPassDaySettings, {
+      fields: [fastPassPosOperators.settingsId],
+      references: [fastPassDaySettings.id],
+    }),
+    createdBy: one(users, {
+      fields: [fastPassPosOperators.createdByUserId],
+      references: [users.id],
+    }),
+    purchases: many(fastPassPurchases),
+  }),
+);
+
+export const fastPassPurchases = pgTable(
+  "fast_pass_purchases",
+  {
+    id: serial("id").primaryKey(),
+    settingsId: integer("settings_id")
+      .notNull()
+      .references(() => fastPassDaySettings.id, { onDelete: "restrict" }),
+    festivalDateId: integer("festival_date_id")
+      .notNull()
+      .references(() => festivalDates.id, { onDelete: "restrict" }),
+    channel: fastPassChannelEnum("channel").notNull(),
+    status: fastPassPurchaseStatusEnum("status")
+      .default("pending_upload")
+      .notNull(),
+    paymentMethod: fastPassPaymentMethodEnum("payment_method").notNull(),
+    buyerName: text("buyer_name"),
+    buyerEmail: text("buyer_email"),
+    buyerPhone: text("buyer_phone"),
+    accessTokenHash: text("access_token_hash").unique(),
+    accessTokenRevokedAt: timestamp("access_token_revoked_at"),
+    subtotalAmount: numeric("subtotal_amount", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    totalAmount: numeric("total_amount", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    holdExpiresAt: timestamp("hold_expires_at"),
+    correctionExpiresAt: timestamp("correction_expires_at"),
+    voucherSubmittedAt: timestamp("voucher_submitted_at"),
+    approvedAt: timestamp("approved_at"),
+    rejectedAt: timestamp("rejected_at"),
+    expiredAt: timestamp("expired_at"),
+    cancelledAt: timestamp("cancelled_at"),
+    policyVersion: text("policy_version"),
+    policyAcceptedAt: timestamp("policy_accepted_at"),
+    posOperatorId: integer("pos_operator_id").references(
+      () => fastPassPosOperators.id,
+      { onDelete: "set null" },
+    ),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    /** Snapshot of on-site proof requirement at purchase time. */
+    onSiteProofRequiredSnapshot: boolean("on_site_proof_required_snapshot"),
+    /** Snapshot of visitor-details requirement at purchase time. */
+    onSiteVisitorDetailsRequiredSnapshot: boolean(
+      "on_site_visitor_details_required_snapshot",
+    ),
+    /**
+     * When a cancellation restores inventory/capacity. Null until cancelled;
+     * false means wristbands may still be in use.
+     */
+    allocationRestored: boolean("allocation_restored"),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("fast_pass_purchases_settings_status_idx").on(t.settingsId, t.status),
+    index("fast_pass_purchases_festival_date_status_idx").on(
+      t.festivalDateId,
+      t.status,
+    ),
+    index("fast_pass_purchases_status_hold_expires_idx").on(
+      t.status,
+      t.holdExpiresAt,
+    ),
+    index("fast_pass_purchases_status_correction_expires_idx").on(
+      t.status,
+      t.correctionExpiresAt,
+    ),
+    check(
+      "fast_pass_purchases_amounts_valid",
+      sql`${t.subtotalAmount} >= 0 AND ${t.totalAmount} >= 0 AND ${t.totalAmount} = ${t.subtotalAmount}`,
+    ),
+    check(
+      "fast_pass_purchases_online_identity",
+      sql`${t.channel} <> 'online' OR (
+        ${t.buyerName} IS NOT NULL AND length(trim(${t.buyerName})) > 0
+        AND ${t.buyerEmail} IS NOT NULL AND length(trim(${t.buyerEmail})) > 0
+        AND ${t.buyerPhone} IS NOT NULL AND length(trim(${t.buyerPhone})) > 0
+        AND ${t.accessTokenHash} IS NOT NULL
+        AND ${t.policyVersion} IS NOT NULL AND length(trim(${t.policyVersion})) > 0
+        AND ${t.policyAcceptedAt} IS NOT NULL
+        AND ${t.holdExpiresAt} IS NOT NULL
+        AND ${t.posOperatorId} IS NULL
+        AND ${t.createdByUserId} IS NULL
+      )`,
+    ),
+    check(
+      "fast_pass_purchases_onsite_identity",
+      sql`${t.channel} <> 'on_site' OR (
+        ${t.accessTokenHash} IS NULL
+        AND ${t.status} IN ('approved', 'cancelled')
+        AND (
+          (${t.posOperatorId} IS NOT NULL AND ${t.createdByUserId} IS NULL)
+          OR (${t.posOperatorId} IS NULL AND ${t.createdByUserId} IS NOT NULL)
+        )
+      )`,
+    ),
+    check(
+      "fast_pass_purchases_terminal_timestamps",
+      sql`(${t.status} <> 'approved' OR ${t.approvedAt} IS NOT NULL)
+        AND (${t.status} <> 'rejected' OR ${t.rejectedAt} IS NOT NULL)
+        AND (${t.status} <> 'expired' OR ${t.expiredAt} IS NOT NULL)
+        AND (${t.status} <> 'cancelled' OR ${t.cancelledAt} IS NOT NULL)`,
+    ),
+    check(
+      "fast_pass_purchases_online_payment_method",
+      sql`${t.channel} <> 'online' OR ${t.paymentMethod} = 'bank_qr'`,
+    ),
+  ],
+);
+
+export const fastPassPurchasesRelations = relations(
+  fastPassPurchases,
+  ({ one, many }) => ({
+    settings: one(fastPassDaySettings, {
+      fields: [fastPassPurchases.settingsId],
+      references: [fastPassDaySettings.id],
+    }),
+    festivalDate: one(festivalDates, {
+      fields: [fastPassPurchases.festivalDateId],
+      references: [festivalDates.id],
+    }),
+    posOperator: one(fastPassPosOperators, {
+      fields: [fastPassPurchases.posOperatorId],
+      references: [fastPassPosOperators.id],
+    }),
+    createdBy: one(users, {
+      fields: [fastPassPurchases.createdByUserId],
+      references: [users.id],
+    }),
+    lines: many(fastPassPurchaseLines),
+    vouchers: many(fastPassVouchers),
+    transactions: many(fastPassTransactions),
+    events: many(fastPassEvents),
+    refunds: many(fastPassRefunds),
+  }),
+);
+
+/** One paid holder (adult / visitor 11+) in a purchase. */
+export const fastPassPurchaseLines = pgTable(
+  "fast_pass_purchase_lines",
+  {
+    id: serial("id").primaryKey(),
+    purchaseId: integer("purchase_id")
+      .notNull()
+      .references(() => fastPassPurchases.id, { onDelete: "cascade" }),
+    unitPrice: numeric("unit_price", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    pricingSnapshot: jsonb("pricing_snapshot").notNull(),
+    holderFirstName: text("holder_first_name"),
+    holderLastName: text("holder_last_name"),
+    holderEmail: text("holder_email"),
+    holderPhone: text("holder_phone"),
+    holderGender: genderEnum("holder_gender"),
+    holderBirthdate: date("holder_birthdate"),
+    /** Children aged 10 or under linked to this paid holder. */
+    responsibleChildCount: integer("responsible_child_count")
+      .default(0)
+      .notNull(),
+    visitorId: integer("visitor_id").references(() => visitors.id, {
+      onDelete: "set null",
+    }),
+    festivalTicketId: integer("festival_ticket_id").references(
+      () => tickets.id,
+      { onDelete: "set null" },
+    ),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("fast_pass_purchase_lines_purchase_idx").on(t.purchaseId),
+    check(
+      "fast_pass_purchase_lines_price_non_negative",
+      sql`${t.unitPrice} >= 0`,
+    ),
+    check(
+      "fast_pass_purchase_lines_child_count",
+      sql`${t.responsibleChildCount} >= 0 AND ${t.responsibleChildCount} <= 5`,
+    ),
+  ],
+);
+
+export const fastPassPurchaseLinesRelations = relations(
+  fastPassPurchaseLines,
+  ({ one }) => ({
+    purchase: one(fastPassPurchases, {
+      fields: [fastPassPurchaseLines.purchaseId],
+      references: [fastPassPurchases.id],
+    }),
+    visitor: one(visitors, {
+      fields: [fastPassPurchaseLines.visitorId],
+      references: [visitors.id],
+    }),
+    festivalTicket: one(tickets, {
+      fields: [fastPassPurchaseLines.festivalTicketId],
+      references: [tickets.id],
+    }),
+    ticket: one(fastPassTickets),
+  }),
+);
+
+export const fastPassVouchers = pgTable(
+  "fast_pass_vouchers",
+  {
+    id: serial("id").primaryKey(),
+    purchaseId: integer("purchase_id")
+      .notNull()
+      .references(() => fastPassPurchases.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    fileUrl: text("file_url").notNull(),
+    uploadedVia: fastPassVoucherUploaderEnum("uploaded_via").notNull(),
+    uploadedByUserId: integer("uploaded_by_user_id").references(
+      () => users.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    uploadedByPosOperatorId: integer("uploaded_by_pos_operator_id").references(
+      () => fastPassPosOperators.id,
+      { onDelete: "set null" },
+    ),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique("fast_pass_vouchers_purchase_version_unique").on(
+      t.purchaseId,
+      t.version,
+    ),
+    check("fast_pass_vouchers_version_positive", sql`${t.version} >= 1`),
+    check(
+      "fast_pass_vouchers_file_present",
+      sql`length(trim(${t.fileUrl})) > 0`,
+    ),
+  ],
+);
+
+export const fastPassVouchersRelations = relations(
+  fastPassVouchers,
+  ({ one }) => ({
+    purchase: one(fastPassPurchases, {
+      fields: [fastPassVouchers.purchaseId],
+      references: [fastPassPurchases.id],
+    }),
+    uploadedBy: one(users, {
+      fields: [fastPassVouchers.uploadedByUserId],
+      references: [users.id],
+    }),
+    uploadedByPosOperator: one(fastPassPosOperators, {
+      fields: [fastPassVouchers.uploadedByPosOperatorId],
+      references: [fastPassPosOperators.id],
+    }),
+  }),
+);
+
+export const fastPassTickets = pgTable(
+  "fast_pass_tickets",
+  {
+    id: serial("id").primaryKey(),
+    purchaseLineId: integer("purchase_line_id").notNull().unique(),
+    festivalDateId: integer("festival_date_id")
+      .notNull()
+      .references(() => festivalDates.id, { onDelete: "restrict" }),
+    code: text("code").notNull().unique(),
+    status: fastPassTicketStatusEnum("status").default("valid").notNull(),
+    holderFirstName: text("holder_first_name"),
+    holderLastName: text("holder_last_name"),
+    holderEmail: text("holder_email"),
+    responsibleChildCount: integer("responsible_child_count")
+      .default(0)
+      .notNull(),
+    festivalTicketId: integer("festival_ticket_id").references(
+      () => tickets.id,
+      { onDelete: "set null" },
+    ),
+    issuedAt: timestamp("issued_at").defaultNow().notNull(),
+    activatedAt: timestamp("activated_at"),
+    cancelledAt: timestamp("cancelled_at"),
+    cancelledReason: text("cancelled_reason"),
+    cancelledByUserId: integer("cancelled_by_user_id").references(
+      () => users.id,
+      { onDelete: "set null" },
+    ),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "fast_pass_tickets_purchase_line_fk",
+      columns: [t.purchaseLineId],
+      foreignColumns: [fastPassPurchaseLines.id],
+    }).onDelete("cascade"),
+    index("fast_pass_tickets_festival_date_status_idx").on(
+      t.festivalDateId,
+      t.status,
+    ),
+    check(
+      "fast_pass_tickets_child_count",
+      sql`${t.responsibleChildCount} >= 0 AND ${t.responsibleChildCount} <= 5`,
+    ),
+    check(
+      "fast_pass_tickets_activated_consistent",
+      sql`${t.status} <> 'activated' OR ${t.activatedAt} IS NOT NULL`,
+    ),
+    check(
+      "fast_pass_tickets_cancelled_consistent",
+      sql`${t.status} <> 'cancelled' OR ${t.cancelledAt} IS NOT NULL`,
+    ),
+  ],
+);
+
+export const fastPassTicketsRelations = relations(
+  fastPassTickets,
+  ({ one }) => ({
+    purchaseLine: one(fastPassPurchaseLines, {
+      fields: [fastPassTickets.purchaseLineId],
+      references: [fastPassPurchaseLines.id],
+    }),
+    festivalDate: one(festivalDates, {
+      fields: [fastPassTickets.festivalDateId],
+      references: [festivalDates.id],
+    }),
+    festivalTicket: one(tickets, {
+      fields: [fastPassTickets.festivalTicketId],
+      references: [tickets.id],
+    }),
+    activation: one(fastPassActivations),
+  }),
+);
+
+export const fastPassActivations = pgTable(
+  "fast_pass_activations",
+  {
+    id: serial("id").primaryKey(),
+    ticketId: integer("ticket_id").notNull().unique(),
+    festivalDateId: integer("festival_date_id")
+      .notNull()
+      .references(() => festivalDates.id, { onDelete: "restrict" }),
+    method: fastPassActivationMethodEnum("method").notNull(),
+    operatorUserId: integer("operator_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    posOperatorId: integer("pos_operator_id").references(
+      () => fastPassPosOperators.id,
+      { onDelete: "set null" },
+    ),
+    wristbandIssued: boolean("wristband_issued").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "fast_pass_activations_ticket_fk",
+      columns: [t.ticketId],
+      foreignColumns: [fastPassTickets.id],
+    }).onDelete("cascade"),
+    index("fast_pass_activations_festival_date_idx").on(t.festivalDateId),
+  ],
+);
+
+export const fastPassActivationsRelations = relations(
+  fastPassActivations,
+  ({ one }) => ({
+    ticket: one(fastPassTickets, {
+      fields: [fastPassActivations.ticketId],
+      references: [fastPassTickets.id],
+    }),
+    festivalDate: one(festivalDates, {
+      fields: [fastPassActivations.festivalDateId],
+      references: [festivalDates.id],
+    }),
+    operator: one(users, {
+      fields: [fastPassActivations.operatorUserId],
+      references: [users.id],
+    }),
+    posOperator: one(fastPassPosOperators, {
+      fields: [fastPassActivations.posOperatorId],
+      references: [fastPassPosOperators.id],
+    }),
+  }),
+);
+
+/**
+ * Append-only financial ledger. Sales are positive; cancellation and refund
+ * entries are negative and link to the originating sale.
+ */
+export const fastPassTransactions = pgTable(
+  "fast_pass_transactions",
+  {
+    id: serial("id").primaryKey(),
+    purchaseId: integer("purchase_id")
+      .notNull()
+      .references(() => fastPassPurchases.id, { onDelete: "restrict" }),
+    type: fastPassTransactionTypeEnum("type").notNull(),
+    amount: numeric("amount", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    paymentMethod: fastPassPaymentMethodEnum("payment_method").notNull(),
+    relatedTransactionId: integer("related_transaction_id"),
+    posOperatorId: integer("pos_operator_id").references(
+      () => fastPassPosOperators.id,
+      { onDelete: "set null" },
+    ),
+    actorUserId: integer("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    reason: text("reason"),
+    cashReceivedAmount: numeric("cash_received_amount", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }),
+    cashChangeAmount: numeric("cash_change_amount", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("fast_pass_transactions_purchase_idx").on(t.purchaseId),
+    index("fast_pass_transactions_type_created_idx").on(t.type, t.createdAt),
+    uniqueIndex("fast_pass_transactions_one_sale_per_purchase_uidx")
+      .on(t.purchaseId)
+      .where(sql`${t.type} = 'sale'`),
+    uniqueIndex("fast_pass_transactions_one_cancellation_per_sale_uidx")
+      .on(t.relatedTransactionId)
+      .where(sql`${t.type} = 'cancellation'`),
+    foreignKey({
+      name: "fast_pass_transactions_related_fk",
+      columns: [t.relatedTransactionId],
+      foreignColumns: [t.id],
+    }).onDelete("restrict"),
+    check(
+      "fast_pass_transactions_amount_direction",
+      sql`(${t.type} = 'sale' AND ${t.amount} > 0)
+        OR (${t.type} IN ('cancellation', 'refund') AND ${t.amount} < 0)`,
+    ),
+    check(
+      "fast_pass_transactions_reversal_needs_reason",
+      sql`${t.type} = 'sale' OR (${t.reason} IS NOT NULL AND length(trim(${t.reason})) > 0)`,
+    ),
+    check(
+      "fast_pass_transactions_reversal_needs_related",
+      sql`${t.type} = 'sale' OR ${t.relatedTransactionId} IS NOT NULL`,
+    ),
+    check(
+      "fast_pass_transactions_cash_metadata",
+      sql`(${t.paymentMethod} <> 'cash')
+        OR (${t.type} <> 'sale')
+        OR (
+          ${t.cashReceivedAmount} IS NOT NULL
+          AND ${t.cashChangeAmount} IS NOT NULL
+          AND ${t.cashReceivedAmount} >= ${t.amount}
+          AND ${t.cashChangeAmount} = ${t.cashReceivedAmount} - ${t.amount}
+        )`,
+    ),
+  ],
+);
+
+export const fastPassTransactionsRelations = relations(
+  fastPassTransactions,
+  ({ one }) => ({
+    purchase: one(fastPassPurchases, {
+      fields: [fastPassTransactions.purchaseId],
+      references: [fastPassPurchases.id],
+    }),
+    relatedTransaction: one(fastPassTransactions, {
+      fields: [fastPassTransactions.relatedTransactionId],
+      references: [fastPassTransactions.id],
+      relationName: "fast_pass_transaction_related",
+    }),
+    posOperator: one(fastPassPosOperators, {
+      fields: [fastPassTransactions.posOperatorId],
+      references: [fastPassPosOperators.id],
+    }),
+    actor: one(users, {
+      fields: [fastPassTransactions.actorUserId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const fastPassEvents = pgTable(
+  "fast_pass_events",
+  {
+    id: serial("id").primaryKey(),
+    purchaseId: integer("purchase_id").references(() => fastPassPurchases.id, {
+      onDelete: "cascade",
+    }),
+    settingsId: integer("settings_id").references(
+      () => fastPassDaySettings.id,
+      {
+        onDelete: "cascade",
+      },
+    ),
+    actorType: fastPassActorTypeEnum("actor_type").notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    posOperatorId: integer("pos_operator_id").references(
+      () => fastPassPosOperators.id,
+      { onDelete: "set null" },
+    ),
+    eventType: fastPassEventTypeEnum("event_type").notNull(),
+    fromStatus: fastPassPurchaseStatusEnum("from_status"),
+    toStatus: fastPassPurchaseStatusEnum("to_status"),
+    reason: text("reason"),
+    changes: jsonb("changes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("fast_pass_events_purchase_created_idx").on(
+      t.purchaseId,
+      t.createdAt,
+    ),
+    index("fast_pass_events_settings_created_idx").on(
+      t.settingsId,
+      t.createdAt,
+    ),
+    check(
+      "fast_pass_events_scope",
+      sql`${t.purchaseId} IS NOT NULL OR ${t.settingsId} IS NOT NULL`,
+    ),
+    check(
+      "fast_pass_events_admin_needs_reason",
+      sql`${t.actorType} <> 'admin'
+        OR ${t.eventType} IN ('approved', 'settings_updated', 'ticket_issued', 'ticket_activated', 'on_site_sale', 'sale_transaction', 'link_resent', 'pos_operator_created', 'voucher_uploaded', 'voucher_replaced')
+        OR (${t.reason} IS NOT NULL AND length(trim(${t.reason})) > 0)`,
+    ),
+  ],
+);
+
+export const fastPassEventsRelations = relations(fastPassEvents, ({ one }) => ({
+  purchase: one(fastPassPurchases, {
+    fields: [fastPassEvents.purchaseId],
+    references: [fastPassPurchases.id],
+  }),
+  settings: one(fastPassDaySettings, {
+    fields: [fastPassEvents.settingsId],
+    references: [fastPassDaySettings.id],
+  }),
+  actor: one(users, {
+    fields: [fastPassEvents.actorUserId],
+    references: [users.id],
+  }),
+  posOperator: one(fastPassPosOperators, {
+    fields: [fastPassEvents.posOperatorId],
+    references: [fastPassPosOperators.id],
+  }),
+}));
+
+export const fastPassRefunds = pgTable(
+  "fast_pass_refunds",
+  {
+    id: serial("id").primaryKey(),
+    purchaseId: integer("purchase_id")
+      .notNull()
+      .references(() => fastPassPurchases.id, { onDelete: "restrict" }),
+    saleTransactionId: integer("sale_transaction_id")
+      .notNull()
+      .references(() => fastPassTransactions.id, { onDelete: "restrict" }),
+    trigger: fastPassRefundTriggerEnum("trigger")
+      .default("festival_cancellation")
+      .notNull(),
+    status: fastPassRefundStatusEnum("status").default("pending").notNull(),
+    amount: numeric("amount", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    paymentMethod: fastPassPaymentMethodEnum("payment_method").notNull(),
+    resolutionNotes: text("resolution_notes"),
+    resolutionReference: text("resolution_reference"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    resolvedByUserId: integer("resolved_by_user_id").references(
+      () => users.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    resolvedAt: timestamp("resolved_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("fast_pass_refunds_status_idx").on(t.status),
+    uniqueIndex("fast_pass_refunds_sale_trigger_uidx").on(
+      t.saleTransactionId,
+      t.trigger,
+    ),
+    check("fast_pass_refunds_amount_positive", sql`${t.amount} > 0`),
+    check(
+      "fast_pass_refunds_paid_consistent",
+      sql`${t.status} <> 'paid' OR (
+        ${t.resolvedAt} IS NOT NULL
+        AND ${t.resolvedByUserId} IS NOT NULL
+      )`,
+    ),
+  ],
+);
+
+export const fastPassRefundsRelations = relations(
+  fastPassRefunds,
+  ({ one }) => ({
+    purchase: one(fastPassPurchases, {
+      fields: [fastPassRefunds.purchaseId],
+      references: [fastPassPurchases.id],
+    }),
+    saleTransaction: one(fastPassTransactions, {
+      fields: [fastPassRefunds.saleTransactionId],
+      references: [fastPassTransactions.id],
+    }),
+    createdBy: one(users, {
+      fields: [fastPassRefunds.createdByUserId],
+      references: [users.id],
+    }),
+    resolvedBy: one(users, {
+      fields: [fastPassRefunds.resolvedByUserId],
+      references: [users.id],
     }),
   }),
 );

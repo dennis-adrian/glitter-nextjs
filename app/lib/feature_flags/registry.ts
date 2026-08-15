@@ -33,6 +33,12 @@ export const FEATURE_FLAGS = {
       "Muestra el acceso a Semana Glitter en el menú principal. Independiente de `paid_programs`, para poder abrir las inscripciones por enlace directo antes de anunciarlas en el sitio. El acceso solo aparece si ambas están visibles.",
     defaultVisibility: "hidden",
   },
+  fast_pass: {
+    label: "Pase Rápido",
+    description:
+      "Compra online y venta en sitio de Pase Rápido (acceso prioritario por día de festival), revisión de comprobantes, check-in y POS restringido.",
+    defaultVisibility: "hidden",
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

@@ -7,6 +7,10 @@ import PublicFestivalActivities from "@/app/components/festivals/public-festival
 import FestivalSectors from "@/app/components/festivals/sectors/festival-sectors";
 import { notFound } from "next/navigation";
 import { fetchFestival } from "@/app/lib/festivals/actions";
+import { isFeatureEnabled } from "@/app/lib/feature_flags/helpers";
+import { fetchFastPassPublicOffering } from "@/app/lib/fast-pass/inventory-queries";
+import { Button } from "@/app/components/ui/button";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Información del Festival",
@@ -36,6 +40,9 @@ export default async function Page(props: {
 
   const festival = await fetchFestival({ id: validatedParams.data.id });
   if (!festival) notFound();
+  const fastPassDates = (await isFeatureEnabled("fast_pass"))
+    ? await fetchFastPassPublicOffering(festival.id)
+    : [];
 
   return (
     <div className="container p-4 md:p-6">
@@ -46,9 +53,21 @@ export default async function Page(props: {
               <h1 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none">
                 {festival.name}
               </h1>
-              <p className="text-muted-foreground max-w-[600px] md:text-xl dark:text-gray-400">
+              <p className="text-muted-foreground max-w-150 md:text-xl dark:text-gray-400">
                 {festival.description}
               </p>
+              {fastPassDates.some(
+                ({ saleState, remainingPaid }) =>
+                  saleState === "on_sale" &&
+                  remainingPaid !== null &&
+                  remainingPaid > 0,
+              ) ? (
+                <Button asChild className="mt-4">
+                  <Link href={`/festivals/${festival.id}/fast-pass`}>
+                    Comprar Pase Rápido
+                  </Link>
+                </Button>
+              ) : null}
             </div>
           </div>
           <FestivalPageTabs selectedTab={validatedSearchParams.data.tab} />
