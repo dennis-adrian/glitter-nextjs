@@ -26,6 +26,7 @@ type MapSurfaceProps = {
   selectedStandId?: number | null;
   highlightedStandId?: number | null;
   highlightRequestId?: number;
+  dimmedStandIds?: ReadonlySet<number>;
   /** Returning undefined leaves MapStand on its status-based default palette */
   getColors?: (
     stand: StandWithReservationsWithParticipants,
@@ -64,6 +65,7 @@ export default function MapSurface({
   selectedStandId,
   highlightedStandId,
   highlightRequestId,
+  dimmedStandIds,
   getColors = noColors,
   canBeReserved = notReservable,
   onStandClick,
@@ -97,6 +99,7 @@ export default function MapSurface({
             selected={stand.id === selectedStandId}
             highlighted={stand.id === highlightedStandId}
             highlightRequestId={highlightRequestId}
+            dimmed={dimmedStandIds?.has(stand.id)}
             colors={getColors(stand)}
             onClick={onStandClick}
             onTouchTap={onStandTouchTap}
@@ -117,6 +120,9 @@ export default function MapSurface({
             selected={group.stands.some((s) => s.id === selectedStandId)}
             highlighted={group.stands.some((s) => s.id === highlightedStandId)}
             highlightRequestId={highlightRequestId}
+            dimmed={group.stands.every((stand) =>
+              dimmedStandIds?.has(stand.id),
+            )}
             mapStandId={selectedGroupStand?.id}
             colors={getColors(group.stands[0])}
             onClick={onStandClick}

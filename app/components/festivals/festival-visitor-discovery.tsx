@@ -1,11 +1,10 @@
 import { getStandMapParticipants } from "@/app/components/maps/map-participants";
-import FestivalNavMap from "@/app/components/maps/festival-nav/festival-nav-map";
 import type { CouponProof } from "@/app/components/maps/festival-nav/festival-nav-stand-drawer";
 import PublicFestivalActivities, {
   type VisitorActivity,
 } from "@/app/components/festivals/public-festival-activities";
+import FestivalVisitorExplorer from "@/app/components/festivals/festival-visitor-explorer";
 import { toPublicFestivalParticipant } from "@/app/components/festivals/participant-info";
-import PublicFestivalParticipants from "@/app/components/festivals/public-festival-participants";
 import type { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import {
   fetchConfirmedProfilesByFestivalId,
@@ -200,60 +199,12 @@ export default async function FestivalVisitorDiscovery({
 
   return (
     <div className="space-y-16 sm:space-y-20">
-      <section className="space-y-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="max-w-2xl">
-            <h2 className="font-space-grotesk text-3xl font-bold tracking-tight sm:text-4xl">
-              Mapa y participantes
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-              Buscá un participante, ubicá su stand y reconocé las actividades
-              por sus marcadores en el mapa.
-            </p>
-          </div>
-        </div>
-
-        {sectors.length > 0 ? (
-          <FestivalNavMap
-            embedded
-            festivalName={festivalName}
-            sectors={sectors}
-            {...mapActivityData}
-          />
-        ) : (
-          <div className="rounded-2xl border border-dashed bg-muted/30 px-6 py-12 text-center">
-            <p className="font-semibold">El mapa estará disponible pronto.</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Los sectores aparecerán cuando se publique la distribución.
-            </p>
-          </div>
-        )}
-      </section>
-
-      <section
-        id="participantes"
-        tabIndex={-1}
-        className="scroll-mt-24 space-y-6"
-      >
-        <div className="max-w-2xl">
-          <h2 className="font-space-grotesk text-3xl font-bold tracking-tight sm:text-4xl">
-            Participantes
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-            Buscá por nombre, categoría o número de stand.
-          </p>
-        </div>
-
-        {publicParticipants.length > 0 ? (
-          <PublicFestivalParticipants participants={publicParticipants} />
-        ) : (
-          <div className="rounded-2xl border border-dashed bg-muted/30 px-6 py-12 text-center">
-            <p className="font-semibold">
-              Los participantes aparecerán pronto.
-            </p>
-          </div>
-        )}
-      </section>
+      <FestivalVisitorExplorer
+        festivalName={festivalName}
+        sectors={sectors}
+        participants={publicParticipants}
+        mapActivityData={mapActivityData}
+      />
 
       <PublicFestivalActivities activities={visitorActivities} />
     </div>

@@ -10,6 +10,7 @@ type FestivalNavStandBadgesProps = {
   couponBookUserIdSet: Set<number>;
   passportUserIdSet: Set<number>;
   stickerHuntUserIdSet: Set<number>;
+  dimmedStandIds?: ReadonlySet<number>;
 };
 
 const BADGE_RADIUS = 1.3;
@@ -30,6 +31,7 @@ export default function FestivalNavStandBadges({
   couponBookUserIdSet,
   passportUserIdSet,
   stickerHuntUserIdSet,
+  dimmedStandIds,
 }: FestivalNavStandBadgesProps) {
   return (
     <g aria-hidden="true">
@@ -51,7 +53,11 @@ export default function FestivalNavStandBadges({
           <g
             key={stand.id}
             transform={`translate(${left}, ${top})`}
-            style={{ pointerEvents: "none" }}
+            style={{
+              opacity: dimmedStandIds?.has(stand.id) ? 0.2 : 1,
+              pointerEvents: "none",
+              transition: "opacity 180ms ease",
+            }}
           >
             {badges.map((badge, index) => {
               const cx = STAND_SIZE - 0.8 - index * BADGE_SPACING;

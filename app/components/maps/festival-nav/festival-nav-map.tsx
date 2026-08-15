@@ -6,15 +6,16 @@ import { StandWithReservationsWithParticipants } from "@/app/api/stands/definiti
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import FestivalNavSectorTabs from "@/app/components/maps/festival-nav/festival-nav-sector-tabs";
 import FestivalNavMapCanvas from "@/app/components/maps/festival-nav/festival-nav-map-canvas";
-import FestivalNavSearch, {
-  ParticipantSearchEntry,
-} from "@/app/components/maps/festival-nav/festival-nav-search";
+import FestivalNavSearch from "@/app/components/maps/festival-nav/festival-nav-search";
+import {
+  buildParticipantSearchEntries,
+  type ParticipantSearchEntry,
+} from "@/app/components/maps/festival-nav/festival-nav-participant-search";
 import FestivalNavStandDrawer, {
   CouponProof,
 } from "@/app/components/maps/festival-nav/festival-nav-stand-drawer";
 import FestivalNavMapLegend from "@/app/components/maps/festival-nav/festival-nav-map-legend";
 import type { FestivalActivity } from "@/app/lib/festivals/definitions";
-import { formatStandLabel } from "@/app/lib/stands/helpers";
 import {
   indexJointGroupsByStandId,
   resolveJointGroups,
@@ -30,6 +31,15 @@ type FestivalNavMapProps = {
   stickerHuntUserIds: number[];
   activityTypes: FestivalActivity["type"][];
   embedded?: boolean;
+  showControls?: boolean;
+  activeSectorIndex?: number;
+  onActiveSectorIndexChange?: (sectorIndex: number) => void;
+  participantLocateRequest?: {
+    userId: number;
+    standId: number;
+    requestId: number;
+  } | null;
+  matchingStandIds?: number[] | null;
 };
 
 export default function FestivalNavMap({
@@ -41,10 +51,19 @@ export default function FestivalNavMap({
   stickerHuntUserIds,
   activityTypes,
   embedded = false,
+  showControls = true,
+  activeSectorIndex: controlledActiveSectorIndex,
+  onActiveSectorIndexChange,
+  participantLocateRequest,
+  matchingStandIds,
 }: FestivalNavMapProps) {
   // The embedded page starts compact; the dedicated map keeps its all-sector
   // overview.
-  const [activeSectorIndex, setActiveSectorIndex] = useState(embedded ? 0 : -1);
+  const [internalActiveSectorIndex, setInternalActiveSectorIndex] = useState(
+    embedded ? 0 : -1,
+  );
+  const activeSectorIndex =
+    controlledActiveSectorIndex ?? internalActiveSectorIndex;
   const [selectedStand, setSelectedStand] =
     useState<StandWithReservationsWithParticipants | null>(null);
   const [selectedSectorName, setSelectedSectorName] = useState("");
@@ -71,31 +90,41 @@ export default function FestivalNavMap({
     [stickerHuntUserIds],
   );
 
-  // Build participant search index across all sectors
-  const searchEntries = useMemo<ParticipantSearchEntry[]>(() => {
-    const entries: ParticipantSearchEntry[] = [];
-    sectors.forEach((sector, sectorIndex) => {
-      sector.stands.forEach((stand) => {
-        if (stand.status === "disabled") return;
-        const standLabel = formatStandLabel(stand);
-        stand.reservations
-          .filter((r) => r.status !== "rejected")
-          .flatMap((r) => r.participants)
-          .forEach((participant) => {
-            if (!participant.user.displayName) return;
-            entries.push({
-              displayName: participant.user.displayName,
-              imageUrl: participant.user.imageUrl,
-              standLabel,
-              sectorName: sector.name,
-              sectorIndex,
-              stand,
-            });
-          });
-      });
-    });
-    return entries;
-  }, [sectors]);
+  const searchEntries = useMemo<ParticipantSearchEntry[]>(
+    () => buildParticipantSearchEntries(sectors),
+    [sectors],
+  );
+  const externallyLocatedEntry = useMemo(() => {
+    if (!participantLocateRequest) return null;
+
+    return (
+      searchEntries.find(
+        (candidate) =>
+          candidate.userId === participantLocateRequest.userId &&
+          candidate.stand.id === participantLocateRequest.standId,
+      ) ?? null
+    );
+  }, [participantLocateRequest, searchEntries]);
+  const mapSelectedStand =
+    !drawerOpen && externallyLocatedEntry
+      ? externallyLocatedEntry.stand
+      : selectedStand;
+  const mapLocateRequest = externallyLocatedEntry
+    ? {
+        standId: externallyLocatedEntry.stand.id,
+        requestId: participantLocateRequest!.requestId,
+      }
+    : locateRequest;
+
+  const setActiveSector = useCallback(
+    (sectorIndex: number) => {
+      if (controlledActiveSectorIndex === undefined) {
+        setInternalActiveSectorIndex(sectorIndex);
+      }
+      onActiveSectorIndexChange?.(sectorIndex);
+    },
+    [controlledActiveSectorIndex, onActiveSectorIndexChange],
+  );
 
   // Built from the same stands the canvases draw, so the drawer always
   // describes the unit the visitor sees. Covers search hits too, which never
@@ -122,24 +151,30 @@ export default function FestivalNavMap({
     [],
   );
 
-  const handleSearchSelect = useCallback((entry: ParticipantSearchEntry) => {
-    locateRequestId.current += 1;
-    setSelectedStand(entry.stand);
-    setSelectedSectorName(entry.sectorName);
-    setLocateRequest({
-      standId: entry.stand.id,
-      requestId: locateRequestId.current,
-    });
-    setDrawerOpen(false);
-    setActiveSectorIndex(entry.sectorIndex);
-  }, []);
+  const handleSearchSelect = useCallback(
+    (entry: ParticipantSearchEntry) => {
+      locateRequestId.current += 1;
+      setSelectedStand(entry.stand);
+      setSelectedSectorName(entry.sectorName);
+      setLocateRequest({
+        standId: entry.stand.id,
+        requestId: locateRequestId.current,
+      });
+      setDrawerOpen(false);
+      setActiveSector(entry.sectorIndex);
+    },
+    [setActiveSector],
+  );
 
-  const handleSectorChange = useCallback((sectorIndex: number) => {
-    setActiveSectorIndex(sectorIndex);
-    setSelectedStand(null);
-    setLocateRequest(null);
-    setDrawerOpen(false);
-  }, []);
+  const handleSectorChange = useCallback(
+    (sectorIndex: number) => {
+      setActiveSector(sectorIndex);
+      setSelectedStand(null);
+      setLocateRequest(null);
+      setDrawerOpen(false);
+    },
+    [setActiveSector],
+  );
 
   const showAll = activeSectorIndex === -1;
   const activeSector = showAll ? null : (sectors[activeSectorIndex] ?? null);
@@ -174,37 +209,41 @@ export default function FestivalNavMap({
         </div>
       ) : null}
 
-      {/* Search + tabs — sticky below navbar */}
-      <div
-        className={cn(
-          "z-20 border-b bg-background",
-          embedded ? "relative" : "sticky top-16 md:top-20",
-        )}
-      >
-        <FestivalNavSearch
-          entries={searchEntries}
-          onSelect={handleSearchSelect}
-          flush={embedded}
-        />
-        <FestivalNavSectorTabs
-          sectors={sectors}
-          activeIndex={activeSectorIndex}
-          onChange={handleSectorChange}
-          flush={embedded}
-        />
-      </div>
+      {showControls ? (
+        <>
+          {/* Search + tabs — sticky below navbar */}
+          <div
+            className={cn(
+              "z-20 border-b bg-background",
+              embedded ? "relative" : "sticky top-16 md:top-20",
+            )}
+          >
+            <FestivalNavSearch
+              entries={searchEntries}
+              onSelect={handleSearchSelect}
+              flush={embedded}
+            />
+            <FestivalNavSectorTabs
+              sectors={sectors}
+              activeIndex={activeSectorIndex}
+              onChange={handleSectorChange}
+              flush={embedded}
+            />
+          </div>
 
-      {/* Legend */}
-      <div
-        className={cn(
-          "flex justify-center",
-          embedded ? "px-0" : "px-4 md:px-0",
-        )}
-      >
-        <div className={cn("w-full", !embedded && "md:max-w-3xl")}>
-          <FestivalNavMapLegend activityTypes={activityTypes} />
-        </div>
-      </div>
+          {/* Legend */}
+          <div
+            className={cn(
+              "flex justify-center",
+              embedded ? "px-0" : "px-4 md:px-0",
+            )}
+          >
+            <div className={cn("w-full", !embedded && "md:max-w-3xl")}>
+              <FestivalNavMapLegend activityTypes={activityTypes} />
+            </div>
+          </div>
+        </>
+      ) : null}
 
       {/* Map area */}
       <div
@@ -227,8 +266,9 @@ export default function FestivalNavMap({
                     stands={sector.stands}
                     mapElements={sector.mapElements ?? []}
                     mapBounds={getSectorMapBounds(sector)}
-                    selectedStandId={selectedStand?.id ?? null}
-                    locateRequest={locateRequest}
+                    selectedStandId={mapSelectedStand?.id ?? null}
+                    locateRequest={mapLocateRequest}
+                    matchingStandIds={matchingStandIds}
                     couponBookUserIdSet={couponBookUserIdSet}
                     passportUserIdSet={passportUserIdSet}
                     stickerHuntUserIdSet={stickerHuntUserIdSet}
@@ -244,8 +284,9 @@ export default function FestivalNavMap({
               stands={activeSector.stands}
               mapElements={activeSector.mapElements ?? []}
               mapBounds={getSectorMapBounds(activeSector)}
-              selectedStandId={selectedStand?.id ?? null}
-              locateRequest={locateRequest}
+              selectedStandId={mapSelectedStand?.id ?? null}
+              locateRequest={mapLocateRequest}
+              matchingStandIds={matchingStandIds}
               couponBookUserIdSet={couponBookUserIdSet}
               passportUserIdSet={passportUserIdSet}
               stickerHuntUserIdSet={stickerHuntUserIdSet}

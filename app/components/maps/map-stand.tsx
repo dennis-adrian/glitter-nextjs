@@ -23,6 +23,7 @@ type MapStandProps = {
   selected?: boolean;
   highlighted?: boolean;
   highlightRequestId?: number;
+  dimmed?: boolean;
   colors?: StandColors;
   onClick?: (stand: StandWithReservationsWithParticipants) => void;
   onTouchTap?: (
@@ -46,6 +47,7 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
       selected,
       highlighted,
       highlightRequestId,
+      dimmed,
       colors,
       onClick,
       onTouchTap,
@@ -124,6 +126,8 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
           cursor: onClick ? "pointer" : "default",
           touchAction: "manipulation",
           outline: "none",
+          opacity: dimmed ? 0.2 : 1,
+          transition: "opacity 180ms ease",
         }}
         role={onClick ? "button" : undefined}
         id={`festival-map-stand-${stand.id}`}

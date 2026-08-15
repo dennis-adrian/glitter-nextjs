@@ -178,4 +178,17 @@ describe("MapSurface joint groups", () => {
     expect(outline?.getAttribute("fill")).toBe("rgb(1, 2, 3)");
     expect(outline?.getAttribute("stroke")).toBe("rgb(7, 8, 9)");
   });
+
+  it("dims unmatched stands without hiding a partially matched group", () => {
+    const unmatched = stand(9, "B", { users: [8] });
+    const { container } = render(
+      <MapSurface
+        stands={[...jointPair(), unmatched]}
+        dimmedStandIds={new Set([7, 9])}
+      />,
+    );
+
+    expect((standNodes(container)[0] as SVGGElement).style.opacity).toBe("0.2");
+    expect((groupNodes(container)[0] as SVGGElement).style.opacity).toBe("1");
+  });
 });

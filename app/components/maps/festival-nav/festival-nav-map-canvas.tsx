@@ -30,6 +30,7 @@ type FestivalNavMapCanvasProps = {
   mapBounds?: MapBounds;
   selectedStandId: number | null;
   locateRequest?: { standId: number; requestId: number } | null;
+  matchingStandIds?: number[] | null;
   couponBookUserIdSet: Set<number>;
   passportUserIdSet: Set<number>;
   stickerHuntUserIdSet: Set<number>;
@@ -59,6 +60,7 @@ export default function FestivalNavMapCanvas({
   mapBounds,
   selectedStandId,
   locateRequest,
+  matchingStandIds,
   couponBookUserIdSet,
   passportUserIdSet,
   stickerHuntUserIdSet,
@@ -71,15 +73,32 @@ export default function FestivalNavMapCanvas({
     () => stands.filter((s) => s.status !== "disabled"),
     [stands],
   );
+  const jointGroups = useMemo(
+    () => resolveJointGroups(visibleStands),
+    [visibleStands],
+  );
+  const dimmedStandIdSet = useMemo(() => {
+    if (matchingStandIds == null) return undefined;
+
+    const matchingStandIdSet = new Set(matchingStandIds);
+    for (const group of jointGroups) {
+      if (group.stands.some((stand) => matchingStandIdSet.has(stand.id))) {
+        group.stands.forEach((stand) => matchingStandIdSet.add(stand.id));
+      }
+    }
+
+    return new Set(
+      visibleStands
+        .filter((stand) => !matchingStandIdSet.has(stand.id))
+        .map((stand) => stand.id),
+    );
+  }, [jointGroups, matchingStandIds, visibleStands]);
   // Resolved from the same list MapSurface draws, so a group that renders as
   // one outline carries exactly one set of activity badges.
   const occupiedStands = useMemo(
     () =>
-      dedupeJointGroupMembers(
-        visibleStands.filter(isOccupied),
-        resolveJointGroups(visibleStands),
-      ),
-    [visibleStands],
+      dedupeJointGroupMembers(visibleStands.filter(isOccupied), jointGroups),
+    [jointGroups, visibleStands],
   );
 
   const handleStandSelect = useCallback(
@@ -133,6 +152,7 @@ export default function FestivalNavMapCanvas({
             selectedStandId={selectedStandId}
             highlightedStandId={locateRequest?.standId}
             highlightRequestId={locateRequest?.requestId}
+            dimmedStandIds={dimmedStandIdSet}
             getColors={getNavStandColors}
             onStandClick={handleStandSelect}
             onStandTouchTap={handleStandSelect}
@@ -142,6 +162,7 @@ export default function FestivalNavMapCanvas({
               couponBookUserIdSet={couponBookUserIdSet}
               passportUserIdSet={passportUserIdSet}
               stickerHuntUserIdSet={stickerHuntUserIdSet}
+              dimmedStandIds={dimmedStandIdSet}
             />
           </MapSurface>
         </TransformComponent>

@@ -703,7 +703,7 @@ export async function fetchPublicFestivalPage(
   return await db.query.festivals.findFirst({
     where: and(
       eq(festivals.id, id),
-      or(eq(festivals.status, "published"), eq(festivals.status, "active")),
+      inArray(festivals.status, ["published", "active", "archived"]),
     ),
     with: {
       festivalDates: true,

@@ -28,6 +28,7 @@ type MapStandGroupProps = {
   selected?: boolean;
   highlighted?: boolean;
   highlightRequestId?: number;
+  dimmed?: boolean;
   mapStandId?: number;
   colors?: StandColors;
   onClick?: (stand: StandWithReservationsWithParticipants) => void;
@@ -53,6 +54,7 @@ const MapStandGroup = ({
   selected,
   highlighted,
   highlightRequestId,
+  dimmed,
   mapStandId,
   colors,
   onClick,
@@ -129,6 +131,8 @@ const MapStandGroup = ({
         cursor: onClick ? "pointer" : "default",
         touchAction: "manipulation",
         outline: "none",
+        opacity: dimmed ? 0.2 : 1,
+        transition: "opacity 180ms ease",
       }}
       role={onClick ? "button" : undefined}
       id={`festival-map-stand-${mapStandId ?? primaryStand.id}`}

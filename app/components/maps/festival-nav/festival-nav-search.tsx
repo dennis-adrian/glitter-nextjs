@@ -3,42 +3,46 @@
 import { useRef, useState } from "react";
 import { Search } from "lucide-react";
 
-import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import {
+  normalizeParticipantSearch,
+  type ParticipantSearchEntry,
+} from "@/app/components/maps/festival-nav/festival-nav-participant-search";
 import { cn } from "@/app/lib/utils";
-
-export type ParticipantSearchEntry = {
-  displayName: string;
-  imageUrl: string | null;
-  standLabel: string;
-  sectorName: string;
-  sectorIndex: number;
-  stand: StandWithReservationsWithParticipants;
-};
 
 type FestivalNavSearchProps = {
   entries: ParticipantSearchEntry[];
   onSelect: (entry: ParticipantSearchEntry) => void;
+  value?: string;
+  onValueChange?: (value: string) => void;
   flush?: boolean;
 };
 
 export default function FestivalNavSearch({
   entries,
   onSelect,
+  value,
+  onValueChange,
   flush = false,
 }: FestivalNavSearchProps) {
-  const [query, setQuery] = useState("");
+  const [internalQuery, setInternalQuery] = useState("");
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const query = value ?? internalQuery;
 
-  const normalized = query.trim().toLowerCase();
+  function setQuery(nextValue: string) {
+    if (value === undefined) setInternalQuery(nextValue);
+    onValueChange?.(nextValue);
+  }
+
+  const normalized = normalizeParticipantSearch(query.trim());
   const results =
     normalized.length > 0
       ? entries.filter(
           (e) =>
-            e.displayName.toLowerCase().includes(normalized) ||
-            e.standLabel.toLowerCase().includes(normalized),
+            normalizeParticipantSearch(e.displayName).includes(normalized) ||
+            normalizeParticipantSearch(e.standLabel).includes(normalized),
         )
       : [];
 
@@ -66,6 +70,7 @@ export default function FestivalNavSearch({
         <input
           ref={inputRef}
           type="text"
+          aria-label="Buscar participantes"
           placeholder="Buscar participante..."
           value={query}
           onChange={(e) => {
