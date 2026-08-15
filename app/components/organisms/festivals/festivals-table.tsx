@@ -1,7 +1,9 @@
 "use client";
 
-import { buildColumns } from "@/app/components/organisms/festivals/columns";
-import { columnTitles } from "@/app/components/reservations/columns";
+import {
+  buildColumns,
+  columnTitles,
+} from "@/app/components/organisms/festivals/columns";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 

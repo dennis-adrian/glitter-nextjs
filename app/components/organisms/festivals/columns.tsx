@@ -6,10 +6,10 @@ import { FestivalWithDates } from "@/app/lib/festivals/definitions";
 import { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 
-const columnTitles = {
+export const columnTitles = {
   name: "Nombre",
   status: "Estado",
-  location: "Ubicación",
+  locationLabel: "Ubicación",
   actions: "",
 };
 
@@ -37,7 +37,7 @@ export function buildColumns(
       cell: ({ row }) => <FestivalStatusBadge status={row.original.status} />,
     },
     {
-      header: columnTitles.location,
+      header: columnTitles.locationLabel,
       accessorKey: "locationLabel",
     },
     {
