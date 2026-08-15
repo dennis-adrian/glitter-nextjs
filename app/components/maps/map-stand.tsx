@@ -13,6 +13,8 @@ import {
   SELECTED_STROKE,
   SELECTED_TEXT,
   SELECTED_RING,
+  DIMMED_COLORS,
+  DIMMED_OPACITY,
 } from "./map-utils";
 import type { StandColors } from "./map-utils";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
@@ -61,21 +63,24 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
     const { left, top } = getStandPosition(stand);
     const { standNumber, status } = stand;
 
+    // A filtered-out stand drops its status palette entirely: it is still on the
+    // map as a landmark, but it no longer claims to be occupied or available.
+    const activeColors = dimmed && !selected ? DIMMED_COLORS : colors;
     const fillColor = selected
       ? SELECTED_FILL
-      : colors
+      : activeColors
         ? hovered
-          ? colors.hoverFill
-          : colors.fill
+          ? activeColors.hoverFill
+          : activeColors.fill
         : hovered
           ? getStandHoverFillColor(status, canBeReserved)
           : getStandFillColor(status, canBeReserved);
     const strokeColor = selected
       ? SELECTED_STROKE
-      : (colors?.stroke ?? getStandStrokeColor(status, canBeReserved));
+      : (activeColors?.stroke ?? getStandStrokeColor(status, canBeReserved));
     const textColor = selected
       ? SELECTED_TEXT
-      : (colors?.text ?? getStandTextColor(status, canBeReserved));
+      : (activeColors?.text ?? getStandTextColor(status, canBeReserved));
 
     const handlePointerDown = (e: React.PointerEvent) => {
       if (e.pointerType === "touch" || e.pointerType === "pen") {
@@ -126,7 +131,7 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
           cursor: onClick ? "pointer" : "default",
           touchAction: "manipulation",
           outline: "none",
-          opacity: dimmed ? 0.2 : 1,
+          opacity: dimmed && !selected ? DIMMED_OPACITY : 1,
           transition: "opacity 180ms ease",
         }}
         role={onClick ? "button" : undefined}

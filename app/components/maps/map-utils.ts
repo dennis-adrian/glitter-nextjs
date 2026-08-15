@@ -164,6 +164,22 @@ export const SELECTED_STROKE = "#ffffff"; // white border
 export const SELECTED_TEXT = "#ffffff"; // white text
 export const SELECTED_RING = "hsl(262, 76%, 90%)"; // primary-100
 
+/**
+ * Stands filtered out of the current view. Neutral grey on purpose: dimming the
+ * occupied purple by opacity alone lands it on the "disponible" violet, which
+ * would turn a filtered-out stand into an empty one. Grey carries no meaning in
+ * the public legend, so it can only read as "not part of this filter".
+ */
+export const DIMMED_COLORS: StandColors = {
+  fill: "rgba(229, 231, 235, 0.55)", // gray-200
+  hoverFill: "rgba(209, 213, 219, 0.7)", // gray-300
+  stroke: "rgba(156, 163, 175, 0.7)", // gray-400
+  text: "#9CA3AF", // gray-400
+};
+
+/** Kept high: the filtered-out stands still have to work as a venue layout. */
+export const DIMMED_OPACITY = 0.9;
+
 export function getAdminOverviewColors(
   standStatus: string,
   reservationStatus?: string | null,

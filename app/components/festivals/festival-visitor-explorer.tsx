@@ -2,15 +2,16 @@
 
 import { useMemo, useRef, useState } from "react";
 
-import type { UserCategory } from "@/app/api/users/definitions";
-import FestivalParticipantCategoryFilters, {
-  type ParticipantCategoryFilter,
-} from "@/app/components/festivals/festival-participant-category-filters";
+import type { ParticipantCategoryFilter } from "@/app/components/festivals/festival-participant-category-filters";
+import FestivalVisitorFilterSummary from "@/app/components/festivals/festival-visitor-filter-summary";
 import {
   filterFestivalParticipants,
-  participantSearchEntryMatchesFilters,
+  getMatchingStandIds,
 } from "@/app/components/festivals/festival-visitor-filters";
 import type { PublicFestivalParticipant } from "@/app/components/festivals/participant-info";
+import PublicFestivalActivities, {
+  type VisitorActivity,
+} from "@/app/components/festivals/public-festival-activities";
 import PublicFestivalParticipants from "@/app/components/festivals/public-festival-participants";
 import FestivalNavMap from "@/app/components/maps/festival-nav/festival-nav-map";
 import FestivalNavMapLegend from "@/app/components/maps/festival-nav/festival-nav-map-legend";
@@ -23,13 +24,20 @@ import FestivalNavSectorTabs from "@/app/components/maps/festival-nav/festival-n
 import type { CouponProof } from "@/app/components/maps/festival-nav/festival-nav-stand-drawer";
 import type { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import type { FestivalActivity } from "@/app/lib/festivals/definitions";
-import { getPublicCategoryLabel } from "@/app/lib/maps/helpers";
+import {
+  EMPTY_STAND_FILTERS,
+  hasActiveStandFilters,
+  isStandActivityFilter,
+  isStandOccupied,
+  type StandActivityFilter,
+  type StandActivityUserIds,
+  type StandFilters,
+  type StandStatusFilter,
+} from "@/app/lib/maps/stand-filters";
 
 type MapActivityData = {
-  couponBookUserIds: number[];
+  activityUserIds: StandActivityUserIds;
   couponBookProofs: Record<number, CouponProof[]>;
-  passportUserIds: number[];
-  stickerHuntUserIds: number[];
   activityTypes: FestivalActivity["type"][];
 };
 
@@ -43,15 +51,21 @@ export default function FestivalVisitorExplorer({
   festivalName,
   sectors,
   participants,
+  activities,
   mapActivityData,
 }: {
   festivalName: string;
   sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
   participants: PublicFestivalParticipant[];
+  activities: VisitorActivity[];
   mapActivityData: MapActivityData;
 }) {
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<ParticipantCategoryFilter>("all");
+  // Category filtering is built and tested but hidden for now; the state stays
+  // so restoring the control is a matter of rendering it again.
+  const [category] = useState<ParticipantCategoryFilter>("all");
+  const [standFilters, setStandFilters] =
+    useState<StandFilters>(EMPTY_STAND_FILTERS);
   const [activeSectorIndex, setActiveSectorIndex] = useState(
     sectors.length > 0 ? 0 : -1,
   );
@@ -59,20 +73,6 @@ export default function FestivalVisitorExplorer({
     useState<ParticipantLocateRequest | null>(null);
   const locateRequestId = useRef(0);
 
-  const categories = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          participants
-            .map((participant) => participant.category)
-            .filter(
-              (value): value is UserCategory =>
-                getPublicCategoryLabel(value) != null,
-            ),
-        ),
-      ),
-    [participants],
-  );
   const searchEntries = useMemo(
     () => buildParticipantSearchEntries(sectors),
     [sectors],
@@ -84,6 +84,32 @@ export default function FestivalVisitorExplorer({
       ),
     [category, searchEntries],
   );
+  // A festival can run an activity nobody has an approved proof for yet. The
+  // chip still shows — the festival does run that activity — but it cannot be
+  // selected, since no stand carries the badge to filter on.
+  const selectableActivities = useMemo(
+    () =>
+      mapActivityData.activityTypes.filter(
+        (type): type is StandActivityFilter =>
+          isStandActivityFilter(type) &&
+          mapActivityData.activityUserIds[type].size > 0,
+      ),
+    [mapActivityData],
+  );
+  // Same reasoning for stand status: a sold-out festival has no free stand to
+  // show, so "Disponible" stays a color key rather than an empty filter.
+  const selectableStatuses = useMemo(() => {
+    const statuses: Exclude<StandStatusFilter, "all">[] = [];
+    const stands = sectors.flatMap((sector) => sector.stands);
+
+    if (stands.some((stand) => isStandOccupied(stand)))
+      statuses.push("occupied");
+    if (stands.some((stand) => stand.status === "available")) {
+      statuses.push("available");
+    }
+
+    return statuses;
+  }, [sectors]);
   const activeSectorStandIds = useMemo(() => {
     if (activeSectorIndex === -1) return undefined;
     const activeSector = sectors[activeSectorIndex];
@@ -97,23 +123,59 @@ export default function FestivalVisitorExplorer({
         query,
         category,
         sectorStandIds: activeSectorStandIds,
+        activities: standFilters.activities,
+        activityUserIds: mapActivityData.activityUserIds,
       }),
-    [activeSectorStandIds, category, participants, query],
+    [
+      activeSectorStandIds,
+      mapActivityData,
+      category,
+      participants,
+      query,
+      standFilters.activities,
+    ],
   );
-  const matchingStandIds = useMemo(() => {
-    const filtersMap = query.trim().length > 0 || category !== "all";
-    if (!filtersMap) return null;
-
-    return Array.from(
-      new Set(
-        searchEntries
-          .filter((entry) =>
-            participantSearchEntryMatchesFilters(entry, query, category),
-          )
-          .map((entry) => entry.stand.id),
-      ),
+  const matchingStandIds = useMemo(
+    () =>
+      getMatchingStandIds({
+        sectors,
+        searchEntries,
+        query,
+        category,
+        standFilters,
+        activityUserIds: mapActivityData.activityUserIds,
+      }),
+    [mapActivityData, category, query, searchEntries, sectors, standFilters],
+  );
+  // Counted over what the map is actually drawing, so the number tracks the
+  // sector the visitor is looking at.
+  const standCounts = useMemo(() => {
+    const scopedSectors =
+      activeSectorIndex === -1
+        ? sectors
+        : [sectors[activeSectorIndex]].filter(Boolean);
+    const scopedStandIds = scopedSectors.flatMap((sector) =>
+      sector.stands
+        .filter((stand) => stand.status !== "disabled")
+        .map((stand) => stand.id),
     );
-  }, [category, query, searchEntries]);
+
+    if (matchingStandIds == null) {
+      return { shown: scopedStandIds.length, total: scopedStandIds.length };
+    }
+
+    const matchingStandIdSet = new Set(matchingStandIds);
+    return {
+      shown: scopedStandIds.filter((standId) => matchingStandIdSet.has(standId))
+        .length,
+      total: scopedStandIds.length,
+    };
+  }, [activeSectorIndex, matchingStandIds, sectors]);
+
+  const hasActiveFilters =
+    query.trim().length > 0 ||
+    category !== "all" ||
+    hasActiveStandFilters(standFilters);
 
   function handleSearchSelect(entry: ParticipantSearchEntry) {
     locateRequestId.current += 1;
@@ -131,13 +193,29 @@ export default function FestivalVisitorExplorer({
     setParticipantLocateRequest(null);
   }
 
-  function handleCategoryChange(nextCategory: ParticipantCategoryFilter) {
-    setCategory(nextCategory);
+  function handleStandFiltersChange(nextStandFilters: StandFilters) {
+    setStandFilters(nextStandFilters);
     setParticipantLocateRequest(null);
   }
 
   function handleSectorChange(nextSectorIndex: number) {
     setActiveSectorIndex(nextSectorIndex);
+    setParticipantLocateRequest(null);
+  }
+
+  // Coming from an activity card the intent is "show me these stands", so this
+  // replaces the other filters instead of narrowing on top of them, and opens
+  // every sector so no marked stand stays hidden behind a tab.
+  function handleFilterByActivity(activity: StandActivityFilter) {
+    setQuery("");
+    setStandFilters({ status: "all", activities: [activity] });
+    setActiveSectorIndex(-1);
+    setParticipantLocateRequest(null);
+  }
+
+  function handleClearFilters() {
+    setQuery("");
+    setStandFilters(EMPTY_STAND_FILTERS);
     setParticipantLocateRequest(null);
   }
 
@@ -161,11 +239,6 @@ export default function FestivalVisitorExplorer({
           onSelect={handleSearchSelect}
           flush
         />
-        <FestivalParticipantCategoryFilters
-          categories={categories}
-          value={category}
-          onChange={handleCategoryChange}
-        />
         {sectors.length > 0 ? (
           <FestivalNavSectorTabs
             sectors={sectors}
@@ -176,8 +249,20 @@ export default function FestivalVisitorExplorer({
           />
         ) : null}
         <div className="border-t pt-2">
-          <FestivalNavMapLegend activityTypes={mapActivityData.activityTypes} />
+          <FestivalNavMapLegend
+            activityTypes={mapActivityData.activityTypes}
+            filters={standFilters}
+            onFiltersChange={handleStandFiltersChange}
+            selectableStatuses={selectableStatuses}
+            selectableActivities={selectableActivities}
+          />
         </div>
+        <FestivalVisitorFilterSummary
+          shownStandCount={standCounts.shown}
+          totalStandCount={standCounts.total}
+          hasActiveFilters={hasActiveFilters}
+          onClear={handleClearFilters}
+        />
       </div>
 
       <div className="mt-6">
@@ -213,12 +298,20 @@ export default function FestivalVisitorExplorer({
             Participantes
           </h2>
           <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-            Los resultados siguen los mismos filtros del mapa.
+            Los resultados siguen la búsqueda, la categoría, el sector y las
+            actividades del mapa.
           </p>
         </div>
 
         <PublicFestivalParticipants participants={filteredParticipants} />
       </section>
+
+      <div className="mt-16 sm:mt-20">
+        <PublicFestivalActivities
+          activities={activities}
+          onFilterByActivity={handleFilterByActivity}
+        />
+      </div>
     </div>
   );
 }

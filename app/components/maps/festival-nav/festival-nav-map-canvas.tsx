@@ -20,6 +20,10 @@ import MapTransformWrapper from "@/app/components/maps/map-transform-wrapper";
 import FestivalNavStandBadges from "@/app/components/maps/festival-nav/festival-nav-stand-badges";
 import { hasExternalParticipants } from "@/app/components/maps/map-participants";
 import {
+  isStandOccupied,
+  type StandActivityUserIds,
+} from "@/app/lib/maps/stand-filters";
+import {
   dedupeJointGroupMembers,
   resolveJointGroups,
 } from "@/app/lib/stands/groups";
@@ -31,9 +35,7 @@ type FestivalNavMapCanvasProps = {
   selectedStandId: number | null;
   locateRequest?: { standId: number; requestId: number } | null;
   matchingStandIds?: number[] | null;
-  couponBookUserIdSet: Set<number>;
-  passportUserIdSet: Set<number>;
-  stickerHuntUserIdSet: Set<number>;
+  activityUserIds: StandActivityUserIds;
   sectorName: string;
   onStandSelect: (
     stand: StandWithReservationsWithParticipants,
@@ -41,14 +43,10 @@ type FestivalNavMapCanvasProps = {
   ) => void;
 };
 
-function isOccupied(stand: StandWithReservationsWithParticipants): boolean {
-  return stand.status === "reserved" || stand.status === "confirmed";
-}
-
 export function getNavStandColors(
   stand: StandWithReservationsWithParticipants,
 ): StandColors {
-  if (!isOccupied(stand)) return getPublicStandColors(stand.status);
+  if (!isStandOccupied(stand)) return getPublicStandColors(stand.status);
   if (hasExternalParticipants(stand))
     return getExternalParticipantStandColors();
   return getPublicStandColors(stand.status);
@@ -61,9 +59,7 @@ export default function FestivalNavMapCanvas({
   selectedStandId,
   locateRequest,
   matchingStandIds,
-  couponBookUserIdSet,
-  passportUserIdSet,
-  stickerHuntUserIdSet,
+  activityUserIds,
   sectorName,
   onStandSelect,
 }: FestivalNavMapCanvasProps) {
@@ -97,13 +93,16 @@ export default function FestivalNavMapCanvas({
   // one outline carries exactly one set of activity badges.
   const occupiedStands = useMemo(
     () =>
-      dedupeJointGroupMembers(visibleStands.filter(isOccupied), jointGroups),
+      dedupeJointGroupMembers(
+        visibleStands.filter(isStandOccupied),
+        jointGroups,
+      ),
     [jointGroups, visibleStands],
   );
 
   const handleStandSelect = useCallback(
     (stand: StandWithReservationsWithParticipants) => {
-      if (!isOccupied(stand)) return;
+      if (!isStandOccupied(stand)) return;
       onStandSelect(stand, sectorName);
     },
     [onStandSelect, sectorName],
@@ -159,9 +158,7 @@ export default function FestivalNavMapCanvas({
           >
             <FestivalNavStandBadges
               stands={occupiedStands}
-              couponBookUserIdSet={couponBookUserIdSet}
-              passportUserIdSet={passportUserIdSet}
-              stickerHuntUserIdSet={stickerHuntUserIdSet}
+              activityUserIds={activityUserIds}
               dimmedStandIds={dimmedStandIdSet}
             />
           </MapSurface>

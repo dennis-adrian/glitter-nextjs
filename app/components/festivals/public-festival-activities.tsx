@@ -1,10 +1,19 @@
-import { ArrowUpRightIcon, MapPinIcon, SparklesIcon } from "lucide-react";
-import Image from "next/image";
+"use client";
+
+import { ArrowUpRightIcon, MapPinIcon } from "lucide-react";
 import Link from "next/link";
 
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import { Badge } from "@/app/components/ui/badge";
+import {
+  getActivityMarker,
+  type ActivityMarker,
+} from "@/app/lib/festivals/activity-markers";
 import type { FestivalActivity } from "@/app/lib/festivals/definitions";
+import {
+  isStandActivityFilter,
+  type StandActivityFilter,
+} from "@/app/lib/maps/stand-filters";
 import { cn } from "@/app/lib/utils";
 
 export type VisitorActivityParticipant = {
@@ -22,44 +31,6 @@ export type VisitorActivity = Pick<
   description: string;
   participants: VisitorActivityParticipant[];
 };
-
-type ActivityMarker = {
-  label: string;
-  symbol: string;
-  className: string;
-};
-
-function getActivityMarker(type: FestivalActivity["type"]): ActivityMarker {
-  if (type === "coupon_book") {
-    return {
-      label: "Cuponera",
-      symbol: "%",
-      className: "border-amber-200 bg-amber-50 text-amber-800",
-    };
-  }
-
-  if (type === "stamp_passport") {
-    return {
-      label: "Carrera de sellos",
-      symbol: "★",
-      className: "border-emerald-200 bg-emerald-50 text-emerald-800",
-    };
-  }
-
-  if (type === "sticker_hunt") {
-    return {
-      label: "Cacería de stickers",
-      symbol: "♦",
-      className: "border-pink-200 bg-pink-50 text-pink-800",
-    };
-  }
-
-  return {
-    label: "Actividad del festival",
-    symbol: "✦",
-    className: "border-primary-200 bg-primary-50 text-primary-800",
-  };
-}
 
 function ParticipantLink({
   marker,
@@ -97,7 +68,7 @@ function ParticipantLink({
         role="img"
         className={cn(
           "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-bold",
-          marker.className,
+          marker.softClassName,
         )}
         aria-label={marker.label}
       >
@@ -109,8 +80,11 @@ function ParticipantLink({
 
 export default function PublicFestivalActivities({
   activities,
+  onFilterByActivity,
 }: {
   activities: VisitorActivity[];
+  /** Given, the map link also narrows the map to this activity's stands. */
+  onFilterByActivity?: (activity: StandActivityFilter) => void;
 }) {
   if (activities.length === 0) return null;
 
@@ -130,33 +104,35 @@ export default function PublicFestivalActivities({
           const marker = getActivityMarker(activity.type);
           const visibleParticipants = activity.participants.slice(0, 6);
           const remainingParticipants = activity.participants.slice(6);
+          // Only offer to filter when the map has something to show: the type
+          // must be one the badges cover, and at least one participant must
+          // actually sit on a stand.
+          const filterableType =
+            isStandActivityFilter(activity.type) &&
+            activity.participants.some((participant) => participant.standLabel)
+              ? activity.type
+              : null;
 
           return (
             <article
               key={activity.id}
               className="overflow-hidden rounded-2xl border bg-card"
             >
-              <div className="grid gap-5 p-5 sm:grid-cols-[8rem_minmax(0,1fr)] sm:p-6">
-                <div className="relative aspect-square overflow-hidden rounded-xl bg-primary-50">
-                  {activity.promotionalArtUrl ? (
-                    <Image
-                      src={activity.promotionalArtUrl}
-                      alt=""
-                      fill
-                      sizes="128px"
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-primary-500">
-                      <SparklesIcon className="size-8" aria-hidden="true" />
-                    </div>
+              <div className="flex gap-4 p-5 sm:p-6">
+                <span
+                  className={cn(
+                    "flex size-11 shrink-0 items-center justify-center rounded-xl border",
+                    marker.softClassName,
                   )}
-                </div>
+                  aria-hidden="true"
+                >
+                  <marker.Icon className="size-5" />
+                </span>
 
                 <div className="min-w-0">
                   <Badge
                     variant="outline"
-                    className={cn("rounded-full", marker.className)}
+                    className={cn("rounded-full", marker.softClassName)}
                   >
                     <span className="mr-1.5 font-bold" aria-hidden="true">
                       {marker.symbol}
@@ -171,9 +147,16 @@ export default function PublicFestivalActivities({
                   </p>
                   <a
                     href="#mapa"
+                    onClick={
+                      filterableType && onFilterByActivity
+                        ? () => onFilterByActivity(filterableType)
+                        : undefined
+                    }
                     className="mt-4 inline-flex items-center text-sm font-semibold text-primary-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
-                    Ver marcadores en el mapa
+                    {filterableType && onFilterByActivity
+                      ? "Ver estos stands en el mapa"
+                      : "Ver marcadores en el mapa"}
                     <ArrowUpRightIcon
                       className="ml-1 size-4"
                       aria-hidden="true"

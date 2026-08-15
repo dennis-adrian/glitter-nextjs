@@ -20,15 +20,14 @@ import {
   indexJointGroupsByStandId,
   resolveJointGroups,
 } from "@/app/lib/stands/groups";
+import type { StandActivityUserIds } from "@/app/lib/maps/stand-filters";
 import { cn } from "@/app/lib/utils";
 
 type FestivalNavMapProps = {
   festivalName: string;
   sectors: FestivalSectorWithStandsWithReservationsWithParticipants[];
-  couponBookUserIds: number[];
+  activityUserIds: StandActivityUserIds;
   couponBookProofs: Record<number, CouponProof[]>;
-  passportUserIds: number[];
-  stickerHuntUserIds: number[];
   activityTypes: FestivalActivity["type"][];
   embedded?: boolean;
   showControls?: boolean;
@@ -45,10 +44,8 @@ type FestivalNavMapProps = {
 export default function FestivalNavMap({
   festivalName,
   sectors,
-  couponBookUserIds,
+  activityUserIds,
   couponBookProofs,
-  passportUserIds,
-  stickerHuntUserIds,
   activityTypes,
   embedded = false,
   showControls = true,
@@ -74,21 +71,6 @@ export default function FestivalNavMap({
   } | null>(null);
 
   const locateRequestId = useRef(0);
-
-  const couponBookUserIdSet = useMemo(
-    () => new Set(couponBookUserIds),
-    [couponBookUserIds],
-  );
-
-  const passportUserIdSet = useMemo(
-    () => new Set(passportUserIds),
-    [passportUserIds],
-  );
-
-  const stickerHuntUserIdSet = useMemo(
-    () => new Set(stickerHuntUserIds),
-    [stickerHuntUserIds],
-  );
 
   const searchEntries = useMemo<ParticipantSearchEntry[]>(
     () => buildParticipantSearchEntries(sectors),
@@ -269,9 +251,7 @@ export default function FestivalNavMap({
                     selectedStandId={mapSelectedStand?.id ?? null}
                     locateRequest={mapLocateRequest}
                     matchingStandIds={matchingStandIds}
-                    couponBookUserIdSet={couponBookUserIdSet}
-                    passportUserIdSet={passportUserIdSet}
-                    stickerHuntUserIdSet={stickerHuntUserIdSet}
+                    activityUserIds={activityUserIds}
                     sectorName={sector.name}
                     onStandSelect={handleStandSelect}
                   />
@@ -287,9 +267,7 @@ export default function FestivalNavMap({
               selectedStandId={mapSelectedStand?.id ?? null}
               locateRequest={mapLocateRequest}
               matchingStandIds={matchingStandIds}
-              couponBookUserIdSet={couponBookUserIdSet}
-              passportUserIdSet={passportUserIdSet}
-              stickerHuntUserIdSet={stickerHuntUserIdSet}
+              activityUserIds={activityUserIds}
               sectorName={activeSector.name}
               onStandSelect={handleStandSelect}
             />
@@ -313,8 +291,7 @@ export default function FestivalNavMap({
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         couponBookProofs={couponBookProofs}
-        passportUserIdSet={passportUserIdSet}
-        stickerHuntUserIdSet={stickerHuntUserIdSet}
+        activityUserIds={activityUserIds}
       />
     </div>
   );

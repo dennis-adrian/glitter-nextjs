@@ -2,6 +2,7 @@ import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import MapSurface from "@/app/components/maps/map-surface";
+import { DIMMED_COLORS, DIMMED_OPACITY } from "@/app/components/maps/map-utils";
 import type { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 
 afterEach(cleanup);
@@ -188,7 +189,13 @@ describe("MapSurface joint groups", () => {
       />,
     );
 
-    expect((standNodes(container)[0] as SVGGElement).style.opacity).toBe("0.2");
+    const dimmedNode = standNodes(container)[0] as SVGGElement;
+    expect(dimmedNode.style.opacity).toBe(String(DIMMED_OPACITY));
+    // The recessed look comes from the neutral palette, not from fading the
+    // status color — faded purple would read as an available stand.
+    expect(dimmedNode.querySelector("rect")?.getAttribute("fill")).toBe(
+      DIMMED_COLORS.fill,
+    );
     expect((groupNodes(container)[0] as SVGGElement).style.opacity).toBe("1");
   });
 });

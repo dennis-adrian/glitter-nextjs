@@ -43,15 +43,19 @@ function renderBadges(
     coupon?: number[];
     passport?: number[];
     stickerHunt?: number[];
+    festivalSticker?: number[];
   } = {},
 ) {
   const { container } = render(
     <svg>
       <FestivalNavStandBadges
         stands={stands}
-        couponBookUserIdSet={new Set(sets.coupon ?? [])}
-        passportUserIdSet={new Set(sets.passport ?? [])}
-        stickerHuntUserIdSet={new Set(sets.stickerHunt ?? [])}
+        activityUserIds={{
+          coupon_book: new Set(sets.coupon ?? []),
+          stamp_passport: new Set(sets.passport ?? []),
+          sticker_hunt: new Set(sets.stickerHunt ?? []),
+          festival_sticker: new Set(sets.festivalSticker ?? []),
+        }}
       />
     </svg>,
   );
@@ -126,9 +130,12 @@ describe("FestivalNavStandBadges", () => {
             stand(1, [7]),
             stand(2, [8], { positionLeft: 30, positionTop: 40 }),
           ]}
-          couponBookUserIdSet={new Set([7, 8])}
-          passportUserIdSet={new Set()}
-          stickerHuntUserIdSet={new Set()}
+          activityUserIds={{
+            coupon_book: new Set([7, 8]),
+            stamp_passport: new Set(),
+            sticker_hunt: new Set(),
+            festival_sticker: new Set(),
+          }}
         />
       </svg>,
     );

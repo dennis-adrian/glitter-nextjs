@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { BookOpen, Search, Stamp } from "lucide-react";
+import { BookOpen } from "lucide-react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { getStandMapParticipants } from "@/app/components/maps/map-participants";
@@ -15,6 +15,12 @@ import {
 } from "@/app/components/ui/drawer";
 import { socialsUrls, socialsIcons } from "@/app/lib/users/utils";
 import { formatStandsLabel, getStandsProducts } from "@/app/lib/stands/groups";
+import { getActivityMarker } from "@/app/lib/festivals/activity-markers";
+import {
+  STAND_ACTIVITY_FILTERS,
+  type StandActivityUserIds,
+} from "@/app/lib/maps/stand-filters";
+import { cn } from "@/app/lib/utils";
 
 export type CouponProof = {
   promoHighlight: string | null;
@@ -33,8 +39,7 @@ type FestivalNavStandDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   couponBookProofs: Record<number, CouponProof[]>;
-  passportUserIdSet: Set<number>;
-  stickerHuntUserIdSet: Set<number>;
+  activityUserIds: StandActivityUserIds;
 };
 
 function getCategoryLabel(category: string): string {
@@ -58,8 +63,7 @@ export default function FestivalNavStandDrawer({
   open,
   onOpenChange,
   couponBookProofs,
-  passportUserIdSet,
-  stickerHuntUserIdSet,
+  activityUserIds,
 }: FestivalNavStandDrawerProps) {
   const [activeTab, setActiveTab] = useState(0);
 
@@ -86,15 +90,16 @@ export default function FestivalNavStandDrawer({
       ? (couponBookProofs[currentParticipant.userId]?.[0] ?? null)
       : null;
 
-  const isInPassport =
+  // The coupon book gets its own section below, since it carries the promo
+  // details; every other marker is a plain "takes part in this" callout.
+  const participatingActivities =
     currentParticipant?.kind === "user" && currentParticipant.userId != null
-      ? passportUserIdSet.has(currentParticipant.userId)
-      : false;
-
-  const isInStickerHunt =
-    currentParticipant?.kind === "user" && currentParticipant.userId != null
-      ? stickerHuntUserIdSet.has(currentParticipant.userId)
-      : false;
+      ? STAND_ACTIVITY_FILTERS.filter(
+          (activity) =>
+            activity !== "coupon_book" &&
+            activityUserIds[activity].has(currentParticipant.userId!),
+        )
+      : [];
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} modal={false}>
@@ -210,29 +215,27 @@ export default function FestivalNavStandDrawer({
                     </div>
                   )}
 
-                  {/* Passport section */}
-                  {isInPassport && (
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                      <div className="flex items-center gap-2 text-emerald-700">
-                        <Stamp className="h-4 w-4 shrink-0" />
-                        <span className="text-xs font-semibold uppercase tracking-wide">
-                          Participa en la carrera de sellos
-                        </span>
-                      </div>
-                    </div>
-                  )}
+                  {/* Activity callouts */}
+                  {participatingActivities.map((activity) => {
+                    const marker = getActivityMarker(activity);
 
-                  {/* Sticker hunt section */}
-                  {isInStickerHunt && (
-                    <div className="rounded-lg border border-pink-200 bg-pink-50 p-3">
-                      <div className="flex items-center gap-2 text-pink-700">
-                        <Search className="h-4 w-4 shrink-0" />
-                        <span className="text-xs font-semibold uppercase tracking-wide">
-                          Participa en la cacería de stickers
-                        </span>
+                    return (
+                      <div
+                        key={activity}
+                        className={cn(
+                          "rounded-lg border p-3",
+                          marker.softClassName,
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <marker.Icon className="h-4 w-4 shrink-0" />
+                          <span className="text-xs font-semibold uppercase tracking-wide">
+                            {marker.participationLabel}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })}
 
                   {/* Products */}
                   {products.length > 0 && (
