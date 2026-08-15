@@ -91,11 +91,7 @@ export default function FestivalNavMap({
           candidate.stand.id === participantLocateRequest.standId,
       ) ?? null
     );
-  }, [
-    participantLocateRequest,
-    searchEntries,
-    suppressedExternalRequestId,
-  ]);
+  }, [participantLocateRequest, searchEntries, suppressedExternalRequestId]);
   const mapSelectedStand =
     !drawerOpen && externallyLocatedEntry
       ? externallyLocatedEntry.stand
@@ -155,9 +151,11 @@ export default function FestivalNavMap({
         requestId: locateRequestId.current,
       });
       setDrawerOpen(false);
-      setActiveSector(entry.sectorIndex);
+      // Same rule as the festival page: keep an all-sectors view intact and
+      // scroll to the right canvas, follow the hit from a single-sector tab.
+      if (activeSectorIndex !== -1) setActiveSector(entry.sectorIndex);
     },
-    [setActiveSector],
+    [activeSectorIndex, setActiveSector],
   );
 
   const handleSectorChange = useCallback(

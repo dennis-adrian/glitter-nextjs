@@ -214,7 +214,10 @@ export default function FestivalVisitorExplorer({
   function handleSearchSelect(entry: ParticipantSearchEntry) {
     locateRequestId.current += 1;
     setQuery(entry.displayName);
-    setActiveSectorIndex(entry.sectorIndex);
+    // Follow the hit only from a single-sector tab. Someone looking at every
+    // sector chose that view, and it is the one that shows where the stand
+    // sits relative to the rest of the venue.
+    if (activeSectorIndex !== -1) setActiveSectorIndex(entry.sectorIndex);
     setParticipantLocateRequest({
       userId: entry.userId,
       standId: entry.stand.id,
