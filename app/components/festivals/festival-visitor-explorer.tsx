@@ -211,6 +211,15 @@ export default function FestivalVisitorExplorer({
     query.trim().length > 0 ||
     category !== "all" ||
     hasActiveStandFilters(standFilters);
+  // Remount the grid when search/filters change so pagination starts at the
+  // first page. Sort stays inside the child, so reordering the same results
+  // does not wipe what the visitor already revealed.
+  const participantListKey = [
+    query,
+    category,
+    activeSectorIndex,
+    ...[...standFilters.activities].sort(),
+  ].join("|");
 
   function handleSearchSelect(entry: ParticipantSearchEntry) {
     locateRequestId.current += 1;
@@ -377,7 +386,10 @@ export default function FestivalVisitorExplorer({
           </p>
         </div>
 
-        <PublicFestivalParticipants participants={filteredParticipants} />
+        <PublicFestivalParticipants
+          key={participantListKey}
+          participants={filteredParticipants}
+        />
       </section>
 
       <div className="mt-16 sm:mt-20">

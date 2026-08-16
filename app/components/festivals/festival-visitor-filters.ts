@@ -55,31 +55,80 @@ export function filterFestivalParticipants({
 }) {
   const normalizedQuery = normalizeParticipantSearch(query.trim());
 
-  return [...participants]
-    .filter((participant) => {
-      if (category !== "all" && participant.category !== category) {
-        return false;
-      }
-      // No sector scope (all-sectors / -1) keeps participants with empty stands.
-      if (sectorStandIds) {
-        const hasStandInSector = participant.stands.some((stand) =>
-          sectorStandIds.has(stand.id),
-        );
-        if (!hasStandInSector) return false;
-      }
-      if (
-        activityUserIds &&
-        !matchesStandActivityFilters(
-          participant.id,
-          activities,
-          activityUserIds,
-        )
-      ) {
-        return false;
-      }
-      return participantMatchesQuery(participant, normalizedQuery);
-    })
-    .sort((a, b) => a.displayName.localeCompare(b.displayName, "es"));
+  return [...participants].filter((participant) => {
+    if (category !== "all" && participant.category !== category) {
+      return false;
+    }
+    // No sector scope (all-sectors / -1) keeps participants with empty stands.
+    if (sectorStandIds) {
+      const hasStandInSector = participant.stands.some((stand) =>
+        sectorStandIds.has(stand.id),
+      );
+      if (!hasStandInSector) return false;
+    }
+    if (
+      activityUserIds &&
+      !matchesStandActivityFilters(participant.id, activities, activityUserIds)
+    ) {
+      return false;
+    }
+    return participantMatchesQuery(participant, normalizedQuery);
+  });
+}
+
+export type ParticipantSort = "stand" | "name";
+
+function compareStands(
+  a: PublicFestivalParticipant["stands"][number],
+  b: PublicFestivalParticipant["stands"][number],
+) {
+  // Same convention as formatStandLabel: a stand with no letter is just its
+  // number, so it sorts ahead of every lettered one.
+  return (
+    (a.label ?? "").localeCompare(b.label ?? "", "es") ||
+    a.standNumber - b.standNumber
+  );
+}
+
+/**
+ * A participant can hold several stands; the earliest one places them, so
+ * someone walking the aisles in order meets them where the list says.
+ */
+function firstStand(participant: PublicFestivalParticipant) {
+  return [...participant.stands].sort(compareStands)[0];
+}
+
+function compareByName(
+  a: PublicFestivalParticipant,
+  b: PublicFestivalParticipant,
+) {
+  return a.displayName.localeCompare(b.displayName, "es");
+}
+
+function compareByStand(
+  a: PublicFestivalParticipant,
+  b: PublicFestivalParticipant,
+) {
+  const aStand = firstStand(a);
+  const bStand = firstStand(b);
+
+  // Anyone without a stand yet sorts last rather than ahead of stand A1.
+  if (!aStand || !bStand) {
+    if (aStand) return -1;
+    if (bStand) return 1;
+    return compareByName(a, b);
+  }
+
+  return compareStands(aStand, bStand) || compareByName(a, b);
+}
+
+export function sortFestivalParticipants(
+  participants: PublicFestivalParticipant[],
+  sort: ParticipantSort,
+): PublicFestivalParticipant[] {
+  return [...participants].sort(
+    sort === "name" ? compareByName : compareByStand,
+  );
 }
 
 export function participantSearchEntryMatchesFilters(

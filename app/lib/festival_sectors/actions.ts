@@ -405,6 +405,123 @@ export async function fetchConfirmedProfilesByFestivalId(
   }
 }
 
+/**
+ * The public festival page's participant list, already shaped for its cards.
+ *
+ * Deliberately narrow. The cards need a name, a picture, a category, the stands
+ * and two booleans, so that is what the query returns — where whole profiles
+ * with their whole participation history ran to megabytes on a festival with
+ * 200 participants, and carried contact details the page never shows.
+ */
+export async function fetchPublicFestivalParticipants(
+  festivalId: number,
+): Promise<PublicFestivalParticipant[]> {
+  try {
+    // Reservations still hidden from participants stay out of both queries, so
+    // an unrevealed stand cannot name its occupant.
+    const isRevealed = or(
+      isNull(standReservations.revealAt),
+      lte(standReservations.revealAt, new Date()),
+    );
+
+    const rows = await db
+      .select({
+        userId: users.id,
+        displayName: users.displayName,
+        imageUrl: users.imageUrl,
+        category: users.category,
+        hasStamp: reservationParticipants.hasStamp,
+        standId: stands.id,
+        standLabel: stands.label,
+        standNumber: stands.standNumber,
+      })
+      .from(reservationParticipants)
+      .innerJoin(
+        standReservations,
+        eq(standReservations.id, reservationParticipants.reservationId),
+      )
+      .innerJoin(stands, eq(stands.id, standReservations.standId))
+      .innerJoin(users, eq(users.id, reservationParticipants.userId))
+      .where(
+        and(
+          eq(standReservations.festivalId, festivalId),
+          eq(standReservations.status, "accepted"),
+          isRevealed,
+        ),
+      );
+
+    if (rows.length === 0) return [];
+
+    // "New" is a property of the whole profile, so this spans every festival —
+    // but the badge only asks how many confirmed participations there are, not
+    // what they were.
+    const confirmedCounts = await db
+      .select({
+        userId: reservationParticipants.userId,
+        confirmed: count(),
+      })
+      .from(reservationParticipants)
+      .innerJoin(
+        standReservations,
+        eq(standReservations.id, reservationParticipants.reservationId),
+      )
+      .where(
+        and(
+          inArray(
+            reservationParticipants.userId,
+            Array.from(new Set(rows.map((row) => row.userId))),
+          ),
+          eq(standReservations.status, "accepted"),
+          isRevealed,
+        ),
+      )
+      .groupBy(reservationParticipants.userId);
+
+    const confirmedByUserId = new Map(
+      confirmedCounts.map((row) => [row.userId, row.confirmed]),
+    );
+    const participantsByUserId = new Map<number, PublicFestivalParticipant>();
+
+    // One row per stand a participant holds, so the rows fold into participants.
+    for (const row of rows) {
+      let participant = participantsByUserId.get(row.userId);
+
+      if (!participant) {
+        participant = {
+          id: row.userId,
+          displayName: row.displayName || "Participante",
+          imageUrl: row.imageUrl,
+          category: row.category,
+          stands: [],
+          hasStamp: false,
+          isNew: isNewParticipationCount(
+            confirmedByUserId.get(row.userId) ?? 0,
+          ),
+        };
+        participantsByUserId.set(row.userId, participant);
+      }
+
+      if (row.hasStamp) participant.hasStamp = true;
+      if (!participant.stands.some((stand) => stand.id === row.standId)) {
+        participant.stands.push({
+          id: row.standId,
+          label: row.standLabel,
+          standNumber: row.standNumber,
+        });
+      }
+    }
+
+    for (const participant of participantsByUserId.values()) {
+      participant.stands.sort((a, b) => a.standNumber - b.standNumber);
+    }
+
+    return Array.from(participantsByUserId.values());
+  } catch (error) {
+    console.error("Error fetching public festival participants", error);
+    return [];
+  }
+}
+
 export async function fetchFullFestivalById(
   festivalId: number,
 ): Promise<FullFestival | undefined | null> {

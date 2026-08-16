@@ -4,6 +4,7 @@ import {
   filterFestivalParticipants,
   getMatchingStandIds,
   participantSearchEntryMatchesFilters,
+  sortFestivalParticipants,
 } from "@/app/components/festivals/festival-visitor-filters";
 import type { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import { EMPTY_STAND_FILTERS } from "@/app/lib/maps/stand-filters";
@@ -77,7 +78,7 @@ describe("festival visitor filters", () => {
         query: "",
         category: "all",
       }).map((participant) => participant.id),
-    ).toEqual([2, 3, 1, 4]);
+    ).toEqual([1, 2, 3, 4]);
 
     expect(
       filterFestivalParticipants({
@@ -272,6 +273,78 @@ describe("filterFestivalParticipants activity filter", () => {
         activities: [],
         activityUserIds,
       }).map((participant) => participant.id),
+    ).toEqual([1, 2, 3]);
+  });
+});
+
+describe("sortFestivalParticipants", () => {
+  it("orders by stand label then number by default", () => {
+    expect(
+      sortFestivalParticipants(participants, "stand").map((p) => p.id),
+    ).toEqual([1, 2, 3]);
+  });
+
+  it("orders by name when asked", () => {
+    expect(
+      sortFestivalParticipants(participants, "name").map((p) => p.id),
     ).toEqual([2, 3, 1]);
+  });
+
+  it("compares stand numbers numerically, not as text", () => {
+    const numbered = [
+      {
+        ...participants[0],
+        id: 10,
+        stands: [{ id: 1, label: "A", standNumber: 10 }],
+      },
+      {
+        ...participants[0],
+        id: 2,
+        stands: [{ id: 2, label: "A", standNumber: 2 }],
+      },
+    ];
+
+    expect(
+      sortFestivalParticipants(numbered, "stand").map((p) => p.id),
+    ).toEqual([2, 10]);
+  });
+
+  it("places a participant by their earliest stand", () => {
+    const spread = [
+      {
+        ...participants[0],
+        id: 1,
+        stands: [
+          { id: 1, label: "C", standNumber: 1 },
+          { id: 2, label: "A", standNumber: 9 },
+        ],
+      },
+      {
+        ...participants[1],
+        id: 2,
+        stands: [{ id: 3, label: "B", standNumber: 1 }],
+      },
+    ];
+
+    expect(sortFestivalParticipants(spread, "stand").map((p) => p.id)).toEqual([
+      1, 2,
+    ]);
+  });
+
+  it("sorts participants without a stand last", () => {
+    const withoutStand = [
+      { ...participants[0], id: 99, stands: [] },
+      { ...participants[1], id: 2 },
+    ];
+
+    expect(
+      sortFestivalParticipants(withoutStand, "stand").map((p) => p.id),
+    ).toEqual([2, 99]);
+  });
+
+  it("leaves the given array untouched", () => {
+    const original = [...participants];
+    sortFestivalParticipants(participants, "name");
+    expect(participants).toEqual(original);
   });
 });

@@ -2,11 +2,10 @@ import { getStandMapParticipants } from "@/app/components/maps/map-participants"
 import type { CouponProof } from "@/app/components/maps/festival-nav/festival-nav-stand-drawer";
 import type { VisitorActivity } from "@/app/components/festivals/public-festival-activities";
 import FestivalVisitorExplorer from "@/app/components/festivals/festival-visitor-explorer";
-import { toPublicFestivalParticipant } from "@/app/components/festivals/participant-info";
 import type { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 import {
-  fetchConfirmedProfilesByFestivalId,
   fetchFestivalSectors,
+  fetchPublicFestivalParticipants,
 } from "@/app/lib/festival_sectors/actions";
 import { fetchFestivalActivitiesByFestivalId } from "@/app/lib/festivals/actions";
 import type { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
@@ -111,16 +110,13 @@ export default async function FestivalVisitorDiscovery({
   festivalId: number;
   festivalName: string;
 }) {
-  const [rawSectors, activities, participants] = await Promise.all([
+  const [rawSectors, activities, publicParticipants] = await Promise.all([
     fetchFestivalSectors(festivalId),
     fetchFestivalActivitiesByFestivalId(festivalId),
-    fetchConfirmedProfilesByFestivalId(festivalId),
+    fetchPublicFestivalParticipants(festivalId),
   ]);
   const sectors = toPublicMapSectors(
     stripHiddenReservationsFromSectors(rawSectors),
-  );
-  const publicParticipants = participants.map((participant) =>
-    toPublicFestivalParticipant(participant, festivalId),
   );
   const publicActivities = activities.filter(
     (activity) => activity.accessLevel === "public",

@@ -212,10 +212,9 @@ export default function FestivalPageHero({
               {primaryHref && primaryLabel ? (
                 <>
                   <p className="mt-2 text-sm leading-5 text-muted-foreground">
-                    Registrate y recibí tu entrada virtual para presentar al
-                    ingresar.
+                    Registrate y recibí tu entrada para presentar al ingresar
                   </p>
-                  <Button asChild className="mt-4 hidden w-full md:inline-flex">
+                  <Button asChild className="mt-4 w-full">
                     <Link href={primaryHref}>{primaryLabel}</Link>
                   </Button>
                 </>
@@ -223,24 +222,13 @@ export default function FestivalPageHero({
                 <p className="mt-2 text-sm leading-5 text-muted-foreground">
                   {festival.eventDayRegistration
                     ? "El registro se realizará al llegar al festival."
-                    : "La reserva anticipada no está habilitada."}
+                    : "No hay entradas habilitadas"}
                 </p>
               )}
             </div>
           </div>
         </div>
       </section>
-
-      {primaryHref && primaryLabel ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 p-3 backdrop-blur md:hidden">
-          <Button asChild className="h-12 w-full text-base">
-            <Link href={primaryHref}>
-              <TicketIcon className="mr-2 size-4" aria-hidden="true" />
-              {primaryLabel}
-            </Link>
-          </Button>
-        </div>
-      ) : null}
     </>
   );
 }

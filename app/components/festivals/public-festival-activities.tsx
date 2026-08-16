@@ -4,11 +4,7 @@ import { ArrowUpRightIcon, MapPinIcon } from "lucide-react";
 import Link from "next/link";
 
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
-import { Badge } from "@/app/components/ui/badge";
-import {
-  getActivityMarker,
-  type ActivityMarker,
-} from "@/app/lib/festivals/activity-markers";
+import { getActivityMarker } from "@/app/lib/festivals/activity-markers";
 import type { FestivalActivity } from "@/app/lib/festivals/definitions";
 import {
   isStandActivityFilter,
@@ -33,10 +29,8 @@ export type VisitorActivity = Pick<
 };
 
 function ParticipantLink({
-  marker,
   participant,
 }: {
-  marker: ActivityMarker;
   participant: VisitorActivityParticipant;
 }) {
   const stand = participant.standLabel
@@ -64,16 +58,6 @@ function ParticipantLink({
           {stand}
           {participant.sectorName ? ` · ${participant.sectorName}` : ""}
         </span>
-      </span>
-      <span
-        role="img"
-        className={cn(
-          "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-bold",
-          marker.softClassName,
-        )}
-        aria-label={marker.label}
-      >
-        {marker.symbol}
       </span>
     </Link>
   );
@@ -119,31 +103,22 @@ export default function PublicFestivalActivities({
               key={activity.id}
               className="overflow-hidden rounded-2xl border bg-card"
             >
-              <div className="flex gap-4 p-5 sm:p-6">
+              <div className="flex gap-3 p-4 sm:p-5">
                 <span
                   className={cn(
-                    "flex size-11 shrink-0 items-center justify-center rounded-xl border",
+                    "flex size-9 shrink-0 items-center justify-center rounded-lg border",
                     marker.softClassName,
                   )}
                   aria-hidden="true"
                 >
-                  <marker.Icon className="size-5" />
+                  <marker.Icon className="size-4" />
                 </span>
 
                 <div className="min-w-0">
-                  <Badge
-                    variant="outline"
-                    className={cn("rounded-full", marker.softClassName)}
-                  >
-                    <span className="mr-1.5 font-bold" aria-hidden="true">
-                      {marker.symbol}
-                    </span>
-                    {marker.label}
-                  </Badge>
-                  <h3 className="mt-3 font-space-grotesk text-2xl font-bold leading-tight">
+                  <h3 className="font-space-grotesk text-lg font-bold leading-tight">
                     {activity.name}
                   </h3>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                  <p className="mt-1.5 max-w-3xl text-sm leading-6 text-muted-foreground">
                     {activity.description}
                   </p>
                   <a
@@ -153,11 +128,11 @@ export default function PublicFestivalActivities({
                         ? () => onFilterByActivity(filterableType)
                         : undefined
                     }
-                    className="mt-4 inline-flex items-center text-sm font-semibold text-primary-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="mt-3 inline-flex items-center text-sm font-semibold text-primary-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     {filterableType && onFilterByActivity
-                      ? "Ver estos stands en el mapa"
-                      : "Ver marcadores en el mapa"}
+                      ? "Ver participantes en el mapa"
+                      : "Ver mapa"}
                     <ArrowUpRightIcon
                       className="ml-1 size-4"
                       aria-hidden="true"
@@ -166,9 +141,9 @@ export default function PublicFestivalActivities({
                 </div>
               </div>
 
-              <div className="border-t bg-muted/20 p-5 sm:p-6">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <h4 className="font-semibold">
+              <div className="border-t bg-muted/20 p-4 sm:p-5">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h4 className="text-sm font-semibold">
                     {activity.participants.length === 1
                       ? "1 participante confirmado"
                       : `${activity.participants.length} participantes confirmados`}
@@ -186,7 +161,6 @@ export default function PublicFestivalActivities({
                       {visibleParticipants.map((participant) => (
                         <ParticipantLink
                           key={participant.id}
-                          marker={marker}
                           participant={participant}
                         />
                       ))}
@@ -206,7 +180,6 @@ export default function PublicFestivalActivities({
                           {remainingParticipants.map((participant) => (
                             <ParticipantLink
                               key={participant.id}
-                              marker={marker}
                               participant={participant}
                             />
                           ))}

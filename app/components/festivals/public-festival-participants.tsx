@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 
+import {
+  sortFestivalParticipants,
+  type ParticipantSort,
+} from "@/app/components/festivals/festival-visitor-filters";
 import ParticipantInfo, {
   type PublicFestivalParticipant,
 } from "@/app/components/festivals/participant-info";
+import ParticipantSortToggle from "@/app/components/festivals/participant-sort-toggle";
 import { Button } from "@/app/components/ui/button";
 
 const PAGE_SIZE = 10;
@@ -15,23 +20,31 @@ export default function PublicFestivalParticipants({
   participants: PublicFestivalParticipant[];
 }) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  // Stand order by default: it matches the route someone walks the festival in.
+  const [sort, setSort] = useState<ParticipantSort>("stand");
 
-  // A new list means new results: start them from the top rather than leaving
-  // the reader deep inside a page count they built up under other filters.
-  useEffect(() => setVisibleCount(PAGE_SIZE), [participants]);
-
-  const visibleParticipants = participants.slice(0, visibleCount);
-  const remaining = participants.length - visibleParticipants.length;
+  const sortedParticipants = useMemo(
+    () => sortFestivalParticipants(participants, sort),
+    [participants, sort],
+  );
+  const visibleParticipants = sortedParticipants.slice(0, visibleCount);
+  const remaining = sortedParticipants.length - visibleParticipants.length;
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground" aria-live="polite">
-        {remaining > 0
-          ? `Mostrando ${visibleParticipants.length} de ${participants.length} participantes`
-          : `${participants.length} ${
-              participants.length === 1 ? "participante" : "participantes"
-            }`}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground" aria-live="polite">
+          {remaining > 0
+            ? `Mostrando ${visibleParticipants.length} de ${participants.length} participantes`
+            : `${participants.length} ${
+                participants.length === 1 ? "participante" : "participantes"
+              }`}
+        </p>
+
+        {participants.length > 1 ? (
+          <ParticipantSortToggle value={sort} onChange={setSort} />
+        ) : null}
+      </div>
 
       {participants.length > 0 ? (
         <>
