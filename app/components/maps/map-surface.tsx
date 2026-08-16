@@ -108,10 +108,9 @@ export default function MapSurface({
         ),
       )}
       {jointGroups.map((group) => {
-        const selectedGroupStand = group.stands.find(
-          (stand) =>
-            stand.id === highlightedStandId || stand.id === selectedStandId,
-        );
+        const selectedGroupStand =
+          group.stands.find((stand) => stand.id === highlightedStandId) ??
+          group.stands.find((stand) => stand.id === selectedStandId);
 
         return (
           <MapStandGroup

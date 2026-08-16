@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildParticipantSearchEntries,
   fieldMatchesQuery,
   fieldSimilarity,
   normalizeParticipantSearch,
@@ -8,6 +9,7 @@ import {
   trigramSimilarity,
   type ParticipantSearchEntry,
 } from "@/app/components/maps/festival-nav/festival-nav-participant-search";
+import type { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
 
 function entry(
   displayName: string,
@@ -174,5 +176,90 @@ describe("rankParticipantSearchEntries", () => {
     );
 
     expect(rankParticipantSearchEntries(crowd, "ana")).toHaveLength(30);
+  });
+});
+
+function searchSector(reservations: unknown[]) {
+  return [
+    {
+      name: "Lobby",
+      stands: [
+        {
+          status: "confirmed",
+          label: "A",
+          standNumber: 1,
+          reservations,
+        },
+      ],
+    },
+  ] as unknown as FestivalSectorWithStandsWithReservationsWithParticipants[];
+}
+
+function searchParticipant(userId: number, displayName: string | null) {
+  return {
+    user: {
+      id: userId,
+      displayName,
+      imageUrl: null,
+      category: "illustration",
+    },
+  };
+}
+
+describe("buildParticipantSearchEntries", () => {
+  it("includes only accepted reservations that are currently revealed", () => {
+    const future = new Date(Date.now() + 60_000);
+    const past = new Date(Date.now() - 60_000);
+    const entries = buildParticipantSearchEntries(
+      searchSector([
+        {
+          status: "accepted",
+          revealAt: null,
+          participants: [searchParticipant(1, "Visible")],
+        },
+        {
+          status: "accepted",
+          revealAt: past,
+          participants: [searchParticipant(2, "Already revealed")],
+        },
+        {
+          status: "accepted",
+          revealAt: future,
+          participants: [searchParticipant(3, "Hidden")],
+        },
+        {
+          status: "pending",
+          revealAt: null,
+          participants: [searchParticipant(4, "Pending")],
+        },
+        {
+          status: "rejected",
+          revealAt: null,
+          participants: [searchParticipant(5, "Rejected")],
+        },
+      ]),
+    );
+
+    expect(entries.map((entry) => entry.displayName)).toEqual([
+      "Visible",
+      "Already revealed",
+    ]);
+  });
+
+  it("skips participants without a display name", () => {
+    const entries = buildParticipantSearchEntries(
+      searchSector([
+        {
+          status: "accepted",
+          revealAt: null,
+          participants: [
+            searchParticipant(1, null),
+            searchParticipant(2, "Named"),
+          ],
+        },
+      ]),
+    );
+
+    expect(entries.map((entry) => entry.displayName)).toEqual(["Named"]);
   });
 });

@@ -3,16 +3,17 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import FestivalNavStandBadges from "@/app/components/maps/festival-nav/festival-nav-stand-badges";
 import type { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
+import { STAND_SIZE } from "@/app/components/maps/map-utils";
 
 afterEach(cleanup);
 
 /**
  * Badges stack right to left from the stand's top-right corner, so the x
- * positions asserted below are STAND_SIZE - 0.8 minus 2 per preceding badge.
+ * positions asserted below are STAND_SIZE - 1.2 minus 1.2 per preceding badge.
  */
-const FIRST_SLOT = 5.2;
-const SECOND_SLOT = 3.2;
-const THIRD_SLOT = 1.2;
+const FIRST_SLOT = 4.8;
+const SECOND_SLOT = 3.6;
+const THIRD_SLOT = 2.4;
 
 function stand(
   id: number,
@@ -96,6 +97,23 @@ describe("FestivalNavStandBadges", () => {
       { glyph: "★", x: SECOND_SLOT },
       { glyph: "♦", x: THIRD_SLOT },
     ]);
+  });
+
+  it("keeps four activity badges within the stand", () => {
+    const badges = renderBadges([stand(1, [7])], {
+      coupon: [7],
+      passport: [7],
+      stickerHunt: [7],
+      festivalSticker: [7],
+    });
+
+    expect(badges.map((badge) => badge.glyph)).toEqual(["%", "★", "♦", "✦"]);
+    expect(Math.min(...badges.map((badge) => badge.x))).toBeGreaterThanOrEqual(
+      0,
+    );
+    expect(Math.max(...badges.map((badge) => badge.x))).toBeLessThanOrEqual(
+      STAND_SIZE,
+    );
   });
 
   it("closes the gap when a middle activity is missing", () => {

@@ -242,7 +242,7 @@ export async function fetchFestivalSectorsByUserCategory(
 
       if (sectorIds.length === 0) return [];
 
-      return await db.query.festivalSectors.findMany({
+      const sectors = await db.query.festivalSectors.findMany({
         where: inArray(
           festivalSectors.id,
           sectorIds.map((sector) => sector.id),
@@ -276,6 +276,13 @@ export async function fetchFestivalSectorsByUserCategory(
           mapElements: true,
         },
       });
+
+      try {
+        return await attachProfileSubcategories(sectors);
+      } catch (error) {
+        console.error("Error attaching profile subcategories", error);
+        return sectors;
+      }
     });
   } catch (error) {
     console.error("Error fetching festival sectors", error);

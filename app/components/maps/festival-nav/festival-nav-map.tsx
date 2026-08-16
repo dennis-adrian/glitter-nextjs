@@ -131,12 +131,17 @@ export default function FestivalNavMap({
     !drawerOpen && externallyLocatedEntry
       ? externallyLocatedEntry.stand
       : selectedStand;
-  const mapLocateRequest = externallyLocatedEntry
-    ? {
-        standId: externallyLocatedEntry.stand.id,
-        requestId: participantLocateRequest!.requestId,
+  const mapLocateRequest =
+    useMemo(() => {
+      if (!externallyLocatedEntry || !participantLocateRequest) {
+        return null;
       }
-    : locateRequest;
+
+      return {
+        standId: externallyLocatedEntry.stand.id,
+        requestId: participantLocateRequest.requestId,
+      };
+    }, [externallyLocatedEntry, participantLocateRequest]) ?? locateRequest;
 
   const setActiveSector = useCallback(
     (sectorIndex: number) => {

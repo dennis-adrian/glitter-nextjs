@@ -17,7 +17,8 @@ type FestivalNavStandBadgesProps = {
 };
 
 const BADGE_RADIUS = 1.3;
-const BADGE_SPACING = 2;
+const BADGE_SPACING = 1.2;
+const BADGE_INSET = 1.2;
 
 /**
  * Activity markers painted on top of the stands. Badges stack right to left so
@@ -54,7 +55,7 @@ export default function FestivalNavStandBadges({
           >
             {badges.map((activity, index) => {
               const marker = getActivityMarker(activity);
-              const cx = STAND_SIZE - 0.8 - index * BADGE_SPACING;
+              const cx = STAND_SIZE - BADGE_INSET - index * BADGE_SPACING;
 
               return (
                 <g key={activity}>

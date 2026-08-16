@@ -92,4 +92,19 @@ describe("getStandMapParticipants", () => {
       ),
     ).toEqual([]);
   });
+
+  it("maps nested profile subcategory labels", () => {
+    const reservation = userReservation();
+    reservation.participants[0].user = {
+      ...reservation.participants[0].user,
+      profileSubcategories: [
+        { subcategory: { label: "Stickers" } },
+        { subcategory: { label: "Prints" } },
+      ],
+    };
+
+    const [participant] = getStandMapParticipants(stand([reservation]));
+
+    expect(participant.subcategories).toEqual(["Stickers", "Prints"]);
+  });
 });

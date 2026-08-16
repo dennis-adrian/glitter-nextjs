@@ -1,5 +1,4 @@
 import { getStandMapParticipants } from "@/app/components/maps/map-participants";
-import type { CouponProof } from "@/app/components/maps/festival-nav/festival-nav-stand-drawer";
 import type { VisitorActivity } from "@/app/components/festivals/public-festival-activities";
 import FestivalVisitorExplorer from "@/app/components/festivals/festival-visitor-explorer";
 import type { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
@@ -8,74 +7,12 @@ import {
   fetchPublicFestivalParticipants,
 } from "@/app/lib/festival_sectors/actions";
 import { fetchFestivalActivitiesByFestivalId } from "@/app/lib/festivals/actions";
-import type { FestivalActivityWithDetailsAndParticipants } from "@/app/lib/festivals/definitions";
 import {
-  emptyStandActivityUserIds,
-  isStandActivityFilter,
-} from "@/app/lib/maps/stand-filters";
+  getMapActivityData,
+  getVisibleActivityParticipants,
+} from "@/app/lib/maps/activity-data";
 import { stripHiddenReservationsFromSectors } from "@/app/lib/reservations/reveal";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
-
-function requiresApprovedProof(
-  activity: FestivalActivityWithDetailsAndParticipants,
-) {
-  // Every marked activity is proof-gated: a badge claims the participant
-  // actually completed it, not merely that they signed up.
-  return isStandActivityFilter(activity.type);
-}
-
-function getVisibleActivityParticipants(
-  activity: FestivalActivityWithDetailsAndParticipants,
-) {
-  const participants = activity.details.flatMap(
-    (detail) => detail.participants,
-  );
-
-  return participants.filter((participant) => {
-    if (participant.removedAt != null) return false;
-    if (!requiresApprovedProof(activity)) return true;
-
-    return participant.proofs.some((proof) => proof.proofStatus === "approved");
-  });
-}
-
-function getMapActivityData(
-  activities: FestivalActivityWithDetailsAndParticipants[],
-) {
-  const activityUserIds = emptyStandActivityUserIds();
-  const couponBookProofs: Record<number, CouponProof[]> = {};
-
-  for (const activity of activities) {
-    if (!isStandActivityFilter(activity.type)) continue;
-
-    for (const participant of getVisibleActivityParticipants(activity)) {
-      activityUserIds[activity.type].add(participant.userId);
-
-      if (activity.type === "coupon_book") {
-        const approvedProofs = participant.proofs.filter(
-          (proof) => proof.proofStatus === "approved",
-        );
-
-        couponBookProofs[participant.userId] ??= [];
-        couponBookProofs[participant.userId].push(
-          ...approvedProofs.map((proof) => ({
-            promoHighlight: proof.promoHighlight,
-            promoDescription: proof.promoDescription,
-            promoConditions: proof.promoConditions,
-          })),
-        );
-      }
-    }
-  }
-
-  return {
-    activityUserIds,
-    couponBookProofs,
-    activityTypes: Array.from(
-      new Set(activities.map((activity) => activity.type)),
-    ),
-  };
-}
 
 function toPublicMapSectors(
   sectors: FestivalSectorWithStandsWithReservationsWithParticipants[],

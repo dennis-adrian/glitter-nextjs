@@ -1,6 +1,7 @@
 import type { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import type { UserCategory } from "@/app/api/users/definitions";
 import type { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
+import { isReservationHidden } from "@/app/lib/reservations/reveal";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 
 export type ParticipantSearchEntry = {
@@ -128,7 +129,11 @@ export function buildParticipantSearchEntries(
       const standLabel = formatStandLabel(stand);
 
       stand.reservations
-        .filter((reservation) => reservation.status !== "rejected")
+        .filter(
+          (reservation) =>
+            reservation.status === "accepted" &&
+            !isReservationHidden(reservation),
+        )
         .flatMap((reservation) => reservation.participants)
         .forEach((participant) => {
           if (!participant.user.displayName) return;
