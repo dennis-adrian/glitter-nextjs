@@ -18,6 +18,7 @@ function userReservation() {
             { id: 1, type: "instagram", username: "garabatosdepandora" },
             { id: 2, type: "facebook", username: "garabatosdepandora" },
           ],
+          profileSubcategories: [] as { subcategory: { label: string } }[],
         },
       },
     ],

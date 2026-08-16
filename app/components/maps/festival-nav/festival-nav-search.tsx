@@ -75,6 +75,46 @@ export default function FestivalNavSearch({
     inputRef.current?.focus();
   }
 
+  /**
+   * Focusing the field lifts the controls bar to where it sticks, so the
+   * results open into the screen above the mobile keyboard rather than the
+   * strip left between the field and it.
+   *
+   * The bar is the parent's, not this component's, so it is found by its
+   * `position` rather than passed in — both callers wrap the field in one.
+   */
+  function scrollFieldIntoPlace() {
+    const input = inputRef.current;
+    if (!input) return;
+
+    let sticky = input.parentElement;
+    while (sticky && window.getComputedStyle(sticky).position !== "sticky") {
+      sticky = sticky.parentElement;
+    }
+    if (!sticky) return;
+
+    // Where the field lands once the bar is pinned: the bar's own offset, plus
+    // however far into the bar the field sits.
+    const stickyTop = Number.parseFloat(window.getComputedStyle(sticky).top);
+    const fieldTop = input.getBoundingClientRect().top;
+    const restingTop =
+      (Number.isNaN(stickyTop) ? 0 : stickyTop) +
+      (fieldTop - sticky.getBoundingClientRect().top);
+    const distance = fieldTop - restingTop;
+
+    // Already pinned: the bar has nowhere higher to go, so leave the scroll be.
+    if (distance <= 1) return;
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    window.scrollBy({
+      top: distance,
+      behavior: reduceMotion ? "auto" : "smooth",
+    });
+  }
+
   function handleWrapperBlur(event: React.FocusEvent<HTMLDivElement>) {
     const nextTarget = event.relatedTarget as Node | null;
     if (!nextTarget || !wrapperRef.current?.contains(nextTarget)) {
@@ -100,7 +140,10 @@ export default function FestivalNavSearch({
             setQuery(e.target.value);
             setOpen(true);
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            setOpen(true);
+            scrollFieldIntoPlace();
+          }}
           className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-10 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
         />
         {query.length > 0 ? (
