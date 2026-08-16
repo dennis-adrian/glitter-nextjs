@@ -117,6 +117,9 @@ function StockCell({ product }: { product: BaseProductWithImages }) {
 
   if (editing) {
     return (
+      // text-base at every width: iOS Safari zooms the page in, and does not
+      // zoom back out, when it focuses a control with text under 16px. A phone
+      // in landscape is already past `sm`, so the breakpoint is no guard.
       <Input
         ref={inputRef}
         type="number"
@@ -131,7 +134,7 @@ function StockCell({ product }: { product: BaseProductWithImages }) {
             setEditing(false);
           }
         }}
-        className="h-7 w-16 px-2 text-sm"
+        className="h-7 w-16 px-2 py-0 text-base"
         disabled={loading}
       />
     );

@@ -470,9 +470,13 @@ export default function FestivalActivityForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tipo de material</FormLabel>
+                  {/* text-base at every width: iOS Safari zooms the page in, and
+                      does not zoom back out, when it focuses a control with
+                      text under 16px. A phone in landscape is already past
+                      `sm`, so the breakpoint is no guard. */}
                   <FormControl>
                     <select
-                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                       value={field.value ?? ""}
                       onChange={(e) =>
                         field.onChange(
@@ -841,7 +845,7 @@ function VariantSection({
             </FormDescription>
             <FormControl>
               <select
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 value={field.value ?? ""}
                 onChange={(e) =>
                   field.onChange(e.target.value === "" ? null : e.target.value)

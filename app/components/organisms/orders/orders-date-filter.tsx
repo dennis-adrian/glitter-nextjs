@@ -99,12 +99,16 @@ export default function OrdersDateFilter({
 
       {showInputs && (
         <div className="flex items-center gap-2">
+          {/* text-base at every width: iOS Safari zooms the page in, and does
+              not zoom back out, when it focuses a control with text under 16px.
+              A phone in landscape is already past `sm`, so the breakpoint is no
+              guard. */}
           <Input
             type="date"
             value={dateFrom}
             max={dateTo || undefined}
             onChange={(e) => onFromChange(e.target.value)}
-            className="h-8 text-xs"
+            className="h-8 py-0 text-base"
             aria-label="Desde"
           />
           <span className="text-xs text-muted-foreground shrink-0">—</span>
@@ -113,7 +117,7 @@ export default function OrdersDateFilter({
             value={dateTo}
             min={dateFrom || undefined}
             onChange={(e) => onToChange(e.target.value)}
-            className="h-8 text-xs"
+            className="h-8 py-0 text-base"
             aria-label="Hasta"
           />
         </div>
