@@ -40,6 +40,8 @@ import {
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
+type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 /**
  * Loaded separately rather than nested in the sector query: Postgres truncates
  * identifiers at 63 characters, and the alias Drizzle generates for this
@@ -47,6 +49,7 @@ import { revalidatePath } from "next/cache";
  */
 async function attachProfileSubcategories(
   sectors: FestivalSectorWithStandsWithReservationsWithParticipants[],
+  executor: DbOrTx = db,
 ): Promise<FestivalSectorWithStandsWithReservationsWithParticipants[]> {
   const userIds = Array.from(
     new Set(
@@ -62,7 +65,7 @@ async function attachProfileSubcategories(
 
   if (userIds.length === 0) return sectors;
 
-  const rows = await db.query.profileSubcategories.findMany({
+  const rows = await executor.query.profileSubcategories.findMany({
     where: inArray(profileSubcategories.profileId, userIds),
     with: { subcategory: true },
   });
@@ -242,7 +245,7 @@ export async function fetchFestivalSectorsByUserCategory(
 
       if (sectorIds.length === 0) return [];
 
-      const sectors = await db.query.festivalSectors.findMany({
+      const sectors = await tx.query.festivalSectors.findMany({
         where: inArray(
           festivalSectors.id,
           sectorIds.map((sector) => sector.id),
@@ -278,7 +281,7 @@ export async function fetchFestivalSectorsByUserCategory(
       });
 
       try {
-        return await attachProfileSubcategories(sectors);
+        return await attachProfileSubcategories(sectors, tx);
       } catch (error) {
         console.error("Error attaching profile subcategories", error);
         return sectors;
