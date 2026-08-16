@@ -131,6 +131,7 @@ export default function FestivalNavStandDrawer({
                         <AvatarImage
                           src={p.imageUrl ?? undefined}
                           alt={p.displayName}
+                          sizes="24px"
                         />
                       </Avatar>
                       <span className="text-xs font-medium truncate max-w-25">
@@ -149,6 +150,7 @@ export default function FestivalNavStandDrawer({
                       <AvatarImage
                         src={currentParticipant.imageUrl ?? undefined}
                         alt={currentParticipant.displayName}
+                        sizes="56px"
                       />
                     </Avatar>
                     <div className="flex-1 min-w-0">

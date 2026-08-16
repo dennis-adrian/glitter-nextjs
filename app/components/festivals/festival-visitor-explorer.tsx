@@ -72,6 +72,7 @@ export default function FestivalVisitorExplorer({
   const locateRequestId = useRef(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const stickyControlsRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
 
   // The controls sit above the map and stay there while it scrolls, so
   // anything scrolling a stand into view has to clear them. Measured rather
@@ -235,9 +236,38 @@ export default function FestivalVisitorExplorer({
     setParticipantLocateRequest(null);
   }
 
+  // Switching sectors swaps the whole map underneath the reader; without this
+  // they stay at whatever depth the previous sector reached and land partway
+  // into a drawing they have not seen the top of.
+  function scrollMapIntoView() {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const controlsBottom =
+      stickyControlsRef.current?.getBoundingClientRect().bottom ?? 0;
+    // Already looking at the top of the map: leave their scroll alone.
+    if (map.getBoundingClientRect().top >= controlsBottom) return;
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    // Deferred so the incoming sector has laid out before we scroll to it,
+    // matching how the canvas defers its own locate scroll.
+    window.setTimeout(
+      () =>
+        map.scrollIntoView({
+          behavior: reduceMotion ? "auto" : "smooth",
+          block: "start",
+        }),
+      50,
+    );
+  }
+
   function handleSectorChange(nextSectorIndex: number) {
     setActiveSectorIndex(nextSectorIndex);
     setParticipantLocateRequest(null);
+    scrollMapIntoView();
   }
 
   // Coming from an activity card the intent is "show me these stands", so this
@@ -305,7 +335,11 @@ export default function FestivalVisitorExplorer({
         />
       </div>
 
-      <div className="mt-6">
+      <div
+        ref={mapRef}
+        className="mt-6"
+        style={{ scrollMarginTop: "var(--festival-map-scroll-offset, 6rem)" }}
+      >
         {sectors.length > 0 ? (
           <FestivalNavMap
             embedded

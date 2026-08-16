@@ -17,6 +17,8 @@ type ProfileAvatarProps = {
   showGlitterStamp?: boolean;
   showBadge?: boolean;
   isNew?: boolean;
+  /** Rendered width of the avatar, so the browser can pick a matching file. */
+  sizes?: string;
 };
 export default function ProfileAvatar(props: ProfileAvatarProps) {
   const { profile, showBadge = true } = props;
@@ -35,6 +37,7 @@ export default function ProfileAvatar(props: ProfileAvatarProps) {
           alt={
             userName ? `Imagen de perfil de ${userName}` : "Imagen de perfil"
           }
+          sizes={props.sizes}
         />
       </Avatar>
       {props.showGlitterStamp && (

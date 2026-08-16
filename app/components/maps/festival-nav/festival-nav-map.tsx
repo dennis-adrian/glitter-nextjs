@@ -73,6 +73,8 @@ export default function FestivalNavMap({
     useState<number | null>(null);
 
   const locateRequestId = useRef(0);
+  const controlsRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
 
   const searchEntries = useMemo<ParticipantSearchEntry[]>(
     () => buildParticipantSearchEntries(sectors),
@@ -164,6 +166,28 @@ export default function FestivalNavMap({
       setSelectedStand(null);
       setLocateRequest(null);
       setDrawerOpen(false);
+
+      // Same reasoning as the festival page: a new sector is a new drawing,
+      // and the reader should meet it at its top.
+      const map = mapRef.current;
+      if (!map) return;
+
+      const controlsBottom =
+        controlsRef.current?.getBoundingClientRect().bottom ?? 0;
+      if (map.getBoundingClientRect().top >= controlsBottom) return;
+
+      const reduceMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+
+      window.setTimeout(
+        () =>
+          map.scrollIntoView({
+            behavior: reduceMotion ? "auto" : "smooth",
+            block: "start",
+          }),
+        50,
+      );
     },
     [setActiveSector],
   );
@@ -205,6 +229,7 @@ export default function FestivalNavMap({
         <>
           {/* Search + tabs — sticky below navbar */}
           <div
+            ref={controlsRef}
             className={cn(
               "z-20 border-b bg-background",
               embedded ? "relative" : "sticky top-16 md:top-20",
@@ -239,6 +264,8 @@ export default function FestivalNavMap({
 
       {/* Map area */}
       <div
+        ref={mapRef}
+        style={{ scrollMarginTop: "var(--festival-map-scroll-offset, 6rem)" }}
         className={cn(
           "flex justify-center",
           embedded ? "px-0" : "px-4 md:px-0",

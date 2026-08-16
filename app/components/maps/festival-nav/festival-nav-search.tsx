@@ -118,6 +118,7 @@ export default function FestivalNavSearch({
                   <AvatarImage
                     src={entry.imageUrl ?? undefined}
                     alt={entry.displayName}
+                    sizes="32px"
                   />
                 </Avatar>
                 <div className="flex-1 min-w-0">

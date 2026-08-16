@@ -13,6 +13,8 @@ import {
   FestivalSectorWithStandsWithReservationsWithParticipants,
 } from "@/app/lib/festival_sectors/definitions";
 import { getFestivalSectorAllowedCategories } from "@/app/lib/festival_sectors/helpers";
+import type { PublicFestivalParticipant } from "@/app/components/festivals/participant-info";
+import { isNewParticipationCount } from "@/app/lib/utils";
 import { db } from "@/db";
 import {
   festivalActivityParticipants,
@@ -27,6 +29,7 @@ import {
 } from "@/db/schema";
 import {
   and,
+  count,
   eq,
   exists,
   inArray,

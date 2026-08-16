@@ -73,6 +73,7 @@ export default function ParticipantInfo(props: ParticipantInfoProps) {
         isNew={props.profile.isNew}
         profile={props.profile}
         className="size-18"
+        sizes="72px"
       />
       <div className="mt-4 flex flex-1 flex-col items-center">
         <h3 className="line-clamp-2 font-space-grotesk font-bold leading-tight">

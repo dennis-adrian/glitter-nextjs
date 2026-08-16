@@ -52,6 +52,7 @@ function ParticipantLink({
         <AvatarImage
           src={participant.imageUrl ?? undefined}
           alt={participant.displayName}
+          sizes="40px"
         />
       </Avatar>
       <span className="min-w-0 flex-1">

@@ -285,16 +285,20 @@ export function getFestivalLogo(festivalType: FestivalBase["festivalType"]) {
   return GLITTER_EMAIL_LOGO_URL;
 }
 
+// if the user has 1 participation, we consider it as a new profile
+// until they get a second confirmed participation
+export function isNewParticipationCount(confirmedParticipations: number) {
+  return confirmedParticipations < 2;
+}
+
 export function isNewProfile(profile: {
   participations: { reservation: { status: string } }[];
 }) {
-  const confirmedParticipations = profile.participations.filter(
-    (participation) => participation.reservation.status === "accepted",
+  return isNewParticipationCount(
+    profile.participations.filter(
+      (participation) => participation.reservation.status === "accepted",
+    ).length,
   );
-
-  // if the user has 1 participation, we consider it as a new profile
-  // until they get a second confirmed participation
-  return confirmedParticipations.length < 2;
 }
 
 export function truncateText(
