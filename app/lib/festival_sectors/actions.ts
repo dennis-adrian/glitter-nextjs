@@ -126,7 +126,12 @@ export async function fetchFestivalSectors(
       where: eq(festivalSectors.festivalId, festivalId),
     });
 
-    return await attachProfileSubcategories(sectors);
+    try {
+      return await attachProfileSubcategories(sectors);
+    } catch (error) {
+      console.error("Error attaching profile subcategories", error);
+      return sectors;
+    }
   } catch (error) {
     console.error("Error fetching festival sectors", error);
     return [];
