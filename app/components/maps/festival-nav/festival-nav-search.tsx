@@ -19,13 +19,14 @@ import { cn } from "@/app/lib/utils";
 const MAX_RESULTS = 8;
 
 /**
- * 16px on phones rather than the 14px the controls around it use. iOS Safari
- * zooms the whole page in when a field it focuses carries text smaller than
- * that, and it does not zoom back out on blur — the visitor is left on a
- * magnified map they have to pinch their way out of. From `sm` up there is no
- * keyboard to provoke it, so the field matches its neighbours again.
+ * 16px rather than the 14px the controls around it use, at every width. iOS
+ * Safari zooms the whole page in when a field it focuses carries text smaller
+ * than that, and it does not zoom back out on blur — the visitor is left on a
+ * magnified map they have to pinch their way out of. Holding the phone in
+ * landscape puts it past `sm` without taking the keyboard away, so a
+ * breakpoint-scoped bump would leave the bug in place there.
  */
-const FIELD_TEXT_SIZE = "text-base sm:text-sm";
+const FIELD_TEXT_SIZE = "text-base";
 
 type FestivalNavSearchProps = {
   entries: ParticipantSearchEntry[];
