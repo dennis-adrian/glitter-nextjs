@@ -3,6 +3,7 @@ import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import FestivalNavSearch from "@/app/components/maps/festival-nav/festival-nav-search";
+import type { ParticipantSearchEntry } from "@/app/components/maps/festival-nav/festival-nav-participant-search";
 
 afterEach(cleanup);
 
@@ -36,6 +37,38 @@ describe("FestivalNavSearch", () => {
       screen.queryByRole("button", { name: "Limpiar búsqueda" }),
     ).toBeNull();
     expect(onSelect).not.toHaveBeenCalled();
+  });
+});
+
+describe("FestivalNavSearch selection", () => {
+  it("releases the field so the phone keyboard leaves the located stand", () => {
+    const onSelect = vi.fn();
+    const entry = {
+      userId: 1,
+      category: "illustration",
+      displayName: "Pandas Draw",
+      imageUrl: null,
+      standLabel: "A1",
+      sectorName: "Lobby",
+      sectorIndex: 0,
+      stand: { id: 7 },
+    } as unknown as ParticipantSearchEntry;
+
+    render(<FestivalNavSearch entries={[entry]} onSelect={onSelect} />);
+
+    const input = screen.getByRole("textbox", {
+      name: "Buscar participantes",
+    }) as HTMLInputElement;
+    // Real focus, not a synthetic event: the assertion is about where
+    // document.activeElement lands, so the field has to actually hold it first.
+    input.focus();
+    fireEvent.change(input, { target: { value: "Pandas" } });
+    expect(document.activeElement).toBe(input);
+
+    fireEvent.click(screen.getByRole("button", { name: /Pandas Draw/ }));
+
+    expect(onSelect).toHaveBeenCalledWith(entry);
+    expect(document.activeElement).not.toBe(input);
   });
 });
 

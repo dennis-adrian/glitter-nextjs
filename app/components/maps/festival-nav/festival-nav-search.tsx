@@ -63,9 +63,17 @@ export default function FestivalNavSearch({
   const visible = (isSearching ? matches : suggestions).slice(0, MAX_RESULTS);
   const hiddenMatches = isSearching ? matches.length - visible.length : 0;
 
+  /**
+   * The result buttons hold focus on the field (they preventDefault on
+   * mousedown) so the panel survives the press. Once a hit is chosen that focus
+   * has no job left, and on a phone it keeps the keyboard over the map the
+   * selection just scrolled to — so the field is released before the caller
+   * runs.
+   */
   function handleSelect(entry: ParticipantSearchEntry) {
     setQuery("");
     setOpen(false);
+    inputRef.current?.blur();
     onSelect(entry);
   }
 
