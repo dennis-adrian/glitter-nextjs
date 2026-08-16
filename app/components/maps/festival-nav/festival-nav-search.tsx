@@ -18,6 +18,15 @@ import { cn } from "@/app/lib/utils";
  */
 const MAX_RESULTS = 8;
 
+/**
+ * 16px on phones rather than the 14px the controls around it use. iOS Safari
+ * zooms the whole page in when a field it focuses carries text smaller than
+ * that, and it does not zoom back out on blur — the visitor is left on a
+ * magnified map they have to pinch their way out of. From `sm` up there is no
+ * keyboard to provoke it, so the field matches its neighbours again.
+ */
+const FIELD_TEXT_SIZE = "text-base sm:text-sm";
+
 type FestivalNavSearchProps = {
   entries: ParticipantSearchEntry[];
   onSelect: (entry: ParticipantSearchEntry) => void;
@@ -152,7 +161,10 @@ export default function FestivalNavSearch({
             setOpen(true);
             scrollFieldIntoPlace();
           }}
-          className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-10 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          className={cn(
+            "w-full rounded-lg border border-border bg-background py-2 pl-9 pr-10 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40",
+            FIELD_TEXT_SIZE,
+          )}
         />
         {query.length > 0 ? (
           <button

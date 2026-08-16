@@ -117,6 +117,8 @@ function StockCell({ product }: { product: BaseProductWithImages }) {
 
   if (editing) {
     return (
+      // text-base under `sm`: iOS Safari zooms the page in, and does not zoom
+      // back out, when it focuses a control with text under 16px.
       <Input
         ref={inputRef}
         type="number"
@@ -131,7 +133,7 @@ function StockCell({ product }: { product: BaseProductWithImages }) {
             setEditing(false);
           }
         }}
-        className="h-7 w-16 px-2 text-sm"
+        className="h-7 w-16 px-2 text-base sm:text-sm"
         disabled={loading}
       />
     );

@@ -1581,10 +1581,12 @@ export default function StandPositionEditor({
         {(snapToGrid || showGrid) && (
           <label className="flex items-center gap-2">
             <span className="text-muted-foreground">Tamaño:</span>
+            {/* text-base under `sm`: iOS Safari zooms the page in, and does not
+                zoom back out, when it focuses a control with text under 16px. */}
             <select
               value={gridSize}
               onChange={(e) => setGridSize(Number(e.target.value))}
-              className="h-8 rounded-md border bg-background px-2 text-sm"
+              className="h-8 rounded-md border bg-background px-2 text-base sm:text-sm"
             >
               <option value={1}>1</option>
               <option value={2}>2</option>
@@ -1929,7 +1931,7 @@ export default function StandPositionEditor({
                 onChange={(e) =>
                   setAddStatus(e.target.value as typeof addStatus)
                 }
-                className="h-9 rounded-md border bg-background px-3 text-sm"
+                className="h-9 rounded-md border bg-background px-3 text-base sm:text-sm"
               >
                 <option value="disabled">Deshabilitado</option>
                 <option value="available">Disponible</option>
@@ -2016,7 +2018,7 @@ export default function StandPositionEditor({
                 onChange={(e) =>
                   setEditStatus(e.target.value as typeof editStatus)
                 }
-                className="h-9 rounded-md border bg-background px-3 text-sm"
+                className="h-9 rounded-md border bg-background px-3 text-base sm:text-sm"
               >
                 <option value="disabled">Deshabilitado</option>
                 <option value="available">Disponible</option>
@@ -2049,7 +2051,7 @@ export default function StandPositionEditor({
                       e.target.value as typeof editStandCategory,
                     )
                   }
-                  className="h-9 rounded-md border bg-background px-3 text-sm"
+                  className="h-9 rounded-md border bg-background px-3 text-base sm:text-sm"
                 >
                   <option value="none">Ninguna</option>
                   <option value="illustration">Ilustración</option>
@@ -2088,7 +2090,7 @@ export default function StandPositionEditor({
                 onChange={(e) =>
                   setEditElementType(e.target.value as MapElementType)
                 }
-                className="h-9 rounded-md border bg-background px-3 text-sm"
+                className="h-9 rounded-md border bg-background px-3 text-base sm:text-sm"
               >
                 {Object.values(MAP_ELEMENT_TYPES).map((config) => (
                   <option key={config.type} value={config.type}>
@@ -2174,7 +2176,7 @@ export default function StandPositionEditor({
                       e.target.value as MapElementLabelPosition,
                     )
                   }
-                  className="h-9 rounded-md border bg-background px-3 text-sm"
+                  className="h-9 rounded-md border bg-background px-3 text-base sm:text-sm"
                 >
                   <option value="bottom">Abajo</option>
                   <option value="top">Arriba</option>
@@ -2193,7 +2195,7 @@ export default function StandPositionEditor({
                     Number(e.target.value) as 400 | 500 | 600 | 700,
                   )
                 }
-                className="h-9 rounded-md border bg-background px-3 text-sm"
+                className="h-9 rounded-md border bg-background px-3 text-base sm:text-sm"
               >
                 <option value={400}>Normal (400)</option>
                 <option value={500}>Medium (500)</option>

@@ -147,9 +147,11 @@ function EditOrderItemRow({
                 >
                   <MinusIcon className="h-3 w-3" />
                 </Button>
+                {/* text-base under `sm`: iOS Safari zooms the page in, and does not
+                    zoom back out, when it focuses a control with text under 16px. */}
                 <Input
                   type="number"
-                  className="h-7 w-14 text-center text-sm"
+                  className="h-7 w-14 text-center text-base sm:text-sm"
                   value={item.quantity}
                   min={1}
                   onChange={(e) =>
