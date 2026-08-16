@@ -12,6 +12,8 @@ type BaseMapParticipant = {
   imageUrl: string | null;
   userSocials: UserSocial[];
   links: { label: string; href: string }[];
+  /** What this participant makes or sells — empty when none are recorded. */
+  subcategories: string[];
 };
 
 export type UserMapParticipant = BaseMapParticipant & {
@@ -68,6 +70,9 @@ export function getStandMapParticipants(
       // deriving it from the socials here made every card list the same
       // accounts twice, under two "Contacto" headings.
       links: [],
+      subcategories: (participant.user.profileSubcategories ?? []).map(
+        (profileSubcategory) => profileSubcategory.subcategory.label,
+      ),
     }));
 
     const externalParticipants =
@@ -102,5 +107,6 @@ function mapExternalParticipant(
     categoryLabel: getExternalParticipantCategoryLabel(participant),
     userSocials: [],
     links,
+    subcategories: [],
   };
 }

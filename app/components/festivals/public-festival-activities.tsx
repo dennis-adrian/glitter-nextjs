@@ -1,61 +1,203 @@
-import { ArrowRightIcon } from "lucide-react";
-import { FullFestival } from "@/app/lib/festivals/definitions";
-import Heading from "@/app/components/atoms/heading";
-import Image from "next/image";
-import { RedirectButton } from "@/app/components/redirect-button";
+"use client";
 
-type PublicFestivalActivitiesProps = {
-  festival: FullFestival;
+import { ArrowUpRightIcon, MapPinIcon } from "lucide-react";
+import Link from "next/link";
+
+import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
+import { getActivityMarker } from "@/app/lib/festivals/activity-markers";
+import type { FestivalActivity } from "@/app/lib/festivals/definitions";
+import {
+  isStandActivityFilter,
+  type StandActivityFilter,
+} from "@/app/lib/maps/stand-filters";
+import { cn } from "@/app/lib/utils";
+
+export type VisitorActivityParticipant = {
+  id: number;
+  displayName: string;
+  imageUrl: string | null;
+  sectorName?: string;
+  standLabel?: string;
 };
 
-export default function PublicFestivalActivities({
-  festival,
-}: PublicFestivalActivitiesProps) {
-  const activities = festival.festivalActivities.filter(
-    (activity) => activity.accessLevel === "public",
-  );
+export type VisitorActivity = Pick<
+  FestivalActivity,
+  "id" | "name" | "promotionalArtUrl" | "type"
+> & {
+  description: string;
+  participants: VisitorActivityParticipant[];
+};
+
+function ParticipantLink({
+  participant,
+}: {
+  participant: VisitorActivityParticipant;
+}) {
+  const stand = participant.standLabel
+    ? `Stand ${participant.standLabel}`
+    : "Stand por confirmar";
 
   return (
-    <div className="my-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+    <Link
+      href={`/public_profiles/${participant.id}`}
+      className="group/participant flex min-w-0 items-center gap-3 rounded-xl border bg-background p-3 transition hover:border-primary-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    >
+      <Avatar className="size-10 shrink-0">
+        <AvatarImage
+          src={participant.imageUrl ?? undefined}
+          alt={participant.displayName}
+          sizes="40px"
+        />
+      </Avatar>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold group-hover/participant:text-primary-700">
+          {participant.displayName}
+        </span>
+        <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+          <MapPinIcon className="size-3 shrink-0" aria-hidden="true" />
+          {stand}
+          {participant.sectorName ? ` · ${participant.sectorName}` : ""}
+        </span>
+      </span>
+    </Link>
+  );
+}
+
+export default function PublicFestivalActivities({
+  activities,
+  onFilterByActivity,
+}: {
+  activities: VisitorActivity[];
+  /** Given, the map link also narrows the map to this activity's stands. */
+  onFilterByActivity?: (activity: StandActivityFilter) => void;
+}) {
+  if (activities.length === 0) return null;
+
+  return (
+    <section id="actividades" tabIndex={-1} className="scroll-mt-24 space-y-7">
+      <div className="max-w-2xl">
+        <h2 className="font-space-grotesk text-3xl font-bold tracking-tight sm:text-4xl">
+          Actividades para visitantes
+        </h2>
+        <p className="mt-2 text-sm text-muted-foreground sm:text-base">
+          Conocé cada propuesta y qué stands necesitás visitar para participar.
+        </p>
+      </div>
+
+      <div className="space-y-5">
         {activities.map((activity) => {
+          const marker = getActivityMarker(activity.type);
+          const visibleParticipants = activity.participants.slice(0, 6);
+          const remainingParticipants = activity.participants.slice(6);
+          // Only offer to filter when the map has something to show: the type
+          // must be one the badges cover, and at least one participant must
+          // actually sit on a stand.
+          const filterableType =
+            isStandActivityFilter(activity.type) &&
+            activity.participants.some((participant) => participant.standLabel)
+              ? activity.type
+              : null;
+
           return (
-            <div
+            <article
               key={activity.id}
-              className="p-3 border border-border rounded-md flex gap-2 md:gap-4 items-start"
+              className="overflow-hidden rounded-2xl border bg-card"
             >
-              {activity.promotionalArtUrl && (
-                <div className="relative w-full max-w-[120px] h-auto aspect-square">
-                  <Image
-                    src={activity.promotionalArtUrl}
-                    alt={activity.name}
-                    fill
-                    className="object-cover rounded-md"
-                    placeholder="blur"
-                    blurDataURL="/img/placeholders/placeholder-300x300.png"
-                  />
-                </div>
-              )}
-              <div className="flex flex-col w-full">
-                <Heading level={4}>{activity.name}</Heading>
-                <p className="text-sm text-muted-foreground">
-                  {activity.visitorsDescription}
-                </p>
-                <RedirectButton
-                  // TODO: Route should be in plural
-                  href={`/festivals/${festival.id}/activity/${activity.id}`}
-                  variant="link"
-                  size="sm"
-                  className="text-sm self-end w-fit mt-2"
+              <div className="flex gap-3 p-4 sm:p-5">
+                <span
+                  className={cn(
+                    "flex size-9 shrink-0 items-center justify-center rounded-lg border",
+                    marker.softClassName,
+                  )}
+                  aria-hidden="true"
                 >
-                  Ver más
-                  <ArrowRightIcon className="w-4 h-4 ml-1" />
-                </RedirectButton>
+                  <marker.Icon className="size-4" />
+                </span>
+
+                <div className="min-w-0">
+                  <h3 className="font-space-grotesk text-lg font-bold leading-tight">
+                    {activity.name}
+                  </h3>
+                  <p className="mt-1.5 max-w-3xl text-sm leading-6 text-muted-foreground">
+                    {activity.description}
+                  </p>
+                  <a
+                    href="#mapa"
+                    onClick={
+                      filterableType && onFilterByActivity
+                        ? () => onFilterByActivity(filterableType)
+                        : undefined
+                    }
+                    className="mt-3 inline-flex items-center text-sm font-semibold text-primary-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    {filterableType && onFilterByActivity
+                      ? "Ver participantes en el mapa"
+                      : "Ver mapa"}
+                    <ArrowUpRightIcon
+                      className="ml-1 size-4"
+                      aria-hidden="true"
+                    />
+                  </a>
+                </div>
               </div>
-            </div>
+
+              <div className="border-t bg-muted/20 p-4 sm:p-5">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h4 className="text-sm font-semibold">
+                    {activity.participants.length === 1
+                      ? "1 participante confirmado"
+                      : `${activity.participants.length} participantes confirmados`}
+                  </h4>
+                  {activity.participants.length > 0 ? (
+                    <span className="hidden text-xs text-muted-foreground sm:block">
+                      Abrí un perfil para conocer su propuesta
+                    </span>
+                  ) : null}
+                </div>
+
+                {activity.participants.length > 0 ? (
+                  <>
+                    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                      {visibleParticipants.map((participant) => (
+                        <ParticipantLink
+                          key={participant.id}
+                          participant={participant}
+                        />
+                      ))}
+                    </div>
+
+                    {remainingParticipants.length > 0 ? (
+                      <details className="group mt-3">
+                        <summary className="cursor-pointer list-none rounded-lg py-2 text-sm font-semibold text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                          <span className="group-open:hidden">
+                            Ver {remainingParticipants.length} más
+                          </span>
+                          <span className="hidden group-open:inline">
+                            Mostrar menos
+                          </span>
+                        </summary>
+                        <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                          {remainingParticipants.map((participant) => (
+                            <ParticipantLink
+                              key={participant.id}
+                              participant={participant}
+                            />
+                          ))}
+                        </div>
+                      </details>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="rounded-xl border border-dashed bg-background px-4 py-6 text-sm text-muted-foreground">
+                    Los participantes y sus stands aparecerán cuando estén
+                    confirmados.
+                  </p>
+                )}
+              </div>
+            </article>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }

@@ -13,6 +13,8 @@ import {
   SELECTED_STROKE,
   SELECTED_TEXT,
   SELECTED_RING,
+  DIMMED_COLORS,
+  DIMMED_OPACITY,
 } from "./map-utils";
 import type { StandColors } from "./map-utils";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
@@ -21,6 +23,9 @@ type MapStandProps = {
   stand: StandWithReservationsWithParticipants;
   canBeReserved: boolean;
   selected?: boolean;
+  highlighted?: boolean;
+  highlightRequestId?: number;
+  dimmed?: boolean;
   colors?: StandColors;
   onClick?: (stand: StandWithReservationsWithParticipants) => void;
   onTouchTap?: (
@@ -42,6 +47,9 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
       stand,
       canBeReserved,
       selected,
+      highlighted,
+      highlightRequestId,
+      dimmed,
       colors,
       onClick,
       onTouchTap,
@@ -55,21 +63,24 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
     const { left, top } = getStandPosition(stand);
     const { standNumber, status } = stand;
 
+    // A filtered-out stand drops its status palette entirely: it is still on the
+    // map as a landmark, but it no longer claims to be occupied or available.
+    const activeColors = dimmed && !selected ? DIMMED_COLORS : colors;
     const fillColor = selected
       ? SELECTED_FILL
-      : colors
+      : activeColors
         ? hovered
-          ? colors.hoverFill
-          : colors.fill
+          ? activeColors.hoverFill
+          : activeColors.fill
         : hovered
           ? getStandHoverFillColor(status, canBeReserved)
           : getStandFillColor(status, canBeReserved);
     const strokeColor = selected
       ? SELECTED_STROKE
-      : (colors?.stroke ?? getStandStrokeColor(status, canBeReserved));
+      : (activeColors?.stroke ?? getStandStrokeColor(status, canBeReserved));
     const textColor = selected
       ? SELECTED_TEXT
-      : (colors?.text ?? getStandTextColor(status, canBeReserved));
+      : (activeColors?.text ?? getStandTextColor(status, canBeReserved));
 
     const handlePointerDown = (e: React.PointerEvent) => {
       if (e.pointerType === "touch" || e.pointerType === "pen") {
@@ -120,8 +131,12 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
           cursor: onClick ? "pointer" : "default",
           touchAction: "manipulation",
           outline: "none",
+          opacity: dimmed && !selected ? DIMMED_OPACITY : 1,
+          transition: "opacity 180ms ease",
         }}
         role={onClick ? "button" : undefined}
+        id={`festival-map-stand-${stand.id}`}
+        data-map-stand-id={stand.id}
         aria-label={`Espacio ${formatStandLabel(stand)} - ${status}`}
         tabIndex={onClick ? 0 : undefined}
         onKeyDown={(e) => {
@@ -134,6 +149,8 @@ const MapStand = forwardRef<SVGGElement, MapStandProps>(
         {/* Outer ring when selected */}
         {selected && (
           <rect
+            key={highlightRequestId}
+            className={highlighted ? "festival-map-locate-ring" : undefined}
             x={-RING_PADDING}
             y={-RING_PADDING}
             width={STAND_SIZE + RING_PADDING * 2}

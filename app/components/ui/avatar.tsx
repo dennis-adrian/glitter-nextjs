@@ -23,6 +23,11 @@ export function AvatarImage({
   // since we are defining a src fallback, we can make src not required
   src,
   alt,
+  // `fill` without `sizes` makes the browser assume the image is as wide as the
+  // viewport, so a thumbnail downloads the ~828px file. 128px covers the largest
+  // Avatar in use without over-serving the rest; pass `sizes` explicitly
+  // wherever the box is smaller and the list is long.
+  sizes = "128px",
   ...props
 }: Omit<ImageProps, "src"> & { src?: string | null }) {
   return (
@@ -33,6 +38,7 @@ export function AvatarImage({
       placeholder="blur"
       blurDataURL="/img/placeholders/avatar-placeholder.png"
       fill
+      sizes={sizes}
       {...props}
     />
   );

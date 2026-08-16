@@ -3,12 +3,12 @@ import { z } from "zod";
 import { notFound } from "next/navigation";
 
 import FestivalNavMap from "@/app/components/maps/festival-nav/festival-nav-map";
-import { CouponProof } from "@/app/components/maps/festival-nav/festival-nav-stand-drawer";
 import {
   fetchBaseFestival,
   fetchFestivalActivitiesByFestivalId,
 } from "@/app/lib/festivals/actions";
 import { fetchFestivalSectors } from "@/app/lib/festival_sectors/actions";
+import { getMapActivityData } from "@/app/lib/maps/activity-data";
 
 export const metadata: Metadata = {
   title: "Mapa del festival",
@@ -36,70 +36,20 @@ export default async function FestivalMapPage(props: {
 
   if (!festival) notFound();
 
-  const couponBookActivity = activities.find((a) => a.type === "coupon_book");
-  const couponBookUserIds: number[] = [];
-  const couponBookProofs: Record<number, CouponProof[]> = {};
+  const publicActivities = activities.filter(
+    (activity) => activity.accessLevel === "public",
+  );
 
-  for (const detail of couponBookActivity?.details ?? []) {
-    for (const participant of detail.participants) {
-      const approvedProofs = participant.proofs.filter(
-        (p) => p.proofStatus === "approved",
-      );
-      if (approvedProofs.length > 0) {
-        const userId = participant.user.id;
-        if (!couponBookProofs[userId]) {
-          couponBookUserIds.push(userId);
-          couponBookProofs[userId] = [];
-        }
-        couponBookProofs[userId].push(
-          ...approvedProofs.map((p) => ({
-            promoHighlight: p.promoHighlight,
-            promoDescription: p.promoDescription,
-            promoConditions: p.promoConditions,
-          })),
-        );
-      }
-    }
-  }
-
-  const passportActivity = activities.find((a) => a.type === "stamp_passport");
-  const passportUserIdSet = new Set<number>();
-
-  for (const detail of passportActivity?.details ?? []) {
-    for (const participant of detail.participants) {
-      const hasApprovedProof = participant.proofs.some(
-        (p) => p.proofStatus === "approved",
-      );
-      if (hasApprovedProof) {
-        passportUserIdSet.add(participant.user.id);
-      }
-    }
-  }
-  const passportUserIds = Array.from(passportUserIdSet);
-
-  const stickerHuntActivity = activities.find((a) => a.type === "sticker_hunt");
-  const stickerHuntUserIdSet = new Set<number>();
-
-  for (const detail of stickerHuntActivity?.details ?? []) {
-    for (const participant of detail.participants) {
-      const hasApprovedProof = participant.proofs.some(
-        (p) => p.proofStatus === "approved",
-      );
-      if (hasApprovedProof) {
-        stickerHuntUserIdSet.add(participant.user.id);
-      }
-    }
-  }
-  const stickerHuntUserIds = Array.from(stickerHuntUserIdSet);
+  const { activityUserIds, couponBookProofs, activityTypes } =
+    getMapActivityData(publicActivities);
 
   return (
     <FestivalNavMap
       festivalName={festival.name}
       sectors={sectors}
-      couponBookUserIds={couponBookUserIds}
+      activityUserIds={activityUserIds}
       couponBookProofs={couponBookProofs}
-      passportUserIds={passportUserIds}
-      stickerHuntUserIds={stickerHuntUserIds}
+      activityTypes={activityTypes}
     />
   );
 }

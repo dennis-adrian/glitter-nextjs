@@ -80,6 +80,10 @@ export type FestivalWithDates = FestivalBase & {
   festivalDates: FestivalDate[];
 };
 
+export type PublicFestivalPage = FestivalWithDates & {
+  festivalActivities: FestivalActivity[];
+};
+
 export type FestivalWithSectors = FestivalBase & {
   festivalSectors: FestivalSectorWithStands[];
 };

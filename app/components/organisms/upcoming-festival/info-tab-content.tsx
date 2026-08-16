@@ -42,7 +42,7 @@ export default function InfoTabContent({
             </div>
           )}
           <Link
-            href={`/festivals/${festival.id}?tab=sectors`}
+            href={`/festivals/${festival.id}#mapa`}
             className="text-sm text-[#3C8837] underline"
           >
             Ver mapa

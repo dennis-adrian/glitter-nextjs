@@ -1,11 +1,7 @@
 import QRCode from "qrcode";
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import {
-  BaseProfile,
-  Participation,
-  ProfileType,
-} from "@/api/users/definitions";
+import { ProfileType } from "@/api/users/definitions";
 import {
   eventDiscoveryEnum,
   genderEnum,
@@ -289,16 +285,20 @@ export function getFestivalLogo(festivalType: FestivalBase["festivalType"]) {
   return GLITTER_EMAIL_LOGO_URL;
 }
 
-export function isNewProfile(
-  profile: BaseProfile & { participations: Participation[] },
-) {
-  const confirmedParticipations = profile.participations.filter(
-    (participation) => participation.reservation.status === "accepted",
-  );
+// if the user has 1 participation, we consider it as a new profile
+// until they get a second confirmed participation
+export function isNewParticipationCount(confirmedParticipations: number) {
+  return confirmedParticipations < 2;
+}
 
-  // if the user has 1 participation, we consider it as a new profile
-  // until they get a second confirmed participation
-  return confirmedParticipations.length < 2;
+export function isNewProfile(profile: {
+  participations: { reservation: { status: string } }[];
+}) {
+  return isNewParticipationCount(
+    profile.participations.filter(
+      (participation) => participation.reservation.status === "accepted",
+    ).length,
+  );
 }
 
 export function truncateText(

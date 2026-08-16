@@ -20,12 +20,18 @@ import {
   getStandStrokeColor,
   getStandTextColor,
   getStandPosition,
+  DIMMED_COLORS,
+  DIMMED_OPACITY,
 } from "./map-utils";
 import type { StandColors } from "./map-utils";
 
 type MapStandGroupProps = {
   group: JointGroup;
   selected?: boolean;
+  highlighted?: boolean;
+  highlightRequestId?: number;
+  dimmed?: boolean;
+  mapStandId?: number;
   colors?: StandColors;
   onClick?: (stand: StandWithReservationsWithParticipants) => void;
   onTouchTap?: (
@@ -48,6 +54,10 @@ const RING_PADDING = 0.8;
 const MapStandGroup = ({
   group,
   selected,
+  highlighted,
+  highlightRequestId,
+  dimmed,
+  mapStandId,
   colors,
   onClick,
   onTouchTap,
@@ -62,21 +72,23 @@ const MapStandGroup = ({
   const bounds = getJointGroupBounds(group);
   const path = buildJointGroupPath(bounds, group.axis);
 
+  // Matches MapStand: filtered out means neutral grey, not a faded status color.
+  const activeColors = dimmed && !selected ? DIMMED_COLORS : colors;
   const fillColor = selected
     ? SELECTED_FILL
-    : colors
+    : activeColors
       ? hovered
-        ? colors.hoverFill
-        : colors.fill
+        ? activeColors.hoverFill
+        : activeColors.fill
       : hovered
         ? getStandHoverFillColor(status, false)
         : getStandFillColor(status, false);
   const strokeColor = selected
     ? SELECTED_STROKE
-    : (colors?.stroke ?? getStandStrokeColor(status, false));
+    : (activeColors?.stroke ?? getStandStrokeColor(status, false));
   const textColor = selected
     ? SELECTED_TEXT
-    : (colors?.text ?? getStandTextColor(status, false));
+    : (activeColors?.text ?? getStandTextColor(status, false));
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (e.pointerType === "touch" || e.pointerType === "pen") {
@@ -123,8 +135,12 @@ const MapStandGroup = ({
         cursor: onClick ? "pointer" : "default",
         touchAction: "manipulation",
         outline: "none",
+        opacity: dimmed && !selected ? DIMMED_OPACITY : 1,
+        transition: "opacity 180ms ease",
       }}
       role={onClick ? "button" : undefined}
+      id={`festival-map-stand-${mapStandId ?? primaryStand.id}`}
+      data-map-stand-id={mapStandId ?? primaryStand.id}
       aria-label={`Espacios unidos ${label} - ${status}`}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={(e) => {
@@ -137,7 +153,9 @@ const MapStandGroup = ({
       {/* Outer ring when selected, traced along the joined outline */}
       {selected && (
         <path
+          key={highlightRequestId}
           d={path}
+          className={highlighted ? "festival-map-locate-ring" : undefined}
           fill={SELECTED_RING}
           stroke={SELECTED_RING}
           strokeWidth={RING_PADDING * 2}

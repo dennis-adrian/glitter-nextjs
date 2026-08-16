@@ -1,7 +1,10 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
-import { TransformComponent } from "react-zoom-pan-pinch";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  TransformComponent,
+  type ReactZoomPanPinchRef,
+} from "react-zoom-pan-pinch";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { MapElementBase } from "@/app/lib/map_elements/definitions";
@@ -15,10 +18,11 @@ import MapPinchHint from "@/app/components/maps/map-pinch-hint";
 import MapSurface from "@/app/components/maps/map-surface";
 import MapTransformWrapper from "@/app/components/maps/map-transform-wrapper";
 import FestivalNavStandBadges from "@/app/components/maps/festival-nav/festival-nav-stand-badges";
+import { hasExternalParticipants } from "@/app/components/maps/map-participants";
 import {
-  hasActivityParticipant,
-  hasExternalParticipants,
-} from "@/app/components/maps/map-participants";
+  isStandOccupied,
+  type StandActivityUserIds,
+} from "@/app/lib/maps/stand-filters";
 import {
   dedupeJointGroupMembers,
   resolveJointGroups,
@@ -29,9 +33,9 @@ type FestivalNavMapCanvasProps = {
   mapElements: MapElementBase[];
   mapBounds?: MapBounds;
   selectedStandId: number | null;
-  couponBookUserIdSet: Set<number>;
-  passportUserIdSet: Set<number>;
-  stickerHuntUserIdSet: Set<number>;
+  locateRequest?: { standId: number; requestId: number } | null;
+  matchingStandIds?: number[] | null;
+  activityUserIds: StandActivityUserIds;
   sectorName: string;
   onStandSelect: (
     stand: StandWithReservationsWithParticipants,
@@ -39,47 +43,12 @@ type FestivalNavMapCanvasProps = {
   ) => void;
 };
 
-function isOccupied(stand: StandWithReservationsWithParticipants): boolean {
-  return stand.status === "reserved" || stand.status === "confirmed";
-}
-
-function getNavStandColors(
+export function getNavStandColors(
   stand: StandWithReservationsWithParticipants,
-  couponBookUserIdSet: Set<number>,
-  passportUserIdSet: Set<number>,
-  stickerHuntUserIdSet: Set<number>,
 ): StandColors {
-  if (!isOccupied(stand)) return getPublicStandColors(stand.status);
+  if (!isStandOccupied(stand)) return getPublicStandColors(stand.status);
   if (hasExternalParticipants(stand))
     return getExternalParticipantStandColors();
-
-  if (hasActivityParticipant(stand, couponBookUserIdSet)) {
-    return {
-      fill: "rgba(217, 119, 6, 0.85)",
-      hoverFill: "rgba(180, 83, 9, 0.95)",
-      stroke: "rgba(146, 64, 14, 0.9)",
-      text: "#ffffff",
-    };
-  }
-
-  if (hasActivityParticipant(stand, passportUserIdSet)) {
-    return {
-      fill: "rgba(5, 150, 105, 0.85)",
-      hoverFill: "rgba(4, 120, 87, 0.95)",
-      stroke: "rgba(6, 95, 70, 0.9)",
-      text: "#ffffff",
-    };
-  }
-
-  if (hasActivityParticipant(stand, stickerHuntUserIdSet)) {
-    return {
-      fill: "rgba(219, 39, 119, 0.85)",
-      hoverFill: "rgba(190, 24, 93, 0.95)",
-      stroke: "rgba(157, 23, 77, 0.9)",
-      text: "#ffffff",
-    };
-  }
-
   return getPublicStandColors(stand.status);
 }
 
@@ -88,38 +57,97 @@ export default function FestivalNavMapCanvas({
   mapElements,
   mapBounds,
   selectedStandId,
-  couponBookUserIdSet,
-  passportUserIdSet,
-  stickerHuntUserIdSet,
+  locateRequest,
+  matchingStandIds,
+  activityUserIds,
   sectorName,
   onStandSelect,
 }: FestivalNavMapCanvasProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const transformRef = useRef<ReactZoomPanPinchRef>(null);
   const visibleStands = useMemo(
     () => stands.filter((s) => s.status !== "disabled"),
     [stands],
   );
+  const jointGroups = useMemo(
+    () => resolveJointGroups(visibleStands),
+    [visibleStands],
+  );
+  const dimmedStandIdSet = useMemo(() => {
+    if (matchingStandIds == null) return undefined;
+
+    const matchingStandIdSet = new Set(matchingStandIds);
+    for (const group of jointGroups) {
+      if (group.stands.some((stand) => matchingStandIdSet.has(stand.id))) {
+        group.stands.forEach((stand) => matchingStandIdSet.add(stand.id));
+      }
+    }
+
+    return new Set(
+      visibleStands
+        .filter((stand) => !matchingStandIdSet.has(stand.id))
+        .map((stand) => stand.id),
+    );
+  }, [jointGroups, matchingStandIds, visibleStands]);
   // Resolved from the same list MapSurface draws, so a group that renders as
   // one outline carries exactly one set of activity badges.
   const occupiedStands = useMemo(
     () =>
       dedupeJointGroupMembers(
-        visibleStands.filter(isOccupied),
-        resolveJointGroups(visibleStands),
+        visibleStands.filter(isStandOccupied),
+        jointGroups,
       ),
-    [visibleStands],
+    [jointGroups, visibleStands],
   );
 
   const handleStandSelect = useCallback(
     (stand: StandWithReservationsWithParticipants) => {
-      if (!isOccupied(stand)) return;
+      if (!isStandOccupied(stand)) return;
       onStandSelect(stand, sectorName);
     },
     [onStandSelect, sectorName],
   );
 
+  useEffect(() => {
+    if (!locateRequest) return;
+    if (!visibleStands.some((stand) => stand.id === locateRequest.standId)) {
+      return;
+    }
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const duration = reduceMotion ? 0 : 300;
+    const timer = window.setTimeout(() => {
+      // Aligned to the top rather than centred: the controls above the map are
+      // sticky, and centring the container slides its upper rows underneath
+      // them. scroll-margin-top carries the height they occupy.
+      containerRef.current?.scrollIntoView({
+        behavior: reduceMotion ? "auto" : "smooth",
+        block: "start",
+      });
+
+      // Back to the resting view rather than zoomed in on the hit: the whole
+      // sector fits at this scale, so the stand is legible where it stands and
+      // the visitor keeps the surroundings they need to walk to it.
+      transformRef.current?.resetTransform(duration, "easeOut");
+    }, 50);
+
+    return () => window.clearTimeout(timer);
+  }, [locateRequest, visibleStands]);
+
   return (
-    <div className="relative w-full border rounded-lg overflow-hidden">
+    <div
+      ref={containerRef}
+      className="relative w-full overflow-hidden rounded-lg border"
+      style={{
+        // Set from the real height of sticky controls (explorer or standalone
+        // map). The fallback is for callers that have none.
+        scrollMarginTop: "var(--festival-map-scroll-offset, 6rem)",
+      }}
+    >
       <MapTransformWrapper
+        ref={transformRef}
         initialScale={1}
         minScale={1}
         maxScale={4}
@@ -134,22 +162,17 @@ export default function FestivalNavMapCanvas({
             mapElements={mapElements}
             mapBounds={mapBounds}
             selectedStandId={selectedStandId}
-            getColors={(stand) =>
-              getNavStandColors(
-                stand,
-                couponBookUserIdSet,
-                passportUserIdSet,
-                stickerHuntUserIdSet,
-              )
-            }
+            highlightedStandId={locateRequest?.standId}
+            highlightRequestId={locateRequest?.requestId}
+            dimmedStandIds={dimmedStandIdSet}
+            getColors={getNavStandColors}
             onStandClick={handleStandSelect}
             onStandTouchTap={handleStandSelect}
           >
             <FestivalNavStandBadges
               stands={occupiedStands}
-              couponBookUserIdSet={couponBookUserIdSet}
-              passportUserIdSet={passportUserIdSet}
-              stickerHuntUserIdSet={stickerHuntUserIdSet}
+              activityUserIds={activityUserIds}
+              dimmedStandIds={dimmedStandIdSet}
             />
           </MapSurface>
         </TransformComponent>

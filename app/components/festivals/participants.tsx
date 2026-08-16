@@ -3,7 +3,9 @@ import {
   StandWithReservationsWithParticipants,
 } from "@/app/api/stands/definitions";
 import { BaseProfile, Participation } from "@/app/api/users/definitions";
-import ParticipantInfo from "@/app/components/festivals/participant-info";
+import ParticipantInfo, {
+  toPublicFestivalParticipant,
+} from "@/app/components/festivals/participant-info";
 
 type ParticipantsProps = {
   stands: StandWithReservationsWithParticipants[];
@@ -37,8 +39,7 @@ export default async function ParticipantsGrid(props: ParticipantsProps) {
         {sortedParticipants.map((participant) => (
           <ParticipantInfo
             key={participant.id}
-            profile={participant}
-            festivalId={props.festivalId}
+            profile={toPublicFestivalParticipant(participant, props.festivalId)}
           />
         ))}
       </div>

@@ -3,23 +3,22 @@
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { STAND_SIZE, getStandPosition } from "@/app/components/maps/map-utils";
 import { hasActivityParticipant } from "@/app/components/maps/map-participants";
+import { getActivityMarker } from "@/app/lib/festivals/activity-markers";
+import {
+  STAND_ACTIVITY_FILTERS,
+  type StandActivityUserIds,
+} from "@/app/lib/maps/stand-filters";
 
 type FestivalNavStandBadgesProps = {
   /** Occupied stands only — badges are meaningless on empty spaces */
   stands: StandWithReservationsWithParticipants[];
-  couponBookUserIdSet: Set<number>;
-  passportUserIdSet: Set<number>;
-  stickerHuntUserIdSet: Set<number>;
+  activityUserIds: StandActivityUserIds;
+  dimmedStandIds?: ReadonlySet<number>;
 };
 
 const BADGE_RADIUS = 1.3;
-const BADGE_SPACING = 2;
-
-type Badge = {
-  key: string;
-  fill: string;
-  glyph: string;
-};
+const BADGE_SPACING = 1.2;
+const BADGE_INSET = 1.2;
 
 /**
  * Activity markers painted on top of the stands. Badges stack right to left so
@@ -27,41 +26,44 @@ type Badge = {
  */
 export default function FestivalNavStandBadges({
   stands,
-  couponBookUserIdSet,
-  passportUserIdSet,
-  stickerHuntUserIdSet,
+  activityUserIds,
+  dimmedStandIds,
 }: FestivalNavStandBadgesProps) {
   return (
     <g aria-hidden="true">
       {stands.map((stand) => {
-        const badges: Badge[] = [];
-        if (hasActivityParticipant(stand, couponBookUserIdSet)) {
-          badges.push({ key: "coupon", fill: "#F59E0B", glyph: "%" });
-        }
-        if (hasActivityParticipant(stand, passportUserIdSet)) {
-          badges.push({ key: "passport", fill: "#059669", glyph: "★" });
-        }
-        if (hasActivityParticipant(stand, stickerHuntUserIdSet)) {
-          badges.push({ key: "sticker-hunt", fill: "#DB2777", glyph: "♦" });
-        }
+        const badges = STAND_ACTIVITY_FILTERS.filter((activity) =>
+          hasActivityParticipant(stand, activityUserIds[activity]),
+        );
         if (badges.length === 0) return null;
 
+        const dimmed = dimmedStandIds?.has(stand.id) ?? false;
         const { left, top } = getStandPosition(stand);
+
         return (
           <g
             key={stand.id}
             transform={`translate(${left}, ${top})`}
-            style={{ pointerEvents: "none" }}
+            style={{
+              // Greyscale rather than near-invisible: the badge stays part of
+              // the stand's shape while its color stops competing for attention.
+              opacity: dimmed ? 0.35 : 1,
+              filter: dimmed ? "grayscale(1)" : undefined,
+              pointerEvents: "none",
+              transition: "opacity 180ms ease",
+            }}
           >
-            {badges.map((badge, index) => {
-              const cx = STAND_SIZE - 0.8 - index * BADGE_SPACING;
+            {badges.map((activity, index) => {
+              const marker = getActivityMarker(activity);
+              const cx = STAND_SIZE - BADGE_INSET - index * BADGE_SPACING;
+
               return (
-                <g key={badge.key}>
+                <g key={activity}>
                   <circle
                     cx={cx}
                     cy={0.8}
                     r={BADGE_RADIUS}
-                    fill={badge.fill}
+                    fill={marker.badgeFill}
                     stroke="#fff"
                     strokeWidth={0.3}
                   />
@@ -75,7 +77,7 @@ export default function FestivalNavStandBadges({
                     fill="#fff"
                     style={{ userSelect: "none" }}
                   >
-                    {badge.glyph}
+                    {marker.symbol}
                   </text>
                 </g>
               );
