@@ -141,8 +141,8 @@ export default function FestivalNavMapCanvas({
       ref={containerRef}
       className="relative w-full overflow-hidden rounded-lg border"
       style={{
-        // Set by the explorer from the real height of its sticky controls; the
-        // fallback covers the standalone map page, which has none.
+        // Set from the real height of sticky controls (explorer or standalone
+        // map). The fallback is for callers that have none.
         scrollMarginTop: "var(--festival-map-scroll-offset, 6rem)",
       }}
     >

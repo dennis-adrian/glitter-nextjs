@@ -316,6 +316,7 @@ export default function FestivalVisitorExplorer({
           value={query}
           onValueChange={handleQueryChange}
           onSelect={handleSearchSelect}
+          activeSectorIndex={activeSectorIndex}
           flush
         />
         {sectors.length > 0 ? (

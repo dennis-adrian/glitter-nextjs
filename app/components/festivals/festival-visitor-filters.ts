@@ -1,6 +1,7 @@
 import type { ParticipantCategoryFilter } from "@/app/components/festivals/festival-participant-category-filters";
 import type { PublicFestivalParticipant } from "@/app/components/festivals/participant-info";
 import {
+  fieldMatchesQuery,
   normalizeParticipantSearch,
   type ParticipantSearchEntry,
 } from "@/app/components/maps/festival-nav/festival-nav-participant-search";
@@ -20,17 +21,14 @@ function participantMatchesQuery(
 ) {
   if (!normalizedQuery) return true;
 
-  const searchable = normalizeParticipantSearch(
-    [
-      participant.displayName,
-      participant.stands.map(formatStandLabel).join(" "),
-      getPublicCategoryLabel(participant.category),
-    ]
-      .filter(Boolean)
-      .join(" "),
-  );
-
-  return searchable.includes(normalizedQuery);
+  // Tested field by field rather than over one joined string: normalization
+  // drops the separators, so a joined string would let a query straddle the end
+  // of a name and the start of a stand label.
+  return [
+    participant.displayName,
+    ...participant.stands.map(formatStandLabel),
+    getPublicCategoryLabel(participant.category),
+  ].some((field) => !!field && fieldMatchesQuery(field, normalizedQuery));
 }
 
 /**
@@ -141,15 +139,11 @@ export function participantSearchEntryMatchesFilters(
   const normalizedQuery = normalizeParticipantSearch(query.trim());
   if (!normalizedQuery) return true;
 
-  return normalizeParticipantSearch(
-    [
-      entry.displayName,
-      entry.standLabel,
-      getPublicCategoryLabel(entry.category),
-    ]
-      .filter(Boolean)
-      .join(" "),
-  ).includes(normalizedQuery);
+  return [
+    entry.displayName,
+    entry.standLabel,
+    getPublicCategoryLabel(entry.category),
+  ].some((field) => !!field && fieldMatchesQuery(field, normalizedQuery));
 }
 
 /**

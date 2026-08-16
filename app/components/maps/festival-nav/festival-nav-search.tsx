@@ -6,9 +6,17 @@ import { Search, X } from "lucide-react";
 import { Avatar, AvatarImage } from "@/app/components/ui/avatar";
 import {
   normalizeParticipantSearch,
+  rankParticipantSearchEntries,
   type ParticipantSearchEntry,
 } from "@/app/components/maps/festival-nav/festival-nav-participant-search";
 import { cn } from "@/app/lib/utils";
+
+/**
+ * One panel's worth. On a phone the dropdown is a ~240px window, so rendering
+ * every match filled it with a list nobody could scan — a single letter matches
+ * most of the festival.
+ */
+const MAX_RESULTS = 8;
 
 type FestivalNavSearchProps = {
   entries: ParticipantSearchEntry[];
@@ -16,6 +24,8 @@ type FestivalNavSearchProps = {
   value?: string;
   onValueChange?: (value: string) => void;
   flush?: boolean;
+  /** Sector on screen, so an empty query can suggest who is in it. -1 is all. */
+  activeSectorIndex?: number;
 };
 
 export default function FestivalNavSearch({
@@ -24,6 +34,7 @@ export default function FestivalNavSearch({
   value,
   onValueChange,
   flush = false,
+  activeSectorIndex,
 }: FestivalNavSearchProps) {
   const [internalQuery, setInternalQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -37,14 +48,20 @@ export default function FestivalNavSearch({
   }
 
   const normalized = normalizeParticipantSearch(query.trim());
-  const results =
-    normalized.length > 0
-      ? entries.filter(
-          (e) =>
-            normalizeParticipantSearch(e.displayName).includes(normalized) ||
-            normalizeParticipantSearch(e.standLabel).includes(normalized),
-        )
-      : [];
+  const isSearching = normalized.length > 0;
+  const matches = isSearching
+    ? rankParticipantSearchEntries(entries, query)
+    : [];
+  // With no query the panel still has a job. Opening onto nothing reads as a
+  // broken field, so it offers the sector the visitor is already looking at.
+  const scopedToSector = activeSectorIndex != null && activeSectorIndex >= 0;
+  const suggestions = isSearching
+    ? []
+    : scopedToSector
+      ? entries.filter((entry) => entry.sectorIndex === activeSectorIndex)
+      : entries;
+  const visible = (isSearching ? matches : suggestions).slice(0, MAX_RESULTS);
+  const hiddenMatches = isSearching ? matches.length - visible.length : 0;
 
   function handleSelect(entry: ParticipantSearchEntry) {
     setQuery("");
@@ -100,14 +117,21 @@ export default function FestivalNavSearch({
         ) : null}
       </div>
 
-      {open && results.length > 0 && (
+      {open && visible.length > 0 && (
         <ul
           className={cn(
             "absolute top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border border-border bg-background shadow-lg",
             flush ? "left-0 right-0" : "left-4 right-4",
           )}
         >
-          {results.map((entry, i) => (
+          {!isSearching ? (
+            <li className="sticky top-0 border-b bg-background px-3 py-2 text-xs font-medium text-muted-foreground">
+              {scopedToSector && visible[0]
+                ? `Participantes en ${visible[0].sectorName}`
+                : "Participantes del festival"}
+            </li>
+          ) : null}
+          {visible.map((entry, i) => (
             <li key={`${entry.stand.id}-${i}`}>
               <button
                 className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-muted transition-colors"
@@ -132,6 +156,11 @@ export default function FestivalNavSearch({
               </button>
             </li>
           ))}
+          {hiddenMatches > 0 ? (
+            <li className="sticky bottom-0 border-t bg-background px-3 py-2 text-xs text-muted-foreground">
+              Mostrando {visible.length} de {matches.length}
+            </li>
+          ) : null}
         </ul>
       )}
     </div>

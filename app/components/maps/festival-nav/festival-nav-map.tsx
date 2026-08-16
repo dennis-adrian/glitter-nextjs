@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { FestivalSectorWithStandsWithReservationsWithParticipants } from "@/app/lib/festival_sectors/definitions";
@@ -75,6 +75,39 @@ export default function FestivalNavMap({
   const locateRequestId = useRef(0);
   const controlsRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<HTMLDivElement>(null);
+
+  // Standalone sticky search/tabs sit at top-16 md:top-20. Measure them so
+  // scrollIntoView lands the map below that bar instead of the 6rem fallback.
+  // Embedded callers set this on their own root and must keep that value.
+  useEffect(() => {
+    if (embedded || !showControls) return;
+
+    const controls = controlsRef.current;
+    const map = mapRef.current;
+    if (!controls || !map) return;
+
+    const updateScrollOffset = () => {
+      const stickyTop = Number.parseFloat(
+        window.getComputedStyle(controls).top,
+      );
+
+      map.style.setProperty(
+        "--festival-map-scroll-offset",
+        `${(Number.isNaN(stickyTop) ? 0 : stickyTop) + controls.offsetHeight + 12}px`,
+      );
+    };
+
+    updateScrollOffset();
+
+    const observer = new ResizeObserver(updateScrollOffset);
+    observer.observe(controls);
+    window.addEventListener("resize", updateScrollOffset);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateScrollOffset);
+    };
+  }, [embedded, showControls]);
 
   const searchEntries = useMemo<ParticipantSearchEntry[]>(
     () => buildParticipantSearchEntries(sectors),
@@ -238,6 +271,7 @@ export default function FestivalNavMap({
             <FestivalNavSearch
               entries={searchEntries}
               onSelect={handleSearchSelect}
+              activeSectorIndex={activeSectorIndex}
               flush={embedded}
             />
             <FestivalNavSectorTabs
