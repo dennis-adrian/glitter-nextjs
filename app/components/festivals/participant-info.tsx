@@ -3,7 +3,10 @@ import type { UserCategory } from "@/app/api/users/definitions";
 import ProfileAvatar from "@/app/components/common/profile-avatar";
 import { Badge, type BadgeVariant } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
-import { getPublicCategoryLabel } from "@/app/lib/maps/helpers";
+import {
+  getCategoryBadgeVariant,
+  getPublicCategoryLabel,
+} from "@/app/lib/maps/helpers";
 import { formatStandLabel } from "@/app/lib/stands/helpers";
 import { isNewProfile } from "@/app/lib/utils";
 import Link from "next/link";
@@ -61,14 +64,7 @@ export default function ParticipantInfo(props: ParticipantInfoProps) {
     .join(" - ");
   const category = props.profile.category;
   const categoryText = getPublicCategoryLabel(category);
-  const categoryVariant: BadgeVariant =
-    category === "illustration" || category === "new_artist"
-      ? "illustration"
-      : category === "entrepreneurship"
-        ? "entrepreneurship"
-        : category === "gastronomy"
-          ? "gastronomy"
-          : "outline";
+  const categoryVariant = getCategoryBadgeVariant(category);
 
   return (
     <article className="flex min-h-64 flex-col items-center rounded-2xl border border-primary-100 bg-card p-4 text-center transition hover:border-primary-300 hover:shadow-md">

@@ -1,4 +1,5 @@
 import { StandZone } from "@/app/api/stands/definitions";
+import type { BadgeVariant } from "@/app/components/ui/badge";
 import { UserCategory } from "@/app/api/users/definitions";
 
 export function getCategoryOccupationLabel(
@@ -28,6 +29,22 @@ export function getPublicCategoryLabel(
   if (category == null || category === "none") return null;
   if (category === "new_artist") return "Nuevos artistas";
   return getCategoryLabel(category);
+}
+
+/**
+ * Categories the Badge component has a colour for. `new_artist` shares the
+ * illustration palette — it has no variant of its own, and casting it straight
+ * to a variant silently falls back to the default styling.
+ */
+export function getCategoryBadgeVariant(
+  category?: UserCategory | null,
+): BadgeVariant {
+  if (category === "illustration" || category === "new_artist") {
+    return "illustration";
+  }
+  if (category === "entrepreneurship") return "entrepreneurship";
+  if (category === "gastronomy") return "gastronomy";
+  return "outline";
 }
 
 export function getMapPageTitle(category: Exclude<UserCategory, "none">) {

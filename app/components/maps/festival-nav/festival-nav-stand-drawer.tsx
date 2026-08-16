@@ -16,6 +16,7 @@ import {
 import { socialsUrls, socialsIcons } from "@/app/lib/users/utils";
 import { formatStandsLabel, getStandsProducts } from "@/app/lib/stands/groups";
 import { getActivityMarker } from "@/app/lib/festivals/activity-markers";
+import { getCategoryBadgeVariant } from "@/app/lib/maps/helpers";
 import {
   STAND_ACTIVITY_FILTERS,
   type StandActivityUserIds,
@@ -41,20 +42,6 @@ type FestivalNavStandDrawerProps = {
   couponBookProofs: Record<number, CouponProof[]>;
   activityUserIds: StandActivityUserIds;
 };
-
-function getCategoryLabel(category: string): string {
-  switch (category) {
-    case "illustration":
-    case "new_artist":
-      return "ILUSTRACIÓN";
-    case "gastronomy":
-      return "GASTRONOMÍA";
-    case "entrepreneurship":
-      return "EMPRENDIMIENTO";
-    default:
-      return "";
-  }
-}
 
 export default function FestivalNavStandDrawer({
   stand,
@@ -82,7 +69,7 @@ export default function FestivalNavStandDrawer({
   // still speaks for the whole unit apart from the label and products.
   const drawerStands = groupStands?.length ? groupStands : [stand];
   const standLabel = formatStandsLabel(drawerStands);
-  const categoryLabel = getCategoryLabel(stand.standCategory);
+  const standCategoryVariant = getCategoryBadgeVariant(stand.standCategory);
   const products = getStandsProducts(drawerStands);
 
   const couponProof =
@@ -106,21 +93,16 @@ export default function FestivalNavStandDrawer({
       <DrawerContent className="max-h-[85vh]">
         <DrawerHeader className="text-left pb-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge className="font-bold px-3 py-1 rounded-full">
+            <Badge
+              variant={standCategoryVariant}
+              className="font-bold px-3 py-1 rounded-full"
+            >
               {standLabel}
             </Badge>
             {sectorName && (
               <span className="text-xs text-muted-foreground">
                 {sectorName}
               </span>
-            )}
-            {categoryLabel && (
-              <Badge
-                variant="outline"
-                className="text-xs font-semibold uppercase rounded-full border-primary text-primary"
-              >
-                {categoryLabel}
-              </Badge>
             )}
           </div>
         </DrawerHeader>
