@@ -131,8 +131,9 @@ export default function FestivalPageHero({
     : hasFastPass
       ? "Comprar Pase Rápido"
       : null;
-  const registrationHelperText =
-    "Registrate y obtené tu entrada para presentar al ingresar";
+  const primaryHelperText = isRegistrationOpen
+    ? "Registrate y obtené tu entrada para presentar al ingresar"
+    : "Comprá tu Pase Rápido para ingresar más rápido al festival";
 
   return (
     <>
@@ -212,7 +213,7 @@ export default function FestivalPageHero({
               {primaryHref && primaryLabel ? (
                 <>
                   <p className="mt-2 text-sm leading-5 text-muted-foreground">
-                    {registrationHelperText}
+                    {primaryHelperText}
                   </p>
                   <Button asChild className="mt-4 w-full">
                     <Link href={primaryHref}>{primaryLabel}</Link>
