@@ -18,6 +18,16 @@ import { cn } from "@/app/lib/utils";
  */
 const MAX_RESULTS = 8;
 
+/**
+ * 16px rather than the 14px the controls around it use, at every width. iOS
+ * Safari zooms the whole page in when a field it focuses carries text smaller
+ * than that, and it does not zoom back out on blur — the visitor is left on a
+ * magnified map they have to pinch their way out of. Holding the phone in
+ * landscape puts it past `sm` without taking the keyboard away, so a
+ * breakpoint-scoped bump would leave the bug in place there.
+ */
+const FIELD_TEXT_SIZE = "text-base";
+
 type FestivalNavSearchProps = {
   entries: ParticipantSearchEntry[];
   onSelect: (entry: ParticipantSearchEntry) => void;
@@ -63,9 +73,17 @@ export default function FestivalNavSearch({
   const visible = (isSearching ? matches : suggestions).slice(0, MAX_RESULTS);
   const hiddenMatches = isSearching ? matches.length - visible.length : 0;
 
+  /**
+   * The result buttons hold focus on the field (they preventDefault on
+   * mousedown) so the panel survives the press. Once a hit is chosen that focus
+   * has no job left, and on a phone it keeps the keyboard over the map the
+   * selection just scrolled to — so the field is released before the caller
+   * runs.
+   */
   function handleSelect(entry: ParticipantSearchEntry) {
     setQuery("");
     setOpen(false);
+    inputRef.current?.blur();
     onSelect(entry);
   }
 
@@ -144,7 +162,10 @@ export default function FestivalNavSearch({
             setOpen(true);
             scrollFieldIntoPlace();
           }}
-          className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-10 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          className={cn(
+            "w-full rounded-lg border border-border bg-background py-2 pl-9 pr-10 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40",
+            FIELD_TEXT_SIZE,
+          )}
         />
         {query.length > 0 ? (
           <button

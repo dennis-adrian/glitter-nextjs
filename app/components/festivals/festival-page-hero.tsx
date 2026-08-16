@@ -120,9 +120,7 @@ export default function FestivalPageHero({
   hasFastPass,
 }: FestivalPageHeroProps) {
   const isRegistrationOpen =
-    festival.status === "active" &&
-    festival.publicRegistration &&
-    !festival.eventDayRegistration;
+    festival.status === "active" && festival.publicRegistration;
   const primaryHref = isRegistrationOpen
     ? `/festivals/${festival.id}/registration`
     : hasFastPass
@@ -133,6 +131,9 @@ export default function FestivalPageHero({
     : hasFastPass
       ? "Comprar Pase Rápido"
       : null;
+  const primaryHelperText = isRegistrationOpen
+    ? "Registrate y obtené tu entrada para presentar al ingresar"
+    : "Comprá tu Pase Rápido para ingresar más rápido al festival";
 
   return (
     <>
@@ -212,18 +213,21 @@ export default function FestivalPageHero({
               {primaryHref && primaryLabel ? (
                 <>
                   <p className="mt-2 text-sm leading-5 text-muted-foreground">
-                    Registrate y recibí tu entrada para presentar al ingresar
+                    {primaryHelperText}
                   </p>
                   <Button asChild className="mt-4 w-full">
                     <Link href={primaryHref}>{primaryLabel}</Link>
                   </Button>
                 </>
               ) : (
-                <p className="mt-2 text-sm leading-5 text-muted-foreground">
-                  {festival.eventDayRegistration
-                    ? "El registro se realizará al llegar al festival."
-                    : "No hay entradas habilitadas"}
-                </p>
+                <>
+                  <p className="mt-2 text-sm leading-5 text-muted-foreground">
+                    No hay entradas habilitadas
+                  </p>
+                  <Button disabled className="mt-4 w-full">
+                    Obtener entrada
+                  </Button>
+                </>
               )}
             </div>
           </div>
