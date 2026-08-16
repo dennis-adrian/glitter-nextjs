@@ -7,10 +7,10 @@ import {
   ChartTooltip,
   ChartTooltipContent,
   ChartLegend,
-  ChartLegendContent,
 } from "@/components/ui/chart";
 import { TicketIcon } from "lucide-react";
 import { TicketWithVisitor } from "@/app/data/tickets/actions";
+import ChartDayLegend from "@/app/components/tickets/chart/chart-day-legend";
 import { generateChartData } from "@/app/components/tickets/chart/helpers";
 
 const chartConfig = {
@@ -32,10 +32,9 @@ type TicketsChartProps = {
 export default function TicketsChart(props: TicketsChartProps) {
   const chartData = generateChartData(props.tickets, props.festivalDates);
   const isMultiDay = props.festivalDates.length > 1;
-  const totalCheckIns = chartData.reduce(
-    (sum, d) => sum + d.day1 + (d.day2 ?? 0),
-    0,
-  );
+  const day1CheckIns = chartData.reduce((sum, d) => sum + d.day1, 0);
+  const day2CheckIns = chartData.reduce((sum, d) => sum + (d.day2 ?? 0), 0);
+  const totalCheckIns = day1CheckIns + day2CheckIns;
 
   return (
     <div className="space-y-2">
@@ -66,7 +65,26 @@ export default function TicketsChart(props: TicketsChartProps) {
             />
             <YAxis tickLine={false} axisLine={false} width={32} />
             <ChartTooltip content={<ChartTooltipContent />} />
-            {isMultiDay && <ChartLegend content={<ChartLegendContent />} />}
+            {isMultiDay && (
+              <ChartLegend
+                content={() => (
+                  <ChartDayLegend
+                    entries={[
+                      {
+                        key: "day1",
+                        label: chartConfig.day1.label,
+                        value: day1CheckIns,
+                      },
+                      {
+                        key: "day2",
+                        label: chartConfig.day2.label,
+                        value: day2CheckIns,
+                      },
+                    ]}
+                  />
+                )}
+              />
+            )}
             <Bar dataKey="day1" fill="var(--color-day1)" radius={4} />
             {isMultiDay && (
               <Bar dataKey="day2" fill="var(--color-day2)" radius={4} />

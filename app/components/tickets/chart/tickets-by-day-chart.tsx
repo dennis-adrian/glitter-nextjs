@@ -9,6 +9,7 @@ import {
   ChartLegend,
 } from "@/components/ui/chart";
 import { TicketWithVisitor } from "@/app/data/tickets/actions";
+import ChartDayLegend from "@/app/components/tickets/chart/chart-day-legend";
 import { formatDate } from "@/app/lib/formatters";
 
 type TicketsByDayChartProps = {
@@ -69,31 +70,14 @@ export default function TicketsByDayChart({
           <ChartTooltip content={<ChartTooltipContent nameKey="name" />} />
           <ChartLegend
             content={() => (
-              <ul className="flex flex-wrap justify-center gap-4 text-sm">
-                <li className="flex items-center gap-1.5 font-medium">
-                  <span>
-                    Total: {(day1Visitors + day2Visitors).toLocaleString()}
-                  </span>
-                </li>
-                {chartData.map((entry) => (
-                  <li key={entry.name} className="flex items-center gap-1.5">
-                    <span
-                      className="inline-block h-2.5 w-2.5 rounded-full"
-                      style={{
-                        backgroundColor: `var(--color-${entry.name})`,
-                      }}
-                    />
-                    <span>
-                      {
-                        chartConfig[entry.name as keyof typeof chartConfig]
-                          .label
-                      }
-                      {": "}
-                      {entry.value.toLocaleString()}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <ChartDayLegend
+                total={day1Visitors + day2Visitors}
+                entries={chartData.map((entry) => ({
+                  key: entry.name,
+                  label: String(chartConfig[entry.name].label),
+                  value: entry.value,
+                }))}
+              />
             )}
           />
         </PieChart>
