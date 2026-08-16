@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { BookOpen, Search, Stamp } from "lucide-react";
+import { BookOpen } from "lucide-react";
 
 import { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
 import { getStandMapParticipants } from "@/app/components/maps/map-participants";
@@ -15,6 +15,13 @@ import {
 } from "@/app/components/ui/drawer";
 import { socialsUrls, socialsIcons } from "@/app/lib/users/utils";
 import { formatStandsLabel, getStandsProducts } from "@/app/lib/stands/groups";
+import { getActivityMarker } from "@/app/lib/festivals/activity-markers";
+import { getCategoryBadgeVariant } from "@/app/lib/maps/helpers";
+import {
+  STAND_ACTIVITY_FILTERS,
+  type StandActivityUserIds,
+} from "@/app/lib/maps/stand-filters";
+import { cn } from "@/app/lib/utils";
 
 export type CouponProof = {
   promoHighlight: string | null;
@@ -33,23 +40,8 @@ type FestivalNavStandDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   couponBookProofs: Record<number, CouponProof[]>;
-  passportUserIdSet: Set<number>;
-  stickerHuntUserIdSet: Set<number>;
+  activityUserIds: StandActivityUserIds;
 };
-
-function getCategoryLabel(category: string): string {
-  switch (category) {
-    case "illustration":
-    case "new_artist":
-      return "ILUSTRACIÓN";
-    case "gastronomy":
-      return "GASTRONOMÍA";
-    case "entrepreneurship":
-      return "EMPRENDIMIENTO";
-    default:
-      return "";
-  }
-}
 
 export default function FestivalNavStandDrawer({
   stand,
@@ -58,8 +50,7 @@ export default function FestivalNavStandDrawer({
   open,
   onOpenChange,
   couponBookProofs,
-  passportUserIdSet,
-  stickerHuntUserIdSet,
+  activityUserIds,
 }: FestivalNavStandDrawerProps) {
   const [activeTab, setActiveTab] = useState(0);
 
@@ -78,7 +69,7 @@ export default function FestivalNavStandDrawer({
   // still speaks for the whole unit apart from the label and products.
   const drawerStands = groupStands?.length ? groupStands : [stand];
   const standLabel = formatStandsLabel(drawerStands);
-  const categoryLabel = getCategoryLabel(stand.standCategory);
+  const standCategoryVariant = getCategoryBadgeVariant(stand.standCategory);
   const products = getStandsProducts(drawerStands);
 
   const couponProof =
@@ -86,36 +77,32 @@ export default function FestivalNavStandDrawer({
       ? (couponBookProofs[currentParticipant.userId]?.[0] ?? null)
       : null;
 
-  const isInPassport =
+  // The coupon book gets its own section below, since it carries the promo
+  // details; every other marker is a plain "takes part in this" callout.
+  const participatingActivities =
     currentParticipant?.kind === "user" && currentParticipant.userId != null
-      ? passportUserIdSet.has(currentParticipant.userId)
-      : false;
-
-  const isInStickerHunt =
-    currentParticipant?.kind === "user" && currentParticipant.userId != null
-      ? stickerHuntUserIdSet.has(currentParticipant.userId)
-      : false;
+      ? STAND_ACTIVITY_FILTERS.filter(
+          (activity) =>
+            activity !== "coupon_book" &&
+            activityUserIds[activity].has(currentParticipant.userId!),
+        )
+      : [];
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} modal={false}>
       <DrawerContent className="max-h-[85vh]">
         <DrawerHeader className="text-left pb-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge className="font-bold px-3 py-1 rounded-full">
+            <Badge
+              variant={standCategoryVariant}
+              className="font-bold px-3 py-1 rounded-full"
+            >
               {standLabel}
             </Badge>
             {sectorName && (
               <span className="text-xs text-muted-foreground">
                 {sectorName}
               </span>
-            )}
-            {categoryLabel && (
-              <Badge
-                variant="outline"
-                className="text-xs font-semibold uppercase rounded-full border-primary text-primary"
-              >
-                {categoryLabel}
-              </Badge>
             )}
           </div>
         </DrawerHeader>
@@ -144,6 +131,7 @@ export default function FestivalNavStandDrawer({
                         <AvatarImage
                           src={p.imageUrl ?? undefined}
                           alt={p.displayName}
+                          sizes="24px"
                         />
                       </Avatar>
                       <span className="text-xs font-medium truncate max-w-25">
@@ -162,6 +150,7 @@ export default function FestivalNavStandDrawer({
                       <AvatarImage
                         src={currentParticipant.imageUrl ?? undefined}
                         alt={currentParticipant.displayName}
+                        sizes="56px"
                       />
                     </Avatar>
                     <div className="flex-1 min-w-0">
@@ -182,6 +171,23 @@ export default function FestivalNavStandDrawer({
                       )}
                     </div>
                   </div>
+
+                  {/* What the visitor would find at this stand. Sits with the
+                      participant rather than in the header, which describes the
+                      stand and does not change as the tabs do. */}
+                  {currentParticipant.subcategories.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {currentParticipant.subcategories.map((subcategory) => (
+                        <Badge
+                          key={subcategory}
+                          variant="outline"
+                          className="rounded-full font-normal"
+                        >
+                          {subcategory}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Coupon section */}
                   {couponProof && (
@@ -210,29 +216,27 @@ export default function FestivalNavStandDrawer({
                     </div>
                   )}
 
-                  {/* Passport section */}
-                  {isInPassport && (
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                      <div className="flex items-center gap-2 text-emerald-700">
-                        <Stamp className="h-4 w-4 shrink-0" />
-                        <span className="text-xs font-semibold uppercase tracking-wide">
-                          Participa en la carrera de sellos
-                        </span>
-                      </div>
-                    </div>
-                  )}
+                  {/* Activity callouts */}
+                  {participatingActivities.map((activity) => {
+                    const marker = getActivityMarker(activity);
 
-                  {/* Sticker hunt section */}
-                  {isInStickerHunt && (
-                    <div className="rounded-lg border border-pink-200 bg-pink-50 p-3">
-                      <div className="flex items-center gap-2 text-pink-700">
-                        <Search className="h-4 w-4 shrink-0" />
-                        <span className="text-xs font-semibold uppercase tracking-wide">
-                          Participa en la cacería de stickers
-                        </span>
+                    return (
+                      <div
+                        key={activity}
+                        className={cn(
+                          "rounded-lg border p-3",
+                          marker.softClassName,
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <marker.Icon className="h-4 w-4 shrink-0" />
+                          <span className="text-xs font-semibold uppercase tracking-wide">
+                            {marker.participationLabel}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })}
 
                   {/* Products */}
                   {products.length > 0 && (

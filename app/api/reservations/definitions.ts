@@ -23,7 +23,10 @@ export type ReservationWithStand = ReservationBase & {
 };
 
 export type Participant = typeof reservationParticipants.$inferSelect & {
-  user: ProfileWithSocials;
+  user: ProfileWithSocials & {
+    /** Only the queries that ask for it load these; absent elsewhere. */
+    profileSubcategories?: ProfileSubcategoryWithSubcategory[];
+  };
 };
 export type ExternalParticipant = typeof externalParticipants.$inferSelect;
 export type ReservationExternalParticipant =

@@ -3,16 +3,18 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import FestivalNavStandBadges from "@/app/components/maps/festival-nav/festival-nav-stand-badges";
 import type { StandWithReservationsWithParticipants } from "@/app/api/stands/definitions";
+import { STAND_SIZE } from "@/app/components/maps/map-utils";
 
 afterEach(cleanup);
 
 /**
- * Badges stack right to left from the stand's top-right corner, so the x
- * positions asserted below are STAND_SIZE - 0.8 minus 2 per preceding badge.
+ * Badges stack right to left from the stand's top-right corner. Inset equals
+ * the badge radius so the first circle's right edge sits on STAND_SIZE; spacing
+ * is 1.1 so four circles still fit between x=0 and STAND_SIZE.
  */
-const FIRST_SLOT = 5.2;
-const SECOND_SLOT = 3.2;
-const THIRD_SLOT = 1.2;
+const FIRST_SLOT = 4.7;
+const SECOND_SLOT = 3.6;
+const THIRD_SLOT = 2.5;
 
 function stand(
   id: number,
@@ -43,15 +45,19 @@ function renderBadges(
     coupon?: number[];
     passport?: number[];
     stickerHunt?: number[];
+    festivalSticker?: number[];
   } = {},
 ) {
   const { container } = render(
     <svg>
       <FestivalNavStandBadges
         stands={stands}
-        couponBookUserIdSet={new Set(sets.coupon ?? [])}
-        passportUserIdSet={new Set(sets.passport ?? [])}
-        stickerHuntUserIdSet={new Set(sets.stickerHunt ?? [])}
+        activityUserIds={{
+          coupon_book: new Set(sets.coupon ?? []),
+          stamp_passport: new Set(sets.passport ?? []),
+          sticker_hunt: new Set(sets.stickerHunt ?? []),
+          festival_sticker: new Set(sets.festivalSticker ?? []),
+        }}
       />
     </svg>,
   );
@@ -94,6 +100,37 @@ describe("FestivalNavStandBadges", () => {
     ]);
   });
 
+  it("keeps four activity badges within the stand", () => {
+    const { container } = render(
+      <svg>
+        <FestivalNavStandBadges
+          stands={[stand(1, [7])]}
+          activityUserIds={{
+            coupon_book: new Set([7]),
+            stamp_passport: new Set([7]),
+            sticker_hunt: new Set([7]),
+            festival_sticker: new Set([7]),
+          }}
+        />
+      </svg>,
+    );
+
+    expect(
+      Array.from(container.querySelectorAll("text")).map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(["%", "★", "♦", "✦"]);
+
+    const circles = Array.from(container.querySelectorAll("circle"));
+    expect(circles).toHaveLength(4);
+    for (const circle of circles) {
+      const cx = Number(circle.getAttribute("cx"));
+      const radius = Number(circle.getAttribute("r"));
+      expect(cx - radius).toBeGreaterThanOrEqual(0);
+      expect(cx + radius).toBeLessThanOrEqual(STAND_SIZE);
+    }
+  });
+
   it("closes the gap when a middle activity is missing", () => {
     expect(
       renderBadges([stand(1, [7])], { coupon: [7], stickerHunt: [7] }),
@@ -126,9 +163,12 @@ describe("FestivalNavStandBadges", () => {
             stand(1, [7]),
             stand(2, [8], { positionLeft: 30, positionTop: 40 }),
           ]}
-          couponBookUserIdSet={new Set([7, 8])}
-          passportUserIdSet={new Set()}
-          stickerHuntUserIdSet={new Set()}
+          activityUserIds={{
+            coupon_book: new Set([7, 8]),
+            stamp_passport: new Set(),
+            sticker_hunt: new Set(),
+            festival_sticker: new Set(),
+          }}
         />
       </svg>,
     );

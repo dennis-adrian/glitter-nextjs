@@ -162,6 +162,33 @@
   /* Firefox */
 }
 
+@keyframes festival-map-locate-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.28);
+  }
+}
+
+@layer utilities {
+  .festival-map-locate-ring {
+    animation: festival-map-locate-pulse 700ms ease-out 3;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .festival-map-locate-ring {
+    animation: none;
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

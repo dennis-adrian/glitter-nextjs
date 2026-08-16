@@ -18,6 +18,7 @@ function userReservation() {
             { id: 1, type: "instagram", username: "garabatosdepandora" },
             { id: 2, type: "facebook", username: "garabatosdepandora" },
           ],
+          profileSubcategories: [] as { subcategory: { label: string } }[],
         },
       },
     ],
@@ -91,5 +92,20 @@ describe("getStandMapParticipants", () => {
         stand([{ ...userReservation(), status: "rejected" }]),
       ),
     ).toEqual([]);
+  });
+
+  it("maps nested profile subcategory labels", () => {
+    const reservation = userReservation();
+    reservation.participants[0].user = {
+      ...reservation.participants[0].user,
+      profileSubcategories: [
+        { subcategory: { label: "Stickers" } },
+        { subcategory: { label: "Prints" } },
+      ],
+    };
+
+    const [participant] = getStandMapParticipants(stand([reservation]));
+
+    expect(participant.subcategories).toEqual(["Stickers", "Prints"]);
   });
 });
