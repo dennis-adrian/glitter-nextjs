@@ -8,12 +8,13 @@ import { STAND_SIZE } from "@/app/components/maps/map-utils";
 afterEach(cleanup);
 
 /**
- * Badges stack right to left from the stand's top-right corner, so the x
- * positions asserted below are STAND_SIZE - 1.2 minus 1.2 per preceding badge.
+ * Badges stack right to left from the stand's top-right corner. Inset equals
+ * the badge radius so the first circle's right edge sits on STAND_SIZE; spacing
+ * is 1.1 so four circles still fit between x=0 and STAND_SIZE.
  */
-const FIRST_SLOT = 4.8;
+const FIRST_SLOT = 4.7;
 const SECOND_SLOT = 3.6;
-const THIRD_SLOT = 2.4;
+const THIRD_SLOT = 2.5;
 
 function stand(
   id: number,
@@ -100,20 +101,34 @@ describe("FestivalNavStandBadges", () => {
   });
 
   it("keeps four activity badges within the stand", () => {
-    const badges = renderBadges([stand(1, [7])], {
-      coupon: [7],
-      passport: [7],
-      stickerHunt: [7],
-      festivalSticker: [7],
-    });
+    const { container } = render(
+      <svg>
+        <FestivalNavStandBadges
+          stands={[stand(1, [7])]}
+          activityUserIds={{
+            coupon_book: new Set([7]),
+            stamp_passport: new Set([7]),
+            sticker_hunt: new Set([7]),
+            festival_sticker: new Set([7]),
+          }}
+        />
+      </svg>,
+    );
 
-    expect(badges.map((badge) => badge.glyph)).toEqual(["%", "★", "♦", "✦"]);
-    expect(Math.min(...badges.map((badge) => badge.x))).toBeGreaterThanOrEqual(
-      0,
-    );
-    expect(Math.max(...badges.map((badge) => badge.x))).toBeLessThanOrEqual(
-      STAND_SIZE,
-    );
+    expect(
+      Array.from(container.querySelectorAll("text")).map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(["%", "★", "♦", "✦"]);
+
+    const circles = Array.from(container.querySelectorAll("circle"));
+    expect(circles).toHaveLength(4);
+    for (const circle of circles) {
+      const cx = Number(circle.getAttribute("cx"));
+      const radius = Number(circle.getAttribute("r"));
+      expect(cx - radius).toBeGreaterThanOrEqual(0);
+      expect(cx + radius).toBeLessThanOrEqual(STAND_SIZE);
+    }
   });
 
   it("closes the gap when a middle activity is missing", () => {

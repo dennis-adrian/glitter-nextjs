@@ -17,8 +17,8 @@ type FestivalNavStandBadgesProps = {
 };
 
 const BADGE_RADIUS = 1.3;
-const BADGE_SPACING = 1.2;
-const BADGE_INSET = 1.2;
+const BADGE_SPACING = 1.1;
+const BADGE_INSET = BADGE_RADIUS;
 
 /**
  * Activity markers painted on top of the stands. Badges stack right to left so

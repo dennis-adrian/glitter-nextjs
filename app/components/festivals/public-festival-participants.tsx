@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   sortFestivalParticipants,
@@ -16,12 +16,18 @@ const PAGE_SIZE = 10;
 
 export default function PublicFestivalParticipants({
   participants,
+  hasActiveFilters,
 }: {
   participants: PublicFestivalParticipant[];
+  hasActiveFilters: boolean;
 }) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   // Stand order by default: it matches the route someone walks the festival in.
   const [sort, setSort] = useState<ParticipantSort>("stand");
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [participants]);
 
   const sortedParticipants = useMemo(
     () => sortFestivalParticipants(participants, sort),
@@ -67,10 +73,23 @@ export default function PublicFestivalParticipants({
         </>
       ) : (
         <div className="rounded-2xl border border-dashed px-6 py-12 text-center">
-          <p className="font-semibold">No encontramos coincidencias.</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Probá otro nombre, número de stand o categoría.
-          </p>
+          {hasActiveFilters ? (
+            <>
+              <p className="font-semibold">No encontramos coincidencias.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Probá otro nombre, número de stand o categoría.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold">
+                Aún no hay participantes publicados.
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                La lista aparecerá cuando se confirmen los stands.
+              </p>
+            </>
+          )}
         </div>
       )}
     </div>

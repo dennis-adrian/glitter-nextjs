@@ -15,7 +15,10 @@ export default function FestivalParticipantCategoryFilters({
   value: ParticipantCategoryFilter;
   onChange: (category: ParticipantCategoryFilter) => void;
 }) {
-  if (categories.length < 2) return null;
+  const publicCategories = categories.filter(
+    (category) => getPublicCategoryLabel(category) != null,
+  );
+  if (publicCategories.length < 2) return null;
 
   return (
     <div
@@ -36,24 +39,22 @@ export default function FestivalParticipantCategoryFilters({
       >
         Todas las categorías
       </button>
-      {categories
-        .filter((category) => getPublicCategoryLabel(category) != null)
-        .map((category) => (
-          <button
-            key={category}
-            type="button"
-            aria-pressed={value === category}
-            onClick={() => onChange(category)}
-            className={cn(
-              "shrink-0 rounded-full border px-3 py-1.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-              value === category
-                ? "border-primary bg-primary text-primary-foreground"
-                : "bg-background text-muted-foreground hover:border-primary/50 hover:text-primary",
-            )}
-          >
-            {getPublicCategoryLabel(category)}
-          </button>
-        ))}
+      {publicCategories.map((category) => (
+        <button
+          key={category}
+          type="button"
+          aria-pressed={value === category}
+          onClick={() => onChange(category)}
+          className={cn(
+            "shrink-0 rounded-full border px-3 py-1.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            value === category
+              ? "border-primary bg-primary text-primary-foreground"
+              : "bg-background text-muted-foreground hover:border-primary/50 hover:text-primary",
+          )}
+        >
+          {getPublicCategoryLabel(category)}
+        </button>
+      ))}
     </div>
   );
 }

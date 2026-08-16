@@ -29,7 +29,7 @@ import {
 } from "@/db/schema";
 import {
   and,
-  count,
+  countDistinct,
   eq,
   exists,
   inArray,
@@ -468,7 +468,7 @@ export async function fetchPublicFestivalParticipants(
     const confirmedCounts = await db
       .select({
         userId: reservationParticipants.userId,
-        confirmed: count(),
+        confirmed: countDistinct(standReservations.festivalId),
       })
       .from(reservationParticipants)
       .innerJoin(

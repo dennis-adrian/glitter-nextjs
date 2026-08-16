@@ -390,6 +390,7 @@ export default function FestivalVisitorExplorer({
         <PublicFestivalParticipants
           key={participantListKey}
           participants={filteredParticipants}
+          hasActiveFilters={hasActiveFilters || activeSectorIndex !== -1}
         />
       </section>
 

@@ -59,6 +59,9 @@ export default async function FestivalVisitorDiscovery({
     (activity) => activity.accessLevel === "public",
   );
   const mapActivityData = getMapActivityData(publicActivities);
+  const publicParticipantIds = new Set(
+    publicParticipants.map((participant) => participant.id),
+  );
   const participantLocationByUserId = new Map<
     number,
     { sectorName: string; standLabel: string }
@@ -79,10 +82,11 @@ export default async function FestivalVisitorDiscovery({
   const visitorActivities: VisitorActivity[] = publicActivities.map(
     (activity) => {
       const uniqueParticipants = new Map(
-        getVisibleActivityParticipants(activity).map((participant) => [
-          participant.userId,
-          participant,
-        ]),
+        getVisibleActivityParticipants(activity)
+          .filter((participant) =>
+            publicParticipantIds.has(participant.userId),
+          )
+          .map((participant) => [participant.userId, participant]),
       );
 
       return {
