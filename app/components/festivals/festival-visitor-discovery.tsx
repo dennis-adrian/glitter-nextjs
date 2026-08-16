@@ -95,6 +95,7 @@ function toPublicMapSectors(
             imageUrl: participant.user.imageUrl,
             category: participant.user.category,
             userSocials: [],
+            profileSubcategories: participant.user.profileSubcategories ?? [],
           },
         })),
         externalParticipants: reservation.externalParticipants,

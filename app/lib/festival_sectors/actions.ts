@@ -18,6 +18,7 @@ import {
   festivalActivityParticipants,
   festivals,
   festivalSectors,
+  profileSubcategories,
   reservationParticipants,
   standReservations,
   stands,
@@ -36,11 +37,63 @@ import {
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
+/**
+ * Loaded separately rather than nested in the sector query: Postgres truncates
+ * identifiers at 63 characters, and the alias Drizzle generates for this
+ * relation four levels down overflows that and breaks the query.
+ */
+async function attachProfileSubcategories(
+  sectors: FestivalSectorWithStandsWithReservationsWithParticipants[],
+): Promise<FestivalSectorWithStandsWithReservationsWithParticipants[]> {
+  const userIds = Array.from(
+    new Set(
+      sectors.flatMap((sector) =>
+        sector.stands.flatMap((stand) =>
+          stand.reservations.flatMap((reservation) =>
+            reservation.participants.map((participant) => participant.user.id),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  if (userIds.length === 0) return sectors;
+
+  const rows = await db.query.profileSubcategories.findMany({
+    where: inArray(profileSubcategories.profileId, userIds),
+    with: { subcategory: true },
+  });
+
+  const byProfileId = new Map<number, typeof rows>();
+  for (const row of rows) {
+    const existing = byProfileId.get(row.profileId);
+    if (existing) existing.push(row);
+    else byProfileId.set(row.profileId, [row]);
+  }
+
+  return sectors.map((sector) => ({
+    ...sector,
+    stands: sector.stands.map((stand) => ({
+      ...stand,
+      reservations: stand.reservations.map((reservation) => ({
+        ...reservation,
+        participants: reservation.participants.map((participant) => ({
+          ...participant,
+          user: {
+            ...participant.user,
+            profileSubcategories: byProfileId.get(participant.user.id) ?? [],
+          },
+        })),
+      })),
+    })),
+  }));
+}
+
 export async function fetchFestivalSectors(
   festivalId: number,
 ): Promise<FestivalSectorWithStandsWithReservationsWithParticipants[]> {
   try {
-    return await db.query.festivalSectors.findMany({
+    const sectors = await db.query.festivalSectors.findMany({
       with: {
         stands: {
           with: {
@@ -72,6 +125,8 @@ export async function fetchFestivalSectors(
       orderBy: festivalSectors.orderInFestival,
       where: eq(festivalSectors.festivalId, festivalId),
     });
+
+    return await attachProfileSubcategories(sectors);
   } catch (error) {
     console.error("Error fetching festival sectors", error);
     return [];

@@ -188,6 +188,23 @@ export default function FestivalNavStandDrawer({
                     </div>
                   </div>
 
+                  {/* What the visitor would find at this stand. Sits with the
+                      participant rather than in the header, which describes the
+                      stand and does not change as the tabs do. */}
+                  {currentParticipant.subcategories.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {currentParticipant.subcategories.map((subcategory) => (
+                        <Badge
+                          key={subcategory}
+                          variant="outline"
+                          className="rounded-full font-normal"
+                        >
+                          {subcategory}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Coupon section */}
                   {couponProof && (
                     <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-1">
