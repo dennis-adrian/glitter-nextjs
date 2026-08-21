@@ -9,10 +9,7 @@ import { ArrowLeftIcon, MinusIcon, PlusIcon, Trash2Icon } from "lucide-react";
 
 import { updateOrder, UpdateOrderItemInput } from "@/app/lib/orders/actions";
 import { OrderWithRelations } from "@/app/lib/orders/definitions";
-import {
-  getOrderItemDisplayName,
-  getProductPriceAtPurchase,
-} from "@/app/lib/orders/utils";
+import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
 import { PLACEHOLDER_IMAGE_URLS } from "@/app/lib/constants";
 import { getProductVariantImageUrl } from "@/app/lib/products/variants";
 
@@ -31,7 +28,6 @@ type EditableItem = {
   productName: string;
   imageUrl: string;
   priceAtPurchase: number;
-  isReadOnly: boolean; // true when current price ≠ priceAtPurchase
   originalQuantity: number;
   quantity: number;
   isRemoved: boolean;
@@ -41,7 +37,6 @@ type EditableItem = {
 
 function initItems(order: OrderWithRelations): EditableItem[] {
   return order.orderItems.map((item) => {
-    const currentPrice = getProductPriceAtPurchase(item.product, item.variant);
     const imageUrl =
       getProductVariantImageUrl(item.product, item.variant) ??
       PLACEHOLDER_IMAGE_URLS["300"];
@@ -52,7 +47,6 @@ function initItems(order: OrderWithRelations): EditableItem[] {
       productName: getOrderItemDisplayName(item),
       imageUrl,
       priceAtPurchase: item.priceAtPurchase,
-      isReadOnly: Math.abs(currentPrice - item.priceAtPurchase) > 0.001,
       originalQuantity: item.quantity,
       quantity: item.quantity,
       isRemoved: false,
@@ -109,14 +103,6 @@ function EditOrderItemRow({
           Bs{item.priceAtPurchase.toFixed(2)} c/u
         </p>
 
-        {/* Price-lock notice */}
-        {item.isReadOnly && !item.isRemoved && (
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
-            El precio de este producto cambió. No es posible modificar su
-            cantidad.
-          </p>
-        )}
-
         {/* Controls */}
         <div className="flex items-center gap-2 mt-1">
           {item.isRemoved ? (
@@ -127,10 +113,6 @@ function EditOrderItemRow({
             >
               Deshacer
             </button>
-          ) : item.isReadOnly ? (
-            <span className="text-sm text-muted-foreground">
-              Cantidad: {item.quantity}
-            </span>
           ) : (
             <>
               {/* Quantity controls */}

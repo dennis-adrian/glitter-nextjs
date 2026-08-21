@@ -229,6 +229,7 @@ export default async function OrderDetailPage({
                     {item.transactionType === "rental" && (
                       <RentalReturnForm
                         orderItemId={item.id}
+                        expectedRevision={order.revision}
                         quantity={item.quantity}
                         rentalReturnedQuantity={item.rentalReturnedQuantity}
                       />
@@ -280,9 +281,11 @@ export default async function OrderDetailPage({
                       ? "Pedido creado"
                       : event.type === "adjusted"
                         ? "Ajuste aplicado"
-                        : event.type === "cancelled"
-                          ? "Pedido cancelado"
-                          : "Pedido actualizado";
+                        : event.type === "rental_returned"
+                          ? "Devolución registrada"
+                          : event.type === "cancelled"
+                            ? "Pedido cancelado"
+                            : "Pedido actualizado";
                   return (
                     <div key={event.id} className="border-l pl-3 text-sm">
                       <div className="flex flex-wrap justify-between gap-1">

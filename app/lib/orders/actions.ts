@@ -38,15 +38,12 @@ import OrderConfirmationForAdminsEmailTemplate from "@/app/emails/order-confirma
 import OrderConfirmationForUsersEmailTemplate from "@/app/emails/order-confirmation-for-user";
 import OrderPaymentConfirmationForUserEmailTemplate from "@/app/emails/order-payment-confirmation-for-user";
 import OrderVoucherSubmittedForAdminsEmailTemplate from "@/app/emails/order-voucher-submitted-for-admins";
-import OrderUpdatedForUserEmailTemplate from "@/app/emails/order-updated-for-user";
-import OrderUpdatedForAdminsEmailTemplate from "@/app/emails/order-updated-for-admins";
 import { getVariantLabel } from "@/app/lib/products/variants";
 import { assertRentalEligibility } from "@/app/lib/rentals/eligibility";
 import { resolveRentalLineContext } from "@/app/lib/rentals/rental-context";
 import {
   consumeLineStockInTx,
   getAvailableStockForLine,
-  restoreLineStockInTx,
   validateCombinedSharedStockDemand,
 } from "@/app/lib/rentals/order-stock";
 import { getStockPoolForTransaction } from "@/app/lib/rentals/stock";
@@ -63,7 +60,6 @@ import {
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 import {
   getOrderItemDisplayName,
-  getLineUnitPrice,
   getProductPriceAtPurchase,
   getRentalPriceAtPurchase,
 } from "@/app/lib/orders/utils";
@@ -72,6 +68,9 @@ import type { StoreOrdersQuery } from "@/app/lib/orders/query-schema";
 import { DateTime } from "luxon";
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
 import { applyOrderAdjustment } from "@/app/lib/orders/adjustments";
+import { resolveUnitCost } from "@/app/lib/products/cost";
+import { canTransitionOrderStatus } from "@/app/lib/orders/status-transitions";
+import { restoreEffectiveOrderStockInTx } from "@/app/lib/orders/cancellation";
 
 function revalidateStoreOrderViews() {
   revalidatePath("/dashboard/store");
@@ -447,21 +446,6 @@ async function resolveOrderLines(
   return resolvedLines;
 }
 
-async function restoreOrderItemStock(
-  tx: OrderTx,
-  item: Pick<
-    (typeof orderItems)["$inferSelect"],
-    | "productId"
-    | "productVariantId"
-    | "quantity"
-    | "transactionType"
-    | "rentalStockModeSnapshot"
-    | "rentalReturnedQuantity"
-  >,
-) {
-  await restoreLineStockInTx(tx, item);
-}
-
 async function consumeOrderItemStock(
   tx: OrderTx,
   product: typeof products.$inferSelect,
@@ -577,6 +561,14 @@ export async function createOrderInTx(
     })
     .returning();
 
+  await tx.insert(orderEvents).values({
+    orderId: order.id,
+    type: "created",
+    revision: order.revision,
+    actorId: userId,
+    payload: { legacy: false },
+  });
+
   for (const line of resolvedLines) {
     await tx.insert(orderItems).values({
       productId: line.product.id,
@@ -584,10 +576,12 @@ export async function createOrderInTx(
       productVariantLabel: line.productVariantLabel,
       quantity: line.quantity,
       priceAtPurchase: line.unitPrice,
-      unitCostAtPurchase:
-        (line.productVariantId != null
+      unitCostAtPurchase: resolveUnitCost(
+        line.product.unitCost,
+        line.productVariantId != null
           ? variantMap.get(line.productVariantId)?.unitCost
-          : line.product.unitCost) ?? null,
+          : null,
+      ),
       productNameAtPurchase: line.product.name,
       transactionType: line.transactionType,
       rentalContentSectionsSnapshot: line.rentalContentSectionsSnapshot,
@@ -683,6 +677,14 @@ export async function createGuestOrderInTx(
     })
     .returning();
 
+  await tx.insert(orderEvents).values({
+    orderId: order.id,
+    type: "created",
+    revision: order.revision,
+    actorId: null,
+    payload: { legacy: false, guest: true },
+  });
+
   for (const line of resolvedLines) {
     await tx.insert(orderItems).values({
       productId: line.product.id,
@@ -690,10 +692,12 @@ export async function createGuestOrderInTx(
       productVariantLabel: line.productVariantLabel,
       quantity: line.quantity,
       priceAtPurchase: line.unitPrice,
-      unitCostAtPurchase:
-        (line.productVariantId != null
+      unitCostAtPurchase: resolveUnitCost(
+        line.product.unitCost,
+        line.productVariantId != null
           ? variantMap.get(line.productVariantId)?.unitCost
-          : line.product.unitCost) ?? null,
+          : null,
+      ),
       productNameAtPurchase: line.product.name,
       transactionType: line.transactionType,
       orderId: order.id,
@@ -1212,65 +1216,93 @@ export async function fetchPendingVoucherReviewOrders() {
   }
 }
 
-export async function acceptOrder(orderId: number) {
-  try {
-    await db
-      .update(orders)
-      .set({ status: "paid" })
-      .where(eq(orders.id, orderId));
-  } catch (error) {
-    console.error(error);
-    return {
-      success: false,
-      message: "No se pudo aceptar la orden.",
-    };
-  }
+export async function acceptOrder(orderId: number, expectedRevision: number) {
+  return updateOrderStatus(orderId, "paid", expectedRevision);
+}
 
-  revalidateStoreOrderViews();
+export async function deleteOrder(_orderId: number) {
   return {
-    success: true,
-    message: "Orden aceptada correctamente.",
+    success: false,
+    message: "Los pedidos conservan un historial permanente y no se eliminan.",
   };
 }
 
-export async function deleteOrder(orderId: number) {
-  try {
-    await db.delete(orders).where(eq(orders.id, orderId));
-  } catch (error) {
-    console.error(error);
+export async function updateOrderStatus(
+  orderId: number,
+  status: OrderStatus,
+  expectedRevision: number,
+) {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") {
     return {
       success: false,
-      message: "No se pudo eliminar la orden.",
+      message: "No tienes permisos para actualizar pedidos.",
+    };
+  }
+  if (!Number.isInteger(orderId) || !Number.isInteger(expectedRevision)) {
+    return { success: false, message: "Solicitud inválida." };
+  }
+
+  let previousStatus: OrderStatus | null = null;
+
+  try {
+    await db.transaction(async (tx) => {
+      const [order] = await tx
+        .select()
+        .from(orders)
+        .where(eq(orders.id, orderId))
+        .for("update");
+      if (!order)
+        throw new Error("Pedido no encontrado.", { cause: "not_found" });
+      if (order.revision !== expectedRevision) {
+        throw new Error("El pedido cambió en otra sesión. Recargá la página.", {
+          cause: "conflict",
+        });
+      }
+      if (!canTransitionOrderStatus(order.status, status)) {
+        throw new Error("La transición de estado no está permitida.", {
+          cause: "invalid_transition",
+        });
+      }
+      previousStatus = order.status;
+
+      if (status === "cancelled") {
+        await restoreEffectiveOrderStockInTx(tx, orderId);
+      }
+
+      const revision = order.revision + 1;
+      await tx
+        .update(orders)
+        .set({ status, revision, updatedAt: sql`now()` })
+        .where(eq(orders.id, orderId));
+      await tx.insert(orderEvents).values({
+        orderId,
+        type: status === "cancelled" ? "cancelled" : "status_changed",
+        revision,
+        actorId: currentUser.id,
+        payload: { previousStatus: order.status, status },
+      });
+    });
+  } catch (error) {
+    console.error(error);
+    const safeCause =
+      error instanceof Error &&
+      ["not_found", "conflict", "invalid_transition"].includes(
+        String(error.cause),
+      );
+    return {
+      success: false,
+      message: safeCause ? error.message : "No se pudo actualizar el pedido.",
     };
   }
 
-  revalidateStoreOrderViews();
-  return {
-    success: true,
-    message: "Orden eliminada correctamente.",
-  };
-}
-
-export async function updateOrderStatus(orderId: number, status: OrderStatus) {
-  const orderBefore = await fetchOrder(orderId);
-
-  try {
-    await db.update(orders).set({ status }).where(eq(orders.id, orderId));
-  } catch (error) {
-    console.error(error);
-    return {
-      success: false,
-      message: "No se pudo actualizar el pedido.",
-    };
-  }
-
-  if (status === "paid" && orderBefore && orderBefore.status !== "paid") {
-    const recipientEmail =
-      orderBefore.customer?.email ?? orderBefore.guestEmail;
+  const orderAfter = await fetchOrder(orderId);
+  if (status === "paid" && previousStatus !== "paid" && orderAfter) {
+    const recipientEmail = orderAfter.customer?.email ?? orderAfter.guestEmail;
     const recipientName =
-      orderBefore.customer?.displayName ??
-      orderBefore.customer?.firstName ??
-      orderBefore.guestName ??
+      orderAfter.customer?.displayName ??
+      orderAfter.customer?.firstName ??
+      orderAfter.guestName ??
       "";
     try {
       if (recipientEmail) {
@@ -1281,7 +1313,7 @@ export async function updateOrderStatus(orderId: number, status: OrderStatus) {
           react: OrderPaymentConfirmationForUserEmailTemplate({
             customerName: recipientName,
             orderId: String(orderId),
-            total: orderBefore.totalAmount,
+            total: orderAfter.totalAmount,
           }) as React.ReactElement,
         });
       }
@@ -1308,7 +1340,7 @@ function isAllowedVoucherUrl(urlString: string): boolean {
       hostname.endsWith(".ufs.sh")
     );
   } catch {
-    console.error("URL de comprobante de pago inválida", urlString);
+    console.error("URL de comprobante de pago inválida");
     return false;
   }
 }
@@ -1316,6 +1348,7 @@ function isAllowedVoucherUrl(urlString: string): boolean {
 export async function submitOrderPaymentVoucher(
   orderId: number,
   voucherUrl: string,
+  expectedRevision: number,
 ) {
   const currentUser = await getCurrentUserProfile();
   if (!currentUser) {
@@ -1325,29 +1358,62 @@ export async function submitOrderPaymentVoucher(
     };
   }
 
-  if (!isAllowedVoucherUrl(voucherUrl)) {
+  if (
+    !Number.isInteger(orderId) ||
+    !Number.isInteger(expectedRevision) ||
+    expectedRevision < 1 ||
+    !isAllowedVoucherUrl(voucherUrl)
+  ) {
     return {
       success: false,
-      message: "Invalid voucher URL source",
+      message: "Solicitud inválida.",
     };
   }
 
   try {
-    const [order] = await db
-      .update(orders)
-      .set({
-        paymentVoucherUrl: voucherUrl,
-        status: "payment_verification",
-        voucherSubmittedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(orders.id, orderId),
-          eq(orders.userId, currentUser.id),
-          eq(orders.status, "pending"),
-        ),
-      )
-      .returning();
+    const order = await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select()
+        .from(orders)
+        .where(
+          and(
+            eq(orders.id, orderId),
+            eq(orders.userId, currentUser.id),
+            eq(orders.status, "pending"),
+          ),
+        )
+        .for("update");
+      if (!locked) return null;
+      if (locked.revision !== expectedRevision) {
+        throw new Error("El pedido cambió en otra sesión. Recargá la página.", {
+          cause: "conflict",
+        });
+      }
+      const revision = locked.revision + 1;
+      const [updated] = await tx
+        .update(orders)
+        .set({
+          paymentVoucherUrl: voucherUrl,
+          status: "payment_verification",
+          voucherSubmittedAt: new Date(),
+          revision,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(orders.id, orderId))
+        .returning();
+      await tx.insert(orderEvents).values({
+        orderId,
+        type: "status_changed",
+        revision,
+        actorId: currentUser.id,
+        payload: {
+          previousStatus: locked.status,
+          status: "payment_verification",
+          voucherSubmitted: true,
+        },
+      });
+      return updated;
+    });
 
     if (!order) {
       return {
@@ -1401,7 +1467,13 @@ export async function submitOrderPaymentVoucher(
     return { success: true, message: "Comprobante enviado correctamente." };
   } catch (error) {
     console.error(error);
-    return { success: false, message: "No se pudo enviar el comprobante." };
+    return {
+      success: false,
+      message:
+        error instanceof Error && error.cause === "conflict"
+          ? error.message
+          : "No se pudo enviar el comprobante.",
+    };
   }
 }
 
@@ -1409,28 +1481,63 @@ export async function submitGuestOrderPaymentVoucher(
   orderId: number,
   token: string,
   voucherUrl: string,
+  expectedRevision: number,
 ) {
-  if (!isAllowedVoucherUrl(voucherUrl)) {
-    return { success: false, message: "Invalid voucher URL source" };
+  if (
+    !Number.isInteger(orderId) ||
+    !Number.isInteger(expectedRevision) ||
+    expectedRevision < 1 ||
+    !isAllowedVoucherUrl(voucherUrl)
+  ) {
+    return { success: false, message: "Solicitud inválida." };
   }
 
   try {
-    const [order] = await db
-      .update(orders)
-      .set({
-        paymentVoucherUrl: voucherUrl,
-        status: "payment_verification",
-        voucherSubmittedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(orders.id, orderId),
-          eq(orders.guestOrderToken, token),
-          isNull(orders.userId),
-          eq(orders.status, "pending"),
-        ),
-      )
-      .returning();
+    const order = await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select()
+        .from(orders)
+        .where(
+          and(
+            eq(orders.id, orderId),
+            eq(orders.guestOrderToken, token),
+            isNull(orders.userId),
+            eq(orders.status, "pending"),
+          ),
+        )
+        .for("update");
+      if (!locked) return null;
+      if (locked.revision !== expectedRevision) {
+        throw new Error("El pedido cambió en otra sesión. Recargá la página.", {
+          cause: "conflict",
+        });
+      }
+      const revision = locked.revision + 1;
+      const [updated] = await tx
+        .update(orders)
+        .set({
+          paymentVoucherUrl: voucherUrl,
+          status: "payment_verification",
+          voucherSubmittedAt: new Date(),
+          revision,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(orders.id, orderId))
+        .returning();
+      await tx.insert(orderEvents).values({
+        orderId,
+        type: "status_changed",
+        revision,
+        actorId: null,
+        payload: {
+          previousStatus: locked.status,
+          status: "payment_verification",
+          voucherSubmitted: true,
+          guest: true,
+        },
+      });
+      return updated;
+    });
 
     if (!order) {
       return {
@@ -1466,7 +1573,7 @@ export async function submitGuestOrderPaymentVoucher(
     try {
       const posthog = getPostHogClient();
       posthog.capture({
-        distinctId: `guest_${token}`,
+        distinctId: `guest_order_${orderId}`,
         event: POSTHOG_EVENTS.ORDER_PAYMENT_VOUCHER_UPLOADED,
         properties: { order_id: orderId, is_guest: true },
       });
@@ -1481,13 +1588,20 @@ export async function submitGuestOrderPaymentVoucher(
     return { success: true, message: "Comprobante enviado correctamente." };
   } catch (error) {
     console.error(error);
-    return { success: false, message: "No se pudo enviar el comprobante." };
+    return {
+      success: false,
+      message:
+        error instanceof Error && error.cause === "conflict"
+          ? error.message
+          : "No se pudo enviar el comprobante.",
+    };
   }
 }
 
 export async function adminAttachOrderVoucher(
   orderId: number,
   voucherUrl: string,
+  expectedRevision: number,
 ) {
   const currentUser = await getCurrentUserProfile();
   if (!currentUser || currentUser.role !== "admin") {
@@ -1496,33 +1610,68 @@ export async function adminAttachOrderVoucher(
       message: "No tienes permisos para realizar esta acción.",
     };
   }
-
-  if (!isAllowedVoucherUrl(voucherUrl)) {
-    return { success: false, message: "URL de comprobante inválida." };
+  if (
+    !Number.isInteger(orderId) ||
+    !Number.isInteger(expectedRevision) ||
+    expectedRevision < 1 ||
+    !isAllowedVoucherUrl(voucherUrl)
+  ) {
+    return { success: false, message: "Solicitud inválida." };
   }
 
   try {
-    const [order] = await db
-      .update(orders)
-      .set({
-        paymentVoucherUrl: voucherUrl,
-        voucherSubmittedAt: new Date(),
-        status: "payment_verification",
-      })
-      .where(
-        and(
-          eq(orders.id, orderId),
-          inArray(orders.status, ["pending", "payment_verification"]),
-        ),
-      )
-      .returning();
-
-    if (!order) {
-      return { success: false, message: "Orden no encontrada o ya procesada." };
-    }
+    await db.transaction(async (tx) => {
+      const [order] = await tx
+        .select()
+        .from(orders)
+        .where(eq(orders.id, orderId))
+        .for("update");
+      if (
+        !order ||
+        !["pending", "payment_verification"].includes(order.status)
+      ) {
+        throw new Error("Orden no encontrada o ya procesada.", {
+          cause: "not_found",
+        });
+      }
+      if (order.revision !== expectedRevision) {
+        throw new Error("El pedido cambió en otra sesión. Recargá la página.", {
+          cause: "conflict",
+        });
+      }
+      const revision = order.revision + 1;
+      await tx
+        .update(orders)
+        .set({
+          paymentVoucherUrl: voucherUrl,
+          voucherSubmittedAt: new Date(),
+          status: "payment_verification",
+          revision,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(orders.id, orderId));
+      await tx.insert(orderEvents).values({
+        orderId,
+        type: "status_changed",
+        revision,
+        actorId: currentUser.id,
+        payload: {
+          previousStatus: order.status,
+          status: "payment_verification",
+          voucherAttached: true,
+        },
+      });
+    });
   } catch (error) {
     console.error(error);
-    return { success: false, message: "No se pudo guardar el comprobante." };
+    return {
+      success: false,
+      message:
+        error instanceof Error &&
+        (error.cause === "conflict" || error.cause === "not_found")
+          ? error.message
+          : "No se pudo guardar el comprobante.",
+    };
   }
 
   revalidateStoreOrderViews();
@@ -1624,7 +1773,31 @@ export async function applyHistoricalOrderCosts(): Promise<{
   }
 
   try {
-    const result = await db.execute(sql`
+    const result = await db.transaction(async (tx) => {
+      const candidates = await tx.execute(sql`
+        select distinct oi.order_id
+        from order_items oi
+        inner join products p on p.id = oi.product_id
+        left join product_variants pv
+          on pv.id = oi.product_variant_id
+          and pv.product_id = oi.product_id
+        where oi.unit_cost_at_purchase is null
+          and oi.transaction_type = 'purchase'
+          and coalesce(pv.unit_cost, p.unit_cost) is not null
+        order by oi.order_id
+      `);
+      const orderIds = candidates.rows.map((row) => Number(row.order_id));
+      const lockedOrders =
+        orderIds.length === 0
+          ? []
+          : await tx
+              .select()
+              .from(orders)
+              .where(inArray(orders.id, orderIds))
+              .orderBy(orders.id)
+              .for("update");
+
+      const updated = await tx.execute(sql`
       with candidates as (
         select
           oi.id,
@@ -1651,12 +1824,35 @@ export async function applyHistoricalOrderCosts(): Promise<{
         and candidates.historical_cost is not null
         and oi.unit_cost_at_purchase is null
       returning oi.id, oi.order_id
-    `);
+      `);
+      const lineCountByOrder = new Map<number, number>();
+      for (const row of updated.rows) {
+        const orderId = Number(row.order_id);
+        lineCountByOrder.set(orderId, (lineCountByOrder.get(orderId) ?? 0) + 1);
+      }
+      for (const order of lockedOrders) {
+        const updatedLines = lineCountByOrder.get(order.id) ?? 0;
+        if (updatedLines === 0) continue;
+        const revision = order.revision + 1;
+        await tx
+          .update(orders)
+          .set({ revision, updatedAt: sql`now()` })
+          .where(eq(orders.id, order.id));
+        await tx.insert(orderEvents).values({
+          orderId: order.id,
+          type: "items_changed",
+          revision,
+          actorId: currentUser.id,
+          payload: { historicalCostEstimate: true, updatedLines },
+        });
+      }
+      return updated;
+    });
     const affectedOrders = new Set(
       result.rows.map((row) => Number(row.order_id)),
     ).size;
 
-    revalidatePath("/dashboard/store/analytics");
+    revalidateStoreOrderViews();
     return {
       success: true,
       message:
@@ -1784,52 +1980,6 @@ export type UpdateOrderResult = {
   wasCancelled?: boolean;
   cause?: "conflict" | "stock_insufficient" | "not_found" | "forbidden";
 };
-
-type OrderChange = {
-  productName: string;
-  oldQuantity: number;
-  newQuantity: number;
-};
-
-async function sendOrderUpdatedEmails(data: {
-  orderId: number;
-  customerEmail: string;
-  customerName: string;
-  changes: OrderChange[];
-  newTotal: number;
-}) {
-  const { orderId, customerEmail, customerName, changes, newTotal } = data;
-
-  await sendEmail({
-    to: [customerEmail],
-    from: "Glitter Store <reservas@productoraglitter.com>",
-    subject: `Tu orden #${orderId} fue modificada`,
-    react: OrderUpdatedForUserEmailTemplate({
-      customerName,
-      orderId: String(orderId),
-      changes,
-      newTotal,
-    }) as React.ReactElement,
-  });
-
-  const admins = await fetchAdminUsers();
-  const adminEmails = admins.map((a) => a.email).filter(Boolean);
-
-  if (adminEmails.length > 0) {
-    await sendEmail({
-      to: adminEmails,
-      from: "Glitter Store <store@productoraglitter.com>",
-      replyTo: "soporte@productoraglitter.com",
-      subject: `Orden #${orderId} modificada por ${customerName || "Cliente"}`,
-      react: OrderUpdatedForAdminsEmailTemplate({
-        customerName,
-        orderId: String(orderId),
-        changes,
-        newTotal,
-      }) as React.ReactElement,
-    });
-  }
-}
 
 export async function updateOrder(
   orderId: number,
@@ -1983,307 +2133,6 @@ export async function adminAdjustOrder(
   revalidatePath(`/dashboard/store/orders/${orderId}/edit`);
   revalidateStoreOrderViews();
   return { success: true, message: "Ajuste aplicado correctamente." };
-}
-
-async function updateOrderLegacy(
-  orderId: number,
-  profileId: number,
-  items: UpdateOrderItemInput[],
-  clientUpdatedAt: string,
-): Promise<UpdateOrderResult> {
-  // 1. Auth
-  const currentUser = await getCurrentUserProfile();
-  if (!currentUser) {
-    return {
-      success: false,
-      message: "Debes iniciar sesión para editar un pedido.",
-      cause: "forbidden",
-    };
-  }
-
-  // 2. Fetch order
-  const order = await fetchOrder(orderId);
-  if (!order) {
-    return {
-      success: false,
-      message: "Orden no encontrada.",
-      cause: "not_found",
-    };
-  }
-
-  // 3. Ownership + status guards (guest orders have no userId and cannot be edited here)
-  if (order.userId !== currentUser.id && currentUser.role !== "admin") {
-    return {
-      success: false,
-      message: "No tienes permiso para editar este pedido.",
-      cause: "forbidden",
-    };
-  }
-
-  if (order.status !== "pending") {
-    return {
-      success: false,
-      message: "Solo puedes editar pedidos pendientes.",
-    };
-  }
-
-  // 4. Optimistic concurrency check
-  if (order.updatedAt.toISOString() !== clientUpdatedAt) {
-    return {
-      success: false,
-      cause: "conflict",
-      message:
-        "El pedido fue modificado en otra sesión. Por favor recargá la página.",
-    };
-  }
-
-  // 5. Build edit map and validate all item IDs belong to this order
-  const editMap = new Map<number, number>(
-    items.map((i) => [i.orderItemId, i.quantity]),
-  );
-  const orderItemIds = new Set(order.orderItems.map((i) => i.id));
-  for (const itemId of editMap.keys()) {
-    if (!orderItemIds.has(itemId)) {
-      return {
-        success: false,
-        message: "Artículo no pertenece a este pedido.",
-        cause: "forbidden",
-      };
-    }
-  }
-
-  // 6. Price-lock guard (server-side mirror of UI restriction)
-  for (const orderItem of order.orderItems) {
-    const newQty = editMap.get(orderItem.id);
-    // Skip items that weren't submitted (unchanged) or aren't being changed
-    if (newQty === undefined || newQty === orderItem.quantity) continue;
-    const currentPrice = getLineUnitPrice(
-      orderItem.product,
-      orderItem.variant,
-      orderItem.transactionType,
-    );
-    if (Math.abs(currentPrice - orderItem.priceAtPurchase) > 0.001) {
-      return {
-        success: false,
-        message: `No puedes modificar "${getOrderItemDisplayName(orderItem)}" porque su precio cambió desde que realizaste el pedido.`,
-      };
-    }
-  }
-
-  // 7. Determine if this is a full cancellation
-  const willCancelOrder = items.every((i) => i.quantity === 0);
-
-  // 8. DB Transaction
-  try {
-    await db.transaction(async (tx) => {
-      // Re-fetch order row with lock to prevent races
-      const [freshOrder] = await tx
-        .select()
-        .from(orders)
-        .where(and(eq(orders.id, orderId), eq(orders.status, "pending")))
-        .for("update");
-
-      if (!freshOrder) {
-        throw Object.assign(
-          new Error("Orden no encontrada o ya no está pendiente."),
-          { cause: "not_found" },
-        );
-      }
-      if (freshOrder.updatedAt.toISOString() !== clientUpdatedAt) {
-        throw Object.assign(
-          new Error(
-            "El pedido fue modificado en otra sesión. Por favor recargá la página.",
-          ),
-          { cause: "conflict" },
-        );
-      }
-
-      const eventRevision = freshOrder.revision + 1;
-      await tx.insert(orderEvents).values({
-        orderId,
-        type: willCancelOrder ? "cancelled" : "items_changed",
-        revision: eventRevision,
-        actorId: currentUser.id,
-        payload: {
-          changes: order.orderItems.map((item) => ({
-            orderItemId: item.id,
-            product: getOrderItemDisplayName(item),
-            oldQuantity: item.quantity,
-            newQuantity: editMap.get(item.id) ?? item.quantity,
-          })),
-        },
-      });
-
-      if (willCancelOrder) {
-        // Restore all stock and cancel
-        for (const item of order.orderItems) {
-          await restoreOrderItemStock(tx, item);
-        }
-        await tx
-          .update(orders)
-          .set({
-            status: "cancelled",
-            revision: eventRevision,
-            updatedAt: sql`now()`,
-          })
-          .where(eq(orders.id, orderId));
-      } else {
-        // Restore old quantities to stock for all edited items
-        for (const [itemId] of editMap) {
-          const orderItem = order.orderItems.find((i) => i.id === itemId)!;
-          await restoreOrderItemStock(tx, orderItem);
-        }
-
-        // Re-fetch affected product lines FOR UPDATE and validate stock
-        const linesToResolve = Array.from(editMap.entries())
-          .filter(([, qty]) => qty > 0)
-          .map(([itemId, quantity]) => {
-            const orderItem = order.orderItems.find(
-              (entry) => entry.id === itemId,
-            )!;
-            return {
-              productId: orderItem.productId,
-              productVariantId: orderItem.productVariantId,
-              quantity,
-              transactionType: orderItem.transactionType,
-              rentalFestivalId: orderItem.rentalFestivalId,
-              rentalReservationId: orderItem.rentalReservationId,
-            };
-          });
-
-        const resolvedLines =
-          linesToResolve.length > 0
-            ? await resolveOrderLines(tx, linesToResolve)
-            : [];
-
-        // Apply changes: delete removed items, update quantities, deduct new stock
-        for (const [itemId, newQty] of editMap) {
-          if (newQty === 0) {
-            await tx.delete(orderItems).where(eq(orderItems.id, itemId));
-          } else {
-            await tx
-              .update(orderItems)
-              .set({ quantity: newQty, updatedAt: sql`now()` })
-              .where(eq(orderItems.id, itemId));
-
-            const orderItem = order.orderItems.find((i) => i.id === itemId)!;
-            const [product] = await tx
-              .select()
-              .from(products)
-              .where(eq(products.id, orderItem.productId))
-              .limit(1);
-            const variantMap = new Map<
-              number,
-              typeof productVariants.$inferSelect
-            >();
-            if (orderItem.productVariantId != null) {
-              const [variant] = await tx
-                .select()
-                .from(productVariants)
-                .where(eq(productVariants.id, orderItem.productVariantId))
-                .limit(1);
-              if (variant) {
-                variantMap.set(variant.id, variant);
-              }
-            }
-            if (product) {
-              await consumeOrderItemStock(
-                tx,
-                product,
-                orderItem.productVariantId,
-                newQty,
-                orderItem.transactionType,
-                variantMap,
-              );
-            }
-          }
-        }
-
-        // Recalculate total using priceAtPurchase
-        const newTotal = order.orderItems.reduce((acc, item) => {
-          const newQty = editMap.get(item.id);
-          if (newQty === 0) return acc; // removed
-          const qty = newQty !== undefined ? newQty : item.quantity; // changed or unchanged
-          return acc + item.priceAtPurchase * qty;
-        }, 0);
-
-        await tx
-          .update(orders)
-          .set({
-            totalAmount: newTotal,
-            revision: eventRevision,
-            updatedAt: sql`now()`,
-          })
-          .where(eq(orders.id, orderId));
-      }
-    });
-  } catch (error) {
-    console.error(error);
-    if (error instanceof Error) {
-      if (error.cause === "conflict") {
-        return { success: false, cause: "conflict", message: error.message };
-      }
-      if (error.cause === "stock_insufficient") {
-        return {
-          success: false,
-          cause: "stock_insufficient",
-          message: error.message,
-        };
-      }
-      if (error.cause === "not_found") {
-        return { success: false, cause: "not_found", message: error.message };
-      }
-    }
-    return { success: false, message: "No se pudo actualizar el pedido." };
-  }
-
-  // 9. Revalidate
-  revalidatePath(`/profiles/${profileId}/orders/${orderId}`);
-  revalidatePath(`/profiles/${profileId}/orders/${orderId}/edit`);
-  revalidatePath("/my_orders");
-  revalidateStoreOrderViews();
-
-  // 10. Build change summary and send emails (outside transaction, non-fatal)
-  const changes: OrderChange[] = order.orderItems
-    .filter((item) => editMap.has(item.id))
-    .map((item) => ({
-      productName: getOrderItemDisplayName(item),
-      oldQuantity: item.quantity,
-      newQuantity: editMap.get(item.id)!,
-    }));
-
-  const newTotal = willCancelOrder
-    ? 0
-    : order.orderItems.reduce((acc, item) => {
-        const newQty = editMap.get(item.id);
-        if (newQty === 0) return acc;
-        const qty = newQty !== undefined ? newQty : item.quantity;
-        return acc + item.priceAtPurchase * qty;
-      }, 0);
-
-  try {
-    await sendOrderUpdatedEmails({
-      orderId,
-      customerEmail: order.customer?.email ?? order.guestEmail ?? "",
-      customerName:
-        order.customer?.displayName ??
-        order.customer?.firstName ??
-        order.guestName ??
-        "Cliente",
-      changes,
-      newTotal,
-    });
-  } catch (emailError) {
-    console.error("Failed to send order updated emails", emailError);
-  }
-
-  return {
-    success: true,
-    wasCancelled: willCancelOrder,
-    message: willCancelOrder
-      ? "Tu pedido fue cancelado."
-      : "Tu pedido fue actualizado correctamente.",
-  };
 }
 
 export async function fetchOrdersTotalsByProduct() {

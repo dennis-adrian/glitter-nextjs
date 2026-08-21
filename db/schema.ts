@@ -1576,38 +1576,47 @@ export const rentalReturnConditionEnum = pgEnum("rental_return_condition", [
   "other",
 ]);
 
-export const products = pgTable("products", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  /** Public store URL segment; unique, hyphenated from name with -2,-3 suffixes on collision */
-  slug: text("slug").notNull().unique(),
-  description: text("description"),
-  price: real("price").notNull(),
-  unitCost: numeric("unit_cost", { precision: 10, scale: 2, mode: "number" }),
-  stock: integer("stock").default(0),
-  imageUrl: text("image_url"),
-  isNew: boolean("is_new").default(true).notNull(),
-  isFeatured: boolean("is_featured").default(false).notNull(),
-  isVisible: boolean("is_visible").default(true).notNull(),
-  storeCategory: productStoreCategoryEnum("store_category")
-    .default("merch")
-    .notNull(),
-  availableDate: timestamp("available_date"),
-  discount: real("discount").default(0),
-  discountUnit: discountUnitEnum("discount_unit")
-    .default("percentage")
-    .notNull(),
-  status: productStatusEnum("status").default("available").notNull(),
-  isPurchasable: boolean("is_purchasable").default(true).notNull(),
-  isRentable: boolean("is_rentable").default(false).notNull(),
-  rentalPrice: real("rental_price"),
-  rentalStockMode: productRentalStockModeEnum("rental_stock_mode")
-    .default("shared")
-    .notNull(),
-  rentalStock: integer("rental_stock"),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const products = pgTable(
+  "products",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    /** Public store URL segment; unique, hyphenated from name with -2,-3 suffixes on collision */
+    slug: text("slug").notNull().unique(),
+    description: text("description"),
+    price: real("price").notNull(),
+    unitCost: numeric("unit_cost", { precision: 10, scale: 2, mode: "number" }),
+    stock: integer("stock").default(0),
+    imageUrl: text("image_url"),
+    isNew: boolean("is_new").default(true).notNull(),
+    isFeatured: boolean("is_featured").default(false).notNull(),
+    isVisible: boolean("is_visible").default(true).notNull(),
+    storeCategory: productStoreCategoryEnum("store_category")
+      .default("merch")
+      .notNull(),
+    availableDate: timestamp("available_date"),
+    discount: real("discount").default(0),
+    discountUnit: discountUnitEnum("discount_unit")
+      .default("percentage")
+      .notNull(),
+    status: productStatusEnum("status").default("available").notNull(),
+    isPurchasable: boolean("is_purchasable").default(true).notNull(),
+    isRentable: boolean("is_rentable").default(false).notNull(),
+    rentalPrice: real("rental_price"),
+    rentalStockMode: productRentalStockModeEnum("rental_stock_mode")
+      .default("shared")
+      .notNull(),
+    rentalStock: integer("rental_stock"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check(
+      "products_unit_cost_nonnegative",
+      sql`${t.unitCost} IS NULL OR ${t.unitCost} >= 0`,
+    ),
+  ],
+);
 export const productsRelations = relations(products, ({ many }) => ({
   options: many(productOptions),
   variants: many(productVariants),
@@ -1705,6 +1714,10 @@ export const productVariants = pgTable(
     index("product_variants_product_id_idx").on(t.productId),
     index("product_variants_visible_idx").on(t.isVisible),
     uniqueIndex("product_variants_id_product_id_unique").on(t.id, t.productId),
+    check(
+      "product_variants_unit_cost_nonnegative",
+      sql`${t.unitCost} IS NULL OR ${t.unitCost} >= 0`,
+    ),
   ],
 );
 
@@ -1811,6 +1824,7 @@ export const orderEventTypeEnum = pgEnum("order_event_type", [
   "items_changed",
   "adjusted",
   "status_changed",
+  "rental_returned",
   "cancelled",
 ]);
 export const orderAdjustmentActorRoleEnum = pgEnum(
@@ -2107,6 +2121,10 @@ export const orderItems = pgTable(
     check(
       "order_items_rental_returned_quantity_valid",
       sql`${t.rentalReturnedQuantity} >= 0 AND ${t.rentalReturnedQuantity} <= ${t.quantity}`,
+    ),
+    check(
+      "order_items_unit_cost_at_purchase_nonnegative",
+      sql`${t.unitCostAtPurchase} IS NULL OR ${t.unitCostAtPurchase} >= 0`,
     ),
   ],
 );

@@ -146,6 +146,15 @@ export async function applyOrderAdjustment(
           "invalid_quantity",
         );
       }
+      if (
+        line.transactionType === "rental" &&
+        effectiveQuantity < line.rentalReturnedQuantity
+      ) {
+        fail(
+          "El ajuste no puede reducir un alquiler por debajo de la cantidad ya devuelta.",
+          "invalid_quantity",
+        );
+      }
     }
 
     const productIds = [

@@ -16,6 +16,7 @@ import Heading from "@/app/components/atoms/heading";
 
 type Props = {
   orderId: number;
+  expectedRevision: number;
   totalAmount: number;
   status: OrderStatus;
   paymentVoucherUrl: string | null;
@@ -25,6 +26,7 @@ type Props = {
 
 export default function OrderPaymentSection({
   orderId,
+  expectedRevision,
   totalAmount,
   status,
   paymentVoucherUrl: initialVoucherUrl,
@@ -42,8 +44,13 @@ export default function OrderPaymentSection({
   async function handleUploadComplete(imageUrl: string) {
     try {
       const result = guestToken
-        ? await submitGuestOrderPaymentVoucher(orderId, guestToken, imageUrl)
-        : await submitOrderPaymentVoucher(orderId, imageUrl);
+        ? await submitGuestOrderPaymentVoucher(
+            orderId,
+            guestToken,
+            imageUrl,
+            expectedRevision,
+          )
+        : await submitOrderPaymentVoucher(orderId, imageUrl, expectedRevision);
       if (result.success) {
         toast.success("Comprobante enviado. Revisaremos tu pago pronto");
         if (redirectAfterSuccess) {

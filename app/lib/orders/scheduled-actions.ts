@@ -4,10 +4,10 @@ import OrderCancellationTemplate from "@/app/emails/order-cancellation";
 import OrderPaymentReminderTemplate from "@/app/emails/order-payment-reminder";
 import OrderPaymentWarningTemplate from "@/app/emails/order-payment-warning";
 import { queueEmails } from "@/app/lib/emails/helpers";
-import { restoreLineStockInTx } from "@/app/lib/rentals/order-stock";
+import { restoreEffectiveOrdersStockInTx } from "@/app/lib/orders/cancellation";
 import { sendEmail } from "@/app/vendors/resend";
 import { db } from "@/db";
-import { orderItems, orders } from "@/db/schema";
+import { orderEvents, orders } from "@/db/schema";
 import {
   and,
   eq,
@@ -425,17 +425,7 @@ export async function handleOrderPaymentReminders(): Promise<{
 }
 
 export async function handleOrderCancellations(): Promise<number> {
-  type CancelledOrder = OrderWithUser & {
-    orderItems: Pick<
-      (typeof orderItems)["$inferSelect"],
-      | "productId"
-      | "productVariantId"
-      | "quantity"
-      | "transactionType"
-      | "rentalStockModeSnapshot"
-      | "rentalReturnedQuantity"
-    >[];
-  };
+  type CancelledOrder = OrderWithUser;
 
   let cancelledOrders: CancelledOrder[] = [];
 
@@ -445,14 +435,18 @@ export async function handleOrderCancellations(): Promise<number> {
       // are processed — prevents double stock restores under overlapping runs
       const claimed = await tx
         .update(orders)
-        .set({ status: "cancelled", updatedAt: sql`now()` })
+        .set({
+          status: "cancelled",
+          revision: sql`${orders.revision} + 1`,
+          updatedAt: sql`now()`,
+        })
         .where(
           and(
             eq(orders.status, "pending"),
             lte(orders.paymentDueDate, sql`now()`),
           ),
         )
-        .returning({ id: orders.id });
+        .returning({ id: orders.id, revision: orders.revision });
 
       if (claimed.length === 0) return [];
 
@@ -464,18 +458,27 @@ export async function handleOrderCancellations(): Promise<number> {
         ),
         with: {
           customer: true,
-          orderItems: {
-            with: { product: true },
-          },
         },
       })) as CancelledOrder[];
 
-      // Restore stock for each cancelled order's items
-      for (const order of cancelledOrders) {
-        for (const item of order.orderItems) {
-          await restoreLineStockInTx(tx, item);
-        }
-      }
+      // Restore effective quantities, including prior additive adjustments.
+      await restoreEffectiveOrdersStockInTx(
+        tx,
+        claimed.map((order) => order.id),
+      );
+      await tx.insert(orderEvents).values(
+        claimed.map((order) => ({
+          orderId: order.id,
+          type: "cancelled" as const,
+          revision: order.revision,
+          actorId: null,
+          payload: {
+            previousStatus: "pending",
+            status: "cancelled",
+            reason: "payment_expired",
+          },
+        })),
+      );
 
       return cancelledOrders;
     });

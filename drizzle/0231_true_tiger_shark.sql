@@ -1,0 +1,1 @@
+ALTER TYPE "public"."order_event_type" ADD VALUE 'rental_returned' BEFORE 'cancelled';

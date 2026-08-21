@@ -42,7 +42,7 @@ export default function UpdateOrderStatusModal({
   if (!newStatus) return null;
 
   const action: () => void = form.handleSubmit(async () => {
-    const result = await updateOrderStatus(order.id, newStatus);
+    const result = await updateOrderStatus(order.id, newStatus, order.revision);
     if (result.success) {
       toast.success(result.message);
       setOpen(false);
