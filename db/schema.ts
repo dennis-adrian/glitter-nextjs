@@ -1809,9 +1809,14 @@ export const orderStatusEnum = pgEnum("order_status", [
 export const orderEventTypeEnum = pgEnum("order_event_type", [
   "created",
   "items_changed",
+  "adjusted",
   "status_changed",
   "cancelled",
 ]);
+export const orderAdjustmentActorRoleEnum = pgEnum(
+  "order_adjustment_actor_role",
+  ["admin", "customer", "system"],
+);
 export const orders = pgTable(
   "orders",
   {
@@ -1860,6 +1865,7 @@ export const orders = pgTable(
 export const ordersRelations = relations(orders, ({ many, one }) => ({
   orderItems: many(orderItems),
   events: many(orderEvents),
+  adjustments: many(orderAdjustments),
   customer: one(users, {
     fields: [orders.userId],
     references: [users.id],
@@ -1876,6 +1882,9 @@ export const orderEvents = pgTable("order_events", {
   actorId: integer("actor_id").references(() => users.id, {
     onDelete: "set null",
   }),
+  adjustmentId: integer("adjustment_id").references(() => orderAdjustments.id, {
+    onDelete: "restrict",
+  }),
   payload: jsonb("payload"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -1886,7 +1895,150 @@ export const orderEventsRelations = relations(orderEvents, ({ one }) => ({
     references: [orders.id],
   }),
   actor: one(users, { fields: [orderEvents.actorId], references: [users.id] }),
+  adjustment: one(orderAdjustments, {
+    fields: [orderEvents.adjustmentId],
+    references: [orderAdjustments.id],
+  }),
 }));
+
+export const orderAdjustments = pgTable(
+  "order_adjustments",
+  {
+    id: serial("id").primaryKey(),
+    orderId: integer("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "restrict" }),
+    actorUserId: integer("actor_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    actorRole: orderAdjustmentActorRoleEnum("actor_role").notNull(),
+    reason: text("reason").notNull(),
+    customerNote: text("customer_note"),
+    previousTotal: numeric("previous_total", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    totalDelta: numeric("total_delta", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    newTotal: numeric("new_total", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("order_adjustments_order_created_at_idx").on(t.orderId, t.createdAt),
+    index("order_adjustments_actor_created_at_idx").on(
+      t.actorUserId,
+      t.createdAt,
+    ),
+  ],
+);
+
+export const orderAdjustmentsRelations = relations(
+  orderAdjustments,
+  ({ many, one }) => ({
+    order: one(orders, {
+      fields: [orderAdjustments.orderId],
+      references: [orders.id],
+    }),
+    actor: one(users, {
+      fields: [orderAdjustments.actorUserId],
+      references: [users.id],
+    }),
+    items: many(orderAdjustmentItems),
+    events: many(orderEvents),
+  }),
+);
+
+export const orderAdjustmentItems = pgTable(
+  "order_adjustment_items",
+  {
+    id: serial("id").primaryKey(),
+    adjustmentId: integer("adjustment_id")
+      .notNull()
+      .references(() => orderAdjustments.id, { onDelete: "cascade" }),
+    baseOrderItemId: integer("base_order_item_id").references(
+      () => orderItems.id,
+      { onDelete: "restrict" },
+    ),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "restrict" }),
+    productVariantId: integer("product_variant_id"),
+    productNameSnapshot: text("product_name_snapshot").notNull(),
+    variantLabelSnapshot: text("variant_label_snapshot"),
+    transactionType: productTransactionTypeEnum("transaction_type")
+      .default("purchase")
+      .notNull(),
+    quantityDelta: integer("quantity_delta").notNull(),
+    unitPriceSnapshot: numeric("unit_price_snapshot", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    unitCostSnapshot: numeric("unit_cost_snapshot", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("order_adjustment_items_adjustment_id_idx").on(t.adjustmentId),
+    index("order_adjustment_items_base_order_item_id_idx").on(
+      t.baseOrderItemId,
+    ),
+    index("order_adjustment_items_product_variant_idx").on(
+      t.productId,
+      t.productVariantId,
+    ),
+    check(
+      "order_adjustment_items_quantity_delta_nonzero",
+      sql`${t.quantityDelta} <> 0`,
+    ),
+    check(
+      "order_adjustment_items_price_nonnegative",
+      sql`${t.unitPriceSnapshot} >= 0`,
+    ),
+    check(
+      "order_adjustment_items_cost_nonnegative",
+      sql`${t.unitCostSnapshot} IS NULL OR ${t.unitCostSnapshot} >= 0`,
+    ),
+    foreignKey({
+      name: "order_adjustment_items_product_variant_product_fk",
+      columns: [t.productVariantId, t.productId],
+      foreignColumns: [productVariants.id, productVariants.productId],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const orderAdjustmentItemsRelations = relations(
+  orderAdjustmentItems,
+  ({ one }) => ({
+    adjustment: one(orderAdjustments, {
+      fields: [orderAdjustmentItems.adjustmentId],
+      references: [orderAdjustments.id],
+    }),
+    baseOrderItem: one(orderItems, {
+      fields: [orderAdjustmentItems.baseOrderItemId],
+      references: [orderItems.id],
+    }),
+    product: one(products, {
+      fields: [orderAdjustmentItems.productId],
+      references: [products.id],
+    }),
+    variant: one(productVariants, {
+      fields: [orderAdjustmentItems.productVariantId],
+      references: [productVariants.id],
+    }),
+  }),
+);
 
 export const orderItems = pgTable(
   "order_items",
