@@ -28,7 +28,9 @@ export default function HistoricalCategoryFilters() {
 
   function update(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
-    if (!value || value === "all") params.delete(key);
+    const isCategoryFilter =
+      key === "snapshotCategory" || key === "currentProductCategory";
+    if (!value || (isCategoryFilter && value === "all")) params.delete(key);
     else params.set(key, value);
     startTransition(() => {
       router.push(params.size ? `${pathname}?${params}` : pathname);

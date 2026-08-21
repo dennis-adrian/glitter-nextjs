@@ -121,6 +121,37 @@ describe("order export serializers", () => {
     expect(csv).not.toContain('"Personaje: Antonieta"');
   });
 
+  it("ignores non-positive lines in summaries and line-item exports", () => {
+    const orders = [
+      {
+        ...sampleOrders[0],
+        orderItems: [
+          sampleOrders[0].orderItems[0],
+          {
+            ...sampleOrders[0].orderItems[1],
+            quantity: 0,
+            transactionType: "rental" as const,
+          },
+          {
+            ...sampleOrders[0].orderItems[1],
+            productNameAtPurchase: "Negative quantity",
+            quantity: -1,
+          },
+        ],
+      },
+    ];
+
+    const summary = serializeOrdersSummaryCsv(orders);
+    const lineItems = serializeOrderLineItemsCsv(orders);
+
+    expect(summary).toContain('"purchase_only","all","false","2"');
+    expect(summary).not.toContain("Glitter biodegradable");
+    expect(summary).not.toContain("Negative quantity");
+    expect(lineItems).toContain('"Personaje: Antonieta"');
+    expect(lineItems).not.toContain("Glitter biodegradable");
+    expect(lineItems).not.toContain("Negative quantity");
+  });
+
   it("does not export rental snapshots as product costs", () => {
     const csv = serializeOrderLineItemsCsv([
       {

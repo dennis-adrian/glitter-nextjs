@@ -102,7 +102,8 @@ export const columns: ColumnDef<AdminOrderListRow>[] = [
     ),
   },
   {
-    accessorKey: "total",
+    id: "total",
+    accessorFn: (row) => row.totalAmount,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.total} />
     ),

@@ -73,6 +73,10 @@ function customerName(order: CsvOrder): string {
   return order.customer?.displayName ?? order.guestName ?? "Invitado";
 }
 
+function positiveItems(order: CsvOrder): CsvOrderItem[] {
+  return order.orderItems.filter((item) => item.quantity > 0);
+}
+
 /**
  * Whole-order fields always come from the complete DTO; only these scoped
  * lines are narrowed, so a mixed order still reports its real total.
@@ -82,17 +86,16 @@ function scopedItems(
   scope: StoreCategoryScope,
 ): CsvOrderItem[] {
   const category = toConcreteStoreCategory(scope);
+  const items = positiveItems(order);
   return category == null
-    ? order.orderItems
-    : order.orderItems.filter(
-        (item) => item.storeCategoryAtPurchase === category,
-      );
+    ? items
+    : items.filter((item) => item.storeCategoryAtPurchase === category);
 }
 
 function isMixedOrder(order: CsvOrder): boolean {
   return (
-    new Set(order.orderItems.map((item) => item.storeCategoryAtPurchase)).size >
-    1
+    new Set(positiveItems(order).map((item) => item.storeCategoryAtPurchase))
+      .size > 1
   );
 }
 
@@ -119,6 +122,7 @@ export function serializeOrdersSummaryCsv(
     ],
     ...orders.map((order) => {
       const items = scopedItems(order, scope);
+      const orderItems = positiveItems(order);
       return [
         order.id,
         order.createdAt.toISOString(),
@@ -127,13 +131,15 @@ export function serializeOrdersSummaryCsv(
         order.customer?.email ?? order.guestEmail ?? "",
         order.customer?.phoneNumber ?? order.guestPhone ?? "",
         order.status,
-        order.orderItems.some((item) => item.transactionType === "rental")
+        orderItems.some((item) => item.transactionType === "rental")
           ? "has_rental"
           : "purchase_only",
         scope,
         isMixedOrder(order) ? "true" : "false",
         items.reduce((total, item) => total + item.quantity, 0),
-        items.map((item) => `${item.quantity}x ${displayName(item)}`).join(", "),
+        items
+          .map((item) => `${item.quantity}x ${displayName(item)}`)
+          .join(", "),
         items
           .reduce(
             (total, item) => total + item.quantity * item.priceAtPurchase,
