@@ -87,15 +87,16 @@ export default function OrdersTable({
   const orders = use(ordersPromise);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [optimisticStatus, setOptimisticStatus] = useOptimistic(query.status);
-  const [optimisticRentalFilter, setOptimisticRentalFilter] = useOptimistic(
-    query.rental,
-  );
   const selectedStatuses = (
     query.statuses || (query.status === "all" ? "" : query.status)
   )
     .split(",")
     .filter(Boolean);
+  const [optimisticStatuses, setOptimisticStatuses] =
+    useOptimistic(selectedStatuses);
+  const [optimisticRentalFilter, setOptimisticRentalFilter] = useOptimistic(
+    query.rental,
+  );
 
   function navigate(next: StoreOrdersQuery) {
     router.push(
@@ -106,7 +107,7 @@ export default function OrdersTable({
   function handleStatusChange(value: ActiveStatus) {
     if (value === "all") {
       startTransition(() => {
-        setOptimisticStatus("all");
+        setOptimisticStatuses([]);
         navigate({ ...query, status: "all", statuses: "" });
       });
       return;
@@ -115,7 +116,7 @@ export default function OrdersTable({
       ? selectedStatuses.filter((status) => status !== value)
       : [...selectedStatuses, value];
     startTransition(() => {
-      setOptimisticStatus((next[0] as ActiveStatus | undefined) ?? "all");
+      setOptimisticStatuses(next);
       navigate({
         ...query,
         status: (next[0] as ActiveStatus | undefined) ?? "all",
@@ -128,7 +129,12 @@ export default function OrdersTable({
   function handleRentalFilterChange(value: RentalOrderFilter) {
     startTransition(() => {
       setOptimisticRentalFilter(value);
-      navigate({ ...query, status: optimisticStatus, rental: value });
+      navigate({
+        ...query,
+        status: (optimisticStatuses[0] as ActiveStatus | undefined) ?? "all",
+        statuses: optimisticStatuses.join(","),
+        rental: value,
+      });
     });
   }
 
@@ -215,12 +221,13 @@ export default function OrdersTable({
       </div>
 
       <DataTable
-        key={optimisticStatus}
+        key={optimisticStatuses.join(",") || "all"}
         columns={columns}
         data={orders}
         columnTitles={columnTitles}
         initialState={
-          optimisticStatus !== "all"
+          optimisticStatuses.length === 1 &&
+          optimisticStatuses[0] !== "needs_attention"
             ? { columnVisibility: { status: false } }
             : undefined
         }

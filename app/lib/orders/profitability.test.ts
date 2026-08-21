@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   filterOrdersProfitability,
   mapOrdersProfitabilityQuery,
+  ordersProfitabilityQuery,
 } from "@/app/lib/orders/profitability";
 
 describe("mapOrdersProfitabilityQuery", () => {
@@ -154,5 +155,24 @@ describe("filterOrdersProfitability", () => {
       knownCostRevenue: 50,
       lineCount: 1,
     });
+  });
+});
+
+describe("ordersProfitabilityQuery", () => {
+  it("binds range dates before aggregation and row selection", () => {
+    const from = new Date("2026-08-01T04:00:00.000Z");
+    const to = new Date("2026-08-22T03:59:59.999Z");
+    const serialized = JSON.stringify(
+      ordersProfitabilityQuery({ from, to }),
+      (_, value) => (value instanceof Date ? value.toISOString() : value),
+    );
+
+    expect(serialized).toContain("and date >=");
+    expect(serialized).toContain("and date <=");
+    expect(serialized).toContain(from.toISOString());
+    expect(serialized).toContain(to.toISOString());
+    expect(serialized.indexOf("and date >=")).toBeLessThan(
+      serialized.indexOf("from effective_lines"),
+    );
   });
 });

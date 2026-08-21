@@ -69,10 +69,10 @@ const STATUS_OPTIONS: {
 
 function OrderCard({
   order,
-  activeStatus,
+  selectedStatuses,
 }: {
   order: OrderWithRelations;
-  activeStatus: ActiveStatus;
+  selectedStatuses: string[];
 }) {
   const router = useRouter();
   const nowInStore = DateTime.now().setZone(STORE_TIMEZONE);
@@ -86,13 +86,13 @@ function OrderCard({
   const hasPendingVoucher =
     !!order.paymentVoucherUrl && order.status === "payment_verification";
 
-  const showStatusBadge =
-    activeStatus === "all" || activeStatus === "needs_attention";
+  const isSingleConcreteStatus =
+    selectedStatuses.length === 1 &&
+    selectedStatuses[0] !== "needs_attention";
+  const showStatusBadge = !isSingleConcreteStatus;
   const showOverdueBadge =
     isOverdue &&
-    (activeStatus === "all" ||
-      activeStatus === "needs_attention" ||
-      activeStatus === "pending");
+    (!isSingleConcreteStatus || selectedStatuses[0] === "pending");
 
   const itemsPreview = order.orderItems
     .slice(0, 2)
@@ -185,19 +185,19 @@ export default function OrdersCardList({
   const orders = use(ordersPromise);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [optimisticStatus, setOptimisticStatus] = useOptimistic(query.status);
+  const selectedStatuses = (
+    query.statuses || (query.status === "all" ? "" : query.status)
+  )
+    .split(",")
+    .filter(Boolean);
+  const [optimisticStatuses, setOptimisticStatuses] =
+    useOptimistic(selectedStatuses);
   const [optimisticRentalFilter, setOptimisticRentalFilter] = useOptimistic(
     query.rental,
   );
   const [search, setSearch] = useState(query.q);
   const [previousQuerySearch, setPreviousQuerySearch] = useState(query.q);
   const [filtersOpen, setFiltersOpen] = useState(false);
-
-  const selectedStatuses = (
-    query.statuses || (query.status === "all" ? "" : query.status)
-  )
-    .split(",")
-    .filter(Boolean);
 
   if (query.q !== previousQuerySearch) {
     setPreviousQuerySearch(query.q);
@@ -216,9 +216,10 @@ export default function OrdersCardList({
 
   function handleStatusChange(value: "" | OrderStatus | "needs_attention") {
     if (value === "") {
-      startTransition(() =>
-        navigate({ ...query, status: "all", statuses: "" }),
-      );
+      startTransition(() => {
+        setOptimisticStatuses([]);
+        navigate({ ...query, status: "all", statuses: "" });
+      });
       return;
     }
     const next = selectedStatuses.includes(value)
@@ -226,7 +227,7 @@ export default function OrdersCardList({
       : [...selectedStatuses, value];
     const statuses = next.join(",");
     startTransition(() => {
-      setOptimisticStatus((next[0] as ActiveStatus | undefined) ?? "all");
+      setOptimisticStatuses(next);
       navigate({
         ...query,
         status: (next[0] as ActiveStatus | undefined) ?? "all",
@@ -239,7 +240,12 @@ export default function OrdersCardList({
   function handleRentalFilterChange(value: RentalOrderFilter) {
     startTransition(() => {
       setOptimisticRentalFilter(value);
-      navigate({ ...query, status: optimisticStatus, rental: value });
+      navigate({
+        ...query,
+        status: (optimisticStatuses[0] as ActiveStatus | undefined) ?? "all",
+        statuses: optimisticStatuses.join(","),
+        rental: value,
+      });
     });
   }
 
@@ -392,7 +398,7 @@ export default function OrdersCardList({
             <OrderCard
               key={order.id}
               order={order}
-              activeStatus={optimisticStatus}
+              selectedStatuses={optimisticStatuses}
             />
           ))
         )}

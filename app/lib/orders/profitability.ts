@@ -99,7 +99,13 @@ function toDate(value: Date | string | null | undefined): Date {
 }
 
 /** Effective purchase lines for paid/delivered orders, plus KPI totals. */
-export const ordersProfitabilityQuery = sql`
+export function ordersProfitabilityQuery(range: ProfitabilityDateRange = {}) {
+  const fromPredicate = range.from
+    ? sql`and date >= ${range.from}`
+    : sql``;
+  const toPredicate = range.to ? sql`and date <= ${range.to}` : sql``;
+
+  return sql`
   with base_lines as (
     select
       o.id as order_id,
@@ -192,6 +198,9 @@ export const ordersProfitabilityQuery = sql`
       union all
       select * from added_lines
     ) lines
+    where true
+      ${fromPredicate}
+      ${toPredicate}
   ),
   totals as (
     select
@@ -221,6 +230,7 @@ export const ordersProfitabilityQuery = sql`
   left join effective_lines el on true
   order by el.date desc, el.order_id desc, el.sort_key
 `;
+}
 
 export function mapOrdersProfitabilityQuery(
   rows: readonly ProfitabilityQueryRow[],

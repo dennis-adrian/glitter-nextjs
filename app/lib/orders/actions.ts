@@ -79,7 +79,6 @@ import { canTransitionOrderStatus } from "@/app/lib/orders/status-transitions";
 import { restoreEffectiveOrderStockInTx } from "@/app/lib/orders/cancellation";
 import { getEffectiveOrderLines } from "@/app/lib/orders/projection";
 import {
-  filterOrdersProfitability,
   mapOrdersProfitabilityQuery,
   ordersProfitabilityQuery,
   type OrdersProfitability,
@@ -1985,12 +1984,9 @@ export async function fetchOrdersProfitability(
 
   try {
     const result = await db.execute<ProfitabilityQueryRow>(
-      ordersProfitabilityQuery,
+      ordersProfitabilityQuery(range),
     );
-    return filterOrdersProfitability(
-      mapOrdersProfitabilityQuery(result.rows),
-      range,
-    );
+    return mapOrdersProfitabilityQuery(result.rows);
   } catch (error) {
     console.error(error);
     return {

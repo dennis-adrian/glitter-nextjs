@@ -22,6 +22,25 @@ describe("profitability query schema", () => {
     expect(range.to?.toISOString()).toBe("2026-08-22T03:59:59.999Z");
   });
 
+  it("discards calendar-invalid ISO dates as undefined", () => {
+    const bothInvalid = parseProfitabilityQuery({
+      from: "2026-02-31",
+      to: "2026-13-01",
+    });
+    expect(bothInvalid.from).toBeUndefined();
+    expect(bothInvalid.to).toBeUndefined();
+    expect(bothInvalid.period).toBe("month");
+
+    const mixed = parseProfitabilityQuery({
+      period: "custom",
+      from: "2026-04-31",
+      to: "2026-08-15",
+    });
+    expect(mixed.from).toBeUndefined();
+    expect(mixed.to).toBe("2026-08-15");
+    expect(mixed.period).toBe("custom");
+  });
+
   it("canonicalizes explicit boundaries as a custom range", () => {
     const query = parseProfitabilityQuery({
       period: "week",

@@ -8,6 +8,10 @@ const PERIOD_VALUES = ["all", "today", "week", "month", "custom"] as const;
 const isoDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((value) => {
+    const parsed = DateTime.fromISO(value, { zone: "utc" });
+    return parsed.isValid && parsed.toISODate() === value;
+  })
   .optional()
   .catch(undefined);
 
