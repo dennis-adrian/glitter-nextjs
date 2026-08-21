@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   BarChart3Icon,
   PackageIcon,
@@ -18,6 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/components/ui/select";
+import {
+  normalizeStoreCategoryScope,
+  STORE_CATEGORY_SCOPE_PARAM,
+  storeCategoryScopeHref,
+} from "@/app/lib/store/category";
 import { cn } from "@/lib/utils";
 
 const storeSections = [
@@ -59,6 +64,9 @@ const storeSections = [
   },
 ] as const;
 
+/** Sections whose data is category-scoped; the rest keep clean URLs. */
+const SCOPED_SECTIONS = ["products", "orders", "analytics"];
+
 function getActiveStoreSection(pathname: string) {
   if (pathname.startsWith("/dashboard/store/products")) return "products";
   if (pathname.startsWith("/dashboard/store/rentals")) return "rentals";
@@ -76,10 +84,22 @@ type StoreNavProps = {
 export default function StoreNav({ pendingCount, isAdmin }: StoreNavProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const active = getActiveStoreSection(pathname);
   const sections = storeSections.filter(
     (section) => section.value !== "settings" || isAdmin,
   );
+  const category = normalizeStoreCategoryScope(
+    searchParams.get(STORE_CATEGORY_SCOPE_PARAM),
+  );
+
+  // Carry the scope between scoped sections only; page-specific filters are
+  // intentionally dropped when changing section.
+  function sectionHref(value: string, href: string) {
+    return SCOPED_SECTIONS.includes(value)
+      ? storeCategoryScopeHref(href, category)
+      : href;
+  }
 
   return (
     <div className="sticky top-16 z-40 -mx-3 border-b bg-background/95 px-3 py-3 backdrop-blur supports-backdrop-filter:bg-background/80 md:top-20 md:-mx-6 md:px-6">
@@ -95,7 +115,9 @@ export default function StoreNav({ pendingCount, isAdmin }: StoreNavProps) {
                 (section) => section.value === value,
               );
               if (targetSection) {
-                router.push(targetSection.href);
+                router.push(
+                  sectionHref(targetSection.value, targetSection.href),
+                );
               }
             }}
           >
@@ -126,7 +148,7 @@ export default function StoreNav({ pendingCount, isAdmin }: StoreNavProps) {
               return (
                 <Link
                   key={value}
-                  href={href}
+                  href={sectionHref(value, href)}
                   className={cn(
                     "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors",
                     isActive

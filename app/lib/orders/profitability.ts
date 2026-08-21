@@ -1,5 +1,11 @@
 import { sql } from "drizzle-orm";
 
+import {
+  toConcreteStoreCategory,
+  type StoreCategory,
+  type StoreCategoryScope,
+} from "@/app/lib/store/category";
+
 export type OrdersProfitability = {
   grossRevenue: number;
   productCost: number;
@@ -15,10 +21,15 @@ export type OrdersProfitability = {
     cost: number | null;
     profit: number | null;
     status: string;
+    storeCategory: StoreCategory;
   }[];
 };
 
 export type ProfitabilityDateRange = { from?: Date; to?: Date };
+
+export type ProfitabilityFilters = ProfitabilityDateRange & {
+  category: StoreCategoryScope;
+};
 
 export type ProfitabilityQueryRow = Record<string, unknown> & {
   order_id: number | string | null;
@@ -29,6 +40,7 @@ export type ProfitabilityQueryRow = Record<string, unknown> & {
   cost: number | string | null;
   profit: number | string | null;
   status: string | null;
+  store_category: string | null;
   gross_revenue: number | string | null;
   product_cost: number | string | null;
   known_cost_revenue: number | string | null;
@@ -99,9 +111,15 @@ function toDate(value: Date | string | null | undefined): Date {
 }
 
 /** Effective purchase lines for paid/delivered orders, plus KPI totals. */
-export function ordersProfitabilityQuery(range: ProfitabilityDateRange = {}) {
-  const fromPredicate = range.from ? sql`and date >= ${range.from}` : sql``;
-  const toPredicate = range.to ? sql`and date <= ${range.to}` : sql``;
+export function ordersProfitabilityQuery(
+  filters: ProfitabilityFilters = { category: "all" },
+) {
+  const fromPredicate = filters.from ? sql`and date >= ${filters.from}` : sql``;
+  const toPredicate = filters.to ? sql`and date <= ${filters.to}` : sql``;
+  const category = toConcreteStoreCategory(filters.category);
+  const categoryPredicate = category
+    ? sql`and store_category = ${category}`
+    : sql``;
 
   return sql`
   with base_lines as (
@@ -119,6 +137,7 @@ export function ordersProfitabilityQuery(range: ProfitabilityDateRange = {}) {
       oi.quantity + coalesce(deltas.quantity_delta, 0) as quantity,
       oi.price_at_purchase::numeric as unit_price,
       oi.unit_cost_at_purchase as unit_cost,
+      oi.store_category_at_purchase as store_category,
       oi.id as sort_key
     from order_items oi
     inner join orders o
@@ -153,6 +172,7 @@ export function ordersProfitabilityQuery(range: ProfitabilityDateRange = {}) {
       sum(oai.quantity_delta)::int as quantity,
       oai.unit_price_snapshot as unit_price,
       oai.unit_cost_snapshot as unit_cost,
+      oai.store_category_snapshot as store_category,
       min(oai.id) as sort_key
     from order_adjustment_items oai
     inner join order_adjustments oa on oa.id = oai.adjustment_id
@@ -168,6 +188,7 @@ export function ordersProfitabilityQuery(range: ProfitabilityDateRange = {}) {
       oai.product_id,
       oai.product_variant_id,
       oai.transaction_type,
+      oai.store_category_snapshot,
       oai.unit_price_snapshot,
       oai.unit_cost_snapshot,
       oai.product_name_snapshot,
@@ -181,6 +202,7 @@ export function ordersProfitabilityQuery(range: ProfitabilityDateRange = {}) {
       status,
       product,
       quantity,
+      store_category,
       (quantity * unit_price)::numeric(12, 2) as revenue,
       case
         when unit_cost is null then null
@@ -199,6 +221,7 @@ export function ordersProfitabilityQuery(range: ProfitabilityDateRange = {}) {
     where true
       ${fromPredicate}
       ${toPredicate}
+      ${categoryPredicate}
   ),
   totals as (
     select
@@ -220,6 +243,7 @@ export function ordersProfitabilityQuery(range: ProfitabilityDateRange = {}) {
     el.cost,
     el.profit,
     el.status,
+    el.store_category,
     t.gross_revenue,
     t.product_cost,
     t.known_cost_revenue,
@@ -257,6 +281,9 @@ export function mapOrdersProfitabilityQuery(
         cost: toNullableNumber(row.cost),
         profit: toNullableNumber(row.profit),
         status: row.status ?? "",
+        storeCategory: (row.store_category === "supplies"
+          ? "supplies"
+          : "merch") as StoreCategory,
       })),
   };
 }

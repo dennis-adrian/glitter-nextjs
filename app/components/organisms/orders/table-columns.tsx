@@ -5,10 +5,12 @@ import { DataTableColumnHeader } from "@/app/components/ui/data_table/column-hea
 import SocialMediaBadge from "@/app/components/social-media-badge";
 import ProfileQuickViewInfo from "@/app/components/users/profile-quick-view-info";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
-import { OrderWithRelations } from "@/app/lib/orders/definitions";
+import { AdminOrderListRow } from "@/app/lib/orders/definitions";
 import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import { getStoreCategoryBadgeLabel } from "@/app/lib/store/category";
 import { cn } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
+import { Badge } from "@/app/components/ui/badge";
 import { AlertTriangleIcon } from "lucide-react";
 import { DateTime } from "luxon";
 import Link from "next/link";
@@ -16,6 +18,7 @@ import Link from "next/link";
 export const columnTitles = {
   id: "ID",
   customer: "Cliente",
+  storeCategories: "Categoría",
   createdAt: "Fecha de creación",
   paymentDueDate: "Fecha límite de pago",
   items: "Artículos",
@@ -23,7 +26,7 @@ export const columnTitles = {
   total: "Total",
 };
 
-export const columns: ColumnDef<OrderWithRelations>[] = [
+export const columns: ColumnDef<AdminOrderListRow>[] = [
   {
     accessorKey: "id",
     header: ({ column }) => (
@@ -77,12 +80,49 @@ export const columns: ColumnDef<OrderWithRelations>[] = [
     },
   },
   {
+    id: "storeCategories",
+    accessorFn: (row) => row.storeCategories.join(","),
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title={columnTitles.storeCategories}
+      />
+    ),
+    cell: ({ row }) => (
+      <div className="flex flex-wrap gap-1">
+        {row.original.storeCategories.map((category) => (
+          <Badge key={category} variant="outline">
+            {getStoreCategoryBadgeLabel(category)}
+          </Badge>
+        ))}
+        {row.original.isMixedCategory && (
+          <Badge variant="secondary">Pedido mixto</Badge>
+        )}
+      </div>
+    ),
+  },
+  {
     accessorKey: "total",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.total} />
     ),
     cell: ({ row }) => {
-      return <div>Bs{row.original.totalAmount.toFixed(2)}</div>;
+      const { totalAmount, isMixedCategory, scopedSubtotal } = row.original;
+      return (
+        <div className="space-y-0.5">
+          <p>
+            <span className="text-xs text-muted-foreground">
+              Total del pedido
+            </span>{" "}
+            Bs{totalAmount.toFixed(2)}
+          </p>
+          {isMixedCategory && scopedSubtotal !== totalAmount && (
+            <p className="text-xs text-muted-foreground">
+              Subtotal en este filtro Bs{scopedSubtotal.toFixed(2)}
+            </p>
+          )}
+        </div>
+      );
     },
   },
   {

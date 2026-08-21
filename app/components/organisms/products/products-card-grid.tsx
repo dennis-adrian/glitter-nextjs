@@ -9,6 +9,7 @@ import { Label } from "@/app/components/ui/label";
 import { BaseProductWithImages } from "@/app/lib/products/definitions";
 import { toggleProductVisibility } from "@/app/lib/products/actions";
 import { getProductEffectiveStock } from "@/app/lib/products/variants";
+import { getStoreCategoryBadgeLabel } from "@/app/lib/store/category";
 import { cn } from "@/lib/utils";
 import { EditIcon, EyeOffIcon, StarIcon, Trash2Icon } from "lucide-react";
 import Image from "next/image";
@@ -101,9 +102,14 @@ function ProductCard({ product }: { product: BaseProductWithImages }) {
                 : `${stock} unid.`}
             </Badge>
           </div>
-          <Badge variant="outline" className="self-start text-xs">
-            {STATUS_LABELS[product.status] ?? product.status}
-          </Badge>
+          <div className="flex flex-wrap gap-1.5">
+            <Badge variant="outline" className="text-xs">
+              {STATUS_LABELS[product.status] ?? product.status}
+            </Badge>
+            <Badge variant="outline" className="text-xs">
+              {getStoreCategoryBadgeLabel(product.storeCategory)}
+            </Badge>
+          </div>
           <div className="flex items-center gap-2">
             <Switch
               id={`visible-${product.id}`}

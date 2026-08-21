@@ -20,6 +20,7 @@ import type {
   OrderWithRelations,
 } from "@/app/lib/orders/definitions";
 import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import { getStoreCategoryBadgeLabel } from "@/app/lib/store/category";
 import { captureClientEvent } from "@/app/lib/posthog-capture";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 
@@ -267,7 +268,14 @@ export default function AdminAdjustOrderForm({
                   className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0">
-                    <p className="font-medium">{product.name}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium">{product.name}</p>
+                      {/* Clarifies which store a product belongs to; it does
+                          not filter additions by the Orders list scope. */}
+                      <span className="rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                        {getStoreCategoryBadgeLabel(product.storeCategory)}
+                      </span>
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       Bs {(selectedVariant?.price ?? product.price).toFixed(2)}{" "}
                       · stock {stock}

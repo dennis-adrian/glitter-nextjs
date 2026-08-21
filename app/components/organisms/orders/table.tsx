@@ -8,7 +8,10 @@ import OrdersBulkActions from "@/app/components/organisms/orders/orders-bulk-act
 import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
 import { Button } from "@/app/components/ui/button";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
-import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
+import {
+  AdminOrderListRow,
+  OrderStatus,
+} from "@/app/lib/orders/definitions";
 import {
   storeOrdersQueryToSearchParams,
   type StoreOrdersQuery,
@@ -27,7 +30,7 @@ import { use, useOptimistic, useTransition } from "react";
 type ActiveStatus = OrderStatus | "all" | "needs_attention";
 
 type OrdersTableProps = {
-  ordersPromise: Promise<OrderWithRelations[]>;
+  ordersPromise: Promise<AdminOrderListRow[]>;
   query: StoreOrdersQuery;
 };
 

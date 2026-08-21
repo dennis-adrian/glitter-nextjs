@@ -2,11 +2,51 @@ import {
   BaseProduct,
   ProductVariantWithSelections,
 } from "@/app/lib/products/definitions";
-import { OrderStatus, OrderWithRelations } from "./definitions";
+import {
+  toConcreteStoreCategory,
+  type StoreCategory,
+  type StoreCategoryScope,
+} from "@/app/lib/store/category";
+import {
+  AdminOrderListRow,
+  OrderStatus,
+  OrderWithRelations,
+} from "./definitions";
 
 export function getOrderItemCount(order: OrderWithRelations): number {
   const itemQuantities = order.orderItems.map((item) => item.quantity);
   return itemQuantities.reduce((acc, quantity) => acc + quantity, 0);
+}
+
+/**
+ * Describes a complete order under one scope. Effective lines already exclude
+ * zeroed quantities, so a fully returned line never marks an order as mixed.
+ */
+export function toAdminOrderListRow(
+  order: OrderWithRelations,
+  scope: StoreCategoryScope,
+): AdminOrderListRow {
+  const positiveLines = order.orderItems.filter((item) => item.quantity > 0);
+  const storeCategories = [
+    ...new Set(positiveLines.map((item) => item.storeCategoryAtPurchase)),
+  ] as StoreCategory[];
+  const category = toConcreteStoreCategory(scope);
+  const scopedLines =
+    category == null
+      ? positiveLines
+      : positiveLines.filter(
+          (item) => item.storeCategoryAtPurchase === category,
+        );
+
+  return {
+    ...order,
+    storeCategories,
+    scopedSubtotal: scopedLines.reduce(
+      (total, item) => total + item.quantity * item.priceAtPurchase,
+      0,
+    ),
+    isMixedCategory: storeCategories.length > 1,
+  };
 }
 
 export function hasPreorders(order: OrderWithRelations): boolean {

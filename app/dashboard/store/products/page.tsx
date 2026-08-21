@@ -7,6 +7,11 @@ import {
   fetchLowStockProducts,
   fetchProducts,
 } from "@/app/lib/products/actions";
+import {
+  normalizeStoreCategoryScope,
+  STORE_CATEGORY_SCOPE_PARAM,
+  toConcreteStoreCategory,
+} from "@/app/lib/store/category";
 import { PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -27,9 +32,16 @@ function LowStockSkeleton() {
   );
 }
 
-export default function StoreProductsPage() {
-  const productsPromise = fetchProducts("updatedAt");
-  const lowStockPromise = fetchLowStockProducts();
+export default async function StoreProductsPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const searchParams = await props.searchParams;
+  const scope = normalizeStoreCategoryScope(
+    searchParams[STORE_CATEGORY_SCOPE_PARAM],
+  );
+  const storeCategory = toConcreteStoreCategory(scope) ?? undefined;
+  const productsPromise = fetchProducts("updatedAt", { storeCategory });
+  const lowStockPromise = fetchLowStockProducts({ storeCategory });
 
   return (
     <div className="space-y-4">
@@ -46,8 +58,12 @@ export default function StoreProductsPage() {
         <LowStockAlert lowStockPromise={lowStockPromise} />
       </Suspense>
 
-      <Suspense fallback={<TableSkeleton />}>
-        <ResponsiveProductsView productsPromise={productsPromise} />
+      <Suspense key={scope} fallback={<TableSkeleton />}>
+        {/* Remounting by scope drops TanStack row selection from the old set. */}
+        <ResponsiveProductsView
+          key={scope}
+          productsPromise={productsPromise}
+        />
       </Suspense>
     </div>
   );

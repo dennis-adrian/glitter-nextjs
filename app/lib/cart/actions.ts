@@ -36,6 +36,11 @@ import {
   resolveSectionClosure,
   storeClosureMessage,
 } from "@/app/lib/store_settings/closure";
+import {
+  isSuppliesPurchaseBlocked,
+  SUPPLIES_UNVERIFIED_CAUSE,
+  SUPPLIES_VERIFIED_MESSAGE,
+} from "@/app/lib/store/category";
 import { getCurrentBaseProfile } from "@/app/lib/users/helpers";
 import { db } from "@/db";
 import { cartItems, carts, products } from "@/db/schema";
@@ -57,16 +62,6 @@ export type GuestStockValidationResult = {
 };
 
 type CartTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
-const SUPPLIES_VERIFIED_MESSAGE =
-  "Los insumos requieren una cuenta verificada.";
-
-function isSuppliesPurchaseBlocked(
-  storeCategory: string | null | undefined,
-  userStatus: string | undefined,
-): boolean {
-  return storeCategory === "supplies" && userStatus !== "verified";
-}
 
 export type CartCheckoutSnapshot = {
   cartId: number;
@@ -740,7 +735,7 @@ export async function checkoutCart(input?: {
         )
       ) {
         throw new Error(SUPPLIES_VERIFIED_MESSAGE, {
-          cause: "supplies_unverified",
+          cause: SUPPLIES_UNVERIFIED_CAUSE,
         });
       }
 
@@ -976,6 +971,16 @@ export async function checkoutGuestCart(
           items.map((item) => item.productId),
         ),
       );
+    // Guests are never verified. Match registered checkout's precedence by
+    // failing before the closure lookup; `createGuestOrderInTx` re-checks
+    // against locked rows and stays authoritative.
+    if (
+      productRows.some((product) =>
+        isSuppliesPurchaseBlocked(product.storeCategory, undefined),
+      )
+    ) {
+      return { success: false, message: SUPPLIES_VERIFIED_MESSAGE };
+    }
     const closedSection = await findClosedSection(
       productRows.map((product) => product.storeCategory),
     );
@@ -1026,7 +1031,9 @@ export async function checkoutGuestCart(
     }
     if (
       err instanceof Error &&
-      (err.cause === "variant_required" || err.cause === "variant_unavailable")
+      (err.cause === "variant_required" ||
+        err.cause === "variant_unavailable" ||
+        err.cause === SUPPLIES_UNVERIFIED_CAUSE)
     ) {
       return { success: false, message: err.message };
     }
