@@ -7,6 +7,10 @@ import {
   CardTitle,
 } from "@/app/components/ui/card";
 import { OrdersStats } from "@/app/lib/orders/actions";
+import {
+  storeCategoryScopeHref,
+  type StoreCategoryScope,
+} from "@/app/lib/store/category";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
@@ -21,12 +25,19 @@ import { use } from "react";
 
 type OrdersStatsCardsProps = {
   statsPromise: Promise<OrdersStats>;
+  category: StoreCategoryScope;
 };
 
 export default function OrdersStatsCards({
   statsPromise,
+  category,
 }: OrdersStatsCardsProps) {
   const stats = use(statsPromise);
+  // KPI links keep the active scope while carrying their own status filter.
+  const needsAttentionHref = `${storeCategoryScopeHref(
+    "/dashboard/store/orders",
+    category,
+  )}${category === "all" ? "?" : "&"}status=needs_attention`;
 
   const cards = [
     {
@@ -48,7 +59,7 @@ export default function OrdersStatsCards({
       value: stats.needsAttention,
       icon: AlertTriangleIcon,
       accent: stats.needsAttention > 0,
-      href: "/dashboard/store/orders?status=needs_attention",
+      href: needsAttentionHref,
     },
     {
       label: "En proceso",

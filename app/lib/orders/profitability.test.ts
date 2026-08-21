@@ -30,6 +30,7 @@ describe("mapOrdersProfitabilityQuery", () => {
           cost: null,
           profit: null,
           status: null,
+          store_category: null,
           gross_revenue: "0.00",
           product_cost: "0.00",
           known_cost_revenue: "0.00",
@@ -58,6 +59,7 @@ describe("mapOrdersProfitabilityQuery", () => {
         cost: "20.00",
         profit: "30.00",
         status: "paid",
+        store_category: "merch",
         gross_revenue: "80.00",
         product_cost: "20.00",
         known_cost_revenue: "50.00",
@@ -72,6 +74,7 @@ describe("mapOrdersProfitabilityQuery", () => {
         cost: null,
         profit: null,
         status: "delivered",
+        store_category: "supplies",
         gross_revenue: "80.00",
         product_cost: "20.00",
         known_cost_revenue: "50.00",
@@ -95,6 +98,7 @@ describe("mapOrdersProfitabilityQuery", () => {
           cost: 20,
           profit: 30,
           status: "paid",
+          storeCategory: "merch",
         },
         {
           orderId: 13,
@@ -105,6 +109,7 @@ describe("mapOrdersProfitabilityQuery", () => {
           cost: null,
           profit: null,
           status: "delivered",
+          storeCategory: "supplies",
         },
       ],
     });
@@ -123,6 +128,7 @@ describe("filterOrdersProfitability", () => {
         cost: 20,
         profit: 30,
         status: "paid",
+        store_category: "merch",
         gross_revenue: 80,
         product_cost: 20,
         known_cost_revenue: 50,
@@ -137,6 +143,7 @@ describe("filterOrdersProfitability", () => {
         cost: null,
         profit: null,
         status: "delivered",
+        store_category: "merch",
         gross_revenue: 80,
         product_cost: 20,
         known_cost_revenue: 50,
@@ -163,7 +170,7 @@ describe("ordersProfitabilityQuery", () => {
     const from = new Date("2026-08-01T04:00:00.000Z");
     const to = new Date("2026-08-22T03:59:59.999Z");
     const serialized = JSON.stringify(
-      ordersProfitabilityQuery({ from, to }),
+      ordersProfitabilityQuery({ from, to, category: "all" }),
       (_, value) => (value instanceof Date ? value.toISOString() : value),
     );
 
@@ -174,5 +181,24 @@ describe("ordersProfitabilityQuery", () => {
     expect(serialized.indexOf("and date >=")).toBeLessThan(
       serialized.indexOf("from effective_lines"),
     );
+  });
+
+  it("filters by category before totals and result rows", () => {
+    const serialized = JSON.stringify(
+      ordersProfitabilityQuery({ category: "supplies" }),
+    );
+
+    expect(serialized).toContain("and store_category =");
+    expect(serialized).toContain("supplies");
+    expect(serialized.indexOf("and store_category =")).toBeLessThan(
+      serialized.indexOf("from effective_lines"),
+    );
+    expect(serialized).toContain("oai.store_category_snapshot");
+  });
+
+  it("omits the category predicate for the whole store", () => {
+    expect(
+      JSON.stringify(ordersProfitabilityQuery({ category: "all" })),
+    ).not.toContain("and store_category =");
   });
 });

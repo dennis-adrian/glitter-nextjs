@@ -1,3 +1,9 @@
+import {
+  toConcreteStoreCategory,
+  type StoreCategory,
+  type StoreCategoryScope,
+} from "@/app/lib/store/category";
+
 const PLAIN_NUMERIC_LITERAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
 
 export function sanitizeCsvCell(value: unknown): string {
@@ -37,6 +43,7 @@ type CsvOrderItem = {
   priceAtPurchase: number;
   unitCostAtPurchase: number | null;
   transactionType: "purchase" | "rental";
+  storeCategoryAtPurchase: StoreCategory;
 };
 
 type CsvOrder = {
@@ -66,7 +73,36 @@ function customerName(order: CsvOrder): string {
   return order.customer?.displayName ?? order.guestName ?? "Invitado";
 }
 
-export function serializeOrdersSummaryCsv(orders: readonly CsvOrder[]): string {
+function positiveItems(order: CsvOrder): CsvOrderItem[] {
+  return order.orderItems.filter((item) => item.quantity > 0);
+}
+
+/**
+ * Whole-order fields always come from the complete DTO; only these scoped
+ * lines are narrowed, so a mixed order still reports its real total.
+ */
+function scopedItems(
+  order: CsvOrder,
+  scope: StoreCategoryScope,
+): CsvOrderItem[] {
+  const category = toConcreteStoreCategory(scope);
+  const items = positiveItems(order);
+  return category == null
+    ? items
+    : items.filter((item) => item.storeCategoryAtPurchase === category);
+}
+
+function isMixedOrder(order: CsvOrder): boolean {
+  return (
+    new Set(positiveItems(order).map((item) => item.storeCategoryAtPurchase))
+      .size > 1
+  );
+}
+
+export function serializeOrdersSummaryCsv(
+  orders: readonly CsvOrder[],
+  scope: StoreCategoryScope = "all",
+): string {
   return serializeCsvRows([
     [
       "order_id",
@@ -77,32 +113,48 @@ export function serializeOrdersSummaryCsv(orders: readonly CsvOrder[]): string {
       "customer_phone",
       "status",
       "rental_status",
+      "category_scope",
+      "mixed_order",
       "item_count",
       "items_summary",
-      "total_bs",
+      "scoped_total_bs",
+      "order_total_bs",
     ],
-    ...orders.map((order) => [
-      order.id,
-      order.createdAt.toISOString(),
-      order.customer ? "registered" : "guest",
-      customerName(order),
-      order.customer?.email ?? order.guestEmail ?? "",
-      order.customer?.phoneNumber ?? order.guestPhone ?? "",
-      order.status,
-      order.orderItems.some((item) => item.transactionType === "rental")
-        ? "has_rental"
-        : "purchase_only",
-      order.orderItems.reduce((total, item) => total + item.quantity, 0),
-      order.orderItems
-        .map((item) => `${item.quantity}x ${displayName(item)}`)
-        .join(", "),
-      order.totalAmount.toFixed(2),
-    ]),
+    ...orders.map((order) => {
+      const items = scopedItems(order, scope);
+      const orderItems = positiveItems(order);
+      return [
+        order.id,
+        order.createdAt.toISOString(),
+        order.customer ? "registered" : "guest",
+        customerName(order),
+        order.customer?.email ?? order.guestEmail ?? "",
+        order.customer?.phoneNumber ?? order.guestPhone ?? "",
+        order.status,
+        orderItems.some((item) => item.transactionType === "rental")
+          ? "has_rental"
+          : "purchase_only",
+        scope,
+        isMixedOrder(order) ? "true" : "false",
+        items.reduce((total, item) => total + item.quantity, 0),
+        items
+          .map((item) => `${item.quantity}x ${displayName(item)}`)
+          .join(", "),
+        items
+          .reduce(
+            (total, item) => total + item.quantity * item.priceAtPurchase,
+            0,
+          )
+          .toFixed(2),
+        order.totalAmount.toFixed(2),
+      ];
+    }),
   ]);
 }
 
 export function serializeOrderLineItemsCsv(
   orders: readonly CsvOrder[],
+  scope: StoreCategoryScope = "all",
 ): string {
   return serializeCsvRows([
     [
@@ -111,6 +163,7 @@ export function serializeOrderLineItemsCsv(
       "customer_name",
       "order_status",
       "transaction_type",
+      "store_category",
       "product_id",
       "product_name",
       "variant_id",
@@ -125,7 +178,7 @@ export function serializeOrderLineItemsCsv(
       "cost_status",
     ],
     ...orders.flatMap((order) =>
-      order.orderItems.map((item) => {
+      scopedItems(order, scope).map((item) => {
         const revenue = item.priceAtPurchase * item.quantity;
         const isRental = item.transactionType === "rental";
         const cost =
@@ -139,6 +192,7 @@ export function serializeOrderLineItemsCsv(
           customerName(order),
           order.status,
           item.transactionType,
+          item.storeCategoryAtPurchase,
           item.productId,
           item.productNameAtPurchase ?? item.product.name,
           item.productVariantId ?? "",
@@ -169,12 +223,14 @@ export function serializeProfitabilityCsv(
     cost: number | null;
     profit: number | null;
     status: string;
+    storeCategory: StoreCategory;
   }[],
 ): string {
   return serializeCsvRows([
     [
       "order_id",
       "created_at",
+      "store_category",
       "product_variant",
       "quantity",
       "revenue_bs",
@@ -187,6 +243,7 @@ export function serializeProfitabilityCsv(
     ...rows.map((row) => [
       row.orderId,
       row.date.toISOString(),
+      row.storeCategory,
       row.product,
       row.quantity,
       row.revenue.toFixed(2),

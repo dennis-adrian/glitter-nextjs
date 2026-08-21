@@ -1,3 +1,4 @@
+import StoreCategoryScopeSwitcher from "@/app/components/organisms/store/store-category-scope-switcher";
 import StoreNav from "@/app/components/organisms/store/store-nav";
 import { fetchPendingVoucherCount } from "@/app/lib/orders/actions";
 import Heading from "@/app/components/atoms/heading";
@@ -25,6 +26,8 @@ export default async function StoreLayout({
       </div>
 
       <StoreNav pendingCount={pendingCount} isAdmin={isAdmin} />
+
+      <StoreCategoryScopeSwitcher />
 
       {children}
     </div>

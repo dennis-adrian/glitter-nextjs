@@ -6,7 +6,7 @@ import { parseStoreOrdersQuery } from "@/app/lib/orders/query-schema";
 import { Suspense } from "react";
 
 export default async function StoreOrdersPage(props: {
-  searchParams: Promise<Record<string, string>>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const raw = await props.searchParams;
   const query = parseStoreOrdersQuery(raw);

@@ -7,6 +7,7 @@ import {
   type ProjectionAdjustmentLine,
 } from "@/app/lib/orders/projection";
 import { getProductPriceAtPurchase } from "@/app/lib/orders/utils";
+import type { StoreCategory } from "@/app/lib/store/category";
 import { resolveUnitCost } from "@/app/lib/products/cost";
 import { getVariantLabel } from "@/app/lib/products/variants";
 import {
@@ -90,6 +91,7 @@ type ResolvedChange = {
   productNameSnapshot: string;
   variantLabelSnapshot: string | null;
   transactionType: "purchase" | "rental";
+  storeCategorySnapshot: StoreCategory;
   quantityDelta: number;
   unitPriceSnapshot: number;
   unitCostSnapshot: number | null;
@@ -130,6 +132,7 @@ function toProjectionLine(line: AddedLine): ProjectionAdjustmentLine {
     unitPriceSnapshot: line.unitPriceSnapshot,
     unitCostSnapshot: line.unitCostSnapshot,
     transactionType: line.transactionType,
+    storeCategorySnapshot: line.storeCategorySnapshot,
   };
 }
 
@@ -411,6 +414,7 @@ export async function applyOrderAdjustmentWithDatabase(
           "Producto",
         variantLabelSnapshot: line.productVariantLabel,
         transactionType: line.transactionType,
+        storeCategorySnapshot: line.storeCategoryAtPurchase,
         quantityDelta,
         unitPriceSnapshot: line.priceAtPurchase,
         unitCostSnapshot: line.unitCostAtPurchase,
@@ -430,6 +434,7 @@ export async function applyOrderAdjustmentWithDatabase(
         productNameSnapshot: representative.productNameSnapshot,
         variantLabelSnapshot: representative.variantLabelSnapshot,
         transactionType: representative.transactionType,
+        storeCategorySnapshot: representative.storeCategorySnapshot,
         quantityDelta,
         unitPriceSnapshot: representative.unitPriceSnapshot,
         unitCostSnapshot: representative.unitCostSnapshot,
@@ -472,6 +477,7 @@ export async function applyOrderAdjustmentWithDatabase(
             }) ?? null)
           : null,
         transactionType: "purchase",
+        storeCategorySnapshot: product.storeCategory,
         quantityDelta: addition.quantity,
         unitPriceSnapshot: getProductPriceAtPurchase(product, variant),
         unitCostSnapshot: resolveUnitCost(product.unitCost, variant?.unitCost),
@@ -513,6 +519,7 @@ export async function applyOrderAdjustmentWithDatabase(
         productNameSnapshot: line.productNameSnapshot,
         variantLabelSnapshot: line.variantLabelSnapshot,
         transactionType: line.transactionType,
+        storeCategorySnapshot: line.storeCategorySnapshot,
         quantityDelta: line.quantityDelta,
         unitPriceSnapshot: line.unitPriceSnapshot,
         unitCostSnapshot: line.unitCostSnapshot,

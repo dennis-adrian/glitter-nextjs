@@ -11,6 +11,7 @@ import {
   serializeOrdersSummaryCsv,
 } from "@/app/lib/orders/csv";
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
+import { getStoreCategoryFilenameSuffix } from "@/app/lib/store/category";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { captureServerEvent } from "@/app/lib/posthog-server";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
@@ -35,13 +36,14 @@ export async function GET(request: NextRequest) {
   const orders = await fetchOrdersForAdmin(query);
   const csv =
     format === "line_items"
-      ? serializeOrderLineItemsCsv(orders)
-      : serializeOrdersSummaryCsv(orders);
+      ? serializeOrderLineItemsCsv(orders, query.category)
+      : serializeOrdersSummaryCsv(orders, query.category);
   const today = DateTime.now().setZone(STORE_TIMEZONE).toISODate();
+  const categorySuffix = getStoreCategoryFilenameSuffix(query.category);
   const filename =
     format === "line_items"
-      ? `articulos-vendidos-${today}.csv`
-      : `pedidos-${today}.csv`;
+      ? `articulos-vendidos-${categorySuffix}-${today}.csv`
+      : `pedidos-${categorySuffix}-${today}.csv`;
 
   // Keep only non-sensitive filter categories in the diagnostic header.
   const canonicalQuery = storeOrdersQueryToSearchParams({
@@ -63,6 +65,7 @@ export async function GET(request: NextRequest) {
             : 1,
         rental: query.rental,
         period: query.period,
+        category: query.category,
         has_search: Boolean(query.q),
         row_count: orders.length,
       },

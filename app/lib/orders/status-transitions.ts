@@ -19,3 +19,9 @@ export function canTransitionOrderStatus(
 export function canCancelOrderStatus(status: OrderStatus): boolean {
   return canTransitionOrderStatus(status, "cancelled");
 }
+
+/**
+ * Upper bound for a single bulk status change. Each order is updated in its own
+ * transaction, so this keeps one request from holding locks for too long.
+ */
+export const BULK_ORDER_STATUS_LIMIT = 100;

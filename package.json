@@ -1,6 +1,6 @@
 {
   "name": "glitter-nextjs",
-  "version": "2.56.0",
+  "version": "2.57.0",
   "private": true,
   "packageManager": "pnpm@10.34.3",
   "engines": {
@@ -18,7 +18,7 @@
     "vercel-build": "pnpm generate && pnpm migrate && next build",
     "email": "email dev --dir app/emails",
     "test": "vitest",
-    "test:integration": "node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run app/lib/orders/adjustments.integration.test.ts",
+    "test:integration": "node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run app/lib/orders/actions.integration.test.ts app/lib/orders/adjustments.integration.test.ts app/lib/orders/category-correction.integration.test.ts",
     "test:e2e": "playwright test",
     "format:write": "prettier --write .",
     "format:check": "prettier --check ."

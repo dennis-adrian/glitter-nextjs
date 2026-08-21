@@ -10,7 +10,7 @@ import {
 describe("profitability query schema", () => {
   it("uses the current month by default", () => {
     const query = parseProfitabilityQuery({});
-    expect(query).toEqual({ period: "month" });
+    expect(query).toEqual({ period: "month", category: "all" });
 
     const now = DateTime.fromISO("2026-08-21T12:00:00", {
       zone: "America/La_Paz",
@@ -22,7 +22,7 @@ describe("profitability query schema", () => {
 
   it("falls back to the current month when custom has no boundaries", () => {
     const query = parseProfitabilityQuery({ period: "custom" });
-    expect(query).toEqual({ period: "month" });
+    expect(query).toEqual({ period: "month", category: "all" });
 
     const now = DateTime.fromISO("2026-08-21T12:00:00", {
       zone: "America/La_Paz",
@@ -71,9 +71,27 @@ describe("profitability query schema", () => {
       period: "custom",
       from: "2026-08-01",
       to: "2026-08-15",
+      category: "all",
     });
     expect(profitabilityQueryToSearchParams(query).toString()).toBe(
-      "period=custom&from=2026-08-01&to=2026-08-15",
+      "period=custom&category=all&from=2026-08-01&to=2026-08-15",
     );
+  });
+
+  it("keeps the category scope alongside the period filters", () => {
+    expect(parseProfitabilityQuery({ category: "bogus" }).category).toBe("all");
+
+    const query = parseProfitabilityQuery({
+      category: "supplies",
+      from: "2026-08-01",
+      to: "2026-08-15",
+    });
+
+    expect(query.category).toBe("supplies");
+    expect(query.period).toBe("custom");
+    const params = profitabilityQueryToSearchParams(query);
+    expect(params.get("category")).toBe("supplies");
+    expect(params.get("from")).toBe("2026-08-01");
+    expect(params.get("to")).toBe("2026-08-15");
   });
 });

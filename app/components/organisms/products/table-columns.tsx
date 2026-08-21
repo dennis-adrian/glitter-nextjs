@@ -12,6 +12,7 @@ import {
   updateProductStock,
 } from "@/app/lib/products/actions";
 import { getProductEffectiveStock } from "@/app/lib/products/variants";
+import { getStoreCategoryBadgeLabel } from "@/app/lib/store/category";
 import { cn } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
 import { EditIcon, StarIcon, Trash2Icon } from "lucide-react";
@@ -29,6 +30,7 @@ const STATUS_LABELS: Record<string, string> = {
 export const columnTitles = {
   image: "Imagen",
   name: "Nombre",
+  storeCategory: "Categoría",
   price: "Precio",
   stock: "Stock",
   status: "Estado",
@@ -219,6 +221,20 @@ export const columns: ColumnDef<BaseProductWithImages>[] = [
     accessorKey: "name",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={columnTitles.name} />
+    ),
+  },
+  {
+    accessorKey: "storeCategory",
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title={columnTitles.storeCategory}
+      />
+    ),
+    cell: ({ row }) => (
+      <Badge variant="outline">
+        {getStoreCategoryBadgeLabel(row.original.storeCategory)}
+      </Badge>
     ),
   },
   {

@@ -1,11 +1,13 @@
 "use client";
 
 import OrderStatusBadge from "@/app/components/atoms/order-status-badge";
+import OrdersBulkActions from "@/app/components/organisms/orders/orders-bulk-actions";
 import { OrdersActionsCell } from "@/app/components/organisms/orders/table-actions-cell";
 import SocialMediaBadge from "@/app/components/social-media-badge";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
-import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
+import { AdminOrderListRow, OrderStatus } from "@/app/lib/orders/definitions";
+import { BULK_ORDER_STATUS_LIMIT } from "@/app/lib/orders/status-transitions";
 import {
   storeOrdersQueryToSearchParams,
   type StoreOrdersQuery,
@@ -14,15 +16,18 @@ import {
   getOrderItemDisplayName,
   getOrderStatusLabel,
 } from "@/app/lib/orders/utils";
+import { getStoreCategoryBadgeLabel } from "@/app/lib/store/category";
 import type { RentalOrderFilter } from "@/app/lib/rentals/order-filters";
 import { getRentalOrderFilterLabel } from "@/app/lib/rentals/order-filters";
 import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
+import { Checkbox } from "@/app/components/ui/checkbox";
 import { Input } from "@/app/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangleIcon,
   ChevronRightIcon,
   DownloadIcon,
+  ListChecksIcon,
   ReceiptIcon,
   SearchIcon,
   SlidersHorizontalIcon,
@@ -30,12 +35,13 @@ import {
 import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
 import { use, useOptimistic, useState, useTransition } from "react";
+import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
 
 type ActiveStatus = OrderStatus | "all" | "needs_attention";
 
 type OrdersCardListProps = {
-  ordersPromise: Promise<OrderWithRelations[]>;
+  ordersPromise: Promise<AdminOrderListRow[]>;
   query: StoreOrdersQuery;
 };
 
@@ -70,13 +76,25 @@ const STATUS_OPTIONS: {
 function OrderCard({
   order,
   selectedStatuses,
+  selectionMode,
+  isSelected,
+  canSelect,
+  onToggleSelect,
 }: {
-  order: OrderWithRelations;
+  order: AdminOrderListRow;
   selectedStatuses: string[];
+  selectionMode: boolean;
+  isSelected: boolean;
+  canSelect: boolean;
+  onToggleSelect: () => void;
 }) {
   const router = useRouter();
   const nowInStore = DateTime.now().setZone(STORE_TIMEZONE);
-  const goToOrder = () => router.push(`/dashboard/store/orders/${order.id}`);
+  // While selecting, tapping the card picks it instead of leaving the list.
+  const activateCard = () =>
+    selectionMode
+      ? onToggleSelect()
+      : router.push(`/dashboard/store/orders/${order.id}`);
 
   const isOverdue =
     !!order.paymentDueDate &&
@@ -107,19 +125,33 @@ function OrderCard({
       className={cn(
         "cursor-pointer transition-colors hover:bg-accent/40",
         isOverdue && "border-red-200 bg-red-50/30",
+        selectionMode && isSelected && "border-primary bg-primary/5",
       )}
-      role="button"
+      role={selectionMode ? "checkbox" : "button"}
+      aria-checked={selectionMode ? isSelected : undefined}
       tabIndex={0}
-      onClick={goToOrder}
+      onClick={activateCard}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          goToOrder();
+          activateCard();
         }
       }}
     >
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2">
+          {selectionMode && (
+            /* Purely visual: the card itself carries the checkbox semantics. */
+            <Checkbox
+              checked={isSelected}
+              disabled={!canSelect}
+              onCheckedChange={onToggleSelect}
+              onClick={(e) => e.stopPropagation()}
+              className="mt-1 shrink-0"
+              tabIndex={-1}
+              aria-hidden="true"
+            />
+          )}
           <div className="flex flex-col gap-1.5 min-w-0">
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-sm font-semibold">#{order.id}</span>
@@ -134,6 +166,19 @@ function OrderCard({
                 <span className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600">
                   <ReceiptIcon className="h-3 w-3" />
                   Comprobante
+                </span>
+              )}
+              {order.storeCategories.map((category) => (
+                <span
+                  key={category}
+                  className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                >
+                  {getStoreCategoryBadgeLabel(category)}
+                </span>
+              ))}
+              {order.isMixedCategory && (
+                <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs font-medium">
+                  Pedido mixto
                 </span>
               )}
             </div>
@@ -163,15 +208,30 @@ function OrderCard({
           </div>
 
           <div className="flex flex-col items-end gap-2 shrink-0">
-            <div className="flex items-center gap-1">
-              <span className="font-semibold text-sm">
-                Bs {order.totalAmount.toFixed(2)}
+            <div className="flex flex-col items-end">
+              <div className="flex items-center gap-1">
+                <span className="font-semibold text-sm">
+                  Bs {order.totalAmount.toFixed(2)}
+                </span>
+                {!selectionMode && (
+                  <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Total del pedido
               </span>
-              <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
+              {order.isMixedCategory &&
+                order.scopedSubtotal !== order.totalAmount && (
+                  <span className="text-xs text-muted-foreground">
+                    Subtotal en este filtro Bs {order.scopedSubtotal.toFixed(2)}
+                  </span>
+                )}
             </div>
-            <div onClick={(e) => e.stopPropagation()}>
-              <OrdersActionsCell order={order} />
-            </div>
+            {!selectionMode && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <OrdersActionsCell order={order} />
+              </div>
+            )}
           </div>
         </div>
       </CardContent>
@@ -199,6 +259,62 @@ export default function OrdersCardList({
   const [search, setSearch] = useState(query.q);
   const [previousQuerySearch, setPreviousQuerySearch] = useState(query.q);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
+  const queryScopeKey = [
+    optimisticStatuses.join(",") || "all",
+    optimisticRentalFilter,
+    query.period,
+    query.from ?? "",
+    query.to ?? "",
+    query.q,
+    query.category,
+  ].join("|");
+  const [selectionScopeKey, setSelectionScopeKey] = useState(queryScopeKey);
+  const scopeChanged = queryScopeKey !== selectionScopeKey;
+  if (scopeChanged) {
+    setSelectionScopeKey(queryScopeKey);
+  }
+
+  // Drop IDs that left the visible list so they stay unselected if they return.
+  // Clear all selection when the active query scope changes.
+  const visibleIds = new Set(orders.map((order) => order.id));
+  const prunedSelectedIds = scopeChanged
+    ? []
+    : selectedIds.filter((id) => visibleIds.has(id));
+  if (prunedSelectedIds.length !== selectedIds.length) {
+    setSelectedIds(prunedSelectedIds);
+  }
+
+  const selectedOrders = orders.filter((order) =>
+    prunedSelectedIds.includes(order.id),
+  );
+  const selectionCap = Math.min(orders.length, BULK_ORDER_STATUS_LIMIT);
+  const allSelected =
+    orders.length > 0 && selectedOrders.length === selectionCap;
+  const atSelectionLimit = prunedSelectedIds.length >= BULK_ORDER_STATUS_LIMIT;
+
+  function toggleSelected(orderId: number) {
+    if (prunedSelectedIds.includes(orderId)) {
+      setSelectedIds((current) => current.filter((id) => id !== orderId));
+      return;
+    }
+    if (prunedSelectedIds.length >= BULK_ORDER_STATUS_LIMIT) {
+      toast.warning(
+        `Solo puedes seleccionar hasta ${BULK_ORDER_STATUS_LIMIT} pedidos a la vez.`,
+      );
+      return;
+    }
+    setSelectedIds((current) =>
+      current.includes(orderId) ? current : [...current, orderId],
+    );
+  }
+
+  function exitSelectionMode() {
+    setSelectedIds([]);
+    setSelectionMode(false);
+  }
 
   if (query.q !== previousQuerySearch) {
     setPreviousQuerySearch(query.q);
@@ -260,11 +376,13 @@ export default function OrdersCardList({
     <div className="flex flex-col gap-4">
       {/* Status filter */}
       <div className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             Estado
           </span>
-          <div className="flex items-center gap-1.5">
+          {/* Three controls plus the label overflow a 320px viewport, so let
+              them wrap instead of squeezing the chips row off screen. */}
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
             <a
               href={`/api/store/orders/export?${exportParams}`}
               className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent"
@@ -272,6 +390,21 @@ export default function OrdersCardList({
               <DownloadIcon className="h-3.5 w-3.5" />
               CSV
             </a>
+            <button
+              onClick={() =>
+                selectionMode ? exitSelectionMode() : setSelectionMode(true)
+              }
+              aria-pressed={selectionMode}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+                selectionMode
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:bg-accent",
+              )}
+            >
+              <ListChecksIcon className="h-3.5 w-3.5" />
+              {selectionMode ? "Cancelar" : "Seleccionar"}
+            </button>
             <button
               onClick={() => setFiltersOpen((v) => !v)}
               className={cn(
@@ -404,10 +537,60 @@ export default function OrdersCardList({
               key={order.id}
               order={order}
               selectedStatuses={optimisticStatuses}
+              selectionMode={selectionMode}
+              isSelected={prunedSelectedIds.includes(order.id)}
+              canSelect={
+                prunedSelectedIds.includes(order.id) || !atSelectionLimit
+              }
+              onToggleSelect={() => toggleSelected(order.id)}
             />
           ))
         )}
       </div>
+
+      {selectionMode && (
+        <div
+          // Bleeds to the edges of the store layout, which is px-3 / md:px-6.
+          className="sticky bottom-0 z-30 -mx-3 flex flex-col gap-2 border-t bg-background px-3 pt-3 sm:flex-row sm:items-center sm:justify-between md:-mx-6 md:px-6"
+          // Keeps the actions clear of the iOS home indicator.
+          style={{
+            paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
+          }}
+        >
+          <button
+            onClick={() => {
+              if (allSelected) {
+                setSelectedIds([]);
+                return;
+              }
+              if (orders.length > BULK_ORDER_STATUS_LIMIT) {
+                toast.warning(
+                  `Solo puedes seleccionar hasta ${BULK_ORDER_STATUS_LIMIT} pedidos a la vez.`,
+                );
+              }
+              setSelectedIds(
+                orders
+                  .slice(0, BULK_ORDER_STATUS_LIMIT)
+                  .map((order) => order.id),
+              );
+            }}
+            disabled={orders.length === 0}
+            className="self-start text-xs font-medium text-primary disabled:text-muted-foreground"
+          >
+            {allSelected ? "Quitar todos" : "Seleccionar todos"}
+          </button>
+          {selectedOrders.length > 0 ? (
+            <OrdersBulkActions
+              orders={selectedOrders}
+              onDone={exitSelectionMode}
+            />
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              Elige pedidos para aplicar una acción.
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -19,6 +19,7 @@ describe("effective order projection", () => {
         priceAtPurchase: 10,
         unitCostAtPurchase: 4,
         transactionType: "purchase" as const,
+        storeCategoryAtPurchase: "merch" as const,
       },
     ];
     const adjustmentLines = [
@@ -33,6 +34,7 @@ describe("effective order projection", () => {
         unitPriceSnapshot: 10,
         unitCostSnapshot: 4,
         transactionType: "purchase" as const,
+        storeCategorySnapshot: "merch" as const,
       },
       {
         id: 3,
@@ -45,6 +47,7 @@ describe("effective order projection", () => {
         unitPriceSnapshot: 10,
         unitCostSnapshot: 4,
         transactionType: "purchase" as const,
+        storeCategorySnapshot: "merch" as const,
       },
     ];
 
@@ -69,6 +72,7 @@ describe("effective order projection", () => {
           priceAtPurchase: 10,
           unitCostAtPurchase: null,
           transactionType: "purchase",
+          storeCategoryAtPurchase: "merch" as const,
         },
       ],
       [
@@ -83,6 +87,7 @@ describe("effective order projection", () => {
           unitPriceSnapshot: 10,
           unitCostSnapshot: null,
           transactionType: "purchase",
+          storeCategorySnapshot: "merch" as const,
         },
         {
           id: 11,
@@ -95,6 +100,7 @@ describe("effective order projection", () => {
           unitPriceSnapshot: 20,
           unitCostSnapshot: 9,
           transactionType: "purchase",
+          storeCategorySnapshot: "merch" as const,
         },
       ],
     );
@@ -114,6 +120,7 @@ describe("effective order projection", () => {
       unitPriceSnapshot: 25,
       unitCostSnapshot: 10,
       transactionType: "purchase" as const,
+      storeCategorySnapshot: "merch" as const,
     };
     const lines = getEffectiveOrderLines(
       [],
@@ -125,6 +132,81 @@ describe("effective order projection", () => {
 
     expect(lines).toMatchObject([
       { key: "adjustment:20", adjustmentItemId: 20, quantity: 2 },
+    ]);
+  });
+
+  it("carries base and added categories into effective lines", () => {
+    const lines = getEffectiveOrderLines(
+      [
+        {
+          id: 1,
+          productId: 1,
+          productVariantId: null,
+          productVariantLabel: null,
+          productNameAtPurchase: "Glitter",
+          productName: "Glitter",
+          quantity: 2,
+          priceAtPurchase: 10,
+          unitCostAtPurchase: 4,
+          transactionType: "purchase",
+          storeCategoryAtPurchase: "supplies",
+        },
+      ],
+      [
+        {
+          id: 30,
+          baseOrderItemId: null,
+          productId: 2,
+          productVariantId: null,
+          productNameSnapshot: "Polera",
+          variantLabelSnapshot: null,
+          quantityDelta: 1,
+          unitPriceSnapshot: 20,
+          unitCostSnapshot: 9,
+          transactionType: "purchase",
+          storeCategorySnapshot: "merch",
+        },
+      ],
+    );
+
+    expect(lines).toMatchObject([
+      { baseOrderItemId: 1, storeCategory: "supplies" },
+      { adjustmentItemId: 30, storeCategory: "merch" },
+    ]);
+  });
+
+  it("keeps otherwise-identical added lines of different categories apart", () => {
+    const shared = {
+      baseOrderItemId: null,
+      productId: 2,
+      productVariantId: null,
+      productNameSnapshot: "Polera",
+      variantLabelSnapshot: null,
+      unitPriceSnapshot: 25,
+      unitCostSnapshot: 10,
+      transactionType: "purchase" as const,
+    };
+    const lines = getEffectiveOrderLines(
+      [],
+      [
+        {
+          ...shared,
+          id: 40,
+          quantityDelta: 2,
+          storeCategorySnapshot: "merch" as const,
+        },
+        {
+          ...shared,
+          id: 41,
+          quantityDelta: 3,
+          storeCategorySnapshot: "supplies" as const,
+        },
+      ],
+    );
+
+    expect(lines).toMatchObject([
+      { adjustmentItemId: 40, quantity: 2, storeCategory: "merch" },
+      { adjustmentItemId: 41, quantity: 3, storeCategory: "supplies" },
     ]);
   });
 });

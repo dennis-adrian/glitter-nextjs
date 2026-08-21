@@ -2,6 +2,7 @@ import { DateTime } from "luxon";
 import { z } from "zod";
 
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
+import { storeCategoryScopeSchema } from "@/app/lib/store/category";
 
 const PERIOD_VALUES = ["all", "today", "week", "month", "custom"] as const;
 
@@ -19,6 +20,7 @@ export const profitabilityQuerySchema = z.object({
   period: z.enum(PERIOD_VALUES).catch("month"),
   from: isoDate,
   to: isoDate,
+  category: storeCategoryScopeSchema,
 });
 
 export type ProfitabilityQuery = z.infer<typeof profitabilityQuerySchema>;
@@ -42,7 +44,10 @@ export function parseProfitabilityQuery(
 export function profitabilityQueryToSearchParams(
   query: ProfitabilityQuery,
 ): URLSearchParams {
-  const params = new URLSearchParams({ period: query.period });
+  const params = new URLSearchParams({
+    period: query.period,
+    category: query.category,
+  });
   if (query.from) params.set("from", query.from);
   if (query.to) params.set("to", query.to);
   return params;

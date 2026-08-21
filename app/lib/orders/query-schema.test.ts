@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  orderStatusSchema,
   parseStoreOrdersQuery,
   resolveStoreOrdersStatusFilter,
   storeOrdersQueryToSearchParams,
@@ -32,6 +33,7 @@ describe("store order query schema", () => {
       period: "all",
       q: "",
       view: "compact",
+      category: "all",
     });
   });
 
@@ -63,8 +65,32 @@ describe("store order query schema", () => {
     });
 
     expect(storeOrdersQueryToSearchParams(query).toString()).toBe(
-      "status=all&rental=has_rental&period=week&view=compact&q=Rosa",
+      "status=all&rental=has_rental&period=week&view=compact&category=all&q=Rosa",
     );
+  });
+
+  it("defaults an unknown category scope to all and preserves a valid one", () => {
+    expect(parseStoreOrdersQuery({ category: "bogus" }).category).toBe("all");
+    expect(parseStoreOrdersQuery({}).category).toBe("all");
+
+    const scoped = parseStoreOrdersQuery({
+      category: "supplies",
+      statuses: "paid,pending",
+      rental: "has_rental",
+      from: "2026-08-01",
+      q: "Rosa",
+      view: "comfortable",
+    });
+
+    expect(scoped.category).toBe("supplies");
+    const params = storeOrdersQueryToSearchParams(scoped);
+    expect(params.get("category")).toBe("supplies");
+    expect(params.get("statuses")).toBe("paid,pending");
+    expect(params.get("rental")).toBe("has_rental");
+    expect(params.get("period")).toBe("custom");
+    expect(params.get("from")).toBe("2026-08-01");
+    expect(params.get("q")).toBe("Rosa");
+    expect(params.get("view")).toBe("comfortable");
   });
 
   it("preserves composable status filters", () => {
@@ -133,6 +159,7 @@ describe("store order query schema", () => {
         period: "all",
         q: "",
         view: "compact",
+        category: "all",
       }),
     ).toEqual(["paid", "delivered"]);
     expect(
@@ -143,6 +170,7 @@ describe("store order query schema", () => {
         period: "all",
         q: "",
         view: "compact",
+        category: "all",
       }),
     ).toEqual(["pending", "payment_verification"]);
     expect(
@@ -153,7 +181,23 @@ describe("store order query schema", () => {
         period: "all",
         q: "",
         view: "compact",
+        category: "all",
       }),
     ).toBeUndefined();
+  });
+});
+
+describe("orderStatusSchema", () => {
+  it("accepts concrete order statuses", () => {
+    expect(orderStatusSchema.parse("paid")).toBe("paid");
+    expect(orderStatusSchema.parse("payment_verification")).toBe(
+      "payment_verification",
+    );
+  });
+
+  it("rejects query-only and unknown statuses", () => {
+    expect(orderStatusSchema.safeParse("all").success).toBe(false);
+    expect(orderStatusSchema.safeParse("needs_attention").success).toBe(false);
+    expect(orderStatusSchema.safeParse("surprise").success).toBe(false);
   });
 });
