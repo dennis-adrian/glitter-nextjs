@@ -152,3 +152,45 @@ export function serializeOrderLineItemsCsv(
     ),
   ]);
 }
+
+export function serializeProfitabilityCsv(
+  rows: readonly {
+    orderId: number;
+    date: Date;
+    product: string;
+    quantity: number;
+    revenue: number;
+    cost: number | null;
+    profit: number | null;
+    status: string;
+  }[],
+): string {
+  return serializeCsvRows([
+    [
+      "order_id",
+      "created_at",
+      "product_variant",
+      "quantity",
+      "revenue_bs",
+      "known_cost_bs",
+      "gross_profit_bs",
+      "gross_margin_percent",
+      "cost_status",
+      "order_status",
+    ],
+    ...rows.map((row) => [
+      row.orderId,
+      row.date.toISOString(),
+      row.product,
+      row.quantity,
+      row.revenue.toFixed(2),
+      row.cost?.toFixed(2) ?? "",
+      row.profit?.toFixed(2) ?? "",
+      row.profit == null || row.revenue === 0
+        ? ""
+        : ((row.profit / row.revenue) * 100).toFixed(2),
+      row.cost == null ? "missing" : "known",
+      row.status,
+    ]),
+  ]);
+}

@@ -67,12 +67,6 @@ const STATUS_OPTIONS: {
   { value: "cancelled", label: getOrderStatusLabel("cancelled") },
 ];
 
-function chipToActive(
-  value: "" | OrderStatus | "needs_attention",
-): ActiveStatus {
-  return value === "" ? "all" : value;
-}
-
 function OrderCard({
   order,
   activeStatus,
@@ -199,6 +193,12 @@ export default function OrdersCardList({
   const [previousQuerySearch, setPreviousQuerySearch] = useState(query.q);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  const selectedStatuses = (
+    query.statuses || (query.status === "all" ? "" : query.status)
+  )
+    .split(",")
+    .filter(Boolean);
+
   if (query.q !== previousQuerySearch) {
     setPreviousQuerySearch(query.q);
     setSearch(query.q);
@@ -215,10 +215,24 @@ export default function OrdersCardList({
   }, 300);
 
   function handleStatusChange(value: "" | OrderStatus | "needs_attention") {
-    const param = value === "" ? "all" : value;
+    if (value === "") {
+      startTransition(() =>
+        navigate({ ...query, status: "all", statuses: "" }),
+      );
+      return;
+    }
+    const next = selectedStatuses.includes(value)
+      ? selectedStatuses.filter((status) => status !== value)
+      : [...selectedStatuses, value];
+    const statuses = next.join(",");
     startTransition(() => {
-      setOptimisticStatus(chipToActive(value));
-      navigate({ ...query, status: param, rental: optimisticRentalFilter });
+      setOptimisticStatus((next[0] as ActiveStatus | undefined) ?? "all");
+      navigate({
+        ...query,
+        status: (next[0] as ActiveStatus | undefined) ?? "all",
+        statuses,
+        rental: optimisticRentalFilter,
+      });
     });
   }
 
@@ -270,7 +284,10 @@ export default function OrdersCardList({
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 [&::-webkit-scrollbar]:hidden">
           {STATUS_OPTIONS.map((opt) => {
-            const isActive = optimisticStatus === chipToActive(opt.value);
+            const isActive =
+              opt.value === ""
+                ? selectedStatuses.length === 0
+                : selectedStatuses.includes(opt.value);
             return (
               <button
                 key={opt.value}

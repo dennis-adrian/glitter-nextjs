@@ -46,4 +46,16 @@ describe("store order query schema", () => {
       "status=all&rental=has_rental&period=week&view=compact&q=Rosa",
     );
   });
+
+  it("preserves composable status filters", () => {
+    const query = parseStoreOrdersQuery({
+      status: "pending",
+      statuses: "paid, pending,invalid,paid",
+    });
+
+    expect(query.statuses).toBe("paid,pending");
+    expect(storeOrdersQueryToSearchParams(query).get("statuses")).toBe(
+      "paid,pending",
+    );
+  });
 });

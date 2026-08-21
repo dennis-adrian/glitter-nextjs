@@ -79,9 +79,11 @@ import { canTransitionOrderStatus } from "@/app/lib/orders/status-transitions";
 import { restoreEffectiveOrderStockInTx } from "@/app/lib/orders/cancellation";
 import { getEffectiveOrderLines } from "@/app/lib/orders/projection";
 import {
+  filterOrdersProfitability,
   mapOrdersProfitabilityQuery,
   ordersProfitabilityQuery,
   type OrdersProfitability,
+  type ProfitabilityDateRange,
   type ProfitabilityQueryRow,
 } from "@/app/lib/orders/profitability";
 
@@ -1107,8 +1109,19 @@ export async function fetchOrdersForAdmin(query: StoreOrdersQuery) {
   const currentUser = await getCurrentUserProfile();
   if (!currentUser || currentUser.role !== "admin") return [];
 
-  const status =
-    query.status === "all"
+  const selectedStatuses = query.statuses
+    ? query.statuses.split(",").filter(Boolean)
+    : [];
+  const expandedStatuses = selectedStatuses.flatMap((value) =>
+    value === "needs_attention"
+      ? ["pending", "payment_verification"]
+      : value === "all"
+        ? []
+        : [value],
+  );
+  const status = expandedStatuses.length
+    ? (Array.from(new Set(expandedStatuses)) as OrderStatus[])
+    : query.status === "all"
       ? undefined
       : query.status === "needs_attention"
         ? (["pending", "payment_verification"] as const)
@@ -1955,12 +1968,29 @@ export async function applyHistoricalOrderCosts(): Promise<{
   }
 }
 
-export async function fetchOrdersProfitability(): Promise<OrdersProfitability> {
+export async function fetchOrdersProfitability(
+  range: ProfitabilityDateRange = {},
+): Promise<OrdersProfitability> {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") {
+    return {
+      grossRevenue: 0,
+      productCost: 0,
+      grossProfit: 0,
+      knownCostRevenue: 0,
+      lineCount: 0,
+      rows: [],
+    };
+  }
+
   try {
     const result = await db.execute<ProfitabilityQueryRow>(
       ordersProfitabilityQuery,
     );
-    return mapOrdersProfitabilityQuery(result.rows);
+    return filterOrdersProfitability(
+      mapOrdersProfitabilityQuery(result.rows),
+      range,
+    );
   } catch (error) {
     console.error(error);
     return {

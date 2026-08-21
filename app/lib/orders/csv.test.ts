@@ -5,6 +5,7 @@ import {
   serializeOrderLineItemsCsv,
   serializeOrdersSummaryCsv,
   serializeCsvRows,
+  serializeProfitabilityCsv,
 } from "@/app/lib/orders/csv";
 
 describe("sanitizeCsvCell", () => {
@@ -92,5 +93,25 @@ describe("order export serializers", () => {
     ]);
 
     expect(csv).toContain('"30.00","","","","","unavailable"');
+  });
+});
+
+describe("profitability export serializer", () => {
+  it("keeps unknown costs empty and sanitizes product labels", () => {
+    const csv = serializeProfitabilityCsv([
+      {
+        orderId: 172,
+        date: new Date("2026-08-20T12:30:00.000Z"),
+        product: "=Polera",
+        quantity: 2,
+        revenue: 30,
+        cost: null,
+        profit: null,
+        status: "paid",
+      },
+    ]);
+
+    expect(csv).toContain('"\'=Polera"');
+    expect(csv).toContain('"30.00","","","","missing","paid"');
   });
 });

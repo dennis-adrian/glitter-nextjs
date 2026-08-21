@@ -18,6 +18,8 @@ export type OrdersProfitability = {
   }[];
 };
 
+export type ProfitabilityDateRange = { from?: Date; to?: Date };
+
 export type ProfitabilityQueryRow = Record<string, unknown> & {
   order_id: number | string | null;
   date: Date | string | null;
@@ -41,6 +43,43 @@ const emptyProfitability: OrdersProfitability = {
   lineCount: 0,
   rows: [],
 };
+
+export function summarizeProfitabilityRows(
+  rows: OrdersProfitability["rows"],
+): OrdersProfitability {
+  const grossRevenue = rows.reduce((sum, row) => sum + row.revenue, 0);
+  const productCost = rows.reduce((sum, row) => sum + (row.cost ?? 0), 0);
+  const knownCostRevenue = rows.reduce(
+    (sum, row) => sum + (row.cost == null ? 0 : row.revenue),
+    0,
+  );
+
+  return {
+    grossRevenue,
+    productCost,
+    grossProfit: knownCostRevenue - productCost,
+    knownCostRevenue,
+    lineCount: rows.length,
+    rows,
+  };
+}
+
+export function filterOrdersProfitability(
+  report: OrdersProfitability,
+  range: ProfitabilityDateRange,
+): OrdersProfitability {
+  if (!range.from && !range.to) return report;
+
+  return summarizeProfitabilityRows(
+    report.rows.filter((row) => {
+      const timestamp = row.date.getTime();
+      return (
+        (!range.from || timestamp >= range.from.getTime()) &&
+        (!range.to || timestamp <= range.to.getTime())
+      );
+    }),
+  );
+}
 
 function toNumber(value: number | string | null | undefined): number {
   const parsed = Number(value ?? 0);

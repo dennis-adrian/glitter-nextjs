@@ -11,6 +11,10 @@ import {
   fetchOrdersTotalsByProduct,
   fetchOrdersProfitability,
 } from "@/app/lib/orders/actions";
+import {
+  getProfitabilityDateRange,
+  parseProfitabilityQuery,
+} from "@/app/lib/orders/profitability-query-schema";
 import { fetchLowStockProducts } from "@/app/lib/products/actions";
 import { Suspense } from "react";
 
@@ -53,12 +57,17 @@ function OrdersTotalsSkeleton() {
   );
 }
 
-export default function StoreAnalyticsPage() {
+export default async function StoreAnalyticsPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const profitabilityQuery = parseProfitabilityQuery(await props.searchParams);
   const ordersPromise = fetchOrders();
   const ordersTotalsPromise = fetchOrdersTotalsByProduct();
   const statsPromise = fetchOrdersStats();
   const lowStockPromise = fetchLowStockProducts();
-  const profitabilityPromise = fetchOrdersProfitability();
+  const profitabilityPromise = fetchOrdersProfitability(
+    getProfitabilityDateRange(profitabilityQuery),
+  );
   const historicalCostPreviewPromise = fetchHistoricalCostBackfillPreview();
 
   return (
@@ -92,6 +101,7 @@ export default function StoreAnalyticsPage() {
         <ProfitabilityReport
           reportPromise={profitabilityPromise}
           historicalCostPreviewPromise={historicalCostPreviewPromise}
+          query={profitabilityQuery}
         />
       </Suspense>
     </div>

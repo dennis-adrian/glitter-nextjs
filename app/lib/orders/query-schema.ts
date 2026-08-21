@@ -28,6 +28,9 @@ const isoDate = z
 
 export const storeOrdersQuerySchema = z.object({
   status: z.enum(STATUS_VALUES).catch("pending"),
+  // Comma-separated status filters. `status` remains as a backwards-compatible
+  // fallback for existing links and exports.
+  statuses: z.string().trim().max(240).catch(""),
   rental: z.enum(RENTAL_VALUES).catch("all"),
   period: z.enum(PERIOD_VALUES).catch("all"),
   from: isoDate,
@@ -49,9 +52,24 @@ export function parseStoreOrdersQuery(
   );
   const query = storeOrdersQuerySchema.parse(firstValues);
 
+  const statuses = Array.from(
+    new Set(
+      query.statuses
+        .split(",")
+        .map((value) => value.trim())
+        .filter((value): value is (typeof STATUS_VALUES)[number] =>
+          (STATUS_VALUES as readonly string[]).includes(value),
+        ),
+    ),
+  );
+
   // A custom range is the canonical representation whenever either boundary is
   // present. It avoids a contradictory `period=month&from=...` URL.
-  return query.from || query.to ? { ...query, period: "custom" } : query;
+  return {
+    ...query,
+    statuses: statuses.join(","),
+    ...(query.from || query.to ? { period: "custom" as const } : {}),
+  };
 }
 
 export function storeOrdersQueryToSearchParams(
@@ -63,6 +81,7 @@ export function storeOrdersQueryToSearchParams(
     period: query.period,
     view: query.view,
   });
+  if (query.statuses) params.set("statuses", query.statuses);
   if (query.from) params.set("from", query.from);
   if (query.to) params.set("to", query.to);
   if (query.q) params.set("q", query.q);

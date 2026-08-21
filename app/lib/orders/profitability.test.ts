@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { mapOrdersProfitabilityQuery } from "@/app/lib/orders/profitability";
+import {
+  filterOrdersProfitability,
+  mapOrdersProfitabilityQuery,
+} from "@/app/lib/orders/profitability";
 
 describe("mapOrdersProfitabilityQuery", () => {
   it("returns empty totals when the query has no rows", () => {
@@ -103,6 +106,53 @@ describe("mapOrdersProfitabilityQuery", () => {
           status: "delivered",
         },
       ],
+    });
+  });
+});
+
+describe("filterOrdersProfitability", () => {
+  it("recalculates totals and cost coverage for the selected range", () => {
+    const report = mapOrdersProfitabilityQuery([
+      {
+        order_id: 12,
+        date: "2026-08-21T12:00:00.000Z",
+        product: "Polera",
+        quantity: 2,
+        revenue: 50,
+        cost: 20,
+        profit: 30,
+        status: "paid",
+        gross_revenue: 80,
+        product_cost: 20,
+        known_cost_revenue: 50,
+        line_count: 2,
+      },
+      {
+        order_id: 13,
+        date: "2026-07-01T12:00:00.000Z",
+        product: "Bolso",
+        quantity: 1,
+        revenue: 30,
+        cost: null,
+        profit: null,
+        status: "delivered",
+        gross_revenue: 80,
+        product_cost: 20,
+        known_cost_revenue: 50,
+        line_count: 2,
+      },
+    ]);
+
+    expect(
+      filterOrdersProfitability(report, {
+        from: new Date("2026-08-01T00:00:00.000Z"),
+      }),
+    ).toMatchObject({
+      grossRevenue: 50,
+      productCost: 20,
+      grossProfit: 30,
+      knownCostRevenue: 50,
+      lineCount: 1,
     });
   });
 });

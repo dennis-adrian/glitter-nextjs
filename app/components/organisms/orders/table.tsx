@@ -91,6 +91,11 @@ export default function OrdersTable({
   const [optimisticRentalFilter, setOptimisticRentalFilter] = useOptimistic(
     query.rental,
   );
+  const selectedStatuses = (
+    query.statuses || (query.status === "all" ? "" : query.status)
+  )
+    .split(",")
+    .filter(Boolean);
 
   function navigate(next: StoreOrdersQuery) {
     router.push(
@@ -99,9 +104,24 @@ export default function OrdersTable({
   }
 
   function handleStatusChange(value: ActiveStatus) {
+    if (value === "all") {
+      startTransition(() => {
+        setOptimisticStatus("all");
+        navigate({ ...query, status: "all", statuses: "" });
+      });
+      return;
+    }
+    const next = selectedStatuses.includes(value)
+      ? selectedStatuses.filter((status) => status !== value)
+      : [...selectedStatuses, value];
     startTransition(() => {
-      setOptimisticStatus(value);
-      navigate({ ...query, status: value, rental: optimisticRentalFilter });
+      setOptimisticStatus((next[0] as ActiveStatus | undefined) ?? "all");
+      navigate({
+        ...query,
+        status: (next[0] as ActiveStatus | undefined) ?? "all",
+        statuses: next.join(","),
+        rental: optimisticRentalFilter,
+      });
     });
   }
 
@@ -119,25 +139,40 @@ export default function OrdersTable({
         isPending && "opacity-60 pointer-events-none",
       )}
     >
-      {/* Status tabs */}
-      <div className="flex gap-1 overflow-x-auto border-b mb-4 [&::-webkit-scrollbar]:hidden">
-        {STATUS_OPTIONS.map((opt) => {
-          const isActive = optimisticStatus === opt.value;
-          return (
-            <button
-              key={opt.value}
-              onClick={() => handleStatusChange(opt.value)}
-              className={cn(
-                "shrink-0 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-                isActive
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300",
-              )}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
+      {/* Composable filters: each status chip toggles independently. */}
+      <div className="mb-4 rounded-xl border bg-muted/20 p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Filtros de estado
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {selectedStatuses.length
+              ? `${selectedStatuses.length} activos`
+              : "Todos"}
+          </span>
+        </div>
+        <div className="flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+          {STATUS_OPTIONS.map((opt) => {
+            const isActive =
+              opt.value === "all"
+                ? selectedStatuses.length === 0
+                : selectedStatuses.includes(opt.value);
+            return (
+              <button
+                key={opt.value}
+                onClick={() => handleStatusChange(opt.value)}
+                className={cn(
+                  "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+                  isActive
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border text-muted-foreground hover:bg-accent",
+                )}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="flex gap-1 overflow-x-auto mb-4 [&::-webkit-scrollbar]:hidden">
