@@ -1,3 +1,4 @@
+import { DateTime } from "luxon";
 import { z } from "zod";
 
 import { orderStatusEnum } from "@/db/schema";
@@ -23,6 +24,10 @@ const VIEW_VALUES = ["comfortable", "compact"] as const;
 const isoDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((value) => {
+    const parsed = DateTime.fromISO(value, { zone: "utc" });
+    return parsed.isValid && parsed.toISODate() === value;
+  })
   .optional()
   .catch(undefined);
 

@@ -1,3 +1,4 @@
+import { DateTime } from "luxon";
 import { after, NextRequest } from "next/server";
 
 import { fetchOrdersForAdmin } from "@/app/lib/orders/actions";
@@ -9,6 +10,7 @@ import {
   serializeOrderLineItemsCsv,
   serializeOrdersSummaryCsv,
 } from "@/app/lib/orders/csv";
+import { STORE_TIMEZONE } from "@/app/lib/formatters";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { captureServerEvent } from "@/app/lib/posthog-server";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
@@ -35,7 +37,7 @@ export async function GET(request: NextRequest) {
     format === "line_items"
       ? serializeOrderLineItemsCsv(orders)
       : serializeOrdersSummaryCsv(orders);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = DateTime.now().setZone(STORE_TIMEZONE).toISODate();
   const filename =
     format === "line_items"
       ? `articulos-vendidos-${today}.csv`

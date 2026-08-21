@@ -301,6 +301,7 @@ export default function OrdersCardList({
             return (
               <button
                 key={opt.value}
+                aria-pressed={isActive}
                 onClick={() => handleStatusChange(opt.value)}
                 className={cn(
                   "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",

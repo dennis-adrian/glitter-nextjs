@@ -39,6 +39,20 @@ function formatCurrency(amount: number) {
   return `Bs. ${Number.isInteger(amount) ? amount.toFixed(0) : amount.toFixed(2)}`;
 }
 
+function getNoteAddedText(payload: unknown): string | null {
+  if (
+    payload == null ||
+    typeof payload !== "object" ||
+    Array.isArray(payload) ||
+    !("note" in payload) ||
+    typeof payload.note !== "string"
+  ) {
+    return null;
+  }
+  const note = payload.note.trim();
+  return note || null;
+}
+
 const RETURN_STATUS_LABELS = {
   received: "Recibida",
   refunded: "Reembolsada",
@@ -330,6 +344,10 @@ export default async function OrderDetailPage({
                 {activity.map((event) => {
                   const adjustment =
                     event.type === "adjusted" ? event.adjustment : null;
+                  const noteAddedText =
+                    event.type === "note_added"
+                      ? getNoteAddedText(event.payload)
+                      : null;
                   const title =
                     event.type === "created"
                       ? "Pedido creado"
@@ -380,12 +398,11 @@ export default async function OrderDetailPage({
                           </p>
                         </div>
                       )}
-                      {event.type === "note_added" &&
-                        event.adjustment?.customerNote && (
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            {event.adjustment.customerNote}
-                          </p>
-                        )}
+                      {event.type === "note_added" && noteAddedText && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {noteAddedText}
+                        </p>
+                      )}
                     </div>
                   );
                 })}

@@ -35,6 +35,25 @@ describe("store order query schema", () => {
     });
   });
 
+  it("discards calendar-invalid ISO dates as undefined", () => {
+    const bothInvalid = parseStoreOrdersQuery({
+      from: "2026-02-31",
+      to: "2026-13-01",
+    });
+    expect(bothInvalid.from).toBeUndefined();
+    expect(bothInvalid.to).toBeUndefined();
+    expect(bothInvalid.period).toBe("all");
+
+    const mixed = parseStoreOrdersQuery({
+      period: "month",
+      from: "2026-04-31",
+      to: "2026-08-15",
+    });
+    expect(mixed.from).toBeUndefined();
+    expect(mixed.to).toBe("2026-08-15");
+    expect(mixed.period).toBe("custom");
+  });
+
   it("round-trips canonical filters to URL parameters", () => {
     const query = parseStoreOrdersQuery({
       status: "all",

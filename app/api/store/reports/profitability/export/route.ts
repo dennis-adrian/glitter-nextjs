@@ -1,3 +1,4 @@
+import { DateTime } from "luxon";
 import { after, NextRequest } from "next/server";
 
 import { fetchOrdersProfitability } from "@/app/lib/orders/actions";
@@ -7,6 +8,7 @@ import {
   parseProfitabilityQuery,
   profitabilityQueryToSearchParams,
 } from "@/app/lib/orders/profitability-query-schema";
+import { STORE_TIMEZONE } from "@/app/lib/formatters";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
 import { captureServerEvent } from "@/app/lib/posthog-server";
 import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
@@ -24,7 +26,7 @@ export async function GET(request: NextRequest) {
     getProfitabilityDateRange(query),
   );
   const csv = serializeProfitabilityCsv(report.rows);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = DateTime.now().setZone(STORE_TIMEZONE).toISODate();
   const coverage =
     report.grossRevenue === 0
       ? 0

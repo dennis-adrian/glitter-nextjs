@@ -33,7 +33,10 @@ export function parseProfitabilityQuery(
     ]),
   );
   const query = profitabilityQuerySchema.parse(firstValues);
-  return query.from || query.to ? { ...query, period: "custom" } : query;
+  if (query.from || query.to) {
+    return { ...query, period: "custom" };
+  }
+  return query.period === "custom" ? { ...query, period: "month" } : query;
 }
 
 export function profitabilityQueryToSearchParams(

@@ -47,4 +47,20 @@ describe("useOrdersDateFilter", () => {
 
     expect(result.current.filteredByDate).toEqual(orders);
   });
+
+  it("sets period to custom when a date boundary is entered", () => {
+    const { result } = renderHook(() => useOrdersDateFilter(orders));
+    const from = now.toISODate()!;
+
+    act(() => {
+      result.current.selectPeriod("month");
+    });
+    act(() => {
+      result.current.handleFromChange(from);
+    });
+
+    expect(result.current.period).toBe("custom");
+    expect(result.current.dateFrom).toBe(from);
+    expect(result.current.filteredByDate).toEqual([thisMonth]);
+  });
 });

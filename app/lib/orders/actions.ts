@@ -1911,6 +1911,8 @@ export async function fetchHistoricalCostBackfillPreview(): Promise<HistoricalCo
   }
 }
 
+const BACKFILL_ORDER_BATCH_SIZE = 100;
+
 export async function applyHistoricalOrderCosts(): Promise<{
   success: boolean;
   message: string;
@@ -1926,8 +1928,7 @@ export async function applyHistoricalOrderCosts(): Promise<{
   }
 
   try {
-    const result = await db.transaction(async (tx) => {
-      const candidates = await tx.execute(sql`
+    const candidates = await db.execute(sql`
         select distinct oi.order_id
         from order_items oi
         inner join products p on p.id = oi.product_id
@@ -1939,85 +1940,104 @@ export async function applyHistoricalOrderCosts(): Promise<{
           and coalesce(pv.unit_cost, p.unit_cost) is not null
         order by oi.order_id
       `);
-      const orderIds = candidates.rows.map((row) => Number(row.order_id));
-      if (orderIds.length === 0) {
-        return { rows: [] };
-      }
+    const orderIds = candidates.rows.map((row) => Number(row.order_id));
+    let updatedLines = 0;
+    const affectedOrderIds = new Set<number>();
 
-      const lockedOrders = await tx
-        .select()
-        .from(orders)
-        .where(inArray(orders.id, orderIds))
-        .orderBy(orders.id)
-        .for("update");
+    for (
+      let offset = 0;
+      offset < orderIds.length;
+      offset += BACKFILL_ORDER_BATCH_SIZE
+    ) {
+      const batchOrderIds = orderIds.slice(
+        offset,
+        offset + BACKFILL_ORDER_BATCH_SIZE,
+      );
+      const batchRows = await db.transaction(async (tx) => {
+        const lockedOrders = await tx
+          .select()
+          .from(orders)
+          .where(inArray(orders.id, batchOrderIds))
+          .orderBy(orders.id)
+          .for("update");
 
-      const updated = await tx.execute(sql`
-      with candidates as (
-        select
-          oi.id,
-          coalesce(pv.unit_cost, p.unit_cost) as historical_cost,
-          p.name as product_name
-        from order_items oi
-        inner join products p on p.id = oi.product_id
-        left join product_variants pv
-          on pv.id = oi.product_variant_id
-          and pv.product_id = oi.product_id
-        where oi.unit_cost_at_purchase is null
-          and oi.transaction_type = 'purchase'
-          and oi.order_id in (${sql.join(
-            orderIds.map((id) => sql`${id}`),
-            sql`, `,
-          )})
-      )
-      update order_items oi
-      set
-        unit_cost_at_purchase = candidates.historical_cost,
-        product_name_at_purchase = coalesce(
-          oi.product_name_at_purchase,
-          candidates.product_name
-        ),
-        updated_at = now()
-      from candidates
-      where oi.id = candidates.id
-        and candidates.historical_cost is not null
-        and oi.unit_cost_at_purchase is null
-      returning oi.id, oi.order_id
-      `);
-      const lineCountByOrder = new Map<number, number>();
-      for (const row of updated.rows) {
-        const orderId = Number(row.order_id);
-        lineCountByOrder.set(orderId, (lineCountByOrder.get(orderId) ?? 0) + 1);
+        const updated = await tx.execute(sql`
+          with candidates as (
+            select
+              oi.id,
+              coalesce(pv.unit_cost, p.unit_cost) as historical_cost,
+              p.name as product_name
+            from order_items oi
+            inner join products p on p.id = oi.product_id
+            left join product_variants pv
+              on pv.id = oi.product_variant_id
+              and pv.product_id = oi.product_id
+            where oi.unit_cost_at_purchase is null
+              and oi.transaction_type = 'purchase'
+              and oi.order_id in (${sql.join(
+                batchOrderIds.map((id) => sql`${id}`),
+                sql`, `,
+              )})
+          )
+          update order_items oi
+          set
+            unit_cost_at_purchase = candidates.historical_cost,
+            product_name_at_purchase = coalesce(
+              oi.product_name_at_purchase,
+              candidates.product_name
+            ),
+            updated_at = now()
+          from candidates
+          where oi.id = candidates.id
+            and candidates.historical_cost is not null
+            and oi.unit_cost_at_purchase is null
+          returning oi.id, oi.order_id
+        `);
+        const lineCountByOrder = new Map<number, number>();
+        for (const row of updated.rows) {
+          const orderId = Number(row.order_id);
+          lineCountByOrder.set(
+            orderId,
+            (lineCountByOrder.get(orderId) ?? 0) + 1,
+          );
+        }
+        for (const order of lockedOrders) {
+          const orderUpdatedLines = lineCountByOrder.get(order.id) ?? 0;
+          if (orderUpdatedLines === 0) continue;
+          const revision = order.revision + 1;
+          await tx
+            .update(orders)
+            .set({ revision, updatedAt: sql`now()` })
+            .where(eq(orders.id, order.id));
+          await tx.insert(orderEvents).values({
+            orderId: order.id,
+            type: "items_changed",
+            revision,
+            actorId: currentUser.id,
+            payload: {
+              historicalCostEstimate: true,
+              updatedLines: orderUpdatedLines,
+            },
+          });
+        }
+        return updated.rows;
+      });
+
+      updatedLines += batchRows.length;
+      for (const row of batchRows) {
+        affectedOrderIds.add(Number(row.order_id));
       }
-      for (const order of lockedOrders) {
-        const updatedLines = lineCountByOrder.get(order.id) ?? 0;
-        if (updatedLines === 0) continue;
-        const revision = order.revision + 1;
-        await tx
-          .update(orders)
-          .set({ revision, updatedAt: sql`now()` })
-          .where(eq(orders.id, order.id));
-        await tx.insert(orderEvents).values({
-          orderId: order.id,
-          type: "items_changed",
-          revision,
-          actorId: currentUser.id,
-          payload: { historicalCostEstimate: true, updatedLines },
-        });
-      }
-      return updated;
-    });
-    const affectedOrders = new Set(
-      result.rows.map((row) => Number(row.order_id)),
-    ).size;
+    }
+    const affectedOrders = affectedOrderIds.size;
 
     revalidateStoreOrderViews();
     return {
       success: true,
       message:
-        result.rows.length === 0
+        updatedLines === 0
           ? "No hay costos históricos pendientes que se puedan completar."
-          : `Se completaron ${result.rows.length} líneas en ${affectedOrders} pedidos.`,
-      updatedLines: result.rows.length,
+          : `Se completaron ${updatedLines} líneas en ${affectedOrders} pedidos.`,
+      updatedLines,
       affectedOrders,
     };
   } catch (error) {
@@ -2445,7 +2465,10 @@ export async function adminReturnOrder(rawInput: AdminReturnOrderInput) {
     input.items.map((item) => [item.orderItemId, item.quantity]),
   );
   const validItems = order.orderItems.filter((item) => requested.has(item.id));
-  if (validItems.length !== requested.size) {
+  if (
+    validItems.length !== requested.size ||
+    validItems.some((item) => item.transactionType === "rental")
+  ) {
     return {
       success: false,
       message: "La devolución incluye un artículo inválido.",

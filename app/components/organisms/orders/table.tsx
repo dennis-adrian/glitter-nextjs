@@ -169,6 +169,7 @@ export default function OrdersTable({
             return (
               <button
                 key={opt.value}
+                aria-pressed={isActive}
                 onClick={() => handleStatusChange(opt.value)}
                 className={cn(
                   "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",

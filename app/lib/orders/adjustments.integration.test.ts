@@ -549,6 +549,12 @@ describeDatabase("applyOrderAdjustment database transaction", () => {
       "adjusted",
       "note_added",
     ]);
+    expect(
+      events.find((event) => event.type === "note_added")?.payload,
+    ).toEqual({
+      note: "Preparar en rosa",
+      customerVisible: true,
+    });
   });
 
   it("uses the rental stock pool captured by the original line", async () => {

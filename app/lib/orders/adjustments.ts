@@ -572,7 +572,10 @@ export async function applyOrderAdjustmentWithDatabase(
         revision,
         actorId: input.actorUserId,
         adjustmentId: adjustment.id,
-        payload: { customerVisible: true },
+        payload: {
+          note: input.customerNote.trim(),
+          customerVisible: true,
+        },
       });
     }
 

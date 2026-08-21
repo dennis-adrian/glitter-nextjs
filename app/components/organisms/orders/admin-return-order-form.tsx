@@ -106,7 +106,10 @@ export default function AdminReturnOrderForm({
                   ...current,
                   [item.id]: Math.max(
                     0,
-                    Math.min(item.quantity, Number(event.target.value) || 0),
+                    Math.min(
+                      item.quantity,
+                      Math.trunc(Number(event.target.value)) || 0,
+                    ),
                   ),
                 }))
               }

@@ -21,10 +21,13 @@ describe("profitability query schema", () => {
   });
 
   it("falls back to the current month when custom has no boundaries", () => {
+    const query = parseProfitabilityQuery({ period: "custom" });
+    expect(query).toEqual({ period: "month" });
+
     const now = DateTime.fromISO("2026-08-21T12:00:00", {
       zone: "America/La_Paz",
     });
-    const range = getProfitabilityDateRange({ period: "custom" }, now);
+    const range = getProfitabilityDateRange(query, now);
     expect(range.from?.toISOString()).toBe("2026-08-01T04:00:00.000Z");
     expect(range.to?.toISOString()).toBe("2026-08-22T03:59:59.999Z");
   });
@@ -37,6 +40,15 @@ describe("profitability query schema", () => {
     expect(bothInvalid.from).toBeUndefined();
     expect(bothInvalid.to).toBeUndefined();
     expect(bothInvalid.period).toBe("month");
+
+    const customWithoutValidBounds = parseProfitabilityQuery({
+      period: "custom",
+      from: "2026-02-31",
+      to: "2026-13-01",
+    });
+    expect(customWithoutValidBounds.from).toBeUndefined();
+    expect(customWithoutValidBounds.to).toBeUndefined();
+    expect(customWithoutValidBounds.period).toBe("month");
 
     const mixed = parseProfitabilityQuery({
       period: "custom",
