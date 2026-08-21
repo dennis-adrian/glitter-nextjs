@@ -18,6 +18,8 @@ export type BaseOrderItem = InferSelectModel<typeof orderItems>;
 export type OrderItemWithRelations = BaseOrderItem & {
   product: BaseProductWithImages;
   variant: ProductVariantWithSelections | null;
+  /** Present when this effective line originated from an additive adjustment. */
+  adjustmentItemId?: number | null;
 };
 
 export type OrderWithRelations = BaseOrder & {
@@ -31,3 +33,19 @@ export type OrderWithRelations = BaseOrder & {
 };
 
 export type OrderStatus = BaseOrder["status"];
+
+export type AdminOrderAdjustmentVariant = {
+  id: number;
+  label: string;
+  price: number;
+  stock: number;
+};
+
+export type AdminOrderAdjustmentProduct = {
+  id: number;
+  name: string;
+  price: number;
+  stock: number;
+  requiresVariant: boolean;
+  variants: AdminOrderAdjustmentVariant[];
+};

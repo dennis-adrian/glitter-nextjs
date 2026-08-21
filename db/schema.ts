@@ -1576,37 +1576,47 @@ export const rentalReturnConditionEnum = pgEnum("rental_return_condition", [
   "other",
 ]);
 
-export const products = pgTable("products", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  /** Public store URL segment; unique, hyphenated from name with -2,-3 suffixes on collision */
-  slug: text("slug").notNull().unique(),
-  description: text("description"),
-  price: real("price").notNull(),
-  stock: integer("stock").default(0),
-  imageUrl: text("image_url"),
-  isNew: boolean("is_new").default(true).notNull(),
-  isFeatured: boolean("is_featured").default(false).notNull(),
-  isVisible: boolean("is_visible").default(true).notNull(),
-  storeCategory: productStoreCategoryEnum("store_category")
-    .default("merch")
-    .notNull(),
-  availableDate: timestamp("available_date"),
-  discount: real("discount").default(0),
-  discountUnit: discountUnitEnum("discount_unit")
-    .default("percentage")
-    .notNull(),
-  status: productStatusEnum("status").default("available").notNull(),
-  isPurchasable: boolean("is_purchasable").default(true).notNull(),
-  isRentable: boolean("is_rentable").default(false).notNull(),
-  rentalPrice: real("rental_price"),
-  rentalStockMode: productRentalStockModeEnum("rental_stock_mode")
-    .default("shared")
-    .notNull(),
-  rentalStock: integer("rental_stock"),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const products = pgTable(
+  "products",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    /** Public store URL segment; unique, hyphenated from name with -2,-3 suffixes on collision */
+    slug: text("slug").notNull().unique(),
+    description: text("description"),
+    price: real("price").notNull(),
+    unitCost: numeric("unit_cost", { precision: 10, scale: 2, mode: "number" }),
+    stock: integer("stock").default(0),
+    imageUrl: text("image_url"),
+    isNew: boolean("is_new").default(true).notNull(),
+    isFeatured: boolean("is_featured").default(false).notNull(),
+    isVisible: boolean("is_visible").default(true).notNull(),
+    storeCategory: productStoreCategoryEnum("store_category")
+      .default("merch")
+      .notNull(),
+    availableDate: timestamp("available_date"),
+    discount: real("discount").default(0),
+    discountUnit: discountUnitEnum("discount_unit")
+      .default("percentage")
+      .notNull(),
+    status: productStatusEnum("status").default("available").notNull(),
+    isPurchasable: boolean("is_purchasable").default(true).notNull(),
+    isRentable: boolean("is_rentable").default(false).notNull(),
+    rentalPrice: real("rental_price"),
+    rentalStockMode: productRentalStockModeEnum("rental_stock_mode")
+      .default("shared")
+      .notNull(),
+    rentalStock: integer("rental_stock"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check(
+      "products_unit_cost_nonnegative",
+      sql`${t.unitCost} IS NULL OR ${t.unitCost} >= 0`,
+    ),
+  ],
+);
 export const productsRelations = relations(products, ({ many }) => ({
   options: many(productOptions),
   variants: many(productVariants),
@@ -1691,6 +1701,7 @@ export const productVariants = pgTable(
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
     price: real("price"),
+    unitCost: numeric("unit_cost", { precision: 10, scale: 2, mode: "number" }),
     stock: integer("stock").notNull().default(0),
     rentalStock: integer("rental_stock"),
     imageUrl: text("image_url"),
@@ -1703,6 +1714,10 @@ export const productVariants = pgTable(
     index("product_variants_product_id_idx").on(t.productId),
     index("product_variants_visible_idx").on(t.isVisible),
     uniqueIndex("product_variants_id_product_id_unique").on(t.id, t.productId),
+    check(
+      "product_variants_unit_cost_nonnegative",
+      sql`${t.unitCost} IS NULL OR ${t.unitCost} >= 0`,
+    ),
   ],
 );
 
@@ -1804,6 +1819,26 @@ export const orderStatusEnum = pgEnum("order_status", [
   /** Order was cancelled either by the user or system */
   "cancelled",
 ]);
+export const orderEventTypeEnum = pgEnum("order_event_type", [
+  "created",
+  "items_changed",
+  "adjusted",
+  "status_changed",
+  "voucher_submitted",
+  "voucher_reviewed",
+  "note_added",
+  "rental_returned",
+  "cancelled",
+]);
+export const orderAdjustmentActorRoleEnum = pgEnum(
+  "order_adjustment_actor_role",
+  ["admin", "customer", "system"],
+);
+export const orderReturnStatusEnum = pgEnum("order_return_status", [
+  "received",
+  "refunded",
+  "rejected",
+]);
 export const orders = pgTable(
   "orders",
   {
@@ -1823,6 +1858,7 @@ export const orders = pgTable(
       scale: 2,
       mode: "number",
     }).notNull(),
+    revision: integer("revision").notNull().default(1),
     paymentVoucherUrl: text("payment_voucher_url"),
     voucherSubmittedAt: timestamp("voucher_submitted_at"),
     paymentDueDate: timestamp("payment_due_date")
@@ -1850,11 +1886,327 @@ export const orders = pgTable(
 );
 export const ordersRelations = relations(orders, ({ many, one }) => ({
   orderItems: many(orderItems),
+  events: many(orderEvents),
+  adjustments: many(orderAdjustments),
+  returns: many(orderReturns),
   customer: one(users, {
     fields: [orders.userId],
     references: [users.id],
   }),
 }));
+
+export const orderEvents = pgTable("order_events", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id")
+    .notNull()
+    .references(() => orders.id, { onDelete: "cascade" }),
+  type: orderEventTypeEnum("type").notNull(),
+  revision: integer("revision").notNull(),
+  actorId: integer("actor_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  adjustmentId: integer("adjustment_id").references(() => orderAdjustments.id, {
+    onDelete: "restrict",
+  }),
+  payload: jsonb("payload"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const orderEventsRelations = relations(orderEvents, ({ one }) => ({
+  order: one(orders, {
+    fields: [orderEvents.orderId],
+    references: [orders.id],
+  }),
+  actor: one(users, { fields: [orderEvents.actorId], references: [users.id] }),
+  adjustment: one(orderAdjustments, {
+    fields: [orderEvents.adjustmentId],
+    references: [orderAdjustments.id],
+  }),
+}));
+
+export const orderAdjustments = pgTable(
+  "order_adjustments",
+  {
+    id: serial("id").primaryKey(),
+    orderId: integer("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "restrict" }),
+    actorUserId: integer("actor_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    actorRole: orderAdjustmentActorRoleEnum("actor_role").notNull(),
+    reason: text("reason").notNull(),
+    customerNote: text("customer_note"),
+    previousTotal: numeric("previous_total", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    totalDelta: numeric("total_delta", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    newTotal: numeric("new_total", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("order_adjustments_order_created_at_idx").on(t.orderId, t.createdAt),
+    index("order_adjustments_actor_created_at_idx").on(
+      t.actorUserId,
+      t.createdAt,
+    ),
+  ],
+);
+
+export const orderAdjustmentsRelations = relations(
+  orderAdjustments,
+  ({ many, one }) => ({
+    order: one(orders, {
+      fields: [orderAdjustments.orderId],
+      references: [orders.id],
+    }),
+    actor: one(users, {
+      fields: [orderAdjustments.actorUserId],
+      references: [users.id],
+    }),
+    items: many(orderAdjustmentItems),
+    events: many(orderEvents),
+    returns: many(orderReturns),
+  }),
+);
+
+export const orderAdjustmentItems = pgTable(
+  "order_adjustment_items",
+  {
+    id: serial("id").primaryKey(),
+    adjustmentId: integer("adjustment_id")
+      .notNull()
+      .references(() => orderAdjustments.id, { onDelete: "cascade" }),
+    baseOrderItemId: integer("base_order_item_id").references(
+      () => orderItems.id,
+      { onDelete: "restrict" },
+    ),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "restrict" }),
+    productVariantId: integer("product_variant_id"),
+    productNameSnapshot: text("product_name_snapshot").notNull(),
+    variantLabelSnapshot: text("variant_label_snapshot"),
+    transactionType: productTransactionTypeEnum("transaction_type")
+      .default("purchase")
+      .notNull(),
+    quantityDelta: integer("quantity_delta").notNull(),
+    unitPriceSnapshot: numeric("unit_price_snapshot", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    unitCostSnapshot: numeric("unit_cost_snapshot", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("order_adjustment_items_adjustment_id_idx").on(t.adjustmentId),
+    index("order_adjustment_items_base_order_item_id_idx").on(
+      t.baseOrderItemId,
+    ),
+    index("order_adjustment_items_product_variant_idx").on(
+      t.productId,
+      t.productVariantId,
+    ),
+    check(
+      "order_adjustment_items_quantity_delta_nonzero",
+      sql`${t.quantityDelta} <> 0`,
+    ),
+    check(
+      "order_adjustment_items_price_nonnegative",
+      sql`${t.unitPriceSnapshot} >= 0`,
+    ),
+    check(
+      "order_adjustment_items_cost_nonnegative",
+      sql`${t.unitCostSnapshot} IS NULL OR ${t.unitCostSnapshot} >= 0`,
+    ),
+    foreignKey({
+      name: "order_adjustment_items_product_variant_product_fk",
+      columns: [t.productVariantId, t.productId],
+      foreignColumns: [productVariants.id, productVariants.productId],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const orderAdjustmentItemsRelations = relations(
+  orderAdjustmentItems,
+  ({ one }) => ({
+    adjustment: one(orderAdjustments, {
+      fields: [orderAdjustmentItems.adjustmentId],
+      references: [orderAdjustments.id],
+    }),
+    baseOrderItem: one(orderItems, {
+      fields: [orderAdjustmentItems.baseOrderItemId],
+      references: [orderItems.id],
+    }),
+    product: one(products, {
+      fields: [orderAdjustmentItems.productId],
+      references: [products.id],
+    }),
+    variant: one(productVariants, {
+      fields: [orderAdjustmentItems.productVariantId],
+      references: [productVariants.id],
+    }),
+  }),
+);
+
+export const orderReturns = pgTable(
+  "order_returns",
+  {
+    id: serial("id").primaryKey(),
+    orderId: integer("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "restrict" }),
+    adjustmentId: integer("adjustment_id")
+      .notNull()
+      .references(() => orderAdjustments.id, { onDelete: "restrict" }),
+    actorUserId: integer("actor_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    status: orderReturnStatusEnum("status").notNull().default("received"),
+    reason: text("reason").notNull(),
+    refundAmount: numeric("refund_amount", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    receivedAt: timestamp("received_at").defaultNow().notNull(),
+    refundedAt: timestamp("refunded_at"),
+    refundReference: text("refund_reference"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique("order_returns_id_order_id_unique").on(t.id, t.orderId),
+    index("order_returns_order_created_at_idx").on(t.orderId, t.createdAt),
+    index("order_returns_received_at_idx").on(t.receivedAt),
+    check(
+      "order_returns_refund_amount_nonnegative",
+      sql`${t.refundAmount} >= 0`,
+    ),
+    check(
+      "order_returns_refunded_at_required",
+      sql`(
+        ${t.status} = 'refunded' AND ${t.refundedAt} IS NOT NULL
+      ) OR (
+        ${t.status} <> 'refunded' AND ${t.refundedAt} IS NULL
+      )`,
+    ),
+  ],
+);
+
+export const orderReturnItems = pgTable(
+  "order_return_items",
+  {
+    id: serial("id").primaryKey(),
+    returnId: integer("return_id")
+      .notNull()
+      .references(() => orderReturns.id, { onDelete: "cascade" }),
+    orderId: integer("order_id").notNull(),
+    orderItemId: integer("order_item_id").references(() => orderItems.id, {
+      onDelete: "restrict",
+    }),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id),
+    productVariantId: integer("product_variant_id"),
+    productNameSnapshot: text("product_name_snapshot").notNull(),
+    variantLabelSnapshot: text("variant_label_snapshot"),
+    quantity: integer("quantity").notNull(),
+    unitPriceSnapshot: numeric("unit_price_snapshot", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    unitCostSnapshot: numeric("unit_cost_snapshot", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check("order_return_items_quantity_positive", sql`${t.quantity} > 0`),
+    check(
+      "order_return_items_price_nonnegative",
+      sql`${t.unitPriceSnapshot} >= 0`,
+    ),
+    check(
+      "order_return_items_cost_nonnegative",
+      sql`${t.unitCostSnapshot} IS NULL OR ${t.unitCostSnapshot} >= 0`,
+    ),
+    foreignKey({
+      name: "order_return_items_return_order_fk",
+      columns: [t.returnId, t.orderId],
+      foreignColumns: [orderReturns.id, orderReturns.orderId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "order_return_items_order_item_order_fk",
+      columns: [t.orderItemId, t.orderId],
+      foreignColumns: [orderItems.id, orderItems.orderId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "order_return_items_product_variant_product_fk",
+      columns: [t.productVariantId, t.productId],
+      foreignColumns: [productVariants.id, productVariants.productId],
+    }).onDelete("restrict"),
+    index("order_return_items_return_id_idx").on(t.returnId),
+  ],
+);
+
+export const orderReturnsRelations = relations(
+  orderReturns,
+  ({ one, many }) => ({
+    order: one(orders, {
+      fields: [orderReturns.orderId],
+      references: [orders.id],
+    }),
+    adjustment: one(orderAdjustments, {
+      fields: [orderReturns.adjustmentId],
+      references: [orderAdjustments.id],
+    }),
+    actor: one(users, {
+      fields: [orderReturns.actorUserId],
+      references: [users.id],
+    }),
+    items: many(orderReturnItems),
+  }),
+);
+
+export const orderReturnItemsRelations = relations(
+  orderReturnItems,
+  ({ one }) => ({
+    return: one(orderReturns, {
+      fields: [orderReturnItems.returnId],
+      references: [orderReturns.id],
+    }),
+    product: one(products, {
+      fields: [orderReturnItems.productId],
+      references: [products.id],
+    }),
+    variant: one(productVariants, {
+      fields: [orderReturnItems.productVariantId],
+      references: [productVariants.id],
+    }),
+    orderItem: one(orderItems, {
+      fields: [orderReturnItems.orderItemId],
+      references: [orderItems.id],
+    }),
+  }),
+);
 
 export const orderItems = pgTable(
   "order_items",
@@ -1870,6 +2222,12 @@ export const orderItems = pgTable(
     productVariantLabel: text("product_variant_label"),
     quantity: integer("quantity").notNull(),
     priceAtPurchase: real("price_at_purchase").notNull(),
+    unitCostAtPurchase: numeric("unit_cost_at_purchase", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }),
+    productNameAtPurchase: text("product_name_at_purchase"),
     transactionType: productTransactionTypeEnum("transaction_type")
       .default("purchase")
       .notNull(),
@@ -1886,6 +2244,7 @@ export const orderItems = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
+    unique("order_items_id_order_id_unique").on(t.id, t.orderId),
     index("order_items_order_id_idx").on(t.orderId),
     index("order_items_product_id_idx").on(t.productId),
     foreignKey({
@@ -1917,6 +2276,10 @@ export const orderItems = pgTable(
     check(
       "order_items_rental_returned_quantity_valid",
       sql`${t.rentalReturnedQuantity} >= 0 AND ${t.rentalReturnedQuantity} <= ${t.quantity}`,
+    ),
+    check(
+      "order_items_unit_cost_at_purchase_nonnegative",
+      sql`${t.unitCostAtPurchase} IS NULL OR ${t.unitCostAtPurchase} >= 0`,
     ),
   ],
 );

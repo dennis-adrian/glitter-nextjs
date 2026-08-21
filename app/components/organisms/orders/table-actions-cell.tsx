@@ -5,15 +5,17 @@ import {
   CheckCheckIcon,
   CheckCircleIcon,
   MoreHorizontalIcon,
-  Trash2Icon,
+  PencilIcon,
+  RotateCcwIcon,
   TruckIcon,
   UploadIcon,
 } from "lucide-react";
+import Link from "next/link";
 
 import AdminVoucherUploadDialog from "@/app/components/organisms/orders/admin-voucher-upload-dialog";
-import DeleteOrderModal from "@/app/components/organisms/orders/delete-order-modal";
 import { Button } from "@/app/components/ui/button";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
+import { canCancelOrderStatus } from "@/app/lib/orders/status-transitions";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,7 +28,6 @@ import { useState } from "react";
 import UpdateOrderStatusModal from "@/app/components/organisms/orders/update-order-status-modal";
 
 export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
-  const [openDeleteModal, setOpenDeleteModal] = useState(false);
   const [actionStatus, setActionStatus] = useState<OrderStatus | null>(null);
   const [openUpdateOrderStatusModal, setOpenUpdateOrderStatusModal] =
     useState(false);
@@ -44,6 +45,24 @@ export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
           <DropdownMenuSeparator />
+          {["pending", "payment_verification", "processing"].includes(
+            order.status,
+          ) && (
+            <DropdownMenuItem asChild>
+              <Link href={`/dashboard/store/orders/${order.id}/edit`}>
+                <PencilIcon className="mr-1 h-4 w-4" />
+                Modificar pedido
+              </Link>
+            </DropdownMenuItem>
+          )}
+          {["paid", "delivered"].includes(order.status) && (
+            <DropdownMenuItem asChild>
+              <Link href={`/dashboard/store/orders/${order.id}/return`}>
+                <RotateCcwIcon className="mr-1 h-4 w-4" />
+                Registrar devolución
+              </Link>
+            </DropdownMenuItem>
+          )}
           {order.status === "pending" && (
             <DropdownMenuItem
               onClick={() => {
@@ -94,7 +113,7 @@ export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
               Subir comprobante
             </DropdownMenuItem>
           )}
-          {!["cancelled", "delivered"].includes(order.status) && (
+          {canCancelOrderStatus(order.status) && (
             <DropdownMenuItem
               onClick={() => {
                 setActionStatus("cancelled");
@@ -105,17 +124,8 @@ export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
               <span>Cancelar pedido</span>
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onClick={() => setOpenDeleteModal(true)}>
-            <Trash2Icon className="h-4 w-4 mr-1" />
-            <span>Eliminar pedido</span>
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <DeleteOrderModal
-        order={order}
-        open={openDeleteModal}
-        setOpen={setOpenDeleteModal}
-      />
       <UpdateOrderStatusModal
         order={order}
         open={openUpdateOrderStatusModal}

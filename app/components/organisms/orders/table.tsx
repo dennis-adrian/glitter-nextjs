@@ -7,18 +7,18 @@ import {
 import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
 import { Button } from "@/app/components/ui/button";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
-import { useOrdersDateFilter } from "@/app/hooks/use-orders-date-filter";
-import { formatDate } from "@/app/lib/formatters";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
+import {
+  storeOrdersQueryToSearchParams,
+  type StoreOrdersQuery,
+} from "@/app/lib/orders/query-schema";
 import { getOrderStatusLabel } from "@/app/lib/orders/utils";
 import {
   getRentalOrderFilterLabel,
   type RentalOrderFilter,
 } from "@/app/lib/rentals/order-filters";
 import { cn } from "@/lib/utils";
-import type { Table } from "@tanstack/react-table";
 import { DownloadIcon } from "lucide-react";
-import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
 import { use, useOptimistic, useTransition } from "react";
 
@@ -26,8 +26,7 @@ type ActiveStatus = OrderStatus | "all" | "needs_attention";
 
 type OrdersTableProps = {
   ordersPromise: Promise<OrderWithRelations[]>;
-  activeStatus: ActiveStatus;
-  activeRentalFilter: RentalOrderFilter;
+  query: StoreOrdersQuery;
 };
 
 const RENTAL_FILTER_OPTIONS: { value: RentalOrderFilter; label: string }[] = [
@@ -55,93 +54,90 @@ const STATUS_OPTIONS: { value: ActiveStatus; label: string }[] = [
   { value: "cancelled", label: getOrderStatusLabel("cancelled") },
 ];
 
-function OrdersExportButton({ table }: { table: Table<OrderWithRelations> }) {
-  function handleExport() {
-    const visibleOrders = table.getRowModel().rows.map((row) => row.original);
-    const headers = [
-      "ID",
-      "Tipo",
-      "Cliente",
-      "Teléfono",
-      "Productos",
-      "Total (Bs)",
-      "Estado",
-      "Fecha",
-    ];
-    const rows = visibleOrders.map((o) => [
-      o.id,
-      o.customer ? "Participante" : "Invitado",
-      o.customer?.displayName ?? o.guestName ?? "Invitado",
-      o.customer?.phoneNumber ?? o.guestPhone ?? "",
-      o.orderItems.map((i) => `${i.quantity}x ${i.product.name}`).join(", "),
-      o.totalAmount.toFixed(2),
-      getOrderStatusLabel(o.status),
-      formatDate(o.createdAt).toLocaleString(DateTime.DATETIME_MED),
-    ]);
-
-    const csv = [headers, ...rows]
-      .map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
-      )
-      .join("\n");
-
-    const blob = new Blob(["\uFEFF" + csv], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `pedidos-${DateTime.now().toISODate()}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
+function OrdersExportButton({ query }: { query: StoreOrdersQuery }) {
+  const params = storeOrdersQueryToSearchParams(query);
+  const href = (format: "summary" | "line_items") => {
+    const exportParams = new URLSearchParams(params);
+    exportParams.set("format", format);
+    return `/api/store/orders/export?${exportParams}`;
+  };
 
   return (
-    <Button size="sm" variant="outline" onClick={handleExport}>
-      <DownloadIcon className="h-4 w-4 sm:mr-2" />
-      <span className="hidden sm:block">Exportar CSV</span>
-    </Button>
+    <div className="flex gap-2">
+      <Button size="sm" variant="outline" asChild>
+        <a href={href("summary")}>
+          <DownloadIcon className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:block">Exportar CSV</span>
+        </a>
+      </Button>
+      <Button size="sm" variant="outline" asChild>
+        <a href={href("line_items")}>
+          <DownloadIcon className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:block">Exportar líneas</span>
+        </a>
+      </Button>
+    </div>
   );
 }
 
 export default function OrdersTable({
   ordersPromise,
-  activeStatus,
-  activeRentalFilter,
+  query,
 }: OrdersTableProps) {
   const orders = use(ordersPromise);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [optimisticStatus, setOptimisticStatus] = useOptimistic(activeStatus);
-  const [optimisticRentalFilter, setOptimisticRentalFilter] =
-    useOptimistic(activeRentalFilter);
+  const selectedStatuses = (
+    query.statuses || (query.status === "all" ? "" : query.status)
+  )
+    .split(",")
+    .filter(Boolean);
+  const [optimisticStatuses, setOptimisticStatuses] =
+    useOptimistic(selectedStatuses);
+  const [optimisticRentalFilter, setOptimisticRentalFilter] = useOptimistic(
+    query.rental,
+  );
 
-  const {
-    period,
-    dateFrom,
-    dateTo,
-    hasCustomRange,
-    filteredByDate,
-    selectPeriod,
-    handleFromChange,
-    handleToChange,
-  } = useOrdersDateFilter(orders);
+  function navigate(next: StoreOrdersQuery) {
+    router.push(
+      `/dashboard/store/orders?${storeOrdersQueryToSearchParams(next)}`,
+    );
+  }
 
   function handleStatusChange(value: ActiveStatus) {
+    if (value === "all") {
+      startTransition(() => {
+        setOptimisticStatuses([]);
+        navigate({ ...query, status: "all", statuses: "" });
+      });
+      return;
+    }
+    const currentStatuses = optimisticStatuses.filter(
+      (status) => status !== "all",
+    );
+    const next = currentStatuses.includes(value)
+      ? currentStatuses.filter((status) => status !== value)
+      : [...currentStatuses, value];
     startTransition(() => {
-      setOptimisticStatus(value);
-      router.push(
-        `/dashboard/store/orders?status=${value}&rental=${optimisticRentalFilter}`,
-      );
+      setOptimisticStatuses(next);
+      navigate({
+        ...query,
+        status: (next[0] as ActiveStatus | undefined) ?? "all",
+        statuses: next.join(","),
+        rental: optimisticRentalFilter,
+      });
     });
   }
 
   function handleRentalFilterChange(value: RentalOrderFilter) {
     startTransition(() => {
       setOptimisticRentalFilter(value);
-      router.push(
-        `/dashboard/store/orders?status=${optimisticStatus}&rental=${value}`,
-      );
+      navigate({
+        ...query,
+        status: (optimisticStatuses[0] as ActiveStatus | undefined) ?? "all",
+        statuses: optimisticStatuses.join(","),
+        rental: value,
+      });
     });
   }
 
@@ -152,25 +148,40 @@ export default function OrdersTable({
         isPending && "opacity-60 pointer-events-none",
       )}
     >
-      {/* Status tabs */}
-      <div className="flex gap-1 overflow-x-auto border-b mb-4 [&::-webkit-scrollbar]:hidden">
-        {STATUS_OPTIONS.map((opt) => {
-          const isActive = optimisticStatus === opt.value;
-          return (
-            <button
-              key={opt.value}
-              onClick={() => handleStatusChange(opt.value)}
-              className={cn(
-                "shrink-0 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-                isActive
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300",
-              )}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
+      {/* Composable filters: each status chip toggles independently. */}
+      <div className="mb-4 rounded-xl border bg-muted/20 p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Filtros de estado
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {selectedStatuses.length
+              ? `${selectedStatuses.length} activos`
+              : "Todos"}
+          </span>
+        </div>
+        <div className="flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+          {STATUS_OPTIONS.map((opt) => {
+            const isActive =
+              opt.value === "all"
+                ? selectedStatuses.length === 0
+                : selectedStatuses.includes(opt.value);
+            return (
+              <button
+                key={opt.value}
+                onClick={() => handleStatusChange(opt.value)}
+                className={cn(
+                  "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+                  isActive
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border text-muted-foreground hover:bg-accent",
+                )}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="flex gap-1 overflow-x-auto mb-4 [&::-webkit-scrollbar]:hidden">
@@ -196,27 +207,34 @@ export default function OrdersTable({
       {/* Date filter */}
       <div className="mb-3">
         <OrdersDateFilter
-          period={period}
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          hasCustomRange={hasCustomRange}
-          onPeriodChange={selectPeriod}
-          onFromChange={handleFromChange}
-          onToChange={handleToChange}
+          period={query.period}
+          dateFrom={query.from ?? ""}
+          dateTo={query.to ?? ""}
+          hasCustomRange={Boolean(query.from || query.to)}
+          onPeriodChange={(period) =>
+            navigate({ ...query, period, from: undefined, to: undefined })
+          }
+          onFromChange={(from) =>
+            navigate({ ...query, period: "custom", from: from || undefined })
+          }
+          onToChange={(to) =>
+            navigate({ ...query, period: "custom", to: to || undefined })
+          }
         />
       </div>
 
       <DataTable
-        key={optimisticStatus}
+        key={optimisticStatuses.join(",") || "all"}
         columns={columns}
-        data={filteredByDate}
+        data={orders}
         columnTitles={columnTitles}
         initialState={
-          optimisticStatus !== "all"
+          optimisticStatuses.length === 1 &&
+          optimisticStatuses[0] !== "needs_attention"
             ? { columnVisibility: { status: false } }
             : undefined
         }
-        actions={(table) => <OrdersExportButton table={table} />}
+        actions={() => <OrdersExportButton query={query} />}
       />
     </div>
   );

@@ -55,6 +55,7 @@ const VariantFormSchema = z.object({
   id: z.number().optional(),
   optionValues: z.array(z.string().trim()),
   price: z.string().trim().optional(),
+  unitCost: z.string().trim().optional(),
   stock: z.string().trim().optional(),
   rentalStock: z.string().trim().optional(),
   imageId: z.string().trim().optional(),
@@ -66,6 +67,7 @@ const FormSchema = z
     name: z.string().trim().min(1, "El nombre es requerido"),
     description: z.string().trim().optional(),
     price: z.string().trim().min(1, "El precio es requerido"),
+    unitCost: z.string().trim().optional(),
     stock: z.string().trim().min(1, "El stock es requerido"),
     storeCategory: z.enum(["merch", "supplies"]),
     status: z.enum(["available", "presale", "sale"]),
@@ -90,6 +92,17 @@ const FormSchema = z
         code: z.ZodIssueCode.custom,
         message: "El precio debe ser mayor o igual a 0",
         path: ["price"],
+      });
+    }
+
+    if (
+      values.unitCost?.trim() &&
+      (!Number.isFinite(Number(values.unitCost)) || Number(values.unitCost) < 0)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "El costo debe ser mayor o igual a 0",
+        path: ["unitCost"],
       });
     }
 
@@ -246,6 +259,18 @@ const FormSchema = z
           path: ["variants", index, "price"],
         });
       }
+
+      if (
+        variant.unitCost?.trim() &&
+        (!Number.isFinite(Number(variant.unitCost)) ||
+          Number(variant.unitCost) < 0)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "El costo debe ser mayor o igual a 0",
+          path: ["variants", index, "unitCost"],
+        });
+      }
     });
   });
 
@@ -300,6 +325,7 @@ function createEmptyVariant(optionValues: string[]): VariantFormValue {
   return {
     optionValues,
     price: "",
+    unitCost: "",
     stock: "0",
     imageId: "__none__",
     isVisible: true,
@@ -370,6 +396,7 @@ function buildProductFormValues(
         id: variant.id,
         optionValues,
         price: variant.price != null ? String(variant.price) : "",
+        unitCost: variant.unitCost != null ? String(variant.unitCost) : "",
         stock: String(variant.stock),
         rentalStock:
           variant.rentalStock != null ? String(variant.rentalStock) : "",
@@ -389,6 +416,7 @@ function buildProductFormValues(
     name: product?.name ?? "",
     description: product?.description ?? "",
     price: String(product?.price ?? 0),
+    unitCost: product?.unitCost != null ? String(product.unitCost) : "",
     stock: String(product?.stock ?? 0),
     storeCategory: product?.storeCategory ?? "merch",
     status: product?.status ?? "available",
@@ -675,6 +703,7 @@ export default function ProductForm({ product }: ProductFormProps) {
           id: variant.id,
           optionValues: variant.optionValues.map((value) => value.trim()),
           price: variant.price?.trim() ? Number(variant.price) : null,
+          unitCost: variant.unitCost?.trim() ? Number(variant.unitCost) : null,
           stock: Number(variant.stock),
           rentalStock:
             data.isRentable &&
@@ -707,6 +736,7 @@ export default function ProductForm({ product }: ProductFormProps) {
       name: data.name.trim(),
       description: data.description?.trim() || "",
       price: Number(data.price),
+      unitCost: data.unitCost?.trim() ? Number(data.unitCost) : null,
       stock: data.hasVariants ? 0 : Number(data.stock),
       storeCategory: data.storeCategory,
       status: data.status,
@@ -885,6 +915,15 @@ export default function ProductForm({ product }: ProductFormProps) {
             inputMode="decimal"
             min={0}
             step={0.01}
+          />
+          <TextInput
+            label="Costo unitario (Bs.)"
+            name="unitCost"
+            type="number"
+            inputMode="decimal"
+            min={0}
+            step={0.01}
+            placeholder="Opcional"
           />
           {!hasVariants && (
             <TextInput
@@ -1093,6 +1132,15 @@ export default function ProductForm({ product }: ProductFormProps) {
                           min={0}
                           step={0.01}
                           placeholder="Usar precio base"
+                        />
+                        <TextInput
+                          label="Costo unitario (opcional)"
+                          name={`variants.${index}.unitCost`}
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          step={0.01}
+                          placeholder="Usar costo base"
                         />
                         <FormField
                           control={form.control}

@@ -21,12 +21,14 @@ import type { RentalReturnCondition } from "@/app/lib/rentals/types";
 
 type RentalReturnFormProps = {
   orderItemId: number;
+  expectedRevision: number;
   quantity: number;
   rentalReturnedQuantity: number;
 };
 
 export default function RentalReturnForm({
   orderItemId,
+  expectedRevision,
   quantity,
   rentalReturnedQuantity,
 }: RentalReturnFormProps) {
@@ -52,12 +54,16 @@ export default function RentalReturnForm({
       onSubmit={(event) => {
         event.preventDefault();
         startTransition(async () => {
-          const result = await markRentalOrderItemReturned(orderItemId, {
-            quantityReturned,
-            conditionStatus,
-            stockRestored,
-            notes,
-          });
+          const result = await markRentalOrderItemReturned(
+            orderItemId,
+            expectedRevision,
+            {
+              quantityReturned,
+              conditionStatus,
+              stockRestored,
+              notes,
+            },
+          );
 
           if (!result.success) {
             toast.error(result.message);

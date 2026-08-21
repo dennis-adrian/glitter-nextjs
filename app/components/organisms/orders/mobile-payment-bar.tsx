@@ -17,6 +17,7 @@ type Phase = "idle" | "selected" | "uploading" | "saving" | "done" | "error";
 
 type Props = {
   orderId: number;
+  expectedRevision: number;
   guestToken?: string;
   successRedirectUrl?: string;
 };
@@ -29,6 +30,7 @@ function formatBytes(bytes: number): string {
 
 export default function MobilePaymentBar({
   orderId,
+  expectedRevision,
   guestToken,
   successRedirectUrl,
 }: Props) {
@@ -106,8 +108,13 @@ export default function MobilePaymentBar({
     setPhase("saving");
     try {
       const result = guestToken
-        ? await submitGuestOrderPaymentVoucher(orderId, guestToken, imageUrl)
-        : await submitOrderPaymentVoucher(orderId, imageUrl);
+        ? await submitGuestOrderPaymentVoucher(
+            orderId,
+            guestToken,
+            imageUrl,
+            expectedRevision,
+          )
+        : await submitOrderPaymentVoucher(orderId, imageUrl, expectedRevision);
       if (result.success) {
         toast.success("¡Pago confirmado! Lo revisaremos pronto.");
         setPhase("done");
