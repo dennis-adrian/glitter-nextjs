@@ -19,6 +19,8 @@ import {
   orderAdjustments,
   orderEvents,
   orderItems,
+  orderReturnItems,
+  orderReturns,
   orders,
   products,
   productVariantOptionValues,
@@ -44,6 +46,21 @@ export type NewOrderItemAddition = {
   quantity: number;
 };
 
+export type OrderReturnCreation = {
+  status: "received";
+  reason: string;
+  items: readonly {
+    orderItemId: number | null;
+    productId: number;
+    productVariantId: number | null;
+    productNameSnapshot: string;
+    variantLabelSnapshot: string | null;
+    quantity: number;
+    unitPriceSnapshot: number;
+    unitCostSnapshot: number | null;
+  }[];
+};
+
 export type ApplyOrderAdjustmentInput = {
   orderId: number;
   actorUserId: number;
@@ -55,6 +72,7 @@ export type ApplyOrderAdjustmentInput = {
   items: readonly OrderItemAdjustment[];
   addedItems?: readonly AddedOrderItemAdjustment[];
   additions?: readonly NewOrderItemAddition[];
+  orderReturn?: OrderReturnCreation;
 };
 
 export type ApplyOrderAdjustmentResult = {
@@ -511,7 +529,9 @@ export async function applyOrderAdjustmentWithDatabase(
           quantity: -line.quantityDelta,
           transactionType: line.transactionType,
           rentalStockModeSnapshot: line.rentalStockModeSnapshot,
-          rentalReturnedQuantity: line.rentalReturnedQuantity,
+          // Restore the full reduced qty; returned units were already restored
+          // on return and must not be subtracted again here.
+          rentalReturnedQuantity: 0,
         });
         continue;
       }
@@ -554,6 +574,34 @@ export async function applyOrderAdjustmentWithDatabase(
         adjustmentId: adjustment.id,
         payload: { customerVisible: true },
       });
+    }
+
+    if (input.orderReturn) {
+      const [returnRecord] = await tx
+        .insert(orderReturns)
+        .values({
+          orderId: order.id,
+          adjustmentId: adjustment.id,
+          actorUserId: input.actorUserId,
+          status: input.orderReturn.status,
+          reason: input.orderReturn.reason,
+          refundAmount: Math.abs(totalDelta),
+        })
+        .returning({ id: orderReturns.id });
+      await tx.insert(orderReturnItems).values(
+        input.orderReturn.items.map((item) => ({
+          returnId: returnRecord.id,
+          orderId: order.id,
+          orderItemId: item.orderItemId,
+          productId: item.productId,
+          productVariantId: item.productVariantId,
+          productNameSnapshot: item.productNameSnapshot,
+          variantLabelSnapshot: item.variantLabelSnapshot,
+          quantity: item.quantity,
+          unitPriceSnapshot: item.unitPriceSnapshot,
+          unitCostSnapshot: item.unitCostSnapshot,
+        })),
+      );
     }
 
     return {

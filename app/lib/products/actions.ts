@@ -160,7 +160,7 @@ function normalizeVariantInputs(
         unitCost:
           variant.unitCost == null || Number.isNaN(variant.unitCost)
             ? null
-            : Math.max(0, Number(variant.unitCost)),
+            : Number(variant.unitCost),
         stock: Math.max(0, Math.trunc(variant.stock)),
         imageUrl: variant.imageUrl?.trim() || null,
         isVisible: variant.isVisible ?? true,

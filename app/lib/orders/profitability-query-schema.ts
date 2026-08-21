@@ -49,7 +49,7 @@ export function getProfitabilityDateRange(
   query: ProfitabilityQuery,
   now = DateTime.now().setZone(STORE_TIMEZONE),
 ): { from?: Date; to?: Date } {
-  if (query.period === "custom") {
+  if (query.period === "custom" && (query.from || query.to)) {
     return {
       from: query.from
         ? DateTime.fromISO(query.from, { zone: STORE_TIMEZONE })

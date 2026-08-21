@@ -15,6 +15,7 @@ import Link from "next/link";
 import AdminVoucherUploadDialog from "@/app/components/organisms/orders/admin-voucher-upload-dialog";
 import { Button } from "@/app/components/ui/button";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
+import { canCancelOrderStatus } from "@/app/lib/orders/status-transitions";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -112,7 +113,7 @@ export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
               Subir comprobante
             </DropdownMenuItem>
           )}
-          {!["cancelled", "delivered"].includes(order.status) && (
+          {canCancelOrderStatus(order.status) && (
             <DropdownMenuItem
               onClick={() => {
                 setActionStatus("cancelled");

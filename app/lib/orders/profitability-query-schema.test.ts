@@ -12,12 +12,19 @@ describe("profitability query schema", () => {
     const query = parseProfitabilityQuery({});
     expect(query).toEqual({ period: "month" });
 
-    const range = getProfitabilityDateRange(
-      query,
-      DateTime.fromISO("2026-08-21T12:00:00", {
-        zone: "America/La_Paz",
-      }),
-    );
+    const now = DateTime.fromISO("2026-08-21T12:00:00", {
+      zone: "America/La_Paz",
+    });
+    const range = getProfitabilityDateRange(query, now);
+    expect(range.from?.toISOString()).toBe("2026-08-01T04:00:00.000Z");
+    expect(range.to?.toISOString()).toBe("2026-08-22T03:59:59.999Z");
+  });
+
+  it("falls back to the current month when custom has no boundaries", () => {
+    const now = DateTime.fromISO("2026-08-21T12:00:00", {
+      zone: "America/La_Paz",
+    });
+    const range = getProfitabilityDateRange({ period: "custom" }, now);
     expect(range.from?.toISOString()).toBe("2026-08-01T04:00:00.000Z");
     expect(range.to?.toISOString()).toBe("2026-08-22T03:59:59.999Z");
   });

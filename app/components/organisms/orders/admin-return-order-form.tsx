@@ -63,6 +63,8 @@ export default function AdminReturnOrderForm({
       }
       toast.success(result.message);
       router.push(`/dashboard/store/orders/${order.id}`);
+    } catch {
+      toast.error("No se pudo registrar la devolución.");
     } finally {
       setPending(false);
     }

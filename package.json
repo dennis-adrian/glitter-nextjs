@@ -18,7 +18,7 @@
     "vercel-build": "pnpm generate && pnpm migrate && next build",
     "email": "email dev --dir app/emails",
     "test": "vitest",
-    "test:integration": "vitest run app/lib/orders/adjustments.integration.test.ts",
+    "test:integration": "node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run app/lib/orders/adjustments.integration.test.ts",
     "test:e2e": "playwright test",
     "format:write": "prettier --write .",
     "format:check": "prettier --check ."

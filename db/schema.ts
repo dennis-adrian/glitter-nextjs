@@ -2090,6 +2090,7 @@ export const orderReturns = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
+    unique("order_returns_id_order_id_unique").on(t.id, t.orderId),
     index("order_returns_order_created_at_idx").on(t.orderId, t.createdAt),
     index("order_returns_received_at_idx").on(t.receivedAt),
     check(
@@ -2114,7 +2115,10 @@ export const orderReturnItems = pgTable(
     returnId: integer("return_id")
       .notNull()
       .references(() => orderReturns.id, { onDelete: "cascade" }),
-    orderItemId: integer("order_item_id"),
+    orderId: integer("order_id").notNull(),
+    orderItemId: integer("order_item_id").references(() => orderItems.id, {
+      onDelete: "restrict",
+    }),
     productId: integer("product_id")
       .notNull()
       .references(() => products.id),
@@ -2144,6 +2148,16 @@ export const orderReturnItems = pgTable(
       "order_return_items_cost_nonnegative",
       sql`${t.unitCostSnapshot} IS NULL OR ${t.unitCostSnapshot} >= 0`,
     ),
+    foreignKey({
+      name: "order_return_items_return_order_fk",
+      columns: [t.returnId, t.orderId],
+      foreignColumns: [orderReturns.id, orderReturns.orderId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "order_return_items_order_item_order_fk",
+      columns: [t.orderItemId, t.orderId],
+      foreignColumns: [orderItems.id, orderItems.orderId],
+    }).onDelete("restrict"),
     foreignKey({
       name: "order_return_items_product_variant_product_fk",
       columns: [t.productVariantId, t.productId],
@@ -2182,6 +2196,14 @@ export const orderReturnItemsRelations = relations(
     product: one(products, {
       fields: [orderReturnItems.productId],
       references: [products.id],
+    }),
+    variant: one(productVariants, {
+      fields: [orderReturnItems.productVariantId],
+      references: [productVariants.id],
+    }),
+    orderItem: one(orderItems, {
+      fields: [orderReturnItems.orderItemId],
+      references: [orderItems.id],
     }),
   }),
 );
@@ -2222,6 +2244,7 @@ export const orderItems = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
+    unique("order_items_id_order_id_unique").on(t.id, t.orderId),
     index("order_items_order_id_idx").on(t.orderId),
     index("order_items_product_id_idx").on(t.productId),
     foreignKey({

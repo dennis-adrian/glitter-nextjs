@@ -6,7 +6,6 @@ import {
   orderEvents,
   orderAdjustmentItems,
   orderAdjustments,
-  orderReturnItems,
   orderReturns,
   orderItems,
   orders,
@@ -74,7 +73,10 @@ import {
   getRentalPriceAtPurchase,
 } from "@/app/lib/orders/utils";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
-import type { StoreOrdersQuery } from "@/app/lib/orders/query-schema";
+import {
+  resolveStoreOrdersStatusFilter,
+  type StoreOrdersQuery,
+} from "@/app/lib/orders/query-schema";
 import { DateTime } from "luxon";
 import { STORE_TIMEZONE } from "@/app/lib/formatters";
 import { applyOrderAdjustment } from "@/app/lib/orders/adjustments";
@@ -505,12 +507,20 @@ async function consumeOrderItemStock(
   quantity: number,
   transactionType: ProductTransactionType,
   variantMap: Map<number, typeof productVariants.$inferSelect>,
+  rentalStockModeSnapshot: "shared" | "separate" | null,
 ) {
   const variant =
     productVariantId != null
       ? (variantMap.get(productVariantId) ?? null)
       : null;
-  await consumeLineStockInTx(tx, product, variant, quantity, transactionType);
+  await consumeLineStockInTx(
+    tx,
+    product,
+    variant,
+    quantity,
+    transactionType,
+    rentalStockModeSnapshot,
+  );
 }
 
 async function consumeResolvedOrderLineStock(
@@ -525,6 +535,7 @@ async function consumeResolvedOrderLineStock(
     line.quantity,
     line.transactionType,
     variantMap,
+    line.rentalStockModeSnapshot,
   );
 }
 
@@ -1156,24 +1167,11 @@ export async function fetchOrdersForAdmin(query: StoreOrdersQuery) {
   const currentUser = await getCurrentUserProfile();
   if (!currentUser || currentUser.role !== "admin") return [];
 
-  const selectedStatuses = query.statuses
-    ? query.statuses.split(",").filter(Boolean)
-    : [];
-  const expandedStatuses = selectedStatuses.flatMap((value) =>
-    value === "needs_attention"
-      ? ["pending", "payment_verification"]
-      : value === "all"
-        ? []
-        : [value],
+  return fetchOrdersByStatus(
+    resolveStoreOrdersStatusFilter(query),
+    query.rental,
+    query,
   );
-  const status = expandedStatuses.length
-    ? (Array.from(new Set(expandedStatuses)) as OrderStatus[])
-    : query.status === "all"
-      ? undefined
-      : query.status === "needs_attention"
-        ? (["pending", "payment_verification"] as const)
-        : query.status;
-  return fetchOrdersByStatus(status, query.rental, query);
 }
 
 function buildOrderDateFilterSql(
@@ -1863,48 +1861,54 @@ export type HistoricalCostBackfillPreview = {
 };
 
 export async function fetchHistoricalCostBackfillPreview(): Promise<HistoricalCostBackfillPreview> {
+  const emptyPreview: HistoricalCostBackfillPreview = {
+    missingLines: 0,
+    resolvableLines: 0,
+    unresolvedLines: 0,
+    affectedOrders: 0,
+    estimatedCost: 0,
+  };
   const currentUser = await getCurrentUserProfile();
   if (!currentUser || currentUser.role !== "admin") {
-    return {
-      missingLines: 0,
-      resolvableLines: 0,
-      unresolvedLines: 0,
-      affectedOrders: 0,
-      estimatedCost: 0,
-    };
+    return emptyPreview;
   }
 
-  const [preview] = await db
-    .select({
-      missingLines: sql<number>`cast(count(*) as integer)`,
-      resolvableLines: sql<number>`cast(count(*) filter (where coalesce(${productVariants.unitCost}, ${products.unitCost}) is not null) as integer)`,
-      unresolvedLines: sql<number>`cast(count(*) filter (where coalesce(${productVariants.unitCost}, ${products.unitCost}) is null) as integer)`,
-      affectedOrders: sql<number>`cast(count(distinct ${orderItems.orderId}) filter (where coalesce(${productVariants.unitCost}, ${products.unitCost}) is not null) as integer)`,
-      estimatedCost: sql<number>`cast(coalesce(sum(coalesce(${productVariants.unitCost}, ${products.unitCost}) * ${orderItems.quantity}), 0) as numeric(12,2))`,
-    })
-    .from(orderItems)
-    .innerJoin(products, eq(orderItems.productId, products.id))
-    .leftJoin(
-      productVariants,
-      and(
-        eq(orderItems.productVariantId, productVariants.id),
-        eq(orderItems.productId, productVariants.productId),
-      ),
-    )
-    .where(
-      and(
-        eq(orderItems.transactionType, "purchase"),
-        isNull(orderItems.unitCostAtPurchase),
-      ),
-    );
+  try {
+    const [preview] = await db
+      .select({
+        missingLines: sql<number>`cast(count(*) as integer)`,
+        resolvableLines: sql<number>`cast(count(*) filter (where coalesce(${productVariants.unitCost}, ${products.unitCost}) is not null) as integer)`,
+        unresolvedLines: sql<number>`cast(count(*) filter (where coalesce(${productVariants.unitCost}, ${products.unitCost}) is null) as integer)`,
+        affectedOrders: sql<number>`cast(count(distinct ${orderItems.orderId}) filter (where coalesce(${productVariants.unitCost}, ${products.unitCost}) is not null) as integer)`,
+        estimatedCost: sql<number>`cast(coalesce(sum(coalesce(${productVariants.unitCost}, ${products.unitCost}) * ${orderItems.quantity}), 0) as numeric(12,2))`,
+      })
+      .from(orderItems)
+      .innerJoin(products, eq(orderItems.productId, products.id))
+      .leftJoin(
+        productVariants,
+        and(
+          eq(orderItems.productVariantId, productVariants.id),
+          eq(orderItems.productId, productVariants.productId),
+        ),
+      )
+      .where(
+        and(
+          eq(orderItems.transactionType, "purchase"),
+          isNull(orderItems.unitCostAtPurchase),
+        ),
+      );
 
-  return {
-    missingLines: preview?.missingLines ?? 0,
-    resolvableLines: preview?.resolvableLines ?? 0,
-    unresolvedLines: preview?.unresolvedLines ?? 0,
-    affectedOrders: preview?.affectedOrders ?? 0,
-    estimatedCost: Number(preview?.estimatedCost ?? 0),
-  };
+    return {
+      missingLines: preview?.missingLines ?? 0,
+      resolvableLines: preview?.resolvableLines ?? 0,
+      unresolvedLines: preview?.unresolvedLines ?? 0,
+      affectedOrders: preview?.affectedOrders ?? 0,
+      estimatedCost: Number(preview?.estimatedCost ?? 0),
+    };
+  } catch (error) {
+    console.error(error);
+    return emptyPreview;
+  }
 }
 
 export async function applyHistoricalOrderCosts(): Promise<{
@@ -1936,15 +1940,16 @@ export async function applyHistoricalOrderCosts(): Promise<{
         order by oi.order_id
       `);
       const orderIds = candidates.rows.map((row) => Number(row.order_id));
-      const lockedOrders =
-        orderIds.length === 0
-          ? []
-          : await tx
-              .select()
-              .from(orders)
-              .where(inArray(orders.id, orderIds))
-              .orderBy(orders.id)
-              .for("update");
+      if (orderIds.length === 0) {
+        return { rows: [] };
+      }
+
+      const lockedOrders = await tx
+        .select()
+        .from(orders)
+        .where(inArray(orders.id, orderIds))
+        .orderBy(orders.id)
+        .for("update");
 
       const updated = await tx.execute(sql`
       with candidates as (
@@ -1959,6 +1964,10 @@ export async function applyHistoricalOrderCosts(): Promise<{
           and pv.product_id = oi.product_id
         where oi.unit_cost_at_purchase is null
           and oi.transaction_type = 'purchase'
+          and oi.order_id in (${sql.join(
+            orderIds.map((id) => sql`${id}`),
+            sql`, `,
+          )})
       )
       update order_items oi
       set
@@ -2469,31 +2478,21 @@ export async function adminReturnOrder(rawInput: AdminReturnOrderInput) {
           quantityDelta: -requested.get(item.id)!,
         })),
       additions: [],
-    });
-    const [returnRecord] = await db
-      .insert(orderReturns)
-      .values({
-        orderId: input.orderId,
-        adjustmentId: adjustment.adjustmentId,
-        actorUserId: currentUser.id,
+      orderReturn: {
         status: "received",
         reason: input.reason.trim(),
-        refundAmount: Math.abs(adjustment.totalDelta),
-      })
-      .returning();
-    await db.insert(orderReturnItems).values(
-      validItems.map((item) => ({
-        returnId: returnRecord.id,
-        orderItemId: item.adjustmentItemId == null ? item.id : null,
-        productId: item.productId,
-        productVariantId: item.productVariantId,
-        productNameSnapshot: item.productNameAtPurchase ?? item.product.name,
-        variantLabelSnapshot: item.productVariantLabel,
-        quantity: requested.get(item.id)!,
-        unitPriceSnapshot: item.priceAtPurchase,
-        unitCostSnapshot: item.unitCostAtPurchase,
-      })),
-    );
+        items: validItems.map((item) => ({
+          orderItemId: item.adjustmentItemId == null ? item.id : null,
+          productId: item.productId,
+          productVariantId: item.productVariantId,
+          productNameSnapshot: item.productNameAtPurchase ?? item.product.name,
+          variantLabelSnapshot: item.productVariantLabel,
+          quantity: requested.get(item.id)!,
+          unitPriceSnapshot: item.priceAtPurchase,
+          unitCostSnapshot: item.unitCostAtPurchase,
+        })),
+      },
+    });
     revalidatePath(`/dashboard/store/orders/${input.orderId}`);
     revalidateStoreOrderViews();
     return {

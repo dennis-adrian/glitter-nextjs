@@ -13,8 +13,15 @@ describe("sanitizeCsvCell", () => {
     expect(sanitizeCsvCell("=SUM(A1:A2)")).toBe("'=SUM(A1:A2)");
     expect(sanitizeCsvCell("  =CMD")).toBe("'  =CMD");
     expect(sanitizeCsvCell("\t+1+1")).toBe("'\t+1+1");
-    expect(sanitizeCsvCell(" -1")).toBe("' -1");
+    expect(sanitizeCsvCell(" -1+1")).toBe("' -1+1");
     expect(sanitizeCsvCell(" @import")).toBe("' @import");
+  });
+
+  it("returns plain numeric literals unchanged, including negatives", () => {
+    expect(sanitizeCsvCell("-18.00")).toBe("-18.00");
+    expect(sanitizeCsvCell(" -18.00")).toBe(" -18.00");
+    expect(sanitizeCsvCell("+18.00")).toBe("+18.00");
+    expect(sanitizeCsvCell("42")).toBe("42");
   });
 
   it("returns the original untrimmed string for non-formula cells", () => {

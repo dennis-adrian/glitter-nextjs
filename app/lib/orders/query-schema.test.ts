@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   parseStoreOrdersQuery,
+  resolveStoreOrdersStatusFilter,
   storeOrdersQueryToSearchParams,
 } from "@/app/lib/orders/query-schema";
 
@@ -57,5 +58,50 @@ describe("store order query schema", () => {
     expect(storeOrdersQueryToSearchParams(query).get("statuses")).toBe(
       "paid,pending",
     );
+  });
+
+  it("treats statuses=all as every order even when status defaults to pending", () => {
+    const query = parseStoreOrdersQuery({ statuses: "all" });
+
+    expect(query.status).toBe("pending");
+    expect(query.statuses).toBe("all");
+    expect(resolveStoreOrdersStatusFilter(query)).toBeUndefined();
+  });
+
+  it("expands needs_attention from statuses without falling back to status", () => {
+    const query = parseStoreOrdersQuery({
+      status: "paid",
+      statuses: "needs_attention",
+    });
+
+    expect(resolveStoreOrdersStatusFilter(query)).toEqual([
+      "pending",
+      "payment_verification",
+    ]);
+  });
+
+  it("falls back to query.status when statuses is empty", () => {
+    expect(
+      resolveStoreOrdersStatusFilter(parseStoreOrdersQuery({ status: "paid" })),
+    ).toBe("paid");
+    expect(
+      resolveStoreOrdersStatusFilter(parseStoreOrdersQuery({ status: "all" })),
+    ).toBeUndefined();
+    expect(
+      resolveStoreOrdersStatusFilter(
+        parseStoreOrdersQuery({ status: "needs_attention" }),
+      ),
+    ).toEqual(["pending", "payment_verification"]);
+  });
+
+  it("uses expanded concrete statuses when statuses is set", () => {
+    expect(
+      resolveStoreOrdersStatusFilter(
+        parseStoreOrdersQuery({
+          status: "pending",
+          statuses: "paid,delivered",
+        }),
+      ),
+    ).toEqual(["paid", "delivered"]);
   });
 });

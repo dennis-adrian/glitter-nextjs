@@ -1,8 +1,14 @@
+const PLAIN_NUMERIC_LITERAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
+
 export function sanitizeCsvCell(value: unknown): string {
   const original = String(value);
   const leadingTrimmed = original.trimStart();
 
-  if (leadingTrimmed && ["=", "+", "-", "@"].includes(leadingTrimmed[0])) {
+  if (
+    leadingTrimmed &&
+    ["=", "+", "-", "@"].includes(leadingTrimmed[0]) &&
+    !PLAIN_NUMERIC_LITERAL.test(leadingTrimmed)
+  ) {
     return `'${original}`;
   }
 

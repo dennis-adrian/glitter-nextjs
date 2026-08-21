@@ -26,6 +26,7 @@ type OrdersTotalsProps = {
 };
 
 type ProductTotal = {
+  groupKey: string;
   productName: string;
   totals: Partial<Record<OrderStatus, number>>;
   allTotalsSum: number;
@@ -64,6 +65,7 @@ export default function OrdersTotals({
             const key = `${current.productId}:${current.productVariantId ?? "base"}`;
             const existing = acc[key];
             acc[key] = {
+              groupKey: key,
               productName:
                 existing?.productName ??
                 (current.productVariantLabel
@@ -129,7 +131,7 @@ export default function OrdersTotals({
 
       <div className="divide-y">
         {visibleProducts.map((product) => (
-          <ProductRow key={product.productName} product={product} />
+          <ProductRow key={product.groupKey} product={product} />
         ))}
         {visibleProducts.length === 0 && (
           <div className="px-4 py-10 text-center text-sm text-muted-foreground">

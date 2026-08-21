@@ -19,6 +19,8 @@ import {
   orderAdjustments,
   orderEvents,
   orderItems,
+  orderReturnItems,
+  orderReturns,
   orders,
   productOptions,
   productOptionValues,
@@ -176,6 +178,9 @@ async function cleanupFixture(fixture: Fixture) {
     .select({ id: orderAdjustments.id })
     .from(orderAdjustments)
     .where(eq(orderAdjustments.orderId, fixture.orderId));
+  await db
+    .delete(orderReturns)
+    .where(eq(orderReturns.orderId, fixture.orderId));
   await db.delete(orderEvents).where(eq(orderEvents.orderId, fixture.orderId));
   if (adjustments.length > 0) {
     const adjustmentIds = adjustments.map(({ id }) => id);
@@ -324,6 +329,107 @@ describeDatabase("applyOrderAdjustment database transaction", () => {
       .where(eq(orderItems.id, fixture.baseItemId));
     expect(product.stock).toBe(11);
     expect(sourceLine.quantity).toBe(2);
+  });
+
+  it("commits the return header and items with the adjustment", async () => {
+    const fixture = await createFixture();
+    const result = await applyOrderAdjustmentWithDatabase(
+      adjustmentDatabase(),
+      {
+        ...baseAdjustment(fixture, -1),
+        orderReturn: {
+          status: "received",
+          reason: "Customer return",
+          items: [
+            {
+              orderItemId: fixture.baseItemId,
+              productId: fixture.baseProductId,
+              productVariantId: null,
+              productNameSnapshot: "Returned product snapshot",
+              variantLabelSnapshot: null,
+              quantity: 1,
+              unitPriceSnapshot: 20,
+              unitCostSnapshot: 7,
+            },
+          ],
+        },
+      },
+    );
+
+    const [returnRecord] = await integrationDb!
+      .select()
+      .from(orderReturns)
+      .where(eq(orderReturns.adjustmentId, result.adjustmentId));
+    const [returnItem] = await integrationDb!
+      .select()
+      .from(orderReturnItems)
+      .where(eq(orderReturnItems.returnId, returnRecord.id));
+
+    expect(returnRecord).toMatchObject({
+      orderId: fixture.orderId,
+      adjustmentId: result.adjustmentId,
+      actorUserId: fixture.actorId,
+      status: "received",
+      reason: "Customer return",
+      refundAmount: 20,
+    });
+    expect(returnItem).toMatchObject({
+      orderItemId: fixture.baseItemId,
+      productId: fixture.baseProductId,
+      productVariantId: null,
+      productNameSnapshot: "Returned product snapshot",
+      variantLabelSnapshot: null,
+      quantity: 1,
+      unitPriceSnapshot: 20,
+      unitCostSnapshot: 7,
+    });
+  });
+
+  it("rolls back the adjustment when a return item insert fails", async () => {
+    const fixture = await createFixture();
+    await expect(
+      applyOrderAdjustmentWithDatabase(adjustmentDatabase(), {
+        ...baseAdjustment(fixture, -1),
+        orderReturn: {
+          status: "received",
+          reason: "Invalid return",
+          items: [
+            {
+              orderItemId: fixture.baseItemId,
+              productId: fixture.baseProductId,
+              productVariantId: null,
+              productNameSnapshot: "Returned product snapshot",
+              variantLabelSnapshot: null,
+              quantity: 0,
+              unitPriceSnapshot: 20,
+              unitCostSnapshot: 7,
+            },
+          ],
+        },
+      }),
+    ).rejects.toThrow();
+
+    const [order] = await integrationDb!
+      .select()
+      .from(orders)
+      .where(eq(orders.id, fixture.orderId));
+    const [product] = await integrationDb!
+      .select()
+      .from(products)
+      .where(eq(products.id, fixture.baseProductId));
+    const adjustments = await integrationDb!
+      .select()
+      .from(orderAdjustments)
+      .where(eq(orderAdjustments.orderId, fixture.orderId));
+    const returns = await integrationDb!
+      .select()
+      .from(orderReturns)
+      .where(eq(orderReturns.orderId, fixture.orderId));
+
+    expect(order).toMatchObject({ totalAmount: 40, revision: 1 });
+    expect(product.stock).toBe(10);
+    expect(adjustments).toHaveLength(0);
+    expect(returns).toHaveLength(0);
   });
 
   it("rolls back every write when stock is insufficient", async () => {

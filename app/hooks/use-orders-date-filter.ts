@@ -48,7 +48,7 @@ export function useOrdersDateFilter(orders: OrderWithRelations[]) {
   }, []);
 
   const filteredByDate = useMemo(() => {
-    if (hasCustomRange) {
+    if (period === "custom" || hasCustomRange) {
       return orders.filter((o) => {
         const d = formatDate(o.createdAt);
         if (dateFrom) {

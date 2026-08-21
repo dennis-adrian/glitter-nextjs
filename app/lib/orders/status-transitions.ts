@@ -15,3 +15,7 @@ export function canTransitionOrderStatus(
 ): boolean {
   return TRANSITIONS[from].includes(to);
 }
+
+export function canCancelOrderStatus(status: OrderStatus): boolean {
+  return canTransitionOrderStatus(status, "cancelled");
+}

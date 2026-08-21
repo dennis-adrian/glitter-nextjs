@@ -4743,7 +4743,16 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "order_items_id_order_id_unique": {
+          "name": "order_items_id_order_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "order_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {
         "order_items_rental_context_required": {
@@ -4773,6 +4782,12 @@
         },
         "return_id": {
           "name": "return_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order_id": {
+          "name": "order_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
@@ -4862,6 +4877,49 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "order_return_items_order_item_id_order_items_id_fk": {
+          "name": "order_return_items_order_item_id_order_items_id_fk",
+          "tableFrom": "order_return_items",
+          "tableTo": "order_items",
+          "columnsFrom": [
+            "order_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "order_return_items_return_order_fk": {
+          "name": "order_return_items_return_order_fk",
+          "tableFrom": "order_return_items",
+          "tableTo": "order_returns",
+          "columnsFrom": [
+            "return_id",
+            "order_id"
+          ],
+          "columnsTo": [
+            "id",
+            "order_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "order_return_items_order_item_order_fk": {
+          "name": "order_return_items_order_item_order_fk",
+          "tableFrom": "order_return_items",
+          "tableTo": "order_items",
+          "columnsFrom": [
+            "order_item_id",
+            "order_id"
+          ],
+          "columnsTo": [
+            "id",
+            "order_id"
+          ],
+          "onDelete": "restrict",
           "onUpdate": "no action"
         },
         "order_return_items_product_id_products_id_fk": {
@@ -5067,7 +5125,16 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "order_returns_id_order_id_unique": {
+          "name": "order_returns_id_order_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "order_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {
         "order_returns_refund_amount_nonnegative": {

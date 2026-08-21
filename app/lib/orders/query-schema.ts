@@ -87,3 +87,31 @@ export function storeOrdersQueryToSearchParams(
   if (query.q) params.set("q", query.q);
   return params;
 }
+
+type ConcreteOrderStatus = (typeof orderStatusEnum.enumValues)[number];
+
+export function resolveStoreOrdersStatusFilter(
+  query: StoreOrdersQuery,
+): ConcreteOrderStatus | readonly ConcreteOrderStatus[] | undefined {
+  const selectedStatuses = query.statuses
+    ? query.statuses.split(",").filter(Boolean)
+    : [];
+  const selectedAll = selectedStatuses.includes("all");
+  const expandedStatuses = selectedStatuses.flatMap((value) =>
+    value === "needs_attention"
+      ? ["pending", "payment_verification"]
+      : value === "all"
+        ? []
+        : [value],
+  );
+  if (expandedStatuses.length) {
+    return Array.from(new Set(expandedStatuses)) as ConcreteOrderStatus[];
+  }
+  if (selectedAll || query.status === "all") {
+    return undefined;
+  }
+  if (query.status === "needs_attention") {
+    return ["pending", "payment_verification"] as const;
+  }
+  return query.status;
+}

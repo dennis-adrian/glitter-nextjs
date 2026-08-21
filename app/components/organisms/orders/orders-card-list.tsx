@@ -223,9 +223,12 @@ export default function OrdersCardList({
       });
       return;
     }
-    const next = selectedStatuses.includes(value)
-      ? selectedStatuses.filter((status) => status !== value)
-      : [...selectedStatuses, value];
+    const currentStatuses = optimisticStatuses.filter(
+      (status) => status !== "all",
+    );
+    const next = currentStatuses.includes(value)
+      ? currentStatuses.filter((status) => status !== value)
+      : [...currentStatuses, value];
     const statuses = next.join(",");
     startTransition(() => {
       setOptimisticStatuses(next);

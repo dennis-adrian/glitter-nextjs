@@ -116,9 +116,10 @@ export async function consumeLineStockInTx(
   transactionType: ProductTransactionType,
   rentalStockModeSnapshot?: "shared" | "separate" | null,
 ) {
+  // Match restoreLineStockInTx: null/undefined rental snapshot means shared pool.
   const pool =
-    transactionType === "rental" && rentalStockModeSnapshot != null
-      ? rentalStockModeSnapshot === "separate"
+    transactionType === "rental"
+      ? (rentalStockModeSnapshot ?? "shared") === "separate"
         ? "rental"
         : "sale"
       : getStockPoolForTransaction(product, transactionType);
