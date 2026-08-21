@@ -5,7 +5,7 @@ import { type ReactNode, useState } from "react";
 
 import { SearchIcon } from "lucide-react";
 
-import type { Table as TableInstance } from "@tanstack/react-table";
+import type { Table as TableInstance, Row } from "@tanstack/react-table";
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -48,34 +48,75 @@ interface DataTableProps<TData, TValue> {
   initialState?: DataTableInitialState;
   actions?: ReactNode | ((table: TableInstance<TData>) => ReactNode);
   selectable?: boolean;
+  /** Caps how many rows can stay selected across pages. */
+  maxSelectable?: number;
+  /** Keys row selection by a stable domain id instead of the row's position. */
+  getRowId?: (originalRow: TData, index: number, parent?: Row<TData>) => string;
 }
 
-const selectColumn = {
-  id: "select",
-  header: ({ table }: { table: TableInstance<unknown> }) => (
-    <Checkbox
-      checked={
-        table.getIsAllPageRowsSelected() ||
-        (table.getIsSomePageRowsSelected() && "indeterminate")
-      }
-      onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-      aria-label="Seleccionar todos"
-    />
-  ),
-  cell: ({
-    row,
-  }: {
-    row: { getIsSelected: () => boolean; toggleSelected: (v: boolean) => void };
-  }) => (
-    <Checkbox
-      checked={row.getIsSelected()}
-      onCheckedChange={(value) => row.toggleSelected(!!value)}
-      aria-label="Seleccionar fila"
-    />
-  ),
-  enableSorting: false,
-  enableHiding: false,
-};
+function clampRowSelection(
+  prev: RowSelectionState,
+  next: RowSelectionState,
+  maxSelectable: number,
+): RowSelectionState {
+  const nextIds = Object.keys(next).filter((id) => next[id]);
+  if (nextIds.length <= maxSelectable) return next;
+
+  const previouslySelected = new Set(
+    Object.keys(prev).filter((id) => prev[id]),
+  );
+  const kept: string[] = [];
+  for (const id of nextIds) {
+    if (previouslySelected.has(id)) kept.push(id);
+  }
+  for (const id of nextIds) {
+    if (kept.length >= maxSelectable) break;
+    if (!previouslySelected.has(id)) kept.push(id);
+  }
+  const limited: RowSelectionState = {};
+  for (const id of kept.slice(0, maxSelectable)) {
+    limited[id] = true;
+  }
+  return limited;
+}
+
+function createSelectColumn(maxSelectable?: number) {
+  return {
+    id: "select",
+    header: ({ table }: { table: TableInstance<unknown> }) => {
+      const allPageSelected = table.getIsAllPageRowsSelected();
+      const somePageSelected = table.getIsSomePageRowsSelected();
+      const selectedCount = table.getSelectedRowModel().rows.length;
+      const atLimit = maxSelectable != null && selectedCount >= maxSelectable;
+      return (
+        <Checkbox
+          checked={allPageSelected || (somePageSelected && "indeterminate")}
+          disabled={atLimit && !allPageSelected && !somePageSelected}
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Seleccionar todos"
+        />
+      );
+    },
+    cell: ({
+      row,
+    }: {
+      row: {
+        getIsSelected: () => boolean;
+        getCanSelect: () => boolean;
+        toggleSelected: (v: boolean) => void;
+      };
+    }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        disabled={!row.getCanSelect()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Seleccionar fila"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  };
+}
 
 export function DataTable<TData, TValue>({
   columns,
@@ -85,6 +126,8 @@ export function DataTable<TData, TValue>({
   initialState,
   actions,
   selectable = false,
+  maxSelectable,
+  getRowId,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchFilter, setSearchFilter] = useState<string>("");
@@ -94,7 +137,10 @@ export function DataTable<TData, TValue>({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const allColumns = selectable
-    ? [selectColumn as ColumnDef<TData, TValue>, ...columns]
+    ? [
+        createSelectColumn(maxSelectable) as ColumnDef<TData, TValue>,
+        ...columns,
+      ]
     : columns;
 
   // eslint-disable-next-line -- TanStack Table API incompatible with React Compiler
@@ -107,7 +153,22 @@ export function DataTable<TData, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnFiltersChange: setColumnFilters,
-    ...(selectable && { onRowSelectionChange: setRowSelection }),
+    ...(getRowId && { getRowId }),
+    ...(selectable && {
+      onRowSelectionChange: (updater) => {
+        setRowSelection((prev) => {
+          const next = typeof updater === "function" ? updater(prev) : updater;
+          if (maxSelectable == null) return next;
+          return clampRowSelection(prev, next, maxSelectable);
+        });
+      },
+    }),
+    ...(selectable &&
+      maxSelectable != null && {
+        enableRowSelection: (row: Row<TData>) =>
+          Boolean(rowSelection[row.id]) ||
+          Object.values(rowSelection).filter(Boolean).length < maxSelectable,
+      }),
     state: {
       sorting,
       columnFilters,

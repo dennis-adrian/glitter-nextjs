@@ -4,6 +4,7 @@ import {
   columns,
   columnTitles,
 } from "@/app/components/organisms/orders/table-columns";
+import OrdersBulkActions from "@/app/components/organisms/orders/orders-bulk-actions";
 import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
 import { Button } from "@/app/components/ui/button";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
@@ -12,6 +13,7 @@ import {
   storeOrdersQueryToSearchParams,
   type StoreOrdersQuery,
 } from "@/app/lib/orders/query-schema";
+import { BULK_ORDER_STATUS_LIMIT } from "@/app/lib/orders/status-transitions";
 import { getOrderStatusLabel } from "@/app/lib/orders/utils";
 import {
   getRentalOrderFilterLabel,
@@ -235,7 +237,20 @@ export default function OrdersTable({
             ? { columnVisibility: { status: false } }
             : undefined
         }
-        actions={() => <OrdersExportButton query={query} />}
+        selectable
+        maxSelectable={BULK_ORDER_STATUS_LIMIT}
+        getRowId={(order) => String(order.id)}
+        actions={(table) => (
+          <div className="flex items-center gap-2">
+            <OrdersBulkActions
+              orders={table
+                .getSelectedRowModel()
+                .rows.map((row) => row.original)}
+              onDone={() => table.resetRowSelection()}
+            />
+            <OrdersExportButton query={query} />
+          </div>
+        )}
       />
     </div>
   );
