@@ -41,7 +41,7 @@ export default async function StoreOrdersPage(props: {
 
   return (
     <div className="space-y-4">
-      <div className="block md:hidden">
+      <div className="block lg:hidden">
         <Suspense fallback={<TableSkeleton />}>
           <OrdersCardList
             ordersPromise={ordersPromise}
@@ -51,7 +51,7 @@ export default async function StoreOrdersPage(props: {
         </Suspense>
       </div>
 
-      <div className="hidden md:block">
+      <div className="hidden lg:block">
         <Suspense fallback={<TableSkeleton />}>
           <OrdersTable
             ordersPromise={ordersPromise}

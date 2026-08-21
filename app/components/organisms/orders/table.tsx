@@ -9,8 +9,12 @@ import { Button } from "@/app/components/ui/button";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
 import { useOrdersDateFilter } from "@/app/hooks/use-orders-date-filter";
 import { formatDate } from "@/app/lib/formatters";
+import { serializeCsvRows } from "@/app/lib/orders/csv";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
-import { getOrderStatusLabel } from "@/app/lib/orders/utils";
+import {
+  getOrderItemDisplayName,
+  getOrderStatusLabel,
+} from "@/app/lib/orders/utils";
 import {
   getRentalOrderFilterLabel,
   type RentalOrderFilter,
@@ -56,34 +60,56 @@ const STATUS_OPTIONS: { value: ActiveStatus; label: string }[] = [
 ];
 
 function OrdersExportButton({ table }: { table: Table<OrderWithRelations> }) {
-  function handleExport() {
+  function handleExport(lineItems = false) {
     const visibleOrders = table.getRowModel().rows.map((row) => row.original);
-    const headers = [
-      "ID",
-      "Tipo",
-      "Cliente",
-      "Teléfono",
-      "Productos",
-      "Total (Bs)",
-      "Estado",
-      "Fecha",
-    ];
-    const rows = visibleOrders.map((o) => [
-      o.id,
-      o.customer ? "Participante" : "Invitado",
-      o.customer?.displayName ?? o.guestName ?? "Invitado",
-      o.customer?.phoneNumber ?? o.guestPhone ?? "",
-      o.orderItems.map((i) => `${i.quantity}x ${i.product.name}`).join(", "),
-      o.totalAmount.toFixed(2),
-      getOrderStatusLabel(o.status),
-      formatDate(o.createdAt).toLocaleString(DateTime.DATETIME_MED),
-    ]);
+    const headers = lineItems
+      ? [
+          "Pedido",
+          "Fecha",
+          "Producto",
+          "Cantidad",
+          "Precio unitario (Bs)",
+          "Costo unitario (Bs)",
+          "Total (Bs)",
+          "Estado",
+        ]
+      : [
+          "ID",
+          "Tipo",
+          "Cliente",
+          "Teléfono",
+          "Productos",
+          "Total (Bs)",
+          "Estado",
+          "Fecha",
+        ];
+    const rows = lineItems
+      ? visibleOrders.flatMap((o) =>
+          o.orderItems.map((i) => [
+            o.id,
+            formatDate(o.createdAt).toLocaleString(DateTime.DATE_MED),
+            getOrderItemDisplayName(i),
+            i.quantity,
+            i.priceAtPurchase.toFixed(2),
+            i.unitCostAtPurchase?.toFixed(2) ?? "",
+            (i.priceAtPurchase * i.quantity).toFixed(2),
+            getOrderStatusLabel(o.status),
+          ]),
+        )
+      : visibleOrders.map((o) => [
+          o.id,
+          o.customer ? "Participante" : "Invitado",
+          o.customer?.displayName ?? o.guestName ?? "Invitado",
+          o.customer?.phoneNumber ?? o.guestPhone ?? "",
+          o.orderItems
+            .map((i) => `${i.quantity}x ${getOrderItemDisplayName(i)}`)
+            .join(", "),
+          o.totalAmount.toFixed(2),
+          getOrderStatusLabel(o.status),
+          formatDate(o.createdAt).toLocaleString(DateTime.DATETIME_MED),
+        ]);
 
-    const csv = [headers, ...rows]
-      .map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
-      )
-      .join("\n");
+    const csv = serializeCsvRows([headers, ...rows]);
 
     const blob = new Blob(["\uFEFF" + csv], {
       type: "text/csv;charset=utf-8;",
@@ -91,16 +117,22 @@ function OrdersExportButton({ table }: { table: Table<OrderWithRelations> }) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `pedidos-${DateTime.now().toISODate()}.csv`;
+    link.download = `${lineItems ? "lineas-pedidos" : "pedidos"}-${DateTime.now().toISODate()}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   }
 
   return (
-    <Button size="sm" variant="outline" onClick={handleExport}>
-      <DownloadIcon className="h-4 w-4 sm:mr-2" />
-      <span className="hidden sm:block">Exportar CSV</span>
-    </Button>
+    <div className="flex gap-2">
+      <Button size="sm" variant="outline" onClick={() => handleExport()}>
+        <DownloadIcon className="h-4 w-4 sm:mr-2" />
+        <span className="hidden sm:block">Exportar CSV</span>
+      </Button>
+      <Button size="sm" variant="outline" onClick={() => handleExport(true)}>
+        <DownloadIcon className="h-4 w-4 sm:mr-2" />
+        <span className="hidden sm:block">Exportar líneas</span>
+      </Button>
+    </div>
   );
 }
 

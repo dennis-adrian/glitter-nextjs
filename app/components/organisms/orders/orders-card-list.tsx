@@ -5,6 +5,7 @@ import { OrdersActionsCell } from "@/app/components/organisms/orders/table-actio
 import SocialMediaBadge from "@/app/components/social-media-badge";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
+import { serializeCsvRows } from "@/app/lib/orders/csv";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
 import {
   getOrderItemDisplayName,
@@ -70,23 +71,6 @@ function chipToActive(
   return value === "" ? "all" : value;
 }
 
-function sanitizeCsvCell(value: string) {
-  const normalized = String(value).trim();
-  if (!normalized) return normalized;
-
-  const firstChar = normalized[0];
-  if (
-    firstChar === "=" ||
-    firstChar === "+" ||
-    firstChar === "-" ||
-    firstChar === "@"
-  ) {
-    return `'${normalized}`;
-  }
-
-  return normalized;
-}
-
 function exportOrdersToCsv(orders: OrderWithRelations[]) {
   const headers = [
     "ID",
@@ -99,27 +83,19 @@ function exportOrdersToCsv(orders: OrderWithRelations[]) {
     "Fecha",
   ];
   const rows = orders.map((o) => [
-    sanitizeCsvCell(String(o.id)),
-    sanitizeCsvCell(o.customer ? "Participante" : "Invitado"),
-    sanitizeCsvCell(o.customer?.displayName ?? o.guestName ?? "Invitado"),
-    sanitizeCsvCell(o.customer?.phoneNumber ?? o.guestPhone ?? ""),
-    sanitizeCsvCell(
-      o.orderItems
-        .map((i) => `${i.quantity}x ${getOrderItemDisplayName(i)}`)
-        .join(", "),
-    ),
-    sanitizeCsvCell(o.totalAmount.toFixed(2)),
-    sanitizeCsvCell(getOrderStatusLabel(o.status)),
-    sanitizeCsvCell(
-      formatDate(o.createdAt).toLocaleString(DateTime.DATETIME_MED),
-    ),
+    String(o.id),
+    o.customer ? "Participante" : "Invitado",
+    o.customer?.displayName ?? o.guestName ?? "Invitado",
+    o.customer?.phoneNumber ?? o.guestPhone ?? "",
+    o.orderItems
+      .map((i) => `${i.quantity}x ${getOrderItemDisplayName(i)}`)
+      .join(", "),
+    o.totalAmount.toFixed(2),
+    getOrderStatusLabel(o.status),
+    formatDate(o.createdAt).toLocaleString(DateTime.DATETIME_MED),
   ]);
 
-  const csv = [headers, ...rows]
-    .map((row) =>
-      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
-    )
-    .join("\n");
+  const csv = serializeCsvRows([headers, ...rows]);
 
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);

@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import {
+  orderEvents,
   orderItems,
   orders,
   productContentSections,
@@ -575,6 +576,11 @@ export async function createOrderInTx(
       productVariantLabel: line.productVariantLabel,
       quantity: line.quantity,
       priceAtPurchase: line.unitPrice,
+      unitCostAtPurchase:
+        (line.productVariantId != null
+          ? variantMap.get(line.productVariantId)?.unitCost
+          : line.product.unitCost) ?? null,
+      productNameAtPurchase: line.product.name,
       transactionType: line.transactionType,
       rentalContentSectionsSnapshot: line.rentalContentSectionsSnapshot,
       rentalStockModeSnapshot: line.rentalStockModeSnapshot,
@@ -676,6 +682,11 @@ export async function createGuestOrderInTx(
       productVariantLabel: line.productVariantLabel,
       quantity: line.quantity,
       priceAtPurchase: line.unitPrice,
+      unitCostAtPurchase:
+        (line.productVariantId != null
+          ? variantMap.get(line.productVariantId)?.unitCost
+          : line.product.unitCost) ?? null,
+      productNameAtPurchase: line.product.name,
       transactionType: line.transactionType,
       orderId: order.id,
     });
@@ -1391,6 +1402,207 @@ export type OrdersStats = {
   cancelled: number;
 };
 
+export type OrdersProfitability = {
+  grossRevenue: number;
+  productCost: number;
+  grossProfit: number;
+  knownCostRevenue: number;
+  lineCount: number;
+  rows: {
+    orderId: number;
+    date: Date;
+    product: string;
+    quantity: number;
+    revenue: number;
+    cost: number | null;
+    profit: number | null;
+    status: string;
+  }[];
+};
+
+export type HistoricalCostBackfillPreview = {
+  missingLines: number;
+  resolvableLines: number;
+  unresolvedLines: number;
+  affectedOrders: number;
+  estimatedCost: number;
+};
+
+export async function fetchHistoricalCostBackfillPreview(): Promise<HistoricalCostBackfillPreview> {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") {
+    return {
+      missingLines: 0,
+      resolvableLines: 0,
+      unresolvedLines: 0,
+      affectedOrders: 0,
+      estimatedCost: 0,
+    };
+  }
+
+  const [preview] = await db
+    .select({
+      missingLines: sql<number>`cast(count(*) as integer)`,
+      resolvableLines: sql<number>`cast(count(*) filter (where coalesce(${productVariants.unitCost}, ${products.unitCost}) is not null) as integer)`,
+      unresolvedLines: sql<number>`cast(count(*) filter (where coalesce(${productVariants.unitCost}, ${products.unitCost}) is null) as integer)`,
+      affectedOrders: sql<number>`cast(count(distinct ${orderItems.orderId}) filter (where coalesce(${productVariants.unitCost}, ${products.unitCost}) is not null) as integer)`,
+      estimatedCost: sql<number>`cast(coalesce(sum(coalesce(${productVariants.unitCost}, ${products.unitCost}) * ${orderItems.quantity}), 0) as numeric(12,2))`,
+    })
+    .from(orderItems)
+    .innerJoin(products, eq(orderItems.productId, products.id))
+    .leftJoin(
+      productVariants,
+      and(
+        eq(orderItems.productVariantId, productVariants.id),
+        eq(orderItems.productId, productVariants.productId),
+      ),
+    )
+    .where(
+      and(
+        eq(orderItems.transactionType, "purchase"),
+        isNull(orderItems.unitCostAtPurchase),
+      ),
+    );
+
+  return {
+    missingLines: preview?.missingLines ?? 0,
+    resolvableLines: preview?.resolvableLines ?? 0,
+    unresolvedLines: preview?.unresolvedLines ?? 0,
+    affectedOrders: preview?.affectedOrders ?? 0,
+    estimatedCost: Number(preview?.estimatedCost ?? 0),
+  };
+}
+
+export async function applyHistoricalOrderCosts(): Promise<{
+  success: boolean;
+  message: string;
+  updatedLines?: number;
+  affectedOrders?: number;
+}> {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") {
+    return {
+      success: false,
+      message: "No tienes permisos para completar costos históricos.",
+    };
+  }
+
+  try {
+    const result = await db.execute(sql`
+      with candidates as (
+        select
+          oi.id,
+          coalesce(pv.unit_cost, p.unit_cost) as historical_cost,
+          p.name as product_name
+        from order_items oi
+        inner join products p on p.id = oi.product_id
+        left join product_variants pv
+          on pv.id = oi.product_variant_id
+          and pv.product_id = oi.product_id
+        where oi.unit_cost_at_purchase is null
+          and oi.transaction_type = 'purchase'
+      )
+      update order_items oi
+      set
+        unit_cost_at_purchase = candidates.historical_cost,
+        product_name_at_purchase = coalesce(
+          oi.product_name_at_purchase,
+          candidates.product_name
+        ),
+        updated_at = now()
+      from candidates
+      where oi.id = candidates.id
+        and candidates.historical_cost is not null
+        and oi.unit_cost_at_purchase is null
+      returning oi.id, oi.order_id
+    `);
+    const affectedOrders = new Set(
+      result.rows.map((row) => Number(row.order_id)),
+    ).size;
+
+    revalidatePath("/dashboard/store/analytics");
+    return {
+      success: true,
+      message:
+        result.rows.length === 0
+          ? "No hay costos históricos pendientes que se puedan completar."
+          : `Se completaron ${result.rows.length} líneas en ${affectedOrders} pedidos.`,
+      updatedLines: result.rows.length,
+      affectedOrders,
+    };
+  } catch (error) {
+    console.error(error);
+    return {
+      success: false,
+      message: "No se pudieron completar los costos históricos.",
+    };
+  }
+}
+
+export async function fetchOrdersProfitability(): Promise<OrdersProfitability> {
+  try {
+    const lines = await db
+      .select({
+        orderId: orders.id,
+        date: orders.createdAt,
+        product: sql<string>`coalesce(${orderItems.productNameAtPurchase}, ${products.name})`,
+        quantity: orderItems.quantity,
+        revenue: sql<number>`${orderItems.priceAtPurchase} * ${orderItems.quantity}`,
+        cost: sql<
+          number | null
+        >`${orderItems.unitCostAtPurchase} * ${orderItems.quantity}`,
+        unitCost: orderItems.unitCostAtPurchase,
+        status: orders.status,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .innerJoin(products, eq(orderItems.productId, products.id))
+      .where(
+        and(
+          inArray(orders.status, ["paid", "delivered"]),
+          eq(orderItems.transactionType, "purchase"),
+        ),
+      );
+
+    const rows = lines.map((line) => {
+      const revenue = Number(line.revenue ?? 0);
+      const cost = line.unitCost == null ? null : Number(line.cost ?? 0);
+      return {
+        orderId: line.orderId,
+        date: line.date,
+        product: line.product,
+        quantity: line.quantity,
+        revenue,
+        cost,
+        profit: cost == null ? null : revenue - cost,
+        status: line.status,
+      };
+    });
+    const grossRevenue = rows.reduce((sum, row) => sum + row.revenue, 0);
+    const known = rows.filter((row) => row.cost != null);
+    const productCost = known.reduce((sum, row) => sum + (row.cost ?? 0), 0);
+    const knownCostRevenue = known.reduce((sum, row) => sum + row.revenue, 0);
+    return {
+      grossRevenue,
+      productCost,
+      grossProfit: knownCostRevenue - productCost,
+      knownCostRevenue,
+      lineCount: rows.length,
+      rows,
+    };
+  } catch (error) {
+    console.error(error);
+    return {
+      grossRevenue: 0,
+      productCost: 0,
+      grossProfit: 0,
+      knownCostRevenue: 0,
+      lineCount: 0,
+      rows: [],
+    };
+  }
+}
+
 export async function fetchOrdersStats(): Promise<OrdersStats> {
   try {
     const [result] = await db
@@ -1596,6 +1808,22 @@ export async function updateOrder(
         );
       }
 
+      const eventRevision = freshOrder.revision + 1;
+      await tx.insert(orderEvents).values({
+        orderId,
+        type: willCancelOrder ? "cancelled" : "items_changed",
+        revision: eventRevision,
+        actorId: currentUser.id,
+        payload: {
+          changes: order.orderItems.map((item) => ({
+            orderItemId: item.id,
+            product: getOrderItemDisplayName(item),
+            oldQuantity: item.quantity,
+            newQuantity: editMap.get(item.id) ?? item.quantity,
+          })),
+        },
+      });
+
       if (willCancelOrder) {
         // Restore all stock and cancel
         for (const item of order.orderItems) {
@@ -1603,7 +1831,11 @@ export async function updateOrder(
         }
         await tx
           .update(orders)
-          .set({ status: "cancelled", updatedAt: sql`now()` })
+          .set({
+            status: "cancelled",
+            revision: eventRevision,
+            updatedAt: sql`now()`,
+          })
           .where(eq(orders.id, orderId));
       } else {
         // Restore old quantities to stock for all edited items
@@ -1687,7 +1919,11 @@ export async function updateOrder(
 
         await tx
           .update(orders)
-          .set({ totalAmount: newTotal, updatedAt: sql`now()` })
+          .set({
+            totalAmount: newTotal,
+            revision: eventRevision,
+            updatedAt: sql`now()`,
+          })
           .where(eq(orders.id, orderId));
       }
     });

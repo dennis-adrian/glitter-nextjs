@@ -26,6 +26,7 @@ type ProductVariantInput = {
   id?: number;
   optionValues: string[];
   price?: number | null;
+  unitCost?: number | null;
   stock: number;
   rentalStock?: number | null;
   imageUrl?: string | null;
@@ -49,6 +50,7 @@ type NewProductData = {
   name: string;
   description?: string | null;
   price: number;
+  unitCost?: number | null;
   stock?: number | null;
   storeCategory?: "merch" | "supplies";
   status?: "available" | "presale" | "sale";
@@ -155,6 +157,10 @@ function normalizeVariantInputs(
           variant.price == null || Number.isNaN(variant.price)
             ? null
             : Number(variant.price),
+        unitCost:
+          variant.unitCost == null || Number.isNaN(variant.unitCost)
+            ? null
+            : Math.max(0, Number(variant.unitCost)),
         stock: Math.max(0, Math.trunc(variant.stock)),
         imageUrl: variant.imageUrl?.trim() || null,
         isVisible: variant.isVisible ?? true,
@@ -197,6 +203,28 @@ function validateNewProductRentalData(
       (variant) => variant.rentalStock,
     ),
   });
+}
+
+function validateProductCostData(
+  productData: NewProductData,
+  normalizedVariants: ReturnType<typeof normalizeVariantInputs>,
+): string | null {
+  if (
+    productData.unitCost != null &&
+    (!Number.isFinite(productData.unitCost) || productData.unitCost < 0)
+  ) {
+    return "El costo unitario debe ser mayor o igual a 0.";
+  }
+  if (
+    normalizedVariants.variants.some(
+      (variant) =>
+        variant.unitCost != null &&
+        (!Number.isFinite(variant.unitCost) || variant.unitCost < 0),
+    )
+  ) {
+    return "El costo de cada variante debe ser mayor o igual a 0.";
+  }
+  return null;
 }
 
 async function syncProductImages(
@@ -381,6 +409,7 @@ async function syncProductVariants(
     const variantValues = {
       productId,
       price: variant.price,
+      unitCost: variant.unitCost ?? null,
       stock: variant.stock,
       rentalStock: variant.rentalStock ?? null,
       imageUrl: variant.imageUrl ?? null,
@@ -535,6 +564,12 @@ export async function createProduct(data: NewProductData) {
 
   const { imagePayloads = [], variantOptions, variants, ...productData } = data;
   const normalizedVariants = normalizeVariantInputs(variantOptions, variants);
+  const costValidationError = validateProductCostData(
+    productData,
+    normalizedVariants,
+  );
+  if (costValidationError)
+    return { success: false, message: costValidationError };
   const rentalValidationError = validateNewProductRentalData(
     productData,
     normalizedVariants,
@@ -618,6 +653,12 @@ export async function updateProduct(id: number, data: NewProductData) {
 
   const { imagePayloads = [], variantOptions, variants, ...productData } = data;
   const normalizedVariants = normalizeVariantInputs(variantOptions, variants);
+  const costValidationError = validateProductCostData(
+    productData,
+    normalizedVariants,
+  );
+  if (costValidationError)
+    return { success: false, message: costValidationError };
   const rentalValidationError = validateNewProductRentalData(
     productData,
     normalizedVariants,

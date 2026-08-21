@@ -1583,6 +1583,7 @@ export const products = pgTable("products", {
   slug: text("slug").notNull().unique(),
   description: text("description"),
   price: real("price").notNull(),
+  unitCost: numeric("unit_cost", { precision: 10, scale: 2, mode: "number" }),
   stock: integer("stock").default(0),
   imageUrl: text("image_url"),
   isNew: boolean("is_new").default(true).notNull(),
@@ -1691,6 +1692,7 @@ export const productVariants = pgTable(
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
     price: real("price"),
+    unitCost: numeric("unit_cost", { precision: 10, scale: 2, mode: "number" }),
     stock: integer("stock").notNull().default(0),
     rentalStock: integer("rental_stock"),
     imageUrl: text("image_url"),
@@ -1804,6 +1806,12 @@ export const orderStatusEnum = pgEnum("order_status", [
   /** Order was cancelled either by the user or system */
   "cancelled",
 ]);
+export const orderEventTypeEnum = pgEnum("order_event_type", [
+  "created",
+  "items_changed",
+  "status_changed",
+  "cancelled",
+]);
 export const orders = pgTable(
   "orders",
   {
@@ -1823,6 +1831,7 @@ export const orders = pgTable(
       scale: 2,
       mode: "number",
     }).notNull(),
+    revision: integer("revision").notNull().default(1),
     paymentVoucherUrl: text("payment_voucher_url"),
     voucherSubmittedAt: timestamp("voucher_submitted_at"),
     paymentDueDate: timestamp("payment_due_date")
@@ -1850,10 +1859,33 @@ export const orders = pgTable(
 );
 export const ordersRelations = relations(orders, ({ many, one }) => ({
   orderItems: many(orderItems),
+  events: many(orderEvents),
   customer: one(users, {
     fields: [orders.userId],
     references: [users.id],
   }),
+}));
+
+export const orderEvents = pgTable("order_events", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id")
+    .notNull()
+    .references(() => orders.id, { onDelete: "cascade" }),
+  type: orderEventTypeEnum("type").notNull(),
+  revision: integer("revision").notNull(),
+  actorId: integer("actor_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  payload: jsonb("payload"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const orderEventsRelations = relations(orderEvents, ({ one }) => ({
+  order: one(orders, {
+    fields: [orderEvents.orderId],
+    references: [orders.id],
+  }),
+  actor: one(users, { fields: [orderEvents.actorId], references: [users.id] }),
 }));
 
 export const orderItems = pgTable(
@@ -1870,6 +1902,12 @@ export const orderItems = pgTable(
     productVariantLabel: text("product_variant_label"),
     quantity: integer("quantity").notNull(),
     priceAtPurchase: real("price_at_purchase").notNull(),
+    unitCostAtPurchase: numeric("unit_cost_at_purchase", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }),
+    productNameAtPurchase: text("product_name_at_purchase"),
     transactionType: productTransactionTypeEnum("transaction_type")
       .default("purchase")
       .notNull(),
