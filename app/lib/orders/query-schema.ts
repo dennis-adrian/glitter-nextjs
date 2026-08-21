@@ -94,7 +94,12 @@ export function resolveStoreOrdersStatusFilter(
   query: StoreOrdersQuery,
 ): ConcreteOrderStatus | readonly ConcreteOrderStatus[] | undefined {
   const selectedStatuses = query.statuses
-    ? query.statuses.split(",").filter(Boolean)
+    ? query.statuses
+        .split(",")
+        .map((value) => value.trim())
+        .filter((value): value is (typeof STATUS_VALUES)[number] =>
+          (STATUS_VALUES as readonly string[]).includes(value),
+        )
     : [];
   const selectedAll = selectedStatuses.includes("all");
   const expandedStatuses = selectedStatuses.flatMap((value) =>

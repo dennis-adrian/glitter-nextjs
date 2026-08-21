@@ -104,4 +104,37 @@ describe("store order query schema", () => {
       ),
     ).toEqual(["paid", "delivered"]);
   });
+
+  it("drops unknown statuses tokens before expanding", () => {
+    expect(
+      resolveStoreOrdersStatusFilter({
+        status: "pending",
+        statuses: "paid,not_a_status,delivered",
+        rental: "all",
+        period: "all",
+        q: "",
+        view: "compact",
+      }),
+    ).toEqual(["paid", "delivered"]);
+    expect(
+      resolveStoreOrdersStatusFilter({
+        status: "paid",
+        statuses: "bogus,needs_attention",
+        rental: "all",
+        period: "all",
+        q: "",
+        view: "compact",
+      }),
+    ).toEqual(["pending", "payment_verification"]);
+    expect(
+      resolveStoreOrdersStatusFilter({
+        status: "paid",
+        statuses: "unknown,all",
+        rental: "all",
+        period: "all",
+        q: "",
+        view: "compact",
+      }),
+    ).toBeUndefined();
+  });
 });
