@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { after } from "next/server";
 import {
   orderEvents,
   orderAdjustmentItems,
@@ -60,6 +61,7 @@ import {
 import type { ProductTransactionType } from "@/app/lib/rentals/types";
 import type { RentalOrderFilter } from "@/app/lib/rentals/order-filters";
 import {
+  captureServerEvent,
   getPostHogClient,
   POSTHOG_SHUTDOWN_TIMEOUT_MS,
 } from "@/app/lib/posthog-server";
@@ -85,6 +87,40 @@ import {
   type ProfitabilityDateRange,
   type ProfitabilityQueryRow,
 } from "@/app/lib/orders/profitability";
+
+const ORDER_ADJUSTMENT_FAILURE_CATEGORIES = new Set([
+  "conflict",
+  "stock_insufficient",
+  "not_found",
+  "forbidden",
+  "invalid_input",
+  "invalid_quantity",
+  "locked",
+  "unavailable",
+  "variant_required",
+]);
+
+function orderAdjustmentFailureCategory(error: unknown): string {
+  const cause = error instanceof Error ? String(error.cause ?? "") : "";
+  return ORDER_ADJUSTMENT_FAILURE_CATEGORIES.has(cause) ? cause : "unknown";
+}
+
+function captureOrderAdjustmentResult(input: {
+  distinctId: string;
+  event:
+    | typeof POSTHOG_EVENTS.STORE_ORDER_ADJUSTMENT_APPLIED
+    | typeof POSTHOG_EVENTS.STORE_ORDER_ADJUSTMENT_FAILED;
+  properties: Record<string, unknown>;
+}) {
+  after(() =>
+    captureServerEvent({
+      distinctId: input.distinctId,
+      event: input.event,
+      context: "store order adjustment",
+      properties: input.properties,
+    }),
+  );
+}
 
 function revalidateStoreOrderViews() {
   revalidatePath("/dashboard/store");
@@ -1389,7 +1425,12 @@ export async function updateOrderStatus(
         .where(eq(orders.id, orderId));
       await tx.insert(orderEvents).values({
         orderId,
-        type: status === "cancelled" ? "cancelled" : "status_changed",
+        type:
+          status === "cancelled"
+            ? "cancelled"
+            : order.status === "payment_verification"
+              ? "voucher_reviewed"
+              : "status_changed",
         revision,
         actorId: currentUser.id,
         payload: { previousStatus: order.status, status },
@@ -1515,7 +1556,7 @@ export async function submitOrderPaymentVoucher(
         .returning();
       await tx.insert(orderEvents).values({
         orderId,
-        type: "status_changed",
+        type: "voucher_submitted",
         revision,
         actorId: currentUser.id,
         payload: {
@@ -1638,7 +1679,7 @@ export async function submitGuestOrderPaymentVoucher(
         .returning();
       await tx.insert(orderEvents).values({
         orderId,
-        type: "status_changed",
+        type: "voucher_submitted",
         revision,
         actorId: null,
         payload: {
@@ -1764,7 +1805,7 @@ export async function adminAttachOrderVoucher(
         .where(eq(orders.id, orderId));
       await tx.insert(orderEvents).values({
         orderId,
-        type: "status_changed",
+        type: "voucher_submitted",
         revision,
         actorId: currentUser.id,
         payload: {
@@ -2100,7 +2141,7 @@ export async function updateOrder(
     }))
     .filter(({ quantityDelta }) => quantityDelta !== 0);
   try {
-    await applyOrderAdjustment({
+    const adjustment = await applyOrderAdjustment({
       orderId,
       actorUserId: currentUser.id,
       actorRole: "customer",
@@ -2120,8 +2161,30 @@ export async function updateOrder(
           quantityDelta,
         })),
     });
+    captureOrderAdjustmentResult({
+      distinctId: currentUser.clerkId,
+      event: POSTHOG_EVENTS.STORE_ORDER_ADJUSTMENT_APPLIED,
+      properties: {
+        order_id: orderId,
+        actor_role: "customer",
+        line_count: changedItems.length,
+        total_delta: adjustment.totalDelta,
+        revision: adjustment.revision,
+        adjustment_id: adjustment.adjustmentId,
+      },
+    });
   } catch (error) {
     const cause = error instanceof Error ? error.cause : undefined;
+    captureOrderAdjustmentResult({
+      distinctId: currentUser.clerkId,
+      event: POSTHOG_EVENTS.STORE_ORDER_ADJUSTMENT_FAILED,
+      properties: {
+        order_id: orderId,
+        actor_role: "customer",
+        line_count: changedItems.length,
+        failure_category: orderAdjustmentFailureCategory(error),
+      },
+    });
     return {
       success: false,
       cause:
@@ -2247,7 +2310,7 @@ export async function adminAdjustOrder(rawInput: AdminAdjustOrderInput) {
     }))
     .filter(({ quantityDelta }) => quantityDelta !== 0);
   try {
-    await applyOrderAdjustment({
+    const adjustment = await applyOrderAdjustment({
       orderId: input.orderId,
       actorUserId: currentUser.id,
       actorRole: "admin",
@@ -2269,7 +2332,29 @@ export async function adminAdjustOrder(rawInput: AdminAdjustOrderInput) {
         })),
       additions: input.additions,
     });
+    captureOrderAdjustmentResult({
+      distinctId: currentUser.clerkId,
+      event: POSTHOG_EVENTS.STORE_ORDER_ADJUSTMENT_APPLIED,
+      properties: {
+        order_id: input.orderId,
+        actor_role: "admin",
+        line_count: changedItems.length + input.additions.length,
+        total_delta: adjustment.totalDelta,
+        revision: adjustment.revision,
+        adjustment_id: adjustment.adjustmentId,
+      },
+    });
   } catch (error) {
+    captureOrderAdjustmentResult({
+      distinctId: currentUser.clerkId,
+      event: POSTHOG_EVENTS.STORE_ORDER_ADJUSTMENT_FAILED,
+      properties: {
+        order_id: input.orderId,
+        actor_role: "admin",
+        line_count: changedItems.length + input.additions.length,
+        failure_category: orderAdjustmentFailureCategory(error),
+      },
+    });
     return {
       success: false,
       cause: error instanceof Error ? String(error.cause ?? "") : undefined,
@@ -2283,6 +2368,113 @@ export async function adminAdjustOrder(rawInput: AdminAdjustOrderInput) {
   revalidatePath(`/dashboard/store/orders/${input.orderId}/edit`);
   revalidateStoreOrderViews();
   return { success: true, message: "Ajuste aplicado correctamente." };
+}
+
+const adminReturnOrderSchema = z.object({
+  orderId: z.number().int().positive(),
+  items: z
+    .array(
+      z.object({
+        orderItemId: z.number().int(),
+        quantity: z.number().int().positive(),
+      }),
+    )
+    .min(1)
+    .max(200),
+  reason: z.string().trim().min(1).max(500),
+  expectedRevision: z.number().int().positive(),
+});
+
+export type AdminReturnOrderInput = z.infer<typeof adminReturnOrderSchema>;
+
+/** Records an admin merchandise return as an additive negative adjustment. */
+export async function adminReturnOrder(rawInput: AdminReturnOrderInput) {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") {
+    return {
+      success: false,
+      message: "No tienes permisos para registrar devoluciones.",
+    };
+  }
+  const parsed = adminReturnOrderSchema.safeParse(rawInput);
+  if (!parsed.success)
+    return {
+      success: false,
+      message: "La devolución contiene datos inválidos.",
+    };
+  const input = parsed.data;
+  const order = await fetchOrder(input.orderId);
+  if (!order) return { success: false, message: "Pedido no encontrado." };
+  if (!["paid", "delivered"].includes(order.status)) {
+    return {
+      success: false,
+      message:
+        "Solo se pueden devolver productos de pedidos pagados o entregados.",
+    };
+  }
+  if (order.revision !== input.expectedRevision) {
+    return {
+      success: false,
+      cause: "conflict",
+      message: "El pedido cambió en otra sesión. Recargá la página.",
+    };
+  }
+
+  const requested = new Map(
+    input.items.map((item) => [item.orderItemId, item.quantity]),
+  );
+  const validItems = order.orderItems.filter((item) => requested.has(item.id));
+  if (validItems.length !== requested.size) {
+    return {
+      success: false,
+      message: "La devolución incluye un artículo inválido.",
+    };
+  }
+  if (validItems.some((item) => requested.get(item.id)! > item.quantity)) {
+    return {
+      success: false,
+      message: "La cantidad devuelta supera la cantidad comprada.",
+    };
+  }
+  try {
+    const adjustment = await applyOrderAdjustment({
+      orderId: input.orderId,
+      actorUserId: currentUser.id,
+      actorRole: "admin",
+      expectedRevision: input.expectedRevision,
+      reason: `Devolución: ${input.reason}`,
+      allowedStatuses: ["paid", "delivered"],
+      items: validItems
+        .filter((item) => item.adjustmentItemId == null)
+        .map((item) => ({
+          baseOrderItemId: item.id,
+          quantityDelta: -requested.get(item.id)!,
+        })),
+      addedItems: validItems
+        .filter((item) => item.adjustmentItemId != null)
+        .map((item) => ({
+          adjustmentItemId: item.adjustmentItemId!,
+          quantityDelta: -requested.get(item.id)!,
+        })),
+      additions: [],
+    });
+    revalidatePath(`/dashboard/store/orders/${input.orderId}`);
+    revalidateStoreOrderViews();
+    return {
+      success: true,
+      message: `Devolución registrada. Reembolso estimado: Bs ${Math.abs(adjustment.totalDelta).toFixed(2)}.`,
+      refundAmount: Math.abs(adjustment.totalDelta),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "No se pudo registrar la devolución.",
+      cause: error instanceof Error ? String(error.cause ?? "") : undefined,
+    };
+  }
 }
 
 export async function fetchOrdersTotalsByProduct() {

@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { after, NextRequest } from "next/server";
 
 import { fetchOrdersForAdmin } from "@/app/lib/orders/actions";
 import {
@@ -10,6 +10,8 @@ import {
   serializeOrdersSummaryCsv,
 } from "@/app/lib/orders/csv";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import { captureServerEvent } from "@/app/lib/posthog-server";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 
 type ExportFormat = "summary" | "line_items";
 
@@ -44,6 +46,26 @@ export async function GET(request: NextRequest) {
     ...query,
     q: "",
   }).toString();
+  after(() =>
+    captureServerEvent({
+      distinctId: profile.clerkId,
+      event: POSTHOG_EVENTS.STORE_ORDERS_EXPORTED,
+      context: "store orders export",
+      properties: {
+        format,
+        status: query.status,
+        status_count: query.statuses
+          ? query.statuses.split(",").filter(Boolean).length
+          : query.status === "all"
+            ? 0
+            : 1,
+        rental: query.rental,
+        period: query.period,
+        has_search: Boolean(query.q),
+        row_count: orders.length,
+      },
+    }),
+  );
   return new Response(`\uFEFF${csv}`, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

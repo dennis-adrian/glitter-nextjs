@@ -120,6 +120,14 @@ export default async function OrderDetailPage({
               Modificar pedido
             </Link>
           )}
+          {["paid", "delivered"].includes(order.status) && (
+            <Link
+              href={`/dashboard/store/orders/${order.id}/return`}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Registrar devolución
+            </Link>
+          )}
           {/* Desktop-only dropdown — actions button visible on all sizes as overflow menu */}
           <OrdersActionsCell order={order} />
         </div>
@@ -275,17 +283,24 @@ export default async function OrderDetailPage({
               </CardHeader>
               <CardContent className="space-y-4">
                 {activity.map((event) => {
-                  const adjustment = event.adjustment;
+                  const adjustment =
+                    event.type === "adjusted" ? event.adjustment : null;
                   const title =
                     event.type === "created"
                       ? "Pedido creado"
                       : event.type === "adjusted"
                         ? "Ajuste aplicado"
-                        : event.type === "rental_returned"
-                          ? "Devolución registrada"
-                          : event.type === "cancelled"
-                            ? "Pedido cancelado"
-                            : "Pedido actualizado";
+                        : event.type === "voucher_submitted"
+                          ? "Comprobante enviado"
+                          : event.type === "voucher_reviewed"
+                            ? "Comprobante revisado"
+                            : event.type === "note_added"
+                              ? "Nota agregada"
+                              : event.type === "rental_returned"
+                                ? "Devolución registrada"
+                                : event.type === "cancelled"
+                                  ? "Pedido cancelado"
+                                  : "Pedido actualizado";
                   return (
                     <div key={event.id} className="border-l pl-3 text-sm">
                       <div className="flex flex-wrap justify-between gap-1">
@@ -320,6 +335,12 @@ export default async function OrderDetailPage({
                           </p>
                         </div>
                       )}
+                      {event.type === "note_added" &&
+                        event.adjustment?.customerNote && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {event.adjustment.customerNote}
+                          </p>
+                        )}
                     </div>
                   );
                 })}

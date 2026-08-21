@@ -1625,6 +1625,13 @@
       "when": 1787320476931,
       "tag": "0231_true_tiger_shark",
       "breakpoints": true
+    },
+    {
+      "idx": 232,
+      "version": "7",
+      "when": 1787325581928,
+      "tag": "0232_cuddly_annihilus",
+      "breakpoints": true
     }
   ]
 }

@@ -19,6 +19,8 @@ import { Card, CardContent } from "@/app/components/ui/card";
 import { Input } from "@/app/components/ui/input";
 import { BaseModal } from "@/app/components/modals/base-modal";
 import Heading from "@/app/components/atoms/heading";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -268,6 +270,14 @@ export default function EditOrderForm({
       orderItemId: item.orderItemId,
       quantity: item.isRemoved ? 0 : item.quantity,
     }));
+    captureClientEvent(POSTHOG_EVENTS.STORE_ORDER_ADJUSTMENT_STARTED, {
+      order_id: order.id,
+      actor_role: "customer",
+      changed_line_count: items.filter(
+        (item) => item.isRemoved || item.quantity !== item.originalQuantity,
+      ).length,
+      has_additions: false,
+    });
 
     const result = await updateOrder(
       order.id,

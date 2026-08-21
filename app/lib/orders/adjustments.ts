@@ -119,6 +119,14 @@ function toProjectionLine(line: AddedLine): ProjectionAdjustmentLine {
 export async function applyOrderAdjustment(
   input: ApplyOrderAdjustmentInput,
 ): Promise<ApplyOrderAdjustmentResult> {
+  return applyOrderAdjustmentWithDatabase(db, input);
+}
+
+/** Database seam used by integration tests; application callers use the wrapper above. */
+export async function applyOrderAdjustmentWithDatabase(
+  database: typeof db,
+  input: ApplyOrderAdjustmentInput,
+): Promise<ApplyOrderAdjustmentResult> {
   if (!Number.isInteger(input.expectedRevision) || input.expectedRevision < 1) {
     fail("La revisión del pedido es inválida.", "invalid_input");
   }
@@ -160,7 +168,7 @@ export async function applyOrderAdjustment(
     fail("No hay cambios para aplicar.", "invalid_input");
   }
 
-  return db.transaction(async (tx) => {
+  return database.transaction(async (tx) => {
     const [order] = await tx
       .select()
       .from(orders)
@@ -537,6 +545,16 @@ export async function applyOrderAdjustment(
         addedLines: additions.length,
       },
     });
+    if (input.customerNote?.trim()) {
+      await tx.insert(orderEvents).values({
+        orderId: order.id,
+        type: "note_added",
+        revision,
+        actorId: input.actorUserId,
+        adjustmentId: adjustment.id,
+        payload: { customerVisible: true },
+      });
+    }
 
     return {
       adjustmentId: adjustment.id,

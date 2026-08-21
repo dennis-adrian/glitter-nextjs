@@ -20,6 +20,8 @@ import type {
   OrderWithRelations,
 } from "@/app/lib/orders/definitions";
 import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 
 type DraftAddition = {
   key: string;
@@ -146,6 +148,18 @@ export default function AdminAdjustOrderForm({
     };
     setPending(true);
     setConflict(false);
+    captureClientEvent(POSTHOG_EVENTS.STORE_ORDER_ADJUSTMENT_STARTED, {
+      order_id: order.id,
+      actor_role: "admin",
+      changed_line_count:
+        payload.items.filter((item) => {
+          const current = order.orderItems.find(
+            (orderItem) => orderItem.id === item.orderItemId,
+          );
+          return current && current.quantity !== item.quantity;
+        }).length + payload.additions.length,
+      has_additions: payload.additions.length > 0,
+    });
     try {
       const result = await adminAdjustOrder(payload);
       if (!result.success) {

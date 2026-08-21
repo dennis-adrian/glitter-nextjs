@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "playwright/test";
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
-const storageState = process.env.PLAYWRIGHT_ADMIN_STORAGE_STATE;
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3000";
+const storageState = process.env.PLAYWRIGHT_ADMIN_STORAGE_STATE || undefined;
 
 export default defineConfig({
   testDir: "./e2e",

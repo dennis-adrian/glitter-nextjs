@@ -44,9 +44,11 @@ import {
   TrendingUpIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { use, useMemo, useState, useTransition } from "react";
+import { use, useEffect, useMemo, useState, useTransition } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
+import { captureClientEvent } from "@/app/lib/posthog-capture";
+import { POSTHOG_EVENTS } from "@/app/lib/posthog-events";
 
 const money = new Intl.NumberFormat("es-BO", {
   style: "currency",
@@ -88,6 +90,15 @@ export default function ProfitabilityReport({
   const trend = useMemo(() => buildTrend(report.rows), [report.rows]);
   const breakdown = useMemo(() => buildBreakdown(report.rows), [report.rows]);
   const exportHref = `/api/store/reports/profitability/export?${profitabilityQueryToSearchParams(query)}`;
+
+  useEffect(() => {
+    captureClientEvent(POSTHOG_EVENTS.STORE_PROFITABILITY_REPORT_VIEWED, {
+      period: query.period,
+      has_custom_range: Boolean(query.from || query.to),
+      coverage_band:
+        coverage >= 100 ? "complete" : coverage >= 75 ? "high" : "low",
+    });
+  }, [coverage, query.from, query.period, query.to]);
 
   function updateQuery(next: ProfitabilityQuery) {
     startTransition(() => {

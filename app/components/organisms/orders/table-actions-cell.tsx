@@ -6,6 +6,7 @@ import {
   CheckCircleIcon,
   MoreHorizontalIcon,
   PencilIcon,
+  RotateCcwIcon,
   TruckIcon,
   UploadIcon,
 } from "lucide-react";
@@ -50,6 +51,14 @@ export function OrdersActionsCell({ order }: { order: OrderWithRelations }) {
               <Link href={`/dashboard/store/orders/${order.id}/edit`}>
                 <PencilIcon className="mr-1 h-4 w-4" />
                 Modificar pedido
+              </Link>
+            </DropdownMenuItem>
+          )}
+          {["paid", "delivered"].includes(order.status) && (
+            <DropdownMenuItem asChild>
+              <Link href={`/dashboard/store/orders/${order.id}/return`}>
+                <RotateCcwIcon className="mr-1 h-4 w-4" />
+                Registrar devolución
               </Link>
             </DropdownMenuItem>
           )}

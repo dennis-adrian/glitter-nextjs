@@ -100,9 +100,7 @@ function toDate(value: Date | string | null | undefined): Date {
 
 /** Effective purchase lines for paid/delivered orders, plus KPI totals. */
 export function ordersProfitabilityQuery(range: ProfitabilityDateRange = {}) {
-  const fromPredicate = range.from
-    ? sql`and date >= ${range.from}`
-    : sql``;
+  const fromPredicate = range.from ? sql`and date >= ${range.from}` : sql``;
   const toPredicate = range.to ? sql`and date <= ${range.to}` : sql``;
 
   return sql`

@@ -1824,6 +1824,9 @@ export const orderEventTypeEnum = pgEnum("order_event_type", [
   "items_changed",
   "adjusted",
   "status_changed",
+  "voucher_submitted",
+  "voucher_reviewed",
+  "note_added",
   "rental_returned",
   "cancelled",
 ]);

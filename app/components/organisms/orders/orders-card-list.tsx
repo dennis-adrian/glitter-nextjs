@@ -87,12 +87,13 @@ function OrderCard({
     !!order.paymentVoucherUrl && order.status === "payment_verification";
 
   const isSingleConcreteStatus =
-    selectedStatuses.length === 1 &&
-    selectedStatuses[0] !== "needs_attention";
+    selectedStatuses.length === 1 && selectedStatuses[0] !== "needs_attention";
   const showStatusBadge = !isSingleConcreteStatus;
   const showOverdueBadge =
     isOverdue &&
-    (!isSingleConcreteStatus || selectedStatuses[0] === "pending");
+    (!isSingleConcreteStatus ||
+      selectedStatuses[0] === "pending" ||
+      selectedStatuses[0] === "payment_verification");
 
   const itemsPreview = order.orderItems
     .slice(0, 2)
