@@ -1834,6 +1834,11 @@ export const orderAdjustmentActorRoleEnum = pgEnum(
   "order_adjustment_actor_role",
   ["admin", "customer", "system"],
 );
+export const orderReturnStatusEnum = pgEnum("order_return_status", [
+  "received",
+  "refunded",
+  "rejected",
+]);
 export const orders = pgTable(
   "orders",
   {
@@ -1883,6 +1888,7 @@ export const ordersRelations = relations(orders, ({ many, one }) => ({
   orderItems: many(orderItems),
   events: many(orderEvents),
   adjustments: many(orderAdjustments),
+  returns: many(orderReturns),
   customer: one(users, {
     fields: [orders.userId],
     references: [users.id],
@@ -1970,6 +1976,7 @@ export const orderAdjustmentsRelations = relations(
     }),
     items: many(orderAdjustmentItems),
     events: many(orderEvents),
+    returns: many(orderReturns),
   }),
 );
 
@@ -2053,6 +2060,128 @@ export const orderAdjustmentItemsRelations = relations(
     variant: one(productVariants, {
       fields: [orderAdjustmentItems.productVariantId],
       references: [productVariants.id],
+    }),
+  }),
+);
+
+export const orderReturns = pgTable(
+  "order_returns",
+  {
+    id: serial("id").primaryKey(),
+    orderId: integer("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "restrict" }),
+    adjustmentId: integer("adjustment_id")
+      .notNull()
+      .references(() => orderAdjustments.id, { onDelete: "restrict" }),
+    actorUserId: integer("actor_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    status: orderReturnStatusEnum("status").notNull().default("received"),
+    reason: text("reason").notNull(),
+    refundAmount: numeric("refund_amount", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    receivedAt: timestamp("received_at").defaultNow().notNull(),
+    refundedAt: timestamp("refunded_at"),
+    refundReference: text("refund_reference"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("order_returns_order_created_at_idx").on(t.orderId, t.createdAt),
+    index("order_returns_received_at_idx").on(t.receivedAt),
+    check(
+      "order_returns_refund_amount_nonnegative",
+      sql`${t.refundAmount} >= 0`,
+    ),
+    check(
+      "order_returns_refunded_at_required",
+      sql`(
+        ${t.status} = 'refunded' AND ${t.refundedAt} IS NOT NULL
+      ) OR (
+        ${t.status} <> 'refunded' AND ${t.refundedAt} IS NULL
+      )`,
+    ),
+  ],
+);
+
+export const orderReturnItems = pgTable(
+  "order_return_items",
+  {
+    id: serial("id").primaryKey(),
+    returnId: integer("return_id")
+      .notNull()
+      .references(() => orderReturns.id, { onDelete: "cascade" }),
+    orderItemId: integer("order_item_id"),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id),
+    productVariantId: integer("product_variant_id"),
+    productNameSnapshot: text("product_name_snapshot").notNull(),
+    variantLabelSnapshot: text("variant_label_snapshot"),
+    quantity: integer("quantity").notNull(),
+    unitPriceSnapshot: numeric("unit_price_snapshot", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    unitCostSnapshot: numeric("unit_cost_snapshot", {
+      precision: 10,
+      scale: 2,
+      mode: "number",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    check("order_return_items_quantity_positive", sql`${t.quantity} > 0`),
+    check(
+      "order_return_items_price_nonnegative",
+      sql`${t.unitPriceSnapshot} >= 0`,
+    ),
+    check(
+      "order_return_items_cost_nonnegative",
+      sql`${t.unitCostSnapshot} IS NULL OR ${t.unitCostSnapshot} >= 0`,
+    ),
+    foreignKey({
+      name: "order_return_items_product_variant_product_fk",
+      columns: [t.productVariantId, t.productId],
+      foreignColumns: [productVariants.id, productVariants.productId],
+    }).onDelete("restrict"),
+    index("order_return_items_return_id_idx").on(t.returnId),
+  ],
+);
+
+export const orderReturnsRelations = relations(
+  orderReturns,
+  ({ one, many }) => ({
+    order: one(orders, {
+      fields: [orderReturns.orderId],
+      references: [orders.id],
+    }),
+    adjustment: one(orderAdjustments, {
+      fields: [orderReturns.adjustmentId],
+      references: [orderAdjustments.id],
+    }),
+    actor: one(users, {
+      fields: [orderReturns.actorUserId],
+      references: [users.id],
+    }),
+    items: many(orderReturnItems),
+  }),
+);
+
+export const orderReturnItemsRelations = relations(
+  orderReturnItems,
+  ({ one }) => ({
+    return: one(orderReturns, {
+      fields: [orderReturnItems.returnId],
+      references: [orderReturns.id],
+    }),
+    product: one(products, {
+      fields: [orderReturnItems.productId],
+      references: [products.id],
     }),
   }),
 );

@@ -6,6 +6,8 @@ import {
   orderEvents,
   orderAdjustmentItems,
   orderAdjustments,
+  orderReturnItems,
+  orderReturns,
   orderItems,
   orders,
   productContentSections,
@@ -916,6 +918,16 @@ export async function fetchOrderActivity(orderId: number) {
       actor: true,
       adjustment: { with: { items: true } },
     },
+  });
+}
+
+export async function fetchOrderReturns(orderId: number) {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") return [];
+  return db.query.orderReturns.findMany({
+    where: eq(orderReturns.orderId, orderId),
+    orderBy: [desc(orderReturns.createdAt)],
+    with: { items: true, actor: true },
   });
 }
 
@@ -2458,6 +2470,30 @@ export async function adminReturnOrder(rawInput: AdminReturnOrderInput) {
         })),
       additions: [],
     });
+    const [returnRecord] = await db
+      .insert(orderReturns)
+      .values({
+        orderId: input.orderId,
+        adjustmentId: adjustment.adjustmentId,
+        actorUserId: currentUser.id,
+        status: "received",
+        reason: input.reason.trim(),
+        refundAmount: Math.abs(adjustment.totalDelta),
+      })
+      .returning();
+    await db.insert(orderReturnItems).values(
+      validItems.map((item) => ({
+        returnId: returnRecord.id,
+        orderItemId: item.adjustmentItemId == null ? item.id : null,
+        productId: item.productId,
+        productVariantId: item.productVariantId,
+        productNameSnapshot: item.productNameAtPurchase ?? item.product.name,
+        variantLabelSnapshot: item.productVariantLabel,
+        quantity: requested.get(item.id)!,
+        unitPriceSnapshot: item.priceAtPurchase,
+        unitCostSnapshot: item.unitCostAtPurchase,
+      })),
+    );
     revalidatePath(`/dashboard/store/orders/${input.orderId}`);
     revalidateStoreOrderViews();
     return {

@@ -11,7 +11,11 @@ import {
   CardTitle,
 } from "@/app/components/ui/card";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
-import { fetchOrder, fetchOrderActivity } from "@/app/lib/orders/actions";
+import {
+  fetchOrder,
+  fetchOrderActivity,
+  fetchOrderReturns,
+} from "@/app/lib/orders/actions";
 import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
 import { fetchRentalReturnLogs } from "@/app/lib/rentals/return-actions";
 import type { RentalContentSectionSnapshot } from "@/app/lib/rentals/types";
@@ -34,6 +38,12 @@ import { notFound } from "next/navigation";
 function formatCurrency(amount: number) {
   return `Bs. ${Number.isInteger(amount) ? amount.toFixed(0) : amount.toFixed(2)}`;
 }
+
+const RETURN_STATUS_LABELS = {
+  received: "Recibida",
+  refunded: "Reembolsada",
+  rejected: "Rechazada",
+} as const;
 
 function VoucherCard({ url }: { url: string }) {
   return (
@@ -76,9 +86,10 @@ export default async function OrderDetailPage({
   const order = await fetchOrder(orderId);
   if (!order) notFound();
 
-  const [returnLogs, activity] = await Promise.all([
+  const [returnLogs, activity, merchandiseReturns] = await Promise.all([
     fetchRentalReturnLogs({ orderId }),
     fetchOrderActivity(orderId),
+    fetchOrderReturns(orderId),
   ]);
 
   const customerName =
@@ -265,6 +276,40 @@ export default async function OrderDetailPage({
                           DateTime.DATETIME_MED,
                         )}
                       </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {merchandiseReturns.length > 0 && (
+                <div className="space-y-2 border-t pt-4">
+                  <p className="text-sm font-medium">
+                    Devoluciones de productos
+                  </p>
+                  {merchandiseReturns.map((returnRecord) => (
+                    <div
+                      key={returnRecord.id}
+                      className="rounded-md border p-3 text-xs text-muted-foreground"
+                    >
+                      <p className="font-medium text-foreground">
+                        Devolución #{returnRecord.id} ·{" "}
+                        {formatCurrency(returnRecord.refundAmount)} ·{" "}
+                        {RETURN_STATUS_LABELS[returnRecord.status]}
+                      </p>
+                      <p>{returnRecord.reason}</p>
+                      <p>
+                        Recibida:{" "}
+                        {formatDate(returnRecord.receivedAt).toLocaleString(
+                          DateTime.DATETIME_MED,
+                        )}
+                      </p>
+                      {returnRecord.refundedAt && (
+                        <p>
+                          Reembolsada:{" "}
+                          {formatDate(returnRecord.refundedAt).toLocaleString(
+                            DateTime.DATETIME_MED,
+                          )}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
