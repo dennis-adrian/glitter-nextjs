@@ -100,13 +100,17 @@ export default function OrdersBulkActions({
   const eligible = confirming ? eligibleFor(confirming.status) : [];
   const skipped = orders.length - eligible.length;
   const overLimit = eligible.length > BULK_ORDER_STATUS_LIMIT;
+  const limitedEligible = eligible.slice(0, BULK_ORDER_STATUS_LIMIT);
 
   async function handleConfirm() {
     if (!confirming) return;
     setIsPending(true);
     try {
       const result = await bulkUpdateOrderStatus(
-        eligible.map((order) => ({ id: order.id, revision: order.revision })),
+        limitedEligible.map((order) => ({
+          id: order.id,
+          revision: order.revision,
+        })),
         confirming.status,
       );
       if (result.success) {

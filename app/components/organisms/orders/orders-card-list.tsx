@@ -7,6 +7,7 @@ import SocialMediaBadge from "@/app/components/social-media-badge";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
+import { BULK_ORDER_STATUS_LIMIT } from "@/app/lib/orders/status-transitions";
 import {
   storeOrdersQueryToSearchParams,
   type StoreOrdersQuery,
@@ -33,6 +34,7 @@ import {
 import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
 import { use, useOptimistic, useState, useTransition } from "react";
+import { toast } from "sonner";
 import { useDebouncedCallback } from "use-debounce";
 
 type ActiveStatus = OrderStatus | "all" | "needs_attention";
@@ -75,12 +77,14 @@ function OrderCard({
   selectedStatuses,
   selectionMode,
   isSelected,
+  canSelect,
   onToggleSelect,
 }: {
   order: OrderWithRelations;
   selectedStatuses: string[];
   selectionMode: boolean;
   isSelected: boolean;
+  canSelect: boolean;
   onToggleSelect: () => void;
 }) {
   const router = useRouter();
@@ -139,6 +143,7 @@ function OrderCard({
             /* Purely visual: the card itself carries the checkbox semantics. */
             <Checkbox
               checked={isSelected}
+              disabled={!canSelect}
               onCheckedChange={onToggleSelect}
               onClick={(e) => e.stopPropagation()}
               className="mt-1 shrink-0"
@@ -242,14 +247,24 @@ export default function OrdersCardList({
   const selectedOrders = orders.filter((order) =>
     prunedSelectedIds.includes(order.id),
   );
+  const selectionCap = Math.min(orders.length, BULK_ORDER_STATUS_LIMIT);
   const allSelected =
-    orders.length > 0 && selectedOrders.length === orders.length;
+    orders.length > 0 && selectedOrders.length === selectionCap;
+  const atSelectionLimit = prunedSelectedIds.length >= BULK_ORDER_STATUS_LIMIT;
 
   function toggleSelected(orderId: number) {
+    if (prunedSelectedIds.includes(orderId)) {
+      setSelectedIds((current) => current.filter((id) => id !== orderId));
+      return;
+    }
+    if (prunedSelectedIds.length >= BULK_ORDER_STATUS_LIMIT) {
+      toast.warning(
+        `Solo puedes seleccionar hasta ${BULK_ORDER_STATUS_LIMIT} pedidos a la vez.`,
+      );
+      return;
+    }
     setSelectedIds((current) =>
-      current.includes(orderId)
-        ? current.filter((id) => id !== orderId)
-        : [...current, orderId],
+      current.includes(orderId) ? current : [...current, orderId],
     );
   }
 
@@ -481,6 +496,9 @@ export default function OrdersCardList({
               selectedStatuses={optimisticStatuses}
               selectionMode={selectionMode}
               isSelected={prunedSelectedIds.includes(order.id)}
+              canSelect={
+                prunedSelectedIds.includes(order.id) || !atSelectionLimit
+              }
               onToggleSelect={() => toggleSelected(order.id)}
             />
           ))
@@ -497,9 +515,22 @@ export default function OrdersCardList({
           }}
         >
           <button
-            onClick={() =>
-              setSelectedIds(allSelected ? [] : orders.map((o) => o.id))
-            }
+            onClick={() => {
+              if (allSelected) {
+                setSelectedIds([]);
+                return;
+              }
+              if (orders.length > BULK_ORDER_STATUS_LIMIT) {
+                toast.warning(
+                  `Solo puedes seleccionar hasta ${BULK_ORDER_STATUS_LIMIT} pedidos a la vez.`,
+                );
+              }
+              setSelectedIds(
+                orders
+                  .slice(0, BULK_ORDER_STATUS_LIMIT)
+                  .map((order) => order.id),
+              );
+            }}
             disabled={orders.length === 0}
             className="self-start text-xs font-medium text-primary disabled:text-muted-foreground"
           >

@@ -13,6 +13,7 @@ import {
   storeOrdersQueryToSearchParams,
   type StoreOrdersQuery,
 } from "@/app/lib/orders/query-schema";
+import { BULK_ORDER_STATUS_LIMIT } from "@/app/lib/orders/status-transitions";
 import { getOrderStatusLabel } from "@/app/lib/orders/utils";
 import {
   getRentalOrderFilterLabel,
@@ -237,6 +238,7 @@ export default function OrdersTable({
             : undefined
         }
         selectable
+        maxSelectable={BULK_ORDER_STATUS_LIMIT}
         actions={(table) => (
           <div className="flex items-center gap-2">
             <OrdersBulkActions
