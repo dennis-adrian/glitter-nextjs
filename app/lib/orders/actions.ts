@@ -851,6 +851,20 @@ export async function fetchOrder(
   }
 }
 
+export async function fetchOrderActivity(orderId: number) {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") return [];
+
+  return db.query.orderEvents.findMany({
+    where: eq(orderEvents.orderId, orderId),
+    orderBy: [desc(orderEvents.createdAt)],
+    with: {
+      actor: true,
+      adjustment: { with: { items: true } },
+    },
+  });
+}
+
 /** Fetches a guest order by id + token. Returns null if not found or token mismatch. */
 export async function fetchGuestOrder(
   orderId: number,

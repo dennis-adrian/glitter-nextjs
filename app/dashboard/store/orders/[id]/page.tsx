@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/app/components/ui/card";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
-import { fetchOrder } from "@/app/lib/orders/actions";
+import { fetchOrder, fetchOrderActivity } from "@/app/lib/orders/actions";
 import { getOrderItemDisplayName } from "@/app/lib/orders/utils";
 import { fetchRentalReturnLogs } from "@/app/lib/rentals/return-actions";
 import type { RentalContentSectionSnapshot } from "@/app/lib/rentals/types";
@@ -76,7 +76,10 @@ export default async function OrderDetailPage({
   const order = await fetchOrder(orderId);
   if (!order) notFound();
 
-  const returnLogs = await fetchRentalReturnLogs({ orderId });
+  const [returnLogs, activity] = await Promise.all([
+    fetchRentalReturnLogs({ orderId }),
+    fetchOrderActivity(orderId),
+  ]);
 
   const customerName =
     order.customer?.displayName ?? order.guestName ?? "Invitado";
@@ -263,6 +266,60 @@ export default async function OrderDetailPage({
               </div>
             </CardContent>
           </Card>
+
+          {activity.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Actividad</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {activity.map((event) => {
+                  const adjustment = event.adjustment;
+                  const title =
+                    event.type === "created"
+                      ? "Pedido creado"
+                      : event.type === "adjusted"
+                        ? "Ajuste aplicado"
+                        : event.type === "cancelled"
+                          ? "Pedido cancelado"
+                          : "Pedido actualizado";
+                  return (
+                    <div key={event.id} className="border-l pl-3 text-sm">
+                      <div className="flex flex-wrap justify-between gap-1">
+                        <p className="font-medium">{title}</p>
+                        <time className="text-xs text-muted-foreground">
+                          {formatDate(event.createdAt).toLocaleString(
+                            DateTime.DATETIME_MED,
+                          )}
+                        </time>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {event.actor?.displayName ?? "Sistema"}
+                      </p>
+                      {adjustment && (
+                        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                          <p>{adjustment.reason}</p>
+                          {adjustment.items.map((item) => (
+                            <p key={item.id}>
+                              {item.quantityDelta > 0 ? "+" : ""}
+                              {item.quantityDelta} × {item.productNameSnapshot}
+                              {item.variantLabelSnapshot
+                                ? ` (${item.variantLabelSnapshot})`
+                                : ""}
+                            </p>
+                          ))}
+                          <p>
+                            Bs {adjustment.previousTotal.toFixed(2)} → Bs{" "}
+                            {adjustment.newTotal.toFixed(2)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Voucher — mobile position (after items, before dates) */}
           {order.paymentVoucherUrl && (

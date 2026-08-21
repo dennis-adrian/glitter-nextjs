@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
+import { Label } from "@/app/components/ui/label";
 import { Textarea } from "@/app/components/ui/textarea";
 import { adminAdjustOrder } from "@/app/lib/orders/actions";
 import type { OrderWithRelations } from "@/app/lib/orders/definitions";
@@ -33,20 +34,25 @@ export default function AdminAdjustOrderForm({
 
   async function submit() {
     setPending(true);
-    const result = await adminAdjustOrder(
-      order.id,
-      order.orderItems.map((item) => ({
-        orderItemId: item.id,
-        quantity: quantities[item.id] ?? item.quantity,
-      })),
-      order.revision,
-      reason,
-      customerNote,
-    );
-    setPending(false);
-    if (!result.success) return toast.error(result.message);
-    toast.success(result.message);
-    router.push(`/dashboard/store/orders/${order.id}`);
+    try {
+      const result = await adminAdjustOrder(
+        order.id,
+        order.orderItems.map((item) => ({
+          orderItemId: item.id,
+          quantity: quantities[item.id] ?? item.quantity,
+        })),
+        order.revision,
+        reason,
+        customerNote,
+      );
+      if (!result.success) return toast.error(result.message);
+      toast.success(result.message);
+      router.push(`/dashboard/store/orders/${order.id}`);
+    } catch {
+      toast.error("No se pudo aplicar el ajuste.");
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -63,6 +69,7 @@ export default function AdminAdjustOrderForm({
             </p>
           </div>
           <Input
+            aria-label={`Cantidad de ${getOrderItemDisplayName(item)}`}
             className="w-24 text-base"
             min={0}
             type="number"
@@ -79,17 +86,26 @@ export default function AdminAdjustOrderForm({
       <p className="text-lg font-semibold">
         Nuevo total: Bs {total.toFixed(2)}
       </p>
-      <Textarea
-        value={reason}
-        onChange={(event) => setReason(event.target.value)}
-        placeholder="Motivo interno del ajuste"
-        required
-      />
-      <Textarea
-        value={customerNote}
-        onChange={(event) => setCustomerNote(event.target.value)}
-        placeholder="Nota visible para cliente (opcional)"
-      />
+      <div className="space-y-2">
+        <Label htmlFor="adjust-reason">Motivo interno del ajuste</Label>
+        <Textarea
+          id="adjust-reason"
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          placeholder="Motivo interno del ajuste"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="adjust-customer-note">
+          Nota visible para cliente (opcional)
+        </Label>
+        <Textarea
+          id="adjust-customer-note"
+          value={customerNote}
+          onChange={(event) => setCustomerNote(event.target.value)}
+          placeholder="Nota visible para cliente (opcional)"
+        />
+      </div>
       <div className="flex gap-2">
         <Button
           variant="outline"
