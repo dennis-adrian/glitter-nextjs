@@ -5,8 +5,11 @@ import { OrdersActionsCell } from "@/app/components/organisms/orders/table-actio
 import SocialMediaBadge from "@/app/components/social-media-badge";
 import { Card, CardContent } from "@/app/components/ui/card";
 import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
-import { serializeCsvRows } from "@/app/lib/orders/csv";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
+import {
+  storeOrdersQueryToSearchParams,
+  type StoreOrdersQuery,
+} from "@/app/lib/orders/query-schema";
 import {
   getOrderItemDisplayName,
   getOrderStatusLabel,
@@ -15,7 +18,6 @@ import type { RentalOrderFilter } from "@/app/lib/rentals/order-filters";
 import { getRentalOrderFilterLabel } from "@/app/lib/rentals/order-filters";
 import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
 import { Input } from "@/app/components/ui/input";
-import { useOrdersDateFilter } from "@/app/hooks/use-orders-date-filter";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangleIcon,
@@ -27,14 +29,14 @@ import {
 } from "lucide-react";
 import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
-import { use, useMemo, useOptimistic, useState, useTransition } from "react";
+import { use, useOptimistic, useState, useTransition } from "react";
+import { useDebouncedCallback } from "use-debounce";
 
 type ActiveStatus = OrderStatus | "all" | "needs_attention";
 
 type OrdersCardListProps = {
   ordersPromise: Promise<OrderWithRelations[]>;
-  activeStatus: ActiveStatus;
-  activeRentalFilter?: RentalOrderFilter;
+  query: StoreOrdersQuery;
 };
 
 const RENTAL_FILTER_OPTIONS: { value: RentalOrderFilter; label: string }[] = [
@@ -69,41 +71,6 @@ function chipToActive(
   value: "" | OrderStatus | "needs_attention",
 ): ActiveStatus {
   return value === "" ? "all" : value;
-}
-
-function exportOrdersToCsv(orders: OrderWithRelations[]) {
-  const headers = [
-    "ID",
-    "Tipo",
-    "Cliente",
-    "Teléfono",
-    "Productos",
-    "Total (Bs)",
-    "Estado",
-    "Fecha",
-  ];
-  const rows = orders.map((o) => [
-    String(o.id),
-    o.customer ? "Participante" : "Invitado",
-    o.customer?.displayName ?? o.guestName ?? "Invitado",
-    o.customer?.phoneNumber ?? o.guestPhone ?? "",
-    o.orderItems
-      .map((i) => `${i.quantity}x ${getOrderItemDisplayName(i)}`)
-      .join(", "),
-    o.totalAmount.toFixed(2),
-    getOrderStatusLabel(o.status),
-    formatDate(o.createdAt).toLocaleString(DateTime.DATETIME_MED),
-  ]);
-
-  const csv = serializeCsvRows([headers, ...rows]);
-
-  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `pedidos-${DateTime.now().toISODate()}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
 }
 
 function OrderCard({
@@ -219,66 +186,51 @@ function OrderCard({
 
 export default function OrdersCardList({
   ordersPromise,
-  activeStatus,
-  activeRentalFilter = "all",
+  query,
 }: OrdersCardListProps) {
   const orders = use(ordersPromise);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [optimisticStatus, setOptimisticStatus] = useOptimistic(activeStatus);
-  const [optimisticRentalFilter, setOptimisticRentalFilter] =
-    useOptimistic(activeRentalFilter);
-  const [search, setSearch] = useState("");
+  const [optimisticStatus, setOptimisticStatus] = useOptimistic(query.status);
+  const [optimisticRentalFilter, setOptimisticRentalFilter] = useOptimistic(
+    query.rental,
+  );
+  const [search, setSearch] = useState(query.q);
+  const [previousQuerySearch, setPreviousQuerySearch] = useState(query.q);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const {
-    period,
-    dateFrom,
-    dateTo,
-    hasCustomRange,
-    filteredByDate,
-    selectPeriod,
-    handleFromChange,
-    handleToChange,
-  } = useOrdersDateFilter(orders);
+
+  if (query.q !== previousQuerySearch) {
+    setPreviousQuerySearch(query.q);
+    setSearch(query.q);
+  }
+
+  function navigate(next: StoreOrdersQuery) {
+    router.push(
+      `/dashboard/store/orders?${storeOrdersQueryToSearchParams(next)}`,
+    );
+  }
+
+  const updateSearch = useDebouncedCallback((q: string) => {
+    startTransition(() => navigate({ ...query, q }));
+  }, 300);
 
   function handleStatusChange(value: "" | OrderStatus | "needs_attention") {
     const param = value === "" ? "all" : value;
     startTransition(() => {
       setOptimisticStatus(chipToActive(value));
-      setSearch("");
-      router.push(
-        `/dashboard/store/orders?status=${param}&rental=${optimisticRentalFilter}`,
-      );
+      navigate({ ...query, status: param, rental: optimisticRentalFilter });
     });
   }
 
   function handleRentalFilterChange(value: RentalOrderFilter) {
-    const statusParam = optimisticStatus === "all" ? "all" : optimisticStatus;
     startTransition(() => {
       setOptimisticRentalFilter(value);
-      setSearch("");
-      router.push(
-        `/dashboard/store/orders?status=${statusParam}&rental=${value}`,
-      );
+      navigate({ ...query, status: optimisticStatus, rental: value });
     });
   }
 
-  const visibleOrders = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return filteredByDate;
-    return filteredByDate.filter((o) => {
-      const customer = (
-        o.customer?.displayName ??
-        o.guestName ??
-        ""
-      ).toLowerCase();
-      const id = String(o.id);
-      const items = o.orderItems
-        .map((i) => i.product.name.toLowerCase())
-        .join(" ");
-      return customer.includes(q) || id.includes(q) || items.includes(q);
-    });
-  }, [filteredByDate, search]);
+  const exportParams = storeOrdersQueryToSearchParams(query);
+  exportParams.set("format", "summary");
 
   return (
     <div className="flex flex-col gap-4">
@@ -289,13 +241,13 @@ export default function OrdersCardList({
             Estado
           </span>
           <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => exportOrdersToCsv(visibleOrders)}
+            <a
+              href={`/api/store/orders/export?${exportParams}`}
               className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent"
             >
               <DownloadIcon className="h-3.5 w-3.5" />
               CSV
-            </button>
+            </a>
             <button
               onClick={() => setFiltersOpen((v) => !v)}
               className={cn(
@@ -307,7 +259,10 @@ export default function OrdersCardList({
             >
               <SlidersHorizontalIcon className="h-3.5 w-3.5" />
               Filtros
-              {(search !== "" || hasCustomRange || period !== "all") && (
+              {(search !== "" ||
+                query.from ||
+                query.to ||
+                query.period !== "all") && (
                 <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
               )}
             </button>
@@ -367,7 +322,11 @@ export default function OrdersCardList({
             <Input
               placeholder="Buscar por cliente, ID o producto..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                const q = e.target.value;
+                setSearch(q);
+                updateSearch(q.trim());
+              }}
               className="pl-9"
             />
           </div>
@@ -378,13 +337,23 @@ export default function OrdersCardList({
               Fecha
             </span>
             <OrdersDateFilter
-              period={period}
-              dateFrom={dateFrom}
-              dateTo={dateTo}
-              hasCustomRange={hasCustomRange}
-              onPeriodChange={selectPeriod}
-              onFromChange={handleFromChange}
-              onToChange={handleToChange}
+              period={query.period}
+              dateFrom={query.from ?? ""}
+              dateTo={query.to ?? ""}
+              hasCustomRange={Boolean(query.from || query.to)}
+              onPeriodChange={(period) =>
+                navigate({ ...query, period, from: undefined, to: undefined })
+              }
+              onFromChange={(from) =>
+                navigate({
+                  ...query,
+                  period: "custom",
+                  from: from || undefined,
+                })
+              }
+              onToChange={(to) =>
+                navigate({ ...query, period: "custom", to: to || undefined })
+              }
             />
           </div>
         </>
@@ -397,12 +366,12 @@ export default function OrdersCardList({
           isPending && "opacity-60 pointer-events-none",
         )}
       >
-        {visibleOrders.length === 0 ? (
+        {orders.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
             No hay pedidos para mostrar.
           </p>
         ) : (
-          visibleOrders.map((order) => (
+          orders.map((order) => (
             <OrderCard
               key={order.id}
               order={order}

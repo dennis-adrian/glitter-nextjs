@@ -2,6 +2,17 @@
 
 import { Button } from "@/app/components/ui/button";
 import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/app/components/ui/dialog";
+import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -12,7 +23,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/app/components/ui/alert-dialog";
-import { formatDate } from "@/app/lib/formatters";
+import { formatDate, STORE_TIMEZONE } from "@/app/lib/formatters";
+import type { DatePeriod } from "@/app/hooks/use-orders-date-filter";
 import {
   applyHistoricalOrderCosts,
   type HistoricalCostBackfillPreview,
@@ -22,7 +34,7 @@ import { serializeCsvRows } from "@/app/lib/orders/csv";
 import { DownloadIcon, HistoryIcon, Loader2Icon } from "lucide-react";
 import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
-import { use, useState, useTransition } from "react";
+import { use, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 const money = new Intl.NumberFormat("es-BO", {
@@ -41,11 +53,47 @@ export default function ProfitabilityReport({
   const preview = use(historicalCostPreviewPromise);
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportPeriod, setExportPeriod] = useState<DatePeriod>("all");
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
   const [isPending, startTransition] = useTransition();
   const coverage =
     report.grossRevenue === 0
       ? 0
       : Math.round((report.knownCostRevenue / report.grossRevenue) * 100);
+
+  const hasCustomExportRange = Boolean(exportFrom || exportTo);
+  const exportRows = useMemo(() => {
+    if (hasCustomExportRange) {
+      const from = exportFrom
+        ? DateTime.fromISO(exportFrom, { zone: STORE_TIMEZONE }).startOf("day")
+        : null;
+      const to = exportTo
+        ? DateTime.fromISO(exportTo, { zone: STORE_TIMEZONE }).endOf("day")
+        : null;
+      return report.rows.filter((row) => {
+        const date = formatDate(row.date);
+        return (!from || date >= from) && (!to || date <= to);
+      });
+    }
+
+    if (exportPeriod === "all") return report.rows;
+    const now = DateTime.now().setZone(STORE_TIMEZONE);
+    const cutoff =
+      exportPeriod === "today"
+        ? now.startOf("day")
+        : exportPeriod === "week"
+          ? now.startOf("week")
+          : now.startOf("month");
+    return report.rows.filter((row) => formatDate(row.date) >= cutoff);
+  }, [exportFrom, exportPeriod, exportTo, hasCustomExportRange, report.rows]);
+
+  function selectExportPeriod(period: DatePeriod) {
+    setExportPeriod(period);
+    setExportFrom("");
+    setExportTo("");
+  }
 
   function exportReport() {
     const headers = [
@@ -58,7 +106,7 @@ export default function ProfitabilityReport({
       "Utilidad (Bs)",
       "Estado",
     ];
-    const rows = report.rows.map((row) => [
+    const rows = exportRows.map((row) => [
       row.orderId,
       formatDate(row.date).toISODate(),
       row.product,
@@ -74,9 +122,18 @@ export default function ProfitabilityReport({
     );
     const link = document.createElement("a");
     link.href = url;
-    link.download = `rentabilidad-${DateTime.now().toISODate()}.csv`;
+    const dates = exportRows
+      .map((row) => formatDate(row.date).toISODate())
+      .filter((date): date is string => Boolean(date))
+      .sort();
+    const range =
+      exportPeriod === "all" && !hasCustomExportRange
+        ? "todos"
+        : `${dates[0] ?? "sin-datos"}-a-${dates.at(-1) ?? "sin-datos"}`;
+    link.download = `rentabilidad-${range}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+    setExportOpen(false);
   }
 
   function applyHistoricalCosts() {
@@ -101,10 +158,60 @@ export default function ProfitabilityReport({
             Pedidos pagados y entregados · cobertura de costos {coverage}%
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={exportReport}>
-          <DownloadIcon className="mr-2 h-4 w-4" />
-          Exportar rentabilidad
-        </Button>
+        <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm">
+              <DownloadIcon className="mr-2 h-4 w-4" />
+              Exportar rentabilidad
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Exportar rentabilidad</DialogTitle>
+              <DialogDescription>
+                Elige el período que incluirá el archivo CSV.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <OrdersDateFilter
+                period={exportPeriod}
+                dateFrom={exportFrom}
+                dateTo={exportTo}
+                hasCustomRange={hasCustomExportRange}
+                onPeriodChange={selectExportPeriod}
+                onFromChange={(value) => {
+                  setExportFrom(value);
+                  if (value) setExportPeriod("all");
+                }}
+                onToChange={(value) => {
+                  setExportTo(value);
+                  if (value) setExportPeriod("all");
+                }}
+              />
+              <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
+                <span className="font-semibold tabular-nums">
+                  {exportRows.length}
+                </span>{" "}
+                registros incluidos
+              </div>
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  Cancelar
+                </Button>
+              </DialogClose>
+              <Button
+                type="button"
+                disabled={exportRows.length === 0}
+                onClick={exportReport}
+              >
+                <DownloadIcon className="mr-2 h-4 w-4" />
+                Descargar CSV
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <Metric label="Ingresos" value={money.format(report.grossRevenue)} />
@@ -120,7 +227,7 @@ export default function ProfitabilityReport({
       </div>
       {report.lineCount > 0 && coverage < 100 && (
         <p className="text-xs text-amber-700">
-          Algunas líneas no tienen costo histórico; la utilidad está
+          Algunos artículos no tienen costo histórico; la utilidad está
           sobreestimada hasta completar esos costos.
         </p>
       )}
@@ -132,13 +239,14 @@ export default function ProfitabilityReport({
             <div className="space-y-0.5">
               <p className="text-sm font-medium">Completar costos históricos</p>
               <p className="text-xs text-amber-800">
-                {preview.resolvableLines} de {preview.missingLines} líneas
-                pueden usar los costos actuales · todos los pedidos
+                {preview.resolvableLines} de {preview.missingLines} artículos
+                pueden usar los costos actuales · {preview.affectedOrders}{" "}
+                pedidos
               </p>
               {preview.unresolvedLines > 0 && (
                 <p className="text-xs text-amber-700">
-                  {preview.unresolvedLines} líneas seguirán pendientes hasta que
-                  agregues su costo de producto o variante.
+                  {preview.unresolvedLines} artículos seguirán pendientes hasta
+                  que agregues su costo de producto o variante.
                 </p>
               )}
             </div>
@@ -163,8 +271,9 @@ export default function ProfitabilityReport({
                 </AlertDialogTitle>
                 <AlertDialogDescription>
                   Se copiará el costo actual del producto o variante a{" "}
-                  {preview.resolvableLines} líneas históricas. Solo se completan
-                  costos vacíos; los costos ya guardados no cambian.
+                  {preview.resolvableLines} artículos de pedidos históricos.
+                  Solo se completan costos vacíos; los costos ya guardados no
+                  cambian.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/50 p-3 text-sm">

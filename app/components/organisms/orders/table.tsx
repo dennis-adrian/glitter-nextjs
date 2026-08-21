@@ -7,22 +7,18 @@ import {
 import OrdersDateFilter from "@/app/components/organisms/orders/orders-date-filter";
 import { Button } from "@/app/components/ui/button";
 import { DataTable } from "@/app/components/ui/data_table/data-table";
-import { useOrdersDateFilter } from "@/app/hooks/use-orders-date-filter";
-import { formatDate } from "@/app/lib/formatters";
-import { serializeCsvRows } from "@/app/lib/orders/csv";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
 import {
-  getOrderItemDisplayName,
-  getOrderStatusLabel,
-} from "@/app/lib/orders/utils";
+  storeOrdersQueryToSearchParams,
+  type StoreOrdersQuery,
+} from "@/app/lib/orders/query-schema";
+import { getOrderStatusLabel } from "@/app/lib/orders/utils";
 import {
   getRentalOrderFilterLabel,
   type RentalOrderFilter,
 } from "@/app/lib/rentals/order-filters";
 import { cn } from "@/lib/utils";
-import type { Table } from "@tanstack/react-table";
 import { DownloadIcon } from "lucide-react";
-import { DateTime } from "luxon";
 import { useRouter } from "next/navigation";
 import { use, useOptimistic, useTransition } from "react";
 
@@ -30,8 +26,7 @@ type ActiveStatus = OrderStatus | "all" | "needs_attention";
 
 type OrdersTableProps = {
   ordersPromise: Promise<OrderWithRelations[]>;
-  activeStatus: ActiveStatus;
-  activeRentalFilter: RentalOrderFilter;
+  query: StoreOrdersQuery;
 };
 
 const RENTAL_FILTER_OPTIONS: { value: RentalOrderFilter; label: string }[] = [
@@ -59,78 +54,27 @@ const STATUS_OPTIONS: { value: ActiveStatus; label: string }[] = [
   { value: "cancelled", label: getOrderStatusLabel("cancelled") },
 ];
 
-function OrdersExportButton({ table }: { table: Table<OrderWithRelations> }) {
-  function handleExport(lineItems = false) {
-    const visibleOrders = table.getRowModel().rows.map((row) => row.original);
-    const headers = lineItems
-      ? [
-          "Pedido",
-          "Fecha",
-          "Producto",
-          "Cantidad",
-          "Precio unitario (Bs)",
-          "Costo unitario (Bs)",
-          "Total (Bs)",
-          "Estado",
-        ]
-      : [
-          "ID",
-          "Tipo",
-          "Cliente",
-          "Teléfono",
-          "Productos",
-          "Total (Bs)",
-          "Estado",
-          "Fecha",
-        ];
-    const rows = lineItems
-      ? visibleOrders.flatMap((o) =>
-          o.orderItems.map((i) => [
-            o.id,
-            formatDate(o.createdAt).toLocaleString(DateTime.DATE_MED),
-            getOrderItemDisplayName(i),
-            i.quantity,
-            i.priceAtPurchase.toFixed(2),
-            i.unitCostAtPurchase?.toFixed(2) ?? "",
-            (i.priceAtPurchase * i.quantity).toFixed(2),
-            getOrderStatusLabel(o.status),
-          ]),
-        )
-      : visibleOrders.map((o) => [
-          o.id,
-          o.customer ? "Participante" : "Invitado",
-          o.customer?.displayName ?? o.guestName ?? "Invitado",
-          o.customer?.phoneNumber ?? o.guestPhone ?? "",
-          o.orderItems
-            .map((i) => `${i.quantity}x ${getOrderItemDisplayName(i)}`)
-            .join(", "),
-          o.totalAmount.toFixed(2),
-          getOrderStatusLabel(o.status),
-          formatDate(o.createdAt).toLocaleString(DateTime.DATETIME_MED),
-        ]);
-
-    const csv = serializeCsvRows([headers, ...rows]);
-
-    const blob = new Blob(["\uFEFF" + csv], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${lineItems ? "lineas-pedidos" : "pedidos"}-${DateTime.now().toISODate()}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
+function OrdersExportButton({ query }: { query: StoreOrdersQuery }) {
+  const params = storeOrdersQueryToSearchParams(query);
+  const href = (format: "summary" | "line_items") => {
+    const exportParams = new URLSearchParams(params);
+    exportParams.set("format", format);
+    return `/api/store/orders/export?${exportParams}`;
+  };
 
   return (
     <div className="flex gap-2">
-      <Button size="sm" variant="outline" onClick={() => handleExport()}>
-        <DownloadIcon className="h-4 w-4 sm:mr-2" />
-        <span className="hidden sm:block">Exportar CSV</span>
+      <Button size="sm" variant="outline" asChild>
+        <a href={href("summary")}>
+          <DownloadIcon className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:block">Exportar CSV</span>
+        </a>
       </Button>
-      <Button size="sm" variant="outline" onClick={() => handleExport(true)}>
-        <DownloadIcon className="h-4 w-4 sm:mr-2" />
-        <span className="hidden sm:block">Exportar líneas</span>
+      <Button size="sm" variant="outline" asChild>
+        <a href={href("line_items")}>
+          <DownloadIcon className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:block">Exportar líneas</span>
+        </a>
       </Button>
     </div>
   );
@@ -138,42 +82,33 @@ function OrdersExportButton({ table }: { table: Table<OrderWithRelations> }) {
 
 export default function OrdersTable({
   ordersPromise,
-  activeStatus,
-  activeRentalFilter,
+  query,
 }: OrdersTableProps) {
   const orders = use(ordersPromise);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [optimisticStatus, setOptimisticStatus] = useOptimistic(activeStatus);
-  const [optimisticRentalFilter, setOptimisticRentalFilter] =
-    useOptimistic(activeRentalFilter);
+  const [optimisticStatus, setOptimisticStatus] = useOptimistic(query.status);
+  const [optimisticRentalFilter, setOptimisticRentalFilter] = useOptimistic(
+    query.rental,
+  );
 
-  const {
-    period,
-    dateFrom,
-    dateTo,
-    hasCustomRange,
-    filteredByDate,
-    selectPeriod,
-    handleFromChange,
-    handleToChange,
-  } = useOrdersDateFilter(orders);
+  function navigate(next: StoreOrdersQuery) {
+    router.push(
+      `/dashboard/store/orders?${storeOrdersQueryToSearchParams(next)}`,
+    );
+  }
 
   function handleStatusChange(value: ActiveStatus) {
     startTransition(() => {
       setOptimisticStatus(value);
-      router.push(
-        `/dashboard/store/orders?status=${value}&rental=${optimisticRentalFilter}`,
-      );
+      navigate({ ...query, status: value, rental: optimisticRentalFilter });
     });
   }
 
   function handleRentalFilterChange(value: RentalOrderFilter) {
     startTransition(() => {
       setOptimisticRentalFilter(value);
-      router.push(
-        `/dashboard/store/orders?status=${optimisticStatus}&rental=${value}`,
-      );
+      navigate({ ...query, status: optimisticStatus, rental: value });
     });
   }
 
@@ -228,27 +163,33 @@ export default function OrdersTable({
       {/* Date filter */}
       <div className="mb-3">
         <OrdersDateFilter
-          period={period}
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          hasCustomRange={hasCustomRange}
-          onPeriodChange={selectPeriod}
-          onFromChange={handleFromChange}
-          onToChange={handleToChange}
+          period={query.period}
+          dateFrom={query.from ?? ""}
+          dateTo={query.to ?? ""}
+          hasCustomRange={Boolean(query.from || query.to)}
+          onPeriodChange={(period) =>
+            navigate({ ...query, period, from: undefined, to: undefined })
+          }
+          onFromChange={(from) =>
+            navigate({ ...query, period: "custom", from: from || undefined })
+          }
+          onToChange={(to) =>
+            navigate({ ...query, period: "custom", to: to || undefined })
+          }
         />
       </div>
 
       <DataTable
         key={optimisticStatus}
         columns={columns}
-        data={filteredByDate}
+        data={orders}
         columnTitles={columnTitles}
         initialState={
           optimisticStatus !== "all"
             ? { columnVisibility: { status: false } }
             : undefined
         }
-        actions={(table) => <OrdersExportButton table={table} />}
+        actions={() => <OrdersExportButton query={query} />}
       />
     </div>
   );

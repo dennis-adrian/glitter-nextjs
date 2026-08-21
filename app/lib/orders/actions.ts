@@ -9,6 +9,7 @@ import {
   products,
   productVariantOptionValues,
   productVariants,
+  users,
 } from "@/db/schema";
 import { OrderStatus, OrderWithRelations } from "@/app/lib/orders/definitions";
 import {
@@ -25,6 +26,7 @@ import {
   inArray,
   isNull,
   notExists,
+  or,
   sql,
 } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -64,6 +66,9 @@ import {
   getRentalPriceAtPurchase,
 } from "@/app/lib/orders/utils";
 import { getCurrentUserProfile } from "@/app/lib/users/helpers";
+import type { StoreOrdersQuery } from "@/app/lib/orders/query-schema";
+import { DateTime } from "luxon";
+import { STORE_TIMEZONE } from "@/app/lib/formatters";
 
 function revalidateStoreOrderViews() {
   revalidatePath("/dashboard/store");
@@ -938,6 +943,7 @@ export async function fetchOrders() {
 export async function fetchOrdersByStatus(
   status?: OrderStatus | readonly OrderStatus[],
   rentalFilter: RentalOrderFilter = "all",
+  filters?: Pick<StoreOrdersQuery, "period" | "from" | "to" | "q">,
 ) {
   try {
     const statusWhere =
@@ -948,10 +954,9 @@ export async function fetchOrdersByStatus(
           : inArray(orders.status, status);
 
     const rentalWhere = buildRentalFilterSql(rentalFilter);
-    const whereClause =
-      statusWhere && rentalWhere
-        ? and(statusWhere, rentalWhere)
-        : (statusWhere ?? rentalWhere);
+    const dateWhere = buildOrderDateFilterSql(filters);
+    const searchWhere = buildOrderSearchSql(filters?.q);
+    const whereClause = and(statusWhere, rentalWhere, dateWhere, searchWhere);
 
     return await db.query.orders.findMany({
       where: whereClause,
@@ -962,6 +967,88 @@ export async function fetchOrdersByStatus(
     console.error(error);
     return [];
   }
+}
+
+export async function fetchOrdersForAdmin(query: StoreOrdersQuery) {
+  const currentUser = await getCurrentUserProfile();
+  if (!currentUser || currentUser.role !== "admin") return [];
+
+  const status =
+    query.status === "all"
+      ? undefined
+      : query.status === "needs_attention"
+        ? (["pending", "payment_verification"] as const)
+        : query.status;
+  return fetchOrdersByStatus(status, query.rental, query);
+}
+
+function buildOrderDateFilterSql(
+  filters: Pick<StoreOrdersQuery, "period" | "from" | "to"> | undefined,
+) {
+  if (!filters) return undefined;
+
+  const now = DateTime.now().setZone(STORE_TIMEZONE);
+  const from = filters.from
+    ? DateTime.fromISO(filters.from, { zone: STORE_TIMEZONE }).startOf("day")
+    : filters.period === "today"
+      ? now.startOf("day")
+      : filters.period === "week"
+        ? now.startOf("week")
+        : filters.period === "month"
+          ? now.startOf("month")
+          : null;
+  const to = filters.to
+    ? DateTime.fromISO(filters.to, { zone: STORE_TIMEZONE }).endOf("day")
+    : null;
+
+  return and(
+    from?.isValid ? sql`${orders.createdAt} >= ${from.toJSDate()}` : undefined,
+    to?.isValid ? sql`${orders.createdAt} <= ${to.toJSDate()}` : undefined,
+  );
+}
+
+function buildOrderSearchSql(query: string | undefined) {
+  const normalized = query?.trim();
+  if (!normalized) return undefined;
+
+  const pattern = `%${normalized}%`;
+  return or(
+    sql`cast(${orders.id} as text) ilike ${pattern}`,
+    sql`${orders.guestName} ilike ${pattern}`,
+    sql`${orders.guestEmail} ilike ${pattern}`,
+    sql`${orders.guestPhone} ilike ${pattern}`,
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(users)
+        .where(
+          and(
+            eq(users.id, orders.userId),
+            or(
+              sql`${users.displayName} ilike ${pattern}`,
+              sql`${users.email} ilike ${pattern}`,
+              sql`${users.phoneNumber} ilike ${pattern}`,
+            ),
+          ),
+        ),
+    ),
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(orderItems)
+        .innerJoin(products, eq(orderItems.productId, products.id))
+        .where(
+          and(
+            eq(orderItems.orderId, orders.id),
+            or(
+              sql`${products.name} ilike ${pattern}`,
+              sql`${orderItems.productNameAtPurchase} ilike ${pattern}`,
+              sql`${orderItems.productVariantLabel} ilike ${pattern}`,
+            ),
+          ),
+        ),
+    ),
+  );
 }
 
 function buildRentalFilterSql(filter: RentalOrderFilter) {
